@@ -1,0 +1,146 @@
+services:
+  postgres:
+    image: postgres:13-alpine
+    restart: unless-stopped
+    command: -c max_connections=600
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+    volumes:
+      - ../files/postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dokploy-network
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - ../files/redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dokploy-network
+
+  sandbox-setup:
+    image: docker:27-cli
+    restart: "no"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: sh -c "docker pull ${DOCKER_IMAGE}"
+    networks:
+      - dokploy-network
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["api"]
+    user: root
+    privileged: true
+    group_add:
+      - "0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      sandbox-setup:
+        condition: service_completed_successfully
+    ports:
+      - "8080"
+    volumes:
+      - ../files/storage:/app/storage
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DATABASE_URL
+      - REDIS_URL
+      - SECRET_KEY
+      - PYTHONUNBUFFERED
+      - LOG_LEVEL
+      - DOCKER_IMAGE
+    networks:
+      - dokploy-network
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["celery-worker"]
+    user: root
+    privileged: true
+    group_add:
+      - "0"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      sandbox-setup:
+        condition: service_completed_successfully
+    volumes:
+      - ../files/storage:/app/storage
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DATABASE_URL
+      - REDIS_URL
+      - SECRET_KEY
+      - PYTHONUNBUFFERED
+      - LOG_LEVEL
+      - CELERY_CONCURRENCY
+      - DOCKER_IMAGE
+    deploy:
+      replicas: ${CELERY_WORKER_REPLICAS}
+    networks:
+      - dokploy-network
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["celery-beat"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../files/storage:/app/storage
+    environment:
+      - DATABASE_URL
+      - REDIS_URL
+      - SECRET_KEY
+      - PYTHONUNBUFFERED
+      - LOG_LEVEL
+    networks:
+      - dokploy-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "3000"
+    environment:
+      - VITE_API_URL
+      - VITE_WS_URL
+    networks:
+      - dokploy-network
+
+networks:
+  dokploy-network:
+    external: true
