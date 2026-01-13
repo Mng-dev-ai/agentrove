@@ -45,9 +45,9 @@ export default defineConfig({
         secure: false,
       },
     },
-    allowedHosts: ['claudex.jayjie.com'], 
+    allowedHosts: ['.jayjie.com'], 
   },
   preview: {
-    allowedHosts: ['claudex.jayjie.com'],
+    allowedHosts: ['.jayjie.com'],
   },
 });

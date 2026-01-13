@@ -9,6 +9,8 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install --legacy-peer-deps
 
+COPY . .
+
 # Expose the port
 EXPOSE 3000
 
