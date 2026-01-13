@@ -138,6 +138,7 @@ services:
     environment:
       - VITE_API_URL
       - VITE_WS_URL
+      - __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS
     networks:
       - dokploy-network
 
