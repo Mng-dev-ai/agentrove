@@ -45,5 +45,9 @@ export default defineConfig({
         secure: false,
       },
     },
+    allowedHosts: ['.jayjie.com'], 
+  },
+  preview: {
+    allowedHosts: ['.jayjie.com'],
   },
 });
