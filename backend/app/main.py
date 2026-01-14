@@ -12,6 +12,7 @@ from app.api.endpoints import (
     auth,
     chat,
     sandbox,
+    sandbox_proxy,
     websocket,
     attachments,
     permissions,
@@ -87,6 +88,9 @@ def create_application() -> FastAPI:
     )
     application.include_router(
         sandbox.router, prefix=f"{settings.API_V1_STR}/sandbox", tags=["Sandbox"]
+    )
+    application.include_router(
+        sandbox_proxy.router, prefix=f"{settings.API_V1_STR}/sandbox", tags=["Sandbox Proxy"]
     )
     application.include_router(
         websocket.router, prefix=f"{settings.API_V1_STR}/ws", tags=["WebSocket"]

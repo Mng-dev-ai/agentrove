@@ -1073,6 +1073,12 @@ class LocalDockerProvider(SandboxProvider):
                 f"https://{subdomain}.{self.config.sandbox_domain}/?folder=/home/user"
             )
 
+        # If using HTTPS (remote deployment), use the proxy route
+        if self.config.preview_base_url.startswith("https://"):
+            # Extract the base URL without protocol for the proxy route
+            base = self.config.preview_base_url.replace("https://", "").replace("http://", "")
+            return f"https://{base}/api/v1/sandbox/{sandbox_id}/ide/?folder=/home/user"
+
         await self.connect_sandbox(sandbox_id)
         port_map = self._port_mappings.get(sandbox_id, {})
         host_port = port_map.get(self.config.openvscode_port)

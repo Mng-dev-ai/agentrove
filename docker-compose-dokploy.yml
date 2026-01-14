@@ -68,6 +68,9 @@ services:
       - PYTHONUNBUFFERED
       - LOG_LEVEL
       - DOCKER_IMAGE
+      - DOCKER_PREVIEW_BASE_URL
+      - DOCKER_SANDBOX_DOMAIN
+      - DOCKER_TRAEFIK_NETWORK
     networks:
       - dokploy-network
 
@@ -99,6 +102,9 @@ services:
       - LOG_LEVEL
       - CELERY_CONCURRENCY
       - DOCKER_IMAGE
+      - DOCKER_PREVIEW_BASE_URL
+      - DOCKER_SANDBOX_DOMAIN
+      - DOCKER_TRAEFIK_NETWORK
     deploy:
       replicas: ${CELERY_WORKER_REPLICAS}
     networks:

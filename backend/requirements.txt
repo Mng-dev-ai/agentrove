@@ -19,6 +19,7 @@ claude-agent-sdk>=0.1.14
 mcp
 sqladmin[full]
 httpx
+websockets
 aiosmtplib
 prometheus-fastapi-instrumentator
 slowapi
