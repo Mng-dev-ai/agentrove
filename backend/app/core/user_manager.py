@@ -59,35 +59,51 @@ def _get_default_custom_providers() -> list[dict[str, Any]]:
             "enabled": True,
             "models": [
                 {
-                    "model_id": "openai/gpt-5.2",
+                    "model_id": "openrouter/openai/gpt-5.2",
                     "name": "GPT-5.2",
                     "enabled": True,
                 },
                 {
-                    "model_id": "openai/gpt-5.1-codex",
+                    "model_id": "openrouter/openai/gpt-5.1-codex",
                     "name": "GPT-5.1 Codex",
                     "enabled": True,
                 },
                 {
-                    "model_id": "x-ai/grok-code-fast-1",
+                    "model_id": "openrouter/x-ai/grok-code-fast-1",
                     "name": "Grok Code Fast",
                     "enabled": True,
                 },
                 {
-                    "model_id": "moonshotai/kimi-k2-thinking",
+                    "model_id": "openrouter/moonshotai/kimi-k2-thinking",
                     "name": "Kimi K2 Thinking",
                     "enabled": True,
                 },
                 {
-                    "model_id": "minimax/minimax-m2",
+                    "model_id": "openrouter/minimax/minimax-m2",
                     "name": "Minimax M2",
                     "enabled": True,
                 },
                 {
-                    "model_id": "deepseek/deepseek-v3.2",
+                    "model_id": "openrouter/deepseek/deepseek-v3.2",
                     "name": "Deepseek V3.2",
                     "enabled": True,
                 },
+            ],
+        },
+        {
+            "id": "openai-default",
+            "name": "OpenAI",
+            "provider_type": "openai",
+            "base_url": None,
+            "auth_token": None,
+            "enabled": True,
+            "models": [
+                {
+                    "model_id": "openai/gpt-5.2-codex",
+                    "name": "GPT-5.2 Codex",
+                    "enabled": True,
+                },
+                {"model_id": "openai/gpt-5.2", "name": "GPT-5.2", "enabled": True},
             ],
         },
     ]

@@ -155,7 +155,7 @@ class CustomProviderModelDict(TypedDict, total=False):
 class CustomProviderDict(TypedDict, total=False):
     id: str
     name: str
-    provider_type: Literal["anthropic", "openrouter", "custom"]
+    provider_type: Literal["anthropic", "openrouter", "openai", "custom"]
     base_url: str | None
     auth_token: str | None
     enabled: bool

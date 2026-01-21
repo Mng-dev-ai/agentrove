@@ -148,6 +148,7 @@ class StreamProcessor:
             }
             yield suggestions_event
 
+
     def _emit_thinking_block(self, thinking: str | None) -> Iterable[StreamEvent]:
         if thinking:
             event: StreamEvent = {

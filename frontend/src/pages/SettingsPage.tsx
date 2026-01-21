@@ -79,7 +79,6 @@ const createFallbackSettings = (): UserSettings => ({
   e2b_api_key: null,
   modal_api_key: null,
   sandbox_provider: null,
-  codex_auth_json: null,
   custom_instructions: null,
   custom_providers: null,
   custom_agents: null,
@@ -101,7 +100,6 @@ const TAB_FIELDS: Record<TabKey, (keyof UserSettings)[]> = {
     'e2b_api_key',
     'modal_api_key',
     'sandbox_provider',
-    'codex_auth_json',
     'auto_compact_disabled',
     'attribution_disabled',
   ],
@@ -195,7 +193,6 @@ const SettingsPage: React.FC = () => {
         'e2b_api_key',
         'modal_api_key',
         'sandbox_provider',
-        'codex_auth_json',
         'custom_instructions',
         'custom_providers',
         'custom_agents',
@@ -471,10 +468,6 @@ const SettingsPage: React.FC = () => {
     persistSettings((prev) => ({ ...prev, attribution_disabled: disabled }));
   };
 
-  const handleCodexAuthChange = (content: string | null) => {
-    persistSettings((prev) => ({ ...prev, codex_auth_json: content }));
-  };
-
   const handleSandboxProviderChange = (provider: SandboxProviderType) => {
     persistSettings((prev) => ({ ...prev, sandbox_provider: provider }));
   };
@@ -632,7 +625,6 @@ const SettingsPage: React.FC = () => {
                     onNotificationSoundChange={handleNotificationSoundChange}
                     onAutoCompactDisabledChange={handleAutoCompactDisabledChange}
                     onAttributionDisabledChange={handleAttributionDisabledChange}
-                    onCodexAuthChange={handleCodexAuthChange}
                     onSandboxProviderChange={handleSandboxProviderChange}
                   />
                 </div>

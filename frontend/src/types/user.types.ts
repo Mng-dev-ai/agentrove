@@ -76,7 +76,7 @@ export interface CustomPrompt {
 
 export type SandboxProviderType = 'docker' | 'e2b' | 'modal';
 
-export type ProviderType = 'anthropic' | 'openrouter' | 'custom';
+export type ProviderType = 'anthropic' | 'openrouter' | 'openai' | 'custom';
 
 export interface CustomProviderModel {
   model_id: string;
@@ -101,7 +101,6 @@ export interface UserSettings {
   e2b_api_key: string | null;
   modal_api_key: string | null;
   sandbox_provider: SandboxProviderType | null;
-  codex_auth_json: string | null;
   custom_instructions: string | null;
   custom_providers: CustomProvider[] | null;
   custom_agents: CustomAgent[] | null;

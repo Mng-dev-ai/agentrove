@@ -75,7 +75,7 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | b
     nvm alias default $NODE_VERSION
 
 RUN . "$NVM_DIR/nvm.sh" && \
-    npm install -g @anthropic-ai/claude-code@2.1.11 @openai/codex
+    npm install -g @anthropic-ai/claude-code@2.1.14 @openai/codex
 
 RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
@@ -84,7 +84,7 @@ RUN python3 -m pip install --user --upgrade pip && \
     requests \
     pydantic \
     mcp \
-    anthropic-bridge
+    anthropic-bridge==0.1.19
 
 RUN OPENVSCODE_VERSION="1.105.1" && \
     ARCH=$(uname -m) && \

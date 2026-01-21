@@ -520,9 +520,12 @@ class SandboxService:
         await self.execute_command(sandbox_id, setup_cmd)
 
     async def _setup_anthropic_bridge(
-        self, sandbox_id: str, openrouter_api_key: str, skip_secret: bool = False
+        self,
+        sandbox_id: str,
+        openrouter_api_key: str | None = None,
+        skip_secret: bool = False,
     ) -> None:
-        if not skip_secret:
+        if openrouter_api_key and not skip_secret:
             await self.provider.add_secret(
                 sandbox_id, "OPENROUTER_API_KEY", openrouter_api_key
             )
@@ -602,10 +605,10 @@ class SandboxService:
                 sandbox_id, settings_path, json.dumps(settings, indent=2)
             )
 
-    async def _setup_codex_auth(self, sandbox_id: str, codex_auth_json: str) -> None:
-        codex_dir = "/home/user/.codex"
-        await self.execute_command(sandbox_id, f"mkdir -p {codex_dir}")
-        await self.write_file(sandbox_id, f"{codex_dir}/auth.json", codex_auth_json)
+    async def _setup_openai_auth(self, sandbox_id: str, openai_auth_json: str) -> None:
+        openai_dir = "/home/user/.codex"
+        await self.execute_command(sandbox_id, f"mkdir -p {openai_dir}")
+        await self.write_file(sandbox_id, f"{openai_dir}/auth.json", openai_auth_json)
 
     async def initialize_sandbox(
         self,
@@ -618,7 +621,6 @@ class SandboxService:
         user_id: str | None = None,
         auto_compact_disabled: bool = False,
         attribution_disabled: bool = False,
-        codex_auth_json: str | None = None,
         custom_providers: list[CustomProviderDict] | None = None,
         is_fork: bool = False,
     ) -> None:
@@ -655,14 +657,18 @@ class SandboxService:
             if github_token:
                 tasks.append(self._setup_github_token(sandbox_id, github_token))
 
-            if codex_auth_json:
-                tasks.append(self._setup_codex_auth(sandbox_id, codex_auth_json))
+        openai_auth = self._get_openai_auth_from_provider(custom_providers)
+        if openai_auth:
+            tasks.append(self._setup_openai_auth(sandbox_id, openai_auth))
 
         openrouter_api_key = self._get_openrouter_api_key(custom_providers)
-        if openrouter_api_key:
+        openai_enabled = self._has_openai_provider(custom_providers)
+        if openrouter_api_key or openai_enabled:
             tasks.append(
                 self._setup_anthropic_bridge(
-                    sandbox_id, openrouter_api_key, skip_secret=is_fork
+                    sandbox_id,
+                    openrouter_api_key=openrouter_api_key,
+                    skip_secret=is_fork,
                 )
             )
 
@@ -679,6 +685,32 @@ class SandboxService:
         for provider in custom_providers:
             if (
                 provider.get("provider_type") == "openrouter"
+                and provider.get("enabled", True)
+                and provider.get("auth_token")
+            ):
+                return provider["auth_token"]
+        return None
+
+    @staticmethod
+    def _has_openai_provider(
+        custom_providers: list[CustomProviderDict] | None,
+    ) -> bool:
+        if not custom_providers:
+            return False
+        return any(
+            provider.get("provider_type") == "openai" and provider.get("enabled", True)
+            for provider in custom_providers
+        )
+
+    @staticmethod
+    def _get_openai_auth_from_provider(
+        custom_providers: list[CustomProviderDict] | None,
+    ) -> str | None:
+        if not custom_providers:
+            return None
+        for provider in custom_providers:
+            if (
+                provider.get("provider_type") == "openai"
                 and provider.get("enabled", True)
                 and provider.get("auth_token")
             ):

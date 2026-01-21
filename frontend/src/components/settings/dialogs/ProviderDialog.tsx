@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button, Input, Label, Switch, Select } from '@/components/ui';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { SecretInput } from '../inputs/SecretInput';
+import { CodexAuthUpload } from '../inputs/CodexAuthUpload';
 import { ModelListEditor } from '../inputs/ModelListEditor';
 import type {
   CustomProvider,
@@ -35,18 +36,29 @@ const DEFAULT_OPENROUTER_PROVIDER: Omit<CustomProvider, 'id' | 'auth_token'> = {
   provider_type: 'openrouter',
   enabled: true,
   models: [
+    { model_id: 'openrouter/openai/gpt-5.2', name: 'GPT-5.2', enabled: true },
+    { model_id: 'openrouter/openai/gpt-5.1-codex', name: 'GPT-5.1 Codex', enabled: true },
+    { model_id: 'openrouter/x-ai/grok-code-fast-1', name: 'Grok Code Fast', enabled: true },
+    { model_id: 'openrouter/moonshotai/kimi-k2-thinking', name: 'Kimi K2 Thinking', enabled: true },
+    { model_id: 'openrouter/minimax/minimax-m2', name: 'Minimax M2', enabled: true },
+    { model_id: 'openrouter/deepseek/deepseek-v3.2', name: 'Deepseek V3.2', enabled: true },
+  ],
+};
+
+const DEFAULT_OPENAI_PROVIDER: Omit<CustomProvider, 'id' | 'auth_token'> = {
+  name: 'OpenAI',
+  provider_type: 'openai',
+  enabled: true,
+  models: [
+    { model_id: 'openai/gpt-5.2-codex', name: 'GPT-5.2 Codex', enabled: true },
     { model_id: 'openai/gpt-5.2', name: 'GPT-5.2', enabled: true },
-    { model_id: 'openai/gpt-5.1-codex', name: 'GPT-5.1 Codex', enabled: true },
-    { model_id: 'x-ai/grok-code-fast-1', name: 'Grok Code Fast', enabled: true },
-    { model_id: 'moonshotai/kimi-k2-thinking', name: 'Kimi K2 Thinking', enabled: true },
-    { model_id: 'minimax/minimax-m2', name: 'Minimax M2', enabled: true },
-    { model_id: 'deepseek/deepseek-v3.2', name: 'Deepseek V3.2', enabled: true },
   ],
 };
 
 const PROVIDER_TYPE_OPTIONS = [
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'openrouter', label: 'OpenRouter' },
+  { value: 'openai', label: 'OpenAI' },
   { value: 'custom', label: 'Custom' },
 ];
 
@@ -67,6 +79,8 @@ const createProviderFromType = (providerType: ProviderType): CustomProvider => {
       return { ...DEFAULT_ANTHROPIC_PROVIDER, id, auth_token: '' };
     case 'openrouter':
       return { ...DEFAULT_OPENROUTER_PROVIDER, id, auth_token: '' };
+    case 'openai':
+      return { ...DEFAULT_OPENAI_PROVIDER, id, auth_token: '' };
     default:
       return createEmptyProvider();
   }
@@ -100,6 +114,16 @@ const getAuthTokenConfig = (
           href: 'https://openrouter.ai/keys',
         },
       };
+    case 'openai':
+      return {
+        label: 'Auth (Optional)',
+        placeholder: 'Uses ~/.codex/auth.json from codex login',
+        helperText: {
+          prefix: 'Run',
+          code: 'codex login',
+          suffix: 'in terminal to authenticate with ChatGPT',
+        },
+      };
     case 'custom':
     default:
       return {
@@ -124,6 +148,7 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
   const [form, setForm] = useState<CustomProvider>(createEmptyProvider());
   const [showToken, setShowToken] = useState(false);
   const [selectedProviderType, setSelectedProviderType] = useState<ProviderType>('anthropic');
+  const [localError, setLocalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -134,6 +159,7 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
         setSelectedProviderType('anthropic');
         setForm(createProviderFromType('anthropic'));
       }
+      setLocalError(null);
       setShowToken(false);
     }
   }, [isOpen, provider]);
@@ -143,10 +169,15 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
     const currentToken = form.auth_token;
     const newProviderForm = createProviderFromType(providerType);
     setForm({ ...newProviderForm, auth_token: currentToken });
+    setLocalError(null);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (form.provider_type === 'openai' && !form.auth_token) {
+      setLocalError('auth.json is required for OpenAI providers. Run "codex login" first.');
+      return;
+    }
     onSave(form);
   };
 
@@ -155,9 +186,13 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
   };
 
   const isEditing = provider !== null;
-  const isBuiltIn = form.provider_type === 'anthropic' || form.provider_type === 'openrouter';
+  const isBuiltIn =
+    form.provider_type === 'anthropic' ||
+    form.provider_type === 'openrouter' ||
+    form.provider_type === 'openai';
   const showBaseUrl = !isBuiltIn;
   const authConfig = getAuthTokenConfig(form.provider_type);
+  const errorMessage = localError ?? error;
 
   const getDialogTitle = () => {
     if (isEditing) return 'Edit Provider';
@@ -166,6 +201,8 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
         return 'Add Anthropic Provider';
       case 'openrouter':
         return 'Add OpenRouter Provider';
+      case 'openai':
+        return 'Add OpenAI Provider';
       default:
         return 'Add Custom Provider';
     }
@@ -183,9 +220,9 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
           {getDialogTitle()}
         </h3>
 
-        {error && (
+        {errorMessage && (
           <div className="mb-4 rounded-md border border-error-200 bg-error-50 p-3 dark:border-error-800 dark:bg-error-900/20">
-            <p className="text-xs text-error-700 dark:text-error-400">{error}</p>
+            <p className="text-xs text-error-700 dark:text-error-400">{errorMessage}</p>
           </div>
         )}
 
@@ -208,7 +245,9 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
               <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
                 {selectedProviderType === 'custom'
                   ? 'Configure a custom Anthropic-compatible API provider'
-                  : `Pre-configured with default ${selectedProviderType === 'anthropic' ? 'Claude' : 'OpenRouter'} models`}
+                  : selectedProviderType === 'openai'
+                    ? 'Use OpenAI models with your ChatGPT subscription'
+                    : `Pre-configured with default ${selectedProviderType === 'anthropic' ? 'Claude' : 'OpenRouter'} models`}
               </p>
             </div>
           )}
@@ -244,20 +283,46 @@ export const ProviderDialog: React.FC<ProviderDialogProps> = ({
             </div>
           )}
 
-          <div>
-            <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
-              {authConfig.label}
-            </Label>
-            <SecretInput
-              value={form.auth_token || ''}
-              onChange={(value) => setForm((prev) => ({ ...prev, auth_token: value }))}
-              placeholder={authConfig.placeholder}
-              isVisible={showToken}
-              onToggleVisibility={() => setShowToken(!showToken)}
-              helperText={authConfig.helperText}
-              containerClassName="w-full"
-            />
-          </div>
+          {form.provider_type === 'openai' ? (
+            <div>
+              <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+                Codex Authentication
+              </Label>
+              <p className="mb-2 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+                Upload your auth.json from{' '}
+                <code className="rounded bg-surface-tertiary px-1 dark:bg-surface-dark-tertiary">
+                  ~/.codex/auth.json
+                </code>{' '}
+                or run{' '}
+                <code className="rounded bg-surface-tertiary px-1 dark:bg-surface-dark-tertiary">
+                  codex login
+                </code>{' '}
+                in terminal. Required for OpenAI providers.
+              </p>
+              <CodexAuthUpload
+                value={form.auth_token || null}
+                onChange={(content) => {
+                  setForm((prev) => ({ ...prev, auth_token: content || '' }));
+                  setLocalError(null);
+                }}
+              />
+            </div>
+          ) : (
+            <div>
+              <Label className="mb-1.5 text-sm text-text-primary dark:text-text-dark-primary">
+                {authConfig.label}
+              </Label>
+              <SecretInput
+                value={form.auth_token || ''}
+                onChange={(value) => setForm((prev) => ({ ...prev, auth_token: value }))}
+                placeholder={authConfig.placeholder}
+                isVisible={showToken}
+                onToggleVisibility={() => setShowToken(!showToken)}
+                helperText={authConfig.helperText}
+                containerClassName="w-full"
+              />
+            </div>
+          )}
 
           <ModelListEditor models={form.models} onChange={handleModelsChange} />
 

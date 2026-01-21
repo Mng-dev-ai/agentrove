@@ -12,6 +12,7 @@ from app.utils.validators import normalize_json_list
 class ProviderType(str, Enum):
     ANTHROPIC = "anthropic"
     OPENROUTER = "openrouter"
+    OPENAI = "openai"
     CUSTOM = "custom"
 
 
@@ -111,7 +112,6 @@ class UserSettingsBase(BaseModel):
     e2b_api_key: str | None = None
     modal_api_key: str | None = None
     sandbox_provider: Literal["docker", "e2b", "modal"] = "docker"
-    codex_auth_json: str | None = None
     custom_instructions: str | None = Field(default=None, max_length=1500)
     custom_providers: list[CustomProvider] | None = None
     custom_agents: list[CustomAgent] | None = None

@@ -16,6 +16,7 @@ from app.core.config import get_settings
 from app.core.security import create_chat_scoped_token
 from app.db.session import SessionLocal
 from app.models.db_models import Chat, User, UserSettings
+from app.models.schemas.settings import ProviderType
 from app.prompts.enhance_prompt import get_enhance_prompt
 from app.services.provider import ProviderService
 from app.services.exceptions import ClaudeAgentException
@@ -28,6 +29,7 @@ from app.services.transports import (
 from app.services.streaming.events import StreamEvent
 from app.services.streaming.processor import StreamProcessor
 from app.services.tool_handler import ToolHandlerRegistry
+from app.services.base_resource import AVAILABLE_TOOLS
 from app.services.user import UserService
 
 SDKPermissionMode = Literal["default", "acceptEdits", "plan", "bypassPermissions"]
@@ -287,8 +289,8 @@ class ClaudeAgentService:
         if provider_type == "anthropic":
             if auth_token:
                 env["CLAUDE_CODE_OAUTH_TOKEN"] = auth_token
-        elif provider_type == "openrouter":
-            if auth_token:
+        elif provider_type in ("openrouter", "openai"):
+            if auth_token and provider_type == "openrouter":
                 env["OPENROUTER_API_KEY"] = auth_token
             env["ANTHROPIC_BASE_URL"] = "http://127.0.0.1:3456"
             env["ANTHROPIC_AUTH_TOKEN"] = "placeholder"
@@ -482,7 +484,7 @@ class ClaudeAgentService:
                 env[env_var["key"]] = env_var["value"]
 
         disallowed_tools: list[str] = []
-        if provider_type != "anthropic":
+        if provider_type != ProviderType.ANTHROPIC.value:
             disallowed_tools.append("WebSearch")
 
         sdk_permission_mode: SDKPermissionMode = SDK_PERMISSION_MODE_MAP.get(

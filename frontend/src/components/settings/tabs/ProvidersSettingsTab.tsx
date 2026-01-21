@@ -14,12 +14,14 @@ interface ProvidersSettingsTabProps {
 const PROVIDER_TYPE_LABELS: Record<ProviderType, string> = {
   anthropic: 'Anthropic',
   openrouter: 'OpenRouter',
+  openai: 'OpenAI',
   custom: 'Custom',
 };
 
 const PROVIDER_TYPE_COLORS: Record<ProviderType, string> = {
   anthropic: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   openrouter: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  openai: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   custom: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
 };
 
@@ -46,7 +48,12 @@ export const ProvidersSettingsTab: React.FC<ProvidersSettingsTabProps> = ({
   };
 
   const sortedProviders = [...(providers ?? [])].sort((a, b) => {
-    const order: Record<ProviderType, number> = { anthropic: 0, openrouter: 1, custom: 2 };
+    const order: Record<ProviderType, number> = {
+      anthropic: 0,
+      openrouter: 1,
+      openai: 2,
+      custom: 3,
+    };
     return order[a.provider_type] - order[b.provider_type];
   });
 
@@ -138,6 +145,10 @@ export const ProvidersSettingsTab: React.FC<ProvidersSettingsTabProps> = ({
                           <Check className="h-3 w-3" />
                           Configured
                         </span>
+                      ) : provider.provider_type === 'openai' ? (
+                        <span className="inline-flex items-center gap-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+                          Uses ~/.codex/auth.json
+                        </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-xs text-warning-600 dark:text-warning-500">
                           <X className="h-3 w-3" />
@@ -151,7 +162,9 @@ export const ProvidersSettingsTab: React.FC<ProvidersSettingsTabProps> = ({
                         ? provider.base_url.replace(/^https?:\/\//, '').split('/')[0]
                         : provider.provider_type === 'anthropic'
                           ? 'api.anthropic.com'
-                          : 'openrouter.ai'}
+                          : provider.provider_type === 'openai'
+                            ? 'ChatGPT API'
+                            : 'openrouter.ai'}
                     </p>
                   </div>
 
