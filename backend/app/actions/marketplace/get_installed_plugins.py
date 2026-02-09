@@ -32,11 +32,19 @@ class GetInstalledPluginsAction:
         self._command_service = command_service
         self._skill_service = skill_service
 
-    async def execute(self, current_user: User, db: AsyncSession) -> list[InstalledPlugin]:
+    async def execute(
+        self, current_user: User, db: AsyncSession
+    ) -> list[InstalledPlugin]:
         try:
-            user_settings = await self._user_service.get_user_settings(current_user.id, db=db)
+            user_settings = await self._user_service.get_user_settings(
+                current_user.id, db=db
+            )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
-        installed: list[InstalledPluginDict] = cast(list[InstalledPluginDict], user_settings.installed_plugins or [])
+        installed: list[InstalledPluginDict] = cast(
+            list[InstalledPluginDict], user_settings.installed_plugins or []
+        )
         return [InstalledPlugin(**p) for p in installed]

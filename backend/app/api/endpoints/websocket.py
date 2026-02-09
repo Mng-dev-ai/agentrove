@@ -31,7 +31,9 @@ settings = get_settings()
 router = APIRouter()
 logger = logging.getLogger(__name__)
 authenticate_terminal_user_action = AuthenticateTerminalUserAction(SessionLocal)
-resolve_terminal_sandbox_access_action = ResolveTerminalSandboxAccessAction(SessionLocal)
+resolve_terminal_sandbox_access_action = ResolveTerminalSandboxAccessAction(
+    SessionLocal
+)
 
 
 async def wait_for_auth(

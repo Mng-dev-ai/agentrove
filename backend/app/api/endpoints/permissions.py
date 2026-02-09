@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends, Header
 
-from app.actions.permissions import CreatePermissionRequestAction, GetPermissionResponseAction
-from app.core.deps import get_create_permission_request_action, get_get_permission_response_action
+from app.actions.permissions import (
+    CreatePermissionRequestAction,
+    GetPermissionResponseAction,
+)
+from app.core.deps import (
+    get_create_permission_request_action,
+    get_get_permission_response_action,
+)
 from app.models.schemas import (
     PermissionRequest,
     PermissionRequestResponse,
@@ -23,7 +29,9 @@ async def create_permission_request(
         get_create_permission_request_action
     ),
 ) -> PermissionRequestResponse:
-    return await create_permission_request_action.execute(chat_id, request, authorization)
+    return await create_permission_request_action.execute(
+        chat_id, request, authorization
+    )
 
 
 @router.get(

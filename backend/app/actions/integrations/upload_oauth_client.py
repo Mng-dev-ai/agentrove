@@ -3,7 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.models.db_models import User
-from app.models.schemas.integrations import OAuthClientResponse, OAuthClientUploadRequest
+from app.models.schemas.integrations import (
+    OAuthClientResponse,
+    OAuthClientUploadRequest,
+)
 from app.services import gmail_oauth
 from app.services.exceptions import UserException
 from app.services.user import UserService
@@ -31,7 +34,9 @@ class UploadOAuthClientAction:
                 current_user.id, db=db, for_update=True
             )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
         user_settings.gmail_oauth_client = request.client_config
         user_settings.gmail_oauth_tokens = None
@@ -44,4 +49,6 @@ class UploadOAuthClientAction:
             user_settings, db, current_user.id
         )
 
-        return OAuthClientResponse(success=True, message="OAuth client configuration saved")
+        return OAuthClientResponse(
+            success=True, message="OAuth client configuration saved"
+        )

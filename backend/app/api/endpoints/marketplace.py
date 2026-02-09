@@ -42,7 +42,9 @@ async def get_catalog(
 @router.get("/catalog/{plugin_name}", response_model=PluginDetails)
 async def get_plugin_details(
     plugin_name: str,
-    get_plugin_details_action: GetPluginDetailsAction = Depends(get_get_plugin_details_action),
+    get_plugin_details_action: GetPluginDetailsAction = Depends(
+        get_get_plugin_details_action
+    ),
 ) -> PluginDetails:
     return await get_plugin_details_action.execute(plugin_name)
 

@@ -37,7 +37,9 @@ async def preview_attachment(
     attachment_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    preview_attachment_action: PreviewAttachmentAction = Depends(get_preview_attachment_action),
+    preview_attachment_action: PreviewAttachmentAction = Depends(
+        get_preview_attachment_action
+    ),
 ) -> FileResponse:
     return await preview_attachment_action.execute(attachment_id, current_user, db)
 
@@ -47,6 +49,8 @@ async def download_attachment(
     attachment_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    download_attachment_action: DownloadAttachmentAction = Depends(get_download_attachment_action),
+    download_attachment_action: DownloadAttachmentAction = Depends(
+        get_download_attachment_action
+    ),
 ) -> FileResponse:
     return await download_attachment_action.execute(attachment_id, current_user, db)

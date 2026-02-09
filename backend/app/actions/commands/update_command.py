@@ -13,7 +13,9 @@ from app.services.user import UserService
 
 
 class UpdateCommandAction:
-    def __init__(self, command_service: CommandService, user_service: UserService) -> None:
+    def __init__(
+        self, command_service: CommandService, user_service: UserService
+    ) -> None:
         self._command_service = command_service
         self._user_service = user_service
 
@@ -32,18 +34,33 @@ class UpdateCommandAction:
                     detail="Invalid command name format",
                 )
         except CommandException as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
 
         try:
             user_settings = cast(
                 UserSettings,
-                await self._user_service.get_user_settings(user_id, db=db, for_update=True),
+                await self._user_service.get_user_settings(
+                    user_id, db=db, for_update=True
+                ),
             )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
-        current_commands: list[CustomSlashCommandDict] = user_settings.custom_slash_commands or []
-        command_index = next((i for i, c in enumerate(current_commands) if c.get("name") == command_name), None)
+        current_commands: list[CustomSlashCommandDict] = (
+            user_settings.custom_slash_commands or []
+        )
+        command_index = next(
+            (
+                i
+                for i, c in enumerate(current_commands)
+                if c.get("name") == command_name
+            ),
+            None,
+        )
 
         if command_index is None:
             raise HTTPException(
@@ -56,14 +73,18 @@ class UpdateCommandAction:
                 str(user_id), command_name, content, current_commands
             )
         except CommandException as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
 
         current_commands[command_index] = updated_command
         user_settings.custom_slash_commands = current_commands
         flag_modified(user_settings, "custom_slash_commands")
 
         try:
-            await self._user_service.commit_settings_and_invalidate_cache(user_settings, db, user_id)
+            await self._user_service.commit_settings_and_invalidate_cache(
+                user_settings, db, user_id
+            )
         except Exception as exc:
             await db.rollback()
             raise HTTPException(

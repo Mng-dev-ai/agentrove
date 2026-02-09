@@ -97,7 +97,7 @@ async def create_chat(
         chat = await create_chat_action.execute(current_user, chat_data)
         return chat
     except ChatException as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except SQLAlchemyError as e:
         logger.error("Database error creating chat: %s", e, exc_info=True)
         raise HTTPException(
@@ -214,7 +214,9 @@ async def update_chat(
 @router.delete("/chats/all", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_all_chats(
     current_user: User = Depends(get_current_user),
-    delete_all_chats_action: DeleteAllChatsAction = Depends(get_delete_all_chats_action),
+    delete_all_chats_action: DeleteAllChatsAction = Depends(
+        get_delete_all_chats_action
+    ),
 ) -> None:
     try:
         await delete_all_chats_action.execute(current_user)
@@ -299,7 +301,9 @@ async def stream_events(
 async def get_stream_status(
     chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    get_stream_status_action: GetStreamStatusAction = Depends(get_get_stream_status_action),
+    get_stream_status_action: GetStreamStatusAction = Depends(
+        get_get_stream_status_action
+    ),
 ) -> dict[str, Any]:
     try:
         return await get_stream_status_action.execute(chat_id, current_user)
@@ -348,7 +352,9 @@ async def respond_to_permission(
     alternative_instruction: str | None = Form(None),
     user_answers: str | None = Form(None, max_length=50000),
     current_user: User = Depends(get_current_user),
-    respond_permission_action: RespondPermissionAction = Depends(get_respond_permission_action),
+    respond_permission_action: RespondPermissionAction = Depends(
+        get_respond_permission_action
+    ),
 ) -> PermissionRespondResponse:
     try:
         return await respond_permission_action.execute(

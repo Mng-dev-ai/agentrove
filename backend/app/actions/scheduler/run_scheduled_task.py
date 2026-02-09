@@ -105,7 +105,9 @@ class RunScheduledTaskAction:
                     try:
                         validate_model_api_keys(user_settings, model_id)
                     except (ValueError, APIKeyValidationError) as exc:
-                        self._mark_execution(execution, TaskExecutionStatus.FAILED, str(exc))
+                        self._mark_execution(
+                            execution, TaskExecutionStatus.FAILED, str(exc)
+                        )
                         self._finalize_task(scheduled_task, success=False)
                         db.add_all([execution, scheduled_task])
                         await db.commit()
@@ -219,12 +221,16 @@ class RunScheduledTaskAction:
 
             except Exception as exc:
                 logger.error("Fatal error in execute_scheduled_task: %s", exc)
-                message = exc.message if isinstance(exc, SchedulerException) else str(exc)
+                message = (
+                    exc.message if isinstance(exc, SchedulerException) else str(exc)
+                )
                 async with session_factory() as db:
                     execution = await db.get(TaskExecution, UUID(execution_id))
                     scheduled_task = await db.get(ScheduledTask, UUID(task_id))
                     if execution and scheduled_task:
-                        self._mark_execution(execution, TaskExecutionStatus.FAILED, message)
+                        self._mark_execution(
+                            execution, TaskExecutionStatus.FAILED, message
+                        )
                         self._finalize_task(scheduled_task, success=False)
                         db.add_all([execution, scheduled_task])
                         await db.commit()

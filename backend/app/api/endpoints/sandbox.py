@@ -133,7 +133,9 @@ async def update_file_in_sandbox(
     sandbox_id: str = Depends(validate_sandbox_ownership),
     update_file_action: UpdateFileAction = Depends(get_update_file_action),
 ) -> UpdateFileResponse:
-    return await update_file_action.execute(sandbox_id, request.file_path, request.content)
+    return await update_file_action.execute(
+        sandbox_id, request.file_path, request.content
+    )
 
 
 @router.get("/{sandbox_id}/secrets", response_model=SecretsListResponse)
@@ -150,7 +152,9 @@ async def add_secret(
     sandbox_id: str = Depends(validate_sandbox_ownership),
     add_secret_action: AddSecretAction = Depends(get_add_secret_action),
 ) -> MessageResponse:
-    return await add_secret_action.execute(sandbox_id, secret_data.key, secret_data.value)
+    return await add_secret_action.execute(
+        sandbox_id, secret_data.key, secret_data.value
+    )
 
 
 @router.put("/{sandbox_id}/secrets/{key}", response_model=MessageResponse)
@@ -176,7 +180,9 @@ async def delete_secret(
 async def update_ide_theme(
     request: UpdateIDEThemeRequest,
     sandbox_id: str = Depends(validate_sandbox_ownership),
-    update_ide_theme_action: UpdateIdeThemeAction = Depends(get_update_ide_theme_action),
+    update_ide_theme_action: UpdateIdeThemeAction = Depends(
+        get_update_ide_theme_action
+    ),
 ) -> MessageResponse:
     return await update_ide_theme_action.execute(sandbox_id, request.theme)
 

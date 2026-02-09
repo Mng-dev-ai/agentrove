@@ -51,7 +51,9 @@ class CreatePermissionRequestAction:
                 )
 
                 message_service = self._chat_service.message_service
-                latest_assistant = await message_service.get_latest_assistant_message(UUID(chat_id))
+                latest_assistant = await message_service.get_latest_assistant_message(
+                    UUID(chat_id)
+                )
                 if latest_assistant and latest_assistant.active_stream_id:
                     render_payload = {
                         "request_id": request_id,

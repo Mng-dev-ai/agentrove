@@ -32,18 +32,27 @@ class UpdateAgentAction:
                     detail="Invalid agent name format",
                 )
         except AgentException as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
 
         try:
             user_settings = cast(
                 UserSettings,
-                await self._user_service.get_user_settings(user_id, db=db, for_update=True),
+                await self._user_service.get_user_settings(
+                    user_id, db=db, for_update=True
+                ),
             )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
         current_agents: list[CustomAgentDict] = user_settings.custom_agents or []
-        agent_index = next((i for i, c in enumerate(current_agents) if c.get("name") == agent_name), None)
+        agent_index = next(
+            (i for i, c in enumerate(current_agents) if c.get("name") == agent_name),
+            None,
+        )
 
         if agent_index is None:
             raise HTTPException(
@@ -52,16 +61,22 @@ class UpdateAgentAction:
             )
 
         try:
-            updated_agent = await self._agent_service.update(str(user_id), agent_name, content, current_agents)
+            updated_agent = await self._agent_service.update(
+                str(user_id), agent_name, content, current_agents
+            )
         except AgentException as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
 
         current_agents[agent_index] = updated_agent
         user_settings.custom_agents = current_agents
         flag_modified(user_settings, "custom_agents")
 
         try:
-            await self._user_service.commit_settings_and_invalidate_cache(user_settings, db, user_id)
+            await self._user_service.commit_settings_and_invalidate_cache(
+                user_settings, db, user_id
+            )
         except Exception as exc:
             await db.rollback()
             raise HTTPException(

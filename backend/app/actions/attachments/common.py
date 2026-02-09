@@ -52,18 +52,26 @@ async def get_attachment_with_path(
     attachment = await chat_service.message_service.get_attachment(attachment_id, db)
 
     if not attachment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found"
+        )
 
     if attachment.message.chat.user_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
+        )
 
     storage_base = Path(settings.STORAGE_PATH).resolve()
     file_path = (storage_base / attachment.file_path).resolve()
 
     if not str(file_path).startswith(str(storage_base)):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
+        )
 
     if not file_path.exists():
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+        )
 
     return attachment, file_path

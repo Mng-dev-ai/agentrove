@@ -1,4 +1,6 @@
-from app.actions.websocket.authenticate_terminal_user import AuthenticateTerminalUserAction
+from app.actions.websocket.authenticate_terminal_user import (
+    AuthenticateTerminalUserAction,
+)
 from app.actions.websocket.resolve_terminal_sandbox_access import (
     ResolveTerminalSandboxAccessAction,
 )

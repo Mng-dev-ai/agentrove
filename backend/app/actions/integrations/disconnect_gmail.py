@@ -13,13 +13,17 @@ class DisconnectGmailAction:
     def __init__(self, user_service: UserService) -> None:
         self._user_service = user_service
 
-    async def execute(self, current_user: User, db: AsyncSession) -> OAuthClientResponse:
+    async def execute(
+        self, current_user: User, db: AsyncSession
+    ) -> OAuthClientResponse:
         try:
             user_settings = await self._user_service.get_user_settings(
                 current_user.id, db=db, for_update=True
             )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
         if user_settings.gmail_oauth_tokens:
             refresh_token = user_settings.gmail_oauth_tokens.get("refresh_token")

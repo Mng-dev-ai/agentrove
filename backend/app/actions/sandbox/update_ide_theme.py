@@ -14,7 +14,9 @@ class UpdateIdeThemeAction:
             await self._sandbox_service.update_ide_theme(sandbox_id, theme)
             return MessageResponse(message=f"IDE theme updated to {theme}")
         except SandboxException as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

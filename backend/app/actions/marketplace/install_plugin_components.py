@@ -55,15 +55,27 @@ class InstallPluginComponentsAction:
                 current_user.id, db=db, for_update=False
             )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
-        current_agents: list[CustomAgentDict] = list(user_settings_readonly.custom_agents or [])
-        current_commands: list[CustomSlashCommandDict] = list(user_settings_readonly.custom_slash_commands or [])
-        current_skills: list[CustomSkillDict] = list(user_settings_readonly.custom_skills or [])
-        current_mcps: list[CustomMcpDict] = list(user_settings_readonly.custom_mcps or [])
+        current_agents: list[CustomAgentDict] = list(
+            user_settings_readonly.custom_agents or []
+        )
+        current_commands: list[CustomSlashCommandDict] = list(
+            user_settings_readonly.custom_slash_commands or []
+        )
+        current_skills: list[CustomSkillDict] = list(
+            user_settings_readonly.custom_skills or []
+        )
+        current_mcps: list[CustomMcpDict] = list(
+            user_settings_readonly.custom_mcps or []
+        )
 
         try:
-            details = await self._marketplace_service.get_plugin_details(request.plugin_name)
+            details = await self._marketplace_service.get_plugin_details(
+                request.plugin_name
+            )
         except MarketplaceException as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
@@ -84,10 +96,14 @@ class InstallPluginComponentsAction:
             try:
                 user_settings = cast(
                     UserSettings,
-                    await self._user_service.get_user_settings(current_user.id, db=db, for_update=True),
+                    await self._user_service.get_user_settings(
+                        current_user.id, db=db, for_update=True
+                    ),
                 )
             except UserException as exc:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+                ) from exc
 
             if user_settings.custom_agents is None:
                 user_settings.custom_agents = []
@@ -109,15 +125,26 @@ class InstallPluginComponentsAction:
             for mcp in result.new_mcps:
                 self._append_if_not_exists(user_settings.custom_mcps, mcp)
 
-            installed_plugins: list[InstalledPluginDict] = list(user_settings.installed_plugins or [])
-            existing_idx = next((i for i, p in enumerate(installed_plugins) if p["name"] == request.plugin_name), None)
+            installed_plugins: list[InstalledPluginDict] = list(
+                user_settings.installed_plugins or []
+            )
+            existing_idx = next(
+                (
+                    i
+                    for i, p in enumerate(installed_plugins)
+                    if p["name"] == request.plugin_name
+                ),
+                None,
+            )
             record = self._installer_service.create_installed_record(
                 request.plugin_name,
                 details.get("version"),
                 result.installed,
             )
             if existing_idx is not None:
-                existing_comps = set(installed_plugins[existing_idx].get("components", []))
+                existing_comps = set(
+                    installed_plugins[existing_idx].get("components", [])
+                )
                 existing_comps.update(result.installed)
                 record["components"] = list(existing_comps)
                 installed_plugins[existing_idx] = record
@@ -131,7 +158,9 @@ class InstallPluginComponentsAction:
             flag_modified(user_settings, "custom_mcps")
             flag_modified(user_settings, "installed_plugins")
 
-            await self._user_service.commit_settings_and_invalidate_cache(user_settings, db, current_user.id)
+            await self._user_service.commit_settings_and_invalidate_cache(
+                user_settings, db, current_user.id
+            )
 
         return InstallResponse(
             plugin_name=request.plugin_name,

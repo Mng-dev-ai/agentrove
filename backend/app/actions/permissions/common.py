@@ -1,4 +1,5 @@
 import json
+from typing import cast
 
 from fastapi import HTTPException, status
 
@@ -24,7 +25,7 @@ def validate_token_for_chat(authorization: str, chat_id: str) -> None:
 def parse_response_payload(raw_payload: str) -> PermissionResult:
     try:
         data: dict[str, object] = json.loads(raw_payload)
-        return PermissionResult.model_validate(data)
+        return cast(PermissionResult, PermissionResult.model_validate(data))
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

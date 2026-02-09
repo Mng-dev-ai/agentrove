@@ -48,7 +48,9 @@ async def upload_oauth_client(
     request: OAuthClientUploadRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    upload_oauth_client_action: UploadOAuthClientAction = Depends(get_upload_oauth_client_action),
+    upload_oauth_client_action: UploadOAuthClientAction = Depends(
+        get_upload_oauth_client_action
+    ),
 ) -> OAuthClientResponse:
     return await upload_oauth_client_action.execute(request, current_user, db)
 
@@ -57,7 +59,9 @@ async def upload_oauth_client(
 async def delete_oauth_client(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    delete_oauth_client_action: DeleteOAuthClientAction = Depends(get_delete_oauth_client_action),
+    delete_oauth_client_action: DeleteOAuthClientAction = Depends(
+        get_delete_oauth_client_action
+    ),
 ) -> OAuthClientResponse:
     return await delete_oauth_client_action.execute(current_user, db)
 
@@ -94,7 +98,9 @@ async def get_gmail_status(
 async def disconnect_gmail(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    disconnect_gmail_action: DisconnectGmailAction = Depends(get_disconnect_gmail_action),
+    disconnect_gmail_action: DisconnectGmailAction = Depends(
+        get_disconnect_gmail_action
+    ),
 ) -> OAuthClientResponse:
     return await disconnect_gmail_action.execute(current_user, db)
 
@@ -102,7 +108,9 @@ async def disconnect_gmail(
 @router.post("/copilot/device-code", response_model=DeviceCodeResponse)
 async def start_device_flow(
     _current_user: User = Depends(get_current_user),
-    start_device_flow_action: StartDeviceFlowAction = Depends(get_start_device_flow_action),
+    start_device_flow_action: StartDeviceFlowAction = Depends(
+        get_start_device_flow_action
+    ),
 ) -> DeviceCodeResponse:
     return await start_device_flow_action.execute()
 
@@ -130,6 +138,8 @@ async def start_openai_device_flow(
 async def poll_openai_token(
     request: OpenAIPollTokenRequest,
     _current_user: User = Depends(get_current_user),
-    poll_openai_token_action: PollOpenAITokenAction = Depends(get_poll_openai_token_action),
+    poll_openai_token_action: PollOpenAITokenAction = Depends(
+        get_poll_openai_token_action
+    ),
 ) -> PollTokenResponse:
     return await poll_openai_token_action.execute(request)

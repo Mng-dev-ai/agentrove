@@ -26,7 +26,9 @@ router = APIRouter()
 @router.get("/", response_model=UserSettingsResponse)
 async def get_user_settings(
     current_user: User = Depends(get_current_user),
-    get_user_settings_action: GetUserSettingsAction = Depends(get_get_user_settings_action),
+    get_user_settings_action: GetUserSettingsAction = Depends(
+        get_get_user_settings_action
+    ),
 ) -> UserSettingsResponse:
     logger.info(f"[GET_SETTINGS] Fetching settings for user {current_user.id}")
     try:
@@ -48,7 +50,9 @@ async def update_user_settings(
     ),
 ) -> UserSettingsResponse:
     try:
-        return await update_user_settings_action.execute(current_user.id, settings_update, db)
+        return await update_user_settings_action.execute(
+            current_user.id, settings_update, db
+        )
     except DuplicateProviderNameError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

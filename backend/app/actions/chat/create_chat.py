@@ -16,7 +16,8 @@ class CreateChatAction:
         await self._chat_service.check_message_limit(user.id)
 
         user_settings = cast(
-            UserSettings, await self._chat_service.user_service.get_user_settings(user.id)
+            UserSettings,
+            await self._chat_service.user_service.get_user_settings(user.id),
         )
         self._chat_service.validate_api_keys(user_settings, chat_data.model_id)
 
@@ -49,6 +50,8 @@ class CreateChatAction:
             await db.commit()
 
             result = await db.execute(
-                select(Chat).options(selectinload(Chat.messages)).filter(Chat.id == chat.id)
+                select(Chat)
+                .options(selectinload(Chat.messages))
+                .filter(Chat.id == chat.id)
             )
-            return result.scalar_one()
+            return cast(Chat, result.scalar_one())

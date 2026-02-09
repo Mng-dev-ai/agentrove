@@ -19,7 +19,9 @@ class CreateScheduledTaskAction:
         db: AsyncSession,
     ) -> ScheduledTask:
         try:
-            return await self._scheduler_service.create_task(current_user.id, task_data, db)
+            return await self._scheduler_service.create_task(
+                current_user.id, task_data, db
+            )
         except SchedulerException as exc:
             raise SchedulerException(
                 str(exc),

@@ -23,14 +23,23 @@ class CreateMcpAction:
         db: AsyncSession,
     ) -> CustomMcpDict:
         if not SAFE_NAME_PATTERN.match(request.name):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid MCP name format")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid MCP name format",
+            )
 
         try:
-            user_settings = await self._user_service.get_user_settings(user_id, db=db, for_update=True)
+            user_settings = await self._user_service.get_user_settings(
+                user_id, db=db, for_update=True
+            )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
-        current_mcps: list[CustomMcpDict] = cast(list[CustomMcpDict], user_settings.custom_mcps or [])
+        current_mcps: list[CustomMcpDict] = cast(
+            list[CustomMcpDict], user_settings.custom_mcps or []
+        )
 
         if len(current_mcps) >= MAX_MCPS_PER_USER:
             raise HTTPException(
@@ -59,6 +68,8 @@ class CreateMcpAction:
         user_settings.custom_mcps = current_mcps
         flag_modified(user_settings, "custom_mcps")
 
-        await self._user_service.commit_settings_and_invalidate_cache(user_settings, db, user_id)
+        await self._user_service.commit_settings_and_invalidate_cache(
+            user_settings, db, user_id
+        )
 
         return mcp_data

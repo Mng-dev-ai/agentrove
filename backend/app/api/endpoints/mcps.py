@@ -10,7 +10,12 @@ from app.core.deps import (
 )
 from app.core.security import get_current_user
 from app.models.db_models import User
-from app.models.schemas import McpCreateRequest, McpDeleteResponse, McpResponse, McpUpdateRequest
+from app.models.schemas import (
+    McpCreateRequest,
+    McpDeleteResponse,
+    McpResponse,
+    McpUpdateRequest,
+)
 from app.models.types import CustomMcpDict
 
 router = APIRouter()

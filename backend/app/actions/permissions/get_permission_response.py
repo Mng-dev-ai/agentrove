@@ -3,7 +3,10 @@ import json
 
 from fastapi import HTTPException, status
 
-from app.actions.permissions.common import parse_response_payload, validate_token_for_chat
+from app.actions.permissions.common import (
+    parse_response_payload,
+    validate_token_for_chat,
+)
 from app.constants import REDIS_KEY_PERMISSION_REQUEST, REDIS_KEY_PERMISSION_RESPONSE
 from app.core.config import get_settings
 from app.models.schemas import PermissionResult

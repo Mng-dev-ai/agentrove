@@ -11,7 +11,9 @@ from app.models.types import CustomSkillDict
 router = APIRouter()
 
 
-@router.post("/upload", response_model=SkillResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload", response_model=SkillResponse, status_code=status.HTTP_201_CREATED
+)
 async def upload_skill(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),

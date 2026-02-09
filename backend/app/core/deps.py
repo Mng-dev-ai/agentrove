@@ -67,7 +67,10 @@ from app.actions.marketplace import (
     UninstallPluginComponentsAction,
 )
 from app.actions.mcps import CreateMcpAction, DeleteMcpAction, UpdateMcpAction
-from app.actions.permissions import CreatePermissionRequestAction, GetPermissionResponseAction
+from app.actions.permissions import (
+    CreatePermissionRequestAction,
+    GetPermissionResponseAction,
+)
 from app.actions.queue.queue_message import QueueMessageAction
 from app.actions.sandbox import (
     AddSecretAction,

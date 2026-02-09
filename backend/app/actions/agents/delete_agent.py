@@ -16,7 +16,9 @@ class DeleteAgentAction:
         self._agent_service = agent_service
         self._user_service = user_service
 
-    async def execute(self, user_id: UUID, agent_name: str, db: AsyncSession) -> AgentDeleteResponse:
+    async def execute(
+        self, user_id: UUID, agent_name: str, db: AsyncSession
+    ) -> AgentDeleteResponse:
         try:
             sanitized_name = self._agent_service.sanitize_name(agent_name)
             if sanitized_name != agent_name:
@@ -25,15 +27,24 @@ class DeleteAgentAction:
                     detail="Invalid agent name format",
                 )
         except AgentException as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
 
         try:
-            user_settings = await self._user_service.get_user_settings(user_id, db=db, for_update=True)
+            user_settings = await self._user_service.get_user_settings(
+                user_id, db=db, for_update=True
+            )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
         current_agents = user_settings.custom_agents or []
-        agent_index = next((i for i, c in enumerate(current_agents) if c.get("name") == agent_name), None)
+        agent_index = next(
+            (i for i, c in enumerate(current_agents) if c.get("name") == agent_name),
+            None,
+        )
 
         if agent_index is None:
             return AgentDeleteResponse(status=DeleteResponseStatus.NOT_FOUND.value)
@@ -44,9 +55,13 @@ class DeleteAgentAction:
         user_settings.custom_agents = current_agents
         flag_modified(user_settings, "custom_agents")
 
-        if self._user_service.remove_installed_component(user_settings, f"agent:{agent_name}"):
+        if self._user_service.remove_installed_component(
+            user_settings, f"agent:{agent_name}"
+        ):
             flag_modified(user_settings, "installed_plugins")
 
-        await self._user_service.commit_settings_and_invalidate_cache(user_settings, db, user_id)
+        await self._user_service.commit_settings_and_invalidate_cache(
+            user_settings, db, user_id
+        )
 
         return AgentDeleteResponse(status=DeleteResponseStatus.DELETED.value)

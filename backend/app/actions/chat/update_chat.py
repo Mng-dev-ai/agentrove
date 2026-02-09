@@ -19,7 +19,9 @@ class UpdateChatAction:
         current_user: User,
     ) -> Chat:
         try:
-            return await self._chat_service.update_chat(chat_id, chat_update, current_user)
+            return await self._chat_service.update_chat(
+                chat_id, chat_update, current_user
+            )
         except ChatException:
             raise
         except SQLAlchemyError as exc:

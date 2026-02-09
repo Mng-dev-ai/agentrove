@@ -16,7 +16,9 @@ from app.models.types import CustomAgentDict
 router = APIRouter()
 
 
-@router.post("/upload", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/upload", response_model=AgentResponse, status_code=status.HTTP_201_CREATED
+)
 async def upload_agent(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
@@ -34,7 +36,9 @@ async def update_agent(
     db: AsyncSession = Depends(get_db),
     update_agent_action: UpdateAgentAction = Depends(get_update_agent_action),
 ) -> CustomAgentDict:
-    return await update_agent_action.execute(current_user.id, agent_name, request.content, db)
+    return await update_agent_action.execute(
+        current_user.id, agent_name, request.content, db
+    )
 
 
 @router.delete("/{agent_name}", response_model=AgentDeleteResponse)

@@ -17,6 +17,8 @@ class ListModelsAction:
 
     async def execute(self, user_id: UUID) -> list[AIModelResponse]:
         async with redis_connection() as redis:
-            user_settings = await self._user_service.get_user_settings(user_id, redis=redis)
+            user_settings = await self._user_service.get_user_settings(
+                user_id, redis=redis
+            )
             models = self._provider_service.get_all_models(user_settings)
             return [AIModelResponse(**model) for model in models]

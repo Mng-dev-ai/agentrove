@@ -9,12 +9,18 @@ from app.services import copilot_oauth
 class PollTokenAction:
     async def execute(self, request: PollTokenRequest) -> PollTokenResponse:
         try:
-            data: dict[str, Any] = await copilot_oauth.poll_access_token(request.device_code)
+            data: dict[str, Any] = await copilot_oauth.poll_access_token(
+                request.device_code
+            )
         except Exception as exc:
-            raise HTTPException(status_code=502, detail="GitHub token request failed") from exc
+            raise HTTPException(
+                status_code=502, detail="GitHub token request failed"
+            ) from exc
 
         if data.get("access_token"):
-            return PollTokenResponse(status="success", access_token=data["access_token"])
+            return PollTokenResponse(
+                status="success", access_token=data["access_token"]
+            )
 
         error = data.get("error", "unknown")
         if error == "authorization_pending":

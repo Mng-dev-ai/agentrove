@@ -29,7 +29,9 @@ class GetCatalogAction:
 
     async def execute(self, force_refresh: bool) -> list[MarketplacePlugin]:
         try:
-            plugins = await self._marketplace_service.fetch_catalog(force_refresh=force_refresh)
+            plugins = await self._marketplace_service.fetch_catalog(
+                force_refresh=force_refresh
+            )
             return [MarketplacePlugin(**p) for p in plugins]
         except MarketplaceException as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc

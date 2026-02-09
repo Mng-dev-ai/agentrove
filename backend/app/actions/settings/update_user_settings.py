@@ -1,4 +1,5 @@
 from uuid import UUID
+from typing import cast
 
 from app.models.schemas import UserSettingsBase, UserSettingsResponse
 from app.services.user import UserService
@@ -23,4 +24,4 @@ class UpdateUserSettingsAction:
         )
         async with redis_connection() as redis:
             await self._user_service.invalidate_settings_cache(redis, user_id)
-        return UserSettingsResponse.model_validate(user_settings)
+        return cast(UserSettingsResponse, UserSettingsResponse.model_validate(user_settings))

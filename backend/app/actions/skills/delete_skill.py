@@ -30,15 +30,24 @@ class DeleteSkillAction:
                     detail="Invalid skill name format",
                 )
         except SkillException as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
 
         try:
-            user_settings = await self._user_service.get_user_settings(user_id, db=db, for_update=True)
+            user_settings = await self._user_service.get_user_settings(
+                user_id, db=db, for_update=True
+            )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
         current_skills = user_settings.custom_skills or []
-        skill_index = next((i for i, s in enumerate(current_skills) if s.get("name") == skill_name), None)
+        skill_index = next(
+            (i for i, s in enumerate(current_skills) if s.get("name") == skill_name),
+            None,
+        )
 
         if skill_index is None:
             return SkillDeleteResponse(status=DeleteResponseStatus.NOT_FOUND.value)
@@ -49,9 +58,13 @@ class DeleteSkillAction:
         user_settings.custom_skills = current_skills
         flag_modified(user_settings, "custom_skills")
 
-        if self._user_service.remove_installed_component(user_settings, f"skill:{skill_name}"):
+        if self._user_service.remove_installed_component(
+            user_settings, f"skill:{skill_name}"
+        ):
             flag_modified(user_settings, "installed_plugins")
 
-        await self._user_service.commit_settings_and_invalidate_cache(user_settings, db, user_id)
+        await self._user_service.commit_settings_and_invalidate_cache(
+            user_settings, db, user_id
+        )
 
         return SkillDeleteResponse(status=DeleteResponseStatus.DELETED.value)

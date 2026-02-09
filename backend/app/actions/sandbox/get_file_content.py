@@ -11,10 +11,14 @@ class GetFileContentAction:
 
     async def execute(self, sandbox_id: str, file_path: str) -> FileContentResponse:
         try:
-            file_data = await self._sandbox_service.get_file_content(sandbox_id, file_path)
+            file_data = await self._sandbox_service.get_file_content(
+                sandbox_id, file_path
+            )
             return FileContentResponse(**file_data)
         except SandboxException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

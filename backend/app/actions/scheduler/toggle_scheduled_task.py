@@ -21,7 +21,9 @@ class ToggleScheduledTaskAction:
         db: AsyncSession,
     ) -> TaskToggleResponse:
         try:
-            return await self._scheduler_service.toggle_task(task_id, current_user.id, db)
+            return await self._scheduler_service.toggle_task(
+                task_id, current_user.id, db
+            )
         except SchedulerException as exc:
             raise SchedulerException(
                 str(exc),

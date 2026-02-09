@@ -1,4 +1,5 @@
 import logging
+from typing import cast
 from uuid import UUID
 
 from app.models.schemas import UserSettingsResponse
@@ -15,8 +16,13 @@ class GetUserSettingsAction:
     async def execute(self, user_id: UUID) -> UserSettingsResponse:
         logger.info("[GET_SETTINGS] Fetching settings for user %s", user_id)
         async with redis_connection() as redis:
-            settings_record = await self._user_service.get_user_settings(user_id, redis=redis)
-            response = UserSettingsResponse.model_validate(settings_record)
+            settings_record = await self._user_service.get_user_settings(
+                user_id, redis=redis
+            )
+            response = cast(
+                UserSettingsResponse,
+                UserSettingsResponse.model_validate(settings_record),
+            )
             agent_names = [a.name for a in (response.custom_agents or [])]
             logger.info("[GET_SETTINGS] Returning agents: %s", agent_names)
             return response

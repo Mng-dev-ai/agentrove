@@ -14,7 +14,9 @@ class StartBrowserAction:
             await self._sandbox_service.start_browser(sandbox_id, url)
             return BrowserStatusResponse(running=True, current_url=url)
         except SandboxException as exc:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

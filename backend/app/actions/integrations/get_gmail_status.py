@@ -11,11 +11,17 @@ class GetGmailStatusAction:
     def __init__(self, user_service: UserService) -> None:
         self._user_service = user_service
 
-    async def execute(self, current_user: User, db: AsyncSession) -> GmailStatusResponse:
+    async def execute(
+        self, current_user: User, db: AsyncSession
+    ) -> GmailStatusResponse:
         try:
-            user_settings = await self._user_service.get_user_settings(current_user.id, db=db)
+            user_settings = await self._user_service.get_user_settings(
+                current_user.id, db=db
+            )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
         return GmailStatusResponse(
             connected=user_settings.gmail_oauth_tokens is not None,

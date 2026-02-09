@@ -14,9 +14,13 @@ class PreviewTempAttachmentAction:
         file_path = (storage_base / path).resolve()
 
         if not str(file_path).startswith(str(user_temp_base)):
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
+            )
 
         if not file_path.exists():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
+            )
 
         return build_file_response(file_path, file_path.name, inline=True)

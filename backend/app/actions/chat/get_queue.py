@@ -1,4 +1,3 @@
-from typing import cast
 from uuid import UUID
 
 from redis.exceptions import RedisError
@@ -21,8 +20,7 @@ class GetQueueAction:
         try:
             async with redis_connection() as redis:
                 queue_service = QueueService(redis)
-                result = await queue_service.get_message(str(chat_id))
-                return cast(QueuedMessage | None, result)
+                return await queue_service.get_message(str(chat_id))
         except RedisError as exc:
             raise ChatException(
                 "Service temporarily unavailable",

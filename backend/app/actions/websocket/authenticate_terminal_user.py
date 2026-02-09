@@ -30,7 +30,9 @@ class AuthenticateTerminalUserAction:
                     )
 
                 try:
-                    user_settings = await self._user_service.get_user_settings(user.id, db=db)
+                    user_settings = await self._user_service.get_user_settings(
+                        user.id, db=db
+                    )
                     return AuthenticatedTerminalUser(
                         user=user,
                         e2b_api_key=user_settings.e2b_api_key,

@@ -46,20 +46,32 @@ class UninstallPluginComponentsAction:
         try:
             user_settings = cast(
                 UserSettings,
-                await self._user_service.get_user_settings(current_user.id, db=db, for_update=True),
+                await self._user_service.get_user_settings(
+                    current_user.id, db=db, for_update=True
+                ),
             )
         except UserException as exc:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
 
         uninstalled: list[str] = []
         failed: list[InstallComponentResult] = []
         user_id = str(current_user.id)
 
-        installed_plugins: list[InstalledPluginDict] = list(user_settings.installed_plugins or [])
+        installed_plugins: list[InstalledPluginDict] = list(
+            user_settings.installed_plugins or []
+        )
 
         for component_id in request.components:
             if ":" not in component_id:
-                failed.append(InstallComponentResult(component=component_id, success=False, error="Invalid component format"))
+                failed.append(
+                    InstallComponentResult(
+                        component=component_id,
+                        success=False,
+                        error="Invalid component format",
+                    )
+                )
                 continue
 
             comp_type, comp_name = component_id.split(":", 1)
@@ -67,55 +79,111 @@ class UninstallPluginComponentsAction:
             try:
                 if comp_type == "agent":
                     agents = list(user_settings.custom_agents or [])
-                    idx = next((i for i, a in enumerate(agents) if a.get("name") == comp_name), None)
+                    idx = next(
+                        (i for i, a in enumerate(agents) if a.get("name") == comp_name),
+                        None,
+                    )
                     if idx is not None:
                         await self._agent_service.delete(user_id, comp_name)
                         agents.pop(idx)
                         user_settings.custom_agents = agents if agents else None
                         uninstalled.append(component_id)
                     else:
-                        failed.append(InstallComponentResult(component=component_id, success=False, error="Agent not found"))
+                        failed.append(
+                            InstallComponentResult(
+                                component=component_id,
+                                success=False,
+                                error="Agent not found",
+                            )
+                        )
 
                 elif comp_type == "command":
                     commands = list(user_settings.custom_slash_commands or [])
-                    idx = next((i for i, c in enumerate(commands) if c.get("name") == comp_name), None)
+                    idx = next(
+                        (
+                            i
+                            for i, c in enumerate(commands)
+                            if c.get("name") == comp_name
+                        ),
+                        None,
+                    )
                     if idx is not None:
                         await self._command_service.delete(user_id, comp_name)
                         commands.pop(idx)
-                        user_settings.custom_slash_commands = commands if commands else None
+                        user_settings.custom_slash_commands = (
+                            commands if commands else None
+                        )
                         uninstalled.append(component_id)
                     else:
-                        failed.append(InstallComponentResult(component=component_id, success=False, error="Command not found"))
+                        failed.append(
+                            InstallComponentResult(
+                                component=component_id,
+                                success=False,
+                                error="Command not found",
+                            )
+                        )
 
                 elif comp_type == "skill":
                     skills = list(user_settings.custom_skills or [])
-                    idx = next((i for i, s in enumerate(skills) if s.get("name") == comp_name), None)
+                    idx = next(
+                        (i for i, s in enumerate(skills) if s.get("name") == comp_name),
+                        None,
+                    )
                     if idx is not None:
                         await self._skill_service.delete(user_id, comp_name)
                         skills.pop(idx)
                         user_settings.custom_skills = skills if skills else None
                         uninstalled.append(component_id)
                     else:
-                        failed.append(InstallComponentResult(component=component_id, success=False, error="Skill not found"))
+                        failed.append(
+                            InstallComponentResult(
+                                component=component_id,
+                                success=False,
+                                error="Skill not found",
+                            )
+                        )
 
                 elif comp_type == "mcp":
                     mcps = list(user_settings.custom_mcps or [])
-                    idx = next((i for i, m in enumerate(mcps) if m.get("name") == comp_name), None)
+                    idx = next(
+                        (i for i, m in enumerate(mcps) if m.get("name") == comp_name),
+                        None,
+                    )
                     if idx is not None:
                         mcps.pop(idx)
                         user_settings.custom_mcps = mcps if mcps else None
                         uninstalled.append(component_id)
                     else:
-                        failed.append(InstallComponentResult(component=component_id, success=False, error="MCP not found"))
+                        failed.append(
+                            InstallComponentResult(
+                                component=component_id,
+                                success=False,
+                                error="MCP not found",
+                            )
+                        )
 
                 else:
-                    failed.append(InstallComponentResult(component=component_id, success=False, error=f"Unsupported component type: {comp_type}"))
+                    failed.append(
+                        InstallComponentResult(
+                            component=component_id,
+                            success=False,
+                            error=f"Unsupported component type: {comp_type}",
+                        )
+                    )
 
             except Exception as exc:
-                failed.append(InstallComponentResult(component=component_id, success=False, error=str(exc)))
+                failed.append(
+                    InstallComponentResult(
+                        component=component_id, success=False, error=str(exc)
+                    )
+                )
 
         if uninstalled:
-            remaining_components = set(installed_plugins[0].get("components", [])) if installed_plugins else set()
+            remaining_components = (
+                set(installed_plugins[0].get("components", []))
+                if installed_plugins
+                else set()
+            )
             remaining_components.difference_update(uninstalled)
 
             if installed_plugins:
@@ -126,7 +194,9 @@ class UninstallPluginComponentsAction:
                     if plugin_components:
                         plugin["components"] = list(plugin_components)
                         updated_plugins.append(plugin)
-                user_settings.installed_plugins = updated_plugins if updated_plugins else None
+                user_settings.installed_plugins = (
+                    updated_plugins if updated_plugins else None
+                )
 
             flag_modified(user_settings, "custom_agents")
             flag_modified(user_settings, "custom_slash_commands")
@@ -134,6 +204,12 @@ class UninstallPluginComponentsAction:
             flag_modified(user_settings, "custom_mcps")
             flag_modified(user_settings, "installed_plugins")
 
-            await self._user_service.commit_settings_and_invalidate_cache(user_settings, db, current_user.id)
+            await self._user_service.commit_settings_and_invalidate_cache(
+                user_settings, db, current_user.id
+            )
 
-        return UninstallResponse(uninstalled=uninstalled, failed=failed)
+        return UninstallResponse(
+            plugin_name=request.plugin_name,
+            uninstalled=uninstalled,
+            failed=failed,
+        )

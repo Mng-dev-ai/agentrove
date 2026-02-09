@@ -20,12 +20,16 @@ class OAuthCallbackAction:
         user_id = gmail_oauth.verify_oauth_state(state)
         if not user_id:
             return HTMLResponse(
-                content=self._callback_html("Authentication failed: Invalid state token"),
+                content=self._callback_html(
+                    "Authentication failed: Invalid state token"
+                ),
                 status_code=400,
             )
 
         try:
-            user_settings = await self._user_service.get_user_settings(user_id, db=db, for_update=True)
+            user_settings = await self._user_service.get_user_settings(
+                user_id, db=db, for_update=True
+            )
         except UserException:
             return HTMLResponse(
                 content=self._callback_html("Authentication failed: User not found"),
@@ -34,25 +38,35 @@ class OAuthCallbackAction:
 
         if not user_settings.gmail_oauth_client:
             return HTMLResponse(
-                content=self._callback_html("Authentication failed: OAuth client not configured"),
+                content=self._callback_html(
+                    "Authentication failed: OAuth client not configured"
+                ),
                 status_code=400,
             )
 
-        client_id, client_secret = gmail_oauth.extract_client_credentials(user_settings.gmail_oauth_client)
+        client_id, client_secret = gmail_oauth.extract_client_credentials(
+            user_settings.gmail_oauth_client
+        )
 
         try:
-            tokens = await gmail_oauth.exchange_code_for_tokens(code, client_id, client_secret)
+            tokens = await gmail_oauth.exchange_code_for_tokens(
+                code, client_id, client_secret
+            )
         except Exception as exc:
             logger.error("Token exchange failed: %s", exc)
             return HTMLResponse(
-                content=self._callback_html("Authentication failed: Could not exchange code for tokens"),
+                content=self._callback_html(
+                    "Authentication failed: Could not exchange code for tokens"
+                ),
                 status_code=500,
             )
 
         email = await gmail_oauth.get_user_email(tokens.get("access_token", ""))
 
         if "expires_in" in tokens:
-            expiry = datetime.now(timezone.utc) + timedelta(seconds=tokens["expires_in"])
+            expiry = datetime.now(timezone.utc) + timedelta(
+                seconds=tokens["expires_in"]
+            )
             tokens["expiry"] = expiry.isoformat()
 
         user_settings.gmail_oauth_tokens = tokens
@@ -60,7 +74,9 @@ class OAuthCallbackAction:
         user_settings.gmail_email = email
         flag_modified(user_settings, "gmail_oauth_tokens")
 
-        await self._user_service.commit_settings_and_invalidate_cache(user_settings, db, user_id)
+        await self._user_service.commit_settings_and_invalidate_cache(
+            user_settings, db, user_id
+        )
 
         return HTMLResponse(content=self._callback_html(None, email))
 
@@ -87,7 +103,7 @@ class OAuthCallbackAction:
 <body style=\"font-family: system-ui; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background: #1a1a1a; color: #fff;\">
     <div style=\"text-align: center;\">
         <h2 style=\"color: #22c55e;\">Gmail Connected Successfully</h2>
-        <p>Connected account: {email or 'Unknown'}</p>
+        <p>Connected account: {email or "Unknown"}</p>
         <p style=\"color: #888;\">You can close this window and return to Claudex.</p>
     </div>
 </body>

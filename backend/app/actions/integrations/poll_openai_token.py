@@ -13,7 +13,9 @@ class PollOpenAITokenAction:
                 request.device_code, request.user_code
             )
         except Exception as exc:
-            raise HTTPException(status_code=502, detail="OpenAI token request failed") from exc
+            raise HTTPException(
+                status_code=502, detail="OpenAI token request failed"
+            ) from exc
 
         status_code = data.get("status_code", 0)
         if status_code in (403, 404):
@@ -28,7 +30,9 @@ class PollOpenAITokenAction:
                     detail="Incomplete authorization response from OpenAI",
                 )
             try:
-                tokens = await openai_oauth.exchange_authorization_code(auth_code, code_verifier)
+                tokens = await openai_oauth.exchange_authorization_code(
+                    auth_code, code_verifier
+                )
             except Exception as exc:
                 raise HTTPException(
                     status_code=502,

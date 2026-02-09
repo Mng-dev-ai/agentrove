@@ -21,7 +21,10 @@ class RefreshAccessTokenAction:
             user_agent = request.headers.get("user-agent")
             client_ip = request.client.host if request.client else None
 
-            user, new_refresh_token = await self._refresh_token_service.validate_and_rotate(
+            (
+                user,
+                new_refresh_token,
+            ) = await self._refresh_token_service.validate_and_rotate(
                 token=refresh_request.refresh_token,
                 db=db,
                 user_agent=user_agent,

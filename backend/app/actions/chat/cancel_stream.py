@@ -3,7 +3,11 @@ from uuid import UUID
 
 from redis.exceptions import RedisError
 
-from app.constants import REDIS_KEY_CHAT_CANCEL, REDIS_KEY_CHAT_REVOKED, REDIS_KEY_CHAT_TASK
+from app.constants import (
+    REDIS_KEY_CHAT_CANCEL,
+    REDIS_KEY_CHAT_REVOKED,
+    REDIS_KEY_CHAT_TASK,
+)
 from app.core.config import get_settings
 from app.models.db_models import User
 from app.services.chat import ChatService
