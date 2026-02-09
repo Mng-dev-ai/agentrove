@@ -1,13 +1,11 @@
 import logging
-import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
 import aiohttp
 import aiosmtplib
-from email_validator import EmailNotValidError, validate_email
 from jinja2 import Environment, FileSystemLoader
 from pydantic import EmailStr
 
@@ -70,13 +68,6 @@ class EmailService:
             return EmailService._disposable_domains_cache
         return set()
 
-    def validate_email_syntax(self, email: str) -> tuple[bool, str, str]:
-        try:
-            validation = validate_email(email, check_deliverability=False)
-            return True, validation.normalized, ""
-        except EmailNotValidError as e:
-            return False, "", str(e)
-
     async def is_disposable_email(self, email: str) -> bool:
         disposable_domains = await self.fetch_disposable_domains()
 
@@ -85,11 +76,6 @@ class EmailService:
             return domain in disposable_domains
         except (IndexError, AttributeError):
             return False
-
-    def generate_verification_data(self) -> tuple[str, datetime]:
-        token = secrets.token_urlsafe(32)
-        expiry = datetime.now(timezone.utc) + timedelta(hours=24)
-        return token, expiry
 
     async def _send_email(self, to_email: str, subject: str, html_body: str) -> bool:
         if not self.smtp_password:

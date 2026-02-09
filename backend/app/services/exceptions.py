@@ -160,31 +160,6 @@ class AgentException(ServiceException):
         super().__init__(message, error_code, details, status_code)
 
 
-class APIKeyValidationException(ServiceException):
-    def __init__(
-        self,
-        message: str,
-        error_code: ErrorCode = ErrorCode.API_KEY_MISSING,
-        details: ExceptionDetails | None = None,
-        status_code: int = 400,
-    ):
-        super().__init__(message, error_code, details, status_code)
-
-
-class ExternalServiceException(ServiceException):
-    def __init__(
-        self,
-        message: str,
-        service_name: str,
-        error_code: ErrorCode = ErrorCode.EXTERNAL_SERVICE_ERROR,
-        details: ExceptionDetails | None = None,
-        status_code: int = 503,
-    ):
-        details = details or {}
-        details["service_name"] = service_name
-        super().__init__(message, error_code, details, status_code)
-
-
 class AuthException(ServiceException):
     def __init__(
         self,

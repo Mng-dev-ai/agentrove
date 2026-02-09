@@ -8,14 +8,12 @@ from app.services.streaming.orchestrator import (
 )
 from app.services.streaming.processor import StreamProcessor
 from app.services.streaming.publisher import StreamPublisher
-from app.services.streaming.queue_injector import QueueInjector
 from app.services.streaming.session import SessionUpdateCallback
 
 __all__ = [
     "ActiveToolState",
     "CancellationHandler",
     "ContextUsageTracker",
-    "QueueInjector",
     "SessionUpdateCallback",
     "StreamCancelled",
     "StreamContext",

@@ -1,108 +1,35 @@
-import mimetypes
-from pathlib import Path
-from urllib.parse import quote
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
+from app.actions.attachments import (
+    DownloadAttachmentAction,
+    PreviewAttachmentAction,
+    PreviewTempAttachmentAction,
+)
+from app.core.deps import (
+    get_db,
+    get_download_attachment_action,
+    get_preview_attachment_action,
+    get_preview_temp_attachment_action,
+)
 from app.core.security import get_current_user
-from app.core.deps import get_chat_service
-from app.db.session import get_db
-from app.models.db_models import MessageAttachment, User
-from app.services.chat import ChatService
+from app.models.db_models import User
 
 router = APIRouter()
-settings = get_settings()
-
-
-def _get_mime_type(file_path: Path) -> str:
-    mime_type, _ = mimetypes.guess_type(str(file_path))
-    return mime_type or "application/octet-stream"
-
-
-async def _get_attachment_with_path(
-    attachment_id: UUID,
-    current_user: User,
-    db: AsyncSession,
-    chat_service: ChatService,
-) -> tuple[MessageAttachment, Path]:
-    attachment = await chat_service.message_service.get_attachment(attachment_id, db)
-
-    if not attachment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found"
-        )
-
-    if attachment.message.chat.user_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-        )
-
-    storage_base = Path(settings.STORAGE_PATH).resolve()
-    file_path = (storage_base / attachment.file_path).resolve()
-
-    if not str(file_path).startswith(str(storage_base)):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-        )
-
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
-        )
-
-    return attachment, file_path
-
-
-def _build_file_response(
-    file_path: Path, filename: str | None, *, inline: bool
-) -> FileResponse:
-    safe_filename = filename or file_path.name or "file"
-    disposition = "inline" if inline else "attachment"
-
-    # Create ASCII-safe fallback filename by removing non-ASCII characters
-    ascii_filename = safe_filename.encode("ascii", "ignore").decode("ascii") or "file"
-
-    # Use RFC 5987 encoding for Unicode filenames
-    # Format: filename*=UTF-8''percent-encoded-name
-    encoded_filename = quote(safe_filename, safe="")
-
-    headers = {
-        "Content-Disposition": f"{disposition}; filename=\"{ascii_filename}\"; filename*=UTF-8''{encoded_filename}",
-    }
-    if inline:
-        headers["Cache-Control"] = "private, max-age=3600"
-
-    return FileResponse(
-        path=file_path,
-        media_type=_get_mime_type(file_path),
-        headers=headers,
-    )
 
 
 @router.get("/attachments/temp/preview")
 async def preview_temp_attachment(
     path: str,
     current_user: User = Depends(get_current_user),
+    preview_temp_attachment_action: PreviewTempAttachmentAction = Depends(
+        get_preview_temp_attachment_action
+    ),
 ) -> FileResponse:
-    storage_base = Path(settings.STORAGE_PATH).resolve()
-    user_temp_base = (storage_base / "temp" / str(current_user.id)).resolve()
-    file_path = (storage_base / path).resolve()
-
-    if not str(file_path).startswith(str(user_temp_base)):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied"
-        )
-
-    if not file_path.exists():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="File not found"
-        )
-
-    return _build_file_response(file_path, file_path.name, inline=True)
+    return await preview_temp_attachment_action.execute(path, current_user)
 
 
 @router.get("/attachments/{attachment_id}/preview")
@@ -110,12 +37,9 @@ async def preview_attachment(
     attachment_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    chat_service: ChatService = Depends(get_chat_service),
+    preview_attachment_action: PreviewAttachmentAction = Depends(get_preview_attachment_action),
 ) -> FileResponse:
-    attachment, file_path = await _get_attachment_with_path(
-        attachment_id, current_user, db, chat_service
-    )
-    return _build_file_response(file_path, attachment.filename, inline=True)
+    return await preview_attachment_action.execute(attachment_id, current_user, db)
 
 
 @router.get("/attachments/{attachment_id}/download")
@@ -123,9 +47,6 @@ async def download_attachment(
     attachment_id: UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-    chat_service: ChatService = Depends(get_chat_service),
+    download_attachment_action: DownloadAttachmentAction = Depends(get_download_attachment_action),
 ) -> FileResponse:
-    attachment, file_path = await _get_attachment_with_path(
-        attachment_id, current_user, db, chat_service
-    )
-    return _build_file_response(file_path, attachment.filename, inline=False)
+    return await download_attachment_action.execute(attachment_id, current_user, db)

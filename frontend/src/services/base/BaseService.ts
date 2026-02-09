@@ -95,7 +95,7 @@ export function ensureResponse<T>(
   return value;
 }
 
-export function handleServiceError(error: unknown): ServiceError {
+function handleServiceError(error: unknown): ServiceError {
   if (error instanceof ServiceError) {
     error.message = formatErrorMessage(error.message);
     return error;

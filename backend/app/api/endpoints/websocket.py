@@ -6,12 +6,15 @@ import logging
 from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketDisconnect
 
+from app.actions.websocket import (
+    AuthenticateTerminalUserAction,
+    AuthenticatedTerminalUser,
+    ResolveTerminalSandboxAccessAction,
+)
 from app.constants import (
     DEFAULT_PTY_COLS,
     DEFAULT_PTY_ROWS,
-    WS_CLOSE_API_KEY_REQUIRED,
     WS_CLOSE_AUTH_FAILED,
-    WS_CLOSE_SANDBOX_NOT_FOUND,
     WS_MSG_AUTH,
     WS_MSG_CLOSE,
     WS_MSG_DETACH,
@@ -20,74 +23,66 @@ from app.constants import (
     WS_MSG_RESIZE,
 )
 from app.core.config import get_settings
-from app.core.security import get_user_from_token
 from app.db.session import SessionLocal
-from sqlalchemy import select
 
-from app.models.db_models import Chat, User
-from app.services.exceptions import UserException
-from app.services.sandbox_providers import (
-    SandboxProviderType,
-)
 from app.services.terminal import terminal_session_registry
-from app.services.user import UserService
 
 settings = get_settings()
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-async def authenticate_user(
-    token: str,
-) -> tuple[User | None, str | None, str | None, str]:
-    try:
-        async with SessionLocal() as db:
-            user = await get_user_from_token(token, db)
-            if not user:
-                return None, None, None, SandboxProviderType.DOCKER.value
-
-            user_service = UserService(session_factory=SessionLocal)
-            try:
-                user_settings = await user_service.get_user_settings(user.id, db=db)
-                e2b_api_key = user_settings.e2b_api_key
-                modal_api_key = user_settings.modal_api_key
-                sandbox_provider = user_settings.sandbox_provider
-            except UserException:
-                e2b_api_key = None
-                modal_api_key = None
-                sandbox_provider = SandboxProviderType.DOCKER.value
-
-        return user, e2b_api_key, modal_api_key, sandbox_provider
-
-    except Exception as e:
-        logger.warning("WebSocket authentication failed: %s", e)
-        return None, None, None, SandboxProviderType.DOCKER.value
+authenticate_terminal_user_action = AuthenticateTerminalUserAction(SessionLocal)
+resolve_terminal_sandbox_access_action = ResolveTerminalSandboxAccessAction(SessionLocal)
 
 
 async def wait_for_auth(
     websocket: WebSocket, timeout: float = 10.0
-) -> tuple[User | None, str | None, str | None, str]:
+) -> AuthenticatedTerminalUser:
     try:
         message = await asyncio.wait_for(websocket.receive(), timeout=timeout)
     except asyncio.TimeoutError:
-        return None, None, None, SandboxProviderType.DOCKER.value
+        return AuthenticatedTerminalUser(
+            user=None,
+            e2b_api_key=None,
+            modal_api_key=None,
+            sandbox_provider="docker",
+        )
 
     if "text" not in message:
-        return None, None, None, SandboxProviderType.DOCKER.value
+        return AuthenticatedTerminalUser(
+            user=None,
+            e2b_api_key=None,
+            modal_api_key=None,
+            sandbox_provider="docker",
+        )
 
     try:
         data = json.loads(message["text"])
     except json.JSONDecodeError:
-        return None, None, None, SandboxProviderType.DOCKER.value
+        return AuthenticatedTerminalUser(
+            user=None,
+            e2b_api_key=None,
+            modal_api_key=None,
+            sandbox_provider="docker",
+        )
 
     if data.get("type") != WS_MSG_AUTH:
-        return None, None, None, SandboxProviderType.DOCKER.value
+        return AuthenticatedTerminalUser(
+            user=None,
+            e2b_api_key=None,
+            modal_api_key=None,
+            sandbox_provider="docker",
+        )
 
     token = data.get("token")
     if not token:
-        return None, None, None, SandboxProviderType.DOCKER.value
+        return AuthenticatedTerminalUser(
+            user=None,
+            e2b_api_key=None,
+            modal_api_key=None,
+            sandbox_provider="docker",
+        )
 
-    return await authenticate_user(token)
+    return await authenticate_terminal_user_action.execute(token)
 
 
 @router.websocket("/{sandbox_id}/terminal")
@@ -97,56 +92,38 @@ async def terminal_websocket(
 ) -> None:
     await websocket.accept()
 
-    user, e2b_api_key, modal_api_key, user_sandbox_provider = await wait_for_auth(
-        websocket
-    )
-    if not user:
+    auth_result = await wait_for_auth(websocket)
+    if not auth_result.user:
         await websocket.close(code=WS_CLOSE_AUTH_FAILED, reason="Authentication failed")
         return
 
-    async with SessionLocal() as db:
-        query = select(Chat.sandbox_provider).where(
-            Chat.sandbox_id == sandbox_id,
-            Chat.user_id == user.id,
-            Chat.deleted_at.is_(None),
-        )
-        result = await db.execute(query)
-        row = result.one_or_none()
-        if not row:
-            await websocket.close(
-                code=WS_CLOSE_SANDBOX_NOT_FOUND, reason="Sandbox not found"
-            )
-            return
-        sandbox_provider_type = row.sandbox_provider or user_sandbox_provider
-
-    provider_type = SandboxProviderType(sandbox_provider_type)
-    if provider_type == SandboxProviderType.E2B and not e2b_api_key:
+    sandbox_access = await resolve_terminal_sandbox_access_action.execute(
+        sandbox_id=sandbox_id,
+        user=auth_result.user,
+        e2b_api_key=auth_result.e2b_api_key,
+        modal_api_key=auth_result.modal_api_key,
+        user_sandbox_provider=auth_result.sandbox_provider,
+    )
+    if sandbox_access.close_code and sandbox_access.close_reason:
         await websocket.close(
-            code=WS_CLOSE_API_KEY_REQUIRED,
-            reason="E2B API key is required. Please configure your E2B API key in Settings.",
+            code=sandbox_access.close_code,
+            reason=sandbox_access.close_reason,
         )
         return
 
-    if provider_type == SandboxProviderType.MODAL and not modal_api_key:
-        await websocket.close(
-            code=WS_CLOSE_API_KEY_REQUIRED,
-            reason="Modal API key is required. Please configure your Modal API key in Settings.",
-        )
+    provider_type = sandbox_access.provider_type
+    if provider_type is None:
+        logger.error("Missing provider type for sandbox_id=%s", sandbox_id)
+        await websocket.close(code=WS_CLOSE_AUTH_FAILED, reason="Authentication failed")
         return
-
-    api_key = None
-    if provider_type == SandboxProviderType.E2B:
-        api_key = e2b_api_key
-    elif provider_type == SandboxProviderType.MODAL:
-        api_key = modal_api_key
 
     terminal_id = websocket.query_params.get("terminalId") or "terminal-1"
     session = await terminal_session_registry.get_or_create(
-        user_id=str(user.id),
+        user_id=str(auth_result.user.id),
         sandbox_id=sandbox_id,
         terminal_id=terminal_id,
         provider_type=provider_type,
-        api_key=api_key,
+        api_key=sandbox_access.api_key,
     )
 
     try:

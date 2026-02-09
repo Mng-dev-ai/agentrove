@@ -145,25 +145,6 @@ async def exchange_code_for_tokens(
         return cast(dict[str, Any], response.json())
 
 
-async def refresh_access_token(
-    refresh_token: str,
-    client_id: str,
-    client_secret: str,
-) -> dict[str, Any]:
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            GOOGLE_TOKEN_URL,
-            data={
-                "refresh_token": refresh_token,
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "grant_type": "refresh_token",
-            },
-        )
-        response.raise_for_status()
-        return cast(dict[str, Any], response.json())
-
-
 async def revoke_token(token: str) -> bool:
     async with httpx.AsyncClient() as client:
         response = await client.post(

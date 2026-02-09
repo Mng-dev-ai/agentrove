@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any
 
+from app.actions.scheduler.run_scheduled_task import RunScheduledTaskAction
 from app.core.celery import celery_app
 from app.services.scheduler import SchedulerService
 
@@ -25,11 +26,9 @@ def execute_scheduled_task(
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        scheduler = SchedulerService()
+        action = RunScheduledTaskAction()
         return loop.run_until_complete(
-            scheduler.run_scheduled_task(
-                task=self, task_id=task_id, execution_id=execution_id
-            )
+            action.execute(task=self, task_id=task_id, execution_id=execution_id)
         )
     finally:
         loop.close()

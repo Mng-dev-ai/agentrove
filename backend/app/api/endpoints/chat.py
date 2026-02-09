@@ -1,28 +1,57 @@
-import asyncio
-import json
 import logging
-from typing import Any, Literal, cast
+from typing import Any, Literal
 from uuid import UUID
 
-from celery.exceptions import NotRegistered
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status, Request
-from redis.exceptions import RedisError
 from sqlalchemy.exc import SQLAlchemyError
 from sse_starlette.sse import EventSourceResponse
 
-from app.constants import (
-    REDIS_KEY_CHAT_CANCEL,
-    REDIS_KEY_CHAT_CONTEXT_USAGE,
-    REDIS_KEY_CHAT_REVOKED,
-    REDIS_KEY_CHAT_TASK,
-    REDIS_KEY_PERMISSION_RESPONSE,
+from app.core.deps import (
+    get_cancel_stream_action,
+    get_chat_context_usage_action,
+    get_chat_messages_action,
+    get_clear_queue_action,
+    get_create_chat_action,
+    get_delete_all_chats_action,
+    get_delete_chat_action,
+    get_enhance_prompt_action,
+    get_fork_chat_action,
+    get_get_chat_detail_action,
+    get_get_chats_action,
+    get_get_queue_action,
+    get_get_stream_status_action,
+    get_message_events_action,
+    get_queue_message_action,
+    get_respond_permission_action,
+    get_restore_chat_action,
+    get_send_message_action,
+    get_stream_events_action,
+    get_update_chat_action,
+    get_update_queued_message_action,
 )
-from app.core.celery import celery_app
-from app.core.config import get_settings
-from app.core.deps import get_chat_service
+from app.actions.chat.clear_queue import ClearQueueAction
 from app.core.security import get_current_user
-from app.models.db_models import User, MessageStreamStatus
-from app.models.types import MessageAttachmentDict
+from app.actions.chat.cancel_stream import CancelStreamAction
+from app.actions.chat.get_chat_context_usage import GetChatContextUsageAction
+from app.actions.chat.create_chat import CreateChatAction
+from app.actions.chat.delete_all_chats import DeleteAllChatsAction
+from app.actions.chat.delete_chat import DeleteChatAction
+from app.actions.chat.enhance_prompt import EnhancePromptAction
+from app.actions.chat.fork_chat import ForkChatAction
+from app.actions.chat.get_chat_detail import GetChatDetailAction
+from app.actions.chat.get_chat_messages import GetChatMessagesAction
+from app.actions.chat.get_chats import GetChatsAction
+from app.actions.chat.get_message_events import GetMessageEventsAction
+from app.actions.chat.get_queue import GetQueueAction
+from app.actions.chat.get_stream_status import GetStreamStatusAction
+from app.actions.chat.respond_permission import RespondPermissionAction
+from app.actions.chat.restore_chat import RestoreChatAction
+from app.actions.chat.send_message import SendMessageAction
+from app.actions.chat.stream_events import StreamEventsAction
+from app.actions.chat.update_chat import UpdateChatAction
+from app.actions.chat.update_queued_message import UpdateQueuedMessageAction
+from app.actions.queue.queue_message import QueueMessageAction
+from app.models.db_models import User
 from app.models.schemas import (
     Chat as ChatSchema,
     ChatCompletionResponse,
@@ -45,38 +74,13 @@ from app.models.schemas import (
     QueueUpsertResponse,
     RestoreRequest,
 )
-from app.services.chat import ChatService
 from app.services.exceptions import (
     ChatException,
     ClaudeAgentException,
-    MessageException,
-    SandboxException,
 )
-from app.services.permission_manager import PermissionManager
-from app.services.queue import QueueService
-from app.utils.redis import redis_connection
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-settings = get_settings()
-
-INACTIVE_TASK_RESPONSE = {
-    "has_active_task": False,
-    "stream_id": None,
-    "last_seq": 0,
-}
-
-
-async def _ensure_chat_access(
-    chat_id: UUID, chat_service: ChatService, current_user: User
-) -> None:
-    try:
-        await chat_service.get_chat(chat_id, current_user)
-    except ChatException:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Chat not found or access denied",
-        )
 
 
 @router.post(
@@ -87,10 +91,10 @@ async def _ensure_chat_access(
 async def create_chat(
     chat_data: ChatCreate,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    create_chat_action: CreateChatAction = Depends(get_create_chat_action),
 ) -> ChatSchema:
     try:
-        chat = await chat_service.create_chat(current_user, chat_data)
+        chat = await create_chat_action.execute(current_user, chat_data)
         return chat
     except ChatException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
@@ -99,12 +103,6 @@ async def create_chat(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while creating chat",
-        )
-    except RedisError as e:
-        logger.error("Redis error creating chat: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
         )
 
 
@@ -117,11 +115,11 @@ async def send_message(
     thinking_mode: str | None = Form(None),
     selected_prompt_name: str | None = Form(None),
     attached_files: list[UploadFile] = [],
-    chat_service: ChatService = Depends(get_chat_service),
+    send_message_action: SendMessageAction = Depends(get_send_message_action),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     try:
-        result = await chat_service.initiate_chat_completion(
+        result = await send_message_action.execute(
             ChatRequest(
                 prompt=prompt,
                 chat_id=UUID(chat_id),
@@ -140,41 +138,38 @@ async def send_message(
             "last_seq": result.get("last_seq", 0),
         }
     except ChatException as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.post("/enhance-prompt", response_model=EnhancePromptResponse)
 async def enhance_prompt(
     prompt: str = Form(...),
     model_id: str = Form(...),
-    chat_service: ChatService = Depends(get_chat_service),
+    enhance_prompt_action: EnhancePromptAction = Depends(get_enhance_prompt_action),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, str]:
     try:
-        enhanced_prompt = await chat_service.ai_service.enhance_prompt(
-            prompt, model_id, current_user
-        )
-        return {"enhanced_prompt": enhanced_prompt}
+        return {
+            "enhanced_prompt": await enhance_prompt_action.execute(
+                prompt, model_id, current_user
+            )
+        }
     except ClaudeAgentException as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e),
         )
-    except Exception as e:
-        logger.error("Unexpected error enhancing prompt: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to enhance prompt",
-        )
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.get("/chats", response_model=PaginatedChats)
 async def get_chats(
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    get_chats_action: GetChatsAction = Depends(get_get_chats_action),
 ) -> PaginatedChats:
-    return await chat_service.get_user_chats(current_user, pagination)
+    return await get_chats_action.execute(current_user, pagination)
 
 
 @router.get(
@@ -184,56 +179,23 @@ async def get_chats(
 async def get_chat_detail(
     chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    get_chat_detail_action: GetChatDetailAction = Depends(get_get_chat_detail_action),
 ) -> ChatSchema:
     try:
-        chat = await chat_service.get_chat(chat_id, current_user)
-        return chat
+        return await get_chat_detail_action.execute(chat_id, current_user)
     except ChatException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
-    except SQLAlchemyError as e:
-        logger.error("Database error retrieving chat %s: %s", chat_id, e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while retrieving chat",
-        )
 
 
 @router.get("/chats/{chat_id}/context-usage", response_model=ContextUsage)
 async def get_chat_context_usage(
     chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    get_chat_context_usage_action: GetChatContextUsageAction = Depends(
+        get_chat_context_usage_action
+    ),
 ) -> ContextUsage:
-    chat = await chat_service.get_chat(chat_id, current_user)
-
-    try:
-        async with redis_connection() as redis:
-            cache_key = REDIS_KEY_CHAT_CONTEXT_USAGE.format(chat_id=str(chat_id))
-            cached = await redis.get(cache_key)
-            if cached:
-                data = json.loads(cached)
-                return ContextUsage(
-                    tokens_used=data.get("tokens_used", 0),
-                    context_window=data.get(
-                        "context_window", settings.CONTEXT_WINDOW_TOKENS
-                    ),
-                    percentage=data.get("percentage", 0.0),
-                )
-    except (RedisError, json.JSONDecodeError, KeyError) as e:
-        logger.warning("Failed to get context usage from cache: %s", e)
-
-    tokens_used = chat.context_token_usage or 0
-    context_window = settings.CONTEXT_WINDOW_TOKENS
-    percentage = 0.0
-    if context_window > 0:
-        percentage = min((tokens_used / context_window) * 100, 100.0)
-
-    return ContextUsage(
-        tokens_used=tokens_used,
-        context_window=context_window,
-        percentage=percentage,
-    )
+    return await get_chat_context_usage_action.execute(chat_id, current_user)
 
 
 @router.patch("/chats/{chat_id}", response_model=ChatSchema)
@@ -241,36 +203,35 @@ async def update_chat(
     chat_id: UUID,
     chat_update: ChatUpdate,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    update_chat_action: UpdateChatAction = Depends(get_update_chat_action),
 ) -> ChatSchema:
     try:
-        chat = await chat_service.update_chat(chat_id, chat_update, current_user)
-        return chat
+        return await update_chat_action.execute(chat_id, chat_update, current_user)
     except ChatException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
-    except SQLAlchemyError as e:
-        logger.error("Database error updating chat %s: %s", chat_id, e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while updating chat",
-        )
 
 
 @router.delete("/chats/all", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_all_chats(
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    delete_all_chats_action: DeleteAllChatsAction = Depends(get_delete_all_chats_action),
 ) -> None:
-    await chat_service.delete_all_chats(current_user)
+    try:
+        await delete_all_chats_action.execute(current_user)
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.delete("/chats/{chat_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_chat(
     chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    delete_chat_action: DeleteChatAction = Depends(get_delete_chat_action),
 ) -> None:
-    await chat_service.delete_chat(chat_id, current_user)
+    try:
+        await delete_chat_action.execute(chat_id, current_user)
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.get("/chats/{chat_id}/messages", response_model=CursorPaginatedMessages)
@@ -278,10 +239,13 @@ async def get_chat_messages(
     chat_id: UUID,
     pagination: CursorPaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    get_chat_messages_action: GetChatMessagesAction = Depends(get_chat_messages_action),
 ) -> CursorPaginatedMessages:
-    return await chat_service.get_chat_messages(
-        chat_id, current_user, pagination.cursor, pagination.limit
+    return await get_chat_messages_action.execute(
+        chat_id,
+        current_user,
+        pagination.cursor,
+        pagination.limit,
     )
 
 
@@ -290,20 +254,12 @@ async def restore_chat(
     chat_id: UUID,
     request: RestoreRequest,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    restore_chat_action: RestoreChatAction = Depends(get_restore_chat_action),
 ) -> None:
     try:
-        await chat_service.restore_to_checkpoint(
-            chat_id, request.message_id, current_user
-        )
+        await restore_chat_action.execute(chat_id, request.message_id, current_user)
     except ChatException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
-    except SQLAlchemyError as e:
-        logger.error("Database error restoring chat %s: %s", chat_id, e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while restoring chat",
-        )
 
 
 @router.post(
@@ -315,29 +271,15 @@ async def fork_chat(
     chat_id: UUID,
     request: ForkChatRequest,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    fork_chat_action: ForkChatAction = Depends(get_fork_chat_action),
 ) -> ForkChatResponse:
     try:
-        new_chat, messages_copied = await chat_service.fork_chat(
+        new_chat, messages_copied = await fork_chat_action.execute(
             chat_id, request.message_id, current_user
         )
         return ForkChatResponse(chat=new_chat, messages_copied=messages_copied)
-    except (ChatException, MessageException, SandboxException) as e:
+    except ChatException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e))
-    except SQLAlchemyError as e:
-        logger.error("Database error forking chat %s: %s", chat_id, e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error while forking chat",
-        )
-    except FileNotFoundError as e:
-        logger.error(
-            "Checkpoint not found forking chat %s: %s", chat_id, e, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Checkpoint not found",
-        )
 
 
 @router.get("/chats/{chat_id}/stream")
@@ -345,114 +287,24 @@ async def stream_events(
     chat_id: UUID,
     request: Request,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    stream_events_action: StreamEventsAction = Depends(get_stream_events_action),
 ) -> EventSourceResponse:
-    await _ensure_chat_access(chat_id, chat_service, current_user)
-
-    def _parse_non_negative_seq(value: str | None) -> int:
-        if value is None:
-            return 0
-        try:
-            parsed = int(value)
-        except (TypeError, ValueError):
-            return 0
-        return parsed if parsed >= 0 else 0
-
-    # Browser EventSource reconnects send the current cursor via Last-Event-ID.
-    # Keep query-param baseline support and use whichever is more advanced.
-    after_seq = max(
-        _parse_non_negative_seq(request.query_params.get("after_seq")),
-        _parse_non_negative_seq(request.headers.get("Last-Event-ID")),
-    )
-
-    return EventSourceResponse(
-        chat_service.create_event_stream(chat_id, after_seq),
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+    try:
+        return await stream_events_action.execute(chat_id, request, current_user)
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.get("/chats/{chat_id}/status", response_model=ChatStatusResponse)
 async def get_stream_status(
     chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    get_stream_status_action: GetStreamStatusAction = Depends(get_get_stream_status_action),
 ) -> dict[str, Any]:
-    await _ensure_chat_access(chat_id, chat_service, current_user)
-
     try:
-        latest_assistant_message = (
-            await chat_service.message_service.get_latest_assistant_message(chat_id)
-        )
-
-        task_key = REDIS_KEY_CHAT_TASK.format(chat_id=chat_id)
-        revoked_key = REDIS_KEY_CHAT_REVOKED.format(chat_id=chat_id)
-
-        if latest_assistant_message:
-            if latest_assistant_message.stream_status in [
-                MessageStreamStatus.COMPLETED,
-                MessageStreamStatus.FAILED,
-                MessageStreamStatus.INTERRUPTED,
-            ]:
-                async with redis_connection() as redis:
-                    await redis.delete(task_key)
-                return INACTIVE_TASK_RESPONSE.copy()
-
-        async with redis_connection() as redis:
-            task_id = await redis.get(task_key)
-
-            if not task_id:
-                return INACTIVE_TASK_RESPONSE.copy()
-
-            revoked = await redis.get(revoked_key)
-            if revoked:
-                await redis.delete(task_key)
-                return INACTIVE_TASK_RESPONSE.copy()
-
-            try:
-                task_result = celery_app.AsyncResult(task_id)
-                task_state = task_result.state
-            except NotRegistered:
-                await redis.delete(task_key)
-                return INACTIVE_TASK_RESPONSE.copy()
-
-            is_active = task_state in ["PENDING", "STARTED", "PROGRESS"]
-
-            if not is_active:
-                await redis.delete(task_key)
-                return INACTIVE_TASK_RESPONSE.copy()
-
-            return {
-                "has_active_task": True,
-                "message_id": latest_assistant_message.id
-                if latest_assistant_message
-                else None,
-                "stream_id": latest_assistant_message.active_stream_id
-                if latest_assistant_message
-                else None,
-                "last_seq": latest_assistant_message.last_seq
-                if latest_assistant_message
-                else 0,
-            }
-    except RedisError as e:
-        logger.error(
-            "Redis error checking chat status %s: %s", chat_id, e, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
-        )
-    except SQLAlchemyError as e:
-        logger.error(
-            "Database error checking chat status %s: %s", chat_id, e, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to check chat status",
-        )
+        return await get_stream_status_action.execute(chat_id, current_user)
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.get("/messages/{message_id}/events", response_model=list[MessageEvent])
@@ -460,55 +312,28 @@ async def get_message_events(
     message_id: UUID,
     after_seq: int = 0,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    get_message_events_action: GetMessageEventsAction = Depends(
+        get_message_events_action
+    ),
 ) -> list[MessageEvent]:
-    message = await chat_service.message_service.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    await _ensure_chat_access(message.chat_id, chat_service, current_user)
-    return await chat_service.message_service.get_message_events_after_seq(
-        message_id, after_seq, limit=5000
-    )
+    try:
+        return await get_message_events_action.execute(
+            message_id, after_seq, current_user
+        )
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.delete("/chats/{chat_id}/stream", status_code=status.HTTP_204_NO_CONTENT)
 async def cancel_stream(
     chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    cancel_stream_action: CancelStreamAction = Depends(get_cancel_stream_action),
 ) -> None:
-    await _ensure_chat_access(chat_id, chat_service, current_user)
-
     try:
-        async with redis_connection() as redis:
-            task_key = REDIS_KEY_CHAT_TASK.format(chat_id=chat_id)
-            task_id = await redis.get(task_key)
-
-            if not task_id:
-                return
-
-            try:
-                await redis.setex(
-                    REDIS_KEY_CHAT_REVOKED.format(chat_id=chat_id),
-                    settings.CHAT_REVOKED_KEY_TTL_SECONDS,
-                    "1",
-                )
-                await redis.publish(
-                    REDIS_KEY_CHAT_CANCEL.format(chat_id=chat_id), "cancel"
-                )
-            except RedisError as e:
-                logger.error(
-                    "Failed to stop chat stream %s: %s", chat_id, e, exc_info=True
-                )
-
-    except RedisError as e:
-        logger.error(
-            "Redis error stopping chat stream %s: %s", chat_id, e, exc_info=True
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
-        )
+        await cancel_stream_action.execute(chat_id, current_user)
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.post(
@@ -523,65 +348,19 @@ async def respond_to_permission(
     alternative_instruction: str | None = Form(None),
     user_answers: str | None = Form(None, max_length=50000),
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    respond_permission_action: RespondPermissionAction = Depends(get_respond_permission_action),
 ) -> PermissionRespondResponse:
-    await _ensure_chat_access(chat_id, chat_service, current_user)
-
-    parsed_answers = None
-    if user_answers:
-        try:
-            parsed_answers = json.loads(user_answers)
-        except json.JSONDecodeError as e:
-            logger.error("Invalid JSON in user_answers: %s", e)
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid JSON format for user_answers",
-            )
-        if not isinstance(parsed_answers, dict):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="user_answers must be a JSON object",
-            )
-
     try:
-        async with redis_connection() as redis:
-            permission_manager = PermissionManager(redis)
-            success = await permission_manager.respond_to_permission(
-                request_id, approved, alternative_instruction, parsed_answers
-            )
-
-            if not success:
-                # When a permission request is not found (expired or never existed), we publish
-                # a "denied" message to the Redis pub/sub channel. This wakes up any waiting
-                # permission handler immediately, allowing it to fail the tool right away.
-                try:
-                    expired_response = json.dumps(
-                        {
-                            "approved": False,
-                            "alternative_instruction": "Permission request expired. Please try again.",
-                        }
-                    )
-                    channel = REDIS_KEY_PERMISSION_RESPONSE.format(
-                        request_id=request_id
-                    )
-                    await redis.publish(channel, expired_response)
-                except Exception as e:
-                    logger.warning("Failed to publish expired message: %s", e)
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Permission request not found or expired",
-                )
-
-            return PermissionRespondResponse(success=True)
-
-    except RedisError as e:
-        logger.error(
-            "Redis error responding to permission %s: %s", request_id, e, exc_info=True
+        return await respond_permission_action.execute(
+            chat_id=chat_id,
+            request_id=request_id,
+            approved=approved,
+            alternative_instruction=alternative_instruction,
+            user_answers=user_answers,
+            current_user=current_user,
         )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
-        )
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.post(
@@ -597,51 +376,20 @@ async def queue_message(
     thinking_mode: str | None = Form(None),
     attached_files: list[UploadFile] = [],
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    queue_message_action: QueueMessageAction = Depends(get_queue_message_action),
 ) -> QueueUpsertResponse:
     try:
-        chat = await chat_service.get_chat(chat_id, current_user)
-    except ChatException:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Chat not found or access denied",
+        return await queue_message_action.execute(
+            chat_id=chat_id,
+            content=content,
+            model_id=model_id,
+            permission_mode=permission_mode,
+            thinking_mode=thinking_mode,
+            attached_files=attached_files,
+            current_user=current_user,
         )
-
-    attachments: list[MessageAttachmentDict] | None = None
-    if attached_files:
-        attachments = list(
-            await asyncio.gather(
-                *[
-                    chat_service.storage_service.save_file(
-                        file,
-                        sandbox_id=chat.sandbox_id,
-                        user_id=str(current_user.id),
-                    )
-                    for file in attached_files
-                ]
-            )
-        )
-
-    try:
-        async with redis_connection() as redis:
-            queue_service = QueueService(redis)
-            return cast(
-                QueueUpsertResponse,
-                await queue_service.upsert_message(
-                    str(chat_id),
-                    content,
-                    model_id,
-                    permission_mode=permission_mode,
-                    thinking_mode=thinking_mode,
-                    attachments=attachments,
-                ),
-            )
-    except RedisError as e:
-        logger.error("Redis error queueing message: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
-        )
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.get(
@@ -651,20 +399,12 @@ async def queue_message(
 async def get_queue(
     chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    get_queue_action: GetQueueAction = Depends(get_get_queue_action),
 ) -> QueuedMessage | None:
-    await _ensure_chat_access(chat_id, chat_service, current_user)
-
     try:
-        async with redis_connection() as redis:
-            queue_service = QueueService(redis)
-            return await queue_service.get_message(str(chat_id))
-    except RedisError as e:
-        logger.error("Redis error getting queue: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
-        )
+        return await get_queue_action.execute(chat_id, current_user)
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.patch(
@@ -675,26 +415,18 @@ async def update_queued_message(
     chat_id: UUID,
     update: QueueMessageUpdate,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    update_queued_message_action: UpdateQueuedMessageAction = Depends(
+        get_update_queued_message_action
+    ),
 ) -> QueuedMessage:
-    await _ensure_chat_access(chat_id, chat_service, current_user)
-
     try:
-        async with redis_connection() as redis:
-            queue_service = QueueService(redis)
-            result = await queue_service.update_message(str(chat_id), update.content)
-            if result is None:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No queued message found",
-                )
-            return cast(QueuedMessage, result)
-    except RedisError as e:
-        logger.error("Redis error updating queued message: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
+        return await update_queued_message_action.execute(
+            chat_id,
+            update.content,
+            current_user,
         )
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
 
 
 @router.delete(
@@ -704,22 +436,9 @@ async def update_queued_message(
 async def clear_queue(
     chat_id: UUID,
     current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
+    clear_queue_action: ClearQueueAction = Depends(get_clear_queue_action),
 ) -> None:
-    await _ensure_chat_access(chat_id, chat_service, current_user)
-
     try:
-        async with redis_connection() as redis:
-            queue_service = QueueService(redis)
-            success = await queue_service.clear_queue(str(chat_id))
-            if not success:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="No queued message found",
-                )
-    except RedisError as e:
-        logger.error("Redis error clearing queue: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Service temporarily unavailable",
-        )
+        await clear_queue_action.execute(chat_id, current_user)
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))

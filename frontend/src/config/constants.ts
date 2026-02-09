@@ -1,14 +1,5 @@
 import type { CustomAgent } from '@/types/user.types';
 
-export const SandboxProvider = {
-  DOCKER: 'docker',
-  E2B: 'e2b',
-  MODAL: 'modal',
-  HOST: 'host',
-} as const;
-
-export type SandboxProviderType = (typeof SandboxProvider)[keyof typeof SandboxProvider];
-
 export const CONTEXT_WINDOW_TOKENS = 200_000;
 
 export const MAX_MESSAGE_SIZE_BYTES = 100000;
@@ -45,12 +36,6 @@ export const BUILT_IN_AGENTS: CustomAgent[] = [
 
 export const MOBILE_BREAKPOINT = 768;
 
-export const LAYOUT = {
-  ACTIVITY_BAR_WIDTH: 48,
-  SIDEBAR_WIDTH: 256,
-  SIDEBAR_WIDTH_TAILWIND: 64,
-} as const;
-
 export const LAYOUT_CLASSES = {
   ACTIVITY_BAR_WIDTH: 'w-12',
   SIDEBAR_LEFT_WITH_ACTIVITY: 'left-12',
@@ -60,28 +45,3 @@ export const LAYOUT_CLASSES = {
   SIDEBAR_TOGGLE_CLOSED_WITH_ACTIVITY: 'left-12',
   SIDEBAR_TOGGLE_CLOSED_WITHOUT_ACTIVITY: 'left-4',
 } as const;
-
-export const AVAILABLE_CLAUDE_TOOLS = [
-  'Agent',
-  'Bash',
-  'BashOutput',
-  'Edit',
-  'ExitPlanMode',
-  'Glob',
-  'Grep',
-  'KillShell',
-  'LS',
-  'MultiEdit',
-  'NotebookEdit',
-  'NotebookRead',
-  'Read',
-  'Skill',
-  'SlashCommand',
-  'TodoRead',
-  'TodoWrite',
-  'WebFetch',
-  'WebSearch',
-  'Write',
-] as const;
-
-export type ClaudeTool = (typeof AVAILABLE_CLAUDE_TOOLS)[number];

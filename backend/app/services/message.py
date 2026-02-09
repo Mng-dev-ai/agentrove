@@ -151,38 +151,6 @@ class MessageService(BaseDbService[Message]):
             result = await db.execute(query)
             return cast(Message | None, result.scalar_one_or_none())
 
-    async def update_message_content(self, message_id: UUID, content: str) -> Message:
-        async with self.session_factory() as db:
-            query = (
-                select(Message)
-                .options(selectinload(Message.attachments))
-                .filter(Message.id == message_id)
-            )
-            result = await db.execute(query)
-            message = result.scalar_one_or_none()
-
-            if not message:
-                raise MessageException(
-                    "Message not found",
-                    error_code=ErrorCode.MESSAGE_NOT_FOUND,
-                    details={"message_id": str(message_id)},
-                    status_code=404,
-                )
-
-            message.content_text = content
-            if message.role == MessageRole.USER:
-                message.content_render = {
-                    "events": [{"type": "user_text", "text": content}],
-                    "segments": [],
-                }
-            message.updated_at = datetime.now(timezone.utc)
-
-            db.add(message)
-            await db.commit()
-            await db.refresh(message, ["attachments"])
-
-            return cast(Message, message)
-
     async def update_message_snapshot(
         self,
         message_id: UUID,
@@ -291,31 +259,6 @@ class MessageService(BaseDbService[Message]):
             await db.commit()
             return claimed
 
-    async def update_message_status(
-        self, message_id: UUID, status: MessageStreamStatus
-    ) -> Message:
-        async with self.session_factory() as db:
-            query = select(Message).filter(Message.id == message_id)
-            result = await db.execute(query)
-            message = result.scalar_one_or_none()
-
-            if not message:
-                raise MessageException(
-                    "Message not found",
-                    error_code=ErrorCode.MESSAGE_NOT_FOUND,
-                    details={"message_id": str(message_id)},
-                    status_code=404,
-                )
-
-            message.stream_status = status
-            message.updated_at = datetime.now(timezone.utc)
-
-            db.add(message)
-            await db.commit()
-            await db.refresh(message)
-
-            return cast(Message, message)
-
     async def get_chat_messages(
         self, chat_id: UUID, cursor: str | None = None, limit: int = 20
     ) -> CursorPaginatedMessages:
@@ -376,31 +319,6 @@ class MessageService(BaseDbService[Message]):
             result = await db.execute(query)
             return cast(Message | None, result.scalar_one_or_none())
 
-    async def append_event(
-        self,
-        *,
-        chat_id: UUID,
-        message_id: UUID,
-        stream_id: UUID,
-        seq: int,
-        event_type: str,
-        render_payload: dict[str, Any],
-        audit_payload: dict[str, Any] | None,
-    ) -> None:
-        await self.append_events(
-            [
-                {
-                    "chat_id": chat_id,
-                    "message_id": message_id,
-                    "stream_id": stream_id,
-                    "seq": seq,
-                    "event_type": event_type,
-                    "render_payload": render_payload,
-                    "audit_payload": audit_payload,
-                }
-            ]
-        )
-
     async def append_events(self, events: list[dict[str, Any]]) -> None:
         if not events:
             return
@@ -437,28 +355,6 @@ class MessageService(BaseDbService[Message]):
             query = (
                 select(MessageEvent)
                 .where(MessageEvent.chat_id == chat_id, MessageEvent.seq > after_seq)
-                .order_by(MessageEvent.seq.asc())
-                .limit(limit)
-            )
-            result = await db.execute(query)
-            return list(result.scalars().all())
-
-    async def get_stream_events_after_seq(
-        self,
-        *,
-        chat_id: UUID,
-        stream_id: UUID,
-        after_seq: int,
-        limit: int = 500,
-    ) -> list[MessageEvent]:
-        async with self.session_factory() as db:
-            query = (
-                select(MessageEvent)
-                .where(
-                    MessageEvent.chat_id == chat_id,
-                    MessageEvent.stream_id == stream_id,
-                    MessageEvent.seq > after_seq,
-                )
                 .order_by(MessageEvent.seq.asc())
                 .limit(limit)
             )
@@ -520,18 +416,6 @@ class MessageService(BaseDbService[Message]):
             .where(MessageAttachment.id == attachment_id)
         )
         return cast(MessageAttachment | None, result.scalar_one_or_none())
-
-    async def soft_delete_messages_for_chat(self, chat_id: UUID) -> int:
-        async with self.session_factory() as db:
-            now = datetime.now(timezone.utc)
-            stmt = (
-                update(Message)
-                .where(Message.chat_id == chat_id, Message.deleted_at.is_(None))
-                .values(deleted_at=now)
-            )
-            result = await db.execute(stmt)
-            await db.commit()
-            return int(getattr(result, "rowcount", 0))
 
     async def soft_delete_message(self, message_id: UUID) -> bool:
         async with self.session_factory() as db:

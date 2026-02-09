@@ -17,7 +17,7 @@ from app.constants import (
     REDIS_KEY_CHAT_TASK,
     STREAM_STATUS_CANCELLED,
 )
-from app.models.db_models import StreamEventKind, ToolStatus
+from app.models.db_models import StreamEventKind
 from app.core.config import get_settings
 from app.models.db_models import (
     Chat,
@@ -30,16 +30,13 @@ from app.models.db_models import (
     UserSettings,
 )
 from app.models.schemas import (
-    ChatCreate,
-    ChatRequest,
     ChatUpdate,
     CursorPaginatedMessages,
     PaginatedChats,
     PaginationParams,
     ProviderType,
 )
-from app.models.types import ChatCompletionResult, MessageAttachmentDict
-from app.prompts.system_prompt import build_system_prompt_for_chat
+from app.models.types import MessageAttachmentDict
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.provider import ProviderService
 from app.services.claude_agent import ClaudeAgentService
@@ -59,7 +56,6 @@ if TYPE_CHECKING:
     from celery.result import AsyncResult
     from redis.asyncio import Redis
     from redis.asyncio.client import PubSub
-from app.utils.message_events import extract_user_prompt
 from app.utils.redis import redis_connection, redis_pubsub
 from app.utils.attachment_urls import build_attachment_preview_url
 from app.utils.validators import APIKeyValidationError, validate_model_api_keys
@@ -130,63 +126,6 @@ class ChatService(BaseDbService[Chat]):
                 pages=math.ceil(total / pagination.per_page) if total > 0 else 0,
             )
 
-    async def create_chat(self, user: User, chat_data: ChatCreate) -> Chat:
-        await self._check_message_limit(user.id)
-
-        user_settings = cast(
-            UserSettings, await self.user_service.get_user_settings(user.id)
-        )
-        self._validate_api_keys(user_settings, chat_data.model_id)
-
-        sandbox_id = await self.sandbox_service.create_sandbox()
-
-        github_token = user_settings.github_personal_access_token
-        custom_env_vars = user_settings.custom_env_vars
-        custom_skills = user_settings.custom_skills
-        custom_slash_commands = user_settings.custom_slash_commands
-        custom_agents = user_settings.custom_agents
-        auto_compact_disabled = user_settings.auto_compact_disabled
-        attribution_disabled = user_settings.attribution_disabled
-        custom_providers = user_settings.custom_providers
-        gmail_oauth_client = user_settings.gmail_oauth_client
-        gmail_oauth_tokens = user_settings.gmail_oauth_tokens
-
-        await self.sandbox_service.initialize_sandbox(
-            sandbox_id=sandbox_id,
-            github_token=github_token,
-            custom_env_vars=custom_env_vars,
-            custom_skills=custom_skills,
-            custom_slash_commands=custom_slash_commands,
-            custom_agents=custom_agents,
-            user_id=str(user.id),
-            auto_compact_disabled=auto_compact_disabled,
-            attribution_disabled=attribution_disabled,
-            custom_providers=custom_providers,
-            gmail_oauth_client=gmail_oauth_client,
-            gmail_oauth_tokens=gmail_oauth_tokens,
-        )
-
-        async with self.session_factory() as db:
-            chat = Chat(
-                title=self._truncate_title(chat_data.title),
-                user_id=user.id,
-                sandbox_id=sandbox_id,
-                sandbox_provider=user_settings.sandbox_provider,
-            )
-
-            db.add(chat)
-            await db.commit()
-
-            query = (
-                select(Chat)
-                .options(selectinload(Chat.messages))
-                .filter(Chat.id == chat.id)
-            )
-            result = await db.execute(query)
-            loaded_chat: Chat = result.scalar_one()
-
-            return loaded_chat
-
     async def update_chat(
         self, chat_id: UUID, chat_update: ChatUpdate, user: User
     ) -> Chat:
@@ -209,7 +148,7 @@ class ChatService(BaseDbService[Chat]):
                 )
 
             if chat_update.title is not None:
-                chat.title = self._truncate_title(chat_update.title)
+                chat.title = self.truncate_title(chat_update.title)
 
             if chat_update.pinned is not None:
                 chat.pinned_at = (
@@ -308,29 +247,6 @@ class ChatService(BaseDbService[Chat]):
 
             sandbox_id_value: str | None = row[0]
             return sandbox_id_value
-
-    async def verify_sandbox_access(self, sandbox_id: str, user_id: UUID) -> bool:
-        async with self.session_factory() as db:
-            query = select(
-                exists().where(
-                    Chat.sandbox_id == sandbox_id,
-                    Chat.user_id == user_id,
-                    Chat.deleted_at.is_(None),
-                )
-            )
-            result = await db.execute(query)
-            return bool(result.scalar())
-
-    async def sandbox_exists(self, sandbox_id: str) -> bool:
-        async with self.session_factory() as db:
-            query = select(
-                exists().where(
-                    Chat.sandbox_id == sandbox_id,
-                    Chat.deleted_at.is_(None),
-                )
-            )
-            result = await db.execute(query)
-            return bool(result.scalar())
 
     async def delete_all_chats(self, user: User) -> int:
         async with self.session_factory() as db:
@@ -956,126 +872,6 @@ class ChatService(BaseDbService[Chat]):
                 error_message=str(exc),
             )
 
-    async def initiate_chat_completion(
-        self,
-        request: ChatRequest,
-        current_user: User,
-    ) -> ChatCompletionResult:
-        if not request.chat_id:
-            raise ChatException(
-                "chat_id is required for chat completion",
-                error_code=ErrorCode.VALIDATION_ERROR,
-                status_code=400,
-            )
-
-        await self._check_message_limit(current_user.id)
-
-        user_settings = await self.user_service.get_user_settings(current_user.id)
-        self._validate_api_keys(user_settings, request.model_id)
-
-        chat = await self.get_chat(request.chat_id, current_user)
-
-        chat_id = chat.id
-
-        attachments: list[MessageAttachmentDict] | None = None
-        if request.attached_files:
-            attachments = list(
-                await asyncio.gather(
-                    *[
-                        self.storage_service.save_file(
-                            file,
-                            sandbox_id=chat.sandbox_id,
-                            user_id=str(current_user.id),
-                        )
-                        for file in request.attached_files
-                    ]
-                )
-            )
-
-        try:
-            user_prompt = extract_user_prompt(request.prompt)
-            ai_prompt = user_prompt
-        except (ValueError, KeyError, TypeError, AttributeError) as e:
-            logger.error("Failed to parse message events: %s", e)
-            user_prompt = request.prompt or ""
-            ai_prompt = user_prompt
-
-        await self.message_service.create_message(
-            chat_id,
-            user_prompt,
-            MessageRole.USER,
-            attachments=attachments,
-        )
-
-        # When switching from OpenRouter to Claude, we need to clean thinking blocks from the session.
-        # OpenRouter models (via anthropic-bridge) generate thinking blocks with empty signatures.
-        # Claude API validates signatures and rejects invalid ones with:
-        # "Invalid signature in thinking block"
-        # We strip these invalid thinking blocks while preserving the rest of the conversation context.
-        session_id = chat.session_id
-        if session_id and chat.sandbox_id:
-            if await self._needs_session_cleaning(
-                chat.id, request.model_id, current_user.id
-            ):
-                await self.sandbox_service.clean_session_thinking_blocks(
-                    chat.sandbox_id, session_id
-                )
-
-        assistant_message = await self._create_assistant_message(chat, request.model_id)
-
-        system_prompt = build_system_prompt_for_chat(
-            chat.sandbox_id or "",
-            user_settings,
-            selected_prompt_name=request.selected_prompt_name,
-        )
-        is_custom_prompt = bool(request.selected_prompt_name)
-        custom_instructions = (
-            user_settings.custom_instructions if user_settings else None
-        )
-
-        try:
-            task = await self._enqueue_chat_task(
-                prompt=ai_prompt,
-                system_prompt=system_prompt,
-                custom_instructions=custom_instructions,
-                user=current_user,
-                chat=chat,
-                permission_mode=request.permission_mode,
-                model_id=request.model_id,
-                session_id=session_id,
-                assistant_message_id=str(assistant_message.id),
-                thinking_mode=request.thinking_mode,
-                attachments=attachments,
-                is_custom_prompt=is_custom_prompt,
-            )
-
-            await self._store_active_task(chat_id, task.id)
-        except Exception as e:
-            logger.error("Failed to enqueue chat task: %s", e)
-            await self.message_service.soft_delete_message(assistant_message.id)
-            raise
-
-        return {
-            "task_id": task.id,
-            "message_id": str(assistant_message.id),
-            "chat_id": str(chat_id),
-            "last_seq": int(chat.last_event_seq or 0),
-            "status": ToolStatus.STARTED.value,
-        }
-
-    async def get_chat_by_sandbox_id(
-        self, sandbox_id: str, user_id: UUID
-    ) -> Chat | None:
-        async with self.session_factory() as db:
-            query = select(Chat).filter(
-                Chat.sandbox_id == sandbox_id,
-                Chat.user_id == user_id,
-                Chat.deleted_at.is_(None),
-            )
-            result = await db.execute(query)
-            chat: Chat | None = result.scalar_one_or_none()
-            return chat
-
     async def restore_to_checkpoint(
         self, chat_id: UUID, message_id: UUID, current_user: User
     ) -> None:
@@ -1163,7 +959,7 @@ class ChatService(BaseDbService[Chat]):
 
                 async with self.session_factory() as db:
                     new_chat = Chat(
-                        title=self._truncate_title(f"Fork of {source_chat.title}"),
+                        title=self.truncate_title(f"Fork of {source_chat.title}"),
                         user_id=user.id,
                         sandbox_id=new_sandbox_id,
                         sandbox_provider=SandboxProviderType.DOCKER.value,
@@ -1240,12 +1036,12 @@ class ChatService(BaseDbService[Chat]):
             result = await db.execute(query)
             return bool(result.scalar())
 
-    def _truncate_title(self, title: str) -> str:
+    def truncate_title(self, title: str) -> str:
         if len(title) <= CHAT_TITLE_MAX_LENGTH:
             return title
         return title[:CHAT_TITLE_MAX_LENGTH] + "..."
 
-    async def _check_message_limit(self, user_id: UUID) -> None:
+    async def check_message_limit(self, user_id: UUID) -> None:
         can_continue = await self.user_service.check_message_limit(user_id)
         if not can_continue:
             raise ChatException(
@@ -1255,7 +1051,7 @@ class ChatService(BaseDbService[Chat]):
                 status_code=429,
             )
 
-    def _validate_api_keys(self, user_settings: UserSettings, model_id: str) -> None:
+    def validate_api_keys(self, user_settings: UserSettings, model_id: str) -> None:
         try:
             validate_model_api_keys(user_settings, model_id)
         except APIKeyValidationError as e:
@@ -1263,7 +1059,7 @@ class ChatService(BaseDbService[Chat]):
                 str(e), error_code=ErrorCode.API_KEY_MISSING, status_code=400
             ) from e
 
-    async def _create_assistant_message(self, chat: Chat, model_id: str) -> Message:
+    async def create_assistant_message(self, chat: Chat, model_id: str) -> Message:
         return await self.message_service.create_message(
             chat.id,
             "",
@@ -1272,7 +1068,7 @@ class ChatService(BaseDbService[Chat]):
             stream_status=MessageStreamStatus.IN_PROGRESS,
         )
 
-    async def _enqueue_chat_task(
+    async def enqueue_chat_task(
         self,
         *,
         prompt: str,
@@ -1308,7 +1104,7 @@ class ChatService(BaseDbService[Chat]):
             is_custom_prompt=is_custom_prompt,
         )
 
-    async def _store_active_task(self, chat_id: UUID, task_id: str) -> None:
+    async def store_active_task(self, chat_id: UUID, task_id: str) -> None:
         async with redis_connection() as redis:
             await redis.setex(
                 REDIS_KEY_CHAT_TASK.format(chat_id=chat_id),
@@ -1326,7 +1122,7 @@ class ChatService(BaseDbService[Chat]):
         except Exception as e:
             logger.warning("Failed to resume sandbox for chat %s: %s", chat_id, e)
 
-    async def _needs_session_cleaning(
+    async def needs_session_cleaning(
         self, chat_id: UUID, new_model_id: str, user_id: UUID
     ) -> bool:
         user_settings = await self.user_service.get_user_settings(user_id)

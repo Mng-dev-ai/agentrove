@@ -144,11 +144,6 @@ class RefreshTokenService:
         )
         return int(getattr(result, "rowcount", 0))
 
-    async def revoke_all_user_tokens(self, user_id: UUID, db: AsyncSession) -> int:
-        count = await self._revoke_all_tokens(user_id, db)
-        await db.commit()
-        return count
-
     async def cleanup_expired_tokens(self, db: AsyncSession | None = None) -> int:
         now = datetime.now(timezone.utc)
         delete_stmt = delete(RefreshToken).where(RefreshToken.expires_at < now)
