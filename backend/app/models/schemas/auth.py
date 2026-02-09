@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi_users import schemas
-from pydantic import BaseModel, EmailStr, Field, computed_field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.core.config import get_settings
 
@@ -9,11 +9,9 @@ from app.core.config import get_settings
 class UserRead(schemas.BaseUser[UUID]):
     username: str
     daily_message_limit: int | None
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def email_verification_required(self) -> bool:
-        return get_settings().REQUIRE_EMAIL_VERIFICATION
+    email_verification_required: bool = Field(
+        default_factory=lambda: get_settings().REQUIRE_EMAIL_VERIFICATION
+    )
 
 
 class UserCreate(schemas.BaseUserCreate):

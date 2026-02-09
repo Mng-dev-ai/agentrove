@@ -52,9 +52,27 @@ class UpdateMcpAction:
             )
 
         mcp = current_mcps[mcp_index]
-        update_data = request.model_dump(exclude_unset=True)
-        for key, value in update_data.items():
-            mcp[key] = value  # type: ignore[literal-required]
+
+        if (
+            "description" in request.model_fields_set
+            and request.description is not None
+        ):
+            mcp["description"] = request.description
+        if (
+            "command_type" in request.model_fields_set
+            and request.command_type is not None
+        ):
+            mcp["command_type"] = request.command_type
+        if "package" in request.model_fields_set:
+            mcp["package"] = request.package
+        if "url" in request.model_fields_set:
+            mcp["url"] = request.url
+        if "env_vars" in request.model_fields_set:
+            mcp["env_vars"] = request.env_vars
+        if "args" in request.model_fields_set:
+            mcp["args"] = request.args
+        if "enabled" in request.model_fields_set and request.enabled is not None:
+            mcp["enabled"] = request.enabled
 
         user_settings.custom_mcps = current_mcps
         flag_modified(user_settings, "custom_mcps")

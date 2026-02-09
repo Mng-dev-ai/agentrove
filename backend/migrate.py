@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import importlib.util
 import logging
 
 from alembic import command
@@ -18,11 +19,9 @@ def check_and_run_migrations():
     is_production = settings.ENVIRONMENT.lower() == "production"
 
     if db_url.startswith("postgresql+asyncpg://"):
-        try:
-            import psycopg2  # noqa: F401
-
+        if importlib.util.find_spec("psycopg2") is not None:
             db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg2://")
-        except ImportError:
+        else:
             db_url = db_url.replace("postgresql+asyncpg://", "postgresql+psycopg://")
 
     engine = create_engine(db_url)

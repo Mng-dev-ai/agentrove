@@ -138,7 +138,7 @@ async def send_message(
             "last_seq": result.get("last_seq", 0),
         }
     except ChatException as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
 @router.post("/enhance-prompt", response_model=EnhancePromptResponse)

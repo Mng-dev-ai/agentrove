@@ -335,7 +335,7 @@ class TestChatService(ChatService):
         self._test_sandbox_service = sandbox_service
         self._test_session_factory = session_factory
 
-    async def _enqueue_chat_task(
+    async def enqueue_chat_task(
         self,
         *,
         prompt,

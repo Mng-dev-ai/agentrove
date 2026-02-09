@@ -8,6 +8,12 @@
 - Use `DateTime(timezone=True)` for all datetime fields for consistency
 - Don't add `index=True` on FK columns if a composite index starting with that column already exists (composite indexes can serve single-column lookups)
 
+## Migration Workflow
+
+- Do not create migration files manually; generate them via Alembic autogenerate first
+- Manual edits to generated Alembic migrations are allowed when necessary for correctness
+- Run Alembic migration commands inside the Docker backend container (not on host)
+
 ## Code Style
 
 - Don't add comments or docstrings for self-explanatory code
@@ -17,6 +23,8 @@
 - Prefer direct imports/calls over indirection when behavior is unchanged
 - Do not call private methods (`_method`) from outside the file where they are defined; if cross-file usage is needed, make the method public and rename it accordingly
 - Do not use inline imports; only allow inline imports when required to avoid circular imports and no cleaner module-level import structure exists
+- Strong typing only: do not use `# type: ignore`, `# pyright: ignore`, `# noqa` to silence typing/import issues; fix the types/usages directly (if absolutely unavoidable, document why in the PR description)
+- Do not add backward compatibility paths, fallback paths, or legacy shims unless explicitly requested
 
 ## Frontend UI/UX Guidelines
 

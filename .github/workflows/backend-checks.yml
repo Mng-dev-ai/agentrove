@@ -80,6 +80,7 @@ jobs:
       - name: Run tests with Docker Compose
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
           DOCKER_IMAGE: ghcr.io/mng-dev-ai/claudex-sandbox:latest
         run: |
           docker compose -f docker-compose.test.yml build backend-test

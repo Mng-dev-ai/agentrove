@@ -24,4 +24,6 @@ class UpdateUserSettingsAction:
         )
         async with redis_connection() as redis:
             await self._user_service.invalidate_settings_cache(redis, user_id)
-        return cast(UserSettingsResponse, UserSettingsResponse.model_validate(user_settings))
+        return cast(
+            UserSettingsResponse, UserSettingsResponse.model_validate(user_settings)
+        )
