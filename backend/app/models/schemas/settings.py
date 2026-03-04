@@ -12,6 +12,8 @@ class ProviderType(str, Enum):
     OPENROUTER = "openrouter"
     OPENAI = "openai"
     COPILOT = "copilot"
+    GLM = "glm"
+    A4F = "a4f"
     CUSTOM = "custom"
 
 
@@ -44,6 +46,7 @@ class CustomProvider(BaseModel):
             for model in self.models:
                 if not model.model_id.startswith("copilot/"):
                     model.model_id = f"copilot/{model.model_id}"
+        # A4F uses its own format: provider-x/model-name - no prefix needed
         return self
 
 
@@ -125,6 +128,7 @@ class UserSettingsBase(BaseModel):
     notifications_enabled: bool = True
     auto_compact_disabled: bool = False
     attribution_disabled: bool = False
+    enterprise_mode: bool = False
 
     @field_validator(
         "custom_providers",

@@ -17,7 +17,7 @@ Join the [Discord server](https://discord.gg/HvkJU8dcBA).
 ## Why Claudex
 
 - Claude Code as the execution harness, exposed through a self-hosted web UI
-- One workflow across Anthropic, OpenAI, GitHub Copilot, OpenRouter, and custom Anthropic-compatible endpoints
+- One workflow across Anthropic, OpenAI, GitHub Copilot, OpenRouter, GLM (Zhipu AI), A4F, and custom Anthropic-compatible endpoints
 - Anthropic Bridge routing for non-Anthropic providers while preserving Claude Code behavior
 - Isolated sandbox backends (Docker, host)
 - Extension surface: MCP servers, skills, agents, slash commands, prompts, and marketplace plugins
@@ -176,7 +176,55 @@ Configure providers in `Settings -> Providers`.
 - `openai`: authenticate with OpenAI device flow in UI
 - `copilot`: authenticate with GitHub device flow in UI
 - `openrouter`: add OpenRouter API key and model IDs
+- `glm`: add Zhipu AI (GLM) API key and base URL for Anthropic-compatible endpoint
+- `a4f`: add A4F API key for multi-provider model access
 - `custom`: set Anthropic-compatible `base_url`, token, and model IDs
+
+### GLM Provider (Zhipu AI)
+
+Claudex supports Zhipu AI's GLM models through their Anthropic-compatible API endpoint. GLM models work similarly to custom providers - they use direct API access without the anthropic-bridge proxy.
+
+**Configuration:**
+1. Go to `Settings -> Providers`
+2. Add a new GLM provider or edit existing one
+3. Set the base URL to: `https://open.bigmodel.cn/api/anthropic`
+4. Add your GLM API key
+5. Configure the models you want to use
+
+**Available Models:**
+- `glm-5` - Latest GLM 5 model
+- `glm-4.7` - GLM 4.7 model
+- `glm-4.6v` - GLM 4.6 Vision model (multimodal)
+
+**How it works:**
+GLM provider uses the Anthropic-compatible endpoint directly, setting:
+- `ANTHROPIC_BASE_URL` to the GLM API endpoint
+- `ANTHROPIC_AUTH_TOKEN` to your GLM API key
+
+This allows Claude Code to communicate with GLM models while maintaining the same request/response format as Anthropic's API.
+
+### A4F Provider
+
+A4F is a multi-provider API aggregation service that provides access to models from various AI providers through a single API.
+
+**Configuration:**
+1. Go to `Settings -> Providers`
+2. Add a new A4F provider
+3. Add your A4F API key
+4. Models are automatically fetched from the A4F catalog
+
+**How it works:**
+A4F provider connects to `https://api.a4f.co/v1` and aggregates models from multiple providers. Models are displayed without provider prefixes (e.g., `gpt-4o` instead of `openai/gpt-4o`).
+
+## Operation Modes
+
+Claudex supports three operation modes configurable in `Settings -> General`:
+
+- **Individual** (default): Standard single-user mode
+- **Client**: Client-facing deployment mode
+- **Enterprise**: Enterprise deployment with additional features (RBAC, organization management, etc.)
+
+Operation mode can only be changed by superuser accounts.
 
 ### Model examples
 
