@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/primitives/Button';
 import { Check, Loader2, ExternalLink, Copy, CheckCheck, X, ArrowRight } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { copyToClipboard } from '@/hooks/useClipboard';
 
 interface DeviceCodeResponse {
   verification_uri: string;
@@ -77,7 +78,7 @@ export const DeviceAuthButton: React.FC<DeviceAuthButtonProps> = ({ value, onCha
 
   const copyCode = useCallback(async () => {
     if (!deviceInfo) return;
-    await navigator.clipboard.writeText(deviceInfo.code);
+    await copyToClipboard(deviceInfo.code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [deviceInfo]);

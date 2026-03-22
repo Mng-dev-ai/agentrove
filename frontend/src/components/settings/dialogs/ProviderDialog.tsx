@@ -74,11 +74,43 @@ const DEFAULT_OPENROUTER_PROVIDER: Omit<CustomProvider, 'id' | 'auth_token'> = {
       enabled: true,
       context_window: 1_000_000,
     },
+    // DeepSeek models
     {
-      model_id: 'deepseek/deepseek-v3.2',
-      name: 'Deepseek V3.2',
+      model_id: 'deepseek/deepseek-chat-v3-0324',
+      name: 'DeepSeek V3',
       enabled: true,
-      context_window: 128_000,
+      context_window: 131_072,
+    },
+    {
+      model_id: 'deepseek/deepseek-r1-0528',
+      name: 'DeepSeek R1',
+      enabled: true,
+      context_window: 131_072,
+    },
+    {
+      model_id: 'deepseek/deepseek-prover-v2',
+      name: 'DeepSeek Prover V2',
+      enabled: false,
+      context_window: 131_072,
+    },
+    // GLM / ZhipuAI models
+    {
+      model_id: 'thudm/glm-4-32b',
+      name: 'GLM-4 32B',
+      enabled: true,
+      context_window: 131_072,
+    },
+    {
+      model_id: 'thudm/glm-z1-32b',
+      name: 'GLM Z1 32B',
+      enabled: true,
+      context_window: 131_072,
+    },
+    {
+      model_id: 'thudm/glm-z1-rumination-32b',
+      name: 'GLM Z1 Rumination 32B',
+      enabled: false,
+      context_window: 32_768,
     },
   ],
 };
@@ -101,19 +133,36 @@ const DEFAULT_COPILOT_PROVIDER: Omit<CustomProvider, 'id' | 'auth_token'> = {
   base_url: null,
   enabled: true,
   models: [
-    { model_id: 'gpt-5.2-codex', name: 'Codex 5.2', enabled: true, context_window: 200_000 },
-    {
-      model_id: 'gemini-3-pro-preview',
-      name: 'Gemini 3 Pro',
-      enabled: true,
-      context_window: 1_000_000,
-    },
-    {
-      model_id: 'claude-opus-4.6',
-      name: 'Claude Opus 4.6',
-      enabled: true,
-      context_window: 1_000_000,
-    },
+    // OpenAI models
+    { model_id: 'gpt-4.1', name: 'GPT-4.1', enabled: true, context_window: 1_047_576 },
+    { model_id: 'gpt-5-mini', name: 'GPT-5 mini', enabled: true, context_window: 200_000 },
+    { model_id: 'gpt-5.1', name: 'GPT-5.1', enabled: true, context_window: 200_000 },
+    { model_id: 'gpt-5.1-codex', name: 'GPT-5.1-Codex', enabled: true, context_window: 200_000 },
+    { model_id: 'gpt-5.1-codex-mini', name: 'GPT-5.1-Codex-Mini', enabled: false, context_window: 200_000 },
+    { model_id: 'gpt-5.1-codex-max', name: 'GPT-5.1-Codex-Max', enabled: true, context_window: 200_000 },
+    { model_id: 'gpt-5.2', name: 'GPT-5.2', enabled: true, context_window: 200_000 },
+    { model_id: 'gpt-5.2-codex', name: 'GPT-5.2-Codex', enabled: true, context_window: 200_000 },
+    { model_id: 'gpt-5.3-codex', name: 'GPT-5.3-Codex', enabled: true, context_window: 200_000 },
+    { model_id: 'gpt-5.4', name: 'GPT-5.4', enabled: true, context_window: 200_000 },
+    { model_id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', enabled: true, context_window: 200_000 },
+    // Anthropic models
+    { model_id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', enabled: true, context_window: 200_000 },
+    { model_id: 'claude-opus-4.5', name: 'Claude Opus 4.5', enabled: true, context_window: 200_000 },
+    { model_id: 'claude-opus-4.6', name: 'Claude Opus 4.6', enabled: true, context_window: 200_000 },
+    { model_id: 'claude-opus-4.6-fast', name: 'Claude Opus 4.6 (fast mode)', enabled: false, context_window: 200_000 },
+    { model_id: 'claude-sonnet-4', name: 'Claude Sonnet 4', enabled: true, context_window: 200_000 },
+    { model_id: 'claude-sonnet-4.5', name: 'Claude Sonnet 4.5', enabled: true, context_window: 200_000 },
+    { model_id: 'claude-sonnet-4.6', name: 'Claude Sonnet 4.6', enabled: true, context_window: 200_000 },
+    // Google models
+    { model_id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', enabled: true, context_window: 1_000_000 },
+    { model_id: 'gemini-3-flash', name: 'Gemini 3 Flash', enabled: false, context_window: 1_000_000 },
+    { model_id: 'gemini-3-pro', name: 'Gemini 3 Pro', enabled: false, context_window: 1_000_000 },
+    { model_id: 'gemini-3.1-pro', name: 'Gemini 3.1 Pro', enabled: false, context_window: 1_000_000 },
+    // xAI models
+    { model_id: 'grok-code-fast-1', name: 'Grok Code Fast 1', enabled: true, context_window: 131_072 },
+    // Fine-tuned models
+    { model_id: 'raptor-mini', name: 'Raptor mini', enabled: false, context_window: 200_000 },
+    { model_id: 'goldeneye', name: 'Goldeneye', enabled: false, context_window: 200_000 },
   ],
 };
 

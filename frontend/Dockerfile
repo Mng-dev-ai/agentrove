@@ -1,16 +1,24 @@
-FROM node:20-alpine
+FROM node:20-alpine AS build
 
-# Set working directory
 WORKDIR /app
 
-# Copy package.json and package-lock.json
 COPY package*.json ./
-
-# Install dependencies
 RUN npm install --legacy-peer-deps
 
-# Expose the port
+COPY . .
+
+ARG VITE_API_BASE_URL=/api/v1
+ARG VITE_WS_URL=/api/v1/ws
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_WS_URL=$VITE_WS_URL
+
+RUN npm run build
+
+FROM nginx:alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
 EXPOSE 3000
 
-# Command to run dev server with auto-reload
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["nginx", "-g", "daemon off;"]

@@ -76,16 +76,15 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-/api/v1}
+        - VITE_WS_URL=${VITE_WS_URL:-/api/v1/ws}
     container_name: agentrove-frontend-web
     restart: unless-stopped
     depends_on:
       - api
     ports:
       - "${FRONTEND_PORT}:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    env_file: .env
 
 networks:
   sandbox:

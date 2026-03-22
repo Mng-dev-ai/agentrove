@@ -29,6 +29,9 @@ LOCAL_COMMAND_STDOUT_PATTERN = re.compile(
     r"<local-command-stdout>(.*?)</local-command-stdout>",
     re.DOTALL,
 )
+# Claude CLI prints "Set model to X\n" when the model is configured;
+# strip it so it never reaches the user as assistant text.
+SET_MODEL_LINE_PATTERN = re.compile(r"^Set model to [^\r\n]+\r?\n?")
 
 
 class StreamProcessor:
@@ -44,6 +47,10 @@ class StreamProcessor:
         # Tracks which block kinds have been streamed via partial deltas
         # so we skip only those specific kinds from the complete AssistantMessage.
         self._streamed_kinds: set[str] = set()
+        # Buffer to detect and strip "Set model to X\n" at the start of a
+        # streaming response before any text reaches the client.
+        self._prefix_buf: str = ""
+        self._prefix_decided: bool = False
 
     def _process_session_init(self, message: SystemMessage) -> Iterable[StreamEvent]:
         if message.subtype != "init" or not self._session_handler:
@@ -80,6 +87,8 @@ class StreamProcessor:
                 self.usage = message.usage
             yield from self._emit_assistant_events(message)
             self._streamed_kinds.clear()
+            self._prefix_buf = ""
+            self._prefix_decided = False
             return
 
         if isinstance(message, UserMessage):
@@ -134,6 +143,17 @@ class StreamProcessor:
         if delta_type == "text_delta":
             text = delta.get("text", "")
             if text:
+                if not self._prefix_decided:
+                    self._prefix_buf += text
+                    # Wait until we have a newline or enough chars to decide.
+                    if "\n" not in self._prefix_buf and len(self._prefix_buf) <= 60:
+                        return
+                    self._prefix_decided = True
+                    match = SET_MODEL_LINE_PATTERN.match(self._prefix_buf)
+                    text = self._prefix_buf[match.end():] if match else self._prefix_buf
+                    self._prefix_buf = ""
+                    if not text:
+                        return
                 self._streamed_kinds.add("text")
                 yield {"type": "assistant_text", "text": text}
         elif delta_type == "thinking_delta":
@@ -217,6 +237,11 @@ class StreamProcessor:
     ) -> Iterable[StreamEvent]:
         if not text:
             return
+
+        if event_type == "assistant_text":
+            text = SET_MODEL_LINE_PATTERN.sub("", text, count=1).lstrip("\n")
+            if not text:
+                return
 
         if event_type == "assistant_text" and PROMPT_SUGGESTIONS_PATTERN.search(text):
             cleaned = PROMPT_SUGGESTIONS_PATTERN.sub("", text).strip()

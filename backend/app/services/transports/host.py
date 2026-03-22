@@ -123,6 +123,12 @@ class HostSandboxTransport(BaseSandboxTransport):
             env["HOME"] = str(self._home_dir)
         env["GIT_CONFIG_GLOBAL"] = settings.GIT_CONFIG_GLOBAL
         env["GNUPGHOME"] = settings.GNUPGHOME
+        # CLAUDE_CONFIG_DIR/CLAUDE_HOME point to the global container-level config dir,
+        # which is owned by root. When Claude runs as appuser (uid=999) it silently exits
+        # if it can't read that dir's .claude.json. Remove them so Claude falls back to
+        # HOME/.claude/ — the per-sandbox dir that appuser owns.
+        env.pop("CLAUDE_CONFIG_DIR", None)
+        env.pop("CLAUDE_HOME", None)
         run_user = self._resolve_run_user(requested_user)
 
         try:

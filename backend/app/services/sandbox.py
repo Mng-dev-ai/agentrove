@@ -458,6 +458,34 @@ class SandboxService:
         )
         await self.execute_command(sandbox_id, setup_cmd)
 
+    async def ensure_bridge_running(
+        self,
+        sandbox_id: str,
+        openrouter_api_key: str | None = None,
+        copilot_token: str | None = None,
+    ) -> None:
+        # Check if the bridge is already accepting connections; start it if not.
+        # In host mode the bridge process dies when the API container restarts,
+        # so we need to restart it lazily before the first chat session.
+        try:
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection("127.0.0.1", ANTHROPIC_BRIDGE_PORT),
+                timeout=1.0,
+            )
+            writer.close()
+            await writer.wait_closed()
+            return  # already running
+        except (OSError, asyncio.TimeoutError):
+            pass
+
+        await self._setup_anthropic_bridge(
+            sandbox_id,
+            openrouter_api_key=openrouter_api_key,
+            copilot_token=copilot_token,
+        )
+        # Give the bridge a moment to bind the port before Claude CLI tries to connect.
+        await asyncio.sleep(1.0)
+
     async def _setup_anthropic_bridge(
         self,
         sandbox_id: str,
@@ -494,6 +522,7 @@ class SandboxService:
             f"mkdir -p {SANDBOX_IDE_CONFIG_DIR} && "
             f"echo '{escaped_settings}' > {SANDBOX_IDE_SETTINGS_PATH} && "
             f"openvscode-server --host 0.0.0.0 --port {OPENVSCODE_PORT} "
+            f"--server-base-path /ide/ "
             f"--connection-token-file {SANDBOX_IDE_TOKEN_PATH} --disable-telemetry"
         )
         await self.execute_command(sandbox_id, setup_and_start_cmd, background=True)

@@ -5,6 +5,7 @@ import fnmatch
 import logging
 import os
 import pty
+import pwd
 import re
 import shlex
 import shutil
@@ -106,7 +107,20 @@ class LocalHostProvider(SandboxProvider):
         real_config = Path.home() / ".config"
         sandbox_config = home_dir / ".config"
         if real_config.is_dir() and not sandbox_config.exists():
-            sandbox_config.symlink_to(real_config)
+            sandbox_config.symlink_to(real_config)        # When running as root, transfer ownership to the non-root user that will run Claude CLI.
+        # Claude CLI needs write access to create ~/.claude/ config files on startup; without
+        # this the process exits silently and the SDK times out on the initialize handshake.
+        if os.geteuid() == 0:
+            for candidate in ["appuser", "nobody"]:
+                with contextlib.suppress(KeyError):
+                    user_info = pwd.getpwnam(candidate)
+                    uid, gid = user_info.pw_uid, user_info.pw_gid
+                    os.lchown(home_dir, uid, gid)
+                    for root, dirs, files in os.walk(home_dir, followlinks=False):
+                        for name in dirs + files:
+                            with contextlib.suppress(OSError):
+                                os.lchown(os.path.join(root, name), uid, gid)
+                    break
 
     def bind_workspace(self, sandbox_id: str, workspace_path: str) -> None:
         home_dir = (self._base_dir / sandbox_id).resolve()
@@ -688,7 +702,7 @@ class LocalHostProvider(SandboxProvider):
             return None
         workspace_dir = self._resolve_workspace_dir(sandbox_id)
         folder = quote(str(workspace_dir), safe="/")
-        return f"{self._preview_base_url}:{OPENVSCODE_PORT}/?folder={folder}"
+        return f"/ide/?folder={folder}"
 
     async def get_vnc_url(self, sandbox_id: str) -> str | None:
         if not shutil.which("websockify"):

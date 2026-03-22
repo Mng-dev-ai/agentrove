@@ -1,5 +1,9 @@
+import logging
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.api.endpoints._shared import (
     prune_installed_component,
@@ -38,6 +42,7 @@ async def upload_skill(
     try:
         skill_data = await skill_service.upload(file)
     except SkillException as e:
+        logger.warning("skill upload rejected: %s (file=%s)", e, file.filename)
         raise_bad_request_from_service(e)
 
     async with cache_connection() as cache:

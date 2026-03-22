@@ -36,6 +36,8 @@ from app.services.claude_agent import (
 from app.services.claude_session_registry import session_registry
 from app.services.db import SessionFactoryType
 from app.services.provider import ProviderService
+from app.services.sandbox import SandboxService
+from app.services.sandbox_providers.factory import SandboxProviderFactory
 from app.services.exceptions import ClaudeAgentException
 from app.services.message import MessageService
 from app.services.queue import QueueService
@@ -1078,6 +1080,23 @@ class ChatStreamRuntime:
                 worktree=request.worktree,
                 selected_persona_name=request.selected_persona_name,
             )
+
+            # If this sandbox uses the anthropic-bridge (OpenRouter, OpenAI, Copilot),
+            # make sure the bridge is still running — it dies when the container restarts.
+            bridge_url = params.options.env.get("ANTHROPIC_BASE_URL", "")
+            if "127.0.0.1" in bridge_url or "localhost" in bridge_url:
+                sandbox_service = SandboxService(
+                    SandboxProviderFactory.create_bound(
+                        runtime.chat.sandbox_provider or SandboxProviderType.DOCKER.value,
+                        sandbox_id=runtime.chat.sandbox_id or "",
+                        workspace_path=runtime.chat.workspace_path,
+                    )
+                )
+                await sandbox_service.ensure_bridge_running(
+                    sandbox_id=runtime.chat.sandbox_id or "",
+                    copilot_token=params.options.env.get("GITHUB_COPILOT_TOKEN"),
+                    openrouter_api_key=params.options.env.get("OPENROUTER_API_KEY"),
+                )
 
             session = await session_registry.get_or_create(
                 chat_id=runtime.chat_id,

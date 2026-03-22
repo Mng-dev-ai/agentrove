@@ -7,6 +7,7 @@ import { AttachmentViewer } from './AttachmentViewer';
 import { Button } from './primitives/Button';
 import type { MessageAttachment } from '@/types/chat.types';
 import { isImageUrl } from '@/utils/fileTypes';
+import { copyToClipboard } from '@/hooks/useClipboard';
 
 const Mermaid = lazy(() => import('./Mermaid').then((m) => ({ default: m.Mermaid })));
 const VisualWidget = lazy(() =>
@@ -117,7 +118,7 @@ function MarkDownInner({ content, className = '' }: { content: string; className
   }, [needsMath, remarkMathPlugin, rehypeKatexPlugin]);
 
   const handleCopyCode = useCallback((code: string) => {
-    navigator.clipboard.writeText(code);
+    void copyToClipboard(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
   }, []);

@@ -64,6 +64,7 @@ export const SecretInput: React.FC<SecretInputProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        autoComplete="off"
         className={cn('pr-9 text-xs', inputClassName)}
       />
       <Button

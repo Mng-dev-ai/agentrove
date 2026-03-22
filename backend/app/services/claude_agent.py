@@ -516,6 +516,8 @@ class ClaudeAgentService:
             include_partial_messages=True,
             max_thinking_tokens=THINKING_MODE_TOKENS.get(thinking_mode or "") or 0,
             worktree=worktree,
+            # Log Claude CLI stderr so crashes are visible in API logs
+            stderr=lambda line: logger.warning("claude stderr: %s", line.rstrip()),
         )
         return options
 
