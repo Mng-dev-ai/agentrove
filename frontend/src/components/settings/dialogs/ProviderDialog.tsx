@@ -211,10 +211,10 @@ const getAuthTokenConfig = (
     case 'anthropic':
       return {
         label: 'API Key or OAuth Token',
-        placeholder: 'sk-ant-... or paste token from claude setup-token',
+        placeholder: 'sk-ant-api03-... or sk-ant-oat01-...',
         helperText: {
-          prefix: 'Enter your Anthropic API key (sk-ant-...) or OAuth token from',
-          code: 'claude setup-token',
+          prefix: 'Paste your Anthropic API key (sk-ant-api03-...) or OAuth token (sk-ant-oat01-...) from',
+          code: 'console.anthropic.com',
           suffix: '',
         },
       };
