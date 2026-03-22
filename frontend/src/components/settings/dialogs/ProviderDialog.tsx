@@ -210,12 +210,12 @@ const getAuthTokenConfig = (
   switch (providerType) {
     case 'anthropic':
       return {
-        label: 'OAuth Token (optional)',
-        placeholder: 'Paste token from claude setup-token',
+        label: 'API Key or OAuth Token',
+        placeholder: 'sk-ant-... or paste token from claude setup-token',
         helperText: {
-          prefix: 'Optional in host mode if already logged in via CLI. For Docker, run',
+          prefix: 'Enter your Anthropic API key (sk-ant-...) or OAuth token from',
           code: 'claude setup-token',
-          suffix: 'in terminal',
+          suffix: '',
         },
       };
     case 'openrouter':

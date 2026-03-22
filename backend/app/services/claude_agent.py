@@ -242,8 +242,13 @@ class ClaudeAgentService:
         if provider_type == ProviderType.ANTHROPIC.value:
             # Direct Anthropic API — in host mode the CLI uses the user's
             # existing login; in Docker mode an explicit token is needed.
+            # API keys (sk-ant-...) go to ANTHROPIC_API_KEY; OAuth tokens go
+            # to CLAUDE_CODE_OAUTH_TOKEN — using the wrong var causes 401s.
             if auth_token:
-                env["CLAUDE_CODE_OAUTH_TOKEN"] = auth_token
+                if auth_token.startswith("sk-ant-"):
+                    env["ANTHROPIC_API_KEY"] = auth_token
+                else:
+                    env["CLAUDE_CODE_OAUTH_TOKEN"] = auth_token
         elif provider_type in (
             ProviderType.OPENROUTER.value,
             ProviderType.OPENAI.value,
