@@ -94,6 +94,23 @@ class LocalHostProvider(SandboxProvider):
         self._sandboxes: dict[str, HostSandboxInfo] = {}
         self._pty_sessions: dict[str, dict[str, Any]] = {}
 
+    def _chown_to_appuser(self, path: Path) -> None:
+        # Transfer ownership when running as root so the non-root appuser that runs
+        # Claude CLI can read and write within this directory.
+        if os.geteuid() != 0:
+            return
+        for candidate in ["appuser", "nobody"]:
+            with contextlib.suppress(KeyError):
+                user_info = pwd.getpwnam(candidate)
+                uid, gid = user_info.pw_uid, user_info.pw_gid
+                with contextlib.suppress(OSError):
+                    os.lchown(path, uid, gid)
+                for root, dirs, files in os.walk(path, followlinks=False):
+                    for name in dirs + files:
+                        with contextlib.suppress(OSError):
+                            os.lchown(os.path.join(root, name), uid, gid)
+                break
+
     def _init_home_dir(self, sandbox_id: str, home_dir: Path) -> None:
         home_dir.mkdir(parents=True, exist_ok=True)
         bashrc_content = f'export PS1="user@{sandbox_id}:\\w$ "\n'
@@ -107,20 +124,11 @@ class LocalHostProvider(SandboxProvider):
         real_config = Path.home() / ".config"
         sandbox_config = home_dir / ".config"
         if real_config.is_dir() and not sandbox_config.exists():
-            sandbox_config.symlink_to(real_config)        # When running as root, transfer ownership to the non-root user that will run Claude CLI.
+            sandbox_config.symlink_to(real_config)
+        # When running as root, transfer ownership to the non-root user that will run Claude CLI.
         # Claude CLI needs write access to create ~/.claude/ config files on startup; without
         # this the process exits silently and the SDK times out on the initialize handshake.
-        if os.geteuid() == 0:
-            for candidate in ["appuser", "nobody"]:
-                with contextlib.suppress(KeyError):
-                    user_info = pwd.getpwnam(candidate)
-                    uid, gid = user_info.pw_uid, user_info.pw_gid
-                    os.lchown(home_dir, uid, gid)
-                    for root, dirs, files in os.walk(home_dir, followlinks=False):
-                        for name in dirs + files:
-                            with contextlib.suppress(OSError):
-                                os.lchown(os.path.join(root, name), uid, gid)
-                    break
+        self._chown_to_appuser(home_dir)
 
     def bind_workspace(self, sandbox_id: str, workspace_path: str) -> None:
         home_dir = (self._base_dir / sandbox_id).resolve()
@@ -136,6 +144,8 @@ class LocalHostProvider(SandboxProvider):
             link.symlink_to(workspace)
         else:
             link.symlink_to(workspace)
+        # Chown the workspace directory so appuser (which runs Claude CLI) can write files.
+        self._chown_to_appuser(workspace)
         self._sandboxes[sandbox_id] = HostSandboxInfo(
             home_dir=home_dir, workspace_dir=workspace
         )
@@ -242,6 +252,8 @@ class LocalHostProvider(SandboxProvider):
         if workspace_path:
             workspace = Path(workspace_path).expanduser().resolve()
             (home_dir / "workspace").symlink_to(workspace)
+            # Chown the workspace directory so appuser (which runs Claude CLI) can write files.
+            self._chown_to_appuser(workspace)
         else:
             workspace = home_dir
 
