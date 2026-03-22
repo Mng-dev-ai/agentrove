@@ -150,6 +150,10 @@ class LocalHostProvider(SandboxProvider):
             workspace_link = candidate / "workspace"
             if workspace_link.is_symlink():
                 workspace_dir = workspace_link.resolve()
+                if not workspace_dir.exists():
+                    raise SandboxException(
+                        f"Host sandbox {sandbox_id} workspace directory no longer exists: {workspace_dir}"
+                    )
             else:
                 workspace_dir = candidate
             self._sandboxes[sandbox_id] = HostSandboxInfo(
