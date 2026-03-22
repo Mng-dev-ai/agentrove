@@ -72,6 +72,19 @@ async def handle_call_tool(
         response = {"behavior": "allow", "updatedInput": tool_input}
         return [types.TextContent(type="text", text=json.dumps(response))]
 
+    # Auto mode is fully autonomous: deny AskUserQuestion so the agent never waits
+    # for user input, and allow plan-mode transitions freely so the agent can plan
+    # and execute without interruption.
+    if PERMISSION_MODE == "auto":
+        if tool_name in USER_INTERACTION_TOOLS:
+            response = {
+                "behavior": "deny",
+                "message": "Autonomous mode: proceed without asking the user.",
+            }
+        else:
+            response = {"behavior": "allow", "updatedInput": tool_input}
+        return [types.TextContent(type="text", text=json.dumps(response))]
+
     should_request_approval = PERMISSION_MODE == "ask" or requires_user_interaction
     if should_request_approval:
         if not API_BASE_URL or not CHAT_TOKEN or not CHAT_ID:
