@@ -17,9 +17,11 @@ import {
   useWorkspacesQuery,
   useWorkspaceResourcesQuery,
 } from '@/hooks/queries/useWorkspaceQueries';
+import { useFilesMetadataQuery } from '@/hooks/queries/useSandboxQueries';
 import { useModelSelection } from '@/hooks/queries/useModelQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
+import { buildFileStructureFromSandboxFiles } from '@/utils/file';
 
 const EXAMPLE_PROMPTS = [
   'Build a REST API with authentication',
@@ -82,6 +84,21 @@ export function LandingPage() {
       enabled: isAuthenticated && !!selectedWorkspaceId,
     },
   );
+
+  // Enable @ file mentions in the input bar before a chat is created
+  const selectedSandboxId = selectedWorkspaceId
+    ? workspaces.find((ws) => ws.id === selectedWorkspaceId)?.sandbox_id
+    : undefined;
+
+  const { data: filesMetadata = [] } = useFilesMetadataQuery(selectedSandboxId, {
+    enabled: isAuthenticated && !!selectedSandboxId,
+  });
+
+  const fileStructure = useMemo(
+    () => buildFileStructureFromSandboxFiles(filesMetadata, []),
+    [filesMetadata],
+  );
+
   const { data: settings } = useSettingsQuery({
     enabled: isAuthenticated,
   });
@@ -177,6 +194,7 @@ export function LandingPage() {
             </div>
 
             <ChatProvider
+              fileStructure={fileStructure}
               customSkills={workspaceResources?.skills}
               builtinSlashCommands={workspaceResources?.builtin_slash_commands}
               personas={settings?.personas}
