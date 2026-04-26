@@ -74,6 +74,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    environment:
+      - SERVICE_FQDN_WEB_80
     expose:
       - "80"
     healthcheck:
