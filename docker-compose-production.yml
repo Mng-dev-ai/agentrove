@@ -74,8 +74,8 @@ services:
     depends_on:
       api:
         condition: service_healthy
-    ports:
-      - "${HTTP_PORT:-127.0.0.1:8088}:80"
+    expose:
+      - "80"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
       interval: 10s
