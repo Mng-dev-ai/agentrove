@@ -29,7 +29,7 @@ Plans are cheap. Bad inheritance choices die at plan stage.
 
 ### 2. Route via the maps
 
-Based on your plan, read the relevant docs **before** opening source files. (Artifact docs and domain maps are written in the follow-up PR; until then, refer to `docs/legacy.md` — see "Doc status" below.)
+Based on your plan, read the relevant docs **before** opening source files.
 
 | If you're touching… | Read first |
 |---|---|
@@ -52,7 +52,6 @@ Based on your plan, read the relevant docs **before** opening source files. (Art
 | Git / worktrees / per-message checkpoints | `docs/domains/git.md` |
 | SSE/WebSocket streaming / `StreamEnvelope` | `docs/domains/streaming.md` |
 | Workspaces / skills / personas / slash commands | `docs/domains/workspace.md` |
-| GitHub integration / token / repo ops | `docs/domains/github.md` |
 
 A typical task touches 1–2 artifact docs and 1–2 domain maps. Read them all — they're short.
 
@@ -136,14 +135,3 @@ Escalate to a human (rather than guessing) when:
 - You can't reproduce a bug after reasonable effort.
 
 Don't fight the harness silently. Surface the friction.
-
----
-
-## Doc status
-
-This harness is being landed in two PRs. **Right now (PR 1):**
-
-- ✅ `AGENTS.md` (this file), `CLAUDE.md` symlink, `docs/golden_principles.md`, `docs/done.md`, `plans/` — landed
-- ⏳ `docs/artifacts/backend/*.md`, `docs/artifacts/frontend/*.md`, `docs/domains/*.md` — landing in the next PR
-
-Until artifact docs and domain maps land, the legacy convention dump is preserved at `docs/legacy.md` — a verbatim copy of the previous monolithic CLAUDE.md. It's the source of truth for backend/frontend specifics until PR 2 splits it into per-artifact and per-domain docs. **Don't add new content to `docs/legacy.md`** — it's slated for deletion.
