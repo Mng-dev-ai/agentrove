@@ -134,7 +134,6 @@ export function InputProvider({
 
   const handleSlashCommandSelect = useCallback(
     (command: SlashCommand) => {
-      setPreviewDismissed(true);
       const newMessage = `${command.value} `;
       setMessage(newMessage);
       focusTextarea(newMessage);
