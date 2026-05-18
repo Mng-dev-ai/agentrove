@@ -12,6 +12,7 @@ This checkout is the MyBox fork of Agentrove. Before changing behavior, UI, adap
 contracts, desktop packaging, or agent/provider surfaces, read the MyBox fork docs:
 
 - `docs/mybox/agent-operating-contract.md`
+- `docs/mybox/product-blueprint.md`
 - `docs/mybox/fork-policy.md`
 - `docs/mybox/ui-visual-contract.md`
 - `docs/mybox/adapter-architecture.md`

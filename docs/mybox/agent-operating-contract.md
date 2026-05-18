@@ -7,13 +7,15 @@ MyBox fork of Agentrove.
 
 1. Read `AGENTS.md`.
 2. Read this file.
-3. Read `docs/mybox/fork-policy.md`.
-4. Read `docs/mybox/ui-visual-contract.md` for UI work.
-5. Read `docs/mybox/adapter-architecture.md` for harness, provider, ACP, or
+3. Read `docs/mybox/product-blueprint.md` for product identity, navigation,
+   harness scope, and future-plan compliance.
+4. Read `docs/mybox/fork-policy.md`.
+5. Read `docs/mybox/ui-visual-contract.md` for UI work.
+6. Read `docs/mybox/adapter-architecture.md` for harness, provider, ACP, or
    OpenClaw work.
-6. Read `docs/generated/repo-map.md`, then the generated map for the layer you
+7. Read `docs/generated/repo-map.md`, then the generated map for the layer you
    are touching.
-7. Read the Agentrove domain docs named by `AGENTS.md`.
+8. Read the Agentrove domain docs named by `AGENTS.md`.
 
 Do not bulk-load the repo first. Use the maps to choose the smallest relevant
 files.
@@ -37,6 +39,8 @@ If these conflict, stop and surface the conflict instead of guessing.
 
 - Preserve Agentrove's existing UI and interaction style unless the task
   explicitly authorizes a replacement.
+- Follow `docs/mybox/product-blueprint.md` for product identity, information
+  architecture, user-facing terminology, and V1 harness boundaries.
 - Prefer data-driven registries over hardcoded harness names in UI components.
 - Do not invent live status. Mark incomplete integrations as `mock`, `planned`,
   `read-only`, or `not connected`.
@@ -66,6 +70,16 @@ For UI work:
 2. Preserve the native Agentrove/MyBox visual language.
 3. Validate at desktop and one narrow/mobile width when practical.
 4. Treat screenshot mismatch as a real bug.
+
+For future plans that touch product behavior, UI, harnesses, permissions,
+branding, or adapter boundaries, include a short blueprint compliance checklist:
+
+1. Which blueprint sections apply.
+2. Whether brand, information architecture, harness behavior, permissions,
+   visual language, or truth labels are affected.
+3. How the change avoids fake live data.
+4. How the change avoids hardcoded harness lists in presentation components.
+5. Whether existing screen inventory decisions need updates first.
 
 ## Stop Conditions
 
