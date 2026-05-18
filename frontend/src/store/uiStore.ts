@@ -17,6 +17,7 @@ import {
   tileIdToViewType,
   viewTypeToPrimaryTile,
 } from '@/utils/mosaicHelpers';
+import type { MenuMode } from '@/components/ui/commandRegistry';
 
 type UIStoreState = ThemeState &
   Pick<UIState, 'sidebarOpen'> &
@@ -25,6 +26,10 @@ type UIStoreState = ThemeState &
   SplitViewActions & {
     commandMenuOpen: boolean;
     setCommandMenuOpen: (open: boolean) => void;
+    // Set by `executeCommand` when a mode-switching command (search, files, branches)
+    // reopens the menu, then consumed and cleared by CommandMenu on next open.
+    pendingMenuMode: MenuMode | null;
+    setPendingMenuMode: (mode: MenuMode | null) => void;
     subThreadDialogOpen: boolean;
     setSubThreadDialogOpen: (open: boolean) => void;
     createPRDialogOpen: boolean;
@@ -97,6 +102,8 @@ export const useUIStore = create<UIStoreState>()(
 
       commandMenuOpen: false,
       setCommandMenuOpen: (open) => set({ commandMenuOpen: open }),
+      pendingMenuMode: null,
+      setPendingMenuMode: (mode) => set({ pendingMenuMode: mode }),
       subThreadDialogOpen: false,
       setSubThreadDialogOpen: (open) => set({ subThreadDialogOpen: open }),
       createPRDialogOpen: false,

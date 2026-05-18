@@ -7,11 +7,15 @@ import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button';
 import { ToggleButton } from '@/components/ui/ToggleButton';
 import { cn } from '@/utils/cn';
+import { IS_MAC_PLATFORM } from '@/utils/platform';
 
-export async function getTauriWindow() {
+async function getTauriWindow() {
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
   return getCurrentWindow();
 }
+
+// Decorations are only removed on macOS — traffic lights and custom drag region are macOS-only
+const IS_MACOS_DESKTOP = isTauri() && IS_MAC_PLATFORM;
 
 export function TrafficLights() {
   const [isHovered, setIsHovered] = useState(false);
@@ -87,9 +91,6 @@ export function TrafficLights() {
     </div>
   );
 }
-
-// Decorations are only removed on macOS — traffic lights and custom drag region are macOS-only
-export const IS_MACOS_DESKTOP = isTauri() && navigator.platform.toUpperCase().startsWith('MAC');
 
 // Minimal drag region with traffic lights for screens rendered outside Layout (error, loading).
 // Does not depend on react-router or auth state.

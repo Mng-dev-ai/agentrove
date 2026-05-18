@@ -12,8 +12,8 @@ import type { PermissionMode } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
-import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
-import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
+import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
+import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import { getAgentKindForModelId, type ChatRequest, type Message } from '@/types/chat.types';
 import type { StreamState } from '@/types/stream.types';
 

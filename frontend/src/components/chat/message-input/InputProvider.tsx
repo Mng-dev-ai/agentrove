@@ -7,8 +7,8 @@ import { useEnhancePromptMutation } from '@/hooks/queries/useChatQueries';
 import { useMentionSuggestions } from '@/hooks/useMentionSuggestions';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
-import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
-import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
+import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
+import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import {
   useChatSettingsStore,
   DEFAULT_PERMISSION_MODE,

@@ -17,10 +17,7 @@ import { Button } from '@/components/ui/primitives/Button';
 import { Input } from '@/components/ui/primitives/Input';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader';
-import {
-  useWorkspacesQuery,
-  useCreateWorkspaceMutation,
-} from '@/hooks/queries/useWorkspaceQueries';
+import { useWorkspacesList, useCreateWorkspaceMutation } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { useGitHubReposQuery } from '@/hooks/queries/useGitHubQueries';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
@@ -373,7 +370,7 @@ export function WorkspaceSelector({
   enabled,
 }: WorkspaceSelectorProps) {
   const isDesktop = isTauri();
-  const { data: workspacesData } = useWorkspacesQuery({ enabled });
+  const workspaces = useWorkspacesList({ enabled });
   const { data: settings } = useSettingsQuery({ enabled });
   const createWorkspace = useCreateWorkspaceMutation();
 
@@ -399,7 +396,6 @@ export function WorkspaceSelector({
     creationMode === 'git' && hasGitHubToken && !showUrlInput,
   );
 
-  const workspaces = workspacesData?.items ?? [];
   const selectedWorkspace = workspaces.find((ws) => ws.id === selectedWorkspaceId);
   const showSearch = workspaces.length > VISIBLE_LIMIT;
 

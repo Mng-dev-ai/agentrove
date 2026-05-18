@@ -246,11 +246,12 @@ function AttachmentViewerInner({ attachments, uploadingAttachmentIds }: Attachme
   useEffect(() => {
     if (imageAttachments.length === 0) return;
 
-    const newAttachments = imageAttachments.filter((a) => !loadedIdsRef.current.has(a.id));
+    const loadedIds = loadedIdsRef.current;
+    const newAttachments = imageAttachments.filter((a) => !loadedIds.has(a.id));
     if (newAttachments.length === 0) return;
 
     for (const attachment of newAttachments) {
-      loadedIdsRef.current.add(attachment.id);
+      loadedIds.add(attachment.id);
     }
     setImageStates((prev) => {
       const next = { ...prev };
@@ -287,7 +288,7 @@ function AttachmentViewerInner({ attachments, uploadingAttachmentIds }: Attachme
           }));
         } catch (error) {
           logger.error('Image download failed', 'AttachmentViewer', error);
-          loadedIdsRef.current.delete(key);
+          loadedIds.delete(key);
           if (!cancelled) {
             setImageStates((prev) => ({
               ...prev,
@@ -302,7 +303,7 @@ function AttachmentViewerInner({ attachments, uploadingAttachmentIds }: Attachme
       // Only remove IDs that never finished loading so the next effect retries them
       for (const a of newAttachments) {
         if (!completedIds.has(a.id)) {
-          loadedIdsRef.current.delete(a.id);
+          loadedIds.delete(a.id);
         }
       }
     };

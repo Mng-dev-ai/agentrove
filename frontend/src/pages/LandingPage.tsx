@@ -22,10 +22,7 @@ import { useModelStore } from '@/store/modelStore';
 import { useChatSettingsStore } from '@/store/chatSettingsStore';
 import { useAuthStore } from '@/store/authStore';
 import { useCreateChatMutation } from '@/hooks/queries/useChatQueries';
-import {
-  useWorkspacesQuery,
-  useWorkspaceResourcesQuery,
-} from '@/hooks/queries/useWorkspaceQueries';
+import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useFilesMetadataQuery } from '@/hooks/queries/useSandboxQueries';
 import { useModelSelection } from '@/hooks/queries/useModelQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
@@ -66,8 +63,7 @@ export function LandingPage() {
     enabled: isAuthenticated,
   });
 
-  const { data: workspacesData } = useWorkspacesQuery({ enabled: isAuthenticated });
-  const workspaces = workspacesData?.items ?? [];
+  const workspaces = useWorkspacesList({ enabled: isAuthenticated });
 
   const createChat = useCreateChatMutation();
   const [message, setMessage] = useState('');
