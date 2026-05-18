@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { useUIStore } from '@/store/uiStore';
-import { getLeaves } from '@/utils/mosaicHelpers';
+import { getLeafViewTypes, tileIdToViewType } from '@/utils/mosaicHelpers';
 import type { ViewType } from '@/types/ui.types';
 
 function arraysEqual(a: ViewType[], b: ViewType[]): boolean {
@@ -11,9 +11,10 @@ function arraysEqual(a: ViewType[], b: ViewType[]): boolean {
   return true;
 }
 
-// Derives the list of visible view panes from the mosaic layout. Uses a ref
-// to return a referentially stable array when the leaf set hasn't changed,
-// preventing downstream re-renders from Zustand selector identity changes.
+// Derives the deduped list of visible view *kinds* (ViewType) from the mosaic
+// layout. Two agent panes collapse to a single 'agent' entry here — consumers
+// that need per-tile awareness should read mosaicLayout directly. Uses a ref
+// to return a referentially stable array when the set hasn't changed.
 export function useActiveViews(): ViewType[] {
   const prevRef = useRef<ViewType[]>([]);
 
@@ -23,9 +24,9 @@ export function useActiveViews(): ViewType[] {
     if (!mosaicLayout) {
       next = [currentView];
     } else if (typeof mosaicLayout === 'string') {
-      next = [mosaicLayout as ViewType];
+      next = [tileIdToViewType(mosaicLayout)];
     } else {
-      next = getLeaves(mosaicLayout);
+      next = getLeafViewTypes(mosaicLayout);
     }
     if (arraysEqual(prevRef.current, next)) return prevRef.current;
     prevRef.current = next;

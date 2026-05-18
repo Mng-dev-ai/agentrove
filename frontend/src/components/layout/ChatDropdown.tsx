@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, type Ref } from 'react';
-import { Edit2, Trash2, Pin, PinOff } from 'lucide-react';
+import { Edit2, Trash2, Pin, PinOff, SplitSquareHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { cn } from '@/utils/cn';
 import type { Chat } from '@/types/chat.types';
@@ -11,6 +11,7 @@ interface ChatDropdownProps {
   onRename: (chat: Chat) => void;
   onDelete: (chatId: string) => void;
   onTogglePin: (chat: Chat) => void;
+  onOpenInSplit?: (chatId: string) => void;
   onClose?: () => void;
 }
 
@@ -21,6 +22,7 @@ export const ChatDropdown = memo(function ChatDropdown({
   onRename,
   onDelete,
   onTogglePin,
+  onOpenInSplit,
   onClose,
 }: ChatDropdownProps) {
   const isPinned = !!chat.pinned_at;
@@ -81,6 +83,22 @@ export const ChatDropdown = memo(function ChatDropdown({
               Pin
             </>
           )}
+        </Button>
+      )}
+      {onOpenInSplit && (
+        <Button
+          onClick={() => onOpenInSplit(chat.id)}
+          role="menuitem"
+          variant="unstyled"
+          className={cn(
+            'w-full px-3 py-2 text-left text-xs',
+            'text-text-primary dark:text-text-dark-primary',
+            'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
+            'flex items-center gap-2 transition-colors',
+          )}
+        >
+          <SplitSquareHorizontal className="h-3 w-3" />
+          Open in split
         </Button>
       )}
       <Button

@@ -10,6 +10,7 @@ import type { Chat } from '@/types/chat.types';
 interface SubThreadListProps {
   parentChatId: string;
   selectedChatId: string | null;
+  secondaryChatId?: string | null;
   onSelect: (chatId: string) => void;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
   streamingChatIdSet: Set<string>;
@@ -18,6 +19,7 @@ interface SubThreadListProps {
 export const SubThreadList = memo(function SubThreadList({
   parentChatId,
   selectedChatId,
+  secondaryChatId,
   onSelect,
   onDropdownClick,
   streamingChatIdSet,
@@ -54,6 +56,7 @@ export const SubThreadList = memo(function SubThreadList({
 
       {subThreads.map((thread) => {
         const isSelected = thread.id === selectedChatId;
+        const isActive = isSelected || thread.id === secondaryChatId;
         const isStreaming = streamingChatIdSet.has(thread.id);
         const isHovered = hoveredId === thread.id;
 
@@ -62,7 +65,7 @@ export const SubThreadList = memo(function SubThreadList({
             key={thread.id}
             className={cn(
               'group relative flex items-center rounded-lg transition-colors duration-200',
-              isSelected
+              isActive
                 ? 'bg-surface-hover/50 dark:bg-surface-dark-hover/50'
                 : 'hover:bg-surface-hover/50 dark:hover:bg-surface-dark-hover/50',
             )}
@@ -71,7 +74,7 @@ export const SubThreadList = memo(function SubThreadList({
           >
             <div className="absolute -left-[22px] top-1/2 h-px w-[18px] bg-border-secondary dark:bg-border-dark-secondary" />
 
-            {isSelected && !isStreaming && (
+            {isActive && !isStreaming && (
               <div className="absolute bottom-1.5 left-0 top-1.5 w-0.5 rounded-full bg-text-primary dark:bg-text-dark-primary" />
             )}
 
@@ -82,7 +85,7 @@ export const SubThreadList = memo(function SubThreadList({
               title={thread.title}
               className={cn(
                 'flex w-full items-center gap-2 px-2 py-1.5 pr-10 transition-colors duration-200',
-                isSelected
+                isActive
                   ? 'text-text-primary dark:text-text-dark-primary'
                   : 'text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary',
               )}
@@ -90,7 +93,7 @@ export const SubThreadList = memo(function SubThreadList({
               {isStreaming && (
                 <div className="h-[5px] w-[5px] flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
               )}
-              <span className={cn('truncate text-xs', isSelected && 'font-medium')}>
+              <span className={cn('truncate text-xs', isActive && 'font-medium')}>
                 {stripMarkdownTitle(thread.title)}
               </span>
             </Button>
@@ -99,7 +102,7 @@ export const SubThreadList = memo(function SubThreadList({
               className={cn(
                 'absolute right-2 text-[10px] tabular-nums text-text-quaternary dark:text-text-dark-quaternary',
                 'transition-opacity duration-200',
-                isHovered || isSelected ? 'opacity-0' : 'opacity-100',
+                isHovered || isActive ? 'opacity-0' : 'opacity-100',
               )}
             >
               {getRelativeTime(thread.updated_at)}
@@ -113,7 +116,7 @@ export const SubThreadList = memo(function SubThreadList({
                 'absolute right-2 flex-shrink-0 rounded-md p-0.5 transition-all duration-200',
                 'text-text-quaternary dark:text-text-dark-quaternary',
                 'hover:text-text-primary dark:hover:text-text-dark-primary',
-                isHovered || isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                isHovered || isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
               )}
               aria-label="Sub-thread options"
             >

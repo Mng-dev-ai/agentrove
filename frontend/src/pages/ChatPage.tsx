@@ -9,12 +9,15 @@ import { CommandMenu } from '@/components/ui/CommandMenu';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useActiveViews } from '@/hooks/useActiveViews';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
-import type { ViewType } from '@/types/ui.types';
+import type { MosaicTileId, ViewType } from '@/types/ui.types';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
+import { AgentPane } from '@/components/chat/chat-window/AgentPane';
 import { useEditorState } from '@/hooks/useEditorState';
 import { usePendingFileOpen } from '@/hooks/usePendingFileOpen';
 import { useChatData } from '@/hooks/useChatData';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import {
   useWorkspacesQuery,
@@ -63,8 +66,33 @@ export function ChatPage() {
   const createBranchDialogOpen = useUIStore((s) => s.createBranchDialogOpen);
 
   const activeViews = useActiveViews();
+  const secondaryChatId = useUIStore((s) => s.secondaryChatId);
+  const isMobile = useIsMobile();
 
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
+
+  // Shares the chat-query cache with AgentPane. Used as error guard
+  // (a deleted secondary chat collapses the split) and tile-label source.
+  const secondaryQuery = useChatQuery(secondaryChatId ?? undefined, {
+    enabled: !!secondaryChatId,
+  });
+  const secondaryQueryIsError = secondaryQuery.isError;
+  useEffect(() => {
+    if (secondaryChatId && secondaryQueryIsError) {
+      useUIStore.getState().closeSplitChat();
+    }
+  }, [secondaryChatId, secondaryQueryIsError]);
+
+  // mosaicLayout isn't persisted; rebuild it on refresh and when returning to desktop.
+  useEffect(() => {
+    if (secondaryChatId === chatId) {
+      useUIStore.getState().closeSplitChat();
+      return;
+    }
+    if (!isMobile && secondaryChatId) {
+      useUIStore.getState().openChatInSplit(secondaryChatId);
+    }
+  }, [chatId, isMobile, secondaryChatId]);
 
   const { fileStructure, isFileMetadataLoading, refetchFilesMetadata } = useSandboxFiles(
     currentChat,
@@ -117,7 +145,13 @@ export function ChatPage() {
   if (prevChatIdForResetRef.current !== chatId) {
     prevChatIdForResetRef.current = chatId;
     setSelectedFile(null);
-    useUIStore.getState().setCurrentView('agent');
+    const ui = useUIStore.getState();
+    if (ui.secondaryChatId === chatId) {
+      ui.closeSplitChat();
+    }
+    if (!ui.secondaryChatId) {
+      ui.setCurrentView('agent');
+    }
     useUIStore.setState({
       pendingFilePath: null,
       pendingFileJump: null,
@@ -168,10 +202,14 @@ export function ChatPage() {
   useLayoutSidebar(sidebarContent);
 
   const renderNonTerminalView = useCallback(
-    (view: ViewType): ReactNode => {
+    (tileId: MosaicTileId): ReactNode => {
+      if (tileId === 'agent:primary') return <ChatComponent />;
+      if (tileId === 'agent:secondary') {
+        if (!secondaryChatId) return null;
+        return <AgentPane chatId={secondaryChatId} />;
+      }
+      const view: ViewType = tileId;
       switch (view) {
-        case 'agent':
-          return <ChatComponent />;
         case 'editor':
           return (
             <Suspense fallback={viewLoadingFallback}>
@@ -219,12 +257,13 @@ export function ChatPage() {
       handleRefresh,
       isRefreshing,
       worktreeCwd,
+      secondaryChatId,
     ],
   );
 
   const renderView = useCallback(
-    (view: ViewType, slot: string): ReactNode => {
-      const isTerminal = view === 'terminal';
+    (tileId: MosaicTileId, slot: string): ReactNode => {
+      const isTerminal = tileId === 'terminal';
       return (
         <div className="relative flex h-full w-full">
           <div className={isTerminal ? 'flex h-full w-full' : 'hidden'}>
@@ -238,7 +277,7 @@ export function ChatPage() {
             </Suspense>
           </div>
           <div className={isTerminal ? 'hidden' : 'flex h-full w-full'}>
-            {renderNonTerminalView(view)}
+            {renderNonTerminalView(tileId)}
           </div>
         </div>
       );
@@ -246,12 +285,42 @@ export function ChatPage() {
     [currentChat, renderNonTerminalView],
   );
 
+  const handleCloseTile = useCallback(
+    (tileId: MosaicTileId) => {
+      const ui = useUIStore.getState();
+      if (tileId === 'agent:secondary') {
+        ui.closeSplitChat();
+        return;
+      }
+      if (tileId === 'agent:primary' && ui.secondaryChatId && chatId) {
+        const newPrimary = ui.swapChatPanes(chatId);
+        if (newPrimary) {
+          navigate(`/chat/${newPrimary}`);
+          ui.closeSplitChat();
+          return;
+        }
+      }
+      ui.removeTileFromMosaic(tileId);
+    },
+    [chatId, navigate],
+  );
+
+  const agentTitles = useMemo<Partial<Record<MosaicTileId, string>>>(() => {
+    const titles: Partial<Record<MosaicTileId, string>> = {};
+    if (currentChat?.title) titles['agent:primary'] = currentChat.title;
+    if (secondaryChatId && secondaryQuery.data?.title) {
+      titles['agent:secondary'] = secondaryQuery.data.title;
+    }
+    return titles;
+  }, [currentChat?.title, secondaryChatId, secondaryQuery.data?.title]);
+
   if (!chatId) return <Navigate to="/" />;
 
   return (
     <ChatProvider
       chatId={chatId}
       sandboxId={currentChat?.sandbox_id}
+      worktreeCwd={worktreeCwd}
       parentChatId={currentChat?.parent_chat_id ?? undefined}
       fileStructure={fileStructure}
       customSkills={workspaceResources?.skills}
@@ -268,7 +337,11 @@ export function ChatPage() {
       >
         <div className="relative flex h-full">
           <div className="flex h-full flex-1 overflow-hidden bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">
-            <SplitViewContainer renderView={renderView} />
+            <SplitViewContainer
+              renderView={renderView}
+              agentTitles={agentTitles}
+              onCloseTile={handleCloseTile}
+            />
           </div>
           <CommandMenu />
           {subThreadDialogOpen && currentChat && !currentChat.parent_chat_id && (

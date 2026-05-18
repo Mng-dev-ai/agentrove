@@ -21,6 +21,8 @@ import { useModelSelection } from '@/hooks/queries/useModelQueries';
 import type { Chat, Message } from '@/types/chat.types';
 import type { useInfiniteMessagesQuery } from '@/hooks/queries/useChatQueries';
 
+const EMPTY_FILES: File[] = [];
+
 interface ChatSessionOrchestratorProps {
   chatId: string;
   currentChat: Chat | undefined;
@@ -28,6 +30,7 @@ interface ChatSessionOrchestratorProps {
   hasFetchedMessages: boolean;
   messagesQuery: ReturnType<typeof useInfiniteMessagesQuery>;
   refetchFilesMetadata: () => Promise<unknown>;
+  useRouteInitialPrompt?: boolean;
   children: ReactNode;
 }
 
@@ -38,14 +41,15 @@ export function ChatSessionOrchestrator({
   hasFetchedMessages,
   messagesQuery,
   refetchFilesMetadata,
+  useRouteInitialPrompt = true,
   children,
 }: ChatSessionOrchestratorProps) {
   const queryClient = useQueryClient();
 
-  const { attachedFiles, setAttachedFiles } = useChatStore(
+  const { attachedFiles, clearAttachedFilesForChat } = useChatStore(
     useShallow((state) => ({
-      attachedFiles: state.attachedFiles,
-      setAttachedFiles: state.setAttachedFiles,
+      attachedFiles: state.attachedFilesByChat[chatId] ?? EMPTY_FILES,
+      clearAttachedFilesForChat: state.clearAttachedFilesForChat,
     })),
   );
 
@@ -83,6 +87,8 @@ export function ChatSessionOrchestrator({
     setInitialPromptSent,
     initialPromptFromRoute,
   } = useInitialPrompt();
+  const effectiveInitialPrompt = useRouteInitialPrompt ? initialPrompt : null;
+  const effectiveInitialPromptFromRoute = useRouteInitialPrompt ? initialPromptFromRoute : null;
 
   const { contextUsage, updateContextUsage } = useContextUsageState(
     chatId,
@@ -122,7 +128,7 @@ export function ChatSessionOrchestrator({
     fetchedMessages,
     chatId,
     selectedModelId,
-    initialPromptFromRoute,
+    initialPromptFromRoute: effectiveInitialPromptFromRoute,
     initialPromptSent,
     wasAborted,
     attachedFiles,
@@ -137,19 +143,19 @@ export function ChatSessionOrchestrator({
     chatId,
     attachedFiles,
     setInitialPromptSent,
-    setAttachedFiles,
+    clearAttachedFilesForChat,
   });
   initialPromptActionsRef.current = {
     sendMessage,
     chatId,
     attachedFiles,
     setInitialPromptSent,
-    setAttachedFiles,
+    clearAttachedFilesForChat,
   };
 
   useEffect(() => {
     if (
-      initialPrompt &&
+      effectiveInitialPrompt &&
       messages.length === 1 &&
       !isLoading &&
       !isStreaming &&
@@ -162,15 +168,15 @@ export function ChatSessionOrchestrator({
         chatId: cid,
         attachedFiles: files,
         setInitialPromptSent: setSent,
-        setAttachedFiles: setFiles,
+        clearAttachedFilesForChat: clearFiles,
       } = initialPromptActionsRef.current;
       const userMessage = messages[0];
-      send(initialPrompt, cid, userMessage, files);
+      send(effectiveInitialPrompt, cid, userMessage, files);
       setSent(true);
-      setFiles([]);
+      clearFiles(cid);
     }
   }, [
-    initialPrompt,
+    effectiveInitialPrompt,
     messages,
     isLoading,
     isStreaming,

@@ -24,12 +24,14 @@ function PRComments({
   repo,
   number,
   workspaceId,
+  chatId,
   headRef,
 }: {
   owner: string;
   repo: string;
   number: number;
   workspaceId?: string;
+  chatId?: string;
   headRef?: string;
 }) {
   const navigate = useNavigate();
@@ -45,9 +47,13 @@ function PRComments({
 
   const handleFixInThisChat = useCallback(
     (comment: ReviewComment) => {
-      useUIStore.getState().setPendingChatMessage(buildPrompt(comment));
+      if (!chatId) return;
+      useUIStore.getState().setPendingChatMessage({
+        chatId,
+        message: buildPrompt(comment),
+      });
     },
-    [buildPrompt],
+    [buildPrompt, chatId],
   );
 
   const handleFixInNewChat = useCallback(
@@ -276,6 +282,7 @@ export const PRReviewView = memo(function PRReviewView() {
                         repo={repo}
                         number={pr.number}
                         workspaceId={currentChat?.workspace_id}
+                        chatId={currentChat?.id}
                         headRef={pr.head.ref}
                       />
                     </div>

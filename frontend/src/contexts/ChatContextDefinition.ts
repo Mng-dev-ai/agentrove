@@ -7,6 +7,7 @@ import type { AgentKind } from '@/types/chat.types';
 interface ChatContextValue {
   chatId: string | undefined;
   sandboxId: string | undefined;
+  worktreeCwd: string | undefined;
   parentChatId: string | undefined;
   fileStructure: FileStructure[];
   customSkills: CustomSkill[];

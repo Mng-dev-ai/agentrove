@@ -22,6 +22,7 @@ import {
 import { useToggleSet } from '@/hooks/useToggleSet';
 import { cn } from '@/utils/cn';
 import { useUIStore } from '@/store/uiStore';
+import { useChatStore } from '@/store/chatStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useCurrentUserQuery, useLogoutMutation } from '@/hooks/queries/useAuthQueries';
@@ -89,11 +90,13 @@ function calculateDropdownPosition(buttonRect: DOMRect): { top: number; left: nu
 interface WorkspaceGroupProps {
   workspace: Workspace;
   selectedChatId: string | null;
+  secondaryChatId: string | null;
   dropdownChatId: string | null;
   streamingChatIdSet: Set<string>;
   isCollapsed: boolean;
   onToggleCollapse: (workspaceId: string) => void;
   onChatSelect: (chatId: string) => void;
+  onOpenInSplit?: (chatId: string) => void;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
   onNewThread: (e: React.MouseEvent, workspaceId: string) => void;
   onWorkspaceContextMenu: (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => void;
@@ -104,11 +107,13 @@ interface WorkspaceGroupProps {
 const SidebarWorkspaceGroup = memo(function SidebarWorkspaceGroup({
   workspace,
   selectedChatId,
+  secondaryChatId,
   dropdownChatId,
   streamingChatIdSet,
   isCollapsed,
   onToggleCollapse,
   onChatSelect,
+  onOpenInSplit,
   onDropdownClick,
   onNewThread,
   onWorkspaceContextMenu,
@@ -185,10 +190,12 @@ const SidebarWorkspaceGroup = memo(function SidebarWorkspaceGroup({
                   <SidebarChatItem
                     chat={chat}
                     isSelected={chat.id === selectedChatId}
+                    isActive={chat.id === selectedChatId || chat.id === secondaryChatId}
                     isHovered={hoveredChatId === chat.id}
                     isDropdownOpen={dropdownChatId === chat.id}
                     isChatStreaming={streamingChatIdSet.has(chat.id)}
                     onSelect={onChatSelect}
+                    onOpenInSplit={onOpenInSplit}
                     onDropdownClick={onDropdownClick}
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
@@ -201,6 +208,7 @@ const SidebarWorkspaceGroup = memo(function SidebarWorkspaceGroup({
                     <SubThreadList
                       parentChatId={chat.id}
                       selectedChatId={selectedChatId}
+                      secondaryChatId={secondaryChatId}
                       onSelect={onChatSelect}
                       onDropdownClick={onDropdownClick}
                       streamingChatIdSet={streamingChatIdSet}
@@ -287,6 +295,7 @@ export function Sidebar({
     },
   });
   const activeStreamMetadata = useStreamStore((state) => state.activeStreamMetadata);
+  const secondaryChatId = useUIStore((state) => state.secondaryChatId);
   const streamingChatIdSet = useMemo(
     () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
     [activeStreamMetadata],
@@ -404,6 +413,28 @@ export function Sidebar({
     [onChatSelect, isMobile],
   );
 
+  const handleOpenInSplit = useCallback(
+    (chatId: string) => {
+      if (isMobile || !selectedChatId) {
+        onChatSelect(chatId);
+        return;
+      }
+      useUIStore.getState().openChatInSplit(chatId);
+      setPinnedHoveredId(null);
+    },
+    [isMobile, onChatSelect, selectedChatId],
+  );
+
+  const handleDropdownOpenInSplit = useCallback(
+    (chatId: string) => {
+      handleOpenInSplit(chatId);
+      setDropdown(null);
+    },
+    [handleOpenInSplit],
+  );
+  const canOpenInSplit = !isMobile && selectedChatId != null;
+  const dropdownCanSplit = canOpenInSplit && dropdown?.chat.id !== selectedChatId;
+
   const handleDeleteChat = useCallback((chatId: string) => {
     setChatToDelete(chatId);
     setDropdown(null);
@@ -425,9 +456,15 @@ export function Sidebar({
         'Chat deleted successfully',
         'Failed to delete chat',
       );
+      const uiState = useUIStore.getState();
+      if (chatToDelete === selectedChatId || uiState.secondaryChatId === chatToDelete) {
+        uiState.closeSplitChat();
+      }
       if (chatToDelete === selectedChatId || chatToDelete === selectedChatParentId) {
         navigate('/');
       }
+      // Release any pending File blobs held for this chat.
+      useChatStore.getState().clearAttachedFilesForChat(chatToDelete);
       onDeleteChat?.(chatToDelete);
     } catch {
       // toast already shown by mutateWithToast
@@ -616,10 +653,12 @@ export function Sidebar({
                         <SidebarChatItem
                           chat={chat}
                           isSelected={chat.id === selectedChatId}
+                          isActive={chat.id === selectedChatId || chat.id === secondaryChatId}
                           isHovered={pinnedHoveredId === chat.id}
                           isDropdownOpen={dropdown?.chat.id === chat.id}
                           isChatStreaming={streamingChatIdSet.has(chat.id)}
                           onSelect={handleChatSelect}
+                          onOpenInSplit={canOpenInSplit ? handleOpenInSplit : undefined}
                           onDropdownClick={handleDropdownClick}
                           onMouseEnter={handlePinnedMouseEnter}
                           onMouseLeave={handlePinnedMouseLeave}
@@ -634,6 +673,7 @@ export function Sidebar({
                           <SubThreadList
                             parentChatId={chat.id}
                             selectedChatId={selectedChatId}
+                            secondaryChatId={secondaryChatId}
                             onSelect={handleChatSelect}
                             onDropdownClick={handleDropdownClick}
                             streamingChatIdSet={streamingChatIdSet}
@@ -650,11 +690,13 @@ export function Sidebar({
                   key={workspace.id}
                   workspace={workspace}
                   selectedChatId={selectedChatId}
+                  secondaryChatId={secondaryChatId}
                   dropdownChatId={dropdown?.chat.id ?? null}
                   streamingChatIdSet={streamingChatIdSet}
                   isCollapsed={collapsedWorkspaces.has(workspace.id)}
                   onToggleCollapse={toggleWorkspaceCollapse}
                   onChatSelect={handleChatSelect}
+                  onOpenInSplit={canOpenInSplit ? handleOpenInSplit : undefined}
                   onDropdownClick={handleDropdownClick}
                   onNewThread={handleNewWorkspaceThread}
                   onWorkspaceContextMenu={handleWorkspaceContextMenu}
@@ -684,6 +726,7 @@ export function Sidebar({
           onRename={handleRenameClick}
           onDelete={handleDeleteChat}
           onTogglePin={handleTogglePin}
+          onOpenInSplit={dropdownCanSplit ? handleDropdownOpenInSplit : undefined}
           onClose={() => setDropdown(null)}
         />
       )}

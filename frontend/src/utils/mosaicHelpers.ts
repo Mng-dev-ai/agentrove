@@ -1,13 +1,32 @@
-import type { MosaicLayoutNode, MosaicSplitNode, ViewType } from '@/types/ui.types';
+import type { MosaicLayoutNode, MosaicSplitNode, MosaicTileId, ViewType } from '@/types/ui.types';
 import type { MosaicNode } from 'react-mosaic-component';
 
 export function isMosaicSplitNode(node: MosaicLayoutNode): node is MosaicSplitNode {
   return typeof node === 'object' && 'direction' in node;
 }
 
-export function getLeaves(node: MosaicLayoutNode): ViewType[] {
-  if (typeof node === 'string') return [node as ViewType];
+export function getLeaves(node: MosaicLayoutNode): MosaicTileId[] {
+  if (typeof node === 'string') return [node as MosaicTileId];
   return [...getLeaves(node.first), ...getLeaves(node.second)];
+}
+
+// Maps a stored mosaic tile id back to its ViewType for label/render lookups.
+export function tileIdToViewType(tileId: MosaicTileId): ViewType {
+  if (tileId === 'agent:primary' || tileId === 'agent:secondary') return 'agent';
+  return tileId;
+}
+
+// Maps a ViewType to its canonical primary tile id. The agent slot is special:
+// "the agent view" always means agent:primary; agent:secondary is only created
+// by the split-chat affordance.
+export function viewTypeToPrimaryTile(view: ViewType): MosaicTileId {
+  return view === 'agent' ? 'agent:primary' : view;
+}
+
+// Returns the leaves' view types, deduped, preserving order. Two agent panes
+// (primary + secondary) collapse to a single 'agent' entry.
+export function getLeafViewTypes(node: MosaicLayoutNode): ViewType[] {
+  return Array.from(new Set(getLeaves(node).map(tileIdToViewType)));
 }
 
 // Converts our internal binary-tree layout to the react-mosaic n-ary format.
@@ -58,8 +77,8 @@ function flattenSameDirection(
 // active tab since our model doesn't support tabs).
 export function libraryToMosaicLayout(node: MosaicNode<string> | null): MosaicLayoutNode | null {
   if (node === null) return null;
-  if (typeof node === 'string') return node as ViewType;
-  if (typeof node === 'number') return String(node) as ViewType;
+  if (typeof node === 'string') return node as MosaicTileId;
+  if (typeof node === 'number') return String(node) as MosaicTileId;
 
   // Handle tabs node: flatten to the active tab (our internal model doesn't support tabs)
   if ('type' in node && node.type === 'tabs' && 'tabs' in node) {
@@ -129,7 +148,7 @@ export function libraryToMosaicLayout(node: MosaicNode<string> | null): MosaicLa
 
 export function removeTileFromLayout(
   layout: MosaicLayoutNode,
-  tileToRemove: ViewType,
+  tileToRemove: MosaicTileId,
 ): MosaicLayoutNode | null {
   if (typeof layout === 'string') {
     return layout === tileToRemove ? null : layout;

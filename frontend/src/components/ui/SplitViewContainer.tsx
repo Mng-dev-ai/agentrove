@@ -1,20 +1,24 @@
 import { memo, lazy, Suspense, ReactNode } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { isMosaicSplitNode } from '@/utils/mosaicHelpers';
+import { isMosaicSplitNode, viewTypeToPrimaryTile } from '@/utils/mosaicHelpers';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
-import type { ViewType } from '@/types/ui.types';
+import type { MosaicTileId } from '@/types/ui.types';
 
 const MosaicSplitView = lazy(() =>
   import('@/components/ui/MosaicSplitView').then((m) => ({ default: m.MosaicSplitView })),
 );
 
 interface SplitViewContainerProps {
-  renderView: (view: ViewType, slot: string) => ReactNode;
+  renderView: (tileId: MosaicTileId, slot: string) => ReactNode;
+  agentTitles?: Partial<Record<MosaicTileId, string>>;
+  onCloseTile?: (tileId: MosaicTileId) => void;
 }
 
 export const SplitViewContainer = memo(function SplitViewContainer({
   renderView,
+  agentTitles,
+  onCloseTile,
 }: SplitViewContainerProps) {
   const currentView = useUIStore((state) => state.currentView);
   const mosaicLayout = useUIStore((state) => state.mosaicLayout);
@@ -23,13 +27,19 @@ export const SplitViewContainer = memo(function SplitViewContainer({
   const isSingleView = isMobile || !mosaicLayout || !isMosaicSplitNode(mosaicLayout);
 
   if (isSingleView) {
-    const view: ViewType = typeof mosaicLayout === 'string' ? mosaicLayout : currentView;
-    return <div className="flex h-full flex-1 overflow-hidden">{renderView(view, 'single')}</div>;
+    const tileId: MosaicTileId =
+      typeof mosaicLayout === 'string' ? mosaicLayout : viewTypeToPrimaryTile(currentView);
+    return <div className="flex h-full flex-1 overflow-hidden">{renderView(tileId, 'single')}</div>;
   }
 
   return (
     <Suspense fallback={viewLoadingFallback}>
-      <MosaicSplitView mosaicLayout={mosaicLayout} renderView={renderView} />
+      <MosaicSplitView
+        mosaicLayout={mosaicLayout}
+        renderView={renderView}
+        agentTitles={agentTitles}
+        onCloseTile={onCloseTile}
+      />
     </Suspense>
   );
 });

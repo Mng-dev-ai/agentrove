@@ -52,6 +52,7 @@ State transitions go through `ChatService` and the streaming runtime — never w
 - **Send-now is cancel + re-prompt**, not a queue prepend. The currently streaming message gets a `cancelled` terminal event before the new one starts (PR #454).
 - **Sub-thread parent invalidation** — when a sub-thread completes, the parent's `sub_thread_count` may need cache refresh. Use the prefix key for broad invalidation.
 - **Permission mode and thinking mode are chat-scoped**, not user-scoped (PR #396) — they live on the chat, not on `UserSettings`.
+- **Split chat view: route owns the primary chat, `uiStore.secondaryChatId` owns the secondary.** The chat page may render two `AgentPane` instances simultaneously (`frontend/src/components/chat/chat-window/AgentPane.tsx`). Each pane owns its own `ChatProvider` + `ChatSessionProvider`, so `useChatContext()` / `useChatSessionContext()` consumers resolve to the nearest pane unchanged. Non-agent views (editor, terminal, diff, etc.), dialogs, and the command menu remain scoped to the **primary** chat. Mosaic tile leaves are `MosaicTileId` (`agent:primary | agent:secondary | <ViewType>`), not bare `ViewType` strings — see `frontend/src/types/ui.types.ts`.
 
 ## Recent prior art
 

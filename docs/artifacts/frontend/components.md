@@ -87,8 +87,8 @@ References: `InputProvider.tsx` (in `components/chat/message-input/`), `ChatSess
 
 | Context | Owns |
 |---|---|
-| `ChatProvider` (`contexts/ChatContext.tsx`) | static chat metadata: `chatId`, `sandboxId`, `fileStructure`, `customSkills`, `builtinSlashCommands`, `personas` |
-| `ChatSessionProvider` (`contexts/ChatSessionContext.tsx`) | dynamic session: messages, streaming, loading, permissions, input message, model selection |
+| `ChatProvider` (`contexts/ChatContext.tsx`) | static chat metadata: `chatId`, `sandboxId`, `worktreeCwd`, `fileStructure`, `customSkills`, `builtinSlashCommands`, `personas`. Mounted **per agent pane** — the primary tile inherits the page-level provider; the secondary tile mounts its own via `AgentPane` (`components/chat/chat-window/AgentPane.tsx`) so split-chat view can show two independent chats. |
+| `ChatSessionProvider` (`contexts/ChatSessionContext.tsx`) | dynamic session: messages, streaming, loading, permissions, input message, model selection. Also mounted **per agent pane**; `useChatSessionContext()` resolves to the nearest enclosing pane's session, so split-chat works without slot-aware consumers. |
 | `InputProvider` (`components/chat/message-input/InputProvider.tsx`) | input internals: file handling, drag-drop, suggestions, enhancement, submit |
 | `LayoutContext` (`components/layout/layoutState.tsx`) | sidebar state |
 | `FileTreeProvider` (`components/editor/file-tree/FileTreeProvider.tsx`) | file tree selection/expansion |

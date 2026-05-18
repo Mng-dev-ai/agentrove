@@ -38,7 +38,7 @@ import { useActiveViews } from '@/hooks/useActiveViews';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
 import { fuzzySearch } from '@/utils/fuzzySearch';
-import { getLeaves } from '@/utils/mosaicHelpers';
+import { getLeafViewTypes, viewTypeToPrimaryTile } from '@/utils/mosaicHelpers';
 import { traverseFileStructure, getFileName } from '@/utils/file';
 import { HighlightMatch } from '@/components/ui/shared/HighlightMatch';
 import { SearchPanel } from '@/components/editor/file-search/SearchPanel';
@@ -297,9 +297,14 @@ export function executeCommand(
   const ui = useUIStore.getState();
 
   if (cmd.type === 'view') {
-    const leaves = getLeaves(ui.mosaicLayout ?? ui.currentView);
-    if (toggle && leaves.includes(cmd.id)) {
-      ui.removeTileFromMosaic(cmd.id);
+    const layout = ui.mosaicLayout ?? viewTypeToPrimaryTile(ui.currentView);
+    const leafKinds = getLeafViewTypes(layout);
+    if (toggle && leafKinds.includes(cmd.id)) {
+      if (cmd.id === 'agent' && ui.secondaryChatId) {
+        ui.closeSplitChat();
+      } else {
+        ui.removeTileFromMosaic(viewTypeToPrimaryTile(cmd.id));
+      }
     } else {
       ui.handleViewClick(cmd.id, true);
     }
