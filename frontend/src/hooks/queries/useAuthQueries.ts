@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query';
 import { authService } from '@/services/authService';
-import type { AuthResponse, User } from '@/types/user.types';
+import type { AuthResponse, DesktopLocalSessionResponse, User } from '@/types/user.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
@@ -21,6 +21,18 @@ interface LoginData {
 
 export const useLoginMutation = createMutation<AuthResponse, Error, LoginData>(
   (data) => authService.login(data),
+  async (queryClient) => {
+    await queryClient.cancelQueries();
+    queryClient.clear();
+  },
+);
+
+export const useDesktopLocalSessionMutation = createMutation<
+  DesktopLocalSessionResponse,
+  Error,
+  void
+>(
+  () => authService.startDesktopLocalSession(),
   async (queryClient) => {
     await queryClient.cancelQueries();
     queryClient.clear();

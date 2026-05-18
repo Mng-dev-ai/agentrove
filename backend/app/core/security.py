@@ -27,6 +27,20 @@ from .user_manager import optional_current_active_user
 settings = get_settings()
 password_helper = PasswordHelper()
 logger = logging.getLogger(__name__)
+DESKTOP_LOCAL_EMAIL = "local@mybox.desktop"
+DESKTOP_LOCAL_USERNAME = "local_desktop"
+
+
+def is_desktop_local_email(email: str) -> bool:
+    return email.casefold() == DESKTOP_LOCAL_EMAIL
+
+
+def is_desktop_local_user(user: User) -> bool:
+    return is_desktop_local_email(user.email)
+
+
+def is_user_allowed_for_current_mode(user: User) -> bool:
+    return settings.DESKTOP_MODE or not is_desktop_local_user(user)
 
 
 def _get_fernet_key() -> bytes:
@@ -77,6 +91,12 @@ async def get_user_from_token(token: str, db: AsyncSession) -> User | None:
         result = await db.execute(select(User).filter(User.id == user_id))
         user = result.scalar_one_or_none()
         if user:
+            if not user.is_active:
+                logger.warning("Inactive token user %s rejected", user_id)
+                return None
+            if not is_user_allowed_for_current_mode(user):
+                logger.warning("Desktop local token rejected outside desktop mode")
+                return None
             logger.info("Successfully validated token for user %s", user_id)
         else:
             logger.warning("User %s not found in database", user_id)
@@ -107,6 +127,8 @@ async def get_current_user(
         return query_user
 
     if user is None:
+        raise credentials_exception
+    if not is_user_allowed_for_current_mode(user):
         raise credentials_exception
 
     return user

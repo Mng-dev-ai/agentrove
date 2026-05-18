@@ -50,6 +50,7 @@ class SettingsOverride:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.original = {
+            "DESKTOP_MODE": self.settings.DESKTOP_MODE,
             "REGISTRATION_DISABLED": self.settings.REGISTRATION_DISABLED,
             "REQUIRE_EMAIL_VERIFICATION": self.settings.REQUIRE_EMAIL_VERIFICATION,
             "BLOCK_DISPOSABLE_EMAILS": self.settings.BLOCK_DISPOSABLE_EMAILS,

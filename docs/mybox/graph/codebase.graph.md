@@ -7,6 +7,6 @@ External tools such as Graphify may be useful as scouts, but their output is adv
 | Metric | Value |
 | --- | --- |
 | Nodes | 508 |
-| Edges | 1057 |
+| Edges | 1067 |
 | Required high-risk files | 15 |
 | Graphify advisory pass | deferred in G1 unless a later run adds docs/mybox/graph/external/graphify-report.md |

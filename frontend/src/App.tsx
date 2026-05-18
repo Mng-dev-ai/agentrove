@@ -5,7 +5,10 @@ import { Layout } from '@/components/layout/Layout';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
-import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
+import {
+  useCurrentUserQuery,
+  useDesktopLocalSessionMutation,
+} from '@/hooks/queries/useAuthQueries';
 import { useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useGlobalStream } from '@/hooks/useGlobalStream';
@@ -161,8 +164,23 @@ export default function App() {
   const [desktopReady, setDesktopReady] = useState(!isTauri());
   const [desktopError, setDesktopError] = useState<string | null>(null);
   const [authHydrated, setAuthHydrated] = useState(false);
+  const [desktopBootstrapAttempted, setDesktopBootstrapAttempted] = useState(!isTauri());
+  const { mutate: startDesktopLocalSession, isPending: isDesktopBootstrapPending } =
+    useDesktopLocalSessionMutation({
+      onSuccess: () => {
+        useAuthStore.getState().setAuthenticated(true);
+      },
+      onError: (error) => {
+        console.error('Desktop local auth bootstrap failed:', error);
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : 'Desktop local session failed.';
+        setDesktopError(`${message} Restart Agentrove and try again.`);
+      },
+    });
 
-  useGlobalStream({ enabled: authHydrated && desktopReady });
+  useGlobalStream({ enabled: authHydrated && desktopReady && !!authStorage.getToken() });
 
   useMountEffect(() => {
     let cancelled = false;
@@ -192,6 +210,18 @@ export default function App() {
       metaThemeColor.setAttribute('content', resolvedTheme === 'dark' ? '#0a0a0a' : '#ffffff');
     }
   }, [resolvedTheme]);
+
+  useEffect(() => {
+    if (!isTauri() || !desktopReady || !authHydrated || desktopBootstrapAttempted) return;
+
+    if (authStorage.getToken()) {
+      setDesktopBootstrapAttempted(true);
+      return;
+    }
+
+    setDesktopBootstrapAttempted(true);
+    startDesktopLocalSession();
+  }, [authHydrated, desktopBootstrapAttempted, desktopReady, startDesktopLocalSession]);
 
   useMountEffect(() => {
     if (!isTauri()) return;
@@ -288,7 +318,7 @@ export default function App() {
     );
   }
 
-  if (!desktopReady || !authHydrated) {
+  if (!desktopReady || !authHydrated || isDesktopBootstrapPending) {
     return <LoadingScreen />;
   }
 

@@ -61,6 +61,11 @@ class Token(BaseModel):
     token_type: str
 
 
+class DesktopLocalSession(Token):
+    mode: str = "desktop-local"
+    user: UserRead
+
+
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
 

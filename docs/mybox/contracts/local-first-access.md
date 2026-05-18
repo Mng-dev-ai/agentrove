@@ -1,6 +1,6 @@
 # Local-First Access Contract
 
-**Status:** G1 contract
+**Status:** G2 implemented contract
 **Date:** 2026-05-18
 
 MyBox is desktop-first. A local desktop user should be able to enter the app and
@@ -23,9 +23,38 @@ work with local harnesses without being blocked by hosted-style account sign-in.
 - Do not make all API routes unauthenticated.
 - Do not silently convert hosted mode into local mode.
 
-## Future Implementation Shape
+## Implemented Runtime Shape
 
-The preferred future shape is an explicit runtime mode:
+G2 implements the explicit runtime mode through a backend-owned desktop session
+endpoint:
+
+```text
+POST /api/v1/auth/desktop/local-session
+```
+
+The endpoint is available only when the backend is running with
+`DESKTOP_MODE=true`. When `DESKTOP_MODE=false`, it returns `404` so hosted/web
+mode does not gain a local-login path.
+
+In desktop mode, the endpoint creates or resolves a deterministic local profile:
+
+```text
+email: local@mybox.desktop
+username: local_desktop
+```
+
+That user is active, verified, persisted in the normal users table, and has a
+normal `UserSettings` row. The endpoint issues the same access-token and
+refresh-token shapes as hosted login, so existing current-user, workspace,
+stream, and WebSocket ownership checks continue to run against a real user id.
+The reserved desktop-local email is blocked from the hosted `/jwt/login` route,
+hosted registration, and its stored password hash is rotated from an
+unguessable value during local session bootstrap so the local identity cannot
+become a public hosted credential. Reserved-email checks are case-insensitive.
+Desktop-local access tokens, query tokens, WebSocket tokens, refresh tokens, and
+optional user dependency paths reject the reserved identity when
+`DESKTOP_MODE=false`. Token-query and WebSocket auth also reject inactive users
+before returning a user object.
 
 | Mode | Expected behavior |
 | --- | --- |
@@ -33,15 +62,27 @@ The preferred future shape is an explicit runtime mode:
 | hosted-web | Existing hosted auth remains required. |
 | test | Tests can create users and sessions deterministically. |
 
-The exact implementation must be decided in the G2 local-first access plan after
-reading current auth, dependency, and desktop startup code.
+The frontend calls the desktop local-session endpoint only after Tauri backend
+port resolution and auth storage hydration. It stores the returned tokens in the
+existing auth storage layer and does not make protected routes trust a
+frontend-only desktop flag.
 
 ## Test Expectations
 
-G2 must include:
+G2 includes tests for:
 
 - desktop local mode enters the app without hosted sign-in,
 - hosted/web mode still requires auth,
 - backend routes do not trust a frontend-only flag,
 - workspace access boundaries remain enforced,
-- login/signup routes remain functional where hosted mode is enabled.
+- terminal WebSocket auth accepts the normal desktop-issued JWT,
+- hosted login rejects the reserved desktop-local identity,
+- hosted registration rejects the reserved desktop-local email,
+- hosted login and registration reject case variants of the reserved
+  desktop-local email,
+- existing desktop-local tokens and refresh tokens reject after leaving desktop
+  mode,
+- token-query auth rejects users deactivated after token issue,
+- username collisions on `local_desktop` do not break desktop bootstrap,
+- login/signup/refresh/logout routes remain functional where hosted mode is
+  enabled.

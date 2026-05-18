@@ -43,6 +43,7 @@ features:
     mybox_v1_priority: v1_required
     owning_frontend:
       routes:
+        - frontend/src/App.tsx
         - frontend/src/pages/LoginPage.tsx
         - frontend/src/pages/SignupPage.tsx
         - frontend/src/pages/ForgotPasswordPage.tsx
@@ -50,8 +51,11 @@ features:
         - frontend/src/pages/EmailVerificationPage.tsx
       components:
         - frontend/src/components/auth/AuthPageLayout.tsx
-      hooks: []
-      stores: []
+      hooks:
+        - frontend/src/hooks/queries/useAuthQueries.ts
+      stores:
+        - frontend/src/store/authStore.ts
+        - frontend/src/utils/storage.ts
     owning_backend:
       endpoints:
         - backend/app/api/endpoints/auth.py
@@ -72,6 +76,8 @@ features:
       - "Local-first access must not be a frontend-only bypass or a hosted-mode security regression."
     tests_needed:
       - "Local desktop mode access tests"
+      - "Desktop-local workspace ownership tests"
+      - "Desktop-local WebSocket token compatibility tests"
       - "Hosted auth regression tests"
       - "Refresh-token tests"
   - id: F-CHAT-001

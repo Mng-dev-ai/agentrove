@@ -5,7 +5,7 @@
 | backend/app/admin/config.py | secrets, external_network |
 | backend/app/admin/views.py | git, filesystem, external_network |
 | backend/app/api/endpoints/attachments.py | filesystem, external_network |
-| backend/app/api/endpoints/auth.py | filesystem, permissions, external_network |
+| backend/app/api/endpoints/auth.py | git, filesystem, secrets, permissions, external_network |
 | backend/app/api/endpoints/chat.py | git, terminal, filesystem, permissions, external_network |
 | backend/app/api/endpoints/github.py | git, external_network |
 | backend/app/api/endpoints/sandbox.py | git, terminal, filesystem, secrets, external_network |
@@ -14,9 +14,9 @@
 | backend/app/api/endpoints/workspace.py | filesystem, external_network |
 | backend/app/constants.py | git, terminal, filesystem, permissions, external_network |
 | backend/app/core/config.py | git, filesystem, secrets, permissions, external_network |
-| backend/app/core/deps.py | git, filesystem, secrets, external_network |
+| backend/app/core/deps.py | git, filesystem, secrets, permissions, external_network |
 | backend/app/core/middleware.py | filesystem, secrets, permissions, external_network |
-| backend/app/core/security.py | terminal, filesystem, secrets, external_network |
+| backend/app/core/security.py | terminal, filesystem, secrets, permissions, external_network |
 | backend/app/core/user_manager.py | git, secrets, external_network |
 | backend/app/db/session.py | git |
 | backend/app/db/sqlite.py | filesystem |
@@ -81,14 +81,14 @@
 | backend/tests/conftest.py | git, external_network |
 | backend/tests/helpers.py | git, terminal, filesystem, external_network |
 | backend/tests/test_attachments.py | git, filesystem, permissions, external_network |
-| backend/tests/test_auth.py | permissions, external_network |
+| backend/tests/test_auth.py | git, permissions, external_network |
 | backend/tests/test_chat.py | git, terminal, filesystem, permissions, external_network |
 | backend/tests/test_github.py | git, permissions, external_network |
 | backend/tests/test_models.py | permissions, external_network |
 | backend/tests/test_sandbox.py | git, terminal, filesystem, secrets, external_network |
 | backend/tests/test_settings.py | git, secrets, permissions, external_network |
 | backend/tests/test_skills.py | filesystem, permissions, external_network |
-| backend/tests/test_websocket.py | terminal, filesystem, permissions, external_network |
+| backend/tests/test_websocket.py | git, terminal, filesystem, permissions, external_network |
 | backend/tests/test_workspace.py | git, terminal, filesystem, permissions, external_network |
 | desktop/entry.py | filesystem, external_network |
 | frontend/package.json | git, filesystem |

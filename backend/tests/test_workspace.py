@@ -7,7 +7,7 @@ from httpx import AsyncClient
 
 from app.services.sandbox_providers.base import SandboxProvider
 
-from tests.conftest import LoginClient, UserFactory
+from tests.conftest import LoginClient, SettingsOverride, UserFactory
 from tests.helpers import FakeProviderFactory
 
 
@@ -167,6 +167,52 @@ async def test_workspace_access_is_limited_to_owner(
     assert other_list.json()["items"] == []
     assert other_get.status_code == 404
     assert owner_get.status_code == 200
+
+
+async def test_desktop_local_session_workspace_access_is_user_scoped(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    settings_override: SettingsOverride,
+    workspace_sandbox: None,
+) -> None:
+    settings_override(DESKTOP_MODE=True)
+    desktop_session = await client.post("/api/v1/auth/desktop/local-session")
+    assert desktop_session.status_code == 200
+    desktop_session_body = desktop_session.json()
+    desktop_headers = {"Authorization": f"Bearer {desktop_session_body['access_token']}"}
+
+    create_response = await client.post(
+        "/api/v1/workspaces",
+        json={
+            "name": "Desktop Local Workspace",
+            "source_type": "empty",
+            "sandbox_provider": "host",
+        },
+        headers=desktop_headers,
+    )
+    assert create_response.status_code == 201
+
+    await create_user(email="desktop-other@example.com", username="desktopother")
+    other_tokens = await login(email="desktop-other@example.com")
+    other_headers = {"Authorization": f"Bearer {other_tokens['access_token']}"}
+
+    desktop_list = await client.get("/api/v1/workspaces", headers=desktop_headers)
+    other_list = await client.get("/api/v1/workspaces", headers=other_headers)
+    other_get = await client.get(
+        f"/api/v1/workspaces/{create_response.json()['id']}",
+        headers=other_headers,
+    )
+
+    assert desktop_list.status_code == 200
+    assert desktop_list.json()["total"] == 1
+    assert (
+        desktop_list.json()["items"][0]["user_id"]
+        == desktop_session_body["user"]["id"]
+    )
+    assert other_list.status_code == 200
+    assert other_list.json()["items"] == []
+    assert other_get.status_code == 404
 
 
 async def test_delete_workspace_soft_deletes_it(
