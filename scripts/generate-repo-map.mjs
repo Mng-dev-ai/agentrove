@@ -112,6 +112,7 @@ const files = walk(root);
 const frontend = files.filter((file) => file.startsWith('frontend/src/'));
 const backend = files.filter((file) => file.startsWith('backend/app/') || file.startsWith('backend/tests/'));
 const docs = files.filter((file) => file.startsWith('docs/'));
+const plans = files.filter((file) => file.startsWith('plans/'));
 const agentEntrypoints = files.filter((file) =>
   [
     'AGENTS.md',
@@ -205,6 +206,10 @@ ${table(describeFiles(docs.filter((file) => file.startsWith('docs/mybox/'))), ['
 ## Agentrove Domain Docs
 
 ${table(describeFiles(docs.filter((file) => file.startsWith('docs/domains/'))), ['File', 'Summary'])}
+
+## Plans
+
+${table(describeFiles(plans.filter((file) => file.endsWith('.md'))), ['File', 'Summary'])}
 `,
 );
 
