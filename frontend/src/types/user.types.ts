@@ -12,6 +12,11 @@ export interface AuthResponse {
   token_type: string;
 }
 
+export interface DesktopLocalSessionResponse extends AuthResponse {
+  mode: 'desktop-local';
+  user: User;
+}
+
 export interface CustomEnvVar {
   key: string;
   value: string;

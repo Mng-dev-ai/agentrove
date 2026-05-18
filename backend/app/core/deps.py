@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import get_current_user
+from app.core.security import get_current_user, is_user_allowed_for_current_mode
 from app.core.user_manager import optional_current_active_user
 from app.db.session import SessionLocal, get_db
 from app.models.db_models.chat import Chat
@@ -50,7 +50,7 @@ async def get_github_token(
     db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
 ) -> str | None:
-    if user is None:
+    if user is None or not is_user_allowed_for_current_mode(user):
         return None
     try:
         user_settings = await user_service.get_user_settings(user.id, db=db)
@@ -106,7 +106,7 @@ async def get_sandbox_service(
     db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
 ) -> AsyncIterator[SandboxService]:
-    if not user:
+    if not user or not is_user_allowed_for_current_mode(user):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication required",

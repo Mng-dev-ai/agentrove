@@ -1,8 +1,10 @@
 import json
 from typing import Any, cast
+from uuid import UUID
 
 import pytest
 from fastapi import WebSocket
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import websocket as websocket_endpoint
@@ -15,9 +17,10 @@ from app.constants import (
     WS_MSG_INIT,
     WS_MSG_RESIZE,
 )
+from app.models.db_models.workspace import Workspace
 from app.services.sandbox_providers import SandboxProviderType
 
-from tests.conftest import LoginClient, UserFactory
+from tests.conftest import LoginClient, SettingsOverride, UserFactory
 from tests.helpers import create_authenticated_workspace
 
 
@@ -225,3 +228,48 @@ async def test_terminal_websocket_uses_default_terminal_id(
     await run_terminal_websocket(websocket, workspace.sandbox_id)
 
     assert registry.calls[0]["terminal_id"] == DEFAULT_TERMINAL_ID
+
+
+async def test_terminal_websocket_accepts_desktop_local_token(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    settings_override: SettingsOverride,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings_override(DESKTOP_MODE=True)
+    session_response = await client.post("/api/v1/auth/desktop/local-session")
+    assert session_response.status_code == 200
+    session_body = session_response.json()
+    user_id = session_body["user"]["id"]
+    workspace = Workspace(
+        name="Desktop WebSocket Workspace",
+        user_id=UUID(user_id),
+        sandbox_id="sandbox-desktop-websocket",
+        sandbox_provider="host",
+        workspace_path="/tmp/agentrove-test-desktop-websocket",
+        source_type="empty",
+        source_url=None,
+    )
+    db_session.add(workspace)
+    await db_session.commit()
+    await db_session.refresh(workspace)
+
+    session = FakeTerminalSession()
+    registry = FakeTerminalRegistry(session)
+    monkeypatch.setattr(websocket_endpoint, "terminal_session_registry", registry)
+    websocket = FakeWebSocket(
+        [
+            {
+                "text": json.dumps(
+                    {"type": WS_MSG_AUTH, "token": session_body["access_token"]}
+                )
+            },
+            {"text": json.dumps({"type": WS_MSG_DETACH})},
+        ]
+    )
+
+    await run_terminal_websocket(websocket, workspace.sandbox_id)
+
+    assert registry.calls[0]["user_id"] == user_id
+    assert registry.calls[0]["sandbox_id"] == workspace.sandbox_id
+    assert websocket.close_code == 1000

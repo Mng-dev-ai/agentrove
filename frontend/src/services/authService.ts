@@ -1,7 +1,7 @@
 import { apiClient } from '@/lib/api';
 import { ensureResponse, serviceCall, withAuth } from '@/services/base/BaseService';
 import { ValidationError } from '@/services/base/ServiceError';
-import type { AuthResponse, User } from '@/types/user.types';
+import type { AuthResponse, DesktopLocalSessionResponse, User } from '@/types/user.types';
 import { authStorage } from '@/utils/storage';
 import {
   validateRequired,
@@ -97,6 +97,19 @@ async function login(data: LoginRequest): Promise<AuthResponse> {
   });
 }
 
+async function startDesktopLocalSession(): Promise<DesktopLocalSessionResponse> {
+  return serviceCall(async () => {
+    const response = await apiClient.post<DesktopLocalSessionResponse>(
+      '/auth/desktop/local-session',
+    );
+    const payload = ensureResponse(response, 'Invalid response from server');
+
+    authStorage.setToken(payload.access_token);
+    authStorage.setRefreshToken(payload.refresh_token);
+    return payload;
+  });
+}
+
 async function getCurrentUser(): Promise<User> {
   return withAuth(async () => {
     const response = await apiClient.get<User>('/auth/me');
@@ -155,6 +168,7 @@ async function resetPassword(data: ResetPasswordRequest): Promise<void> {
 export const authService = {
   signup,
   login,
+  startDesktopLocalSession,
   getCurrentUser,
   logout,
   getToken,

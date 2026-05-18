@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-18T14:44:20.054Z",
+  "generatedAt": "2026-05-18T15:40:29.533Z",
   "note": "Deterministic G1 graph v0. Uses filesystem scans and lightweight regex extraction; advisory graph tools may supplement but do not replace this graph.",
   "nodes": [
     {
@@ -184,7 +184,12 @@
       "type": "backend.endpoint",
       "label": "backend/app/api/endpoints/auth.py",
       "exports": [
+        "_disabled_desktop_password_hash",
+        "_fetch_desktop_local_user",
+        "_create_desktop_local_user",
+        "_get_or_create_desktop_local_user",
         "login",
+        "desktop_local_session",
         "register",
         "get_me",
         "refresh_access_token",
@@ -378,6 +383,9 @@
       "type": "source.file",
       "label": "backend/app/core/security.py",
       "exports": [
+        "is_desktop_local_email",
+        "is_desktop_local_user",
+        "is_user_allowed_for_current_mode",
         "_get_fernet_key",
         "encrypt_value",
         "decrypt_value",
@@ -574,6 +582,7 @@
         "UserBase",
         "UserOut",
         "Token",
+        "DesktopLocalSession",
         "RefreshTokenRequest",
         "LogoutRequest"
       ],
@@ -1311,24 +1320,24 @@
       "exports": [
         "test_register_creates_user_and_settings",
         "test_register_rejects_duplicate_email",
+        "test_register_rejects_desktop_local_reserved_email",
+        "test_register_rejects_desktop_local_reserved_email_case_insensitive",
         "test_register_rejects_duplicate_username",
         "test_register_rejects_invalid_username",
         "test_register_rejects_disabled_registration",
         "test_register_rejects_disposable_email",
         "test_login_returns_access_and_refresh_tokens",
         "test_login_rejects_wrong_password",
+        "test_login_rejects_desktop_local_reserved_identity",
+        "test_login_rejects_desktop_local_reserved_identity_case_insensitive",
+        "test_desktop_local_tokens_reject_after_leaving_desktop_mode",
         "test_login_rejects_inactive_user",
         "test_login_rejects_unverified_user_when_verification_required",
         "test_me_returns_current_user",
         "test_me_rejects_missing_token",
-        "test_refresh_rotates_refresh_token",
-        "test_refresh_rejects_rotated_token",
-        "test_refresh_rejects_invalid_token",
-        "test_logout_revokes_refresh_token",
-        "test_forgot_password_sends_reset_email",
-        "test_reset_password_accepts_valid_token",
-        "test_reset_password_rejects_invalid_token",
-        "test_request_verify_token_sends_verification_email"
+        "test_me_query_token_rejects_deactivated_user",
+        "test_desktop_local_session_rejects_when_desktop_mode_disabled",
+        "test_desktop_local_session_returns_tokens_and_current_user"
       ],
       "requiredHighRisk": false
     },
@@ -1447,7 +1456,8 @@
         "test_terminal_websocket_rejects_invalid_auth",
         "test_terminal_websocket_rejects_unowned_sandbox",
         "test_terminal_websocket_handles_control_frames",
-        "test_terminal_websocket_uses_default_terminal_id"
+        "test_terminal_websocket_uses_default_terminal_id",
+        "test_terminal_websocket_accepts_desktop_local_token"
       ],
       "requiredHighRisk": false
     },
@@ -1462,6 +1472,7 @@
         "test_list_get_and_update_workspace",
         "test_workspace_resources_returns_owner_resources",
         "test_workspace_access_is_limited_to_owner",
+        "test_desktop_local_session_workspace_access_is_user_scoped",
         "test_delete_workspace_soft_deletes_it",
         "test_create_workspace_rejects_invalid_git_payload",
         "test_workspaces_reject_missing_token"
@@ -3713,6 +3724,7 @@
       "exports": [
         "useCurrentUserQuery",
         "useLoginMutation",
+        "useDesktopLocalSessionMutation",
         "useSignupMutation",
         "useVerifyEmailMutation",
         "useResendVerificationMutation",
@@ -4770,6 +4782,7 @@
       "exports": [
         "User",
         "AuthResponse",
+        "DesktopLocalSessionResponse",
         "CustomEnvVar",
         "CustomSkill",
         "Persona",
@@ -5292,6 +5305,16 @@
     },
     {
       "from": "backend/app/api/endpoints/auth.py",
+      "to": "backend/app/models/schemas/github.py",
+      "type": "uses"
+    },
+    {
+      "from": "backend/app/api/endpoints/auth.py",
+      "to": "backend/app/models/schemas/secrets.py",
+      "type": "uses"
+    },
+    {
+      "from": "backend/app/api/endpoints/auth.py",
       "to": "backend/app/models/schemas/settings.py",
       "type": "uses"
     },
@@ -5327,6 +5350,16 @@
     },
     {
       "from": "backend/app/api/endpoints/auth.py",
+      "to": "backend/app/services/git.py",
+      "type": "uses"
+    },
+    {
+      "from": "backend/app/api/endpoints/auth.py",
+      "to": "backend/app/services/github.py",
+      "type": "uses"
+    },
+    {
+      "from": "backend/app/api/endpoints/auth.py",
       "to": "backend/app/services/refresh_token.py",
       "type": "uses"
     },
@@ -5352,7 +5385,17 @@
     },
     {
       "from": "backend/app/api/endpoints/auth.py",
+      "to": "mutation:git",
+      "type": "mutates"
+    },
+    {
+      "from": "backend/app/api/endpoints/auth.py",
       "to": "mutation:permissions",
+      "type": "mutates"
+    },
+    {
+      "from": "backend/app/api/endpoints/auth.py",
+      "to": "mutation:secrets",
       "type": "mutates"
     },
     {
@@ -5972,6 +6015,11 @@
     },
     {
       "from": "backend/app/core/deps.py",
+      "to": "mutation:permissions",
+      "type": "mutates"
+    },
+    {
+      "from": "backend/app/core/deps.py",
       "to": "mutation:secrets",
       "type": "mutates"
     },
@@ -6008,6 +6056,11 @@
     {
       "from": "backend/app/core/security.py",
       "to": "mutation:filesystem",
+      "type": "mutates"
+    },
+    {
+      "from": "backend/app/core/security.py",
+      "to": "mutation:permissions",
       "type": "mutates"
     },
     {
@@ -7472,6 +7525,11 @@
     },
     {
       "from": "backend/tests/test_auth.py",
+      "to": "mutation:git",
+      "type": "mutates"
+    },
+    {
+      "from": "backend/tests/test_auth.py",
       "to": "mutation:permissions",
       "type": "mutates"
     },
@@ -7593,6 +7651,11 @@
     {
       "from": "backend/tests/test_websocket.py",
       "to": "mutation:filesystem",
+      "type": "mutates"
+    },
+    {
+      "from": "backend/tests/test_websocket.py",
+      "to": "mutation:git",
       "type": "mutates"
     },
     {

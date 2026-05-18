@@ -67,3 +67,31 @@ Before G2 or later product code merges, the branch should state:
 - screenshots for UI changes,
 - whether any data is `LIVE`, `LOCAL`, `OBSERVED`, `READ-ONLY`, `MOCK`,
   `PLANNED`, or `NOT CONNECTED`.
+
+## G2 Product-Code Verification
+
+G2 installed repo-local dependencies in `backend/.venv` and
+`frontend/node_modules` before running product-code checks.
+
+Commands run:
+
+```bash
+cd backend && uv run pytest tests/test_auth.py -q
+cd backend && uv run pytest tests/test_workspace.py tests/test_chat.py tests/test_sandbox.py tests/test_websocket.py -q
+cd frontend && npm run typecheck
+cd frontend && npm run build
+```
+
+Results:
+
+- `tests/test_auth.py`: 32 passed.
+- `tests/test_workspace.py tests/test_chat.py tests/test_sandbox.py tests/test_websocket.py`: 41 passed.
+- `npm run typecheck`: passed.
+- `npm run build`: passed with pre-existing Vite/Browserslist/chunk-size warnings.
+- `npm install`: completed, and reported existing dependency audit findings
+  unrelated to G2.
+
+G2 data labels:
+
+- Desktop local session state is `LOCAL`.
+- No OpenClaw, harness registry, or mock harness data was introduced.
