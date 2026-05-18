@@ -3,7 +3,7 @@ import { useMountEffect } from '@/hooks/useMountEffect';
 import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
 import { useQueryClient } from '@tanstack/react-query';
-import { SHORTCUT_MAP, executeCommand } from '@/components/ui/CommandMenu';
+import { SHORTCUT_MAP, executeCommand } from '@/components/ui/commandRegistry';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 
 function isEmbeddedEditor(target: EventTarget | null): boolean {

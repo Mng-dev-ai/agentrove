@@ -1,13 +1,9 @@
 import { PermissionModeSelector } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
-import {
-  THINKING_MODES_BY_AGENT,
-  ThinkingModeSelector,
-} from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
-import {
-  PersonaSelector,
-  PERSONAS_SUPPORTED_AGENTS,
-} from '@/components/chat/persona-selector/PersonaSelector';
+import { ThinkingModeSelector } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
+import { THINKING_MODES_BY_AGENT } from '@/components/chat/thinking-mode-selector/thinkingModes';
+import { PersonaSelector } from '@/components/chat/persona-selector/PersonaSelector';
+import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
 import { BranchSelector } from '@/components/chat/branch-selector/BranchSelector';
 import { useInputState, useInputActions } from '@/hooks/useInputContext';
 import { useModelMap } from '@/hooks/queries/useModelQueries';

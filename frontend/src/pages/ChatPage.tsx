@@ -19,10 +19,7 @@ import { useChatData } from '@/hooks/useChatData';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
-import {
-  useWorkspacesQuery,
-  useWorkspaceResourcesQuery,
-} from '@/hooks/queries/useWorkspaceQueries';
+import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { CreateSubThreadDialog } from '@/components/chat/sub-threads/CreateSubThreadDialog';
@@ -127,8 +124,7 @@ export function ChatPage() {
     };
   }, [activeViews, currentChat?.sandbox_id, refetchFilesMetadata]);
 
-  const { data: workspacesData } = useWorkspacesQuery();
-  const workspaces = workspacesData?.items ?? [];
+  const workspaces = useWorkspacesList();
   const { data: settings } = useSettingsQuery();
 
   const { data: workspaceResources } = useWorkspaceResourcesQuery(currentChat?.workspace_id);
@@ -248,7 +244,6 @@ export function ChatPage() {
       }
     },
     [
-      chatId,
       currentChat,
       fileStructure,
       selectedFile,

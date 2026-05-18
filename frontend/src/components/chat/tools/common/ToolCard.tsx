@@ -1,16 +1,9 @@
-import React, { JSX, memo, useState } from 'react';
+import React, { memo, useState } from 'react';
 import { Button } from '@/components/ui/primitives/Button';
-import { Check, ChevronRight, Circle, X } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import type { ToolEventStatus } from '@/types/tools.types';
 import { TOOL_ERROR_PRE_CLASS } from '@/utils/toolStyles';
-
-export const statusIndicator: Record<ToolEventStatus, JSX.Element> = {
-  completed: <Check className="h-3 w-3 text-success-600 dark:text-success-400" />,
-  failed: <X className="h-3 w-3 text-error-600 dark:text-error-400" />,
-  started: (
-    <Circle className="h-3 w-3 animate-pulse text-text-quaternary dark:text-text-dark-quaternary" />
-  ),
-};
+import { statusIndicator } from './statusIndicator';
 
 type ToolCardTitle = string | ((status: ToolEventStatus) => string);
 

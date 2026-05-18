@@ -5,7 +5,7 @@ import { ModalHeader } from '@/components/ui/shared/ModalHeader';
 import { Spinner } from '@/components/ui/primitives/Spinner';
 import type { ToolAggregate } from '@/types/tools.types';
 import { AgentToolsContext } from '@/contexts/AgentToolsContext';
-import { statusIndicator } from '@/components/chat/tools/common/ToolCard';
+import { statusIndicator } from '@/components/chat/tools/common/statusIndicator';
 import { getToolComponent } from '@/components/chat/tools/registry';
 import { extractResultText } from '@/utils/agentTool';
 

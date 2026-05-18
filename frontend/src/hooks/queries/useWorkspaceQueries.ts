@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import type { UseQueryOptions } from '@tanstack/react-query';
 import { workspaceService } from '@/services/workspaceService';
@@ -33,6 +34,15 @@ export const useWorkspacesQuery = (
     queryFn: () => workspaceService.listWorkspaces(),
     ...options,
   });
+};
+
+// Memoize the items array so a missing `data` doesn't yield a new `[]` reference
+// each render — keeps downstream useMemo/useEffect deps stable.
+export const useWorkspacesList = (
+  options?: Partial<UseQueryOptions<PaginatedResponse<Workspace>>>,
+): Workspace[] => {
+  const { data } = useWorkspacesQuery(options);
+  return useMemo(() => data?.items ?? [], [data?.items]);
 };
 
 export const useCreateWorkspaceMutation = createMutation<Workspace, Error, CreateWorkspaceRequest>(

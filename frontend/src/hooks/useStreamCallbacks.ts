@@ -400,7 +400,7 @@ export function useStreamCallbacks({
       buffers.clear();
       streamSessions.clear();
     };
-  }, []);
+  }, [queryClient]);
 
   const setPendingUserMessageId = useCallback(
     (id: string | null) => {
@@ -536,6 +536,7 @@ export function useStreamCallbacks({
       onContextUsageUpdate,
       onPermissionRequest,
       pendingStopRef,
+      queryClient,
       scheduleContentFlush,
       setPendingUserMessageId,
     ],

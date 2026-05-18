@@ -14,12 +14,12 @@ import {
   coerceThinkingModeForAgent,
   getThinkingModesForAgent,
   type ThinkingModeOption,
-} from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
+} from '@/components/chat/thinking-mode-selector/thinkingModes';
 import {
   MODES_BY_AGENT,
   coercePermissionModeForAgent,
   getPermissionModeOption,
-} from '@/components/chat/permission-mode-selector/PermissionModeSelector';
+} from '@/components/chat/permission-mode-selector/permissionModes';
 import type { PermissionMode } from '@/store/chatSettingsStore';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
