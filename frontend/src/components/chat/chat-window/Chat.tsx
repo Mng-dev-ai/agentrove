@@ -83,12 +83,16 @@ export const Chat = memo(function Chat() {
 
   useEffect(() => {
     return useUIStore.subscribe((state, prev) => {
-      if (state.pendingChatMessage && state.pendingChatMessage !== prev.pendingChatMessage) {
-        setInputMessage(state.pendingChatMessage);
+      if (
+        state.pendingChatMessage &&
+        state.pendingChatMessage !== prev.pendingChatMessage &&
+        state.pendingChatMessage.chatId === chatId
+      ) {
+        setInputMessage(state.pendingChatMessage.message);
         useUIStore.getState().setPendingChatMessage(null);
       }
     });
-  }, [setInputMessage]);
+  }, [chatId, setInputMessage]);
 
   const { activeStreams, streamIdByChatMessage } = useStreamStore(
     useShallow((s) => ({

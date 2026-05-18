@@ -4,7 +4,6 @@ import { GitBranch } from 'lucide-react';
 import { Dropdown, DropdownItemType } from '@/components/ui/primitives/Dropdown';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
-import { useChatStore } from '@/store/chatStore';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
 
 export interface BranchSelectorProps {
@@ -20,8 +19,7 @@ export const BranchSelector = memo(function BranchSelector({
   disabled = false,
   variant = 'default',
 }: BranchSelectorProps) {
-  const { sandboxId } = useChatContext();
-  const worktreeCwd = useChatStore((s) => s.currentChat?.worktree_cwd) ?? undefined;
+  const { sandboxId, worktreeCwd } = useChatContext();
   const isSplitMode = useIsSplitMode();
 
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);

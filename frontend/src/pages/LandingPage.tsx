@@ -38,7 +38,8 @@ import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useEditorState } from '@/hooks/useEditorState';
 import { usePendingFileOpen } from '@/hooks/usePendingFileOpen';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
-import type { ViewType } from '@/types/ui.types';
+import { PENDING_NEW_CHAT_KEY, type MosaicTileId } from '@/types/ui.types';
+import { tileIdToViewType } from '@/utils/mosaicHelpers';
 
 const Editor = lazy(() =>
   import('@/components/editor/editor-core/Editor').then((m) => ({ default: m.Editor })),
@@ -57,7 +58,9 @@ export function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
   useCommandMenu();
-  const attachedFiles = useChatStore((state) => state.attachedFiles);
+  const attachedFiles = useChatStore(
+    (state) => state.attachedFilesByChat[PENDING_NEW_CHAT_KEY] ?? null,
+  );
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { selectedModelId, selectModel } = useModelSelection({
     enabled: isAuthenticated,
@@ -144,7 +147,7 @@ export function LandingPage() {
   });
 
   const handleFileAttach = useCallback((files: File[]) => {
-    useChatStore.getState().setAttachedFiles(files);
+    useChatStore.getState().setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, files);
   }, []);
 
   const handleNewChat = useCallback(
@@ -179,6 +182,7 @@ export function LandingPage() {
         useModelStore.getState().selectModel(newChat.id, selectedModelId);
         useChatSettingsStore.getState().initChatFromDefaults(newChat.id);
         setMessage('');
+        useChatStore.getState().promoteAttachedFiles(PENDING_NEW_CHAT_KEY, newChat.id);
         navigate(`/chat/${newChat.id}`, { state: { initialPrompt: trimmedPrompt } });
       } catch (error) {
         toast.error(error instanceof Error ? error.message : 'Failed to create chat');
@@ -215,8 +219,8 @@ export function LandingPage() {
   useLayoutSidebar(sidebarContent);
 
   const renderView = useCallback(
-    (view: ViewType): ReactNode => {
-      switch (view) {
+    (tileId: MosaicTileId): ReactNode => {
+      switch (tileIdToViewType(tileId)) {
         case 'agent':
           return (
             <div className="flex h-full w-full items-center justify-center px-4 pb-10">

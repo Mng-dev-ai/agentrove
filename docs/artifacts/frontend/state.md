@@ -56,8 +56,8 @@ See `components.md` for the full context-pattern (Definition + Context/Provider 
 
 | Context | Where | Why a context, not a store |
 |---|---|---|
-| `ChatProvider` | `contexts/ChatContext.tsx` | per-chat scope; recreated on chat switch |
-| `ChatSessionProvider` | `contexts/ChatSessionContext.tsx` | per-session; carries streaming + UI state |
+| `ChatProvider` | `contexts/ChatContext.tsx` | per-chat scope; recreated on chat switch. **Mounted per agent pane**, not per page — split-chat view can show two chats simultaneously by mounting a second `AgentPane` (which carries its own `ChatProvider` + `ChatSessionProvider`). |
+| `ChatSessionProvider` | `contexts/ChatSessionContext.tsx` | per-session; carries streaming + UI state. Per agent pane; consumers read from the nearest pane via `useChatSessionContext()`. |
 | `InputProvider` | `components/chat/message-input/InputProvider.tsx` | feature-scoped (input bar) |
 | `LayoutContext` | `components/layout/layoutState.tsx` | sidebar — could be Zustand, currently context |
 | `FileTreeProvider` | `components/editor/file-tree/FileTreeProvider.tsx` | per-tree selection/expansion |

@@ -13,6 +13,7 @@ const EMPTY_PERSONAS: Persona[] = [];
 interface ChatProviderProps {
   chatId?: string;
   sandboxId?: string;
+  worktreeCwd?: string;
   parentChatId?: string;
   fileStructure?: FileStructure[] | null;
   customSkills?: CustomSkill[] | null;
@@ -24,6 +25,7 @@ interface ChatProviderProps {
 export function ChatProvider({
   chatId,
   sandboxId,
+  worktreeCwd,
   parentChatId,
   fileStructure,
   customSkills,
@@ -40,6 +42,7 @@ export function ChatProvider({
     () => ({
       chatId,
       sandboxId,
+      worktreeCwd,
       parentChatId,
       fileStructure: resolvedFileStructure,
       customSkills: resolvedCustomSkills,
@@ -49,6 +52,7 @@ export function ChatProvider({
     [
       chatId,
       sandboxId,
+      worktreeCwd,
       parentChatId,
       resolvedFileStructure,
       resolvedCustomSkills,

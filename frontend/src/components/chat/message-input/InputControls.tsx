@@ -13,7 +13,6 @@ import { useInputState, useInputActions } from '@/hooks/useInputContext';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
-import { useChatStore } from '@/store/chatStore';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { SelectorDot } from '@/components/ui/primitives/SelectorDot';
 
@@ -25,8 +24,7 @@ export function InputControls() {
   const { data: chat } = useChatQuery(state.chatId, { enabled: !!state.chatId });
   const lockedAgentKind = chat?.session_agent_kind ?? null;
 
-  const { sandboxId, personas } = useChatContext();
-  const worktreeCwd = useChatStore((s) => s.currentChat?.worktree_cwd) ?? undefined;
+  const { sandboxId, worktreeCwd, personas } = useChatContext();
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
 
   const showPersona =

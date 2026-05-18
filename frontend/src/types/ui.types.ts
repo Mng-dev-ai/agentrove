@@ -30,6 +30,13 @@ export interface ModelSelectionState {
 
 export type ViewType = 'agent' | 'diff' | 'editor' | 'prReview' | 'terminal' | 'secrets';
 
+// Mosaic leaves used to be ViewType strings, but to render two `agent` panes
+// simultaneously (split chat view) the agent slot needs to be disambiguated.
+// Non-agent tile ids are identical to their ViewType.
+export type AgentTileId = 'agent:primary' | 'agent:secondary';
+export type NonAgentTileId = Exclude<ViewType, 'agent'>;
+export type MosaicTileId = AgentTileId | NonAgentTileId;
+
 export type MosaicDirection = 'row' | 'column';
 
 export interface MosaicSplitNode {
@@ -39,12 +46,14 @@ export interface MosaicSplitNode {
   splitPercentages?: number[];
 }
 
-export type MosaicLayoutNode = MosaicSplitNode | ViewType;
+export type MosaicLayoutNode = MosaicSplitNode | MosaicTileId;
 
 export interface SplitViewState {
   currentView: ViewType;
   splitDirection: MosaicDirection;
   mosaicLayout: MosaicLayoutNode | null;
+  // Secondary chat for split-chat view. Primary chat is always the route param.
+  secondaryChatId: string | null;
 }
 
 export interface SplitViewActions {
@@ -54,20 +63,32 @@ export interface SplitViewActions {
   setSplitDirection: (direction: MosaicDirection) => void;
   setMosaicLayout: (layout: MosaicLayoutNode | null) => void;
   addTileToMosaic: (view: ViewType, direction: MosaicDirection) => void;
-  removeTileFromMosaic: (view: ViewType) => void;
+  removeTileFromMosaic: (tileId: MosaicTileId) => void;
+  openChatInSplit: (chatId: string) => void;
+  closeSplitChat: () => void;
+  // Returns the chatId that should become the new route primary (caller navigates).
+  swapChatPanes: (currentPrimaryChatId: string) => string | null;
 }
 
 export interface UIState {
   currentChat: Chat | null;
-  attachedFiles: File[];
+  // Per-chat one-shot attachments. Cleared after the first message for that
+  // chat ships. The PENDING_NEW_CHAT_KEY sentinel holds files attached before
+  // the chat id exists; landing page promotes them once the chat is created.
+  attachedFilesByChat: Record<string, File[]>;
   sidebarOpen: boolean;
 }
 
 export interface UIActions {
-  setAttachedFiles: (files: File[]) => void;
+  setAttachedFilesForChat: (chatId: string, files: File[]) => void;
+  clearAttachedFilesForChat: (chatId: string) => void;
+  promoteAttachedFiles: (fromChatId: string, toChatId: string) => void;
   setCurrentChat: (chat: Chat | null) => void;
   setSidebarOpen: (isOpen: boolean) => void;
 }
+
+// Prefixed with __ to guarantee no collision with real chat ids (UUIDs).
+export const PENDING_NEW_CHAT_KEY = '__pending_new__';
 
 export interface SlashCommand {
   value: string;
