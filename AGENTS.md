@@ -6,6 +6,24 @@ If you're an agent, read this file first. Then route via the maps. Don't try to 
 
 ---
 
+## MyBox fork layer
+
+This checkout is the MyBox fork of Agentrove. Before changing behavior, UI, adapter
+contracts, desktop packaging, or agent/provider surfaces, read the MyBox fork docs:
+
+- `docs/mybox/agent-operating-contract.md`
+- `docs/mybox/fork-policy.md`
+- `docs/mybox/ui-visual-contract.md`
+- `docs/mybox/adapter-architecture.md`
+- `docs/generated/repo-map.md`
+
+MyBox product work should preserve Agentrove's native interface quality unless a
+task explicitly asks for a replacement. Treat OpenClaw, Claude Code, Codex, and
+OpenCode as harness adapters behind data-driven boundaries; do not hardcode new
+product assumptions into random UI components.
+
+---
+
 ## What this repo is
 
 AgentRove is an open-source, self-hosted IDE-style frontend for AI coding agents (Claude Code, Codex, Cursor, Copilot, OpenCode). The backend is **FastAPI + SQLAlchemy 2 (async) + Alembic + Redis**, single-process. The frontend is **React 19 + Vite + TanStack Query + Zustand + Tailwind**, plus a Tauri desktop app. Sandboxes run as Docker containers (web mode) or directly on the host filesystem (desktop mode).
