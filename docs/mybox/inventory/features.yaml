@@ -1,0 +1,441 @@
+features:
+  - id: F-LANDING-001
+    feature_name: Landing and workspace start
+    screen_or_surface: Landing/start screen
+    current_user_behavior: "User chooses or creates a workspace, selects an agent/provider, and enters the main workspace flow."
+    agentrove_status: change
+    mybox_v1_priority: v1_required
+    owning_frontend:
+      routes:
+        - frontend/src/pages/LandingPage.tsx
+      components:
+        - frontend/src/components/chat/workspace-selector/WorkspaceSelector.tsx
+        - frontend/src/components/chat/worktree-selector/WorktreeToggle.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/workspace.py
+        - backend/app/api/endpoints/ai_model.py
+      services:
+        - backend/app/services/workspace.py
+      adapters:
+        - backend/app/services/acp/adapters.py
+      models:
+        - backend/app/models/db_models/workspace.py
+    mutation_surfaces:
+      filesystem: true
+      git: true
+      terminal: false
+      external_network: true
+      permissions: false
+    risks:
+      - "A MyBox harness switcher could be bolted on visually if it is added before the registry and visual contract are real."
+    tests_needed:
+      - "Landing route smoke"
+      - "Workspace creation tests"
+      - "Harness registry rendering tests once implemented"
+  - id: F-AUTH-001
+    feature_name: Auth and account access
+    screen_or_surface: Login signup account recovery
+    current_user_behavior: "Hosted-style auth routes gate access and manage sign-in, registration, password reset, email verification, refresh, and logout."
+    agentrove_status: change
+    mybox_v1_priority: v1_required
+    owning_frontend:
+      routes:
+        - frontend/src/pages/LoginPage.tsx
+        - frontend/src/pages/SignupPage.tsx
+        - frontend/src/pages/ForgotPasswordPage.tsx
+        - frontend/src/pages/ResetPasswordPage.tsx
+        - frontend/src/pages/EmailVerificationPage.tsx
+      components:
+        - frontend/src/components/auth/AuthPageLayout.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/auth.py
+      services:
+        - backend/app/services/user.py
+        - backend/app/services/refresh_token.py
+      adapters: []
+      models:
+        - backend/app/models/db_models/user.py
+        - backend/app/models/db_models/refresh_token.py
+    mutation_surfaces:
+      filesystem: false
+      git: false
+      terminal: false
+      external_network: true
+      permissions: true
+    risks:
+      - "Local-first access must not be a frontend-only bypass or a hosted-mode security regression."
+    tests_needed:
+      - "Local desktop mode access tests"
+      - "Hosted auth regression tests"
+      - "Refresh-token tests"
+  - id: F-CHAT-001
+    feature_name: Workspace chat
+    screen_or_surface: Workspace chat
+    current_user_behavior: "User can create or resume an agent session and view streamed assistant, thinking, tool, and permission events."
+    agentrove_status: keep
+    mybox_v1_priority: v1_required
+    owning_frontend:
+      routes:
+        - frontend/src/pages/ChatPage.tsx
+      components:
+        - frontend/src/components/chat/chat-window/Chat.tsx
+        - frontend/src/components/chat/message-bubble/Message.tsx
+        - frontend/src/components/chat/message-bubble/ThinkingBlock.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/chat.py
+      services:
+        - backend/app/services/chat.py
+        - backend/app/services/streaming/runtime.py
+      adapters:
+        - backend/app/services/acp/adapters.py
+      models:
+        - backend/app/models/db_models/chat.py
+    mutation_surfaces:
+      filesystem: false
+      git: false
+      terminal: false
+      external_network: true
+      permissions: true
+    risks:
+      - "Stream/event semantics are shared across harnesses and should not be special-cased by UI."
+    tests_needed:
+      - "Backend chat tests"
+      - "Stream event fixture tests"
+      - "Browser smoke for session creation and streaming"
+  - id: F-SPLIT-001
+    feature_name: Split chat and subthreads
+    screen_or_surface: Split chat subthreads
+    current_user_behavior: "User can work with primary and secondary chat panes and related subthreads."
+    agentrove_status: keep
+    mybox_v1_priority: v1_optional
+    owning_frontend:
+      routes:
+        - frontend/src/pages/ChatPage.tsx
+      components:
+        - frontend/src/components/chat/chat-window/AgentPane.tsx
+        - frontend/src/components/layout/SubThreadList.tsx
+        - frontend/src/components/chat/sub-threads/CreateSubThreadDialog.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/chat.py
+      services:
+        - backend/app/services/chat.py
+      adapters:
+        - backend/app/services/acp/adapters.py
+      models:
+        - backend/app/models/db_models/chat.py
+    mutation_surfaces:
+      filesystem: false
+      git: false
+      terminal: false
+      external_network: true
+      permissions: true
+    risks:
+      - "Multi-pane UX can confuse harness ownership if not tied to registry state."
+    tests_needed:
+      - "Split chat route smoke"
+      - "Subthread creation tests"
+  - id: F-TERMINAL-001
+    feature_name: Integrated terminal
+    screen_or_surface: Terminal
+    current_user_behavior: "User can open terminal tabs connected to a workspace sandbox through a websocket-backed PTY."
+    agentrove_status: keep
+    mybox_v1_priority: v1_required
+    owning_frontend:
+      routes: []
+      components:
+        - frontend/src/components/sandbox/terminal/Container.tsx
+        - frontend/src/components/sandbox/terminal/TerminalTab.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/websocket.py
+      services:
+        - backend/app/services/terminal.py
+      adapters: []
+      models: []
+    mutation_surfaces:
+      filesystem: true
+      git: true
+      terminal: true
+      external_network: true
+      permissions: true
+    risks:
+      - "Terminal observation and terminal mutation must be visually and contractually distinct."
+    tests_needed:
+      - "Terminal websocket tests"
+      - "Permission/provenance tests for mutating terminal use"
+  - id: F-DIFF-001
+    feature_name: Diff and review
+    screen_or_surface: Diff review
+    current_user_behavior: "User can inspect git diff and PR review surfaces for the active workspace."
+    agentrove_status: keep
+    mybox_v1_priority: v1_required
+    owning_frontend:
+      routes: []
+      components:
+        - frontend/src/components/sandbox/git/DiffView.tsx
+        - frontend/src/components/sandbox/git/PRReviewView.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/sandbox.py
+      services:
+        - backend/app/services/git.py
+      adapters: []
+      models: []
+    mutation_surfaces:
+      filesystem: true
+      git: true
+      terminal: false
+      external_network: true
+      permissions: true
+    risks:
+      - "Diff provenance must stay clear when multiple harnesses can edit a workspace."
+    tests_needed:
+      - "Git diff endpoint tests"
+      - "Review panel screenshot baseline"
+  - id: F-EDITOR-001
+    feature_name: File tree editor and preview
+    screen_or_surface: File tree editor preview
+    current_user_behavior: "User can inspect file tree, view file content, edit files, and preview supported formats."
+    agentrove_status: keep
+    mybox_v1_priority: v1_required
+    owning_frontend:
+      routes: []
+      components:
+        - frontend/src/components/editor/file-tree/Tree.tsx
+        - frontend/src/components/editor/code-view/CodeView.tsx
+        - frontend/src/components/editor/editor-view/View.tsx
+        - frontend/src/components/editor/file-preview/FilePreview.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/sandbox.py
+      services:
+        - backend/app/services/sandbox.py
+      adapters: []
+      models: []
+    mutation_surfaces:
+      filesystem: true
+      git: false
+      terminal: false
+      external_network: false
+      permissions: true
+    risks:
+      - "Manual edits and agent edits need clear ownership and diff provenance."
+    tests_needed:
+      - "File metadata/content endpoint tests"
+      - "Editor smoke tests"
+  - id: F-SETTINGS-001
+    feature_name: Settings
+    screen_or_surface: Settings
+    current_user_behavior: "User can view and update settings, instructions, env vars, skills, and personas."
+    agentrove_status: keep
+    mybox_v1_priority: v1_required
+    owning_frontend:
+      routes:
+        - frontend/src/pages/SettingsPage.tsx
+      components:
+        - frontend/src/components/settings/tabs/GeneralSettingsTab.tsx
+        - frontend/src/components/settings/tabs/InstructionsSettingsTab.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/settings.py
+      services:
+        - backend/app/services/user.py
+      adapters: []
+      models:
+        - backend/app/models/db_models/user.py
+    mutation_surfaces:
+      filesystem: false
+      git: false
+      terminal: false
+      external_network: false
+      permissions: true
+    risks:
+      - "MyBox harness settings should be added through existing settings patterns, not a separate visual system."
+    tests_needed:
+      - "Settings endpoint tests"
+      - "Settings visual baseline"
+  - id: F-SKILLS-001
+    feature_name: Skills
+    screen_or_surface: Skills settings
+    current_user_behavior: "User can inspect and update available agent skills."
+    agentrove_status: keep
+    mybox_v1_priority: v1_optional
+    owning_frontend:
+      routes:
+        - frontend/src/pages/SettingsPage.tsx
+      components:
+        - frontend/src/components/settings/tabs/SkillsSettingsTab.tsx
+        - frontend/src/components/settings/dialogs/SkillEditDialog.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/skills.py
+      services:
+        - backend/app/services/skill.py
+      adapters: []
+      models: []
+    mutation_surfaces:
+      filesystem: true
+      git: false
+      terminal: false
+      external_network: false
+      permissions: true
+    risks:
+      - "Skill editing may affect harness behavior and needs workspace/provider boundaries."
+    tests_needed:
+      - "Skills endpoint tests"
+      - "Skill edit negative tests"
+  - id: F-PERSONAS-001
+    feature_name: Personas and custom instructions
+    screen_or_surface: Personas custom instructions
+    current_user_behavior: "User can select personas and manage custom instruction-like settings where supported."
+    agentrove_status: keep
+    mybox_v1_priority: v1_optional
+    owning_frontend:
+      routes:
+        - frontend/src/pages/SettingsPage.tsx
+      components:
+        - frontend/src/components/chat/persona-selector/PersonaSelector.tsx
+        - frontend/src/components/settings/tabs/PersonasSettingsTab.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/settings.py
+      services:
+        - backend/app/services/user.py
+      adapters:
+        - backend/app/services/acp/adapters.py
+      models:
+        - backend/app/models/schemas/settings.py
+    mutation_surfaces:
+      filesystem: false
+      git: false
+      terminal: false
+      external_network: false
+      permissions: true
+    risks:
+      - "Not every harness supports personas; UI must be capability-gated."
+    tests_needed:
+      - "Persona capability tests"
+      - "Settings persistence tests"
+  - id: F-SECRETS-001
+    feature_name: Secrets and env vars
+    screen_or_surface: Secrets env vars
+    current_user_behavior: "User can manage custom environment variables and secrets used by workspaces or agents."
+    agentrove_status: keep
+    mybox_v1_priority: v1_required
+    owning_frontend:
+      routes:
+        - frontend/src/pages/SettingsPage.tsx
+      components:
+        - frontend/src/components/settings/sections/EnvVarsSection.tsx
+        - frontend/src/components/settings/dialogs/EnvVarDialog.tsx
+        - frontend/src/components/sandbox/secrets/SecretsView.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/settings.py
+        - backend/app/api/endpoints/sandbox.py
+      services:
+        - backend/app/services/user.py
+        - backend/app/services/sandbox.py
+      adapters: []
+      models:
+        - backend/app/models/schemas/settings.py
+        - backend/app/models/schemas/secrets.py
+    mutation_surfaces:
+      filesystem: false
+      git: false
+      terminal: false
+      external_network: false
+      permissions: true
+    risks:
+      - "Secret provenance and redaction must be preserved as MyBox adds harnesses."
+    tests_needed:
+      - "Secret endpoint tests"
+      - "Redaction and no-leak review"
+  - id: F-GITHUB-001
+    feature_name: GitHub and PR workflow
+    screen_or_surface: GitHub PR surfaces
+    current_user_behavior: "User can browse repositories/PRs and generate commits or PR descriptions when GitHub is configured."
+    agentrove_status: keep
+    mybox_v1_priority: v1_optional
+    owning_frontend:
+      routes: []
+      components:
+        - frontend/src/components/chat/github/CreatePRDialog.tsx
+        - frontend/src/components/chat/github/CreateCommitDialog.tsx
+        - frontend/src/components/chat/github/CreateBranchDialog.tsx
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints:
+        - backend/app/api/endpoints/github.py
+      services:
+        - backend/app/services/github.py
+        - backend/app/services/git.py
+      adapters: []
+      models:
+        - backend/app/models/schemas/github.py
+    mutation_surfaces:
+      filesystem: false
+      git: true
+      terminal: false
+      external_network: true
+      permissions: true
+    risks:
+      - "GitHub integration should remain optional for local-first MyBox."
+    tests_needed:
+      - "GitHub endpoint tests"
+      - "Capability-gated UI tests"
+  - id: F-ADMIN-001
+    feature_name: Admin backend management
+    screen_or_surface: Backend admin
+    current_user_behavior: "Backend includes admin configuration and model views for hosted management."
+    agentrove_status: defer
+    mybox_v1_priority: later
+    owning_frontend:
+      routes: []
+      components: []
+      hooks: []
+      stores: []
+    owning_backend:
+      endpoints: []
+      services:
+        - backend/app/admin/config.py
+        - backend/app/admin/views.py
+      adapters: []
+      models: []
+    mutation_surfaces:
+      filesystem: false
+      git: false
+      terminal: false
+      external_network: true
+      permissions: true
+    risks:
+      - "Hosted admin concerns should not drive desktop-first MyBox V1."
+    tests_needed:
+      - "Hosted admin tests only if hosted mode becomes in-scope"
