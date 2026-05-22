@@ -100,6 +100,15 @@ function extractContents(
   };
 }
 
+function hashDiffContent(content: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < content.length; i += 1) {
+    hash ^= content.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
 // Re-diff with limited context so the library emits collapsedBefore gaps for
 // the expand-on-click UI.
 function rebuildWithCollapsedContext(
@@ -109,8 +118,16 @@ function rebuildWithCollapsedContext(
   const contents = extractContents(fullFile);
   if (!contents) return fullFile;
   const rebuilt = parseDiffFromFile(
-    { name: fullFile.prevName ?? fullFile.name, contents: contents.oldContent },
-    { name: fullFile.name, contents: contents.newContent },
+    {
+      name: fullFile.prevName ?? fullFile.name,
+      contents: contents.oldContent,
+      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:old` : undefined,
+    },
+    {
+      name: fullFile.name,
+      contents: contents.newContent,
+      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:new` : undefined,
+    },
   );
   rebuilt.type = fullFile.type;
   rebuilt.prevName = fullFile.prevName;
@@ -317,11 +334,15 @@ export const DiffView = memo(function DiffView({ sandboxId, cwd }: DiffViewProps
   }, [sandboxId, cwd, restoreAll]);
 
   const diffContent = diffData?.diff ?? '';
+  const diffCacheKey = useMemo(
+    () => (diffContent ? `${scopeKey}\0${hashDiffContent(diffContent)}` : undefined),
+    [diffContent, scopeKey],
+  );
 
   const parsedFiles = useMemo<FileDiffMetadata[]>(() => {
     if (!diffContent) return [];
     return (
-      parsePatchFiles(diffContent)
+      parsePatchFiles(diffContent, diffCacheKey)
         .flatMap((p) => p.files)
         // No unchanged context on new/deleted — skip the re-diff.
         .map((f) =>
@@ -330,7 +351,7 @@ export const DiffView = memo(function DiffView({ sandboxId, cwd }: DiffViewProps
             : rebuildWithCollapsedContext(f, parseDiffFromFile),
         )
     );
-  }, [diffContent]);
+  }, [diffContent, diffCacheKey]);
 
   const options = useMemo(
     () => ({
