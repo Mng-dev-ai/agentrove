@@ -154,6 +154,10 @@ MODELS: dict[str, ModelInfo] = {
     "copilot:gpt-5-mini": ModelInfo("GPT 5 Mini", AgentKind.COPILOT, 160_000),
     "copilot:gpt-4.1": ModelInfo("GPT 4.1", AgentKind.COPILOT, 80_000),
     "cursor:auto": ModelInfo("Auto", AgentKind.CURSOR, None),
+    "cursor:composer-2.5-fast": ModelInfo(
+        "Composer 2.5 Fast", AgentKind.CURSOR, 200_000
+    ),
+    "cursor:composer-2.5": ModelInfo("Composer 2.5", AgentKind.CURSOR, 200_000),
     "cursor:composer-2-fast": ModelInfo("Composer 2", AgentKind.CURSOR, 200_000),
     "cursor:composer-1.5": ModelInfo("Composer 1.5", AgentKind.CURSOR, 200_000),
     "cursor:gpt-5.4-medium": ModelInfo("GPT 5.4", AgentKind.CURSOR, 272_000),
