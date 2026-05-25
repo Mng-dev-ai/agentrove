@@ -19,9 +19,16 @@ import {
 } from '@/utils/mosaicHelpers';
 import type { MenuMode } from '@/components/ui/commandRegistry';
 
+export const MIN_SIDEBAR_WIDTH = 220;
+export const MAX_SIDEBAR_WIDTH = 560;
+export const DEFAULT_SIDEBAR_WIDTH = 300;
+
+export const clampSidebarWidth = (width: number): number =>
+  Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, Math.round(width)));
+
 type UIStoreState = ThemeState &
-  Pick<UIState, 'sidebarOpen'> &
-  Pick<UIActions, 'setSidebarOpen'> &
+  Pick<UIState, 'sidebarOpen' | 'sidebarWidth'> &
+  Pick<UIActions, 'setSidebarOpen' | 'setSidebarWidth'> &
   SplitViewState &
   SplitViewActions & {
     commandMenuOpen: boolean;
@@ -99,6 +106,12 @@ export const useUIStore = create<UIStoreState>()(
       setTheme: (theme) => set({ theme }),
       sidebarOpen: getInitialSidebarState(),
       setSidebarOpen: (isOpen) => set({ sidebarOpen: isOpen }),
+      sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
+      setSidebarWidth: (width) => {
+        const next = clampSidebarWidth(width);
+        if (next === get().sidebarWidth) return;
+        set({ sidebarWidth: next });
+      },
 
       commandMenuOpen: false,
       setCommandMenuOpen: (open) => set({ commandMenuOpen: open }),
@@ -274,28 +287,14 @@ export const useUIStore = create<UIStoreState>()(
     }),
     {
       name: 'ui-storage',
-      version: 7,
       partialize: (state) => ({
         theme: state.theme,
         currentView: state.currentView,
         splitDirection: state.splitDirection,
         sidebarOpen: state.sidebarOpen,
+        sidebarWidth: state.sidebarWidth,
         secondaryChatId: state.secondaryChatId,
       }),
-      migrate: (persisted, version) => {
-        const state = persisted as Record<string, unknown>;
-        delete state.isSplitMode;
-        delete state.secondaryView;
-        delete state.permissionMode;
-        delete state.thinkingMode;
-        // v7: mosaic leaves changed from ViewType to MosaicTileId. We don't
-        // persist mosaicLayout anyway, so just drop any stale shape.
-        delete state.mosaicLayout;
-        if (state.splitDirection === 'horizontal') state.splitDirection = 'row';
-        if (state.splitDirection === 'vertical') state.splitDirection = 'column';
-        if (version < 7) state.secondaryChatId = null;
-        return state;
-      },
       merge: (persisted, current) => ({
         ...current,
         ...(persisted || {}),

@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { Header, type HeaderProps } from './Header';
 import { TitleBar } from './TitleBar';
 import { Link } from '@/components/ui/primitives/Link';
@@ -7,6 +7,18 @@ import { LayoutContext, type LayoutContextValue } from './layoutState';
 import { useUIStore } from '@/store/uiStore';
 import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { useIsMobile } from '@/hooks/useIsMobile';
+
+function useSidebarWidthVar() {
+  useEffect(() => {
+    const apply = (width: number) => {
+      document.documentElement.style.setProperty('--sidebar-width', `${width}px`);
+    };
+    apply(useUIStore.getState().sidebarWidth);
+    return useUIStore.subscribe((state, prev) => {
+      if (state.sidebarWidth !== prev.sidebarWidth) apply(state.sidebarWidth);
+    });
+  }, []);
+}
 
 function MobileSidebarOverlay() {
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
@@ -40,6 +52,8 @@ export function Layout({
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
   const isMobile = useIsMobile();
   const shouldPushContent = !!sidebarContent && sidebarOpen && !isMobile;
+
+  useSidebarWidthVar();
 
   useSwipeGesture({
     onSwipeRight: () => useUIStore.getState().setSidebarOpen(true),
@@ -82,8 +96,8 @@ export function Layout({
           <main
             id="main-content"
             className={cn(
-              'relative min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-surface transition-[padding] duration-500 ease-in-out dark:bg-surface-dark',
-              shouldPushContent ? 'pl-[300px]' : 'pl-0',
+              'relative min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-surface transition-[padding] duration-[var(--sidebar-transition-duration,500ms)] ease-in-out dark:bg-surface-dark',
+              shouldPushContent ? 'pl-[var(--sidebar-width)]' : 'pl-0',
               contentClassName,
             )}
           >
