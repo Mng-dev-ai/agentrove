@@ -152,9 +152,9 @@ export function TitleBar() {
       <div
         className={cn(
           'flex h-full items-center gap-1 bg-surface-secondary dark:bg-surface-dark-secondary',
-          'transition-[width,padding] duration-500 ease-in-out',
+          'transition-[width,padding] duration-[var(--sidebar-transition-duration,500ms)] ease-in-out',
           isAuthenticated && showSidebar && sidebarOpen
-            ? 'w-[300px] border-r border-border/50 dark:border-border-dark/50'
+            ? 'w-[var(--sidebar-width)] border-r border-border/50 dark:border-border-dark/50'
             : 'w-auto',
         )}
       >

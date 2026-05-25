@@ -77,6 +77,7 @@ export interface UIState {
   // the chat id exists; landing page promotes them once the chat is created.
   attachedFilesByChat: Record<string, File[]>;
   sidebarOpen: boolean;
+  sidebarWidth: number;
 }
 
 export interface UIActions {
@@ -85,6 +86,7 @@ export interface UIActions {
   promoteAttachedFiles: (fromChatId: string, toChatId: string) => void;
   setCurrentChat: (chat: Chat | null) => void;
   setSidebarOpen: (isOpen: boolean) => void;
+  setSidebarWidth: (width: number) => void;
 }
 
 // Prefixed with __ to guarantee no collision with real chat ids (UUIDs).

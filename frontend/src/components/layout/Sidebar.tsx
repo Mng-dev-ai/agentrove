@@ -29,6 +29,7 @@ import { useCurrentUserQuery, useLogoutMutation } from '@/hooks/queries/useAuthQ
 import { useAuthStore } from '@/store/authStore';
 import { UserProfileMenu } from './UserProfileMenu';
 import { SidebarChatItem } from './SidebarChatItem';
+import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { SubThreadList } from './SubThreadList';
 import { ChatDropdown } from './ChatDropdown';
 import { DROPDOWN_WIDTH, DROPDOWN_HEIGHT, DROPDOWN_MARGIN } from '@/config/constants';
@@ -616,9 +617,9 @@ export function Sidebar({
       <aside
         aria-label="Chat history"
         className={cn(
-          'absolute left-0 top-0 h-full w-[300px]',
+          'absolute left-0 top-0 h-full w-[var(--sidebar-width)]',
           'border-r border-border/50 bg-surface-secondary dark:border-border-dark/50 dark:bg-surface-dark-secondary',
-          'z-40 flex flex-col transition-transform duration-500 ease-in-out',
+          'z-40 flex flex-col transition-[transform,width] duration-[var(--sidebar-transition-duration,500ms)] ease-in-out',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -716,6 +717,7 @@ export function Sidebar({
             onSignOut={() => logoutMutation.mutate()}
           />
         </div>
+        {!isMobile && <SidebarResizeHandle />}
       </aside>
 
       {dropdown && (
