@@ -42,7 +42,7 @@ const ToolCardInner: React.FC<ToolCardProps> = ({
   const showChildren = !hasExpandableContent || expanded;
   const details =
     children || hasDetailsError ? (
-      <div className="mt-1.5 space-y-1.5 border-l border-border pl-3 dark:border-border-dark">
+      <div className="mt-1.5 space-y-1.5">
         {children}
         {hasDetailsError &&
           (React.isValidElement(error) ? (
