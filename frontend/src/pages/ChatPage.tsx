@@ -36,9 +36,6 @@ const DiffView = lazy(() =>
 const TerminalContainer = lazy(() =>
   import('@/components/sandbox/terminal/Container').then((m) => ({ default: m.Container })),
 );
-const PRReviewView = lazy(() =>
-  import('@/components/sandbox/git/PRReviewView').then((m) => ({ default: m.PRReviewView })),
-);
 const CreateBranchDialog = lazy(() =>
   import('@/components/chat/github/CreateBranchDialog').then((m) => ({
     default: m.CreateBranchDialog,
@@ -231,12 +228,6 @@ export function ChatPage() {
           return (
             <Suspense fallback={viewLoadingFallback}>
               <DiffView sandboxId={currentChat?.sandbox_id} cwd={worktreeCwd} />
-            </Suspense>
-          );
-        case 'prReview':
-          return (
-            <Suspense fallback={viewLoadingFallback}>
-              <PRReviewView />
             </Suspense>
           );
         default:

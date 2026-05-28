@@ -11,7 +11,6 @@ from app.models.schemas.github import (
     GeneratePRDescriptionRequest,
     GeneratePRDescriptionResponse,
     GitHubCollaborator,
-    GitHubPRCommentsResponse,
     GitHubPRListResponse,
     GitHubReposResponse,
 )
@@ -45,23 +44,6 @@ async def list_pull_requests(
 ) -> GitHubPRListResponse:
     try:
         return await github.list_pull_requests(owner, repo)
-    except GitHubException as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
-
-
-@router.get(
-    "/pulls/{owner}/{repo}/{number}/comments",
-    response_model=GitHubPRCommentsResponse,
-)
-async def get_pr_comments(
-    owner: str,
-    repo: str,
-    number: int,
-    _current_user: User = Depends(get_current_user),
-    github: GitHubService = Depends(get_github_service),
-) -> GitHubPRCommentsResponse:
-    try:
-        return await github.get_pr_comments(owner, repo, number)
     except GitHubException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 

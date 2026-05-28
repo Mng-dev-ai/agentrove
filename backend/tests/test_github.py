@@ -8,12 +8,10 @@ from app.models.schemas.github import (
     CreatePullRequestRequest,
     CreatePullRequestResponse,
     GitHubCollaborator,
-    GitHubPRCommentsResponse,
     GitHubPRListResponse,
     GitHubPullRequest,
     GitHubRepo,
     GitHubReposResponse,
-    GitHubReviewComment,
 )
 from app.services.exceptions import AgentException, GitHubException
 
@@ -30,7 +28,6 @@ class FakeGitHubService:
     def __init__(self) -> None:
         self.repo_calls: list[tuple[str, int, int]] = []
         self.pr_calls: list[tuple[str, str]] = []
-        self.comment_calls: list[tuple[str, str, int]] = []
         self.create_pr_requests: list[CreatePullRequestRequest] = []
         self.collaborator_calls: list[tuple[str, str]] = []
         self.error: GitHubException | None = None
@@ -81,25 +78,6 @@ class FakeGitHubService:
                     },
                     draft=False,
                     review_comments=2,
-                )
-            ]
-        )
-
-    async def get_pr_comments(
-        self, owner: str, repo: str, number: int
-    ) -> GitHubPRCommentsResponse:
-        if self.error:
-            raise self.error
-        self.comment_calls.append((owner, repo, number))
-        return GitHubPRCommentsResponse(
-            comments=[
-                GitHubReviewComment(
-                    id=99,
-                    body="Please adjust this.",
-                    path="app.py",
-                    line=10,
-                    user={"login": "reviewer", "avatar_url": ""},
-                    created_at="2026-01-02T00:00:00Z",
                 )
             ]
         )
@@ -179,10 +157,6 @@ async def test_github_service_routes_call_dependency(
         "/api/v1/github/pulls?owner=owner&repo=agentrove",
         headers=headers,
     )
-    comments_response = await client.get(
-        "/api/v1/github/pulls/owner/agentrove/12/comments",
-        headers=headers,
-    )
     create_pr_response = await client.post(
         "/api/v1/github/pulls",
         json={
@@ -207,9 +181,6 @@ async def test_github_service_routes_call_dependency(
     assert prs_response.status_code == 200
     assert prs_response.json()["items"][0]["number"] == 12
     assert github.pr_calls == [("owner", "agentrove")]
-    assert comments_response.status_code == 200
-    assert comments_response.json()["comments"][0]["id"] == 99
-    assert github.comment_calls == [("owner", "agentrove", 12)]
     assert create_pr_response.status_code == 200
     assert create_pr_response.json()["number"] == 13
     assert github.create_pr_requests[0].reviewers == ["reviewer"]

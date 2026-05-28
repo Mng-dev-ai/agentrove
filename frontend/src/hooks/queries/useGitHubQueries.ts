@@ -29,20 +29,6 @@ export function useGitHubPullsQuery(owner: string, repo: string, enabled: boolea
   });
 }
 
-export function useGitHubPRCommentsQuery(
-  owner: string,
-  repo: string,
-  number: number,
-  enabled: boolean,
-) {
-  return useQuery({
-    queryKey: queryKeys.github.prComments(owner, repo, number),
-    queryFn: () => githubService.getPRComments(owner, repo, number),
-    enabled: enabled && !!owner && !!repo && number > 0,
-    staleTime: 60_000,
-  });
-}
-
 export function useGitHubCollaboratorsQuery(owner: string, repo: string, enabled: boolean) {
   return useQuery({
     queryKey: queryKeys.github.collaborators(owner, repo),

@@ -3,7 +3,6 @@ import { ensureResponse, withAuth, buildQueryString } from '@/services/base/Base
 import type {
   GitHubReposResponse,
   GitHubPRListResponse,
-  GitHubPRCommentsResponse,
   CreatePRRequest,
   CreatePRResponse,
   GenerateCommitMessageRequest,
@@ -29,19 +28,6 @@ async function listPullRequests(owner: string, repo: string): Promise<GitHubPRLi
     const qs = buildQueryString({ owner, repo });
     const response = await apiClient.get<GitHubPRListResponse>(`/github/pulls${qs}`);
     return ensureResponse(response, 'Failed to fetch pull requests');
-  });
-}
-
-async function getPRComments(
-  owner: string,
-  repo: string,
-  number: number,
-): Promise<GitHubPRCommentsResponse> {
-  return withAuth(async () => {
-    const response = await apiClient.get<GitHubPRCommentsResponse>(
-      `/github/pulls/${owner}/${repo}/${number}/comments`,
-    );
-    return ensureResponse(response, 'Failed to fetch PR comments');
   });
 }
 
@@ -92,7 +78,6 @@ async function getCollaborators(
 export const githubService = {
   searchRepositories,
   listPullRequests,
-  getPRComments,
   createPullRequest,
   generatePRDescription,
   generateCommitMessage,

@@ -19,7 +19,6 @@ const VIEW_LABELS: Record<ViewType, string> = {
   agent: 'Agent',
   diff: 'Diff',
   editor: 'Editor',
-  prReview: 'PR Review Inbox',
   terminal: 'Terminal',
   secrets: 'Secrets',
 };

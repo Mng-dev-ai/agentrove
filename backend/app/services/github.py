@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 import httpx
 
@@ -7,12 +6,10 @@ from app.models.schemas.github import (
     CreatePullRequestRequest,
     CreatePullRequestResponse,
     GitHubCollaborator,
-    GitHubPRCommentsResponse,
     GitHubPRListResponse,
     GitHubPullRequest,
     GitHubRepo,
     GitHubReposResponse,
-    GitHubReviewComment,
 )
 from app.services.exceptions import ErrorCode, GitHubException
 
@@ -146,44 +143,6 @@ class GitHubService:
         ]
 
         return GitHubPRListResponse(items=prs)
-
-    async def get_pr_comments(
-        self, owner: str, repo: str, number: int
-    ) -> GitHubPRCommentsResponse:
-        url = f"{GITHUB_API_BASE}/repos/{owner}/{repo}/pulls/{number}/comments"
-        raw_comments: list[dict[str, Any]] = []
-
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            page = 1
-            while page <= 10:
-                response = await client.get(
-                    url,
-                    params={"per_page": 100, "page": page},
-                    headers=self._headers,
-                )
-                self._check_response(response)
-                batch = response.json()
-                raw_comments.extend(batch)
-                if len(batch) < 100:
-                    break
-                page += 1
-
-        comments = [
-            GitHubReviewComment(
-                id=c["id"],
-                body=c["body"],
-                path=c.get("path"),
-                line=c.get("line") or c.get("original_line"),
-                user={
-                    "login": c["user"]["login"],
-                    "avatar_url": c["user"].get("avatar_url", ""),
-                },
-                created_at=c["created_at"],
-            )
-            for c in raw_comments
-        ]
-
-        return GitHubPRCommentsResponse(comments=comments)
 
     async def create_pull_request(
         self, request: CreatePullRequestRequest

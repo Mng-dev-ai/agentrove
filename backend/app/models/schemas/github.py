@@ -37,19 +37,6 @@ class GitHubPRListResponse(BaseModel):
     items: list[GitHubPullRequest]
 
 
-class GitHubReviewComment(BaseModel):
-    id: int
-    body: str
-    path: str | None
-    line: int | None
-    user: dict[str, Any]
-    created_at: str
-
-
-class GitHubPRCommentsResponse(BaseModel):
-    comments: list[GitHubReviewComment]
-
-
 class CreatePullRequestRequest(BaseModel):
     owner: str
     repo: str
