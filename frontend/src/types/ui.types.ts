@@ -28,7 +28,7 @@ export interface ModelSelectionState {
   toggleFavoriteModel: (modelId: string) => void;
 }
 
-export type ViewType = 'agent' | 'diff' | 'editor' | 'prReview' | 'terminal' | 'secrets';
+export type ViewType = 'agent' | 'diff' | 'editor' | 'terminal' | 'secrets';
 
 // Mosaic leaves used to be ViewType strings, but to render two `agent` panes
 // simultaneously (split chat view) the agent slot needs to be disambiguated.

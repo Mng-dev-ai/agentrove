@@ -32,19 +32,6 @@ export interface GitHubPRListResponse {
   items: GitHubPullRequest[];
 }
 
-interface GitHubReviewComment {
-  id: number;
-  body: string;
-  path: string | null;
-  line: number | null;
-  user: { login: string; avatar_url: string };
-  created_at: string;
-}
-
-export interface GitHubPRCommentsResponse {
-  comments: GitHubReviewComment[];
-}
-
 export interface CreatePRRequest {
   owner: string;
   repo: string;

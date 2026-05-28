@@ -295,10 +295,6 @@ export const useUIStore = create<UIStoreState>()(
         sidebarWidth: state.sidebarWidth,
         secondaryChatId: state.secondaryChatId,
       }),
-      merge: (persisted, current) => ({
-        ...current,
-        ...(persisted || {}),
-      }),
     },
   ),
 );

@@ -64,8 +64,6 @@ export const queryKeys = {
   github: {
     repos: (query: string) => ['github-repos', query] as const,
     pulls: (owner: string, repo: string) => ['github-pulls', owner, repo] as const,
-    prComments: (owner: string, repo: string, number: number) =>
-      ['github-pr-comments', owner, repo, number] as const,
     collaborators: (owner: string, repo: string) => ['github-collaborators', owner, repo] as const,
   },
 } as const;
