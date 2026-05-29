@@ -160,4 +160,9 @@ export interface PermissionRequest {
   tool_name: string;
   tool_input: Record<string, unknown>;
   options: PermissionOption[];
+  // Monotonic stream sequence of the originating envelope. Used to dedupe
+  // replayed permission events (the backend persists and re-streams them after
+  // `after_seq` on reconnect/refresh) without relying on request_id, which some
+  // providers reuse across turns.
+  seq: number;
 }

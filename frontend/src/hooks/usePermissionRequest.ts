@@ -1,13 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
 import { permissionService } from '@/services/permissionService';
 import { usePermissionStore } from '@/store/permissionStore';
-import { isRequestResolved } from '@/utils/permissionStorage';
+import { isPermissionResolved } from '@/utils/permissionStorage';
 import { notifyPermissionRequest } from '@/utils/notifications';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
-import {
-  executePermissionResponse,
-  clearPermissionRequestForChat,
-} from '@/utils/permissionResponse';
+import { executePermissionResponse, clearPermissionRequest } from '@/utils/permissionResponse';
 import type { PermissionRequest } from '@/types/chat.types';
 
 interface UsePermissionRequestReturn {
@@ -28,10 +25,14 @@ export function usePermissionRequest(chatId: string | undefined): UsePermissionR
   const [error, setError] = useState<string | null>(null);
   const { data: settings } = useSettingsQuery();
 
-  // Select only this chat's request to avoid re-renders from other chats' permission changes
-  const pendingRequest = usePermissionStore((state) =>
-    chatId ? (state.pendingRequests.get(chatId) ?? null) : null,
-  );
+  // Surface the head of this chat's permission queue. Selecting only this
+  // chat's queue avoids re-renders from other chats' permission changes; we
+  // process requests one at a time in FIFO order.
+  const pendingRequest = usePermissionStore((state) => {
+    if (!chatId) return null;
+    const queue = state.pendingRequests.get(chatId);
+    return queue && queue.length > 0 ? queue[0] : null;
+  });
   const prevRequestIdRef = useRef(pendingRequest?.request_id);
 
   // Clear stale error when a new permission request arrives, so errors from
@@ -44,14 +45,15 @@ export function usePermissionRequest(chatId: string | undefined): UsePermissionR
   const handlePermissionRequest = useCallback(
     (request: PermissionRequest) => {
       if (!chatId) return;
-      if (isRequestResolved(request.request_id)) return;
-      const existingRequest = usePermissionStore.getState().pendingRequests.get(chatId);
-      if (existingRequest?.request_id === request.request_id) {
-        return;
-      }
+      // Drop permission events the user already answered — the backend persists
+      // and replays them after `after_seq` on refresh/reconnect.
+      if (isPermissionResolved(chatId, request.seq)) return;
 
-      usePermissionStore.getState().setPermissionRequest(chatId, request);
-      if (settings?.notifications_enabled ?? true) {
+      // The store dedupes against requests already pending in this chat's
+      // queue; only notify when it was a genuinely new request, not a
+      // duplicate envelope for one still awaiting a response.
+      const added = usePermissionStore.getState().enqueuePermissionRequest(chatId, request);
+      if (added && (settings?.notifications_enabled ?? true)) {
         void notifyPermissionRequest(request);
       }
     },
@@ -63,13 +65,13 @@ export function usePermissionRequest(chatId: string | undefined): UsePermissionR
       if (!chatId || !pendingRequest) return;
 
       await executePermissionResponse(
-        pendingRequest.request_id,
         () => permissionService.respondToPermission(chatId, pendingRequest.request_id, optionId),
         {
           setIsLoading,
           setError,
           errorMessage: 'Failed to approve permission',
-          clearRequest: () => clearPermissionRequestForChat(chatId),
+          clearRequest: () =>
+            clearPermissionRequest(chatId, pendingRequest.request_id, pendingRequest.seq),
         },
       );
     },
@@ -81,13 +83,13 @@ export function usePermissionRequest(chatId: string | undefined): UsePermissionR
       if (!chatId || !pendingRequest) return;
 
       await executePermissionResponse(
-        pendingRequest.request_id,
         () => permissionService.respondToPermission(chatId, pendingRequest.request_id, optionId),
         {
           setIsLoading,
           setError,
           errorMessage: 'Failed to reject permission',
-          clearRequest: () => clearPermissionRequestForChat(chatId),
+          clearRequest: () =>
+            clearPermissionRequest(chatId, pendingRequest.request_id, pendingRequest.seq),
         },
       );
     },

@@ -444,6 +444,7 @@ export function useStreamCallbacks({
             tool_name,
             tool_input,
             options,
+            seq: envelope.seq,
           });
         }
         return;
