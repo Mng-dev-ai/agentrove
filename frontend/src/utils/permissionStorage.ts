@@ -7,36 +7,45 @@ export function filterOptions(
   return options.filter((o) => o.kind.startsWith(prefix));
 }
 
-// Tracks recently resolved permission request IDs in localStorage so that
-// duplicate SSE permission_request envelopes (e.g., after reconnection) are
-// silently ignored instead of re-showing the approval dialog. Capped at 100
-// entries to bound storage usage.
-const RESOLVED_REQUESTS_KEY = 'agentrove_resolved_permission_requests';
-const MAX_RESOLVED_REQUESTS = 100;
+// Tracks resolved permission requests by their stream sequence so that
+// permission events the backend replays after `after_seq` (page refresh,
+// reconnect from a stale cursor) are not re-shown once the user has already
+// answered them. Keyed by `${chatId}:${seq}` rather than request_id: seq is
+// monotonic per chat and unique per emission, so a new request in a later turn
+// is never blocked even when a provider reuses tool-call ids. Persisted across
+// reloads (that is the whole point — the in-memory queue is empty on refresh)
+// and capped to bound storage.
+const RESOLVED_PERMISSIONS_KEY = 'agentrove_resolved_permission_seqs';
+const MAX_RESOLVED_PERMISSIONS = 200;
 
-function getResolvedRequestIds(): Set<string> {
+function resolvedKey(chatId: string, seq: number): string {
+  return `${chatId}:${seq}`;
+}
+
+function getResolvedPermissions(): string[] {
   try {
-    const stored = localStorage.getItem(RESOLVED_REQUESTS_KEY);
-    return stored ? new Set(JSON.parse(stored) as string[]) : new Set();
+    const stored = localStorage.getItem(RESOLVED_PERMISSIONS_KEY);
+    return stored ? (JSON.parse(stored) as string[]) : [];
   } catch {
-    return new Set();
+    return [];
   }
 }
 
-export function addResolvedRequestId(requestId: string): void {
+export function addResolvedPermission(chatId: string, seq: number): void {
   try {
-    const resolved = getResolvedRequestIds();
-    resolved.add(requestId);
-    const arr = Array.from(resolved);
-    if (arr.length > MAX_RESOLVED_REQUESTS) {
-      arr.splice(0, arr.length - MAX_RESOLVED_REQUESTS);
+    const key = resolvedKey(chatId, seq);
+    const resolved = getResolvedPermissions();
+    if (resolved.includes(key)) return;
+    resolved.push(key);
+    if (resolved.length > MAX_RESOLVED_PERMISSIONS) {
+      resolved.splice(0, resolved.length - MAX_RESOLVED_PERMISSIONS);
     }
-    localStorage.setItem(RESOLVED_REQUESTS_KEY, JSON.stringify(arr));
+    localStorage.setItem(RESOLVED_PERMISSIONS_KEY, JSON.stringify(resolved));
   } catch {
     // Ignore localStorage errors
   }
 }
 
-export function isRequestResolved(requestId: string): boolean {
-  return getResolvedRequestIds().has(requestId);
+export function isPermissionResolved(chatId: string, seq: number): boolean {
+  return getResolvedPermissions().includes(resolvedKey(chatId, seq));
 }

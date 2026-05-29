@@ -1,5 +1,5 @@
 import { usePermissionStore } from '@/store/permissionStore';
-import { addResolvedRequestId } from '@/utils/permissionStorage';
+import { addResolvedPermission } from '@/utils/permissionStorage';
 
 type ApiError = Error & { status?: number };
 
@@ -8,10 +8,9 @@ function isExpiredRequestError(error: unknown): boolean {
 }
 
 // Wraps a permission service call with standard loading/error/cleanup behavior:
-// on success or 404 (expired), marks the request resolved and clears the pending
-// state; on other errors, sets the provided error message.
+// on success or 404 (expired), clears the pending state; on other errors, sets
+// the provided error message.
 export async function executePermissionResponse(
-  requestId: string,
   serviceFn: () => Promise<void>,
   opts: {
     setIsLoading: (v: boolean) => void;
@@ -24,7 +23,6 @@ export async function executePermissionResponse(
   opts.setError(null);
   try {
     await serviceFn();
-    addResolvedRequestId(requestId);
     opts.clearRequest();
     return 'success';
   } catch (err) {
@@ -32,7 +30,6 @@ export async function executePermissionResponse(
       // This request is already gone on the backend (timeout/session moved on),
       // so clear the local pending state but let the caller decide whether any
       // success-only UI transitions should still happen.
-      addResolvedRequestId(requestId);
       opts.clearRequest();
       return 'expired';
     } else {
@@ -44,6 +41,10 @@ export async function executePermissionResponse(
   return 'error';
 }
 
-export function clearPermissionRequestForChat(chatId: string): void {
-  usePermissionStore.getState().clearPermissionRequest(chatId);
+// Called once a request has been answered (or found already-expired). Records
+// the resolved seq so a replayed permission event is not re-shown after a
+// refresh/reconnect, then drops the request from the in-memory queue.
+export function clearPermissionRequest(chatId: string, requestId: string, seq: number): void {
+  addResolvedPermission(chatId, seq);
+  usePermissionStore.getState().resolvePermissionRequest(chatId, requestId);
 }

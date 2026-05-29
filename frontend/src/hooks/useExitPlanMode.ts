@@ -2,32 +2,33 @@ import { useState, useCallback } from 'react';
 import { permissionService } from '@/services/permissionService';
 import { usePermissionStore } from '@/store/permissionStore';
 import { useChatSettingsStore } from '@/store/chatSettingsStore';
-import {
-  executePermissionResponse,
-  clearPermissionRequestForChat,
-} from '@/utils/permissionResponse';
+import { executePermissionResponse, clearPermissionRequest } from '@/utils/permissionResponse';
 
 export function useExitPlanMode(chatId: string | undefined) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pendingRequest = usePermissionStore((state) =>
-    chatId ? (state.pendingRequests.get(chatId) ?? null) : null,
-  );
-  const isExitPlanModeRequest = pendingRequest?.tool_name === 'ExitPlanMode';
+  // The ExitPlanMode request renders in its own tool card, independent of the
+  // inline permission prompt, so pick it out of the queue wherever it sits
+  // rather than only checking the head.
+  const pendingRequest = usePermissionStore((state) => {
+    if (!chatId) return null;
+    const queue = state.pendingRequests.get(chatId);
+    return queue?.find((r) => r.tool_name === 'ExitPlanMode') ?? null;
+  });
 
   const handleApprove = useCallback(
     async (optionId: string) => {
-      if (!chatId || !pendingRequest || !isExitPlanModeRequest) return;
+      if (!chatId || !pendingRequest) return;
 
       const result = await executePermissionResponse(
-        pendingRequest.request_id,
         () => permissionService.respondToPermission(chatId, pendingRequest.request_id, optionId),
         {
           setIsLoading,
           setError,
           errorMessage: 'Failed to approve plan',
-          clearRequest: () => clearPermissionRequestForChat(chatId),
+          clearRequest: () =>
+            clearPermissionRequest(chatId, pendingRequest.request_id, pendingRequest.seq),
         },
       );
       if (result === 'success' || result === 'expired') {
@@ -40,29 +41,29 @@ export function useExitPlanMode(chatId: string | undefined) {
         useChatSettingsStore.getState().setPlanMode(chatId, false);
       }
     },
-    [chatId, pendingRequest, isExitPlanModeRequest],
+    [chatId, pendingRequest],
   );
 
   const handleReject = useCallback(
     async (optionId: string) => {
-      if (!chatId || !pendingRequest || !isExitPlanModeRequest) return;
+      if (!chatId || !pendingRequest) return;
 
       await executePermissionResponse(
-        pendingRequest.request_id,
         () => permissionService.respondToPermission(chatId, pendingRequest.request_id, optionId),
         {
           setIsLoading,
           setError,
           errorMessage: 'Failed to reject plan',
-          clearRequest: () => clearPermissionRequestForChat(chatId),
+          clearRequest: () =>
+            clearPermissionRequest(chatId, pendingRequest.request_id, pendingRequest.seq),
         },
       );
     },
-    [chatId, pendingRequest, isExitPlanModeRequest],
+    [chatId, pendingRequest],
   );
 
   return {
-    pendingRequest: isExitPlanModeRequest ? pendingRequest : null,
+    pendingRequest,
     isLoading,
     error,
     handleApprove,
