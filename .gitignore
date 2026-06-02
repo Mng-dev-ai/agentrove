@@ -18,9 +18,6 @@ storage/
 .claude/
 !.claude/plans/
 .github/
-
-# Override user's global gitignore: CLAUDE.md is the entry-point symlink to AGENTS.md.
-!CLAUDE.md
 .docker/
 .ruff_cache/
 .pytest_cache/
