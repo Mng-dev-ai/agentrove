@@ -218,10 +218,13 @@ MODELS: dict[str, ModelInfo] = {
         "DeepSeek V4 Pro (Opencode Go)", AgentKind.OPENCODE, 1_000_000
     ),
     "opencode:opencode-go/glm-5": ModelInfo(
-        "GLM-5 (Opencode Go)", AgentKind.OPENCODE, 204_800
+        "GLM-5 (Opencode Go)", AgentKind.OPENCODE, 202_752
     ),
     "opencode:opencode-go/glm-5.1": ModelInfo(
-        "GLM-5.1 (Opencode Go)", AgentKind.OPENCODE, 204_800
+        "GLM-5.1 (Opencode Go)", AgentKind.OPENCODE, 202_752
+    ),
+    "opencode:opencode-go/hy3-preview": ModelInfo(
+        "Hy3 Preview (Opencode Go)", AgentKind.OPENCODE, 256_000
     ),
     "opencode:opencode-go/kimi-k2.5": ModelInfo(
         "Kimi K2.5 (Opencode Go)", AgentKind.OPENCODE, 262_144
@@ -236,7 +239,7 @@ MODELS: dict[str, ModelInfo] = {
         "MiMo V2 Pro (Opencode Go)", AgentKind.OPENCODE, 1_048_576
     ),
     "opencode:opencode-go/mimo-v2.5": ModelInfo(
-        "MiMo V2.5 (Opencode Go)", AgentKind.OPENCODE, 262_144
+        "MiMo V2.5 (Opencode Go)", AgentKind.OPENCODE, 1_000_000
     ),
     "opencode:opencode-go/mimo-v2.5-pro": ModelInfo(
         "MiMo V2.5 Pro (Opencode Go)", AgentKind.OPENCODE, 1_048_576
@@ -247,11 +250,17 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:opencode-go/minimax-m2.7": ModelInfo(
         "MiniMax M2.7 (Opencode Go)", AgentKind.OPENCODE, 204_800
     ),
+    "opencode:opencode-go/minimax-m3": ModelInfo(
+        "MiniMax M3 (Opencode Go)", AgentKind.OPENCODE, 512_000
+    ),
     "opencode:opencode-go/qwen3.5-plus": ModelInfo(
         "Qwen3.5 Plus (Opencode Go)", AgentKind.OPENCODE, 262_144
     ),
     "opencode:opencode-go/qwen3.6-plus": ModelInfo(
         "Qwen3.6 Plus (Opencode Go)", AgentKind.OPENCODE, 262_144
+    ),
+    "opencode:opencode-go/qwen3.7-max": ModelInfo(
+        "Qwen3.7 Max (Opencode Go)", AgentKind.OPENCODE, 1_000_000
     ),
     "opencode:amazon-bedrock/amazon.nova-2-lite-v1:0": ModelInfo(
         "Nova 2 Lite (Amazon Bedrock)", AgentKind.OPENCODE, 128_000
