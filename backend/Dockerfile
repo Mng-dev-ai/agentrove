@@ -17,7 +17,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.119 @agentclientprotocol/claude-agent-acp@0.38.0 @zed-industries/codex-acp@0.15.0 @openai/codex@0.125.0 @github/copilot@1.0.36
+RUN npm install -g @anthropic-ai/claude-code@2.1.119 @agentclientprotocol/claude-agent-acp@0.42.0 @zed-industries/codex-acp@0.15.0 @openai/codex@0.125.0 @github/copilot@1.0.36
 
 # Cursor CLI (installs `cursor-agent` to /root/.local/bin) — used for the Cursor
 # ACP server (`cursor-agent acp`). The install script downloads the binary for
