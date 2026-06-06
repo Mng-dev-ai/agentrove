@@ -201,17 +201,18 @@ class ClaudeAgentAdapter(AgentAdapter):
         # Claude exposes thinking budget as the "effort" session config option,
         # applied post-handshake via set_config_option; the UI's named tiers
         # are passed through directly as effort level IDs. `xhigh` is currently
-        # only valid for the Opus alias we expose, so other Claude models keep
+        # only valid for the Opus model we expose, so other Claude models keep
         # the narrower tier set and coerce unsupported persisted values.
         valid_modes = (
             CLAUDE_OPUS_VALID_THINKING_MODES
-            if model_id == "opus[1m]"
+            if model_id == "opus"
             else CLAUDE_VALID_THINKING_MODES
         )
         reasoning_effort = coerce_thinking_mode(thinking_mode, valid_modes)
 
         return SessionConfig(
             meta=meta,
+            env_overrides={"ANTHROPIC_MODEL": model_id},
             reasoning_effort=reasoning_effort,
             permission=PermissionConfig(session_mode=permission_mode),
         )

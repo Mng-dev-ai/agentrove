@@ -64,6 +64,7 @@ EMPTY_FROZENSET: frozenset[str] = frozenset()
 # Claude's thinking budget is advertised as the "effort" session config
 # option; value IDs are the supported Claude UI tiers.
 CLAUDE_EFFORT_CONFIG_ID = "effort"
+CLAUDE_MODEL_CONFIG_ID = "model"
 
 
 @dataclass
@@ -238,13 +239,12 @@ class AcpSession:
             logger.warning("Failed to send ACP cancel", exc_info=True)
 
     async def set_model(self, model_id: str) -> None:
-        # Translate the internal model registry key to the ACP model ID
-        # the agent expects (e.g., strip "copilot:" prefix for Copilot CLI).
-        acp_model_id = AGENT_ADAPTERS[self._agent_kind].map_model_id(model_id)
         try:
-            await self._conn.set_session_model(
-                model_id=acp_model_id,
-                session_id=self.acp_session_id,
+            await self._set_model_on_conn(
+                self._conn,
+                self._agent_kind,
+                self.acp_session_id,
+                model_id,
             )
         except Exception:
             logger.warning("Failed to set ACP model: %s", model_id, exc_info=True)
@@ -356,12 +356,11 @@ class AcpSession:
 
             if config.model:
                 try:
-                    acp_model_id = AGENT_ADAPTERS[config.agent_kind].map_model_id(
-                        config.model
-                    )
-                    await conn.set_session_model(
-                        model_id=acp_model_id,
-                        session_id=acp_session_id,
+                    await cls._set_model_on_conn(
+                        conn,
+                        config.agent_kind,
+                        acp_session_id,
+                        config.model,
                     )
                 except Exception:
                     logger.warning("Failed to set initial model: %s", config.model)
@@ -433,6 +432,28 @@ class AcpSession:
             acp_session_id=acp_session_id,
             agent_kind=config.agent_kind,
             stderr_task=stderr_task,
+        )
+
+    @staticmethod
+    async def _set_model_on_conn(
+        conn: ClientSideConnection,
+        agent_kind: AgentKind,
+        session_id: str,
+        model_id: str,
+    ) -> None:
+        # Claude's current ACP server canonicalizes aliases through the model
+        # config option; the legacy model method can drift from /context state.
+        acp_model_id = AGENT_ADAPTERS[agent_kind].map_model_id(model_id)
+        if agent_kind == AgentKind.CLAUDE:
+            await conn.set_config_option(
+                config_id=CLAUDE_MODEL_CONFIG_ID,
+                session_id=session_id,
+                value=acp_model_id,
+            )
+            return
+        await conn.set_session_model(
+            model_id=acp_model_id,
+            session_id=session_id,
         )
 
     @staticmethod
