@@ -51,8 +51,8 @@ export function getThinkingModesForAgent(
   agentKind: AgentKind,
   modelId?: string,
 ): ThinkingModeOption[] {
-  // Claude exposes `xhigh` only for the Opus alias we map to Opus 4.7.
-  if (agentKind === 'claude' && modelId === 'opus[1m]') {
+  // Claude exposes `xhigh` only for Opus.
+  if (agentKind === 'claude' && modelId === 'opus') {
     return CLAUDE_OPUS_THINKING_MODES;
   }
 
