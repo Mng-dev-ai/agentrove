@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useCallback } from 'react';
+import { memo, useState, useEffect, useCallback, useRef } from 'react';
 import { logger } from '@/utils/logger';
 import { Plus, Trash2, EyeOff, Eye, AlertTriangle } from 'lucide-react';
 import {
@@ -40,6 +40,16 @@ export const SecretsView = memo(function SecretsView({ sandboxId }: SecretsViewP
   const addSecretMutation = useAddSecretMutation();
   const updateSecretMutation = useUpdateSecretMutation();
   const deleteSecretMutation = useDeleteSecretMutation();
+
+  // Swapping the secondary chat changes the sandbox on this same instance — drop
+  // the prior sandbox's secrets (and reveal toggles) so a cached fetch can't flash
+  // another chat's values before the new data arrives.
+  const prevSandboxIdRef = useRef(sandboxId);
+  if (prevSandboxIdRef.current !== sandboxId) {
+    prevSandboxIdRef.current = sandboxId;
+    setSecrets([]);
+    setShowValues({});
+  }
 
   useEffect(() => {
     if (secretsData) {

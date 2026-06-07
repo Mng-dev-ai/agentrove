@@ -4,8 +4,8 @@ import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { Button } from '@/components/ui/primitives/Button';
 import { Textarea } from '@/components/ui/primitives/Textarea';
-import { useChatStore } from '@/store/chatStore';
-import { useChatSessionState } from '@/hooks/useChatSessionContext';
+import { useActiveChat } from '@/hooks/useActiveChat';
+import { useModelStore } from '@/store/modelStore';
 import { useGitCommitMutation, useGitDiffQuery } from '@/hooks/queries/useSandboxQueries';
 import { useGenerateCommitMessageMutation } from '@/hooks/queries/useGitHubQueries';
 import { MAX_DIFF_LENGTH } from '@/config/constants';
@@ -15,7 +15,7 @@ interface CreateCommitDialogProps {
 }
 
 export function CreateCommitDialog({ onClose }: CreateCommitDialogProps) {
-  const currentChat = useChatStore((s) => s.currentChat);
+  const currentChat = useActiveChat();
   const sandboxId = currentChat?.sandbox_id ?? '';
   const worktreeCwd = currentChat?.worktree_cwd ?? undefined;
   const commitMutation = useGitCommitMutation();
@@ -27,7 +27,11 @@ export function CreateCommitDialog({ onClose }: CreateCommitDialogProps) {
     false,
     worktreeCwd,
   );
-  const { selectedModelId } = useChatSessionState();
+  // Resolve the model from the active git chat (modelStore is keyed per chat), not
+  // the primary chat session — in split view this dialog targets the secondary pane.
+  const selectedModelId = useModelStore((s) =>
+    currentChat ? (s.modelByChat[currentChat.id] ?? '') : '',
+  );
 
   const hasDiff = !!diffData?.diff && !isPlaceholderData;
   const hasModel = !!selectedModelId.trim();

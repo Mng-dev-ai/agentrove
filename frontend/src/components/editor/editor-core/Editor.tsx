@@ -14,6 +14,9 @@ export interface EditorProps {
   isSandboxSyncing?: boolean;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  // Required so every editor instance consciously declares which chat's pending
+  // file opens/jumps it claims — `undefined` is the chat-less landing editor.
+  chatId: string | undefined;
 }
 
 export const Editor = memo(function Editor({
@@ -25,6 +28,7 @@ export const Editor = memo(function Editor({
   isSandboxSyncing = false,
   onRefresh,
   isRefreshing = false,
+  chatId,
 }: EditorProps) {
   const theme = useResolvedTheme();
   const [isDownloading, setIsDownloading] = useState(false);
@@ -73,6 +77,7 @@ export const Editor = memo(function Editor({
         isSandboxSyncing={isSandboxSyncing}
         onRefresh={onRefresh}
         isRefreshing={isRefreshing}
+        chatId={chatId}
       />
     </div>
   );

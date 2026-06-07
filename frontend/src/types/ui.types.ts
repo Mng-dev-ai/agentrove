@@ -30,11 +30,15 @@ export interface ModelSelectionState {
 
 export type ViewType = 'agent' | 'diff' | 'editor' | 'terminal' | 'secrets';
 
-// Mosaic leaves used to be ViewType strings, but to render two `agent` panes
-// simultaneously (split chat view) the agent slot needs to be disambiguated.
-// Non-agent tile ids are identical to their ViewType.
+// Mosaic leaves used to be ViewType strings, but split-chat view renders two
+// panes scoped to different chats, so every view has a `:secondary` variant
+// disambiguating the second chat. Primary tile ids match their ViewType (the
+// agent slot is the one exception: 'agent:primary').
 export type AgentTileId = 'agent:primary' | 'agent:secondary';
-export type NonAgentTileId = Exclude<ViewType, 'agent'>;
+export type SecondaryTileId = `${ViewType}:secondary`;
+export type NonAgentTileId =
+  | Exclude<ViewType, 'agent'>
+  | Exclude<SecondaryTileId, 'agent:secondary'>;
 export type MosaicTileId = AgentTileId | NonAgentTileId;
 
 export type MosaicDirection = 'row' | 'column';
@@ -54,6 +58,9 @@ export interface SplitViewState {
   mosaicLayout: MosaicLayoutNode | null;
   // Secondary chat for split-chat view. Primary chat is always the route param.
   secondaryChatId: string | null;
+  // The agent pane the user last interacted with — targets pane-scoped actions
+  // (e.g. the diff shortcut) at the chat the user is actually in.
+  activeAgentTile: AgentTileId;
 }
 
 export interface SplitViewActions {
@@ -68,6 +75,10 @@ export interface SplitViewActions {
   closeSplitChat: () => void;
   // Returns the chatId that should become the new route primary (caller navigates).
   swapChatPanes: (currentPrimaryChatId: string) => string | null;
+  setActiveAgentTile: (tile: AgentTileId) => void;
+  // Opens or (when toggling) closes a view's tile for the active agent pane,
+  // so the shortcut targets the chat the user is currently in.
+  toggleView: (view: ViewType, toggle: boolean) => void;
 }
 
 export interface UIState {

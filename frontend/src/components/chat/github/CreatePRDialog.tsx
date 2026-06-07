@@ -7,8 +7,8 @@ import { Input } from '@/components/ui/primitives/Input';
 import { Link } from '@/components/ui/primitives/Link';
 import { Select } from '@/components/ui/primitives/Select';
 import { Textarea } from '@/components/ui/primitives/Textarea';
-import { useChatStore } from '@/store/chatStore';
-import { useChatSessionState } from '@/hooks/useChatSessionContext';
+import { useActiveChat } from '@/hooks/useActiveChat';
+import { useModelStore } from '@/store/modelStore';
 import { sandboxService } from '@/services/sandboxService';
 import { openExternalUrl } from '@/utils/openExternal';
 import { MAX_DIFF_LENGTH } from '@/config/constants';
@@ -53,7 +53,7 @@ function parseChangedFiles(
 }
 
 export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
-  const currentChat = useChatStore((s) => s.currentChat);
+  const currentChat = useActiveChat();
   const sandboxId = currentChat?.sandbox_id ?? '';
   const worktreeCwd = currentChat?.worktree_cwd ?? undefined;
 
@@ -124,7 +124,11 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
     setBaseBranch(detectedBase);
   }
 
-  const { selectedModelId } = useChatSessionState();
+  // Resolve the model from the active git chat (modelStore is keyed per chat), not
+  // the primary chat session — in split view this dialog targets the secondary pane.
+  const selectedModelId = useModelStore((s) =>
+    currentChat ? (s.modelByChat[currentChat.id] ?? '') : '',
+  );
   const createPR = useCreatePullRequestMutation();
   const generateDescription = useGeneratePRDescriptionMutation();
   const hasDiff = !!diffData?.diff;
