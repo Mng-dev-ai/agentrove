@@ -40,11 +40,11 @@ export const THINKING_MODES_BY_AGENT: Record<AgentKind, ThinkingModeOption[]> = 
 };
 
 const DEFAULT_BY_AGENT: Record<AgentKind, string> = {
-  claude: 'medium',
-  codex: 'medium',
-  copilot: 'medium',
-  cursor: 'medium',
-  opencode: 'medium',
+  claude: 'high',
+  codex: 'high',
+  copilot: 'high',
+  cursor: 'high',
+  opencode: 'high',
 };
 
 export function getThinkingModesForAgent(

@@ -16,7 +16,7 @@ type PermissionMode =
 
 const DEFAULT_KEY = '__default__';
 export const DEFAULT_PERMISSION_MODE: PermissionMode = 'bypassPermissions';
-export const DEFAULT_THINKING_MODE: string = 'medium';
+export const DEFAULT_THINKING_MODE: string = 'high';
 export const DEFAULT_WORKTREE = false;
 export const DEFAULT_PLAN_MODE = false;
 export const DEFAULT_PERSONA = 'Default';
