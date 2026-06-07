@@ -23,6 +23,7 @@ export interface CodeViewProps {
   isSandboxSyncing?: boolean;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  chatId: string | undefined;
 }
 
 export const CodeView = memo(function CodeView({
@@ -37,6 +38,7 @@ export const CodeView = memo(function CodeView({
   isSandboxSyncing = false,
   onRefresh,
   isRefreshing = false,
+  chatId,
 }: CodeViewProps) {
   const backgroundClass = theme === 'light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary';
   const isMobile = useIsMobile();
@@ -122,14 +124,16 @@ export const CodeView = memo(function CodeView({
   // line nonce into local targetLine so View scrolls/highlights the line.
   const pendingFileJump = useUIStore((s) => s.pendingFileJump);
   useEffect(() => {
-    if (!pendingFileJump) return;
+    // Only the editor of the jump's chat reacts — the other editor leaves it
+    // for its own instance to claim.
+    if (!pendingFileJump || pendingFileJump.chatId !== chatId) return;
     setTargetLine({
       path: pendingFileJump.path,
       line: pendingFileJump.line,
       nonce: pendingFileJump.nonce,
     });
     useUIStore.getState().consumeFileJump();
-  }, [pendingFileJump]);
+  }, [pendingFileJump, chatId]);
 
   const sharedSidebarProps = {
     files,

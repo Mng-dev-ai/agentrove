@@ -24,6 +24,7 @@ import {
   useGitRestoreFileMutation,
 } from '@/hooks/queries/useSandboxQueries';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
+import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useUIStore } from '@/store/uiStore';
 import { parsePatchFiles, parseDiffFromFile } from '@pierre/diffs';
 import type { FileDiffMetadata, FileContents } from '@pierre/diffs';
@@ -222,12 +223,16 @@ function FileStatusBadge({ type }: { type?: string }) {
 }
 
 interface DiffViewProps {
-  sandboxId?: string;
-  cwd?: string;
+  // The chat this tile renders — resolves the sandbox/cwd it diffs and binds it
+  // to jumps so the primary and secondary diff tiles never consume each other's.
+  chatId: string | undefined;
 }
 
-export const DiffView = memo(function DiffView({ sandboxId, cwd }: DiffViewProps) {
+export const DiffView = memo(function DiffView({ chatId }: DiffViewProps) {
   const theme = useResolvedTheme();
+  const { data: chat } = useChatQuery(chatId);
+  const sandboxId = chat?.sandbox_id ?? undefined;
+  const cwd = chat?.worktree_cwd ?? undefined;
   const [expandedFiles, toggleFile, setExpandedFiles] = useToggleSet<string>();
   const [mode, setMode] = useState<DiffMode>('all');
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
@@ -245,13 +250,21 @@ export const DiffView = memo(function DiffView({ sandboxId, cwd }: DiffViewProps
   const restoreFile = useGitRestoreFileMutation();
   const restoreAll = useGitRestoreAllMutation();
 
+  // Scopes the jump-scroll query to this tile's DOM — both diff tiles emit
+  // identical data-diff-file-path attributes, so a document-wide query could
+  // target the other tile.
+  const rootRef = useRef<HTMLDivElement>(null);
+
   // Filename keys persist across refetches, but mean different content across
-  // scopes — reset on scope change. Ref check avoids a double render.
+  // scopes — reset on scope change. Ref check avoids a double render. Discard
+  // dialog state is cleared too so a confirm can't act on the prior scope's file.
   const scopeKey = `${sandboxId ?? ''}\0${cwd ?? ''}\0${mode}`;
   const prevScopeRef = useRef(scopeKey);
   if (prevScopeRef.current !== scopeKey) {
     prevScopeRef.current = scopeKey;
     setExpandedFiles(new Set());
+    setDiscardTarget(null);
+    setDiscardAllOpen(false);
   }
 
   // Portal escapes the toolbar's overflow-x-auto clip (CSS clips both axes).
@@ -369,10 +382,15 @@ export const DiffView = memo(function DiffView({ sandboxId, cwd }: DiffViewProps
   // either way to absorb cwd/repo-root prefix differences.
   const pendingDiffFile = useUIStore((s) => s.pendingDiffFile);
   useEffect(() => {
-    if (!pendingDiffFile || parsedFiles.length === 0) return;
+    // Ignore jumps bound to a different chat so this tile can't consume one
+    // meant for the other diff tile (or a since-replaced chat in this slot).
+    if (!pendingDiffFile || pendingDiffFile.chatId !== chatId) return;
+    // Wait for fresh rows — placeholder rows belong to the previous scope.
+    if (parsedFiles.length === 0 || isPlaceholderData) return;
+    const path = pendingDiffFile.path;
     const match =
-      parsedFiles.find((f) => f.name === pendingDiffFile) ??
-      parsedFiles.find((f) => f.name.endsWith(pendingDiffFile) || pendingDiffFile.endsWith(f.name));
+      parsedFiles.find((f) => f.name === path) ??
+      parsedFiles.find((f) => f.name.endsWith(path) || path.endsWith(f.name));
     if (match) {
       setExpandedFiles((prev) => {
         if (prev.has(match.name)) return prev;
@@ -381,12 +399,14 @@ export const DiffView = memo(function DiffView({ sandboxId, cwd }: DiffViewProps
         return next;
       });
       requestAnimationFrame(() => {
-        const el = document.querySelector(`[data-diff-file-path="${CSS.escape(match.name)}"]`);
+        const el = rootRef.current?.querySelector(
+          `[data-diff-file-path="${CSS.escape(match.name)}"]`,
+        );
         el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
       });
     }
     useUIStore.getState().consumeDiffFileJump();
-  }, [pendingDiffFile, parsedFiles, setExpandedFiles]);
+  }, [pendingDiffFile, parsedFiles, setExpandedFiles, chatId, isPlaceholderData]);
 
   const allExpanded = parsedFiles.length > 0 && parsedFiles.every((f) => expandedFiles.has(f.name));
 
@@ -421,7 +441,10 @@ export const DiffView = memo(function DiffView({ sandboxId, cwd }: DiffViewProps
       poolOptions={WORKER_POOL_OPTIONS}
       highlighterOptions={WORKER_HIGHLIGHTER_OPTIONS}
     >
-      <div className="flex h-full w-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
+      <div
+        ref={rootRef}
+        className="flex h-full w-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary"
+      >
         <div className="flex h-9 items-center gap-1.5 overflow-x-auto border-b border-border/50 px-3 [scrollbar-width:none] dark:border-border-dark/50 [&::-webkit-scrollbar]:hidden">
           <Button
             onClick={() => refetch()}

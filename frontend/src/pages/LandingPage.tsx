@@ -129,7 +129,8 @@ export function LandingPage() {
     setSelectedFile(null);
   }
 
-  usePendingFileOpen(fileStructure, setSelectedFile);
+  // No chat exists on the landing page, so there are no chat-bound file jumps.
+  usePendingFileOpen(fileStructure, setSelectedFile, undefined);
 
   const { data: settings } = useSettingsQuery({
     enabled: isAuthenticated,
@@ -271,6 +272,7 @@ export function LandingPage() {
                 isSandboxSyncing={false}
                 onRefresh={handleRefresh}
                 isRefreshing={isRefreshing}
+                chatId={undefined}
               />
             </Suspense>
           );

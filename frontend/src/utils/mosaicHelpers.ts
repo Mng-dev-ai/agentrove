@@ -1,5 +1,45 @@
-import type { MosaicLayoutNode, MosaicSplitNode, MosaicTileId, ViewType } from '@/types/ui.types';
+import type {
+  AgentTileId,
+  MosaicLayoutNode,
+  MosaicSplitNode,
+  MosaicTileId,
+  SecondaryTileId,
+  ViewType,
+} from '@/types/ui.types';
 import type { MosaicNode } from 'react-mosaic-component';
+
+export const VIEW_TYPES: ViewType[] = ['agent', 'diff', 'editor', 'terminal', 'secrets'];
+
+export const VIEW_LABELS: Record<ViewType, string> = {
+  agent: 'Agent',
+  diff: 'Diff',
+  editor: 'Editor',
+  terminal: 'Terminal',
+  secrets: 'Secrets',
+};
+
+// All secondary-chat tile ids, used to tear down the second chat's panes at once.
+export const SECONDARY_TILE_IDS: SecondaryTileId[] = VIEW_TYPES.map(
+  (v): SecondaryTileId => `${v}:secondary`,
+);
+
+// The secondary pane is the action target only when it's both focused and bound
+// to a chat — otherwise everything resolves to the primary pane.
+export function isSecondaryPaneActive(
+  activeAgentTile: AgentTileId,
+  secondaryChatId: string | null,
+): boolean {
+  return activeAgentTile === 'agent:secondary' && !!secondaryChatId;
+}
+
+// The mosaic layout isn't materialized until a split happens — fall back to the
+// current single view's tile.
+export function getEffectiveLayout(
+  mosaicLayout: MosaicLayoutNode | null,
+  currentView: ViewType,
+): MosaicLayoutNode {
+  return mosaicLayout ?? viewTypeToPrimaryTile(currentView);
+}
 
 export function isMosaicSplitNode(node: MosaicLayoutNode): node is MosaicSplitNode {
   return typeof node === 'object' && 'direction' in node;
@@ -10,10 +50,15 @@ export function getLeaves(node: MosaicLayoutNode): MosaicTileId[] {
   return [...getLeaves(node.first), ...getLeaves(node.second)];
 }
 
+export function isSecondaryTile(tileId: MosaicTileId): tileId is SecondaryTileId {
+  return tileId.endsWith(':secondary');
+}
+
 // Maps a stored mosaic tile id back to its ViewType for label/render lookups.
+// Both pane suffixes ('agent:primary', '<view>:secondary') strip to the view.
 export function tileIdToViewType(tileId: MosaicTileId): ViewType {
-  if (tileId === 'agent:primary' || tileId === 'agent:secondary') return 'agent';
-  return tileId;
+  const colon = tileId.indexOf(':');
+  return (colon === -1 ? tileId : tileId.slice(0, colon)) as ViewType;
 }
 
 // Maps a ViewType to its canonical primary tile id. The agent slot is special:
@@ -21,6 +66,13 @@ export function tileIdToViewType(tileId: MosaicTileId): ViewType {
 // by the split-chat affordance.
 export function viewTypeToPrimaryTile(view: ViewType): MosaicTileId {
   return view === 'agent' ? 'agent:primary' : view;
+}
+
+// Maps a (view, pane) pair to its tile id. Agent always maps to the primary
+// slot — agent:secondary is created only by the split-chat affordance.
+export function viewTypeToTileId(view: ViewType, secondary: boolean): MosaicTileId {
+  if (secondary && view !== 'agent') return `${view}:secondary`;
+  return viewTypeToPrimaryTile(view);
 }
 
 // Returns the leaves' view types, deduped, preserving order. Two agent panes

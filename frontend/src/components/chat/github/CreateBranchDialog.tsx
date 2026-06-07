@@ -5,7 +5,7 @@ import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { Button } from '@/components/ui/primitives/Button';
 import { Input } from '@/components/ui/primitives/Input';
 import { Select } from '@/components/ui/primitives/Select';
-import { useChatStore } from '@/store/chatStore';
+import { useActiveChat } from '@/hooks/useActiveChat';
 import { useGitBranchesQuery, useGitCreateBranchMutation } from '@/hooks/queries/useSandboxQueries';
 
 interface CreateBranchDialogProps {
@@ -13,7 +13,7 @@ interface CreateBranchDialogProps {
 }
 
 export function CreateBranchDialog({ onClose }: CreateBranchDialogProps) {
-  const currentChat = useChatStore((s) => s.currentChat);
+  const currentChat = useActiveChat();
   const sandboxId = currentChat?.sandbox_id ?? '';
   const worktreeCwd = currentChat?.worktree_cwd ?? undefined;
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);

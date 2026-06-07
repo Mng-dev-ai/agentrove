@@ -9,19 +9,12 @@ import {
   libraryToMosaicLayout,
   getLeaves,
   tileIdToViewType,
+  VIEW_LABELS,
 } from '@/utils/mosaicHelpers';
-import type { ViewType, MosaicLayoutNode, MosaicTileId } from '@/types/ui.types';
+import type { MosaicLayoutNode, MosaicTileId } from '@/types/ui.types';
 
 import 'react-mosaic-component/react-mosaic-component.css';
 import '@/styles/mosaic-theme.css';
-
-const VIEW_LABELS: Record<ViewType, string> = {
-  agent: 'Agent',
-  diff: 'Diff',
-  editor: 'Editor',
-  terminal: 'Terminal',
-  secrets: 'Secrets',
-};
 
 function getTileLabel(
   tileId: MosaicTileId,

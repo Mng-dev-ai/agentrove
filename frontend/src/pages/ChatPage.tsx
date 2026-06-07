@@ -9,13 +9,13 @@ import { CommandMenu } from '@/components/ui/CommandMenu';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useActiveViews } from '@/hooks/useActiveViews';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
-import type { MosaicTileId, ViewType } from '@/types/ui.types';
+import type { AgentTileId, MosaicTileId, ViewType } from '@/types/ui.types';
+import { isSecondaryTile, tileIdToViewType, VIEW_LABELS, VIEW_TYPES } from '@/utils/mosaicHelpers';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
-import { useEditorState } from '@/hooks/useEditorState';
-import { usePendingFileOpen } from '@/hooks/usePendingFileOpen';
 import { useChatData } from '@/hooks/useChatData';
+import { useActiveChat } from '@/hooks/useActiveChat';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
@@ -24,8 +24,8 @@ import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { CreateSubThreadDialog } from '@/components/chat/sub-threads/CreateSubThreadDialog';
 
-const Editor = lazy(() =>
-  import('@/components/editor/editor-core/Editor').then((m) => ({ default: m.Editor })),
+const EditorPane = lazy(() =>
+  import('@/components/editor/editor-core/EditorPane').then((m) => ({ default: m.EditorPane })),
 );
 const SecretsView = lazy(() =>
   import('@/components/sandbox/secrets/SecretsView').then((m) => ({ default: m.SecretsView })),
@@ -49,6 +49,21 @@ const CreateCommitDialog = lazy(() =>
 const CreatePRDialog = lazy(() =>
   import('@/components/chat/github/CreatePRDialog').then((m) => ({ default: m.CreatePRDialog })),
 );
+
+// Mount-gated wrapper (matches the git dialogs' pattern) so useActiveChat's
+// pane subscriptions don't re-render the whole page on every pane switch.
+function SubThreadDialog() {
+  // Sub-threads branch off the pane the user is in — in split view that's the
+  // secondary chat when it's the active pane.
+  const parentChat = useActiveChat();
+  if (!parentChat || parentChat.parent_chat_id) return null;
+  return (
+    <CreateSubThreadDialog
+      parentChat={parentChat}
+      onClose={() => useUIStore.getState().setSubThreadDialogOpen(false)}
+    />
+  );
+}
 
 export function ChatPage() {
   const { chatId } = useParams();
@@ -88,10 +103,7 @@ export function ChatPage() {
     }
   }, [chatId, isMobile, secondaryChatId]);
 
-  const { fileStructure, isFileMetadataLoading, refetchFilesMetadata } = useSandboxFiles(
-    currentChat,
-    chatId,
-  );
+  const { fileStructure, refetchFilesMetadata } = useSandboxFiles(currentChat, chatId);
 
   const worktreeCwd = currentChat?.worktree_cwd ?? undefined;
 
@@ -126,9 +138,6 @@ export function ChatPage() {
 
   const { data: workspaceResources } = useWorkspaceResourcesQuery(currentChat?.workspace_id);
 
-  const { selectedFile, setSelectedFile, isRefreshing, handleRefresh, handleFileSelect } =
-    useEditorState(refetchFilesMetadata);
-
   const prevChatIdForResetRef = useRef(chatId);
 
   useEffect(() => {
@@ -137,7 +146,6 @@ export function ChatPage() {
 
   if (prevChatIdForResetRef.current !== chatId) {
     prevChatIdForResetRef.current = chatId;
-    setSelectedFile(null);
     const ui = useUIStore.getState();
     if (ui.secondaryChatId === chatId) {
       ui.closeSplitChat();
@@ -148,14 +156,13 @@ export function ChatPage() {
     useUIStore.setState({
       pendingFilePath: null,
       pendingFileJump: null,
+      pendingDiffFile: null,
       subThreadDialogOpen: false,
       createCommitDialogOpen: false,
       createPRDialogOpen: false,
       createBranchDialogOpen: false,
     });
   }
-
-  usePendingFileOpen(fileStructure, setSelectedFile);
 
   const handleChatSelect = useCallback(
     (selectedChatId: string) => {
@@ -201,62 +208,61 @@ export function ChatPage() {
         if (!secondaryChatId) return null;
         return <AgentPane chatId={secondaryChatId} />;
       }
-      const view: ViewType = tileId;
-      switch (view) {
+      // Secondary tiles render the second chat's own sandbox/cwd. The terminal
+      // is handled in renderView's terminal branch, so it's a no-op here.
+      const isSecondary = isSecondaryTile(tileId);
+      if (isSecondary && !secondaryChatId) return null;
+      const paneChat = isSecondary ? secondaryQuery.data : currentChat;
+      const paneChatId = isSecondary ? (secondaryChatId ?? undefined) : chatId;
+      switch (tileIdToViewType(tileId)) {
         case 'editor':
           return (
             <Suspense fallback={viewLoadingFallback}>
-              <Editor
-                files={fileStructure}
-                selectedFile={selectedFile}
-                onFileSelect={handleFileSelect}
-                sandboxId={currentChat?.sandbox_id}
-                worktreeCwd={worktreeCwd}
-                isSandboxSyncing={isFileMetadataLoading}
-                onRefresh={handleRefresh}
-                isRefreshing={isRefreshing}
-              />
+              <EditorPane chatId={paneChatId} />
             </Suspense>
           );
         case 'secrets':
           return (
             <Suspense fallback={viewLoadingFallback}>
-              <SecretsView sandboxId={currentChat?.sandbox_id} />
+              <SecretsView sandboxId={paneChat?.sandbox_id ?? undefined} />
             </Suspense>
           );
         case 'diff':
           return (
             <Suspense fallback={viewLoadingFallback}>
-              <DiffView sandboxId={currentChat?.sandbox_id} cwd={worktreeCwd} />
+              <DiffView chatId={paneChatId} />
             </Suspense>
           );
         default:
           return null;
       }
     },
-    [
-      currentChat,
-      fileStructure,
-      selectedFile,
-      handleFileSelect,
-      isFileMetadataLoading,
-      handleRefresh,
-      isRefreshing,
-      worktreeCwd,
-      secondaryChatId,
-    ],
+    [chatId, currentChat, secondaryChatId, secondaryQuery.data?.sandbox_id],
   );
 
   const renderView = useCallback(
     (tileId: MosaicTileId, slot: string): ReactNode => {
-      const isTerminal = tileId === 'terminal';
+      const isSecondary = isSecondaryTile(tileId);
+      const isTerminal = tileId === 'terminal' || tileId === 'terminal:secondary';
+      // Every tile maps to the chat it shows; recording it on any interaction
+      // keeps pane-scoped shortcuts aimed at the chat the user is actually in.
+      const activePane: AgentTileId = isSecondary ? 'agent:secondary' : 'agent:primary';
+      // The secondary terminal runs in the second chat's sandbox; the hidden
+      // terminals kept alive in other slots stay on the primary chat.
+      const terminalSandboxId = isSecondary
+        ? (secondaryQuery.data?.sandbox_id ?? undefined)
+        : currentChat?.sandbox_id;
+      const terminalChatId = isSecondary ? (secondaryChatId ?? undefined) : currentChat?.id;
       return (
-        <div className="relative flex h-full w-full">
+        <div
+          className="relative flex h-full w-full"
+          onPointerDownCapture={() => useUIStore.getState().setActiveAgentTile(activePane)}
+        >
           <div className={isTerminal ? 'flex h-full w-full' : 'hidden'}>
             <Suspense fallback={viewLoadingFallback}>
               <TerminalContainer
-                sandboxId={currentChat?.sandbox_id}
-                chatId={currentChat?.id}
+                sandboxId={terminalSandboxId}
+                chatId={terminalChatId}
                 isVisible={isTerminal}
                 panelKey={slot}
               />
@@ -268,7 +274,7 @@ export function ChatPage() {
         </div>
       );
     },
-    [currentChat, renderNonTerminalView],
+    [currentChat, renderNonTerminalView, secondaryChatId, secondaryQuery.data?.sandbox_id],
   );
 
   const handleCloseTile = useCallback(
@@ -293,9 +299,18 @@ export function ChatPage() {
 
   const agentTitles = useMemo<Partial<Record<MosaicTileId, string>>>(() => {
     const titles: Partial<Record<MosaicTileId, string>> = {};
-    if (currentChat?.title) titles['agent:primary'] = currentChat.title;
-    if (secondaryChatId && secondaryQuery.data?.title) {
-      titles['agent:secondary'] = secondaryQuery.data.title;
+    const primaryTitle = currentChat?.title;
+    const secondaryTitle = secondaryQuery.data?.title;
+    if (primaryTitle) titles['agent:primary'] = primaryTitle;
+    if (secondaryChatId && secondaryTitle) {
+      titles['agent:secondary'] = secondaryTitle;
+      // Each non-agent view's two tiles can coexist in split-chat view — name
+      // them by chat so the two copies (primary/secondary) are distinguishable.
+      for (const view of VIEW_TYPES) {
+        if (view === 'agent') continue;
+        if (primaryTitle) titles[view] = `${primaryTitle} · ${VIEW_LABELS[view]}`;
+        titles[`${view}:secondary`] = `${secondaryTitle} · ${VIEW_LABELS[view]}`;
+      }
     }
     return titles;
   }, [currentChat?.title, secondaryChatId, secondaryQuery.data?.title]);
@@ -330,12 +345,7 @@ export function ChatPage() {
             />
           </div>
           <CommandMenu />
-          {subThreadDialogOpen && currentChat && !currentChat.parent_chat_id && (
-            <CreateSubThreadDialog
-              parentChat={currentChat}
-              onClose={() => useUIStore.getState().setSubThreadDialogOpen(false)}
-            />
-          )}
+          {subThreadDialogOpen && <SubThreadDialog />}
           {createCommitDialogOpen && (
             <Suspense fallback={null}>
               <CreateCommitDialog

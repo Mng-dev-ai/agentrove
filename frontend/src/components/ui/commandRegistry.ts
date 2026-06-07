@@ -26,10 +26,11 @@ import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
 import { sandboxService } from '@/services/sandboxService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-import { getLeafViewTypes, viewTypeToPrimaryTile } from '@/utils/mosaicHelpers';
+import { isSecondaryPaneActive } from '@/utils/mosaicHelpers';
 import { traverseFileStructure, getFileName } from '@/utils/file';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
 import type { ViewType } from '@/types/ui.types';
+import type { Chat } from '@/types/chat.types';
 import type { FileStructure } from '@/types/file-system.types';
 import type { GitBranchesData } from '@/types/sandbox.types';
 
@@ -197,7 +198,21 @@ export function formatShortcut(key: string): string {
   return `${mod}⇧${key === '.' ? '.' : key.toUpperCase()}`;
 }
 
+// Chat-scoped actions (git, sub-threads) target the pane the user last interacted
+// with — in split view the secondary pane is a different chat. The secondary chat
+// is cache-warm here since it's rendered in the split.
+function getActiveChat(queryClient: QueryClient): Chat | null {
+  const ui = useUIStore.getState();
+  if (isSecondaryPaneActive(ui.activeAgentTile, ui.secondaryChatId) && ui.secondaryChatId) {
+    // Don't fall back to the primary chat — acting on the wrong chat is worse than
+    // a no-op if the secondary chat isn't cached yet.
+    return queryClient.getQueryData<Chat>(queryKeys.chat(ui.secondaryChatId)) ?? null;
+  }
+  return useChatStore.getState().currentChat;
+}
+
 function executeGitRemoteCommand(
+  chat: Chat | null,
   fn: (
     sandboxId: string,
     cwd?: string,
@@ -205,7 +220,6 @@ function executeGitRemoteCommand(
   label: string,
   onSuccess?: () => void,
 ) {
-  const chat = useChatStore.getState().currentChat;
   if (!chat?.sandbox_id) {
     toast.error('No sandbox connected');
     return;
@@ -231,21 +245,12 @@ export function executeCommand(
   const ui = useUIStore.getState();
 
   if (cmd.type === 'view') {
-    const layout = ui.mosaicLayout ?? viewTypeToPrimaryTile(ui.currentView);
-    const leafKinds = getLeafViewTypes(layout);
-    if (toggle && leafKinds.includes(cmd.id)) {
-      if (cmd.id === 'agent' && ui.secondaryChatId) {
-        ui.closeSplitChat();
-      } else {
-        ui.removeTileFromMosaic(viewTypeToPrimaryTile(cmd.id));
-      }
-    } else {
-      ui.handleViewClick(cmd.id, true);
-    }
+    // Toggling is scoped to the active pane (the chat the user last interacted with).
+    ui.toggleView(cmd.id, toggle);
   } else if (cmd.id === 'new-thread') {
     navigate('/');
   } else if (cmd.id === 'new-sub-thread') {
-    const chat = useChatStore.getState().currentChat;
+    const chat = getActiveChat(queryClient);
     if (!chat || chat.parent_chat_id) {
       toast.error('Open a top-level thread first');
     } else {
@@ -258,8 +263,9 @@ export function executeCommand(
   } else if (cmd.id === 'create-branch') {
     ui.setCreateBranchDialogOpen(toggle ? !ui.createBranchDialogOpen : true);
   } else if (cmd.id === 'push-remote') {
-    const sandboxId = useChatStore.getState().currentChat?.sandbox_id;
-    executeGitRemoteCommand(sandboxService.gitPush, 'Pushed to remote', () => {
+    const chat = getActiveChat(queryClient);
+    const sandboxId = chat?.sandbox_id;
+    executeGitRemoteCommand(chat, sandboxService.gitPush, 'Pushed to remote', () => {
       if (sandboxId) {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.gitBranchesAll(sandboxId),
@@ -267,8 +273,9 @@ export function executeCommand(
       }
     });
   } else if (cmd.id === 'pull-remote') {
-    const sandboxId = useChatStore.getState().currentChat?.sandbox_id;
-    executeGitRemoteCommand(sandboxService.gitPull, 'Pulled from remote', () => {
+    const chat = getActiveChat(queryClient);
+    const sandboxId = chat?.sandbox_id;
+    executeGitRemoteCommand(chat, sandboxService.gitPull, 'Pulled from remote', () => {
       if (sandboxId) {
         void Promise.all([
           queryClient.invalidateQueries({
@@ -295,7 +302,7 @@ export function executeCommand(
     ui.setPendingMenuMode('files');
     ui.setCommandMenuOpen(true);
   } else if (cmd.id === 'switch-branch') {
-    const chat = useChatStore.getState().currentChat;
+    const chat = getActiveChat(queryClient);
     if (!chat?.sandbox_id) {
       toast.error('No sandbox connected');
       return;

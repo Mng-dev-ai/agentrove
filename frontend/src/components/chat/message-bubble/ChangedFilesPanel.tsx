@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/primitives/Button';
 import { DiffView } from '@/components/chat/tools/common/DiffView';
 import { useMessageChangesQuery, useMessageFileDiffQuery } from '@/hooks/queries/useChatQueries';
 import { useUIStore } from '@/store/uiStore';
+import { useChatContext } from '@/hooks/useChatContext';
 import type { ChangedFile, ChangedFileStatus } from '@/types/sandbox.types';
 
 interface ChangedFilesPanelProps {
@@ -88,6 +89,9 @@ const ChangedFileRow: React.FC<{
   file: ChangedFile;
   cwd: string;
 }> = ({ messageId, file, cwd }) => {
+  // This row renders inside either chat pane; bind diff jumps to the pane's
+  // chat so they open in (and are claimed by) that chat's own diff tile.
+  const { chatId } = useChatContext();
   const [open, setOpen] = useState(false);
   const isDeleted = file.status === 'D';
   const editorPath = cwd ? `${cwd}/${file.path}` : file.path;
@@ -130,7 +134,7 @@ const ChangedFileRow: React.FC<{
           <Button
             type="button"
             variant="unstyled"
-            onClick={() => useUIStore.getState().openInDiffView(file.path)}
+            onClick={() => chatId && useUIStore.getState().openInDiffView(file.path, chatId)}
             aria-label="Open in diff view"
             title="Open in diff view"
             className="text-text-quaternary transition-colors duration-150 hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
@@ -141,7 +145,7 @@ const ChangedFileRow: React.FC<{
             <Button
               type="button"
               variant="unstyled"
-              onClick={() => useUIStore.getState().openFileInEditor(editorPath)}
+              onClick={() => useUIStore.getState().openFileInEditor(editorPath, chatId)}
               aria-label="Open in editor"
               title="Open in editor"
               className="text-text-quaternary transition-colors duration-150 hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"

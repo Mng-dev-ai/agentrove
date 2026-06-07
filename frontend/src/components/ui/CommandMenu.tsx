@@ -6,11 +6,17 @@ import { GitBranch, Search, PanelRight, PanelBottom, File } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useUIStore } from '@/store/uiStore';
-import { useChatStore } from '@/store/chatStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useActiveViews } from '@/hooks/useActiveViews';
+import {
+  getEffectiveLayout,
+  getLeaves,
+  isSecondaryPaneActive,
+  viewTypeToTileId,
+} from '@/utils/mosaicHelpers';
 import { useChatContext } from '@/hooks/useChatContext';
+import { useActiveChat } from '@/hooks/useActiveChat';
+import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
 import { fuzzySearch } from '@/utils/fuzzySearch';
 import { HighlightMatch } from '@/components/ui/shared/HighlightMatch';
@@ -61,12 +67,43 @@ export function CommandMenu() {
   const isOpen = useUIStore((state) => state.commandMenuOpen);
   const theme = useUIStore((state) => state.theme);
   const isMobile = useIsMobile();
-  const activeLeaves = useActiveViews();
-  const activeLeafSet = useMemo(() => new Set(activeLeaves), [activeLeaves]);
+  // Leaf tile ids (not deduped view kinds) so the active-state/split affordances
+  // can distinguish a view's primary tile from its `:secondary` variant. Gated on
+  // open — layout/view churn is irrelevant while the always-mounted menu is closed.
+  const mosaicLayout = useUIStore((s) => (s.commandMenuOpen ? s.mosaicLayout : null));
+  const currentView = useUIStore((s) => (s.commandMenuOpen ? s.currentView : 'agent'));
+  const leafTileIds = useMemo(
+    () => new Set(getLeaves(getEffectiveLayout(mosaicLayout, currentView))),
+    [mosaicLayout, currentView],
+  );
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { fileStructure, sandboxId, chatId } = useChatContext();
-  const worktreeCwd = useChatStore((s) => s.currentChat?.worktree_cwd) ?? undefined;
+  const primaryCtx = useChatContext();
+
+  // File/search/branch actions target the pane the user last interacted with — in
+  // split view the secondary pane is a different chat with its own files/cwd/tiles.
+  const activeAgentTile = useUIStore((s) =>
+    s.commandMenuOpen ? s.activeAgentTile : 'agent:primary',
+  );
+  const secondaryChatId = useUIStore((s) => s.secondaryChatId);
+  const useSecondary = isSecondaryPaneActive(activeAgentTile, secondaryChatId);
+  // Resolve the active pane's chat through the canonical hook, gated on the menu
+  // being open so the always-mounted menu doesn't re-render on pane/secondary
+  // churn while closed. Only used for the secondary pane — the primary reuses the
+  // chat context directly below (its files/chatId are available there immediately).
+  const activeChat = useActiveChat(isOpen);
+  const secondaryChat = useSecondary ? activeChat : undefined;
+  const { fileStructure: secondaryFiles } = useSandboxFiles(
+    secondaryChat ?? undefined,
+    useSecondary ? (secondaryChatId ?? undefined) : undefined,
+  );
+
+  const chatId = useSecondary ? (secondaryChatId ?? undefined) : primaryCtx.chatId;
+  const fileStructure = useSecondary ? secondaryFiles : primaryCtx.fileStructure;
+  const sandboxId = useSecondary ? (secondaryChat?.sandbox_id ?? undefined) : primaryCtx.sandboxId;
+  const worktreeCwd = useSecondary
+    ? (secondaryChat?.worktree_cwd ?? undefined)
+    : primaryCtx.worktreeCwd;
 
   // Fetch branches whenever the menu is open so we can both render the branches mode and
   // filter the switch-branch command out of the list for chats without a repo. Cache is
@@ -167,18 +204,20 @@ export function CommandMenu() {
 
   const handleSelectFile = useCallback(
     (file: FlatFileItem) => {
-      useUIStore.getState().openFileInEditor(file.path);
+      // Jumps target the active chat's editor, or the chat-less landing editor
+      // (undefined chatId) when browsing workspace files before a chat exists.
+      useUIStore.getState().openFileInEditor(file.path, chatId);
       close();
     },
-    [close],
+    [close, chatId],
   );
 
   const handleOpenSearchResult = useCallback(
     (path: string, lineNumber: number) => {
-      useUIStore.getState().openFileInEditor(path, lineNumber);
+      useUIStore.getState().openFileInEditor(path, chatId, lineNumber);
       close();
     },
-    [close],
+    [close, chatId],
   );
 
   const handleOpenChatResult = useCallback(
@@ -518,8 +557,13 @@ export function CommandMenu() {
                 <>
                   {filteredCommands.map((cmd, index) => {
                     const Icon = cmd.icon;
+                    // Active/split state is scoped to the pane the user is in: the
+                    // view counts as open only if the active pane's target tile
+                    // (e.g. editor:secondary) is already a leaf, so the split
+                    // buttons stay available to open it in the other pane.
                     const isActive =
-                      (cmd.type === 'view' && activeLeafSet.has(cmd.id)) ||
+                      (cmd.type === 'view' &&
+                        leafTileIds.has(viewTypeToTileId(cmd.id, useSecondary))) ||
                       cmd.id === `theme-${theme}`;
 
                     return (
