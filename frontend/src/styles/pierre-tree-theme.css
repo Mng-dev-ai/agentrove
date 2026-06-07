@@ -33,6 +33,8 @@ file-tree-container {
   --trees-input-bg-override: transparent;
   --trees-padding-inline-override: 10px;
   --trees-item-padding-x-override: 6px;
+  /* Tighter than the 8px default so deep paths stay readable in the narrow panel. */
+  --trees-level-gap-override: 6px;
   --trees-indent-guide-bg-override: rgb(226 226 226 / 0.5);
   --trees-scrollbar-thumb-override: #94a3b8;
 
