@@ -7,6 +7,7 @@ import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
   DEFAULT_PERSONA,
+  DEFAULT_THINKING_MODE,
 } from '@/store/chatSettingsStore';
 import type { PermissionMode } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
@@ -109,7 +110,7 @@ export function useMessageActions({
           modelMap.get(selectedModelId)?.agent_kind ?? getAgentKindForModelId(selectedModelId);
         const effectivePermissionMode = coercePermissionModeForAgent(permissionMode, agentKind);
         const effectiveThinkingMode = coerceThinkingModeForAgent(
-          thinkingMode ?? 'medium',
+          thinkingMode ?? DEFAULT_THINKING_MODE,
           agentKind,
           selectedModelId,
         );
