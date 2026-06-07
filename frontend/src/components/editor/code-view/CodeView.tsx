@@ -194,7 +194,7 @@ export const CodeView = memo(function CodeView({
         <Panel
           ref={fileTreePanelRef}
           defaultSize={0}
-          minSize={15}
+          minSize={25}
           maxSize={40}
           collapsible
           collapsedSize={0}
