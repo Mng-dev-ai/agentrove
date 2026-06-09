@@ -10,12 +10,10 @@ import {
   DEFAULT_THINKING_MODE,
 } from '@/store/chatSettingsStore';
 import type { PermissionMode } from '@/store/chatSettingsStore';
-import { resolvePersona } from '@/utils/settings';
+import { buildAgentChatFields } from '@/utils/chatRequest';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
-import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
-import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
-import { getAgentKindForModelId, type ChatRequest, type Message } from '@/types/chat.types';
+import type { ChatRequest, Message } from '@/types/chat.types';
 import type { StreamState } from '@/types/stream.types';
 
 const textEncoder = new TextEncoder();
@@ -105,26 +103,24 @@ export function useMessageActions({
         const personaKey = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
         const storedPersona =
           useChatSettingsStore.getState().personaByChat[personaKey] ?? DEFAULT_PERSONA;
-        const validPersona = resolvePersona(storedPersona, personas);
-        const agentKind =
-          modelMap.get(selectedModelId)?.agent_kind ?? getAgentKindForModelId(selectedModelId);
-        const effectivePermissionMode = coercePermissionModeForAgent(permissionMode, agentKind);
-        const effectiveThinkingMode = coerceThinkingModeForAgent(
-          thinkingMode ?? DEFAULT_THINKING_MODE,
-          agentKind,
-          selectedModelId,
-        );
 
         const request: ChatRequest = {
           prompt: normalizedPrompt,
           model_id: selectedModelId,
           ...(chatIdOverride && { chat_id: chatIdOverride }),
           attached_files: filesToSend && filesToSend.length > 0 ? filesToSend : undefined,
-          permission_mode: effectivePermissionMode,
-          thinking_mode: effectiveThinkingMode,
-          worktree: worktree ? true : undefined,
-          plan_mode: agentKind === 'codex' && planMode ? true : undefined,
-          selected_persona_name: validPersona,
+          ...buildAgentChatFields(
+            selectedModelId,
+            modelMap,
+            {
+              permissionMode,
+              thinkingMode: thinkingMode ?? DEFAULT_THINKING_MODE,
+              worktree,
+              planMode,
+              persona: storedPersona,
+            },
+            personas,
+          ),
         };
 
         const { messageId, checkpointId } = await startStream(request, startController.signal);

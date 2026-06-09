@@ -59,8 +59,10 @@ export const useModelSelection = (options?: {
   return { models, selectedModelId, selectedModel, selectModel, isLoading };
 };
 
-export function useModelMap(): Map<string, Model> {
-  const { data: models } = useModelsQuery();
+// `/models/` is auth-protected — public-route callers must gate; default-on
+// keeps authenticated callers unchanged.
+export function useModelMap(enabled: boolean = true): Map<string, Model> {
+  const { data: models } = useModelsQuery({ enabled });
   return useMemo(
     () => (models ? new Map(models.map((m) => [m.model_id, m])) : EMPTY_MODEL_MAP),
     [models],

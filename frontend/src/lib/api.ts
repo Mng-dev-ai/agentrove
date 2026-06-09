@@ -1,5 +1,6 @@
-import { authStorage } from '@/utils/storage';
+import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { invalidateSessionAndRedirect } from '@/utils/authSession';
+import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 
 type RequestMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -27,7 +28,7 @@ class RefreshTokenError extends Error {
 
 export type { ApiStreamResponse as StreamResponse } from '@/types/stream.types';
 
-const trimTrailingSlash = (url: string): string => url.replace(/\/+$/, '');
+export const trimTrailingSlash = (url: string): string => url.replace(/\/+$/, '');
 
 const resolveHttpBaseUrl = (rawUrl: string): string =>
   trimTrailingSlash(new URL(rawUrl, window.location.origin).toString());
@@ -38,54 +39,40 @@ const resolveWsBaseUrl = (rawUrl: string): string => {
   return trimTrailingSlash(normalized.toString());
 };
 
-const getAuthHeaders = (includeContentType = true): Record<string, string> => {
-  const token = authStorage.getToken();
-  return {
-    ...(includeContentType ? { 'Content-Type': 'application/json' } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-  };
+// Auth source for an APIClient instance. The local client reads/writes the
+// shared authStorage; the remote (VPS) client uses cloudAuthStorage so the two
+// instances authenticate independently and don't clobber each other's tokens.
+interface ClientAuth {
+  getToken: () => string | null;
+  getRefreshToken: () => string | null;
+  setTokens: (accessToken: string, refreshToken: string) => void;
+  onSessionExpired: () => void;
+}
+
+const localAuth: ClientAuth = {
+  getToken: () => authStorage.getToken(),
+  getRefreshToken: () => authStorage.getRefreshToken(),
+  setTokens: (accessToken, refreshToken) => {
+    authStorage.setToken(accessToken);
+    authStorage.setRefreshToken(refreshToken);
+  },
+  onSessionExpired: invalidateSessionAndRedirect,
 };
 
-let refreshingPromise: Promise<TokenResponse> | null = null;
-
-async function performTokenRefresh(baseURL: string): Promise<TokenResponse> {
-  const refreshToken = authStorage.getRefreshToken();
-  if (!refreshToken) {
-    throw new RefreshTokenError(401, 'No refresh token available');
-  }
-
-  const response = await fetch(`${baseURL}/auth/jwt/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  }).catch(() => {
-    throw new RefreshTokenError(0);
-  });
-
-  if (!response.ok) {
-    throw new RefreshTokenError(response.status);
-  }
-
-  const data: TokenResponse = await response.json();
-  authStorage.setToken(data.access_token);
-  authStorage.setRefreshToken(data.refresh_token);
-  return data;
-}
-
-async function refreshTokenIfNeeded(baseURL: string): Promise<TokenResponse> {
-  if (refreshingPromise) {
-    return refreshingPromise;
-  }
-
-  refreshingPromise = performTokenRefresh(baseURL);
-
-  try {
-    const result = await refreshingPromise;
-    return result;
-  } finally {
-    refreshingPromise = null;
-  }
-}
+const cloudAuth: ClientAuth = {
+  getToken: () => cloudAuthStorage.getAccessToken(),
+  getRefreshToken: () => cloudAuthStorage.getRefreshToken(),
+  setTokens: (accessToken, refreshToken) => {
+    cloudAuthStorage.setAccessToken(accessToken);
+    cloudAuthStorage.setRefreshToken(refreshToken);
+  },
+  // A revoked/expired VPS refresh token can't be recovered silently — drop the
+  // cloud credentials so the settings UI reflects a disconnected state.
+  onSessionExpired: () => {
+    cloudAuthStorage.clear();
+    useCloudSettingsStore.getState().clearCloud();
+  },
+};
 
 // Desktop reinstalls can leave stale refresh tokens in local storage while the backend
 // identity/session store resets. Treat refresh 401 as terminal to break retry loops.
@@ -108,9 +95,12 @@ const extractErrorMessage = async (response: Response): Promise<string> => {
 
 class APIClient {
   private baseURL: string;
+  private auth: ClientAuth;
+  private refreshingPromise: Promise<TokenResponse> | null = null;
 
-  constructor(baseURL: string) {
+  constructor(baseURL: string, auth: ClientAuth) {
     this.baseURL = baseURL;
+    this.auth = auth;
   }
 
   getBaseUrl(): string {
@@ -119,6 +109,51 @@ class APIClient {
 
   setBaseUrl(url: string): void {
     this.baseURL = url;
+  }
+
+  private authHeaders(includeContentType = true): Record<string, string> {
+    const token = this.auth.getToken();
+    return {
+      ...(includeContentType ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  }
+
+  private async performTokenRefresh(): Promise<TokenResponse> {
+    const refreshToken = this.auth.getRefreshToken();
+    if (!refreshToken) {
+      throw new RefreshTokenError(401, 'No refresh token available');
+    }
+
+    const response = await fetch(`${this.baseURL}/auth/jwt/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }).catch(() => {
+      throw new RefreshTokenError(0);
+    });
+
+    if (!response.ok) {
+      throw new RefreshTokenError(response.status);
+    }
+
+    const data: TokenResponse = await response.json();
+    this.auth.setTokens(data.access_token, data.refresh_token);
+    return data;
+  }
+
+  private async refreshTokenIfNeeded(): Promise<TokenResponse> {
+    if (this.refreshingPromise) {
+      return this.refreshingPromise;
+    }
+
+    this.refreshingPromise = this.performTokenRefresh();
+
+    try {
+      return await this.refreshingPromise;
+    } finally {
+      this.refreshingPromise = null;
+    }
   }
 
   private async handleResponse<T>(response: Response): Promise<T | null> {
@@ -145,7 +180,7 @@ class APIClient {
     const config: RequestInit = {
       method,
       headers: {
-        ...getAuthHeaders(!formData),
+        ...this.authHeaders(!formData),
         ...additionalHeaders,
       },
       signal,
@@ -163,19 +198,23 @@ class APIClient {
     const response = await fetch(`${this.baseURL}${endpoint}`, config);
 
     if (response.status === 401 && !isRetry && !endpoint.includes('/auth/jwt/')) {
-      const hasRefreshToken = !!authStorage.getRefreshToken();
+      const hasRefreshToken = !!this.auth.getRefreshToken();
       if (hasRefreshToken) {
         try {
-          await refreshTokenIfNeeded(this.baseURL);
+          await this.refreshTokenIfNeeded();
           return this.request<T>(endpoint, method, options, additionalHeaders, true);
         } catch (error) {
           if (shouldInvalidateSession(error)) {
-            invalidateSessionAndRedirect();
+            this.auth.onSessionExpired();
             throw new Error('Session expired');
           }
           throw error;
         }
       }
+      // 401 with no refresh token — session is unusable, so tear it down rather
+      // than leave the UI looking connected.
+      this.auth.onSessionExpired();
+      throw new Error('Session expired');
     }
 
     return this.handleResponse(response);
@@ -208,19 +247,19 @@ class APIClient {
   async getBlob(endpoint: string, signal?: AbortSignal, isRetry = false): Promise<Blob> {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'GET',
-      headers: getAuthHeaders(false),
+      headers: this.authHeaders(false),
       signal,
     });
 
     if (response.status === 401 && !isRetry) {
-      const hasRefreshToken = !!authStorage.getRefreshToken();
+      const hasRefreshToken = !!this.auth.getRefreshToken();
       if (hasRefreshToken) {
         try {
-          await refreshTokenIfNeeded(this.baseURL);
+          await this.refreshTokenIfNeeded();
           return this.getBlob(endpoint, signal, true);
         } catch (error) {
           if (shouldInvalidateSession(error)) {
-            invalidateSessionAndRedirect();
+            this.auth.onSessionExpired();
             throw new Error('Session expired');
           }
           throw error;
@@ -240,11 +279,23 @@ class APIClient {
 let API_BASE_URL: string = resolveHttpBaseUrl(import.meta.env.VITE_API_BASE_URL);
 export let WS_BASE_URL: string = resolveWsBaseUrl(import.meta.env.VITE_WS_URL);
 
-export const apiClient = new APIClient(API_BASE_URL);
+export const apiClient = new APIClient(API_BASE_URL, localAuth);
+
+// Second client pointed at the user's remote VPS instance for cloud-run chats.
+// The persisted cloud settings hydrate synchronously, so the saved VPS is wired
+// up at startup and cloud chats work without re-connecting after a restart.
+export const remoteApiClient = new APIClient('', cloudAuth);
+const savedCloudUrl = useCloudSettingsStore.getState().cloudUrl;
+if (savedCloudUrl) setCloudApiBaseUrl(savedCloudUrl);
 
 export function setApiPort(port: number): void {
   const origin = `http://127.0.0.1:${port}`;
   API_BASE_URL = `${origin}/api/v1`;
   WS_BASE_URL = `ws://127.0.0.1:${port}/api/v1/ws`;
   apiClient.setBaseUrl(API_BASE_URL);
+}
+
+// `url` is the VPS origin (e.g. https://vps.example.com); the API lives under /api/v1.
+export function setCloudApiBaseUrl(url: string): void {
+  remoteApiClient.setBaseUrl(`${trimTrailingSlash(url)}/api/v1`);
 }

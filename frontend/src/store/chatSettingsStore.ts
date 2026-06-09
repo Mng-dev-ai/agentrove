@@ -25,11 +25,16 @@ interface ChatSettingsState {
   permissionModeByChat: Record<string, PermissionMode>;
   thinkingModeByChat: Record<string, string>;
   worktreeByChat: Record<string, boolean>;
+  // Where a new chat runs: locally (false) or on the remote VPS instance (true).
+  // Global, not per-chat — chosen at creation time on the landing composer, and
+  // cloud chats live on the VPS so they never get a local chat ID to key by.
+  runOnCloud: boolean;
   planModeByChat: Record<string, boolean>;
   personaByChat: Record<string, string>;
   setPermissionMode: (chatId: string, mode: PermissionMode) => void;
   setThinkingMode: (chatId: string, mode: string) => void;
   setWorktree: (chatId: string, enabled: boolean) => void;
+  setRunOnCloud: (enabled: boolean) => void;
   setPlanMode: (chatId: string, enabled: boolean) => void;
   setPersona: (chatId: string, name: string) => void;
   initChatFromDefaults: (chatId: string) => void;
@@ -41,6 +46,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       permissionModeByChat: {},
       thinkingModeByChat: {},
       worktreeByChat: {},
+      runOnCloud: false,
       planModeByChat: {},
       personaByChat: {},
       setPermissionMode: (chatId, mode) =>
@@ -58,6 +64,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         set((state) => ({
           worktreeByChat: { ...state.worktreeByChat, [chatId]: enabled },
         })),
+      setRunOnCloud: (enabled) => set({ runOnCloud: enabled }),
       setPlanMode: (chatId, enabled) =>
         set((state) => ({
           planModeByChat: { ...state.planModeByChat, [chatId]: enabled },
@@ -68,7 +75,8 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         })),
       // Copies the __default__ settings to a newly created chat so the user's
       // toolbar defaults (permission mode, thinking, worktree, persona) carry
-      // over without requiring explicit selection each time.
+      // over without requiring explicit selection each time. Only reached for
+      // local chats — cloud chats live on the VPS and aren't seeded here.
       initChatFromDefaults: (chatId) => {
         const state = get();
         const permission = state.permissionModeByChat[DEFAULT_KEY];

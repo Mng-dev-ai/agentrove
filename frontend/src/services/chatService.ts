@@ -13,6 +13,37 @@ import type {
 import type { ChangedFilesData, FileDiffData, GitCommitResult } from '@/types/sandbox.types';
 import type { CursorPaginationParams, PaginatedChats, PaginatedMessages } from '@/types/api.types';
 
+export function buildChatFormData(request: ChatRequest): FormData {
+  // Single encoding of the /chat/chat multipart contract — shared with
+  // cloudChatService so new fields can't silently drift between local and cloud.
+  const formData = new FormData();
+  formData.append('prompt', request.prompt);
+
+  if (request.chat_id) {
+    formData.append('chat_id', request.chat_id);
+  }
+  if (request.model_id) {
+    formData.append('model_id', request.model_id);
+  }
+  if (request.attached_files && request.attached_files.length > 0) {
+    request.attached_files.forEach((file) => {
+      formData.append('attached_files', file);
+    });
+  }
+  if (request.thinking_mode) {
+    formData.append('thinking_mode', request.thinking_mode);
+  }
+  if (request.worktree) {
+    formData.append('worktree', 'true');
+  }
+  if (request.plan_mode) {
+    formData.append('plan_mode', 'true');
+  }
+  formData.append('selected_persona_name', request.selected_persona_name);
+  formData.append('permission_mode', request.permission_mode);
+  return formData;
+}
+
 async function createCompletion(
   request: ChatRequest,
   signal?: AbortSignal,
@@ -21,31 +52,7 @@ async function createCompletion(
 
   return serviceCall(
     async () => {
-      const formData = new FormData();
-      formData.append('prompt', request.prompt);
-
-      if (request.chat_id) {
-        formData.append('chat_id', request.chat_id);
-      }
-      if (request.model_id) {
-        formData.append('model_id', request.model_id);
-      }
-      if (request.attached_files && request.attached_files.length > 0) {
-        request.attached_files.forEach((file) => {
-          formData.append('attached_files', file);
-        });
-      }
-      if (request.thinking_mode) {
-        formData.append('thinking_mode', request.thinking_mode);
-      }
-      if (request.worktree) {
-        formData.append('worktree', 'true');
-      }
-      if (request.plan_mode) {
-        formData.append('plan_mode', 'true');
-      }
-      formData.append('selected_persona_name', request.selected_persona_name);
-      formData.append('permission_mode', request.permission_mode);
+      const formData = buildChatFormData(request);
 
       const taskResponse = await apiClient.postForm<{
         chat_id: string;
