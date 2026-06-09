@@ -52,7 +52,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
   const [personaName, setPersonaName] = useState(DEFAULT_PERSONA);
   const [message, setMessage] = useState('');
   const [thinkingMode, setThinkingMode] = useState<ThinkingModeOption>(
-    THINKING_MODES_BY_AGENT['claude'][1],
+    THINKING_MODES_BY_AGENT['claude'][2],
   );
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(DEFAULT_PERMISSION_MODE);
 

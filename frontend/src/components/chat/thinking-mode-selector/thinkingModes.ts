@@ -11,13 +11,14 @@ const CLAUDE_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'high', label: 'High' },
   { value: 'max', label: 'Max' },
 ];
-const CLAUDE_OPUS_THINKING_MODES: ThinkingModeOption[] = [
+const CLAUDE_XHIGH_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
   { value: 'xhigh', label: 'XHigh' },
   { value: 'max', label: 'Max' },
 ];
+const CLAUDE_XHIGH_MODEL_IDS = new Set(['opus', 'claude-fable-5']);
 
 const CODEX_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'low', label: 'Low' },
@@ -51,9 +52,9 @@ export function getThinkingModesForAgent(
   agentKind: AgentKind,
   modelId?: string,
 ): ThinkingModeOption[] {
-  // Claude exposes `xhigh` only for Opus.
-  if (agentKind === 'claude' && modelId === 'opus') {
-    return CLAUDE_OPUS_THINKING_MODES;
+  // Claude only exposes `xhigh` on selected high-capability models.
+  if (agentKind === 'claude' && modelId && CLAUDE_XHIGH_MODEL_IDS.has(modelId)) {
+    return CLAUDE_XHIGH_THINKING_MODES;
   }
 
   return THINKING_MODES_BY_AGENT[agentKind];

@@ -52,7 +52,8 @@ COPILOT_SESSION_MODE_IDS: dict[str, str] = {
 }
 
 CLAUDE_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "max"})
-CLAUDE_OPUS_VALID_THINKING_MODES = CLAUDE_VALID_THINKING_MODES | {"xhigh"}
+CLAUDE_XHIGH_VALID_THINKING_MODES = CLAUDE_VALID_THINKING_MODES | {"xhigh"}
+CLAUDE_XHIGH_MODEL_IDS = frozenset({"opus", "claude-fable-5"})
 CODEX_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 COPILOT_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 
@@ -200,12 +201,11 @@ class ClaudeAgentAdapter(AgentAdapter):
 
         # Claude exposes thinking budget as the "effort" session config option,
         # applied post-handshake via set_config_option; the UI's named tiers
-        # are passed through directly as effort level IDs. `xhigh` is currently
-        # only valid for the Opus model we expose, so other Claude models keep
-        # the narrower tier set and coerce unsupported persisted values.
+        # are passed through directly as effort level IDs. `xhigh` is only
+        # valid for selected Claude models, so others keep the narrower tier set.
         valid_modes = (
-            CLAUDE_OPUS_VALID_THINKING_MODES
-            if model_id == "opus"
+            CLAUDE_XHIGH_VALID_THINKING_MODES
+            if model_id in CLAUDE_XHIGH_MODEL_IDS
             else CLAUDE_VALID_THINKING_MODES
         )
         reasoning_effort = coerce_thinking_mode(thinking_mode, valid_modes)
