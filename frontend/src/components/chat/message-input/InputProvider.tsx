@@ -6,6 +6,7 @@ import { useSlashCommandSuggestions } from '@/hooks/useSlashCommandSuggestions';
 import { useEnhancePromptMutation } from '@/hooks/queries/useChatQueries';
 import { useMentionSuggestions } from '@/hooks/useMentionSuggestions';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
+import { useAuthStore } from '@/store/authStore';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
 import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
@@ -63,7 +64,9 @@ export function InputProvider({
   children,
 }: InputProps & { children: ReactNode }) {
   const { fileStructure, customSkills, builtinSlashCommands, personas } = useChatContext();
-  const modelMap = useModelMap();
+  // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const modelMap = useModelMap(isAuthenticated);
   const agentKind =
     modelMap.get(selectedModelId)?.agent_kind ?? getAgentKindForModelId(selectedModelId);
   // Hide the context-usage indicator for agents whose ACP servers never emit

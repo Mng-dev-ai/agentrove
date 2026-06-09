@@ -1,12 +1,16 @@
 import { memo } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
-import { GitFork, Check, ChevronDown } from 'lucide-react';
-import { useDropdown } from '@/hooks/useDropdown';
+import { GitFork } from 'lucide-react';
+import { ToggleDropdown, type ToggleDropdownOption } from '@/components/ui/shared/ToggleDropdown';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
   DEFAULT_WORKTREE,
 } from '@/store/chatSettingsStore';
+
+const OPTIONS: readonly [ToggleDropdownOption, ToggleDropdownOption] = [
+  { label: 'No worktree' },
+  { label: 'Worktree' },
+];
 
 interface WorktreeToggleProps {
   disabled?: boolean;
@@ -15,50 +19,22 @@ interface WorktreeToggleProps {
 export const WorktreeToggle = memo(function WorktreeToggle({
   disabled = false,
 }: WorktreeToggleProps) {
+  // Creation-time control: run the chat in an isolated git worktree. Applies to
+  // both local and cloud runs.
   const worktree = useChatSettingsStore(
     (state) => state.worktreeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_WORKTREE,
   );
-  const { isOpen, dropdownRef, setIsOpen } = useDropdown();
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      <Button
-        variant="unstyled"
-        type="button"
-        disabled={disabled}
-        onClick={() => setIsOpen(!isOpen)}
-        className="inline-flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-1 text-2xs text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
-      >
-        <GitFork className="h-3 w-3 shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
-        <span>Worktree ({worktree ? 'on' : 'off'})</span>
-        <ChevronDown className="h-3 w-3 shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
-      </Button>
-
-      {isOpen && (
-        <div className="absolute left-0 top-full z-[60] mt-1 w-32 rounded-xl border border-border bg-surface-secondary/95 py-1 shadow-medium backdrop-blur-xl backdrop-saturate-150 dark:border-border-dark dark:bg-surface-dark-secondary/95 dark:shadow-black/40">
-          {[false, true].map((value) => (
-            <Button
-              variant="unstyled"
-              key={String(value)}
-              type="button"
-              onClick={() => {
-                useChatSettingsStore.getState().setWorktree(DEFAULT_CHAT_SETTINGS_KEY, value);
-                setIsOpen(false);
-              }}
-              className={`flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-2xs transition-colors duration-150 ${
-                worktree === value
-                  ? 'bg-surface-hover/80 text-text-primary dark:bg-surface-dark-hover/80 dark:text-text-dark-primary'
-                  : 'text-text-secondary hover:bg-surface-hover/50 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover/50'
-              }`}
-            >
-              <Check
-                className={`h-3 w-3 shrink-0 ${worktree === value ? 'opacity-100' : 'opacity-0'}`}
-              />
-              <span>{value ? 'On' : 'Off'}</span>
-            </Button>
-          ))}
-        </div>
-      )}
-    </div>
+    <ToggleDropdown
+      options={OPTIONS}
+      value={worktree}
+      onSelect={(enabled) =>
+        useChatSettingsStore.getState().setWorktree(DEFAULT_CHAT_SETTINGS_KEY, enabled)
+      }
+      icon={GitFork}
+      width="w-36"
+      disabled={disabled}
+    />
   );
 });

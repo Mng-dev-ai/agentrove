@@ -60,6 +60,8 @@ export const queryKeys = {
   },
   workspaces: ['workspaces'] as const,
   workspaceResources: (workspaceId?: string) => ['workspaces', workspaceId, 'resources'] as const,
+  cloudWorkspaces: (cloudUrl?: string, connectedEmail?: string | null) =>
+    ['cloud', 'workspaces', cloudUrl, connectedEmail] as const,
   models: 'models',
   github: {
     repos: (query: string) => ['github-repos', query] as const,

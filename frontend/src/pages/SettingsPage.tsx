@@ -7,10 +7,11 @@ import {
   Key,
   ScrollText,
   ChevronLeft,
+  Cloud,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/utils/cn';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ApiFieldKey } from '@/types/settings.types';
 import { useDeleteAllChatsMutation } from '@/hooks/queries/useChatQueries';
@@ -23,6 +24,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import toast from 'react-hot-toast';
 import { GeneralSettingsTab } from '@/components/settings/tabs/GeneralSettingsTab';
 import { SkillsSettingsTab } from '@/components/settings/tabs/SkillsSettingsTab';
+import { CloudSettingsTab } from '@/components/settings/tabs/CloudSettingsTab';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { UserProfileMenu } from '@/components/layout/UserProfileMenu';
 import { useCurrentUserQuery, useLogoutMutation } from '@/hooks/queries/useAuthQueries';
@@ -36,7 +38,7 @@ const InstructionsSettingsTab = lazy(() =>
   })),
 );
 
-type TabKey = 'general' | 'skills' | 'personas' | 'env_vars' | 'instructions';
+type TabKey = 'general' | 'skills' | 'personas' | 'env_vars' | 'instructions' | 'cloud';
 
 const getErrorMessage = (error: unknown): string | undefined =>
   error instanceof Error ? error.message : undefined;
@@ -47,6 +49,7 @@ const TAB_FIELDS: Record<TabKey, (keyof UserSettings)[]> = {
   personas: ['personas'],
   env_vars: ['custom_env_vars'],
   instructions: ['custom_instructions'],
+  cloud: [],
 };
 
 interface SettingsNavItem {
@@ -61,6 +64,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { id: 'personas', label: 'Personas', icon: UserCircle },
   { id: 'env_vars', label: 'Env Variables', icon: Key },
   { id: 'instructions', label: 'Instructions', icon: ScrollText },
+  { id: 'cloud', label: 'Cloud', icon: Cloud },
 ];
 
 const TAB_LABELS: Record<TabKey, string> = Object.fromEntries(
@@ -75,6 +79,7 @@ const tabLoadingFallback = (
 
 const SettingsPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
   const userDisplayName = currentUser?.username || currentUser?.email || '';
@@ -84,7 +89,11 @@ const SettingsPage: React.FC = () => {
       navigate('/login');
     },
   });
-  const [activeTab, setActiveTab] = useState<TabKey>('general');
+  // Honor a deep-link tab (e.g. the "Connect a cloud instance" CTA → Cloud tab).
+  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+    const requested = (location.state as { tab?: TabKey } | null)?.tab;
+    return requested && requested in TAB_FIELDS ? requested : 'general';
+  });
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
@@ -499,6 +508,12 @@ const SettingsPage: React.FC = () => {
                           }
                         />
                       </Suspense>
+                    </div>
+                  )}
+
+                  {activeTab === 'cloud' && (
+                    <div role="tabpanel" id="cloud-panel" aria-labelledby="cloud-tab">
+                      <CloudSettingsTab />
                     </div>
                   )}
                 </div>

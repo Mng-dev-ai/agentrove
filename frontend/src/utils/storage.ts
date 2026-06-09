@@ -3,6 +3,7 @@ import { isTauri } from '@tauri-apps/api/core';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
+const CLOUD_REFRESH_TOKEN_KEY = 'cloud_refresh_token';
 const AUTH_STORE_PATH = 'auth.store.json';
 const CHAT_EVENT_ID_PREFIX = 'chat:';
 const CHAT_EVENT_ID_SUFFIX = ':lastEventId';
@@ -228,6 +229,93 @@ export const authStorage = {
 
     safeRemoveItem(AUTH_TOKEN_KEY);
     safeRemoveItem(REFRESH_TOKEN_KEY);
+  },
+};
+
+// Remote (VPS) auth: the desktop talks to a second AgentRove instance for
+// cloud-run chats. Only the long-lived refresh token is persisted (in the same
+// secure backing store as local auth, under a distinct key) — the short-lived
+// access token is kept in memory and re-minted via the VPS refresh endpoint.
+let cloudAccessToken: string | null = null;
+let cloudRefreshToken: string | null = null;
+let cloudCacheInitialized = false;
+
+async function persistCloudRefreshToken(): Promise<void> {
+  const store = await getDesktopAuthStore();
+  if (!store) {
+    return;
+  }
+
+  try {
+    if (cloudRefreshToken) {
+      await store.set(CLOUD_REFRESH_TOKEN_KEY, cloudRefreshToken);
+    } else {
+      await store.delete(CLOUD_REFRESH_TOKEN_KEY);
+    }
+    await store.save();
+  } catch (error) {
+    logger.error('Desktop cloud auth persist failed', 'storage.persistCloudRefreshToken', error);
+  }
+}
+
+export const cloudAuthStorage = {
+  hydrate: async (): Promise<void> => {
+    if (cloudCacheInitialized) {
+      return;
+    }
+
+    if (!isTauri()) {
+      cloudRefreshToken = safeGetItem(CLOUD_REFRESH_TOKEN_KEY);
+      cloudCacheInitialized = true;
+      return;
+    }
+
+    const store = await getDesktopAuthStore();
+    if (store) {
+      try {
+        cloudRefreshToken = (await store.get<string>(CLOUD_REFRESH_TOKEN_KEY)) ?? null;
+      } catch (error) {
+        logger.error('Desktop cloud auth read failed', 'storage.cloudAuthStorage.hydrate', error);
+      }
+    }
+
+    cloudCacheInitialized = true;
+  },
+  getAccessToken: (): string | null => cloudAccessToken,
+  setAccessToken: (token: string): void => {
+    cloudAccessToken = token;
+  },
+  getRefreshToken: (): string | null => {
+    if (!cloudCacheInitialized && !isTauri()) {
+      cloudRefreshToken = safeGetItem(CLOUD_REFRESH_TOKEN_KEY);
+      cloudCacheInitialized = true;
+    }
+    return cloudRefreshToken;
+  },
+  setRefreshToken: (token: string): void => {
+    cloudRefreshToken = token;
+    cloudCacheInitialized = true;
+
+    // Unlike authStorage there's no stale-localStorage cleanup on the Tauri
+    // path — this key is new and only ever written to localStorage in browsers.
+    if (isTauri()) {
+      void persistCloudRefreshToken();
+      return;
+    }
+
+    safeSetItem(CLOUD_REFRESH_TOKEN_KEY, token);
+  },
+  clear: (): void => {
+    cloudAccessToken = null;
+    cloudRefreshToken = null;
+    cloudCacheInitialized = true;
+
+    if (isTauri()) {
+      void persistCloudRefreshToken();
+      return;
+    }
+
+    safeRemoveItem(CLOUD_REFRESH_TOKEN_KEY);
   },
 };
 

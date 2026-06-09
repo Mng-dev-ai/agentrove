@@ -4,6 +4,7 @@ import { useMountEffect } from '@/hooks/useMountEffect';
 import { Layout } from '@/components/layout/Layout';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
+import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
@@ -16,7 +17,7 @@ import { AuthRoute } from '@/components/routes/AuthRoute';
 import { setApiPort } from '@/lib/api';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { authStorage } from '@/utils/storage';
+import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
 import { DesktopDragRegion } from '@/components/layout/TitleBar';
 
@@ -167,14 +168,19 @@ export default function App() {
   useMountEffect(() => {
     let cancelled = false;
 
-    authStorage
-      .hydrate()
+    Promise.all([authStorage.hydrate(), cloudAuthStorage.hydrate()])
       .catch((error) => {
         console.error('Auth storage hydration failed:', error);
       })
       .finally(() => {
         if (cancelled) return;
         useAuthStore.getState().setAuthenticated(!!authStorage.getToken());
+        // Drop the cloud connection if its refresh token didn't hydrate —
+        // otherwise the UI shows a connected state we can't use.
+        const cloud = useCloudSettingsStore.getState();
+        if (cloud.connectedEmail && !cloudAuthStorage.getRefreshToken()) {
+          cloud.clearCloud();
+        }
         setAuthHydrated(true);
       });
 

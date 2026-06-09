@@ -6,6 +6,7 @@ import { PersonaSelector } from '@/components/chat/persona-selector/PersonaSelec
 import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
 import { BranchSelector } from '@/components/chat/branch-selector/BranchSelector';
 import { useInputState, useInputActions } from '@/hooks/useInputContext';
+import { useAuthStore } from '@/store/authStore';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
@@ -15,7 +16,9 @@ import { SelectorDot } from '@/components/ui/primitives/SelectorDot';
 export function InputControls() {
   const state = useInputState();
   const actions = useInputActions();
-  const modelMap = useModelMap();
+  // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const modelMap = useModelMap(isAuthenticated);
   const agentKind = modelMap.get(state.selectedModelId)?.agent_kind;
   const { data: chat } = useChatQuery(state.chatId, { enabled: !!state.chatId });
   const lockedAgentKind = chat?.session_agent_kind ?? null;

@@ -15,17 +15,31 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/layoutState';
 import { Input as ChatInput } from '@/components/chat/message-input/Input';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
+import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
 import { WorktreeToggle } from '@/components/chat/worktree-selector/WorktreeToggle';
+import { CloudWorkspaceSelector } from '@/components/chat/cloud/CloudWorkspaceSelector';
 import { useChatStore } from '@/store/chatStore';
 import { useUIStore } from '@/store/uiStore';
 import { useModelStore } from '@/store/modelStore';
-import { useChatSettingsStore } from '@/store/chatSettingsStore';
+import {
+  useChatSettingsStore,
+  DEFAULT_CHAT_SETTINGS_KEY,
+  DEFAULT_WORKTREE,
+  DEFAULT_PERMISSION_MODE,
+  DEFAULT_THINKING_MODE,
+  DEFAULT_PLAN_MODE,
+  DEFAULT_PERSONA,
+} from '@/store/chatSettingsStore';
+import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
+import { cloudChatService } from '@/services/cloudChatService';
+import { openExternalUrl } from '@/utils/openExternal';
 import { useAuthStore } from '@/store/authStore';
 import { useCreateChatMutation } from '@/hooks/queries/useChatQueries';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useFilesMetadataQuery } from '@/hooks/queries/useSandboxQueries';
-import { useModelSelection } from '@/hooks/queries/useModelQueries';
+import { useModelSelection, useModelMap } from '@/hooks/queries/useModelQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { buildAgentChatFields } from '@/utils/chatRequest';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { Button } from '@/components/ui/primitives/Button';
 import { buildFileStructureFromSandboxFiles } from '@/utils/file';
@@ -64,6 +78,7 @@ export function LandingPage() {
   });
 
   const workspaces = useWorkspacesList({ enabled: isAuthenticated });
+  const modelMap = useModelMap(isAuthenticated);
 
   const createChat = useCreateChatMutation();
   const [message, setMessage] = useState('');
@@ -75,6 +90,9 @@ export function LandingPage() {
   const consumedWorkspaceRef = useRef<string | null>(null);
 
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+
+  const isCloud = useChatSettingsStore((state) => state.runOnCloud);
+  const [selectedCloudWorkspaceId, setSelectedCloudWorkspaceId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!workspaces.length) return;
@@ -96,17 +114,20 @@ export function LandingPage() {
     setMessage(initialMessage);
   }
 
+  // Cloud runs target a remote workspace — local skills/slash-commands and
+  // @file mentions don't apply there.
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
     selectedWorkspaceId ?? undefined,
     {
-      enabled: isAuthenticated && !!selectedWorkspaceId,
+      enabled: isAuthenticated && !!selectedWorkspaceId && !isCloud,
     },
   );
 
   // Enable @ file mentions in the input bar before a chat is created
-  const selectedSandboxId = selectedWorkspaceId
-    ? workspaces.find((ws) => ws.id === selectedWorkspaceId)?.sandbox_id
-    : undefined;
+  const selectedSandboxId =
+    !isCloud && selectedWorkspaceId
+      ? workspaces.find((ws) => ws.id === selectedWorkspaceId)?.sandbox_id
+      : undefined;
 
   const { data: filesMetadata = [], refetch: refetchFilesMetadata } = useFilesMetadataQuery(
     selectedSandboxId,
@@ -163,6 +184,85 @@ export function LandingPage() {
         return;
       }
 
+      const title = trimmedPrompt.replace(/\s+/g, ' ').slice(0, 80) || 'New Chat';
+
+      if (isCloud) {
+        if (!useCloudSettingsStore.getState().connectedEmail) {
+          toast.error('Connect a cloud instance in Settings first');
+          return;
+        }
+        if (!selectedCloudWorkspaceId) {
+          toast.error('Please select a cloud workspace');
+          return;
+        }
+
+        setIsLoading(true);
+        try {
+          const chatSettings = useChatSettingsStore.getState();
+          const newChat = await cloudChatService.createChat({
+            title,
+            model_id: selectedModelId,
+            workspace_id: selectedCloudWorkspaceId,
+          });
+          // Coerce toolbar defaults like useMessageActions so cloud matches local.
+          await cloudChatService.startCompletion({
+            prompt: trimmedPrompt,
+            chat_id: newChat.id,
+            model_id: selectedModelId,
+            attached_files: attachedFiles ?? undefined,
+            ...buildAgentChatFields(
+              selectedModelId,
+              modelMap,
+              {
+                permissionMode:
+                  chatSettings.permissionModeByChat[DEFAULT_CHAT_SETTINGS_KEY] ??
+                  DEFAULT_PERMISSION_MODE,
+                thinkingMode:
+                  chatSettings.thinkingModeByChat[DEFAULT_CHAT_SETTINGS_KEY] ??
+                  DEFAULT_THINKING_MODE,
+                worktree:
+                  chatSettings.worktreeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_WORKTREE,
+                planMode:
+                  chatSettings.planModeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_PLAN_MODE,
+                // Personas are per-instance — let the remote use its default.
+                persona: DEFAULT_PERSONA,
+              },
+              [],
+            ),
+          });
+
+          setMessage('');
+          useChatStore.getState().setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, []);
+
+          // cloudChatService.connect stores cloudUrl slash-trimmed.
+          const chatUrl = `${useCloudSettingsStore.getState().cloudUrl}/chat/${newChat.id}`;
+          toast.success(
+            (t) => (
+              <span className="flex items-center gap-2">
+                Started on your cloud instance.
+                <Button
+                  type="button"
+                  variant="unstyled"
+                  onClick={() => {
+                    void openExternalUrl(chatUrl);
+                    toast.dismiss(t.id);
+                  }}
+                  className="font-medium underline underline-offset-2 hover:text-text-primary dark:hover:text-text-dark-primary"
+                >
+                  Open
+                </Button>
+              </span>
+            ),
+            { duration: 8000 },
+          );
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : 'Failed to start cloud chat');
+        } finally {
+          setIsLoading(false);
+        }
+        return;
+      }
+
       if (!selectedWorkspaceId) {
         toast.error('Please select a workspace');
         return;
@@ -170,7 +270,6 @@ export function LandingPage() {
 
       setIsLoading(true);
       try {
-        const title = trimmedPrompt.replace(/\s+/g, ' ').slice(0, 80) || 'New Chat';
         const newChat = await createChat.mutateAsync({
           title,
           model_id: selectedModelId,
@@ -195,6 +294,10 @@ export function LandingPage() {
       navigate,
       selectedModelId,
       selectedWorkspaceId,
+      isCloud,
+      selectedCloudWorkspaceId,
+      attachedFiles,
+      modelMap,
     ],
   );
 
@@ -223,12 +326,21 @@ export function LandingPage() {
             <div className="flex h-full w-full items-center justify-center px-4 pb-10">
               <div className="w-full max-w-2xl">
                 <div className="relative z-30 mb-2 flex items-center gap-1 px-4 sm:px-6">
-                  <WorkspaceSelector
-                    selectedWorkspaceId={selectedWorkspaceId}
-                    onWorkspaceChange={setSelectedWorkspaceId}
-                    enabled={isAuthenticated}
-                  />
+                  {isCloud ? (
+                    <CloudWorkspaceSelector
+                      selectedWorkspaceId={selectedCloudWorkspaceId}
+                      onWorkspaceChange={setSelectedCloudWorkspaceId}
+                      disabled={isLoading}
+                    />
+                  ) : (
+                    <WorkspaceSelector
+                      selectedWorkspaceId={selectedWorkspaceId}
+                      onWorkspaceChange={setSelectedWorkspaceId}
+                      enabled={isAuthenticated}
+                    />
+                  )}
                   <WorktreeToggle disabled={isLoading} />
+                  <RunLocationSelector disabled={isLoading} />
                 </div>
 
                 <ChatInput
@@ -296,6 +408,8 @@ export function LandingPage() {
       selectModel,
       selectedModelId,
       selectedWorkspaceId,
+      isCloud,
+      selectedCloudWorkspaceId,
       fileStructure,
       selectedFile,
       handleFileSelect,
@@ -311,7 +425,7 @@ export function LandingPage() {
       fileStructure={fileStructure}
       customSkills={workspaceResources?.skills}
       builtinSlashCommands={workspaceResources?.builtin_slash_commands}
-      personas={settings?.personas}
+      personas={isCloud ? undefined : settings?.personas}
     >
       <div className="flex h-full flex-1 overflow-hidden bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">
         <SplitViewContainer renderView={renderView} />
