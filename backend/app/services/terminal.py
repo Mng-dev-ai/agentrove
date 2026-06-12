@@ -122,6 +122,22 @@ class TerminalSessionRecord:
         await self.kill_tmux_session()
         await self.close()
 
+    async def refresh_tmux_client(self) -> None:
+        # Repaint the reattached terminal via tmux itself — Ctrl-L to the pane's
+        # stdin only redraws shells; full-screen TUIs swallow it, leaving the
+        # fresh xterm blank.
+        session_name = shlex.quote(self._get_tmux_session_name())
+        command = (
+            "for c in $(tmux list-clients -t "
+            + session_name
+            + " -F '#{client_name}'); "
+            'do tmux refresh-client -t "$c"; done'
+        )
+        try:
+            await self.sandbox_service.execute_command(self.sandbox_id, command)
+        except (OSError, RuntimeError, SandboxException):
+            pass
+
     async def kill_tmux_session(self) -> None:
         session_name = self._get_tmux_session_name()
         try:

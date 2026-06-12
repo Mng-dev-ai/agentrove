@@ -114,13 +114,10 @@ async def terminal_websocket(
                     )
                 )
 
-                if is_reattach and session.pty_id is not None:
-                    # Force a redraw after reattaching to an existing tmux
-                    # session so the terminal repaints without injecting a
-                    # literal space into the active shell buffer.
-                    await session.sandbox_service.send_pty_input(
-                        session.sandbox_id, session.pty_id, b"\x0c"
-                    )
+                if is_reattach:
+                    # Repaint through tmux rather than the pane's stdin — the
+                    # foreground app (e.g. a TUI) may swallow injected keys.
+                    await session.refresh_tmux_client()
 
             elif data_type == WS_MSG_RESIZE:
                 rows = parse_pty_dimension(

@@ -11,7 +11,6 @@ from app.services.sandbox_providers.types import (
     FileContent,
     FileMetadata,
     PtyDataCallbackType,
-    PtySession,
     PtySize,
     SandboxProviderType,
 )
@@ -120,8 +119,9 @@ class SandboxProvider:
         rows: int,
         cols: int,
         tmux_session: str,
-        on_data: PtyDataCallbackType | None = None,
-    ) -> PtySession:
+        on_data: PtyDataCallbackType,
+    ) -> str:
+        # Returns the new PTY session id.
         raise NotImplementedError
 
     async def send_pty_input(

@@ -19,11 +19,10 @@ function hasRenderer(terminal: XTerm): boolean {
 }
 
 interface UseXtermOptions {
-  disableStdin?: boolean;
   isVisible: boolean;
   mode: 'light' | 'dark';
-  onData?: (data: string) => void;
-  onFit?: (size: TerminalSize) => void;
+  onData: (data: string) => void;
+  onFit: (size: TerminalSize) => void;
 }
 
 interface UseXtermReturn {
@@ -33,13 +32,7 @@ interface UseXtermReturn {
   wrapperRef: MutableRefObject<HTMLDivElement | null>;
 }
 
-export const useXterm = ({
-  disableStdin = false,
-  isVisible,
-  mode,
-  onData,
-  onFit,
-}: UseXtermOptions): UseXtermReturn => {
+export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): UseXtermReturn => {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const terminalRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddonType | null>(null);
@@ -74,9 +67,7 @@ export const useXterm = ({
       cols: terminal.cols,
     };
 
-    if (onFit) {
-      onFit(size);
-    }
+    onFit(size);
 
     return size;
   }, [onFit]);
@@ -121,7 +112,6 @@ export const useXterm = ({
         fontSize: 12,
         fontFamily: 'monospace',
         theme: buildTerminalTheme(modeRef.current),
-        disableStdin,
       });
       const fitAddon = new FitAddon();
 
@@ -164,14 +154,12 @@ export const useXterm = ({
       setIsReady(false);
       hasInitializedRef.current = false;
     };
-  }, [disableStdin, shouldInitialize, initAttempt]);
+  }, [shouldInitialize, initAttempt]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
 
-    if (!terminal || !onData || disableStdin) {
-      inputHandlerRef.current?.dispose();
-      inputHandlerRef.current = null;
+    if (!terminal) {
       return;
     }
 
@@ -182,7 +170,7 @@ export const useXterm = ({
       inputHandlerRef.current?.dispose();
       inputHandlerRef.current = null;
     };
-  }, [onData, disableStdin]);
+  }, [onData]);
 
   useEffect(() => {
     const terminal = terminalRef.current;
@@ -191,7 +179,6 @@ export const useXterm = ({
     }
 
     try {
-      terminal.options.disableStdin = disableStdin;
       terminal.options.theme = buildTerminalTheme(mode);
     } catch {
       return;
@@ -205,7 +192,7 @@ export const useXterm = ({
     }
 
     return undefined;
-  }, [mode, disableStdin, isReady, isVisible, fitTerminal]);
+  }, [mode, isReady, isVisible, fitTerminal]);
 
   useEffect(() => {
     const container = wrapperRef.current;

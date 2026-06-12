@@ -33,14 +33,6 @@ class FileContent:
 
 
 @dataclass
-class PtySession:
-    id: str
-    pid: int | None
-    rows: int
-    cols: int
-
-
-@dataclass
 class PtySize:
     rows: int
     cols: int

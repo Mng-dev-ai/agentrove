@@ -25,7 +25,6 @@ from app.services.sandbox_providers.types import (
     FileContent,
     FileMetadata,
     PtyDataCallbackType,
-    PtySession,
     PtySize,
 )
 from app.utils.sandbox import normalize_relative_path
@@ -199,8 +198,8 @@ class LocalHostProvider(SandboxProvider):
         rows: int,
         cols: int,
         tmux_session: str,
-        on_data: PtyDataCallbackType | None = None,
-    ) -> PtySession:
+        on_data: PtyDataCallbackType,
+    ) -> str:
         # Spawn a PTY-attached shell in the workspace directory. Tries tmux
         # for session persistence across WebSocket reconnections, falls back
         # to the user's default shell if tmux is not installed.
@@ -223,7 +222,7 @@ class LocalHostProvider(SandboxProvider):
         shell = env.get("SHELL", "/bin/bash")
         cmd = (
             "command -v tmux >/dev/null && "
-            f"tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off || exec {shlex.quote(shell)}"
+            f"tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off \\; set -g mouse on || exec {shlex.quote(shell)}"
         )
         process = await asyncio.to_thread(
             subprocess.Popen,
@@ -238,10 +237,8 @@ class LocalHostProvider(SandboxProvider):
         )
         os.close(slave_fd)
 
-        reader_task = (
-            asyncio.create_task(self._pty_reader(session_id, master_fd, on_data))
-            if on_data
-            else None
+        reader_task = asyncio.create_task(
+            self._pty_reader(session_id, master_fd, on_data)
         )
         self.register_pty_session(
             sandbox_id,
@@ -253,7 +250,7 @@ class LocalHostProvider(SandboxProvider):
             },
         )
 
-        return PtySession(id=session_id, pid=process.pid, rows=rows, cols=cols)
+        return session_id
 
     async def _pty_reader(
         self,
@@ -320,10 +317,9 @@ class LocalHostProvider(SandboxProvider):
         if not session:
             return
 
-        if session["reader_task"]:
-            session["reader_task"].cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await session["reader_task"]
+        session["reader_task"].cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await session["reader_task"]
 
         process = session["process"]
         if process.poll() is None:
