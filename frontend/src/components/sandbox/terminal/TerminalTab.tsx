@@ -3,6 +3,7 @@ import { logger } from '@/utils/logger';
 import type { FC } from 'react';
 import 'xterm/css/xterm.css';
 
+import { Button } from '@/components/ui/primitives/Button';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { authService } from '@/services/authService';
 import { WS_BASE_URL } from '@/lib/api';
@@ -19,7 +20,7 @@ export interface TerminalTabProps {
   onClosed?: () => void;
 }
 
-type SessionState = 'idle' | 'connecting' | 'ready' | 'error';
+type SessionState = 'idle' | 'connecting' | 'ready' | 'error' | 'disconnected';
 
 const encoder = new TextEncoder();
 
@@ -37,13 +38,13 @@ export const TerminalTab: FC<TerminalTabProps> = ({
   const theme = useResolvedTheme();
   const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [closeReason, setCloseReason] = useState<string | null>(null);
+  const [connectAttempt, setConnectAttempt] = useState(0);
 
   const lastSentSizeRef = useRef<TerminalSize | null>(null);
   const hasSentInitRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
   const isClosingRef = useRef(false);
   const shouldCloseRef = useRef(shouldClose);
-  const lastSessionKeyRef = useRef<string | null>(null);
 
   const backgroundClass = getTerminalBackgroundClass(theme);
 
@@ -90,13 +91,9 @@ export const TerminalTab: FC<TerminalTabProps> = ({
   useEffect(() => {
     if (!sandboxId || !isReady) return;
 
-    const sessionKey = sandboxId + ':' + (terminalId ?? '');
-    if (lastSessionKeyRef.current !== sessionKey) {
-      // Reset the terminal when rebinding to a different session so stale
-      // screen contents and cursor position do not leak into the next PTY.
-      terminalRef.current?.reset();
-      lastSessionKeyRef.current = sessionKey;
-    }
+    // Reset on every (re)connect so stale screen contents and cursor position
+    // do not leak into the next PTY — the server repaints via tmux on reattach.
+    terminalRef.current?.reset();
 
     const token = authService.getToken();
     if (!token) return;
@@ -164,6 +161,11 @@ export const TerminalTab: FC<TerminalTabProps> = ({
 
     const handleClose = (event: CloseEvent) => {
       resetWsRefs();
+      // User-initiated tab close tears the socket down on purpose — don't
+      // surface that as an unexpected disconnect.
+      if (isClosingRef.current) {
+        return;
+      }
       // The server closes with WS_CLOSE_AUTH_FAILED / WS_CLOSE_SANDBOX_NOT_FOUND
       // and a human-readable reason. Surface both so the overlay can tell the
       // user why the connection dropped instead of showing a generic message.
@@ -172,7 +174,9 @@ export const TerminalTab: FC<TerminalTabProps> = ({
         setSessionState('error');
         return;
       }
-      setSessionState((prev) => (prev === 'error' ? prev : 'idle'));
+      // Any other close while this effect is live (backend restart, network
+      // drop) is unexpected — offer a reconnect instead of a frozen terminal.
+      setSessionState((prev) => (prev === 'error' ? prev : 'disconnected'));
     };
 
     const handleBeforeUnload = () => {
@@ -200,10 +204,9 @@ export const TerminalTab: FC<TerminalTabProps> = ({
       }
       ws.close();
       resetWsRefs();
-      lastSessionKeyRef.current = null;
       setSessionState('idle');
     };
-  }, [sandboxId, terminalId, isReady, fitTerminal, terminalRef, resetWsRefs]);
+  }, [sandboxId, terminalId, isReady, connectAttempt, fitTerminal, terminalRef, resetWsRefs]);
 
   useEffect(() => {
     if (!shouldClose || isClosingRef.current) {
@@ -237,7 +240,9 @@ export const TerminalTab: FC<TerminalTabProps> = ({
       ? 'Connecting to sandbox terminal...'
       : sessionState === 'error'
         ? (closeReason ?? 'Terminal connection interrupted')
-        : null;
+        : sessionState === 'disconnected'
+          ? 'Terminal disconnected'
+          : null;
 
   return (
     <div className={`relative flex h-full flex-col ${backgroundClass}`}>
@@ -245,10 +250,21 @@ export const TerminalTab: FC<TerminalTabProps> = ({
         <div ref={wrapperRef} className={`h-full w-full ${isVisible ? 'block' : 'hidden'}`} />
       </div>
       {isVisible && overlayMessage && (
-        <div className={`absolute inset-0 flex items-center justify-center ${backgroundClass}`}>
+        <div
+          className={`absolute inset-0 flex flex-col items-center justify-center gap-3 ${backgroundClass}`}
+        >
           <div className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
             {overlayMessage}
           </div>
+          {sessionState === 'disconnected' && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setConnectAttempt((attempt) => attempt + 1)}
+            >
+              Reconnect
+            </Button>
+          )}
         </div>
       )}
     </div>

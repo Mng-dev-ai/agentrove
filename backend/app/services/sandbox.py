@@ -108,14 +108,13 @@ class SandboxService:
         tmux_session: str,
         on_data: PtyDataCallbackType,
     ) -> str:
-        pty_session = await self.provider.create_pty(
+        return await self.provider.create_pty(
             sandbox_id,
             rows,
             cols,
             tmux_session,
             on_data=on_data,
         )
-        return pty_session.id
 
     async def send_pty_input(
         self, sandbox_id: str, pty_session_id: str, data: bytes

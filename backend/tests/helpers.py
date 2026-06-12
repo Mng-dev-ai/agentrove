@@ -17,7 +17,6 @@ from app.services.sandbox_providers.types import (
     FileContent,
     FileMetadata,
     PtyDataCallbackType,
-    PtySession,
     PtySize,
 )
 
@@ -151,9 +150,9 @@ class FakeSandboxProvider(SandboxProvider):
         rows: int,
         cols: int,
         tmux_session: str,
-        on_data: PtyDataCallbackType | None = None,
-    ) -> PtySession:
-        return PtySession(id="pty-1", pid=None, rows=rows, cols=cols)
+        on_data: PtyDataCallbackType,
+    ) -> str:
+        return "pty-1"
 
     async def send_pty_input(
         self,

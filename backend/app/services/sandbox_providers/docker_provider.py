@@ -23,7 +23,6 @@ from app.services.sandbox_providers.types import (
     FileContent,
     FileMetadata,
     PtyDataCallbackType,
-    PtySession,
     PtySize,
 )
 
@@ -374,8 +373,8 @@ class LocalDockerProvider(SandboxProvider):
         rows: int,
         cols: int,
         tmux_session: str,
-        on_data: PtyDataCallbackType | None = None,
-    ) -> PtySession:
+        on_data: PtyDataCallbackType,
+    ) -> str:
         # Spawn a PTY-attached shell inside the container via docker exec.
         # Tries tmux for session persistence across WebSocket reconnections,
         # falls back to bare bash if tmux is not installed.
@@ -385,7 +384,7 @@ class LocalDockerProvider(SandboxProvider):
         cmd = [
             "bash",
             "-c",
-            f"command -v tmux >/dev/null && tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off || exec bash",
+            f"command -v tmux >/dev/null && tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off \\; set -g mouse on || exec bash",
         ]
 
         exec_obj = await container.exec(
@@ -400,9 +399,7 @@ class LocalDockerProvider(SandboxProvider):
         # WebSocket to the Docker daemon. No public API exists for this.
         await stream._init()
 
-        reader_task = (
-            asyncio.create_task(self._pty_reader(stream, on_data)) if on_data else None
-        )
+        reader_task = asyncio.create_task(self._pty_reader(stream, on_data))
         self.register_pty_session(
             sandbox_id,
             session_id,
@@ -416,12 +413,7 @@ class LocalDockerProvider(SandboxProvider):
         if rows > 0 and cols > 0:
             await self.resize_pty(sandbox_id, session_id, PtySize(rows=rows, cols=cols))
 
-        return PtySession(
-            id=session_id,
-            pid=None,
-            rows=rows,
-            cols=cols,
-        )
+        return session_id
 
     async def _pty_reader(
         self,
@@ -483,12 +475,11 @@ class LocalDockerProvider(SandboxProvider):
             return
 
         reader_task = session["reader_task"]
-        if reader_task:
-            reader_task.cancel()
-            try:
-                await reader_task
-            except asyncio.CancelledError:
-                pass
+        reader_task.cancel()
+        try:
+            await reader_task
+        except asyncio.CancelledError:
+            pass
 
         try:
             await session["stream"].close()
