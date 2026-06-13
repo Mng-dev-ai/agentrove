@@ -569,6 +569,8 @@ export function useStreamCallbacks({
       // Session cleanup is stateless and safe for any chat; always run it.
       clearStreamSession(resolvedStreamId);
 
+      const targetChatId = sessionChatId ?? chatId;
+
       // Cache finalization must run even for off-screen chats so returning
       // to the chat within the staleTime window doesn't show a stuck message.
       if (messageId) {
@@ -577,7 +579,6 @@ export function useStreamCallbacks({
           active_stream_id: null,
           stream_status: isCancelled ? 'interrupted' : 'completed',
         });
-        const targetChatId = sessionChatId ?? chatId;
         if (targetChatId) {
           updateMessageInCacheForChat(queryClient, targetChatId, messageId, finalizeMessage);
         }
@@ -593,6 +594,13 @@ export function useStreamCallbacks({
       // (background turns) leave search results stale for up to staleTime.
       queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
 
+      // Chat metadata (title, updated_at, context usage) is mutated server-side
+      // during the turn, so it must refresh even when the completion lands while
+      // the user is viewing another chat.
+      if (targetChatId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat(targetChatId), exact: true });
+      }
+
       if (!isCurrentChat) return;
 
       setPendingUserMessageId(null);
@@ -603,7 +611,10 @@ export function useStreamCallbacks({
         void notifyStreamComplete();
       }
 
-      if (!isCancelled && chatId && currentChat?.sandbox_id) {
+      // Cancelled runs still leave real file/branch side effects in the sandbox,
+      // so these refreshes run regardless of terminal kind — only the
+      // notification above is kind-gated.
+      if (chatId && currentChat?.sandbox_id) {
         refetchFilesMetadata().catch(() => {});
         queryClient.removeQueries({
           queryKey: ['sandbox', currentChat.sandbox_id, 'file-content'],
@@ -619,7 +630,6 @@ export function useStreamCallbacks({
       timerIdsRef.current = [];
 
       if (chatId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.chat(chatId), exact: true });
         if (currentChat?.parent_chat_id) {
           queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
           queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });

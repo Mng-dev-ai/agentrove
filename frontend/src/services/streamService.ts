@@ -41,19 +41,8 @@ interface StreamReconnectOptions {
 }
 
 class StreamService {
-  private store = useStreamStore.getState();
-  private queueStore = useMessageQueueStore.getState();
   private readonly maxRecentSeqPerChat = 4096;
   private readonly recentSeqByChat = new Map<string, Set<number>>();
-
-  constructor() {
-    useStreamStore.subscribe((state) => {
-      this.store = state;
-    });
-    useMessageQueueStore.subscribe((state) => {
-      this.queueStore = state;
-    });
-  }
 
   private parseStreamEvent<T>(data: string): T | null {
     try {
@@ -70,13 +59,13 @@ class StreamService {
     messageId?: string,
     streamPublicId?: string,
   ): void {
-    const currentStream = this.store.getStream(streamId);
+    const currentStream = useStreamStore.getState().getStream(streamId);
     if (!currentStream) return;
 
     const errorCallback = currentStream.callbacks?.onError;
     const streamMessageId = currentStream.messageId ?? messageId;
 
-    this.store.removeStream(streamId);
+    useStreamStore.getState().removeStream(streamId);
 
     if (error && errorCallback) {
       errorCallback(error, streamMessageId, streamPublicId);
@@ -133,13 +122,15 @@ class StreamService {
 
     if (!payload?.queued_message_id || !payload?.assistant_message_id) return;
 
-    this.queueStore.removeLocalOnly(chatId, payload.queued_message_id);
+    useMessageQueueStore.getState().removeLocalOnly(chatId, payload.queued_message_id);
 
-    const stream = this.store.getStreamByChat(chatId);
+    const stream = useStreamStore.getState().getStreamByChat(chatId);
     if (!stream) return;
 
     if (payload.assistant_message_id !== stream.messageId) {
-      this.store.updateStreamMessageId(chatId, stream.messageId, payload.assistant_message_id);
+      useStreamStore
+        .getState()
+        .updateStreamMessageId(chatId, stream.messageId, payload.assistant_message_id);
     }
 
     if (stream.callbacks?.onQueueProcess && payload.user_message_id && payload.content) {
@@ -158,7 +149,7 @@ class StreamService {
   private handleStreamEnvelope(event: MessageEvent, streamId: string, chatId: string): void {
     if (!event.data) return;
 
-    const currentStream = this.store.getStream(streamId);
+    const currentStream = useStreamStore.getState().getStream(streamId);
     if (!currentStream) return;
 
     const parsed = this.parseStreamEvent<StreamEnvelope>(event.data);
@@ -193,7 +184,7 @@ class StreamService {
 
     if (parsed.kind === 'complete' || parsed.kind === 'cancelled') {
       const { callbacks } = currentStream;
-      this.store.removeStream(streamId);
+      useStreamStore.getState().removeStream(streamId);
       callbacks?.onComplete?.(parsed.messageId, parsed.streamId, parsed.kind);
       return;
     }
@@ -210,7 +201,7 @@ class StreamService {
   }
 
   private handleGenericError(event: Event | ErrorEvent, streamId: string, messageId: string): void {
-    const currentStream = this.store.getStream(streamId);
+    const currentStream = useStreamStore.getState().getStream(streamId);
     if (!currentStream) return;
 
     // EventSource emits transport "error" while reconnecting; do not fail fast.
@@ -230,7 +221,7 @@ class StreamService {
   }
 
   private attachStreamHandlers(streamId: string, messageId: string): void {
-    const activeStream = this.store.getStream(streamId);
+    const activeStream = useStreamStore.getState().getStream(streamId);
     if (!activeStream) return;
 
     const { source, chatId } = activeStream;
@@ -276,24 +267,24 @@ class StreamService {
         },
       };
 
-      this.store.addStream(activeStream);
+      useStreamStore.getState().addStream(activeStream);
       this.attachStreamHandlers(streamId, messageId);
 
       return { messageId, checkpointId };
     } catch (error) {
-      this.store.removeStream(streamId);
+      useStreamStore.getState().removeStream(streamId);
       throw error;
     }
   }
 
   stopStream(streamId: string): void {
-    this.store.abortStream(streamId);
+    useStreamStore.getState().abortStream(streamId);
   }
 
   async stopStreamByMessage(chatId: string, messageId: string): Promise<void> {
-    const stream = this.store.getStreamByChatAndMessage(chatId, messageId);
+    const stream = useStreamStore.getState().getStreamByChatAndMessage(chatId, messageId);
     if (stream) {
-      this.store.abortStream(stream.id);
+      useStreamStore.getState().abortStream(stream.id);
 
       try {
         await chatService.stopStream(chatId);
@@ -304,14 +295,14 @@ class StreamService {
   }
 
   async stopAllStreams(): Promise<void> {
-    const activeStreams = this.store.activeStreams;
+    const { activeStreams, abortAllStreams } = useStreamStore.getState();
 
     const chatIds = new Set<string>();
     activeStreams.forEach((stream) => {
       chatIds.add(stream.chatId);
     });
 
-    this.store.abortAllStreams();
+    abortAllStreams();
 
     const chatIdArr = Array.from(chatIds);
     const results = await Promise.allSettled(
@@ -355,13 +346,13 @@ class StreamService {
         },
       };
 
-      this.store.addStream(activeStream);
+      useStreamStore.getState().addStream(activeStream);
 
       this.attachStreamHandlers(streamId, options.messageId);
 
       return options.messageId;
     } catch (error) {
-      this.store.removeStream(streamId);
+      useStreamStore.getState().removeStream(streamId);
       throw error;
     }
   }

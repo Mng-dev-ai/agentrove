@@ -59,16 +59,6 @@ interface UseChatStreamingResult {
   streamState: StreamState;
 }
 
-function findActiveStreamForChat(chatId: string) {
-  const activeStreams = useStreamStore.getState().activeStreams;
-  for (const stream of activeStreams.values()) {
-    if (stream.chatId === chatId && stream.isActive) {
-      return stream;
-    }
-  }
-  return undefined;
-}
-
 // Top-level hook that wires together the streaming pipeline for a single chat view.
 // Composes useStreamCallbacks (envelope processing), useStreamReconnect (resume on
 // navigation), useMessageActions (send/stop), and useInputState (draft persistence).
@@ -97,15 +87,6 @@ export function useChatStreaming({
   const pendingStopRef = useRef<Set<string>>(new Set());
   const prevChatIdRef = useRef<string | undefined>(chatId);
   const currentMessageIdRef = useRef<string | null>(null);
-  const sendMessageRef = useRef<
-    | ((
-        prompt: string,
-        chatIdOverride?: string,
-        userMessage?: Message,
-        filesToSend?: File[],
-      ) => Promise<void>)
-    | null
-  >(null);
 
   const isLoading = streamState === 'loading';
   const isStreaming = streamState === 'streaming';
@@ -159,7 +140,7 @@ export function useChatStreaming({
     if (!chatId) return;
 
     const syncCallbacksToStore = () => {
-      const existingStream = findActiveStreamForChat(chatId);
+      const existingStream = useStreamStore.getState().getStreamByChat(chatId);
       if (existingStream) {
         useStreamStore.getState().updateStreamCallbacks(chatId, existingStream.messageId, {
           onEnvelope,
@@ -198,7 +179,7 @@ export function useChatStreaming({
     if (!chatId) return;
 
     const reconcileStreamState = () => {
-      const activeStreamForChat = findActiveStreamForChat(chatId);
+      const activeStreamForChat = useStreamStore.getState().getStreamByChat(chatId);
 
       if (activeStreamForChat) {
         const isPendingStop = pendingStopRef.current.has(activeStreamForChat.messageId);
@@ -248,10 +229,6 @@ export function useChatStreaming({
     isLoading,
     isStreaming,
   });
-
-  useEffect(() => {
-    sendMessageRef.current = sendMessage;
-  }, [sendMessage]);
 
   useStreamReconnect({
     chatId,

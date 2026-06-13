@@ -30,7 +30,7 @@ from app.services.agent import (
     AgentService,
     StreamResult,
 )
-from app.services.session_registry import ChatSession, session_registry
+from app.services.session_registry import session_registry
 from app.services.db import SessionFactoryType
 from app.services.exceptions import AgentException
 from app.services.message import MessageService
@@ -85,7 +85,7 @@ class ChatStreamRuntime:
         self.chat = chat
         self.chat_id = str(chat.id)
         self.stream_id = uuid4()
-        self.session_container: dict[str, Any] = {"session_id": request.session_id}
+        self.session_id: str | None = request.session_id
         self.assistant_message_id = request.assistant_message_id
         self.model_id = request.model_id
         self.context_window = request.context_window
@@ -101,7 +101,6 @@ class ChatStreamRuntime:
         self.message_service = MessageService(session_factory=session_factory)
         self._event_buffer: list[tuple[str, dict[str, Any], dict[str, Any] | None]] = []
 
-        self._session: ChatSession | None = None
         self.cache: CacheStore | None = None
         self._cancel_event: asyncio.Event | None = None
         self._cancelled: bool = False
@@ -112,7 +111,6 @@ class ChatStreamRuntime:
 
     async def run(
         self,
-        ai_service: AgentService,
         stream_result: StreamResult,
         stream: AsyncIterator[StreamEvent],
     ) -> str:
@@ -140,7 +138,7 @@ class ChatStreamRuntime:
                     "system",
                     {"data": {"worktree_cwd": self.chat.worktree_cwd}},
                 )
-            await self._consume_stream(ai_service, stream_result, stream)
+            await self._consume_stream(stream_result, stream)
             await self._emit_prompt_suggestions()
 
             if self._cancelled:
@@ -148,7 +146,10 @@ class ChatStreamRuntime:
                     stream_result, MessageStreamStatus.INTERRUPTED
                 )
 
-            if self.last_seq <= start_seq:
+            # Buffered events may not have flushed yet (debounce) — a fast turn
+            # can finish with last_seq still at start_seq, so check the buffer
+            # too before declaring the stream empty.
+            if self.last_seq <= start_seq and not self._event_buffer:
                 # Cancel/send-now may have arrived after the last event was
                 # consumed but before _consume_stream returned — the stream
                 # ended naturally (via StopAsyncIteration) so CancelledError
@@ -175,7 +176,6 @@ class ChatStreamRuntime:
 
     async def _consume_stream(
         self,
-        ai_service: AgentService,
         stream_result: StreamResult,
         stream: AsyncIterator[StreamEvent],
     ) -> None:
@@ -192,14 +192,15 @@ class ChatStreamRuntime:
                     k: v for k, v in event_dict.items() if k != "type"
                 }
 
-                session_data: dict[str, Any] = payload.get("data") or {}
-                if kind == "system" and session_data.get("session_id"):
-                    task = asyncio.create_task(
-                        self._handle_session_update(session_data)
-                    )
-                    self._bg_tasks.add(task)
-                    task.add_done_callback(self._bg_tasks.discard)
-                    task.add_done_callback(self._on_session_update_done)
+                if kind == "system":
+                    session_data: dict[str, Any] = payload.get("data") or {}
+                    if session_data.get("session_id"):
+                        task = asyncio.create_task(
+                            self._handle_session_update(session_data)
+                        )
+                        self._bg_tasks.add(task)
+                        task.add_done_callback(self._bg_tasks.discard)
+                        task.add_done_callback(self._on_session_update_done)
 
                 if kind == "usage":
                     usage_data = payload.get("data")
@@ -450,10 +451,9 @@ class ChatStreamRuntime:
         new_session_id = payload.get("session_id")
         if not new_session_id:
             return
-        prev_session_id = self.session_container.get("session_id")
-        if new_session_id == prev_session_id:
+        if new_session_id == self.session_id:
             return
-        self.session_container["session_id"] = new_session_id
+        self.session_id = new_session_id
         agent_kind = MODELS[self.model_id].agent_kind
         self.chat.session_id = new_session_id
         self.chat.session_agent_kind = agent_kind.value
@@ -547,7 +547,7 @@ class ChatStreamRuntime:
                     queued_msg=next_msg,
                     user_settings=user_settings,
                     assistant_message_id=str(assistant_message.id),
-                    session_id_override=self.session_container.get("session_id"),
+                    session_id_override=self.session_id,
                 )
             )
         except Exception as exc:
@@ -708,7 +708,7 @@ class ChatStreamRuntime:
         return chat_id in cls._background_task_chat_ids.values()
 
     @classmethod
-    def _on_background_task_done(cls, task_id: str, task: asyncio.Task[str]) -> None:
+    def _on_background_task_done(cls, chat_id: str, task: asyncio.Task[str]) -> None:
         try:
             if task.cancelled():
                 return
@@ -716,13 +716,14 @@ class ChatStreamRuntime:
                 error = task.exception()
             except Exception:
                 logger.exception(
-                    "Failed to inspect in-process chat task %s result", task_id
+                    "Failed to inspect in-process chat task result for chat %s",
+                    chat_id,
                 )
                 return
             if error:
                 logger.error(
-                    "In-process chat task %s failed: %s",
-                    task_id,
+                    "In-process chat task for chat %s failed: %s",
+                    chat_id,
                     error,
                     exc_info=error,
                 )
@@ -733,8 +734,7 @@ class ChatStreamRuntime:
     def start_background_chat(
         cls,
         request: ChatStreamRequest,
-    ) -> str:
-        resolved_task_id = str(uuid4())
+    ) -> None:
         chat_id = str(request.chat_data["id"])
         background_task = asyncio.create_task(
             cls._bootstrap_and_execute(
@@ -743,16 +743,7 @@ class ChatStreamRuntime:
         )
         cls._background_task_chat_ids[background_task] = chat_id
         background_task.add_done_callback(
-            partial(cls._on_background_task_done, resolved_task_id)
-        )
-        return resolved_task_id
-
-    @classmethod
-    def is_chat_streaming(cls, chat_id: str) -> bool:
-        return any(
-            cid == chat_id
-            for task, cid in cls._background_task_chat_ids.items()
-            if not task.done()
+            partial(cls._on_background_task_done, chat_id)
         )
 
     @staticmethod
@@ -809,7 +800,7 @@ class ChatStreamRuntime:
         chat_id: str,
         session_factory: SessionFactoryType,
     ) -> bool:
-        if cls.is_chat_streaming(chat_id):
+        if cls.has_active_chat(chat_id):
             return False
 
         async with cache_connection() as cache:
@@ -1030,7 +1021,6 @@ class ChatStreamRuntime:
                 session.cancel_event.set()
             runtime._cancel_event = session.cancel_event
             session.active_generation_task = asyncio.current_task()
-            runtime._session = session
             stream: AsyncIterator[StreamEvent] | None = None
             try:
                 session_updates: list[Any] = []
@@ -1060,7 +1050,7 @@ class ChatStreamRuntime:
                     plan_mode=request.plan_mode,
                     attachments=request.attachments,
                 )
-                return await runtime.run(ai_service, stream_result, stream)
+                return await runtime.run(stream_result, stream)
             except (
                 AgentException,
                 asyncio.CancelledError,
