@@ -7,6 +7,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use libc;
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{NSWindow, NSWindowButton};
 use rand::Rng;
 use tauri::Manager;
 
@@ -199,10 +201,25 @@ fn main() {
         .manage(backend_port.clone())
         .invoke_handler(tauri::generate_handler![get_backend_port])
         .setup(move |app| {
-            // Hide native title bar on macOS only — the frontend renders custom traffic lights
+            // The window stays titled (overlay title bar in tauri.conf.json) so minimize works —
+            // borderless windows can't miniaturize on macOS. Hide the native traffic lights here
+            // since the frontend renders custom ones.
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_decorations(false);
+                if let Ok(ns_window) = window.ns_window() {
+                    unsafe {
+                        let ns_window = &*(ns_window as *const NSWindow);
+                        for kind in [
+                            NSWindowButton::CloseButton,
+                            NSWindowButton::MiniaturizeButton,
+                            NSWindowButton::ZoomButton,
+                        ] {
+                            if let Some(button) = ns_window.standardWindowButton(kind) {
+                                button.setHidden(true);
+                            }
+                        }
+                    }
+                }
             }
 
             let child = spawn_backend(app.handle(), &data_dir, &secret_key, port);
