@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { Command } from 'lucide-react';
 import { useMatch } from 'react-router-dom';
 import { isTauri } from '@tauri-apps/api/core';
@@ -14,12 +14,10 @@ async function getTauriWindow() {
   return getCurrentWindow();
 }
 
-// Decorations are only removed on macOS — traffic lights and custom drag region are macOS-only
+// The native title bar is only hidden on macOS — traffic lights and custom drag region are macOS-only
 const IS_MACOS_DESKTOP = isTauri() && IS_MAC_PLATFORM;
 
 export function TrafficLights() {
-  const [isHovered, setIsHovered] = useState(false);
-
   const handleClose = useCallback(async () => {
     await (await getTauriWindow()).close();
   }, []);
@@ -33,11 +31,7 @@ export function TrafficLights() {
   }, []);
 
   return (
-    <div
-      className="flex items-center gap-2 pl-3"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
+    <div className="flex items-center gap-2 pl-3">
       <Button
         type="button"
         variant="unstyled"
@@ -45,16 +39,19 @@ export function TrafficLights() {
         className="group flex h-3 w-3 items-center justify-center rounded-full bg-traffic-close transition-opacity hover:opacity-90"
         aria-label="Close window"
       >
-        {isHovered && (
-          <svg width="6" height="6" viewBox="0 0 6 6" className="text-black/60">
-            <path
-              d="M0.5 0.5L5.5 5.5M5.5 0.5L0.5 5.5"
-              stroke="currentColor"
-              strokeWidth="1.2"
-              strokeLinecap="round"
-            />
-          </svg>
-        )}
+        <svg
+          width="6"
+          height="6"
+          viewBox="0 0 6 6"
+          className="text-black/60 opacity-0 group-hover:opacity-100"
+        >
+          <path
+            d="M0.5 0.5L5.5 5.5M5.5 0.5L0.5 5.5"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+          />
+        </svg>
       </Button>
       <Button
         type="button"
@@ -63,11 +60,14 @@ export function TrafficLights() {
         className="group flex h-3 w-3 items-center justify-center rounded-full bg-traffic-minimize transition-opacity hover:opacity-90"
         aria-label="Minimize window"
       >
-        {isHovered && (
-          <svg width="6" height="2" viewBox="0 0 6 2" className="text-black/60">
-            <path d="M0.5 1H5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
-        )}
+        <svg
+          width="6"
+          height="2"
+          viewBox="0 0 6 2"
+          className="text-black/60 opacity-0 group-hover:opacity-100"
+        >
+          <path d="M0.5 1H5.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        </svg>
       </Button>
       <Button
         type="button"
@@ -76,17 +76,20 @@ export function TrafficLights() {
         className="group flex h-3 w-3 items-center justify-center rounded-full bg-traffic-maximize transition-opacity hover:opacity-90"
         aria-label="Maximize window"
       >
-        {isHovered && (
-          <svg width="6" height="6" viewBox="0 0 6 6" className="text-black/60">
-            <path
-              d="M1 2L3 0.5L5 2M1 4L3 5.5L5 4"
-              stroke="currentColor"
-              strokeWidth="1"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
+        <svg
+          width="6"
+          height="6"
+          viewBox="0 0 6 6"
+          className="text-black/60 opacity-0 group-hover:opacity-100"
+        >
+          <path
+            d="M1 2L3 0.5L5 2M1 4L3 5.5L5 4"
+            stroke="currentColor"
+            strokeWidth="1"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
       </Button>
     </div>
   );

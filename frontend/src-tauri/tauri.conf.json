@@ -20,7 +20,9 @@
         "resizable": true,
         "visible": false,
         "devtools": true,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "security": {
