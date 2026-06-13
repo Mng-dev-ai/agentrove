@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RenameModal } from '@/components/ui/RenameModal';
 import {
   useDeleteChatMutation,
+  useGenerateChatTitleMutation,
   useUpdateChatMutation,
   usePinChatMutation,
   useInfiniteChatsQuery,
@@ -324,6 +325,7 @@ export function Sidebar({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const deleteChat = useDeleteChatMutation();
   const updateChat = useUpdateChatMutation();
+  const generateChatTitle = useGenerateChatTitleMutation();
   const pinChat = usePinChatMutation();
   const deleteWorkspace = useDeleteWorkspaceMutation();
   const updateWorkspace = useUpdateWorkspaceMutation();
@@ -520,6 +522,16 @@ export function Sidebar({
     },
     [chatToRename, updateChat],
   );
+
+  const handleGenerateChatTitle = useCallback(async () => {
+    if (!chatToRename) return '';
+    try {
+      return await generateChatTitle.mutateAsync(chatToRename.id);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to generate title');
+      return '';
+    }
+  }, [chatToRename, generateChatTitle]);
 
   const handleTogglePin = useCallback(
     async (chat: Chat) => {
@@ -790,6 +802,8 @@ export function Sidebar({
         onSave={handleSaveRename}
         currentTitle={chatToRename?.title || ''}
         isLoading={updateChat.isPending}
+        onGenerateTitle={handleGenerateChatTitle}
+        isGenerating={generateChatTitle.isPending}
       />
 
       <RenameModal

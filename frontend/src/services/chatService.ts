@@ -290,6 +290,18 @@ async function enhancePrompt(prompt: string, modelId: string): Promise<string> {
   });
 }
 
+async function generateChatTitle(chatId: string): Promise<string> {
+  validateId(chatId, 'Chat ID');
+
+  return serviceCall(async () => {
+    const response = await apiClient.post<{ title: string }>(
+      `/chat/chats/${chatId}/generate-title`,
+    );
+
+    return ensureResponse(response, 'Failed to generate title').title;
+  });
+}
+
 async function getMessageChanges(messageId: string): Promise<ChangedFilesData> {
   validateId(messageId, 'Message ID');
 
@@ -338,6 +350,7 @@ export const chatService = {
   deleteAllChats,
   getContextUsage,
   enhancePrompt,
+  generateChatTitle,
   getMessageChanges,
   getMessageFileDiff,
   restoreMessageCheckpoint,
