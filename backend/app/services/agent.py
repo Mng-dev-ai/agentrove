@@ -24,7 +24,11 @@ from app.prompts.generate_pr_description import (
 )
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.prompts.generate_title import GENERATE_TITLE_SYSTEM_PROMPT
-from app.services.acp.adapters import AGENT_ADAPTERS, AgentKind
+from app.services.acp.adapters import (
+    AGENT_ADAPTERS,
+    AgentKind,
+    build_system_prompt_meta,
+)
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import AgentException, ChatException, ErrorCode
@@ -275,8 +279,8 @@ class AgentService:
             if title:
                 title = title.strip().strip('"').strip("'")
             return title or None
-        except AgentException:
-            logger.debug("Title generation failed for user %s", user.id)
+        except AgentException as exc:
+            logger.warning("Title generation failed for user %s: %s", user.id, exc)
             return None
 
     async def generate_pr_description(
@@ -340,6 +344,12 @@ class AgentService:
             model=model_id,
             workspace_path=workspace_path,
             system_prompt=system_prompt,
+            # Claude/Copilot/Cursor only receive the system prompt via session
+            # meta; full replace so it isn't appended to the default coding-agent
+            # prompt. Codex ignores the meta and gets it via developer_instructions
+            # at launch — the config flag stays False so session create doesn't
+            # write an instructions file into the workspace.
+            session_meta=build_system_prompt_meta(system_prompt, True),
         )
 
         try:
