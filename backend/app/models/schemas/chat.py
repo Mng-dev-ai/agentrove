@@ -107,6 +107,10 @@ class EnhancePromptResponse(BaseModel):
     enhanced_prompt: str
 
 
+class GenerateTitleResponse(BaseModel):
+    title: str
+
+
 class ChatStatusResponse(BaseModel):
     has_active_task: bool
     message_id: UUID | None = None

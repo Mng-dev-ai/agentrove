@@ -32,7 +32,7 @@ from app.core.deps import (
 )
 from app.core.security import get_current_user
 from app.models.db_models.chat import Chat
-from app.models.db_models.enums import MessageStreamStatus
+from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.types import MessageAttachmentDict, PermissionMode
 from app.models.schemas.chat import (
@@ -45,6 +45,7 @@ from app.models.schemas.chat import (
     ChatRequest,
     ContextUsage,
     EnhancePromptResponse,
+    GenerateTitleResponse,
     Message as MessageSchema,
     MessageEvent,
     PermissionRespondResponse,
@@ -171,6 +172,42 @@ async def enhance_prompt(
     except AgentException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     return {"enhanced_prompt": enhanced_prompt}
+
+
+@router.post("/chats/{chat_id}/generate-title", response_model=GenerateTitleResponse)
+async def generate_chat_title(
+    chat: Chat = Depends(ensure_chat_access),
+    current_user: User = Depends(get_current_user),
+    ai_service: AgentService = Depends(get_agent_service),
+) -> dict[str, str]:
+    # Title from the first user message — same source the automatic
+    # background titling uses when a chat starts.
+    user_messages = [
+        m
+        for m in chat.messages
+        if m.role == MessageRole.USER and m.content_text.strip()
+    ]
+    # model_id is only stored on assistant messages, so pick the most
+    # recent one — that's the model the chat is currently using.
+    model_ids = [
+        (m.created_at, m.model_id) for m in chat.messages if m.model_id is not None
+    ]
+    if not user_messages or not model_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Chat has no messages to generate a title from",
+        )
+
+    prompt = min(user_messages, key=lambda m: m.created_at).content_text
+    model_id = max(model_ids)[1]
+
+    title = await ai_service.generate_title(prompt, model_id, current_user, chat=chat)
+    if not title:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Title generation failed",
+        )
+    return {"title": title[:255]}
 
 
 @router.get("/chats", response_model=PaginatedResponse[ChatSchema])
