@@ -647,7 +647,7 @@ async def send_now_queued_message(
             detail="Queued message not found",
         )
 
-    if ChatStreamRuntime.is_chat_streaming(str(chat_id)):
+    if ChatStreamRuntime.has_active_chat(str(chat_id)):
         # Cancel the active generation so the runtime picks up the
         # send-now flag immediately instead of waiting for the agent
         # to finish its current turn.
