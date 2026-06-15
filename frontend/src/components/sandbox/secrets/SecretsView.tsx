@@ -183,7 +183,7 @@ export const SecretsView = memo(function SecretsView({ sandboxId }: SecretsViewP
   };
 
   return (
-    <div className="flex h-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
+    <div className="flex h-full w-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
       <div className="flex h-9 items-center justify-between border-b border-border/50 px-3 dark:border-border-dark/50">
         <span className="text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
           Environment Variables
