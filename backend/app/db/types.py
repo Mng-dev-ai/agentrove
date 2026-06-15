@@ -1,16 +1,43 @@
 import json
 import uuid as uuid_module
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
 from cryptography.fernet import InvalidToken
-from sqlalchemy import CHAR, String, Text
+from sqlalchemy import CHAR, DateTime, String, Text
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.types import TypeDecorator
 
 
 def enum_values(enum_class: type[Enum]) -> list[str]:
     return [entry.value for entry in enum_class]
+
+
+class UTCDateTime(TypeDecorator[datetime]):
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(
+        self, value: datetime | None, _dialect: Dialect
+    ) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    def process_result_value(
+        self, value: datetime | None, _dialect: Dialect
+    ) -> datetime | None:
+        # SQLite drops tzinfo on read, returning naive datetimes that serialize
+        # without a UTC marker and get misread as local time by clients — assume
+        # UTC for naive values so timestamps carry an explicit offset.
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
 
 
 class GUID(TypeDecorator[uuid_module.UUID]):

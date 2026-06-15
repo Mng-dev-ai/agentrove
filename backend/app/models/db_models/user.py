@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, Text
+from sqlalchemy import Boolean, ForeignKey, JSON, String, Text
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.models.types import (
@@ -12,7 +12,7 @@ from app.models.types import (
 )
 
 from app.db.base_class import Base
-from app.db.types import GUID, EncryptedString
+from app.db.types import GUID, EncryptedString, UTCDateTime
 
 
 class User(SQLAlchemyBaseUserTableUUID, Base):
@@ -42,11 +42,11 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         String(length=128), nullable=True
     )
     verification_token_expires: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        UTCDateTime(), nullable=True
     )
     reset_token: Mapped[str | None] = mapped_column(String(length=128), nullable=True)
     reset_token_expires: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        UTCDateTime(), nullable=True
     )
     chats = relationship("Chat", back_populates="user", cascade="all, delete-orphan")
     workspaces = relationship(

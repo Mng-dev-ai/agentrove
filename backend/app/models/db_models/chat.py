@@ -4,7 +4,6 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
-    DateTime,
     Float,
     ForeignKey,
     Index,
@@ -18,7 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 from app.db.migration_helpers import uuid_server_default
-from app.db.types import GUID, enum_values
+from app.db.types import GUID, UTCDateTime, enum_values
 
 from .enums import AttachmentType, MessageRole, MessageStreamStatus
 
@@ -47,12 +46,8 @@ class Chat(Base):
     last_event_seq: Mapped[int] = mapped_column(
         BigInteger, default=0, server_default="0", nullable=False
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-    pinned_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    pinned_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     parent_chat_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("chats.id", ondelete="SET NULL"), nullable=True
     )
@@ -175,9 +170,7 @@ class Message(Base):
         default=MessageStreamStatus.IN_PROGRESS,
         server_default="in_progress",
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     chat = relationship("Chat", back_populates="messages")
     attachments = relationship(
