@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import os
 from collections.abc import AsyncIterator
 from typing import Any, cast
 from uuid import UUID
@@ -24,11 +23,7 @@ from app.prompts.generate_pr_description import (
 )
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.prompts.generate_title import GENERATE_TITLE_SYSTEM_PROMPT
-from app.services.acp.adapters import (
-    AGENT_ADAPTERS,
-    AgentKind,
-    build_system_prompt_meta,
-)
+from app.services.acp.adapters import AGENT_ADAPTERS, NORMAL_SESSION_MODE, AgentKind
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import AgentException, ChatException, ErrorCode
@@ -318,38 +313,36 @@ class AgentService:
         chat: Chat | None = None,
     ) -> str:
         user_settings = await self._get_user_settings(user.id)
-
         agent_kind = MODELS[model_id].agent_kind
-        env = self._build_custom_env(user_settings)
 
         if chat and chat.sandbox_id:
             sandbox_id = chat.sandbox_id
             sandbox_provider = SandboxProviderType(chat.sandbox_provider)
             workspace_path = chat.workspace_path
         else:
-            # No chat/sandbox (title/commit-message/etc. one-shot calls) — use
-            # $HOME as the workspace root so the session-create edge still
-            # resolves cwd uniformly via the provider.
+            # No chat/sandbox (title/commit-message/etc. one-shot calls). cwd is
+            # irrelevant for these text-only tasks; use the app storage dir as a
+            # stable workspace root.
             sandbox_id = ""
             sandbox_provider = SandboxProviderType.HOST
-            workspace_path = os.environ.get("HOME", "/tmp")
-        cwd = ""
+            workspace_path = settings.STORAGE_PATH
 
-        config = AcpSessionConfig(
-            sandbox_id=sandbox_id,
-            sandbox_provider=sandbox_provider,
-            cwd=cwd,
+        # Pure text tasks — fully replace the agent's default coding persona so it
+        # doesn't bleed into the output. Built via _build_acp_config so the system
+        # prompt is actually delivered (Claude/Copilot systemPrompt _meta, Codex
+        # model_instructions_file) and the model env override is set — a bare
+        # AcpSessionConfig skips the adapter and sends neither.
+        config = await self._build_acp_config(
+            user_settings=user_settings,
             agent_kind=agent_kind,
-            env=env,
-            model=model_id,
+            permission_mode=NORMAL_SESSION_MODE[agent_kind],
+            model_id=model_id,
+            session_id=None,
+            sandbox_provider=sandbox_provider,
+            sandbox_id=sandbox_id,
             workspace_path=workspace_path,
             system_prompt=system_prompt,
-            # Claude/Copilot/Cursor only receive the system prompt via session
-            # meta; full replace so it isn't appended to the default coding-agent
-            # prompt. Codex ignores the meta and gets it via developer_instructions
-            # at launch — the config flag stays False so session create doesn't
-            # write an instructions file into the workspace.
-            session_meta=build_system_prompt_meta(system_prompt, True),
+            system_prompt_is_full_replace=True,
         )
 
         try:
@@ -368,7 +361,15 @@ class AgentService:
 
             result_parts: list[str] = []
             async for event in self._consume_events(handler.event_queue, prompt_task):
-                if event.get("type") == "assistant_text":
+                event_type = event.get("type")
+                if event_type == "permission_request":
+                    # Unattended text task — no UI to approve gated tool calls, so
+                    # deny them instead of blocking forever on the permission
+                    # future. The agent falls back to a text answer.
+                    request_id = event.get("request_id")
+                    if request_id:
+                        handler.resolve_permission(request_id)
+                elif event_type == "assistant_text":
                     text = event.get("text", "")
                     if text:
                         result_parts.append(text)

@@ -98,6 +98,13 @@ class SandboxProvider:
     ) -> None:
         raise NotImplementedError
 
+    async def write_temp_file(self, sandbox_id: str, content: str) -> str:
+        # Write content to a unique temp path OUTSIDE the workspace and return its
+        # runtime-absolute path (host tempdir for local, container /tmp for
+        # Docker). Used for the Codex model_instructions_file so the file never
+        # lands in the user's project workspace.
+        raise NotImplementedError
+
     async def read_file(
         self,
         sandbox_id: str,
