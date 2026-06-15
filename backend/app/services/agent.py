@@ -361,7 +361,15 @@ class AgentService:
 
             result_parts: list[str] = []
             async for event in self._consume_events(handler.event_queue, prompt_task):
-                if event.get("type") == "assistant_text":
+                event_type = event.get("type")
+                if event_type == "permission_request":
+                    # Unattended text task — no UI to approve gated tool calls, so
+                    # deny them instead of blocking forever on the permission
+                    # future. The agent falls back to a text answer.
+                    request_id = event.get("request_id")
+                    if request_id:
+                        handler.resolve_permission(request_id)
+                elif event_type == "assistant_text":
                     text = event.get("text", "")
                     if text:
                         result_parts.append(text)
