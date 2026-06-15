@@ -274,8 +274,8 @@ class AgentService:
             if title:
                 title = title.strip().strip('"').strip("'")
             return title or None
-        except AgentException:
-            logger.debug("Title generation failed for user %s", user.id)
+        except AgentException as exc:
+            logger.warning("Title generation failed for user %s: %s", user.id, exc)
             return None
 
     async def generate_pr_description(

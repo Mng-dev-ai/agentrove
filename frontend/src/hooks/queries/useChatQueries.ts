@@ -332,6 +332,12 @@ export const useCreateSubThreadMutation = (parentChatId: string) => {
   });
 };
 
+export const useGenerateChatTitleMutation = () => {
+  return useMutation({
+    mutationFn: (chatId: string) => chatService.generateChatTitle(chatId),
+  });
+};
+
 export const useEnhancePromptMutation = (
   options?: UseMutationOptions<string, Error, EnhancePromptParams>,
 ) => {
