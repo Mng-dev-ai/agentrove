@@ -1,6 +1,7 @@
 import asyncio
 import io
 import logging
+import posixpath
 import shlex
 import tarfile
 import uuid
@@ -306,28 +307,29 @@ class LocalDockerProvider(SandboxProvider):
 
         return CommandResult(stdout=output_str, stderr="", exit_code=exit_code)
 
+    @staticmethod
+    def _build_file_tar(filename: str, content_bytes: bytes) -> bytes:
+        # Docker's put_archive API requires a tar stream — we create a single-file
+        # tar in memory with uid/gid 1000 (the sandbox "user" account).
+        tar_stream = io.BytesIO()
+        with tarfile.open(fileobj=tar_stream, mode="w") as tar:
+            info = tarfile.TarInfo(name=filename)
+            info.size = len(content_bytes)
+            info.uid = 1000
+            info.gid = 1000
+            tar.addfile(info, io.BytesIO(content_bytes))
+        tar_stream.seek(0)
+        return tar_stream.read()
+
     async def write_file(
         self,
         sandbox_id: str,
         path: str,
         content: str | bytes,
     ) -> None:
-        # Docker's put_archive API requires a tar stream — we create a single-file
-        # tar in memory with uid/gid 1000 (the sandbox "user" account).
         container = await self._get_container(sandbox_id)
         normalized_path = self.resolve_workspace_path(path)
-
         content_bytes = content.encode("utf-8") if isinstance(content, str) else content
-
-        tar_stream = io.BytesIO()
-        with tarfile.open(fileobj=tar_stream, mode="w") as tar:
-            file_data = io.BytesIO(content_bytes)
-            info = tarfile.TarInfo(name=Path(normalized_path).name)
-            info.size = len(content_bytes)
-            info.uid = 1000
-            info.gid = 1000
-            tar.addfile(info, file_data)
-        tar_stream.seek(0)
 
         parent_dir = str(Path(normalized_path).parent)
         mkdir_exec = await container.exec(
@@ -338,7 +340,16 @@ class LocalDockerProvider(SandboxProvider):
             raise SandboxException(
                 f"Failed to create directory {parent_dir}: {mkdir_output}"
             )
-        await container.put_archive(parent_dir, tar_stream.read())
+        tar = self._build_file_tar(Path(normalized_path).name, content_bytes)
+        await container.put_archive(parent_dir, tar)
+
+    async def write_temp_file(self, sandbox_id: str, content: str) -> str:
+        # /tmp always exists and is world-writable, so no mkdir is needed.
+        container = await self._get_container(sandbox_id)
+        filename = f"agentrove-codex-{uuid.uuid4().hex}.md"
+        tar = self._build_file_tar(filename, content.encode("utf-8"))
+        await container.put_archive("/tmp", tar)
+        return posixpath.join("/tmp", filename)
 
     async def read_file(
         self,

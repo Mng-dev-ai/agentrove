@@ -7,6 +7,7 @@ import pty
 import shlex
 import signal
 import subprocess
+import tempfile
 import termios
 import uuid
 from pathlib import Path
@@ -103,6 +104,17 @@ class LocalHostProvider(SandboxProvider):
         resolved.parent.mkdir(parents=True, exist_ok=True)
         payload = content.encode("utf-8") if isinstance(content, str) else content
         await asyncio.to_thread(resolved.write_bytes, payload)
+
+    async def write_temp_file(self, sandbox_id: str, content: str) -> str:
+        return await asyncio.to_thread(self._write_temp_file, content.encode("utf-8"))
+
+    @staticmethod
+    def _write_temp_file(payload: bytes) -> str:
+        # Write through the fd mkstemp already opened — no close-and-reopen.
+        fd, path = tempfile.mkstemp(prefix="agentrove-codex-", suffix=".md")
+        with os.fdopen(fd, "wb") as f:
+            f.write(payload)
+        return path
 
     async def read_file(
         self,

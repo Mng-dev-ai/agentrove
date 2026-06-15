@@ -87,7 +87,7 @@ class AcpSessionConfig:
     reasoning_effort: str | None = None
     session_meta: dict[str, Any] = field(default_factory=dict)
     # Codex-only: absolute path to a model_instructions_file written before spawn
-    # when doing a full system prompt replacement (persona mode).
+    # when doing a full system prompt replacement (personas, one-shot text tasks).
     codex_instructions_file_path: str | None = None
 
 
@@ -291,23 +291,22 @@ class AcpSession:
         )
         spawn_config = replace(config, cwd=provider.resolve_workspace_path(config.cwd))
 
-        # Codex ignores base_instructions for full system prompt replacement,
-        # so we write the prompt to a sandbox file and point Codex at it via
-        # model_instructions_file (emitted by the Codex adapter).
+        # Codex ignores base_instructions for full system prompt replacement, so
+        # we write the prompt to a file and point Codex at it via
+        # model_instructions_file (emitted by the Codex adapter). The file goes to
+        # a temp path outside the workspace — create() rewrites it on every spawn
+        # (including resume), so nothing needs to persist in the user's project.
         if (
             config.system_prompt_is_full_replace
             and config.system_prompt
             and config.agent_kind == AgentKind.CODEX
         ):
-            instructions_rel_path = ".codex/instructions.md"
-            await provider.write_file(
-                config.sandbox_id, instructions_rel_path, config.system_prompt
+            instructions_abs_path = await provider.write_temp_file(
+                config.sandbox_id, config.system_prompt
             )
             spawn_config = replace(
                 spawn_config,
-                codex_instructions_file_path=provider.resolve_workspace_path(
-                    instructions_rel_path
-                ),
+                codex_instructions_file_path=instructions_abs_path,
             )
 
         process = await cls._spawn_process(spawn_config)

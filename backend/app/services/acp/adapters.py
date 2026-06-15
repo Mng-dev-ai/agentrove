@@ -6,6 +6,8 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.models.types import PermissionMode
+
 
 class AgentKind(str, Enum):
     CLAUDE = "claude"
@@ -63,6 +65,18 @@ CURSOR_SESSION_MODES = frozenset({"agent", "plan", "ask"})
 # OpenCode's built-in primary agents double as ACP session modes; `plan`
 # restricts edits to `.opencode/plans/*.md`, `build` has full tool access.
 OPENCODE_SESSION_MODES = frozenset({"build", "plan"})
+
+# Each agent's normal (full-execution) session mode. Used for permission-
+# irrelevant background calls — one-shot text generation makes no tool calls, so
+# we just need a mode the adapter accepts (Codex rejects unknown modes) and that
+# isn't a plan/read-only mode that could distort the response.
+NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
+    AgentKind.CLAUDE: "default",
+    AgentKind.CODEX: "auto",
+    AgentKind.COPILOT: "agent",
+    AgentKind.CURSOR: "agent",
+    AgentKind.OPENCODE: "build",
+}
 
 # Agents that can have their base system prompt replaced by a persona.
 # Claude/Codex expose a first-class mechanism (ACP _meta.systemPrompt for
