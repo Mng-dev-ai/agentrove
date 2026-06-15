@@ -9,7 +9,7 @@ from app.db.base_class import Base
 from app.db.sqlite import enable_foreign_keys
 from app.models.db_models import chat, refresh_token, user, workspace  # noqa: F401
 from app.core.config import get_settings
-from app.db.types import GUID, EncryptedString, EncryptedJSON
+from app.db.types import GUID, EncryptedString, EncryptedJSON, UTCDateTime
 
 config = context.config
 
@@ -35,6 +35,9 @@ def render_item(type_, obj, autogen_context):
         if isinstance(obj, EncryptedJSON):
             autogen_context.imports.add("from app.db.types import EncryptedJSON")
             return "EncryptedJSON()"
+        if isinstance(obj, UTCDateTime):
+            autogen_context.imports.add("from app.db.types import UTCDateTime")
+            return "UTCDateTime()"
 
     if type_ == "server_default":
         arg = getattr(obj, "arg", obj)

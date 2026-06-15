@@ -2,11 +2,11 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Index, String
+from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
-from app.db.types import GUID
+from app.db.types import GUID, UTCDateTime
 from app.services.sandbox_providers.types import SandboxProviderType
 
 
@@ -32,9 +32,7 @@ class Workspace(Base):
     workspace_path: Mapped[str] = mapped_column(String(2048), nullable=False)
     source_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     source_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
-    deleted_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
     user = relationship("User", back_populates="workspaces")
     chats = relationship("Chat", back_populates="workspace")
