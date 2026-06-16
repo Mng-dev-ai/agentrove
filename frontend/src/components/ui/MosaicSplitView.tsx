@@ -1,7 +1,7 @@
-import { useCallback, useMemo, ReactNode } from 'react';
+import { useCallback, useMemo, useState, ReactNode } from 'react';
 import { Button } from '@/components/ui/primitives/Button';
 import { Mosaic, MosaicWindow } from 'react-mosaic-component';
-import { X, SplitSquareHorizontal } from 'lucide-react';
+import { X, SplitSquareHorizontal, Maximize2, Minimize2 } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/utils/cn';
 import {
@@ -15,6 +15,14 @@ import type { MosaicLayoutNode, MosaicTileId } from '@/types/ui.types';
 
 import 'react-mosaic-component/react-mosaic-component.css';
 import '@/styles/mosaic-theme.css';
+
+const TOOLBAR_BUTTON_CLASS = cn(
+  'flex items-center justify-center',
+  'h-5 w-5 rounded-md',
+  'text-text-tertiary dark:text-text-dark-tertiary',
+  'hover:text-text-primary dark:hover:text-text-dark-primary',
+  'transition-colors duration-200',
+);
 
 function getTileLabel(
   tileId: MosaicTileId,
@@ -36,6 +44,11 @@ export function MosaicSplitView({
   agentTitles,
   onCloseTile,
 }: MosaicSplitViewProps) {
+  // Ephemeral: the tile expanded over the split via CSS (see `.has-maximized`).
+  // The store layout and every pane stay mounted, so minimizing just clears this
+  // and the split reappears with all panes' local state intact.
+  const [maximizedTile, setMaximizedTile] = useState<MosaicTileId | null>(null);
+
   const handleMosaicChange = useCallback((newNode: Parameters<typeof libraryToMosaicLayout>[0]) => {
     const layout = libraryToMosaicLayout(newNode);
     useUIStore.getState().setMosaicLayout(layout);
@@ -50,10 +63,24 @@ export function MosaicSplitView({
   );
 
   const leaves = useMemo(() => getLeaves(mosaicLayout), [mosaicLayout]);
+
+  // Drop the maximized tile once its pane is gone (closed/collapsed) so the
+  // split renders normally again.
+  if (maximizedTile && !leaves.includes(maximizedTile)) {
+    setMaximizedTile(null);
+  }
+
   const libraryValue = useMemo(() => mosaicLayoutToLibrary(mosaicLayout), [mosaicLayout]);
 
   return (
-    <div className="mosaic-agentrove flex h-full flex-1 overflow-hidden">
+    <div
+      className={cn(
+        'mosaic-agentrove flex h-full flex-1 overflow-hidden',
+        // Keeps the whole tree mounted (sibling panes retain local state); CSS
+        // expands the maximized tile over the rest.
+        maximizedTile && 'has-maximized',
+      )}
+    >
       <Mosaic<string>
         value={libraryValue}
         onChange={handleMosaicChange}
@@ -63,31 +90,47 @@ export function MosaicSplitView({
           return (
             <MosaicWindow<string>
               path={path}
+              className={maximizedTile === tileId ? 'mosaic-window--maximized' : undefined}
               title={getTileLabel(tileId, agentTitles ?? {})}
               toolbarControls={
                 <div className="flex items-center gap-0.5 pr-0.5">
                   {leaves.length > 1 && (
-                    <Button
-                      variant="unstyled"
-                      onClick={() => handleCloseTile(tileId)}
-                      className={cn(
-                        'flex items-center justify-center',
-                        'h-5 w-5 rounded-md',
-                        'text-text-tertiary dark:text-text-dark-tertiary',
-                        'hover:text-text-primary dark:hover:text-text-dark-primary',
-                        'transition-colors duration-200',
+                    <>
+                      <Button
+                        variant="unstyled"
+                        onClick={() =>
+                          setMaximizedTile((current) => (current === tileId ? null : tileId))
+                        }
+                        className={TOOLBAR_BUTTON_CLASS}
+                        title={maximizedTile === tileId ? 'Restore split' : 'Maximize'}
+                      >
+                        {maximizedTile === tileId ? (
+                          <Minimize2 className="h-3 w-3" />
+                        ) : (
+                          <Maximize2 className="h-3 w-3" />
+                        )}
+                      </Button>
+                      {!maximizedTile && (
+                        <Button
+                          variant="unstyled"
+                          onClick={() => handleCloseTile(tileId)}
+                          className={TOOLBAR_BUTTON_CLASS}
+                          title="Close tile"
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
                       )}
-                      title="Close tile"
-                    >
-                      <X className="h-3 w-3" />
-                    </Button>
+                    </>
                   )}
                 </div>
               }
               renderToolbar={(props) => (
                 <div
                   className={cn(
-                    'flex h-7 items-center justify-between px-2',
+                    // w-full so it fills the wrapping .mosaic-window-toolbar —
+                    // otherwise the div shrinks to content and justify-between
+                    // can't push the controls to the right edge.
+                    'flex h-7 w-full items-center justify-between px-2',
                     'bg-surface-secondary dark:bg-surface-dark-secondary',
                     'border-b border-border/50 dark:border-border-dark/50',
                   )}

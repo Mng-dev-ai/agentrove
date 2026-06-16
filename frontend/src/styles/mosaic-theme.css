@@ -147,3 +147,22 @@
 :root[data-theme='dark'] .mosaic-agentrove .mosaic-window {
   @apply border-border-dark/50;
 }
+
+/* Maximize: keep every tile mounted (preserves each pane's local state) while
+   one fills the area. The maximized tile overrides the inline bounding-box
+   styles react-mosaic sets on .mosaic-tile; siblings and split bars hide. */
+.mosaic-agentrove.has-maximized .mosaic-tile {
+  display: none;
+}
+
+.mosaic-agentrove.has-maximized .mosaic-tile:has(.mosaic-window--maximized) {
+  display: block;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+}
+
+.mosaic-agentrove.has-maximized .mosaic-split {
+  display: none;
+}
