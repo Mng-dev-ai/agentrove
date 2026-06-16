@@ -6,6 +6,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button';
 import { ToggleButton } from '@/components/ui/ToggleButton';
+import { ViewSwitcher } from './ViewSwitcher';
 import { cn } from '@/utils/cn';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
 
@@ -195,7 +196,9 @@ export function TitleBar() {
       </div>
 
       {/* Main content area — matches main bg */}
-      <div className="flex-1 bg-surface dark:bg-surface-dark" />
+      <div className="flex flex-1 items-center justify-end bg-surface px-3 dark:bg-surface-dark">
+        {isChatPage && <ViewSwitcher />}
+      </div>
     </div>
   );
 }
