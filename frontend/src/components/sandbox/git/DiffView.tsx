@@ -6,6 +6,7 @@ import {
   AlertCircle,
   ChevronRight,
   ChevronsUpDown,
+  ExternalLink,
   GitCompareArrows,
   MoreHorizontal,
   RotateCcw,
@@ -610,6 +611,22 @@ export const DiffView = memo(function DiffView({ chatId }: DiffViewProps) {
                         </span>
                         <FileStatusBadge type={file.type} />
                       </Button>
+                      {file.type !== 'deleted' && (
+                        <Button
+                          variant="unstyled"
+                          type="button"
+                          onClick={() =>
+                            useUIStore
+                              .getState()
+                              .openFileInEditor(cwd ? `${cwd}/${file.name}` : file.name, chatId)
+                          }
+                          className="mr-1 shrink-0 rounded-md p-1 text-text-quaternary opacity-0 transition-opacity duration-200 hover:text-text-primary focus-visible:opacity-100 group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+                          title="Open in editor"
+                          aria-label={`Open ${file.name} in editor`}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
+                      )}
                       {canDiscard && (
                         <Button
                           variant="unstyled"
