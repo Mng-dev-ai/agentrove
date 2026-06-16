@@ -84,7 +84,7 @@ export const Tree = memo(function Tree({
 
   const { model } = useFileTree({
     paths: initialPathsRef.current,
-    initialExpansion: 'open',
+    initialExpansion: 'closed',
     // Seeding also seeds focus, which makes cold-mount reveal a same-path no-op.
     initialSelectedPaths: [],
     search: true,
