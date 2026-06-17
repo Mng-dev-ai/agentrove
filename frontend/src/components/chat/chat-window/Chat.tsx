@@ -396,7 +396,7 @@ export const Chat = memo(function Chat() {
   const showThinking = isLoading || (isStreaming && !lastBotHasContent);
 
   const listFooter = useMemo(() => {
-    if (!showThinking && !showPermissionAtEnd) {
+    if (!showThinking && !showPermissionAtEnd && !(showStreamActions && chatId)) {
       return null;
     }
 
@@ -404,9 +404,10 @@ export const Chat = memo(function Chat() {
       <div className="w-full lg:mx-auto lg:max-w-3xl">
         {showThinking && <ThinkingIndicator />}
         {showPermissionAtEnd && <MessageInlinePermission />}
+        {showStreamActions && chatId && <StreamActionsBar chatId={chatId} />}
       </div>
     );
-  }, [showPermissionAtEnd, showThinking]);
+  }, [chatId, showPermissionAtEnd, showStreamActions, showThinking]);
 
   return (
     <div className="relative flex min-w-0 flex-1 flex-col">
@@ -447,11 +448,6 @@ export const Chat = memo(function Chat() {
                     />
                   ))}
                 </div>
-              </div>
-            )}
-            {showStreamActions && chatId && (
-              <div className="relative z-10">
-                <StreamActionsBar chatId={chatId} />
               </div>
             )}
             <div className="relative z-10">
