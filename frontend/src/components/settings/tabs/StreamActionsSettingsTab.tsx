@@ -53,6 +53,9 @@ export const StreamActionsSettingsTab: React.FC<StreamActionsSettingsTabProps> =
       renderItemActions={(action, index) => (
         <Switch
           size="sm"
+          // Toggle pill is flush to its box while edit/delete glyphs sit inside ~7px button padding;
+          // match that with a right margin so the toggle→edit gap reads the same as edit→delete
+          className="mr-1.5"
           checked={action.enabled}
           onCheckedChange={(enabled) => onToggle(index, enabled)}
           aria-label={action.enabled ? 'Disable action' : 'Enable action'}
