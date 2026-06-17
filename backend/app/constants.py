@@ -224,6 +224,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:opencode-go/glm-5.1": ModelInfo(
         "GLM-5.1 (Opencode Go)", AgentKind.OPENCODE, 202_752
     ),
+    "opencode:opencode-go/glm-5.2": ModelInfo(
+        "GLM-5.2 (Opencode Go)", AgentKind.OPENCODE, 1_000_000
+    ),
     "opencode:opencode-go/hy3-preview": ModelInfo(
         "Hy3 Preview (Opencode Go)", AgentKind.OPENCODE, 256_000
     ),
@@ -232,6 +235,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:opencode-go/kimi-k2.6": ModelInfo(
         "Kimi K2.6 (Opencode Go)", AgentKind.OPENCODE, 262_144
+    ),
+    "opencode:opencode-go/kimi-k2.7-code": ModelInfo(
+        "Kimi K2.7 Code (Opencode Go)", AgentKind.OPENCODE, 262_144
     ),
     "opencode:opencode-go/mimo-v2-omni": ModelInfo(
         "MiMo V2 Omni (Opencode Go)", AgentKind.OPENCODE, 262_144
@@ -262,6 +268,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:opencode-go/qwen3.7-max": ModelInfo(
         "Qwen3.7 Max (Opencode Go)", AgentKind.OPENCODE, 1_000_000
+    ),
+    "opencode:opencode-go/qwen3.7-plus": ModelInfo(
+        "Qwen3.7 Plus (Opencode Go)", AgentKind.OPENCODE, 1_000_000
     ),
     "opencode:amazon-bedrock/amazon.nova-2-lite-v1:0": ModelInfo(
         "Nova 2 Lite (Amazon Bedrock)", AgentKind.OPENCODE, 128_000
