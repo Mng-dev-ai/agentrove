@@ -1,3 +1,5 @@
+import type { PermissionMode } from '@/store/chatSettingsStore';
+
 export interface User {
   id: string;
   email: string;
@@ -32,6 +34,17 @@ export interface Persona {
   content: string;
 }
 
+// A post-stream action button: runs `command` on `model_id` in a new sub-thread.
+export interface StreamAction {
+  label: string;
+  enabled: boolean;
+  model_id: string;
+  command: string;
+  persona_name: string;
+  permission_mode: PermissionMode;
+  thinking_mode: string;
+}
+
 export type SandboxProviderType = 'docker' | 'host';
 
 export interface UserSettings {
@@ -41,6 +54,7 @@ export interface UserSettings {
   custom_instructions: string | null;
   custom_env_vars: CustomEnvVar[] | null;
   personas: Persona[] | null;
+  stream_actions: StreamAction[] | null;
   notifications_enabled: boolean;
   created_at: string;
   updated_at: string;

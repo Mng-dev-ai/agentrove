@@ -19,6 +19,8 @@ interface ListManagementTabProps<T> {
   onEdit?: (index: number) => void;
   onDelete: (index: number) => void | Promise<void>;
   renderItem: (item: T, index: number) => ReactNode;
+  // Extra controls rendered before the edit/delete buttons (e.g. an enable toggle)
+  renderItemActions?: (item: T, index: number) => ReactNode;
   footerContent?: ReactNode;
   logContext: string;
 }
@@ -38,6 +40,7 @@ export const ListManagementTab = <T,>({
   onEdit,
   onDelete,
   renderItem,
+  renderItemActions,
   footerContent,
   logContext,
 }: ListManagementTabProps<T>) => {
@@ -108,6 +111,7 @@ export const ListManagementTab = <T,>({
                 <div className="flex items-start justify-between">
                   <div className="min-w-0 flex-1">{renderItem(item, index)}</div>
                   <div className="ml-3 flex items-center gap-0.5">
+                    {renderItemActions?.(item, index)}
                     {onEdit && (
                       <Button
                         type="button"

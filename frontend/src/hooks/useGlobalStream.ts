@@ -9,9 +9,24 @@ interface UseGlobalStreamOptions {
   onPruneComplete?: () => void;
 }
 
-// On app mount, reconciles the in-memory stream store with the server — streams
-// tracked locally (e.g., across a page refresh) but no longer active on the
-// backend get pruned so the UI doesn't show stale "streaming" indicators.
+const STREAM_PRUNE_INTERVAL_MS = 5000;
+
+// Re-check liveness immediately before removing — a live EventSource may have
+// attached (user opened/reconnected the sub-thread) while the status request was
+// in flight, and removeStreamMetadata would tear it down. Such streams self-clean
+// via removeStream on completion, so skip them.
+function pruneIfStillOrphan(chatId: string): void {
+  const store = useStreamStore.getState();
+  if (!store.getStreamByChat(chatId)) {
+    store.removeStreamMetadata(chatId);
+  }
+}
+
+// Reconciles the in-memory stream store with the server, pruning metadata whose
+// backend task has settled so the UI stops showing stale "streaming" indicators.
+// Runs on an interval (not just at mount) because background sub-threads — e.g.
+// stream actions — register metadata without opening a client EventSource, so
+// the normal removeStream cleanup never fires for them.
 export function useGlobalStream(options?: UseGlobalStreamOptions) {
   const hasPrunedRef = useRef(false);
   const enabled = options?.enabled ?? true;
@@ -19,34 +34,47 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
 
   useEffect(() => {
     if (!enabled) return;
-    if (hasPrunedRef.current) return;
-    hasPrunedRef.current = true;
 
     const pruneStaleStreams = async () => {
-      const metadata = useStreamStore.getState().activeStreamMetadata;
+      const store = useStreamStore.getState();
+      // Only reconcile orphan metadata (no live EventSource). Entries with an
+      // active stream self-clean via removeStream on the completion event —
+      // pruning them here would tear down a live foreground stream at its
+      // completion boundary.
+      const orphans = store.activeStreamMetadata.filter(
+        (meta) => !store.getStreamByChat(meta.chatId),
+      );
 
-      if (metadata.length === 0) return;
+      if (orphans.length === 0) return;
 
-      const prunePromises = metadata.map(async (streamMeta) => {
+      const prunePromises = orphans.map(async (streamMeta) => {
         try {
           const status = await chatService.checkChatStatus(streamMeta.chatId);
 
           if (!status?.has_active_task) {
-            useStreamStore.getState().removeStreamMetadata(streamMeta.chatId);
+            pruneIfStillOrphan(streamMeta.chatId);
           }
         } catch (error) {
           logger.error('Stream prune check failed', 'useGlobalStream', error);
-          useStreamStore.getState().removeStreamMetadata(streamMeta.chatId);
+          pruneIfStillOrphan(streamMeta.chatId);
         }
       });
 
       await Promise.allSettled(prunePromises);
-      onPruneComplete?.();
+
+      if (!hasPrunedRef.current) {
+        hasPrunedRef.current = true;
+        onPruneComplete?.();
+      }
     };
 
-    const timeoutId = setTimeout(pruneStaleStreams, 500);
+    const initialTimeout = setTimeout(pruneStaleStreams, 500);
+    const intervalId = setInterval(pruneStaleStreams, STREAM_PRUNE_INTERVAL_MS);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(initialTimeout);
+      clearInterval(intervalId);
+    };
   }, [enabled, onPruneComplete]);
 
   const stopAllStreams = useCallback(async () => {

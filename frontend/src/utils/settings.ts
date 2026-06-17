@@ -1,5 +1,9 @@
-import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
-import type { CustomEnvVar, Persona } from '@/types/user.types';
+import {
+  DEFAULT_PERSONA,
+  DEFAULT_PERMISSION_MODE,
+  DEFAULT_THINKING_MODE,
+} from '@/store/chatSettingsStore';
+import type { CustomEnvVar, Persona, StreamAction } from '@/types/user.types';
 import type { GeneralSecretFieldConfig } from '@/types/settings.types';
 import { validateRequired, validateUnique } from '@/utils/validation';
 
@@ -57,6 +61,40 @@ export const validatePersonaForm = (
     validateRequired(form.name, 'Name');
     validateRequired(form.content, 'Content');
     validateUnique('name', form.name, existingItems, editingIndex, 'persona with this name', 'A');
+
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : 'Validation failed';
+  }
+};
+
+export const createDefaultStreamActionForm = (): StreamAction => ({
+  label: '',
+  enabled: true,
+  model_id: '',
+  command: '',
+  persona_name: DEFAULT_PERSONA,
+  permission_mode: DEFAULT_PERMISSION_MODE,
+  thinking_mode: DEFAULT_THINKING_MODE,
+});
+
+export const validateStreamActionForm = (
+  form: StreamAction,
+  editingIndex: number | null,
+  existingItems: StreamAction[],
+): string | null => {
+  try {
+    validateRequired(form.label, 'Label');
+    validateRequired(form.model_id, 'Model');
+    validateRequired(form.command, 'Command');
+    validateUnique(
+      'label',
+      form.label,
+      existingItems,
+      editingIndex,
+      'action with this label',
+      'An',
+    );
 
     return null;
   } catch (error) {
