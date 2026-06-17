@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Complete Nerd Font for the in-app terminal — includes the PUA icon glyphs
+   (eza/ls file icons, Starship prompt symbols) the system monospace lacks. Used
+   as the terminal's primary font so glyph lookup never falls back to a generic
+   monospace that resolves PUA codepoints to a last-resort box. */
+@font-face {
+  font-family: 'JetBrainsMono Nerd Font';
+  src: url('/fonts/JetBrainsMonoNerdFontMono-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrainsMono Nerd Font';
+  src: url('/fonts/JetBrainsMonoNerdFontMono-Bold.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
 }

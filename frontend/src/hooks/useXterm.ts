@@ -105,12 +105,22 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
         import('xterm-addon-fit'),
       ]);
 
+      // Wait for the Nerd Font before first paint so the DOM renderer measures
+      // cell dimensions against the real glyphs, not the fallback (cold load).
+      try {
+        await document.fonts?.load('12px "JetBrainsMono Nerd Font"');
+      } catch {
+        // Font unavailable — open anyway; text falls back to monospace.
+      }
+
       if (cancelled) return;
 
       xterm = new Terminal({
         scrollback: 1000,
         fontSize: 12,
-        fontFamily: 'monospace',
+        // Nerd Font primary so PUA icon glyphs (eza/ls icons, Starship prompt
+        // symbols) render; generic monospace is only a last-resort fallback.
+        fontFamily: '"JetBrainsMono Nerd Font", monospace',
         theme: buildTerminalTheme(modeRef.current),
       });
       const fitAddon = new FitAddon();
