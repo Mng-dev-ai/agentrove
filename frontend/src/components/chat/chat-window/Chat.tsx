@@ -12,6 +12,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import { UserMessage, AssistantMessage } from '@/components/chat/message-bubble/Message';
 import { QueueMessageCard } from './QueueMessageCard';
+import { StreamActionsBar } from './StreamActionsBar';
 import { Input } from '@/components/chat/message-input/Input';
 import { ChatSkeleton } from './ChatSkeleton';
 import { ScrollButton } from './ScrollButton';
@@ -317,6 +318,13 @@ export const Chat = memo(function Chat() {
     !!lastBotMessage &&
     ((lastBotMessage.content_render?.events?.length ?? 0) > 0 || !!lastBotMessage.content_text);
   const showPermissionAtEnd = canShowPermissionInline && (!lastBotMessageId || lastBotIsStreaming);
+  // Only offer actions against a cleanly completed turn — skips failed/interrupted
+  // output and the reconnect window where an in-progress message isn't yet in the stream set.
+  const showStreamActions =
+    lastBotMessage?.stream_status === 'completed' &&
+    !lastBotIsStreaming &&
+    !isStreaming &&
+    !isLoading;
 
   const renderMessage = useCallback(
     (msg: (typeof messages)[number]) => {
@@ -439,6 +447,11 @@ export const Chat = memo(function Chat() {
                     />
                   ))}
                 </div>
+              </div>
+            )}
+            {showStreamActions && chatId && (
+              <div className="relative z-10">
+                <StreamActionsBar chatId={chatId} />
               </div>
             )}
             <div className="relative z-10">

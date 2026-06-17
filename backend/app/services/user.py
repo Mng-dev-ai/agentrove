@@ -89,6 +89,7 @@ class UserService(BaseDbService[UserSettings]):
         json_fields = {
             "custom_env_vars",
             "personas",
+            "stream_actions",
         }
 
         for field, value in settings_update.items():

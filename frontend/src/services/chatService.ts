@@ -74,6 +74,23 @@ async function createCompletion(
   );
 }
 
+// Fires a turn server-side without opening a client EventSource — used to start
+// background sub-threads (e.g. stream actions). The server runs the turn as a
+// background task; the client reconnects to the stream when the chat is opened.
+async function startCompletion(request: ChatRequest): Promise<{ messageId: string }> {
+  validateRequired(request.prompt, 'Prompt');
+
+  return serviceCall(async () => {
+    const formData = buildChatFormData(request);
+    const response = await apiClient.postForm<{
+      chat_id: string;
+      message_id: string;
+    }>('/chat/chat', formData);
+    const payload = ensureResponse(response, 'Failed to start chat completion');
+    return { messageId: payload.message_id };
+  });
+}
+
 async function checkChatStatus(chatId: string): Promise<{
   has_active_task: boolean;
   message_id?: string;
@@ -337,6 +354,7 @@ async function restoreMessageCheckpoint(messageId: string): Promise<GitCommitRes
 
 export const chatService = {
   createCompletion,
+  startCompletion,
   checkChatStatus,
   reconnectToStream,
   stopStream,

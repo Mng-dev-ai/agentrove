@@ -34,6 +34,16 @@ class PersonaDict(TypedDict):
     content: str
 
 
+class StreamActionDict(TypedDict):
+    label: str
+    enabled: bool
+    model_id: str
+    command: str
+    persona_name: str
+    permission_mode: str
+    thinking_mode: str
+
+
 class MessageAttachmentDict(TypedDict):
     file_url: str
     file_path: str | None

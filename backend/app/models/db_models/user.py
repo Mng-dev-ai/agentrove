@@ -9,6 +9,7 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.models.types import (
     CustomEnvVarDict,
     PersonaDict,
+    StreamActionDict,
 )
 
 from app.db.base_class import Base
@@ -82,6 +83,9 @@ class UserSettings(Base):
         JSON, nullable=True
     )
     personas: Mapped[list[PersonaDict] | None] = mapped_column(JSON, nullable=True)
+    stream_actions: Mapped[list[StreamActionDict] | None] = mapped_column(
+        JSON, nullable=True
+    )
     notifications_enabled: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )

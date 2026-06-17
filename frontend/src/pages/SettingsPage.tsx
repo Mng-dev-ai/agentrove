@@ -8,6 +8,7 @@ import {
   ScrollText,
   ChevronLeft,
   Cloud,
+  GitBranch,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@/utils/cn';
@@ -32,13 +33,21 @@ import { useAuthStore } from '@/store/authStore';
 import { getGeneralSecretFields } from '@/utils/settings';
 import { PersonasSection } from '@/components/settings/sections/PersonasSection';
 import { EnvVarsSection } from '@/components/settings/sections/EnvVarsSection';
+import { StreamActionsSection } from '@/components/settings/sections/StreamActionsSection';
 const InstructionsSettingsTab = lazy(() =>
   import('@/components/settings/tabs/InstructionsSettingsTab').then((m) => ({
     default: m.InstructionsSettingsTab,
   })),
 );
 
-type TabKey = 'general' | 'skills' | 'personas' | 'env_vars' | 'instructions' | 'cloud';
+type TabKey =
+  | 'general'
+  | 'skills'
+  | 'personas'
+  | 'stream_actions'
+  | 'env_vars'
+  | 'instructions'
+  | 'cloud';
 
 const getErrorMessage = (error: unknown): string | undefined =>
   error instanceof Error ? error.message : undefined;
@@ -47,6 +56,7 @@ const TAB_FIELDS: Record<TabKey, (keyof UserSettings)[]> = {
   general: ['github_personal_access_token'],
   skills: [],
   personas: ['personas'],
+  stream_actions: ['stream_actions'],
   env_vars: ['custom_env_vars'],
   instructions: ['custom_instructions'],
   cloud: [],
@@ -62,6 +72,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { id: 'general', label: 'General', icon: Settings2 },
   { id: 'skills', label: 'Skills', icon: Zap },
   { id: 'personas', label: 'Personas', icon: UserCircle },
+  { id: 'stream_actions', label: 'Stream Actions', icon: GitBranch },
   { id: 'env_vars', label: 'Env Variables', icon: Key },
   { id: 'instructions', label: 'Instructions', icon: ScrollText },
   { id: 'cloud', label: 'Cloud', icon: Cloud },
@@ -130,6 +141,7 @@ const SettingsPage: React.FC = () => {
         'custom_instructions',
         'custom_env_vars',
         'personas',
+        'stream_actions',
         'notifications_enabled',
       ];
 
@@ -486,6 +498,18 @@ const SettingsPage: React.FC = () => {
                     <div role="tabpanel" id="personas-panel" aria-labelledby="personas-tab">
                       <Suspense fallback={tabLoadingFallback}>
                         <PersonasSection />
+                      </Suspense>
+                    </div>
+                  )}
+
+                  {activeTab === 'stream_actions' && (
+                    <div
+                      role="tabpanel"
+                      id="stream_actions-panel"
+                      aria-labelledby="stream_actions-tab"
+                    >
+                      <Suspense fallback={tabLoadingFallback}>
+                        <StreamActionsSection />
                       </Suspense>
                     </div>
                   )}
