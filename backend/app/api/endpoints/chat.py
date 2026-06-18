@@ -405,9 +405,24 @@ async def stream_events(
 @router.get("/chats/{chat_id}/status", response_model=ChatStatusResponse)
 async def get_stream_status(
     chat_id: UUID,
-    _chat: Chat = Depends(ensure_chat_access),
+    current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> dict[str, Any]:
+    # In-memory gate first: every open chat polls this endpoint on a short
+    # interval, but a stream is almost never live. Short-circuit inactive polls
+    # before any chat/message DB query so the bursts don't drain the connection
+    # pool. Ownership is validated only on the rare active path below.
+    if not ChatStreamRuntime.has_active_chat(str(chat_id)):
+        return INACTIVE_TASK_RESPONSE.copy()
+
+    try:
+        await chat_service.get_chat(chat_id, current_user)
+    except ChatException:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat not found or access denied",
+        )
+
     try:
         latest_assistant_message = (
             await chat_service.message_service.get_latest_assistant_message(chat_id)
@@ -417,9 +432,6 @@ async def get_stream_status(
             not latest_assistant_message
             or latest_assistant_message.stream_status != MessageStreamStatus.IN_PROGRESS
         ):
-            return INACTIVE_TASK_RESPONSE.copy()
-
-        if not ChatStreamRuntime.has_active_chat(str(chat_id)):
             return INACTIVE_TASK_RESPONSE.copy()
 
         return {
