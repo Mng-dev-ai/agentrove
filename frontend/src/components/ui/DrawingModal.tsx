@@ -46,6 +46,7 @@ export const DrawingModal = memo(function DrawingModal({
 
     contextRef.current = ctx;
 
+    let cancelled = false;
     const img = new Image();
 
     img.onload = () => {
@@ -62,9 +63,28 @@ export const DrawingModal = memo(function DrawingModal({
       setCanvasReady(false);
     };
 
-    img.src = imageUrl;
+    // WKWebView (Tauri desktop) taints the canvas when an image loads from a
+    // blob: URL, making toDataURL throw on save — convert to a data URL first.
+    fetch(imageUrl)
+      .then((res) => res.blob())
+      .then(
+        (blob) =>
+          new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(blob);
+          }),
+      )
+      .then((dataUrl) => {
+        if (!cancelled) img.src = dataUrl;
+      })
+      .catch(() => {
+        if (!cancelled) setCanvasReady(false);
+      });
 
     return () => {
+      cancelled = true;
       if (imageRef.current) {
         imageRef.current.src = '';
         imageRef.current = null;
