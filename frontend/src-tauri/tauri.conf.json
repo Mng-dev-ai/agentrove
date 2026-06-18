@@ -27,7 +27,7 @@
     ],
     "security": {
       "dangerousDisableAssetCspModification": ["script-src"],
-      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdn.jsdelivr.net; connect-src 'self' ipc: ipc://localhost http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https: wss:; frame-src 'self' tauri://localhost http://localhost:* http://127.0.0.1:*; child-src 'self' tauri://localhost http://localhost:* http://127.0.0.1:*",
+      "csp": "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net; worker-src 'self' blob: https://cdn.jsdelivr.net; connect-src 'self' blob: data: ipc: ipc://localhost http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:* https: wss:; frame-src 'self' tauri://localhost http://localhost:* http://127.0.0.1:*; child-src 'self' tauri://localhost http://localhost:* http://127.0.0.1:*",
       "capabilities": ["main-capability"]
     }
   },
