@@ -411,6 +411,12 @@ class AgentService:
     ) -> AcpSessionConfig:
         env: dict[str, str] = {}
 
+        # claude-agent-acp hides the bypassPermissions session mode when running
+        # as root unless IS_SANDBOX is set. Our agents always run inside an
+        # isolated sandbox (Docker container or host sandbox dir), so force it on
+        # — otherwise setting bypass mode fails on root deployments (e.g. VPS).
+        env["IS_SANDBOX"] = "1"
+
         # Skip in desktop mode — host git credentials handle auth natively
         if user_settings.github_personal_access_token and not settings.DESKTOP_MODE:
             env["GITHUB_TOKEN"] = user_settings.github_personal_access_token
