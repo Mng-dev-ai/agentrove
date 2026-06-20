@@ -5,11 +5,13 @@ import 'xterm/css/xterm.css';
 
 import { Button } from '@/components/ui/primitives/Button';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
+import { useUIStore } from '@/store/uiStore';
 import { resolveSandboxWs } from '@/lib/api';
 
 import { getTerminalBackgroundClass } from '@/utils/terminal';
 import { useXterm } from '@/hooks/useXterm';
 import type { TerminalSize } from '@/types/sandbox.types';
+import type { Palette } from '@/types/ui.types';
 
 export interface TerminalTabProps {
   isVisible: boolean;
@@ -34,7 +36,10 @@ export const TerminalTab: FC<TerminalTabProps> = ({
   shouldClose = false,
   onClosed,
 }) => {
-  const theme = useResolvedTheme();
+  const resolvedTheme = useResolvedTheme();
+  const rawTheme = useUIStore((s) => s.theme);
+  // Only `system` needs resolving; every other theme is itself a palette
+  const palette: Palette = rawTheme === 'system' ? resolvedTheme : rawTheme;
   const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [closeReason, setCloseReason] = useState<string | null>(null);
   const [connectAttempt, setConnectAttempt] = useState(0);
@@ -45,7 +50,7 @@ export const TerminalTab: FC<TerminalTabProps> = ({
   const isClosingRef = useRef(false);
   const shouldCloseRef = useRef(shouldClose);
 
-  const backgroundClass = getTerminalBackgroundClass(theme);
+  const backgroundClass = getTerminalBackgroundClass(palette);
 
   const resetWsRefs = useCallback(() => {
     wsRef.current = null;
@@ -75,7 +80,7 @@ export const TerminalTab: FC<TerminalTabProps> = ({
 
   const { fitTerminal, isReady, terminalRef, wrapperRef } = useXterm({
     isVisible,
-    mode: theme,
+    mode: palette,
     onData: (data: string) => {
       const ws = wsRef.current;
       if (ws?.readyState === WebSocket.OPEN) {

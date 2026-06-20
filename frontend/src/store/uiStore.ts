@@ -24,6 +24,7 @@ import {
   viewTypeToTileId,
 } from '@/utils/mosaicHelpers';
 import type { MenuMode } from '@/components/ui/commandRegistry';
+import { THEME_CYCLE } from '@/utils/theme';
 
 export const MIN_SIDEBAR_WIDTH = 220;
 export const MAX_SIDEBAR_WIDTH = 560;
@@ -142,9 +143,8 @@ export const useUIStore = create<UIStoreState>()(
       theme: 'dark',
       toggleTheme: () =>
         set((state) => {
-          const next =
-            state.theme === 'dark' ? 'light' : state.theme === 'light' ? 'system' : 'dark';
-          return { theme: next };
+          const i = THEME_CYCLE.indexOf(state.theme);
+          return { theme: THEME_CYCLE[(i + 1) % THEME_CYCLE.length] };
         }),
       setTheme: (theme) => set({ theme }),
       sidebarOpen: getInitialSidebarState(),

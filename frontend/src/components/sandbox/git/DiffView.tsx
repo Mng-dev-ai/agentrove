@@ -34,6 +34,7 @@ import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pier
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
 import type { DiffMode } from '@/types/sandbox.types';
 import { cn } from '@/utils/cn';
+import '@/styles/pierre-diff-theme.css';
 
 const DIFF_THEMES = { dark: 'pierre-dark', light: 'pierre-light' } as const;
 

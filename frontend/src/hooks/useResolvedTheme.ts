@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { useUIStore } from '@/store/uiStore';
+import { DARK_PALETTES } from '@/utils/theme';
 import type { ResolvedTheme } from '@/types/ui.types';
 
 function getMediaQuery(): MediaQueryList | null {
@@ -39,5 +40,6 @@ export function useResolvedTheme(): ResolvedTheme {
   if (theme === 'system') {
     return prefersDark ? 'dark' : 'light';
   }
-  return theme;
+  // Custom palettes map to a light/dark base for editor/terminal/diff theming
+  return DARK_PALETTES.has(theme) ? 'dark' : 'light';
 }

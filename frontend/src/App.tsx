@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
+import { useUIStore } from '@/store/uiStore';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
@@ -160,6 +161,7 @@ function AppContent() {
 
 export default function App() {
   const resolvedTheme = useResolvedTheme();
+  const theme = useUIStore((state) => state.theme);
   const [desktopReady, setDesktopReady] = useState(!isTauri());
   const [desktopError, setDesktopError] = useState<string | null>(null);
   const [authHydrated, setAuthHydrated] = useState(false);
@@ -197,11 +199,13 @@ export default function App() {
     document.body.classList.remove('light', 'dark');
     document.body.classList.add(resolvedTheme);
     document.documentElement.setAttribute('data-theme', resolvedTheme);
+    // data-palette drives the per-theme CSS-var overrides (dim/sepia); base modes have no override block
+    document.documentElement.setAttribute('data-palette', theme);
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
       metaThemeColor.setAttribute('content', resolvedTheme === 'dark' ? '#0a0a0a' : '#ffffff');
     }
-  }, [resolvedTheme]);
+  }, [resolvedTheme, theme]);
 
   useMountEffect(() => {
     if (!isTauri()) return;

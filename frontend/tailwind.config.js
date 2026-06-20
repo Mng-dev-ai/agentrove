@@ -79,31 +79,31 @@ export default {
           950: '#172554',
         },
 
-        // Surface colors
+        // Surface colors — CSS-variable channels so data-palette can re-theme them
         surface: {
-          DEFAULT: '#f5f5f5',
-          secondary: '#f9f9f9',
-          tertiary: '#f3f3f3',
-          hover: '#e0e0e0',
-          active: '#d8d8d8',
+          DEFAULT: 'rgb(var(--surface) / <alpha-value>)',
+          secondary: 'rgb(var(--surface-secondary) / <alpha-value>)',
+          tertiary: 'rgb(var(--surface-tertiary) / <alpha-value>)',
+          hover: 'rgb(var(--surface-hover) / <alpha-value>)',
+          active: 'rgb(var(--surface-active) / <alpha-value>)',
           dark: {
-            DEFAULT: '#111111',
-            secondary: '#141414',
-            tertiary: '#1e1e1e',
-            hover: '#282828',
-            active: '#323232',
+            DEFAULT: 'rgb(var(--surface-dark) / <alpha-value>)',
+            secondary: 'rgb(var(--surface-dark-secondary) / <alpha-value>)',
+            tertiary: 'rgb(var(--surface-dark-tertiary) / <alpha-value>)',
+            hover: 'rgb(var(--surface-dark-hover) / <alpha-value>)',
+            active: 'rgb(var(--surface-dark-active) / <alpha-value>)',
           },
         },
 
         // Border colors
         border: {
-          DEFAULT: '#e2e2e2',
-          secondary: '#d1d1d1',
-          hover: '#9a9a9a',
+          DEFAULT: 'rgb(var(--border) / <alpha-value>)',
+          secondary: 'rgb(var(--border-secondary) / <alpha-value>)',
+          hover: 'rgb(var(--border-hover) / <alpha-value>)',
           dark: {
-            DEFAULT: '#2a2a2a',
-            secondary: '#333333',
-            hover: '#404040',
+            DEFAULT: 'rgb(var(--border-dark) / <alpha-value>)',
+            secondary: 'rgb(var(--border-dark-secondary) / <alpha-value>)',
+            hover: 'rgb(var(--border-dark-hover) / <alpha-value>)',
           },
         },
 
@@ -114,15 +114,15 @@ export default {
 
         // Text colors
         text: {
-          primary: '#0f172a',
-          secondary: '#475569',
-          tertiary: '#64748b',
-          quaternary: '#94a3b8',
+          primary: 'rgb(var(--text-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--text-secondary) / <alpha-value>)',
+          tertiary: 'rgb(var(--text-tertiary) / <alpha-value>)',
+          quaternary: 'rgb(var(--text-quaternary) / <alpha-value>)',
           dark: {
-            primary: '#ffffff',
-            secondary: '#e0e0e0',
-            tertiary: '#c0c0c0',
-            quaternary: '#a0a0a0',
+            primary: 'rgb(var(--text-dark-primary) / <alpha-value>)',
+            secondary: 'rgb(var(--text-dark-secondary) / <alpha-value>)',
+            tertiary: 'rgb(var(--text-dark-tertiary) / <alpha-value>)',
+            quaternary: 'rgb(var(--text-dark-quaternary) / <alpha-value>)',
           },
         },
       },

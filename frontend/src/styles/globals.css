@@ -24,10 +24,135 @@
 
 :root {
   color-scheme: light;
+
+  /* Structural color tokens as RGB channels (consumed via rgb(var(--x) / alpha) in tailwind.config.js).
+     Light + dark sets both live here; `dark:` utilities read the *-dark vars regardless of mode.
+     data-palette overrides re-theme a subset without touching any component. */
+  --surface: 245 245 245;
+  --surface-secondary: 249 249 249;
+  --surface-tertiary: 243 243 243;
+  --surface-hover: 224 224 224;
+  --surface-active: 216 216 216;
+  --border: 226 226 226;
+  --border-secondary: 209 209 209;
+  --border-hover: 154 154 154;
+  --text-primary: 15 23 42;
+  --text-secondary: 71 85 105;
+  --text-tertiary: 100 116 139;
+  --text-quaternary: 148 163 184;
+
+  --surface-dark: 17 17 17;
+  --surface-dark-secondary: 20 20 20;
+  --surface-dark-tertiary: 30 30 30;
+  --surface-dark-hover: 40 40 40;
+  --surface-dark-active: 50 50 50;
+  --border-dark: 42 42 42;
+  --border-dark-secondary: 51 51 51;
+  --border-dark-hover: 64 64 64;
+  --text-dark-primary: 255 255 255;
+  --text-dark-secondary: 224 224 224;
+  --text-dark-tertiary: 192 192 192;
+  --text-dark-quaternary: 160 160 160;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+}
+
+/* Dim — softer dark; rides the `dark` base class, overrides the *-dark vars */
+:root[data-palette='dim'] {
+  --surface-dark: 28 28 30;
+  --surface-dark-secondary: 36 36 38;
+  --surface-dark-tertiary: 47 47 49;
+  --surface-dark-hover: 56 56 58;
+  --surface-dark-active: 66 66 70;
+  --border-dark: 56 56 58;
+  --border-dark-secondary: 67 67 70;
+  --border-dark-hover: 82 82 87;
+  --text-dark-primary: 228 228 230;
+  --text-dark-secondary: 184 184 189;
+  --text-dark-tertiary: 138 138 144;
+  --text-dark-quaternary: 106 106 112;
+}
+
+/* Sepia — warm paper; rides the light base, overrides the light vars */
+:root[data-palette='sepia'] {
+  --surface: 244 236 216;
+  --surface-secondary: 250 243 224;
+  --surface-tertiary: 239 230 207;
+  --surface-hover: 230 217 186;
+  --surface-active: 220 205 166;
+  --border: 221 208 176;
+  --border-secondary: 208 192 152;
+  --border-hover: 184 164 114;
+  --text-primary: 75 58 42;
+  --text-secondary: 111 89 66;
+  --text-tertiary: 154 131 102;
+  --text-quaternary: 179 160 127;
+}
+
+/* Solarized Light — light base */
+:root[data-palette='solarized-light'] {
+  --surface: 244 237 218;
+  --surface-secondary: 253 246 227;
+  --surface-tertiary: 238 232 213;
+  --surface-hover: 231 224 200;
+  --surface-active: 221 214 189;
+  --border: 222 216 195;
+  --border-secondary: 204 196 168;
+  --border-hover: 184 174 140;
+  --text-primary: 7 54 66;
+  --text-secondary: 88 110 117;
+  --text-tertiary: 101 123 131;
+  --text-quaternary: 147 161 161;
+}
+
+/* Solarized Dark — dark base */
+:root[data-palette='solarized-dark'] {
+  --surface-dark: 0 43 54;
+  --surface-dark-secondary: 7 54 66;
+  --surface-dark-tertiary: 10 68 83;
+  --surface-dark-hover: 13 79 96;
+  --surface-dark-active: 16 90 110;
+  --border-dark: 13 77 94;
+  --border-dark-secondary: 19 95 115;
+  --border-dark-hover: 26 112 136;
+  --text-dark-primary: 238 232 213;
+  --text-dark-secondary: 147 161 161;
+  --text-dark-tertiary: 131 148 150;
+  --text-dark-quaternary: 101 123 131;
+}
+
+/* Nord — dark base */
+:root[data-palette='nord'] {
+  --surface-dark: 42 47 58;
+  --surface-dark-secondary: 46 52 64;
+  --surface-dark-tertiary: 59 66 82;
+  --surface-dark-hover: 67 76 94;
+  --surface-dark-active: 76 86 106;
+  --border-dark: 59 66 82;
+  --border-dark-secondary: 67 76 94;
+  --border-dark-hover: 76 86 106;
+  --text-dark-primary: 236 239 244;
+  --text-dark-secondary: 216 222 233;
+  --text-dark-tertiary: 163 172 189;
+  --text-dark-quaternary: 123 132 148;
+}
+
+/* Midnight — deep blue dark base */
+:root[data-palette='midnight'] {
+  --surface-dark: 11 16 32;
+  --surface-dark-secondary: 15 21 48;
+  --surface-dark-tertiary: 23 33 69;
+  --surface-dark-hover: 30 42 85;
+  --surface-dark-active: 36 50 102;
+  --border-dark: 30 42 74;
+  --border-dark-secondary: 42 58 100;
+  --border-dark-hover: 58 77 128;
+  --text-dark-primary: 230 236 255;
+  --text-dark-secondary: 174 187 216;
+  --text-dark-tertiary: 115 132 168;
+  --text-dark-quaternary: 86 104 140;
 }
 
 html,

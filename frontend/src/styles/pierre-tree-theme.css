@@ -5,29 +5,30 @@
  * boundary via inheritance, so setting them on the host element themes the
  * internal UI without needing `unsafeCSS` injection.
  *
- * Palette mirrors tailwind.config.js tokens so the tree stays aligned with
- * the rest of the app.
+ * Palette maps to the structural token CSS vars (globals.css) so the tree
+ * follows every theme — including data-palette overrides (dim/sepia) — for free.
+ * var() resolves on the host, which inherits the tokens from :root.
  */
 
 file-tree-container {
-  /* Light (default) */
-  --trees-fg-override: #475569;
-  --trees-fg-muted-override: #94a3b8;
+  /* Light base (light + sepia) */
+  --trees-fg-override: rgb(var(--text-secondary) / 1);
+  --trees-fg-muted-override: rgb(var(--text-quaternary) / 1);
   --trees-bg-override: transparent;
-  --trees-bg-muted-override: #e0e0e0;
-  --trees-accent-override: #0f172a;
-  --trees-border-color-override: #e2e2e2;
+  --trees-bg-muted-override: rgb(var(--surface-hover) / 1);
+  --trees-accent-override: rgb(var(--text-primary) / 1);
+  --trees-border-color-override: rgb(var(--border) / 1);
 
-  --trees-selected-bg-override: #d8d8d8;
-  --trees-selected-fg-override: #0f172a;
+  --trees-selected-bg-override: rgb(var(--surface-active) / 1);
+  --trees-selected-fg-override: rgb(var(--text-primary) / 1);
   --trees-selected-focused-border-color-override: transparent;
 
-  --trees-focus-ring-color-override: rgb(148 163 184 / 0.3);
+  --trees-focus-ring-color-override: rgb(var(--text-quaternary) / 0.3);
   --trees-focus-ring-width-override: 1px;
   --trees-focus-ring-offset-override: 0;
 
   --trees-search-bg-override: transparent;
-  --trees-search-fg-override: #0f172a;
+  --trees-search-fg-override: rgb(var(--text-primary) / 1);
   --trees-search-font-weight-override: 500;
 
   --trees-input-bg-override: transparent;
@@ -35,60 +36,61 @@ file-tree-container {
   --trees-item-padding-x-override: 6px;
   /* Tighter than the 8px default so deep paths stay readable in the narrow panel. */
   --trees-level-gap-override: 6px;
-  --trees-indent-guide-bg-override: rgb(226 226 226 / 0.5);
-  --trees-scrollbar-thumb-override: #94a3b8;
+  --trees-indent-guide-bg-override: rgb(var(--border) / 0.5);
+  --trees-scrollbar-thumb-override: rgb(var(--text-quaternary) / 1);
 
   /* Monochrome git status — all modified/renamed/added collapse to the same
-     muted tone; only "deleted" uses a subtle semantic accent. */
-  --trees-status-modified-override: #94a3b8;
-  --trees-status-added-override: #94a3b8;
-  --trees-status-renamed-override: #94a3b8;
-  --trees-status-untracked-override: #94a3b8;
-  --trees-status-ignored-override: #cbd5e1;
-  --trees-status-deleted-override: #94a3b8;
+     muted tone; "ignored" is dimmer via opacity so it tracks the palette too. */
+  --trees-status-modified-override: rgb(var(--text-quaternary) / 1);
+  --trees-status-added-override: rgb(var(--text-quaternary) / 1);
+  --trees-status-renamed-override: rgb(var(--text-quaternary) / 1);
+  --trees-status-untracked-override: rgb(var(--text-quaternary) / 1);
+  --trees-status-ignored-override: rgb(var(--text-quaternary) / 0.6);
+  --trees-status-deleted-override: rgb(var(--text-quaternary) / 1);
 
-  --trees-git-modified-color-override: #94a3b8;
-  --trees-git-added-color-override: #94a3b8;
-  --trees-git-renamed-color-override: #94a3b8;
-  --trees-git-untracked-color-override: #94a3b8;
-  --trees-git-ignored-color-override: #cbd5e1;
-  --trees-git-deleted-color-override: #94a3b8;
+  --trees-git-modified-color-override: rgb(var(--text-quaternary) / 1);
+  --trees-git-added-color-override: rgb(var(--text-quaternary) / 1);
+  --trees-git-renamed-color-override: rgb(var(--text-quaternary) / 1);
+  --trees-git-untracked-color-override: rgb(var(--text-quaternary) / 1);
+  --trees-git-ignored-color-override: rgb(var(--text-quaternary) / 0.6);
+  --trees-git-deleted-color-override: rgb(var(--text-quaternary) / 1);
 
   --trees-font-size-override: 12px;
 }
 
 .dark file-tree-container {
-  --trees-fg-override: #e0e0e0;
-  --trees-fg-muted-override: #a0a0a0;
+  /* Dark base (dark + dim) */
+  --trees-fg-override: rgb(var(--text-dark-secondary) / 1);
+  --trees-fg-muted-override: rgb(var(--text-dark-quaternary) / 1);
   --trees-bg-override: transparent;
-  --trees-bg-muted-override: #282828;
-  --trees-accent-override: #ffffff;
-  --trees-border-color-override: #2a2a2a;
+  --trees-bg-muted-override: rgb(var(--surface-dark-hover) / 1);
+  --trees-accent-override: rgb(var(--text-dark-primary) / 1);
+  --trees-border-color-override: rgb(var(--border-dark) / 1);
 
-  --trees-selected-bg-override: #323232;
-  --trees-selected-fg-override: #ffffff;
+  --trees-selected-bg-override: rgb(var(--surface-dark-active) / 1);
+  --trees-selected-fg-override: rgb(var(--text-dark-primary) / 1);
   --trees-selected-focused-border-color-override: transparent;
 
-  --trees-focus-ring-color-override: rgb(160 160 160 / 0.3);
+  --trees-focus-ring-color-override: rgb(var(--text-dark-quaternary) / 0.3);
 
   --trees-search-bg-override: transparent;
-  --trees-search-fg-override: #ffffff;
+  --trees-search-fg-override: rgb(var(--text-dark-primary) / 1);
 
   --trees-input-bg-override: transparent;
-  --trees-indent-guide-bg-override: rgb(42 42 42 / 0.5);
-  --trees-scrollbar-thumb-override: #a0a0a0;
+  --trees-indent-guide-bg-override: rgb(var(--border-dark) / 0.5);
+  --trees-scrollbar-thumb-override: rgb(var(--text-dark-quaternary) / 1);
 
-  --trees-status-modified-override: #a0a0a0;
-  --trees-status-added-override: #a0a0a0;
-  --trees-status-renamed-override: #a0a0a0;
-  --trees-status-untracked-override: #a0a0a0;
-  --trees-status-ignored-override: #6b7280;
-  --trees-status-deleted-override: #a0a0a0;
+  --trees-status-modified-override: rgb(var(--text-dark-quaternary) / 1);
+  --trees-status-added-override: rgb(var(--text-dark-quaternary) / 1);
+  --trees-status-renamed-override: rgb(var(--text-dark-quaternary) / 1);
+  --trees-status-untracked-override: rgb(var(--text-dark-quaternary) / 1);
+  --trees-status-ignored-override: rgb(var(--text-dark-quaternary) / 0.6);
+  --trees-status-deleted-override: rgb(var(--text-dark-quaternary) / 1);
 
-  --trees-git-modified-color-override: #a0a0a0;
-  --trees-git-added-color-override: #a0a0a0;
-  --trees-git-renamed-color-override: #a0a0a0;
-  --trees-git-untracked-color-override: #a0a0a0;
-  --trees-git-ignored-color-override: #6b7280;
-  --trees-git-deleted-color-override: #a0a0a0;
+  --trees-git-modified-color-override: rgb(var(--text-dark-quaternary) / 1);
+  --trees-git-added-color-override: rgb(var(--text-dark-quaternary) / 1);
+  --trees-git-renamed-color-override: rgb(var(--text-dark-quaternary) / 1);
+  --trees-git-untracked-color-override: rgb(var(--text-dark-quaternary) / 1);
+  --trees-git-ignored-color-override: rgb(var(--text-dark-quaternary) / 0.6);
+  --trees-git-deleted-color-override: rgb(var(--text-dark-quaternary) / 1);
 }

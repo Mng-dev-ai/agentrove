@@ -1,5 +1,9 @@
 import { useCallback } from 'react';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
+import { useUIStore } from '@/store/uiStore';
+import type { CustomPalette } from '@/utils/theme';
+import { CUSTOM_PALETTE_TOKENS, DARK_PALETTES } from '@/utils/theme';
+import type { Palette } from '@/types/ui.types';
 import type * as monaco from 'monaco-editor';
 
 const LIGHT_THEME: monaco.editor.IStandaloneThemeData = {
@@ -76,15 +80,55 @@ const DARK_THEME: monaco.editor.IStandaloneThemeData = {
   },
 };
 
+// Custom palettes reuse the light/dark syntax rules and only re-skin the surfaces,
+// so the editor canvas matches the themed chrome instead of staying white/black.
+// surface = editor.background; widget = suggest/widget popup background.
+function skin(
+  base: monaco.editor.IStandaloneThemeData,
+  surface: string,
+  widget: string,
+): monaco.editor.IStandaloneThemeData {
+  return {
+    ...base,
+    rules: base.rules.map((r) => (r.token === '' ? { ...r, background: surface } : r)),
+    colors: {
+      ...base.colors,
+      'editor.background': surface,
+      'editorSuggestWidget.background': widget,
+      'editorWidget.background': widget,
+    },
+  };
+}
+
+// editor canvas = surfaceSecondary; suggest/widget popup = the deeper surface.
+const CUSTOM_THEMES = Object.fromEntries(
+  (Object.keys(CUSTOM_PALETTE_TOKENS) as CustomPalette[]).map((p) => {
+    const tokens = CUSTOM_PALETTE_TOKENS[p];
+    const base = DARK_PALETTES.has(p) ? DARK_THEME : LIGHT_THEME;
+    return [p, skin(base, tokens.surfaceSecondary, tokens.surface)];
+  }),
+) as Record<CustomPalette, monaco.editor.IStandaloneThemeData>;
+
+const THEME_DATA: Record<Palette, monaco.editor.IStandaloneThemeData> = {
+  light: LIGHT_THEME,
+  dark: DARK_THEME,
+  ...CUSTOM_THEMES,
+};
+
 export function useEditorTheme() {
-  const theme = useResolvedTheme();
+  const resolvedTheme = useResolvedTheme();
+  const rawTheme = useUIStore((s) => s.theme);
+  // Only `system` needs resolving; every other theme is itself a palette
+  const palette: Palette = rawTheme === 'system' ? resolvedTheme : rawTheme;
+  const themeName = `custom-${palette}`;
 
   const setupEditorTheme = useCallback(
     (monaco: typeof import('monaco-editor')) => {
       if (!monaco || !monaco.editor) return;
 
-      monaco.editor.defineTheme('custom-light', LIGHT_THEME);
-      monaco.editor.defineTheme('custom-dark', DARK_THEME);
+      for (const [name, data] of Object.entries(THEME_DATA)) {
+        monaco.editor.defineTheme(`custom-${name}`, data);
+      }
 
       monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
         target: monaco.languages.typescript.ScriptTarget.ES2020,
@@ -108,13 +152,13 @@ export function useEditorTheme() {
         allowSyntheticDefaultImports: true,
       });
 
-      monaco.editor.setTheme(theme === 'dark' ? 'custom-dark' : 'custom-light');
+      monaco.editor.setTheme(themeName);
     },
-    [theme],
+    [themeName],
   );
 
   return {
-    currentTheme: theme === 'light' ? 'custom-light' : 'custom-dark',
+    currentTheme: themeName,
     setupEditorTheme,
   };
 }

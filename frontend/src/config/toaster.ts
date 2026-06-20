@@ -1,13 +1,13 @@
 import type { ToasterProps } from 'react-hot-toast';
 
 const baseStyle = {
-  background: 'white',
-  color: '#0f172a',
-  border: '1px solid #e2e8f0',
   boxShadow: '0 4px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
 };
 
-const baseDarkClass =
+// Colors via token classes (not inline style) so every palette re-themes them;
+// `!` overrides react-hot-toast's default inline background/color
+const toastSurfaceClass =
+  '!border !bg-surface-secondary !text-text-primary !border-border ' +
   'dark:!bg-surface-dark-secondary dark:!text-text-dark-primary dark:!border-border-dark';
 
 export const toasterConfig: ToasterProps = {
@@ -27,7 +27,7 @@ export const toasterConfig: ToasterProps = {
         primary: '#22c55e',
         secondary: '#f0fdf4',
       },
-      className: baseDarkClass,
+      className: toastSurfaceClass,
     },
     error: {
       style: baseStyle,
@@ -35,7 +35,7 @@ export const toasterConfig: ToasterProps = {
         primary: '#ef4444',
         secondary: '#fef2f2',
       },
-      className: baseDarkClass,
+      className: toastSurfaceClass,
     },
     loading: {
       style: baseStyle,
@@ -43,11 +43,11 @@ export const toasterConfig: ToasterProps = {
         primary: '#3b82f6',
         secondary: '#eff6ff',
       },
-      className: baseDarkClass,
+      className: toastSurfaceClass,
     },
     blank: {
       style: baseStyle,
-      className: baseDarkClass,
+      className: toastSurfaceClass,
     },
   },
 };

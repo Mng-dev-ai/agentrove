@@ -10,11 +10,8 @@ import {
   KeyRound,
   GitCompareArrows,
   GitBranch,
-  Monitor,
   Search,
   PanelLeftClose,
-  Moon,
-  Sun,
   FileSearch,
   GitPullRequest,
   GitCommitHorizontal,
@@ -29,7 +26,8 @@ import { queryKeys } from '@/hooks/queries/queryKeys';
 import { isSecondaryPaneActive } from '@/utils/mosaicHelpers';
 import { traverseFileStructure, getFileName } from '@/utils/file';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
-import type { ViewType } from '@/types/ui.types';
+import { THEMES } from '@/utils/theme';
+import type { Theme, ViewType } from '@/types/ui.types';
 import type { Chat } from '@/types/chat.types';
 import type { FileStructure } from '@/types/file-system.types';
 import type { GitBranchesData } from '@/types/sandbox.types';
@@ -145,6 +143,14 @@ const ACTION_COMMANDS: ActionCommandItem[] = [
   },
 ];
 
+const THEME_COMMANDS: ActionCommandItem[] = THEMES.map((t) => ({
+  type: 'action',
+  id: `theme-${t.value}`,
+  label: `Theme: ${t.label}`,
+  icon: t.icon,
+  shortcut: t.shortcut,
+}));
+
 const SETTING_COMMANDS: ActionCommandItem[] = [
   {
     type: 'action',
@@ -153,9 +159,7 @@ const SETTING_COMMANDS: ActionCommandItem[] = [
     icon: PanelLeftClose,
     shortcut: '.',
   },
-  { type: 'action', id: 'theme-dark', label: 'Theme: Dark', icon: Moon, shortcut: 'm' },
-  { type: 'action', id: 'theme-light', label: 'Theme: Light', icon: Sun, shortcut: 'g' },
-  { type: 'action', id: 'theme-system', label: 'Theme: System', icon: Monitor, shortcut: 'y' },
+  ...THEME_COMMANDS,
   { type: 'action', id: 'search-in-files', label: 'Search in files', icon: Search, shortcut: 'f' },
   {
     type: 'action',
@@ -291,7 +295,7 @@ export function executeCommand(
   } else if (cmd.id === 'toggle-sidebar') {
     ui.setSidebarOpen(!ui.sidebarOpen);
   } else if (cmd.id.startsWith('theme-')) {
-    ui.setTheme(cmd.id.slice(6) as 'dark' | 'light' | 'system');
+    ui.setTheme(cmd.id.slice(6) as Theme);
   } else if (cmd.id === 'search-in-files') {
     ui.setPendingMenuMode('search');
     ui.setCommandMenuOpen(true);

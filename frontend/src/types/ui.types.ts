@@ -3,8 +3,21 @@ import type { ToolAggregate } from './tools.types';
 
 export type ToolComponent = React.FC<{ tool: ToolAggregate; chatId?: string }>;
 
-export type Theme = 'light' | 'dark' | 'system';
+// Each theme rides a light or dark base (see DARK_PALETTES / useResolvedTheme)
+export type Theme =
+  | 'light'
+  | 'dark'
+  | 'system'
+  | 'dim'
+  | 'sepia'
+  | 'solarized-light'
+  | 'solarized-dark'
+  | 'nord'
+  | 'midnight';
 export type ResolvedTheme = 'light' | 'dark';
+// Active palette with `system` resolved away — used where concrete per-theme colors
+// are built outside CSS (Monaco/xterm can't read CSS vars). Theme = Palette | 'system'.
+export type Palette = Exclude<Theme, 'system'>;
 
 type MentionType = 'file';
 

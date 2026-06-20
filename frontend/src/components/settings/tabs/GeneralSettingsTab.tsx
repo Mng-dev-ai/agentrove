@@ -1,11 +1,12 @@
 import { Button } from '@/components/ui/primitives/Button';
+import { Select } from '@/components/ui/primitives/Select';
 import { Switch } from '@/components/ui/primitives/Switch';
-import { SegmentedControl } from '@/components/ui/primitives/SegmentedControl';
 import type { ApiFieldKey, GeneralSecretFieldConfig } from '@/types/settings.types';
 import type { UserSettings } from '@/types/user.types';
 import type { Theme } from '@/types/ui.types';
 import { useUIStore } from '@/store/uiStore';
 import { SecretInput } from '@/components/settings/inputs/SecretInput';
+import { THEMES } from '@/utils/theme';
 import { cn } from '@/utils/cn';
 
 interface GeneralSettingsTabProps {
@@ -37,20 +38,25 @@ function SectionCard({
   );
 }
 
-const THEME_OPTIONS = [
-  { value: 'light', label: 'Light', disabled: false },
-  { value: 'dark', label: 'Dark', disabled: false },
-  { value: 'system', label: 'System', disabled: false },
-];
-
+// Dropdown rather than a row of buttons — 9 themes is too many to lay out inline.
+// Width is bounded on the wrapper since Select itself is w-full.
 function ThemeControl() {
   const theme = useUIStore((state) => state.theme);
   return (
-    <SegmentedControl
-      value={theme}
-      onChange={(val) => useUIStore.getState().setTheme(val as Theme)}
-      options={THEME_OPTIONS}
-    />
+    <div className="w-48 shrink-0">
+      <Select
+        value={theme}
+        onChange={(e) => useUIStore.getState().setTheme(e.target.value as Theme)}
+        className="h-8 text-xs"
+        aria-label="Theme"
+      >
+        {THEMES.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </Select>
+    </div>
   );
 }
 
