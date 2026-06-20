@@ -1,5 +1,9 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
+import { useUIStore } from '@/store/uiStore';
+import type { CustomPalette, PaletteTokens } from '@/utils/theme';
+import { CUSTOM_PALETTE_TOKENS } from '@/utils/theme';
+import type { Theme } from '@/types/ui.types';
 
 interface VisualWidgetProps {
   code: string;
@@ -56,6 +60,27 @@ const THEME_CSS_LIGHT = `:root {
   --color-border-tertiary: rgba(0,0,0,0.15);
   --color-border-info: #2563eb;${SHARED_VARS}
 }`;
+
+// Custom palettes only diverge in the structural surface/text tokens — they inherit
+// the base dark/light semantic colors, borders, and SVG ramps. Appended after the base
+// :root so these win. Built from the shared palette tokens (the iframe can't read CSS
+// vars); values are our own constants, safe to interpolate.
+const paletteOverrideCss = (t: PaletteTokens): string =>
+  `:root {
+  --color-text-primary: ${t.textPrimary};
+  --color-text-secondary: ${t.textSecondary};
+  --color-text-tertiary: ${t.textTertiary};
+  --color-background-primary: ${t.surface};
+  --color-background-secondary: ${t.surfaceSecondary};
+  --color-background-tertiary: ${t.surfaceTertiary};
+}`;
+
+const PALETTE_OVERRIDE: Partial<Record<Theme, string>> = Object.fromEntries(
+  (Object.keys(CUSTOM_PALETTE_TOKENS) as CustomPalette[]).map((p) => [
+    p,
+    paletteOverrideCss(CUSTOM_PALETTE_TOKENS[p]),
+  ]),
+);
 
 const BASE_CLASSES = `
   .t { font: 400 14px var(--font-sans); fill: var(--color-text-primary); }
@@ -126,11 +151,12 @@ const VISUALIZER_RESIZE_EVENT = 'visualizer-resize';
 const RESIZE_THROTTLE_MS = 60;
 const HEIGHT_REPORTER = `<script>(function(){var last=0,h=0,tid=0;function send(){tid=0;last=Date.now();parent.postMessage({type:'${VISUALIZER_RESIZE_EVENT}',height:h},'*')}new ResizeObserver(function(){var n=document.documentElement.scrollHeight;if(n!==h){h=n;var now=Date.now();if(now-last>=${RESIZE_THROTTLE_MS}){clearTimeout(tid);send()}else if(!tid){tid=setTimeout(send,${RESIZE_THROTTLE_MS}-(now-last))}}}).observe(document.body)})()</script>`;
 
-function buildFrameHtml(code: string, isDark: boolean): string {
+function buildFrameHtml(code: string, isDark: boolean, theme: Theme): string {
   const colorScheme = isDark ? 'dark' : 'light';
   const themeCSS = isDark ? THEME_CSS_DARK : THEME_CSS_LIGHT;
+  const override = PALETTE_OVERRIDE[theme] ?? '';
   const rampClasses = isDark ? SVG_RAMP_DARK : SVG_RAMP_LIGHT;
-  return `<html style="color-scheme:${colorScheme}"><head><style>${themeCSS}\n${BASE_CLASSES}\n${rampClasses}</style></head><body>${code}${HEIGHT_REPORTER}</body></html>`;
+  return `<html style="color-scheme:${colorScheme}"><head><style>${themeCSS}\n${override}\n${BASE_CLASSES}\n${rampClasses}</style></head><body>${code}${HEIGHT_REPORTER}</body></html>`;
 }
 
 function VisualWidgetInner({ code }: VisualWidgetProps) {
@@ -138,8 +164,10 @@ function VisualWidgetInner({ code }: VisualWidgetProps) {
   const [iframeHeight, setIframeHeight] = useState(INITIAL_IFRAME_HEIGHT);
   const [isFrameLoaded, setIsFrameLoaded] = useState(false);
   const resolvedTheme = useResolvedTheme();
+  const theme = useUIStore((state) => state.theme);
   const isDark = resolvedTheme === 'dark';
-  const iframeHtml = useMemo(() => buildFrameHtml(code, isDark), [code, isDark]);
+  // theme is a dep so dark↔dim and light↔sepia recompute (both share an isDark value)
+  const iframeHtml = useMemo(() => buildFrameHtml(code, isDark, theme), [code, isDark, theme]);
 
   useEffect(() => {
     if (!isFrameLoaded || !iframeRef.current?.contentWindow) {

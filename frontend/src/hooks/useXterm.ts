@@ -5,6 +5,7 @@ import type { FitAddon as FitAddonType } from 'xterm-addon-fit';
 
 import { buildTerminalTheme } from '@/utils/terminal';
 import type { TerminalSize } from '@/types/sandbox.types';
+import type { Palette } from '@/types/ui.types';
 
 type XTermCore = {
   _core?: {
@@ -20,7 +21,7 @@ function hasRenderer(terminal: XTerm): boolean {
 
 interface UseXtermOptions {
   isVisible: boolean;
-  mode: 'light' | 'dark';
+  mode: Palette;
   onData: (data: string) => void;
   onFit: (size: TerminalSize) => void;
 }

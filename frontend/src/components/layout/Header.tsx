@@ -1,30 +1,21 @@
-import { ArrowLeft, LogOut, Monitor, Moon, Sun } from 'lucide-react';
+import { ArrowLeft, LogOut } from 'lucide-react';
 import { useNavigate, useMatch } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { useLogoutMutation } from '@/hooks/queries/useAuthQueries';
 import { Button } from '@/components/ui/primitives/Button';
+import { THEME_CYCLE, getThemeMeta } from '@/utils/theme';
+import type { Theme } from '@/types/ui.types';
 import { cn } from '@/utils/cn';
 
 export interface HeaderProps {
   isAuthPage?: boolean;
 }
 
-const THEME_ICON_MAP = {
-  dark: Sun,
-  light: Moon,
-  system: Monitor,
-} as const;
-
-const THEME_NEXT_LABEL = {
-  dark: 'light',
-  light: 'system',
-  system: 'dark',
-} as const;
-
-function ThemeToggleButton({ theme, onToggle }: { theme: string; onToggle: () => void }) {
-  const Icon = THEME_ICON_MAP[theme as keyof typeof THEME_ICON_MAP] ?? Monitor;
-  const nextLabel = THEME_NEXT_LABEL[theme as keyof typeof THEME_NEXT_LABEL] ?? 'dark';
+function ThemeToggleButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+  // Show the current theme's icon (matches the profile menu); the title names what's next.
+  const Icon = getThemeMeta(theme).icon;
+  const next = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
   return (
     <Button
       onClick={onToggle}
@@ -37,7 +28,7 @@ function ThemeToggleButton({ theme, onToggle }: { theme: string; onToggle: () =>
         'transition-colors duration-200',
       )}
       aria-label="Toggle theme"
-      title={`Switch to ${nextLabel} mode`}
+      title={`Switch to ${getThemeMeta(next).label}`}
     >
       <Icon className="h-3.5 w-3.5" />
     </Button>

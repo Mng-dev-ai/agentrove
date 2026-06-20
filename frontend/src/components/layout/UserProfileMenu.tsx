@@ -1,4 +1,4 @@
-import { Download, Loader2, AlertCircle, Settings, LogOut, Sun, Moon, Monitor } from 'lucide-react';
+import { Download, Loader2, AlertCircle, Settings, LogOut } from 'lucide-react';
 import { UserAvatarCircle } from '@/components/chat/message-bubble/MessageAvatars';
 import { Button } from '@/components/ui/primitives/Button';
 import { useDesktopUpdateStore } from '@/store/updateStore';
@@ -6,10 +6,8 @@ import { useUIStore } from '@/store/uiStore';
 import { useDropdown } from '@/hooks/useDropdown';
 import { formatBytes } from '@/utils/format';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
+import { getThemeMeta } from '@/utils/theme';
 import { cn } from '@/utils/cn';
-
-const THEME_ICON_MAP = { dark: Moon, light: Sun, system: Monitor } as const;
-const THEME_LABEL_MAP = { dark: 'Dark', light: 'Light', system: 'System' } as const;
 
 const MENU_ITEM_CLASS =
   'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left ' +
@@ -32,7 +30,8 @@ export function UserProfileMenu({ displayName, onOpenSettings, onSignOut }: User
   const errorMessage = useDesktopUpdateStore((s) => s.errorMessage);
 
   const theme = useUIStore((s) => s.theme);
-  const ThemeIcon = THEME_ICON_MAP[theme];
+  const themeMeta = getThemeMeta(theme);
+  const ThemeIcon = themeMeta.icon;
 
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
 
@@ -192,7 +191,7 @@ export function UserProfileMenu({ displayName, onOpenSettings, onSignOut }: User
               <ThemeIcon className="h-3.5 w-3.5 flex-shrink-0" />
               <span className="flex-1 text-xs">Theme</span>
               <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-                {THEME_LABEL_MAP[theme]}
+                {themeMeta.label}
               </span>
             </Button>
             <Button
