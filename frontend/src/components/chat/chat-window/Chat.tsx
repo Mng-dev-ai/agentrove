@@ -115,6 +115,12 @@ export const Chat = memo(function Chat() {
     return ids;
   }, [activeStreams, chatId, streamIdByChatMessage]);
 
+  // Real start time of the active stream for this chat, so the thinking timer
+  // doesn't reset when switching chats and the indicator remounts.
+  const streamStartTime = useStreamStore((s) =>
+    chatId ? s.activeStreamMetadata.find((m) => m.chatId === chatId)?.startTime : undefined,
+  );
+
   const pendingMessages = useMessageQueueStore((storeState) =>
     chatId ? (storeState.queues.get(chatId) ?? EMPTY_QUEUE) : EMPTY_QUEUE,
   );
@@ -402,12 +408,12 @@ export const Chat = memo(function Chat() {
 
     return (
       <div className="w-full lg:mx-auto lg:max-w-3xl">
-        {showThinking && <ThinkingIndicator />}
+        {showThinking && <ThinkingIndicator streamStartTime={streamStartTime} />}
         {showPermissionAtEnd && <MessageInlinePermission />}
         {showStreamActions && chatId && <StreamActionsBar chatId={chatId} />}
       </div>
     );
-  }, [chatId, showPermissionAtEnd, showStreamActions, showThinking]);
+  }, [chatId, showPermissionAtEnd, showStreamActions, showThinking, streamStartTime]);
 
   return (
     <div className="relative flex min-w-0 flex-1 flex-col">
