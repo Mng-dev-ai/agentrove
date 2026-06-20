@@ -28,6 +28,7 @@ export const UserMessageContent = memo(function UserMessageContent({
       <MessageAttachments
         attachments={attachments}
         uploadingAttachmentIds={uploadingAttachmentIds}
+        chatId={chatId}
       />
       <MessageRenderer events={contentRender.events} isStreaming={isStreaming} chatId={chatId} />
     </div>
@@ -60,7 +61,7 @@ export const AssistantMessageContent = memo(function AssistantMessageContent({
         agentKind={agentKind}
       />
 
-      <MessageAttachments attachments={attachments} className="mt-3" />
+      <MessageAttachments attachments={attachments} className="mt-3" chatId={chatId} />
     </div>
   );
 });

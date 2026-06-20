@@ -6,10 +6,11 @@ interface MessageAttachmentsProps {
   attachments: MessageAttachment[];
   uploadingAttachmentIds?: string[];
   className?: string;
+  chatId?: string;
 }
 
 export const MessageAttachments = memo(
-  ({ attachments, uploadingAttachmentIds, className = '' }: MessageAttachmentsProps) => {
+  ({ attachments, uploadingAttachmentIds, className = '', chatId }: MessageAttachmentsProps) => {
     if (attachments.length === 0) {
       return null;
     }
@@ -19,6 +20,7 @@ export const MessageAttachments = memo(
         <AttachmentViewer
           attachments={attachments}
           uploadingAttachmentIds={uploadingAttachmentIds}
+          chatId={chatId}
         />
       </div>
     );

@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api';
+import { apiClient, resolveChatClient } from '@/lib/api';
 import { ensureResponse, serviceCall, buildQueryString } from '@/services/base/BaseService';
 import type {
   Workspace,
@@ -41,9 +41,14 @@ async function deleteWorkspace(workspaceId: string): Promise<void> {
   });
 }
 
-async function getWorkspaceResources(workspaceId: string): Promise<WorkspaceResources> {
+// chatId routes by the owning chat: a cloud chat's workspace lives on the VPS, so
+// its skills/slash-commands must come from there, not the local backend.
+async function getWorkspaceResources(
+  workspaceId: string,
+  chatId?: string,
+): Promise<WorkspaceResources> {
   return serviceCall(async () => {
-    const response = await apiClient.get<WorkspaceResources>(
+    const response = await resolveChatClient(chatId).get<WorkspaceResources>(
       `/workspaces/${workspaceId}/resources`,
     );
     return ensureResponse(response, 'Failed to fetch workspace resources');

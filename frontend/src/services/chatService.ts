@@ -1,8 +1,8 @@
-import { apiClient, StreamResponse } from '@/lib/api';
+import { apiClient, resolveChatClient, StreamResponse } from '@/lib/api';
 import { ensureResponse, serviceCall, buildQueryString } from '@/services/base/BaseService';
-import { authService } from '@/services/authService';
 import { validateRequired, validateId } from '@/utils/validation';
 import { chatStorage } from '@/utils/storage';
+import { isCloudChat, markCloudChats, markCloudSandboxes } from '@/utils/chatOrigin';
 import type {
   ChatRequest,
   Chat,
@@ -54,7 +54,7 @@ async function createCompletion(
     async () => {
       const formData = buildChatFormData(request);
 
-      const taskResponse = await apiClient.postForm<{
+      const taskResponse = await resolveChatClient(request.chat_id).postForm<{
         chat_id: string;
         message_id: string;
         last_seq?: number;
@@ -82,7 +82,7 @@ async function startCompletion(request: ChatRequest): Promise<{ messageId: strin
 
   return serviceCall(async () => {
     const formData = buildChatFormData(request);
-    const response = await apiClient.postForm<{
+    const response = await resolveChatClient(request.chat_id).postForm<{
       chat_id: string;
       message_id: string;
     }>('/chat/chat', formData);
@@ -97,7 +97,7 @@ async function checkChatStatus(chatId: string): Promise<{
   stream_id?: string;
   last_seq?: number;
 } | null> {
-  return serviceCall(() => apiClient.get(`/chat/chats/${chatId}/status`));
+  return serviceCall(() => resolveChatClient(chatId).get(`/chat/chats/${chatId}/status`));
 }
 
 async function reconnectToStream(
@@ -119,7 +119,7 @@ async function reconnectToStream(
 
 async function stopStream(chatId: string): Promise<void> {
   await serviceCall(async () => {
-    await apiClient.delete(`/chat/chats/${chatId}/stream`);
+    await resolveChatClient(chatId).delete(`/chat/chats/${chatId}/stream`);
   });
 }
 
@@ -137,7 +137,7 @@ async function getMessages(
     const queryString = buildQueryString(params);
     const endpoint = `/chat/chats/${chatId}/messages${queryString}`;
 
-    const response = await apiClient.get<PaginatedMessages>(endpoint);
+    const response = await resolveChatClient(chatId).get<PaginatedMessages>(endpoint);
     return ensureResponse(response, 'Failed to fetch messages');
   });
 }
@@ -169,15 +169,30 @@ async function getChat(chatId: string): Promise<Chat> {
   validateId(chatId, 'Chat ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.get<Chat>(`/chat/chats/${chatId}`);
-    return ensureResponse(response, 'Failed to fetch chat');
+    const response = await resolveChatClient(chatId).get<Chat>(`/chat/chats/${chatId}`);
+    const chat = ensureResponse(response, 'Failed to fetch chat');
+    // Register a cloud chat's sandbox so its files/git/terminal route to the VPS
+    // even on a cold deep-link, before the sidebar list has run.
+    if (isCloudChat(chatId) && chat.sandbox_id) {
+      markCloudSandboxes([chat.sandbox_id]);
+    }
+    return chat;
   });
 }
 
 async function createChat(data: CreateChatRequest): Promise<Chat> {
   return serviceCall(async () => {
-    const response = await apiClient.post<Chat>('/chat/chats', data);
-    return ensureResponse(response, 'Failed to create chat');
+    // A sub-thread inherits its parent's backend — route to the cloud VPS when the
+    // parent lives there, then mark the child (and its sandbox) cloud-owned so its
+    // turns, files, and terminal follow it instead of falling back to local.
+    const parentChatId = data.parent_chat_id;
+    const response = await resolveChatClient(parentChatId).post<Chat>('/chat/chats', data);
+    const chat = ensureResponse(response, 'Failed to create chat');
+    if (parentChatId && isCloudChat(parentChatId)) {
+      markCloudChats([chat.id]);
+      if (chat.sandbox_id) markCloudSandboxes([chat.sandbox_id]);
+    }
+    return chat;
   });
 }
 
@@ -185,7 +200,10 @@ async function updateChat(chatId: string, updateData: { title?: string }): Promi
   validateId(chatId, 'Chat ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.patch<Chat>(`/chat/chats/${chatId}`, updateData);
+    const response = await resolveChatClient(chatId).patch<Chat>(
+      `/chat/chats/${chatId}`,
+      updateData,
+    );
     return ensureResponse(response, 'Failed to update chat');
   });
 }
@@ -194,7 +212,7 @@ async function deleteChat(chatId: string): Promise<void> {
   validateId(chatId, 'Chat ID');
 
   await serviceCall(async () => {
-    await apiClient.delete(`/chat/chats/${chatId}`);
+    await resolveChatClient(chatId).delete(`/chat/chats/${chatId}`);
   });
 }
 
@@ -208,7 +226,9 @@ async function getContextUsage(chatId: string): Promise<ContextUsage> {
   validateId(chatId, 'Chat ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.get<ContextUsage>(`/chat/chats/${chatId}/context-usage`);
+    const response = await resolveChatClient(chatId).get<ContextUsage>(
+      `/chat/chats/${chatId}/context-usage`,
+    );
     return ensureResponse(response, 'Failed to fetch context usage');
   });
 }
@@ -226,7 +246,8 @@ function createEventSource(
   signal?: AbortSignal,
   baselineSeq?: number,
 ): EventSource {
-  const token = authService.getToken();
+  const client = resolveChatClient(chatId);
+  const token = client.getToken();
   if (!token) {
     throw new Error('Authentication token required');
   }
@@ -238,7 +259,7 @@ function createEventSource(
     chatStorage.setEventId(chatId, String(afterSeq));
   }
 
-  const baseUrl = `${apiClient.getBaseUrl()}/chat/chats/${chatId}/stream`;
+  const baseUrl = `${client.getBaseUrl()}/chat/chats/${chatId}/stream`;
 
   const params = new URLSearchParams();
   params.append('token', token);
@@ -266,8 +287,19 @@ function createEventSource(
 async function getSubThreads(chatId: string): Promise<Chat[]> {
   validateId(chatId, 'Chat ID');
   return serviceCall(async () => {
-    const response = await apiClient.get<Chat[]>(`/chat/chats/${chatId}/sub-threads`);
-    return ensureResponse(response, 'Failed to fetch sub-threads');
+    const response = await resolveChatClient(chatId).get<Chat[]>(
+      `/chat/chats/${chatId}/sub-threads`,
+    );
+    const subThreads = ensureResponse(response, 'Failed to fetch sub-threads');
+    // A cloud parent's sub-threads live on the VPS too — register them so opening
+    // one routes its stream/files/terminal to the cloud, not local.
+    if (isCloudChat(chatId)) {
+      markCloudChats(subThreads.map((chat) => chat.id));
+      markCloudSandboxes(
+        subThreads.map((chat) => chat.sandbox_id).filter((id): id is string => !!id),
+      );
+    }
+    return subThreads;
   });
 }
 
@@ -275,7 +307,9 @@ async function pinChat(chatId: string): Promise<Chat> {
   validateId(chatId, 'Chat ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.patch<Chat>(`/chat/chats/${chatId}`, { pinned: true });
+    const response = await resolveChatClient(chatId).patch<Chat>(`/chat/chats/${chatId}`, {
+      pinned: true,
+    });
     return ensureResponse(response, 'Failed to pin chat');
   });
 }
@@ -284,7 +318,9 @@ async function unpinChat(chatId: string): Promise<Chat> {
   validateId(chatId, 'Chat ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.patch<Chat>(`/chat/chats/${chatId}`, { pinned: false });
+    const response = await resolveChatClient(chatId).patch<Chat>(`/chat/chats/${chatId}`, {
+      pinned: false,
+    });
     return ensureResponse(response, 'Failed to unpin chat');
   });
 }
@@ -311,7 +347,7 @@ async function generateChatTitle(chatId: string): Promise<string> {
   validateId(chatId, 'Chat ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.post<{ title: string }>(
+    const response = await resolveChatClient(chatId).post<{ title: string }>(
       `/chat/chats/${chatId}/generate-title`,
     );
 
@@ -319,33 +355,47 @@ async function generateChatTitle(chatId: string): Promise<string> {
   });
 }
 
-async function getMessageChanges(messageId: string): Promise<ChangedFilesData> {
+// These endpoints are keyed by messageId but live on whichever backend owns the
+// chat, so callers thread chatId through purely for routing.
+async function getMessageChanges(
+  chatId: string | undefined,
+  messageId: string,
+): Promise<ChangedFilesData> {
   validateId(messageId, 'Message ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.get<ChangedFilesData>(`/chat/messages/${messageId}/changes`);
+    const response = await resolveChatClient(chatId).get<ChangedFilesData>(
+      `/chat/messages/${messageId}/changes`,
+    );
     return ensureResponse(response, 'Failed to load changed files');
   });
 }
 
-async function getMessageFileDiff(messageId: string, path: string): Promise<FileDiffData> {
+async function getMessageFileDiff(
+  chatId: string | undefined,
+  messageId: string,
+  path: string,
+): Promise<FileDiffData> {
   validateId(messageId, 'Message ID');
   validateRequired(path, 'Path');
 
   return serviceCall(async () => {
     const queryString = buildQueryString({ path });
-    const response = await apiClient.get<FileDiffData>(
+    const response = await resolveChatClient(chatId).get<FileDiffData>(
       `/chat/messages/${messageId}/changes/diff${queryString}`,
     );
     return ensureResponse(response, 'Failed to load file diff');
   });
 }
 
-async function restoreMessageCheckpoint(messageId: string): Promise<GitCommitResult> {
+async function restoreMessageCheckpoint(
+  chatId: string | undefined,
+  messageId: string,
+): Promise<GitCommitResult> {
   validateId(messageId, 'Message ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.post<GitCommitResult>(
+    const response = await resolveChatClient(chatId).post<GitCommitResult>(
       `/chat/messages/${messageId}/checkpoint/restore-all`,
     );
     return ensureResponse(response, 'Failed to restore checkpoint');

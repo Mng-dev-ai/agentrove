@@ -4,18 +4,24 @@ import { chatService } from '@/services/chatService';
 import { invalidateAfterGitRestore } from '@/hooks/queries/useSandboxQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 
-export function useCheckpointRestore(messageId: string, sandboxId?: string) {
+export function useCheckpointRestore(
+  chatId: string | undefined,
+  messageId: string,
+  sandboxId?: string,
+) {
   const queryClient = useQueryClient();
 
   const restoreMutation = useMutation({
-    mutationFn: () => chatService.restoreMessageCheckpoint(messageId),
+    mutationFn: () => chatService.restoreMessageCheckpoint(chatId, messageId),
     onSuccess: async (result) => {
       if (!result.success) {
         toast.error(result.error || 'Failed to restore checkpoint');
         return;
       }
       toast.success('Workspace restored to before this run');
-      await queryClient.invalidateQueries({ queryKey: queryKeys.messageChanges(messageId) });
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.messageChanges(chatId, messageId),
+      });
       if (sandboxId) {
         await invalidateAfterGitRestore(queryClient, sandboxId);
       }

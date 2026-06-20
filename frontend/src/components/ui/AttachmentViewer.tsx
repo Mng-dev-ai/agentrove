@@ -7,7 +7,7 @@ import type { MessageAttachment } from '@/types/chat.types';
 import { Button } from './primitives/Button';
 import { Spinner } from './primitives/Spinner';
 import { cn } from '@/utils/cn';
-import { apiClient } from '@/lib/api';
+import { resolveChatClient } from '@/lib/api';
 import { fetchAttachmentBlob, downloadAttachmentFile } from '@/utils/file';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import { ImagePreviewModal } from './ImagePreviewModal';
@@ -15,6 +15,9 @@ import { ImagePreviewModal } from './ImagePreviewModal';
 interface AttachmentViewerProps {
   attachments: MessageAttachment[];
   uploadingAttachmentIds?: string[];
+  // Routes attachment fetch/download to the chat's backend — cloud messages carry
+  // relative /api/v1/attachments URLs that only resolve on the owning VPS.
+  chatId?: string;
 }
 
 interface ImageState {
@@ -207,7 +210,11 @@ function ImageThumbnail({
   return null;
 }
 
-function AttachmentViewerInner({ attachments, uploadingAttachmentIds }: AttachmentViewerProps) {
+function AttachmentViewerInner({
+  attachments,
+  uploadingAttachmentIds,
+  chatId,
+}: AttachmentViewerProps) {
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({});
   // Index into imageAttachments of the image currently shown in the lightbox; null means closed.
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
@@ -218,15 +225,18 @@ function AttachmentViewerInner({ attachments, uploadingAttachmentIds }: Attachme
     [uploadingAttachmentIds],
   );
 
-  const handleDownload = useCallback(async (url: string, fileName: string) => {
-    if (!url) return;
-    try {
-      await downloadAttachmentFile(url, fileName, apiClient);
-    } catch (error) {
-      logger.error('File download failed', 'AttachmentViewer', error);
-      throw error;
-    }
-  }, []);
+  const handleDownload = useCallback(
+    async (url: string, fileName: string) => {
+      if (!url) return;
+      try {
+        await downloadAttachmentFile(url, fileName, resolveChatClient(chatId));
+      } catch (error) {
+        logger.error('File download failed', 'AttachmentViewer', error);
+        throw error;
+      }
+    },
+    [chatId],
+  );
 
   const imageAttachments = useMemo(
     () => attachments.filter((a) => a.file_type === 'image'),
@@ -276,7 +286,7 @@ function AttachmentViewerInner({ attachments, uploadingAttachmentIds }: Attachme
             return;
           }
 
-          const blob = await fetchAttachmentBlob(attachment.file_url, apiClient);
+          const blob = await fetchAttachmentBlob(attachment.file_url, resolveChatClient(chatId));
           if (cancelled) return;
           const blobUrl = URL.createObjectURL(blob);
           ownedObjectUrlsRef.current.add(blobUrl);

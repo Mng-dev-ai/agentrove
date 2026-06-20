@@ -18,6 +18,7 @@ import { setApiPort } from '@/lib/api';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { authStorage, cloudAuthStorage } from '@/utils/storage';
+import { clearCloudOrigins } from '@/utils/chatOrigin';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
 import { DesktopDragRegion } from '@/components/layout/TitleBar';
 
@@ -180,6 +181,9 @@ export default function App() {
         const cloud = useCloudSettingsStore.getState();
         if (cloud.connectedEmail && !cloudAuthStorage.getRefreshToken()) {
           cloud.clearCloud();
+          // Drop persisted cloud origin IDs too — otherwise stale IDs keep routing
+          // through remoteApiClient after the UI shows cloud as disconnected.
+          clearCloudOrigins();
         }
         setAuthHydrated(true);
       });

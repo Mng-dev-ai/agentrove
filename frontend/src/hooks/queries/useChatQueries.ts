@@ -10,8 +10,10 @@ import type {
   UseQueryOptions,
   InfiniteData,
   Query,
+  QueryClient,
 } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
+import { isCloudChat } from '@/utils/chatOrigin';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import type { Chat, ChatSearchResponse, ContextUsage, CreateChatRequest } from '@/types/chat.types';
 import type { ChangedFilesData, FileDiffData } from '@/types/sandbox.types';
@@ -29,6 +31,14 @@ const GLOBAL_WORKSPACE_SENTINEL = 'all';
 function isGlobalChatsQuery(query: Query): boolean {
   const key = query.queryKey;
   return key.length >= 5 && key[3] === GLOBAL_WORKSPACE_SENTINEL && key[4] === null;
+}
+
+// Cloud chats live in a separate query the local infinite-chats cache patches don't touch.
+// Centralized so a new chat mutation can't silently forget to refresh the cloud sidebar.
+function invalidateCloudChats(queryClient: QueryClient, chatId: string) {
+  if (isCloudChat(chatId)) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll });
+  }
 }
 
 export const useInfiniteChatsQuery = (options?: {
@@ -125,12 +135,13 @@ export const useContextUsageQuery = (
 };
 
 export const useMessageChangesQuery = (
+  chatId: string | undefined,
   messageId: string | undefined,
   options?: Partial<UseQueryOptions<ChangedFilesData>>,
 ) => {
   return useQuery({
-    queryKey: queryKeys.messageChanges(messageId),
-    queryFn: () => chatService.getMessageChanges(messageId!),
+    queryKey: queryKeys.messageChanges(chatId, messageId),
+    queryFn: () => chatService.getMessageChanges(chatId, messageId!),
     enabled: !!messageId,
     staleTime: Infinity,
     ...options,
@@ -138,13 +149,14 @@ export const useMessageChangesQuery = (
 };
 
 export const useMessageFileDiffQuery = (
+  chatId: string | undefined,
   messageId: string | undefined,
   path: string | undefined,
   options?: Partial<UseQueryOptions<FileDiffData>>,
 ) => {
   return useQuery({
-    queryKey: queryKeys.messageFileDiff(messageId, path),
-    queryFn: () => chatService.getMessageFileDiff(messageId!, path!),
+    queryKey: queryKeys.messageFileDiff(chatId, messageId, path),
+    queryFn: () => chatService.getMessageFileDiff(chatId, messageId!, path!),
     enabled: !!messageId && !!path,
     staleTime: Infinity,
     gcTime: 1000 * 60 * 5,
@@ -217,6 +229,7 @@ export const useUpdateChatMutation = createMutation<
     // Search results embed the chat title, so a rename leaves a stale title
     // visible until the search query is refetched.
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
+    invalidateCloudChats(queryClient, updatedChat.id);
 
     if (updatedChat.parent_chat_id) {
       queryClient.invalidateQueries({
@@ -239,6 +252,7 @@ export const usePinChatMutation = createMutation<Chat, Error, { chatId: string; 
       queryKey: [queryKeys.chats, 'infinite'],
     });
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+    invalidateCloudChats(queryClient, updatedChat.id);
   },
 );
 
@@ -288,6 +302,7 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
     queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
+    invalidateCloudChats(queryClient, chatId);
     useMessageQueueStore.getState().cleanupChat(chatId);
   },
 );
@@ -328,6 +343,9 @@ export const useCreateSubThreadMutation = (parentChatId: string) => {
         queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces }),
       ]);
+      // A cloud parent lives in the cloud sidebar list, not the local infinite query —
+      // refetch it so the parent's bumped sub_thread_count unlocks the expand control.
+      invalidateCloudChats(queryClient, parentChatId);
     },
   });
 };

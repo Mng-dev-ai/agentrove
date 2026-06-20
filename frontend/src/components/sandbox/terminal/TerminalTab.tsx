@@ -5,8 +5,7 @@ import 'xterm/css/xterm.css';
 
 import { Button } from '@/components/ui/primitives/Button';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
-import { authService } from '@/services/authService';
-import { WS_BASE_URL } from '@/lib/api';
+import { resolveSandboxWs } from '@/lib/api';
 
 import { getTerminalBackgroundClass } from '@/utils/terminal';
 import { useXterm } from '@/hooks/useXterm';
@@ -95,11 +94,12 @@ export const TerminalTab: FC<TerminalTabProps> = ({
     // do not leak into the next PTY — the server repaints via tmux on reattach.
     terminalRef.current?.reset();
 
-    const token = authService.getToken();
+    // Route to the cloud VPS WS host when the sandbox lives there, else local.
+    const { baseUrl, token } = resolveSandboxWs(sandboxId);
     if (!token) return;
 
     const terminalParam = terminalId ? `?terminalId=${encodeURIComponent(terminalId)}` : '';
-    const wsUrl = `${WS_BASE_URL}/${sandboxId}/terminal${terminalParam}`;
+    const wsUrl = `${baseUrl}/${sandboxId}/terminal${terminalParam}`;
 
     setSessionState('connecting');
     setCloseReason(null);

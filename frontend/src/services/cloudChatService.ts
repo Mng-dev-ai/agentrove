@@ -1,12 +1,13 @@
 import { remoteApiClient, setCloudApiBaseUrl, trimTrailingSlash } from '@/lib/api';
-import { ensureResponse, serviceCall } from '@/services/base/BaseService';
+import { ensureResponse, serviceCall, buildQueryString } from '@/services/base/BaseService';
 import { buildChatFormData } from '@/services/chatService';
 import { cloudAuthStorage } from '@/utils/storage';
+import { markCloudChats, markCloudSandboxes, clearCloudOrigins } from '@/utils/chatOrigin';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import type { AuthResponse } from '@/types/user.types';
 import type { Workspace } from '@/types/workspace.types';
 import type { Chat, ChatRequest, CreateChatRequest } from '@/types/chat.types';
-import type { PaginatedResponse } from '@/types/api.types';
+import type { PaginatedChats, PaginatedResponse } from '@/types/api.types';
 
 // Log into the VPS and persist its refresh token. The remote client mints
 // access tokens from it on demand, so the desktop stays connected across restarts.
@@ -28,7 +29,28 @@ async function connect(url: string, email: string, password: string): Promise<vo
 
 function disconnect(): void {
   cloudAuthStorage.clear();
+  clearCloudOrigins();
   useCloudSettingsStore.getState().clearCloud();
+}
+
+// List chats on the VPS and register their chat + sandbox IDs as cloud-owned so
+// chatService and sandboxService route their reads, status checks, SSE streams,
+// stops, files, git, and terminal back to the VPS.
+async function listChats(params?: {
+  page?: number;
+  per_page?: number;
+  workspace_id?: string;
+}): Promise<PaginatedChats> {
+  return serviceCall(async () => {
+    const queryString = buildQueryString(params);
+    const response = await remoteApiClient.get<PaginatedChats>(`/chat/chats${queryString}`);
+    const data = ensureResponse(response, 'Failed to load cloud chats');
+    markCloudChats(data.items.map((chat) => chat.id));
+    markCloudSandboxes(
+      data.items.map((chat) => chat.sandbox_id).filter((id): id is string => !!id),
+    );
+    return data;
+  });
 }
 
 async function listWorkspaces(): Promise<Workspace[]> {
@@ -57,6 +79,7 @@ export const cloudChatService = {
   connect,
   disconnect,
   listWorkspaces,
+  listChats,
   createChat,
   startCompletion,
 };

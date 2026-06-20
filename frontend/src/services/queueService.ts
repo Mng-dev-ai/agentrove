@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api';
+import { resolveChatClient } from '@/lib/api';
 import { ensureResponse, serviceCall } from '@/services/base/BaseService';
 import { DEFAULT_PERSONA, DEFAULT_PERMISSION_MODE } from '@/store/chatSettingsStore';
 import type { PermissionMode } from '@/store/chatSettingsStore';
@@ -42,7 +42,7 @@ async function queueMessage(
       });
     }
 
-    const response = await apiClient.postForm<QueueAddResponse>(
+    const response = await resolveChatClient(chatId).postForm<QueueAddResponse>(
       `/chat/chats/${chatId}/queue`,
       formData,
     );
@@ -54,7 +54,9 @@ async function getQueue(chatId: string): Promise<QueuedMessage[]> {
   validateId(chatId, 'Chat ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.get<QueuedMessage[]>(`/chat/chats/${chatId}/queue`);
+    const response = await resolveChatClient(chatId).get<QueuedMessage[]>(
+      `/chat/chats/${chatId}/queue`,
+    );
     return ensureResponse(response, 'Failed to fetch queue');
   });
 }
@@ -69,7 +71,7 @@ async function updateQueuedMessage(
   validateRequired(content, 'Content');
 
   return serviceCall(async () => {
-    const response = await apiClient.patch<QueuedMessage>(
+    const response = await resolveChatClient(chatId).patch<QueuedMessage>(
       `/chat/chats/${chatId}/queue/${messageId}`,
       { content },
     );
@@ -82,7 +84,7 @@ async function deleteQueuedMessage(chatId: string, messageId: string): Promise<v
   validateId(messageId, 'Message ID');
 
   await serviceCall(async () => {
-    await apiClient.delete(`/chat/chats/${chatId}/queue/${messageId}`);
+    await resolveChatClient(chatId).delete(`/chat/chats/${chatId}/queue/${messageId}`);
   });
 }
 
@@ -91,7 +93,7 @@ async function sendNow(chatId: string, messageId: string): Promise<void> {
   validateId(messageId, 'Message ID');
 
   await serviceCall(async () => {
-    await apiClient.post(`/chat/chats/${chatId}/queue/${messageId}/send-now`);
+    await resolveChatClient(chatId).post(`/chat/chats/${chatId}/queue/${messageId}/send-now`);
   });
 }
 
@@ -99,7 +101,7 @@ async function clearQueue(chatId: string): Promise<void> {
   validateId(chatId, 'Chat ID');
 
   await serviceCall(async () => {
-    await apiClient.delete(`/chat/chats/${chatId}/queue`);
+    await resolveChatClient(chatId).delete(`/chat/chats/${chatId}/queue`);
   });
 }
 

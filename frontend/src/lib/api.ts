@@ -1,6 +1,7 @@
 import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { invalidateSessionAndRedirect } from '@/utils/authSession';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
+import { isCloudChat, isCloudSandbox, clearCloudOrigins } from '@/utils/chatOrigin';
 
 type RequestMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -70,6 +71,10 @@ const cloudAuth: ClientAuth = {
   // cloud credentials so the settings UI reflects a disconnected state.
   onSessionExpired: () => {
     cloudAuthStorage.clear();
+    // Drop persisted cloud origin IDs too, matching manual disconnect — otherwise
+    // stale IDs keep routing to the (now-gone) VPS and can misroute links after
+    // reconnecting to a different VPS/account.
+    clearCloudOrigins();
     useCloudSettingsStore.getState().clearCloud();
   },
 };
@@ -105,6 +110,12 @@ class APIClient {
 
   getBaseUrl(): string {
     return this.baseURL;
+  }
+
+  // Exposes the client's own token so callers (e.g. the SSE query-param) don't
+  // re-derive the client↔token-store pairing already encoded in `auth`.
+  getToken(): string | null {
+    return this.auth.getToken();
   }
 
   setBaseUrl(url: string): void {
@@ -278,6 +289,9 @@ class APIClient {
 
 let API_BASE_URL: string = resolveHttpBaseUrl(import.meta.env.VITE_API_BASE_URL);
 export let WS_BASE_URL: string = resolveWsBaseUrl(import.meta.env.VITE_WS_URL);
+// Cloud WS origin, set alongside the cloud HTTP base so sandbox terminals on the
+// VPS connect to the right host. Empty until a VPS is connected.
+let CLOUD_WS_BASE_URL = '';
 
 export const apiClient = new APIClient(API_BASE_URL, localAuth);
 
@@ -288,6 +302,26 @@ export const remoteApiClient = new APIClient('', cloudAuth);
 const savedCloudUrl = useCloudSettingsStore.getState().cloudUrl;
 if (savedCloudUrl) setCloudApiBaseUrl(savedCloudUrl);
 
+// Route a per-chat request to the backend that owns the chat: the cloud VPS if
+// the chat was created there, otherwise the local instance.
+export function resolveChatClient(chatId: string | undefined): APIClient {
+  return chatId && isCloudChat(chatId) ? remoteApiClient : apiClient;
+}
+
+// Same routing for per-sandbox calls (files, git, secrets, search).
+export function resolveSandboxClient(sandboxId: string | undefined): APIClient {
+  return sandboxId && isCloudSandbox(sandboxId) ? remoteApiClient : apiClient;
+}
+
+// Terminal WebSockets bypass APIClient, so resolve the base URL + token for the
+// backend that owns the sandbox.
+export function resolveSandboxWs(sandboxId: string): { baseUrl: string; token: string | null } {
+  if (isCloudSandbox(sandboxId)) {
+    return { baseUrl: CLOUD_WS_BASE_URL, token: remoteApiClient.getToken() };
+  }
+  return { baseUrl: WS_BASE_URL, token: apiClient.getToken() };
+}
+
 export function setApiPort(port: number): void {
   const origin = `http://127.0.0.1:${port}`;
   API_BASE_URL = `${origin}/api/v1`;
@@ -297,5 +331,7 @@ export function setApiPort(port: number): void {
 
 // `url` is the VPS origin (e.g. https://vps.example.com); the API lives under /api/v1.
 export function setCloudApiBaseUrl(url: string): void {
-  remoteApiClient.setBaseUrl(`${trimTrailingSlash(url)}/api/v1`);
+  const base = trimTrailingSlash(url);
+  remoteApiClient.setBaseUrl(`${base}/api/v1`);
+  CLOUD_WS_BASE_URL = resolveWsBaseUrl(`${base}/api/v1/ws`);
 }

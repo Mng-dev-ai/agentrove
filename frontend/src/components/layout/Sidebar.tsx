@@ -1,12 +1,11 @@
-import { useState, useRef, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useNavigate } from 'react-router-dom';
-import { Plus, MoreHorizontal, SquarePen, ChevronDown } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
 import { Button } from '@/components/ui/primitives/Button';
-import { Spinner } from '@/components/ui/primitives/Spinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RenameModal } from '@/components/ui/RenameModal';
 import {
@@ -20,6 +19,7 @@ import {
   useDeleteWorkspaceMutation,
   useUpdateWorkspaceMutation,
 } from '@/hooks/queries/useWorkspaceQueries';
+import { useCloudWorkspacesQuery } from '@/hooks/queries/useCloudQueries';
 import { useToggleSet } from '@/hooks/useToggleSet';
 import { cn } from '@/utils/cn';
 import { useUIStore } from '@/store/uiStore';
@@ -32,10 +32,9 @@ import { UserProfileMenu } from './UserProfileMenu';
 import { SidebarChatItem } from './SidebarChatItem';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { SubThreadList } from './SubThreadList';
+import { SidebarWorkspaceGroup, SidebarCloudGroup } from './SidebarChatGroup';
 import { ChatDropdown } from './ChatDropdown';
 import { DROPDOWN_WIDTH, DROPDOWN_HEIGHT, DROPDOWN_MARGIN } from '@/config/constants';
-
-const CHATS_PER_WORKSPACE = 5;
 
 async function mutateWithToast<T>(
   mutateFn: () => Promise<T>,
@@ -88,184 +87,6 @@ function calculateDropdownPosition(buttonRect: DOMRect): { top: number; left: nu
 
   return { top, left };
 }
-
-interface WorkspaceGroupProps {
-  workspace: Workspace;
-  selectedChatId: string | null;
-  secondaryChatId: string | null;
-  dropdownChatId: string | null;
-  streamingChatIdSet: Set<string>;
-  isCollapsed: boolean;
-  onToggleCollapse: (workspaceId: string) => void;
-  onChatSelect: (chatId: string) => void;
-  onOpenInSplit?: (chatId: string) => void;
-  onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
-  onNewThread: (e: React.MouseEvent, workspaceId: string) => void;
-  onWorkspaceContextMenu: (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => void;
-  expandedSubThreads: Set<string>;
-  onToggleSubThreads: (chatId: string) => void;
-}
-
-const SidebarWorkspaceGroup = memo(function SidebarWorkspaceGroup({
-  workspace,
-  selectedChatId,
-  secondaryChatId,
-  dropdownChatId,
-  streamingChatIdSet,
-  isCollapsed,
-  onToggleCollapse,
-  onChatSelect,
-  onOpenInSplit,
-  onDropdownClick,
-  onNewThread,
-  onWorkspaceContextMenu,
-  expandedSubThreads,
-  onToggleSubThreads,
-}: WorkspaceGroupProps) {
-  const [isChatsExpanded, setIsChatsExpanded] = useState(false);
-  const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
-  const handleMouseEnter = useCallback((chatId: string) => setHoveredChatId(chatId), []);
-  const handleMouseLeave = useCallback(() => setHoveredChatId(null), []);
-
-  // Each non-collapsed workspace fires its own query on mount. Collapsing a
-  // workspace disables its query. If N simultaneous requests becomes a problem
-  // with many workspaces, default new/inactive workspaces to collapsed.
-  const { data, hasNextPage, fetchNextPage, isFetchingNextPage, isLoading } = useInfiniteChatsQuery(
-    {
-      workspaceId: workspace.id,
-      pinned: false,
-      enabled: !isCollapsed,
-    },
-  );
-
-  const chats = useMemo(() => {
-    if (!data?.pages) return [];
-    return data.pages.flatMap((page) => page.items);
-  }, [data?.pages]);
-
-  const visibleChats = isChatsExpanded ? chats : chats.slice(0, CHATS_PER_WORKSPACE);
-  const hasMoreLocalChats = chats.length > CHATS_PER_WORKSPACE;
-  const showLoadMore = isChatsExpanded && hasNextPage;
-
-  return (
-    <div>
-      <div className="group flex items-center gap-1 pb-2 pt-3.5">
-        <Button
-          variant="unstyled"
-          type="button"
-          onClick={() => onToggleCollapse(workspace.id)}
-          className="min-w-0 flex-1 text-left"
-        >
-          <span className="text-2xs font-medium uppercase tracking-wider text-text-quaternary transition-colors duration-200 group-hover:text-text-tertiary dark:text-text-dark-quaternary dark:group-hover:text-text-dark-tertiary">
-            {workspace.name}
-          </span>
-        </Button>
-        <Button
-          variant="unstyled"
-          type="button"
-          title="New thread"
-          onClick={(e) => onNewThread(e, workspace.id)}
-          className="flex shrink-0 items-center justify-center rounded p-0.5 text-text-quaternary opacity-0 transition-all duration-200 hover:text-text-primary group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-        >
-          <SquarePen className="h-3 w-3" />
-        </Button>
-        <Button
-          variant="unstyled"
-          type="button"
-          data-ws-dropdown-trigger
-          onClick={(e) => onWorkspaceContextMenu(e, workspace.id)}
-          className="flex shrink-0 items-center justify-center rounded p-0.5 text-text-quaternary opacity-0 transition-all duration-200 hover:text-text-primary group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-        >
-          <MoreHorizontal className="h-3 w-3" />
-        </Button>
-      </div>
-      {!isCollapsed && (
-        <div>
-          {isLoading ? null : chats.length === 0 ? (
-            <p className="py-1 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-              No threads
-            </p>
-          ) : (
-            <>
-              {visibleChats.map((chat) => (
-                <div key={chat.id}>
-                  <SidebarChatItem
-                    chat={chat}
-                    isSelected={chat.id === selectedChatId}
-                    isActive={chat.id === selectedChatId || chat.id === secondaryChatId}
-                    isHovered={hoveredChatId === chat.id}
-                    isDropdownOpen={dropdownChatId === chat.id}
-                    isChatStreaming={streamingChatIdSet.has(chat.id)}
-                    onSelect={onChatSelect}
-                    onOpenInSplit={onOpenInSplit}
-                    onDropdownClick={onDropdownClick}
-                    onMouseEnter={handleMouseEnter}
-                    onMouseLeave={handleMouseLeave}
-                    onToggleSubThreads={chat.sub_thread_count > 0 ? onToggleSubThreads : undefined}
-                    isSubThreadsExpanded={
-                      chat.sub_thread_count > 0 ? expandedSubThreads.has(chat.id) : undefined
-                    }
-                  />
-                  {chat.sub_thread_count > 0 && expandedSubThreads.has(chat.id) && (
-                    <SubThreadList
-                      parentChatId={chat.id}
-                      selectedChatId={selectedChatId}
-                      secondaryChatId={secondaryChatId}
-                      onSelect={onChatSelect}
-                      onDropdownClick={onDropdownClick}
-                      streamingChatIdSet={streamingChatIdSet}
-                    />
-                  )}
-                </div>
-              ))}
-              {hasMoreLocalChats && !isChatsExpanded && (
-                <Button
-                  variant="unstyled"
-                  type="button"
-                  onClick={() => setIsChatsExpanded(true)}
-                  className="flex w-full items-center gap-1 py-1.5 text-left text-xs text-text-tertiary transition-colors duration-200 hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
-                >
-                  Show more ({chats.length - CHATS_PER_WORKSPACE})
-                  <ChevronDown className="h-3 w-3" />
-                </Button>
-              )}
-              {(hasMoreLocalChats || showLoadMore) && isChatsExpanded && (
-                <div className="flex items-center gap-2 py-1.5">
-                  <Button
-                    variant="unstyled"
-                    type="button"
-                    onClick={() => setIsChatsExpanded(false)}
-                    className="text-2xs text-text-tertiary transition-colors duration-200 hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
-                  >
-                    Show less
-                  </Button>
-                  {showLoadMore && (
-                    <Button
-                      variant="unstyled"
-                      type="button"
-                      onClick={() => fetchNextPage()}
-                      disabled={isFetchingNextPage}
-                      className="flex items-center gap-1 text-2xs text-text-tertiary transition-colors duration-200 hover:text-text-primary disabled:opacity-50 dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
-                    >
-                      {isFetchingNextPage ? (
-                        <>
-                          <Spinner size="xs" />
-                          Loading…
-                        </>
-                      ) : (
-                        'Load more'
-                      )}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-});
 
 export interface SidebarProps {
   workspaces: Workspace[];
@@ -336,7 +157,12 @@ export function Sidebar({
     return pinnedChatsData.pages.flatMap((page) => page.items);
   }, [pinnedChatsData?.pages]);
 
-  const hasAnyContent = pinnedChats.length > 0 || workspaces.length > 0;
+  // Cloud projects (workspaces on the connected VPS, desktop only). Each renders
+  // its own paginated group, mirroring the local per-workspace groups.
+  const { data: cloudWorkspaces } = useCloudWorkspacesQuery(true);
+
+  const hasAnyContent =
+    pinnedChats.length > 0 || workspaces.length > 0 || (cloudWorkspaces?.length ?? 0) > 0;
 
   useEffect(() => {
     if (!selectedChatWorkspaceId) return;
@@ -713,6 +539,24 @@ export function Sidebar({
                   onDropdownClick={handleDropdownClick}
                   onNewThread={handleNewWorkspaceThread}
                   onWorkspaceContextMenu={handleWorkspaceContextMenu}
+                  expandedSubThreads={expandedSubThreads}
+                  onToggleSubThreads={handleToggleSubThreads}
+                />
+              ))}
+
+              {cloudWorkspaces?.map((workspace) => (
+                <SidebarCloudGroup
+                  key={workspace.id}
+                  workspace={workspace}
+                  selectedChatId={selectedChatId}
+                  secondaryChatId={secondaryChatId}
+                  dropdownChatId={dropdown?.chat.id ?? null}
+                  streamingChatIdSet={streamingChatIdSet}
+                  isCollapsed={collapsedWorkspaces.has(workspace.id)}
+                  onToggleCollapse={toggleWorkspaceCollapse}
+                  onChatSelect={handleChatSelect}
+                  onOpenInSplit={canOpenInSplit ? handleOpenInSplit : undefined}
+                  onDropdownClick={handleDropdownClick}
                   expandedSubThreads={expandedSubThreads}
                   onToggleSubThreads={handleToggleSubThreads}
                 />

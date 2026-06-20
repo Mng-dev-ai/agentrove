@@ -30,9 +30,11 @@ import {
   DEFAULT_PLAN_MODE,
   DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
+import { useQueryClient } from '@tanstack/react-query';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { cloudChatService } from '@/services/cloudChatService';
-import { openExternalUrl } from '@/utils/openExternal';
+import { markCloudChats } from '@/utils/chatOrigin';
+import { queryKeys } from '@/hooks/queries/queryKeys';
 import { useAuthStore } from '@/store/authStore';
 import { useCreateChatMutation } from '@/hooks/queries/useChatQueries';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
@@ -81,6 +83,7 @@ export function LandingPage() {
   const modelMap = useModelMap(isAuthenticated);
 
   const createChat = useCreateChatMutation();
+  const queryClient = useQueryClient();
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const consumedInitialMessageRef = useRef(false);
@@ -118,6 +121,7 @@ export function LandingPage() {
   // @file mentions don't apply there.
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
     selectedWorkspaceId ?? undefined,
+    undefined,
     {
       enabled: isAuthenticated && !!selectedWorkspaceId && !isCloud,
     },
@@ -234,27 +238,20 @@ export function LandingPage() {
           setMessage('');
           useChatStore.getState().setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, []);
 
-          // cloudChatService.connect stores cloudUrl slash-trimmed.
-          const chatUrl = `${useCloudSettingsStore.getState().cloudUrl}/chat/${newChat.id}`;
-          toast.success(
-            (t) => (
-              <span className="flex items-center gap-2">
-                Started on your cloud instance.
-                <Button
-                  type="button"
-                  variant="unstyled"
-                  onClick={() => {
-                    void openExternalUrl(chatUrl);
-                    toast.dismiss(t.id);
-                  }}
-                  className="font-medium underline underline-offset-2 hover:text-text-primary dark:hover:text-text-dark-primary"
-                >
-                  Open
-                </Button>
-              </span>
-            ),
-            { duration: 8000 },
-          );
+          // Register the chat as cloud-owned and refresh the sidebar's Cloud list
+          // so it appears immediately and routes to the VPS when opened.
+          markCloudChats([newChat.id]);
+          const cloud = useCloudSettingsStore.getState();
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.cloudChats(cloud.cloudUrl, cloud.connectedEmail),
+          });
+
+          useModelStore.getState().selectModel(newChat.id, selectedModelId);
+          useChatSettingsStore.getState().initChatFromDefaults(newChat.id);
+          // Run is already started on the VPS — open the chat without an
+          // initialPrompt so the page reconnects to the live stream instead of
+          // firing a second turn.
+          navigate(`/chat/${newChat.id}`);
         } catch (error) {
           toast.error(error instanceof Error ? error.message : 'Failed to start cloud chat');
         } finally {

@@ -9,6 +9,10 @@ interface UseStreamRestorationOptions {
   chats: Chat[] | undefined;
   isLoading: boolean;
   enabled?: boolean;
+  // Cloud has no push channel, so the list is polled — rerun restoration on each
+  // changed list (deduping already-tracked chats) instead of latching after the
+  // first pass. Local stays single-pass: its global SSE surfaces new runs live.
+  continuous?: boolean;
 }
 
 // After the chat list loads, writes StreamMetadata entries for any chat (or
@@ -19,20 +23,30 @@ export function useStreamRestoration({
   chats,
   isLoading,
   enabled = true,
+  continuous = false,
 }: UseStreamRestorationOptions) {
   const hasRestoredRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled || hasRestoredRef.current || isLoading || !chats || chats.length === 0) {
+    if (!enabled || isLoading || !chats || chats.length === 0) {
+      return;
+    }
+    if (!continuous && hasRestoredRef.current) {
       return;
     }
 
     hasRestoredRef.current = true;
 
     const discoverActiveStreams = async () => {
+      // Skip chats already tracked — avoids redundant status checks on reruns and
+      // keeps an existing entry's startTime from resetting on each poll.
+      const tracked = new Set(
+        useStreamStore.getState().activeStreamMetadata.map((meta) => meta.chatId),
+      );
       const chatsToCheck = chats.slice(0, 20);
 
       const checkAndRegister = async (chatId: string) => {
+        if (tracked.has(chatId)) return;
         try {
           const status = await chatService.checkChatStatus(chatId);
           if (status?.has_active_task && status.message_id) {
@@ -76,7 +90,7 @@ export function useStreamRestoration({
     discoverActiveStreams().catch((error) => {
       logger.error('Stream restoration failed', 'useStreamRestoration', error);
     });
-  }, [chats, isLoading, enabled]);
+  }, [chats, isLoading, enabled, continuous]);
 
   return { hasRestored: hasRestoredRef.current };
 }
