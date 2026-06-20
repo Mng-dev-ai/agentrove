@@ -1,9 +1,18 @@
 import { memo, useState, useRef } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
 
-export const ThinkingIndicator = memo(function ThinkingIndicator() {
+interface ThinkingIndicatorProps {
+  streamStartTime?: number;
+}
+
+export const ThinkingIndicator = memo(function ThinkingIndicator({
+  streamStartTime,
+}: ThinkingIndicatorProps) {
   const [elapsed, setElapsed] = useState(0);
-  const startTime = useRef(Date.now());
+  // Seed from the active stream's start so the timer survives chat switches —
+  // the indicator sits inside the chat-keyed scroller and remounts on switch.
+  // Fall back to mount time when loading begins before the stream exists yet.
+  const startTime = useRef(streamStartTime ?? Date.now());
 
   useMountEffect(() => {
     const interval = setInterval(() => {
