@@ -2,7 +2,8 @@ import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { cloudChatService } from '@/services/cloudChatService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
-import type { Workspace } from '@/types/workspace.types';
+import type { Workspace, WorkspaceResources } from '@/types/workspace.types';
+import type { UserSettings } from '@/types/user.types';
 
 const CLOUD_CHATS_PER_PAGE = 25;
 
@@ -14,6 +15,37 @@ export const useCloudWorkspacesQuery = (enabled: boolean) => {
   return useQuery<Workspace[]>({
     queryKey: queryKeys.cloudWorkspaces(cloudUrl, connectedEmail),
     queryFn: () => cloudChatService.listWorkspaces(),
+    enabled: enabled && !!cloudUrl,
+    staleTime: 30_000,
+  });
+};
+
+// VPS workspace skills and builtin slash-commands for the landing composer
+// before a chat exists. Keyed by cloudUrl + connectedEmail + workspaceId so
+// switching instance or account never serves the previous connection's cache.
+export const useCloudWorkspaceResourcesQuery = (
+  workspaceId: string | undefined,
+  enabled: boolean,
+) => {
+  const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
+  const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
+  return useQuery<WorkspaceResources>({
+    queryKey: queryKeys.cloudWorkspaceResources(cloudUrl, connectedEmail, workspaceId),
+    queryFn: () => cloudChatService.getWorkspaceResources(workspaceId!),
+    enabled: enabled && !!cloudUrl && !!workspaceId,
+    staleTime: 30_000,
+  });
+};
+
+// VPS user settings. Only personas are consumed on the landing page — local
+// settings (env vars, GitHub token, etc.) are separate. Keyed by cloudUrl +
+// connectedEmail so switching instance or account never serves stale cache.
+export const useCloudSettingsQuery = (enabled: boolean) => {
+  const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
+  const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
+  return useQuery<UserSettings>({
+    queryKey: queryKeys.cloudSettings(cloudUrl, connectedEmail),
+    queryFn: () => cloudChatService.getSettings(),
     enabled: enabled && !!cloudUrl,
     staleTime: 30_000,
   });

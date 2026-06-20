@@ -4,8 +4,8 @@ import { buildChatFormData } from '@/services/chatService';
 import { cloudAuthStorage } from '@/utils/storage';
 import { markCloudChats, markCloudSandboxes, clearCloudOrigins } from '@/utils/chatOrigin';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
-import type { AuthResponse } from '@/types/user.types';
-import type { Workspace } from '@/types/workspace.types';
+import type { AuthResponse, UserSettings } from '@/types/user.types';
+import type { Workspace, WorkspaceResources } from '@/types/workspace.types';
 import type { Chat, ChatRequest, CreateChatRequest } from '@/types/chat.types';
 import type { PaginatedChats, PaginatedResponse } from '@/types/api.types';
 
@@ -56,7 +56,11 @@ async function listChats(params?: {
 async function listWorkspaces(): Promise<Workspace[]> {
   return serviceCall(async () => {
     const response = await remoteApiClient.get<PaginatedResponse<Workspace>>('/workspaces');
-    return ensureResponse(response, 'Failed to load cloud workspaces').items;
+    const workspaces = ensureResponse(response, 'Failed to load cloud workspaces').items;
+    // Register sandbox IDs as cloud-owned so per-sandbox calls (git, files,
+    // terminal) route to the VPS, not the local backend.
+    markCloudSandboxes(workspaces.map((ws) => ws.sandbox_id).filter((id): id is string => !!id));
+    return workspaces;
   });
 }
 
@@ -64,6 +68,28 @@ async function createChat(data: CreateChatRequest): Promise<Chat> {
   return serviceCall(async () => {
     const response = await remoteApiClient.post<Chat>('/chat/chats', data);
     return ensureResponse(response, 'Failed to create cloud chat');
+  });
+}
+
+// Fetch a VPS workspace's skills and builtin slash-commands. The landing
+// composer needs these before a chat exists, so there's no chatId to route by —
+// call the VPS directly instead of going through resolveChatClient.
+async function getWorkspaceResources(workspaceId: string): Promise<WorkspaceResources> {
+  return serviceCall(async () => {
+    const response = await remoteApiClient.get<WorkspaceResources>(
+      `/workspaces/${workspaceId}/resources`,
+    );
+    return ensureResponse(response, 'Failed to fetch cloud workspace resources');
+  });
+}
+
+// Fetch VPS user settings. Only personas are consumed from the landing page —
+// the local settings (env vars, GitHub token, etc.) are separate. The VPS runs
+// the same backend, so the endpoint shape matches.
+async function getSettings(): Promise<UserSettings> {
+  return serviceCall(async () => {
+    const response = await remoteApiClient.get<UserSettings>('/settings/');
+    return ensureResponse(response, 'Failed to fetch cloud settings');
   });
 }
 
@@ -81,5 +107,7 @@ export const cloudChatService = {
   listWorkspaces,
   listChats,
   createChat,
+  getWorkspaceResources,
+  getSettings,
   startCompletion,
 };
