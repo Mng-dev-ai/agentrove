@@ -10,6 +10,8 @@ use libc;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSWindow, NSWindowButton};
 use rand::Rng;
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 
 #[tauri::command]
@@ -183,6 +185,34 @@ fn spawn_backend(
     child
 }
 
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
+fn build_tray(app: &tauri::App) -> tauri::Result<()> {
+    let show = MenuItem::with_id(app, "show", "Show Agentrove", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Agentrove", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&show, &quit])?;
+
+    TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("Agentrove")
+        .menu(&menu)
+        // Click the tray to open the menu (standard macOS menu-bar behavior);
+        // "Show Agentrove" brings the window back.
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => show_main_window(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
 fn main() {
     let data_dir = data_dir();
     let secret_key = ensure_secret_key(&data_dir);
@@ -200,6 +230,14 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(backend_port.clone())
         .invoke_handler(tauri::generate_handler![get_backend_port])
+        .on_window_event(|window, event| {
+            // Closing the window hides it to the tray; the app keeps running.
+            // Real exit goes through the tray "Quit" item (app.exit), which bypasses this.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .setup(move |app| {
             // The window stays titled (overlay title bar in tauri.conf.json) so minimize works —
             // borderless windows can't miniaturize on macOS. Hide the native traffic lights here
@@ -221,6 +259,8 @@ fn main() {
                     }
                 }
             }
+
+            build_tray(app)?;
 
             let child = spawn_backend(app.handle(), &data_dir, &secret_key, port);
             *backend_process.lock().unwrap() = Some(child);
