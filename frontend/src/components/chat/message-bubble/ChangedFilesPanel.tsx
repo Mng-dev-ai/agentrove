@@ -32,7 +32,9 @@ const STATUS_COLOR: Record<ChangedFileStatus, string> = {
 
 const ChangedFilesPanelInner: React.FC<ChangedFilesPanelProps> = ({ messageId }) => {
   const [expanded, setExpanded] = useState(false);
-  const { data } = useMessageChangesQuery(messageId);
+  // chatId routes the message-keyed request to the backend that owns this pane's chat.
+  const { chatId } = useChatContext();
+  const { data } = useMessageChangesQuery(chatId, messageId);
 
   const files = data?.files ?? [];
   const cwd = data?.cwd ?? '';
@@ -164,7 +166,8 @@ const FileDiffSection: React.FC<{
   messageId: string;
   path: string;
 }> = ({ messageId, path }) => {
-  const { data, isLoading, isError } = useMessageFileDiffQuery(messageId, path);
+  const { chatId } = useChatContext();
+  const { data, isLoading, isError } = useMessageFileDiffQuery(chatId, messageId, path);
 
   return (
     <div className="bg-surface-primary dark:bg-surface-dark-primary border-b border-border/50 px-3 py-2 last:border-b-0 dark:border-border-dark/50">

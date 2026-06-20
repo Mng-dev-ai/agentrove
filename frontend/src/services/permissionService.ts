@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api';
+import { resolveChatClient } from '@/lib/api';
 import { serviceCall } from '@/services/base/BaseService';
 import { validateId } from '@/utils/validation';
 
@@ -14,7 +14,10 @@ async function respondToPermission(
     const formData = new FormData();
     formData.append('option_id', optionId);
 
-    await apiClient.postForm(`/chat/chats/${chatId}/permissions/${requestId}/respond`, formData);
+    await resolveChatClient(chatId).postForm(
+      `/chat/chats/${chatId}/permissions/${requestId}/respond`,
+      formData,
+    );
   });
 }
 

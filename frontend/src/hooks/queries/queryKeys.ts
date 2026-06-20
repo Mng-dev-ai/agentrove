@@ -7,9 +7,12 @@ export const queryKeys = {
   chat: (chatId?: string) => ['chat', chatId] as const,
   messages: (chatId?: string) => ['messages', chatId] as const,
   contextUsage: (chatId?: string) => ['chat', chatId, 'context-usage'] as const,
-  messageChanges: (messageId?: string) => ['message', messageId, 'changes'] as const,
-  messageFileDiff: (messageId?: string, path?: string) =>
-    ['message', messageId, 'changes', 'diff', path] as const,
+  // chatId is the routing dimension (local vs cloud backend) — keep it in the key so a
+  // message-keyed entry can't serve data fetched from the wrong backend under staleTime.
+  messageChanges: (chatId?: string, messageId?: string) =>
+    ['message', chatId, messageId, 'changes'] as const,
+  messageFileDiff: (chatId?: string, messageId?: string, path?: string) =>
+    ['message', chatId, messageId, 'changes', 'diff', path] as const,
   subThreads: (chatId?: string) => ['chat', chatId, 'sub-threads'] as const,
   auth: {
     user: 'auth-user',
@@ -59,9 +62,14 @@ export const queryKeys = {
     searchAll: (sandboxId?: string) => ['sandbox', sandboxId, 'search'] as const,
   },
   workspaces: ['workspaces'] as const,
-  workspaceResources: (workspaceId?: string) => ['workspaces', workspaceId, 'resources'] as const,
+  workspaceResources: (workspaceId?: string, chatId?: string) =>
+    ['workspaces', workspaceId, 'resources', chatId] as const,
   cloudWorkspaces: (cloudUrl?: string, connectedEmail?: string | null) =>
     ['cloud', 'workspaces', cloudUrl, connectedEmail] as const,
+  cloudChats: (cloudUrl?: string, connectedEmail?: string | null) =>
+    ['cloud', 'chats', cloudUrl, connectedEmail] as const,
+  // Prefix key for invalidating every cloud chats query regardless of instance/account.
+  cloudChatsAll: ['cloud', 'chats'] as const,
   models: 'models',
   github: {
     repos: (query: string) => ['github-repos', query] as const,

@@ -1,4 +1,4 @@
-import { apiClient } from '@/lib/api';
+import { resolveSandboxClient } from '@/lib/api';
 import { buildQueryString, ensureResponse, serviceCall } from '@/services/base/BaseService';
 import { NotFoundError, ValidationError } from '@/services/base/ServiceError';
 import type {
@@ -24,7 +24,7 @@ async function getSandboxFilesMetadata(sandboxId: string): Promise<FileMetadata[
 
   return serviceCall(async () => {
     const url = `/sandbox/${sandboxId}/files/metadata`;
-    const response = await apiClient.get<{ files: FileMetadata[] }>(url);
+    const response = await resolveSandboxClient(sandboxId).get<{ files: FileMetadata[] }>(url);
 
     if (!response || !response.files) {
       return [];
@@ -40,7 +40,7 @@ async function getFileContent(sandboxId: string, filePath: string): Promise<File
 
   return serviceCall(async () => {
     const url = `/sandbox/${sandboxId}/files/content/${filePath}`;
-    const response = await apiClient.get<FileContent>(url);
+    const response = await resolveSandboxClient(sandboxId).get<FileContent>(url);
 
     if (!response) {
       throw new NotFoundError('File not found');
@@ -62,10 +62,13 @@ async function updateFile(
   }
 
   return serviceCall(async () => {
-    const response = await apiClient.put<UpdateFileResult>(`/sandbox/${sandboxId}/files`, {
-      file_path: filePath,
-      content,
-    });
+    const response = await resolveSandboxClient(sandboxId).put<UpdateFileResult>(
+      `/sandbox/${sandboxId}/files`,
+      {
+        file_path: filePath,
+        content,
+      },
+    );
 
     return ensureResponse(response, 'Update file operation returned no response');
   });
@@ -75,7 +78,9 @@ async function getSecrets(sandboxId: string): Promise<Secret[]> {
   validateRequired(sandboxId, 'Sandbox ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.get<{ secrets: Secret[] }>(`/sandbox/${sandboxId}/secrets`);
+    const response = await resolveSandboxClient(sandboxId).get<{ secrets: Secret[] }>(
+      `/sandbox/${sandboxId}/secrets`,
+    );
 
     if (!response || !response.secrets) {
       return [];
@@ -91,7 +96,7 @@ async function addSecret(sandboxId: string, key: string, value: string): Promise
   validateRequired(value, 'Secret value');
 
   await serviceCall(async () => {
-    await apiClient.post(`/sandbox/${sandboxId}/secrets`, { key, value });
+    await resolveSandboxClient(sandboxId).post(`/sandbox/${sandboxId}/secrets`, { key, value });
   });
 }
 
@@ -101,7 +106,7 @@ async function updateSecret(sandboxId: string, key: string, value: string): Prom
   validateRequired(value, 'Secret value');
 
   await serviceCall(async () => {
-    await apiClient.put(`/sandbox/${sandboxId}/secrets/${key}`, { value });
+    await resolveSandboxClient(sandboxId).put(`/sandbox/${sandboxId}/secrets/${key}`, { value });
   });
 }
 
@@ -110,7 +115,7 @@ async function deleteSecret(sandboxId: string, key: string): Promise<void> {
   validateRequired(key, 'Secret key');
 
   await serviceCall(async () => {
-    await apiClient.delete(`/sandbox/${sandboxId}/secrets/${key}`);
+    await resolveSandboxClient(sandboxId).delete(`/sandbox/${sandboxId}/secrets/${key}`);
   });
 }
 
@@ -118,7 +123,9 @@ async function downloadZip(sandboxId: string): Promise<Blob> {
   validateRequired(sandboxId, 'Sandbox ID');
 
   return serviceCall(async () => {
-    const response = await apiClient.getBlob(`/sandbox/${sandboxId}/download-zip`);
+    const response = await resolveSandboxClient(sandboxId).getBlob(
+      `/sandbox/${sandboxId}/download-zip`,
+    );
     return ensureResponse(response, 'Download failed: No response received');
   });
 }
@@ -137,7 +144,9 @@ async function getGitDiff(
       full_context: fullContext || undefined,
       cwd,
     });
-    const response = await apiClient.get<GitDiffData>(`/sandbox/${sandboxId}/git/diff${qs}`);
+    const response = await resolveSandboxClient(sandboxId).get<GitDiffData>(
+      `/sandbox/${sandboxId}/git/diff${qs}`,
+    );
     return ensureResponse(response, 'Failed to get git diff');
   });
 }
@@ -147,7 +156,7 @@ async function getGitBranches(sandboxId: string, cwd?: string): Promise<GitBranc
 
   return serviceCall(async () => {
     const qs = buildQueryString({ cwd });
-    const response = await apiClient.get<GitBranchesData>(
+    const response = await resolveSandboxClient(sandboxId).get<GitBranchesData>(
       `/sandbox/${sandboxId}/git/branches${qs}`,
     );
     return ensureResponse(response, 'Failed to get git branches');
@@ -163,10 +172,13 @@ async function checkoutGitBranch(
   validateRequired(branch, 'Branch name');
 
   return serviceCall(async () => {
-    const response = await apiClient.post<GitCheckoutData>(`/sandbox/${sandboxId}/git/checkout`, {
-      branch,
-      cwd: cwd ?? null,
-    });
+    const response = await resolveSandboxClient(sandboxId).post<GitCheckoutData>(
+      `/sandbox/${sandboxId}/git/checkout`,
+      {
+        branch,
+        cwd: cwd ?? null,
+      },
+    );
     return ensureResponse(response, 'Checkout failed');
   });
 }
@@ -180,10 +192,13 @@ async function gitCommit(
   validateRequired(message, 'Commit message');
 
   return serviceCall(async () => {
-    const response = await apiClient.post<GitCommitResult>(`/sandbox/${sandboxId}/git/commit`, {
-      message,
-      cwd: cwd ?? null,
-    });
+    const response = await resolveSandboxClient(sandboxId).post<GitCommitResult>(
+      `/sandbox/${sandboxId}/git/commit`,
+      {
+        message,
+        cwd: cwd ?? null,
+      },
+    );
     return ensureResponse(response, 'Commit failed');
   });
 }
@@ -193,7 +208,9 @@ async function gitPush(sandboxId: string, cwd?: string): Promise<GitPushPullResu
 
   return serviceCall(async () => {
     const qs = buildQueryString({ cwd });
-    const response = await apiClient.post<GitPushPullResult>(`/sandbox/${sandboxId}/git/push${qs}`);
+    const response = await resolveSandboxClient(sandboxId).post<GitPushPullResult>(
+      `/sandbox/${sandboxId}/git/push${qs}`,
+    );
     return ensureResponse(response, 'Push failed');
   });
 }
@@ -203,7 +220,9 @@ async function gitPull(sandboxId: string, cwd?: string): Promise<GitPushPullResu
 
   return serviceCall(async () => {
     const qs = buildQueryString({ cwd });
-    const response = await apiClient.post<GitPushPullResult>(`/sandbox/${sandboxId}/git/pull${qs}`);
+    const response = await resolveSandboxClient(sandboxId).post<GitPushPullResult>(
+      `/sandbox/${sandboxId}/git/pull${qs}`,
+    );
     return ensureResponse(response, 'Pull failed');
   });
 }
@@ -218,7 +237,7 @@ async function gitRestoreFile(
   validateRequired(filePath, 'File path');
 
   return serviceCall(async () => {
-    const response = await apiClient.post<GitCommitResult>(
+    const response = await resolveSandboxClient(sandboxId).post<GitCommitResult>(
       `/sandbox/${sandboxId}/git/restore-file`,
       {
         file_path: filePath,
@@ -235,7 +254,7 @@ async function gitRestoreAll(sandboxId: string, cwd?: string): Promise<GitCommit
 
   return serviceCall(async () => {
     const qs = buildQueryString({ cwd });
-    const response = await apiClient.post<GitCommitResult>(
+    const response = await resolveSandboxClient(sandboxId).post<GitCommitResult>(
       `/sandbox/${sandboxId}/git/restore-all${qs}`,
     );
     return ensureResponse(response, 'Restore all failed');
@@ -252,7 +271,7 @@ async function gitCreateBranch(
   validateRequired(name, 'Branch name');
 
   return serviceCall(async () => {
-    const response = await apiClient.post<GitCreateBranchResult>(
+    const response = await resolveSandboxClient(sandboxId).post<GitCreateBranchResult>(
       `/sandbox/${sandboxId}/git/create-branch`,
       { name, base_branch: baseBranch ?? null, cwd: cwd ?? null },
     );
@@ -265,7 +284,7 @@ async function getGitRemoteUrl(sandboxId: string, cwd?: string): Promise<GitRemo
 
   return serviceCall(async () => {
     const qs = buildQueryString({ cwd });
-    const response = await apiClient.get<GitRemoteUrlData>(
+    const response = await resolveSandboxClient(sandboxId).get<GitRemoteUrlData>(
       `/sandbox/${sandboxId}/git/remote-url${qs}`,
     );
     return ensureResponse(response, 'Failed to get remote URL');
@@ -286,7 +305,9 @@ async function searchInFiles(sandboxId: string, params: SearchParams): Promise<S
       include: params.include || undefined,
       exclude: params.exclude || undefined,
     });
-    const response = await apiClient.get<SearchResponse>(`/sandbox/${sandboxId}/search${qs}`);
+    const response = await resolveSandboxClient(sandboxId).get<SearchResponse>(
+      `/sandbox/${sandboxId}/search${qs}`,
+    );
     return ensureResponse(response, 'Failed to search files');
   });
 }

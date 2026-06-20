@@ -15,11 +15,12 @@ import { queryKeys } from './queryKeys';
 
 export const useWorkspaceResourcesQuery = (
   workspaceId: string | undefined,
+  chatId?: string,
   options?: Partial<UseQueryOptions<WorkspaceResources>>,
 ) => {
   return useQuery({
-    queryKey: queryKeys.workspaceResources(workspaceId),
-    queryFn: () => workspaceService.getWorkspaceResources(workspaceId!),
+    queryKey: queryKeys.workspaceResources(workspaceId, chatId),
+    queryFn: () => workspaceService.getWorkspaceResources(workspaceId!, chatId),
     enabled: !!workspaceId,
     staleTime: 30_000,
     ...options,

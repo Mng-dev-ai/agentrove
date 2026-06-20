@@ -93,7 +93,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   const onSuggestionSelect = isLastBotMessage ? setInputMessage : undefined;
   const modelMap = useModelMap();
   const [restoreOpen, setRestoreOpen] = useState(false);
-  const { restore, isRestoring } = useCheckpointRestore(id, sandboxId);
+  const { restore, isRestoring } = useCheckpointRestore(chatId, id, sandboxId);
 
   const relativeTime = createdAt ? formatRelativeTime(createdAt) : '';
   const fullTimestamp = createdAt ? formatFullTimestamp(createdAt) : '';

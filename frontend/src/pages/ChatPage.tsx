@@ -136,7 +136,10 @@ export function ChatPage() {
   const workspaces = useWorkspacesList();
   const { data: settings } = useSettingsQuery();
 
-  const { data: workspaceResources } = useWorkspaceResourcesQuery(currentChat?.workspace_id);
+  const { data: workspaceResources } = useWorkspaceResourcesQuery(
+    currentChat?.workspace_id,
+    chatId,
+  );
 
   const prevChatIdForResetRef = useRef(chatId);
 
