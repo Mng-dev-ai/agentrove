@@ -18,6 +18,11 @@ import { WorkspaceSelector } from '@/components/chat/workspace-selector/Workspac
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
 import { WorktreeToggle } from '@/components/chat/worktree-selector/WorktreeToggle';
 import { CloudWorkspaceSelector } from '@/components/chat/cloud/CloudWorkspaceSelector';
+import {
+  useCloudWorkspacesQuery,
+  useCloudWorkspaceResourcesQuery,
+  useCloudSettingsQuery,
+} from '@/hooks/queries/useCloudQueries';
 import { useChatStore } from '@/store/chatStore';
 import { useUIStore } from '@/store/uiStore';
 import { useModelStore } from '@/store/modelStore';
@@ -117,8 +122,9 @@ export function LandingPage() {
     setMessage(initialMessage);
   }
 
-  // Cloud runs target a remote workspace — local skills/slash-commands and
-  // @file mentions don't apply there.
+  // Skills and slash-commands are per-instance. Local runs fetch from the local
+  // backend; cloud runs fetch from the VPS so its skills/commands appear in the
+  // landing composer before a chat exists.
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
     selectedWorkspaceId ?? undefined,
     undefined,
@@ -126,12 +132,25 @@ export function LandingPage() {
       enabled: isAuthenticated && !!selectedWorkspaceId && !isCloud,
     },
   );
+  const { data: cloudWorkspaceResources } = useCloudWorkspaceResourcesQuery(
+    selectedCloudWorkspaceId ?? undefined,
+    isAuthenticated && isCloud,
+  );
+  const resolvedWorkspaceResources = isCloud ? cloudWorkspaceResources : workspaceResources;
 
-  // Enable @ file mentions in the input bar before a chat is created
-  const selectedSandboxId =
-    !isCloud && selectedWorkspaceId
-      ? workspaces.find((ws) => ws.id === selectedWorkspaceId)?.sandbox_id
-      : undefined;
+  // Personas are per-instance — fetch from the VPS for cloud runs so the
+  // persona selector shows the VPS's personas and chat creation resolves the
+  // selected persona against the VPS's list.
+  const { data: settings } = useSettingsQuery({ enabled: isAuthenticated });
+  const { data: cloudSettings } = useCloudSettingsQuery(isAuthenticated && isCloud);
+  const resolvedPersonas = isCloud ? cloudSettings?.personas : settings?.personas;
+
+  // Resolve the sandbox for both local and cloud so the editor, @file mentions,
+  // and branch selector route to the backend that owns the workspace.
+  const { data: cloudWorkspaces } = useCloudWorkspacesQuery(isAuthenticated && isCloud);
+  const selectedSandboxId = isCloud
+    ? cloudWorkspaces?.find((ws) => ws.id === selectedCloudWorkspaceId)?.sandbox_id
+    : workspaces.find((ws) => ws.id === selectedWorkspaceId)?.sandbox_id;
 
   const { data: filesMetadata = [], refetch: refetchFilesMetadata } = useFilesMetadataQuery(
     selectedSandboxId,
@@ -156,10 +175,6 @@ export function LandingPage() {
 
   // No chat exists on the landing page, so there are no chat-bound file jumps.
   usePendingFileOpen(fileStructure, setSelectedFile, undefined);
-
-  const { data: settings } = useSettingsQuery({
-    enabled: isAuthenticated,
-  });
 
   useMountEffect(() => {
     useChatStore.getState().setCurrentChat(null);
@@ -228,10 +243,9 @@ export function LandingPage() {
                   chatSettings.worktreeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_WORKTREE,
                 planMode:
                   chatSettings.planModeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_PLAN_MODE,
-                // Personas are per-instance — let the remote use its default.
-                persona: DEFAULT_PERSONA,
+                persona: chatSettings.personaByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_PERSONA,
               },
-              [],
+              resolvedPersonas ?? [],
             ),
           });
 
@@ -295,6 +309,7 @@ export function LandingPage() {
       selectedCloudWorkspaceId,
       attachedFiles,
       modelMap,
+      resolvedPersonas,
     ],
   );
 
@@ -420,9 +435,9 @@ export function LandingPage() {
     <ChatProvider
       sandboxId={selectedSandboxId}
       fileStructure={fileStructure}
-      customSkills={workspaceResources?.skills}
-      builtinSlashCommands={workspaceResources?.builtin_slash_commands}
-      personas={isCloud ? undefined : settings?.personas}
+      customSkills={resolvedWorkspaceResources?.skills}
+      builtinSlashCommands={resolvedWorkspaceResources?.builtin_slash_commands}
+      personas={resolvedPersonas}
     >
       <div className="flex h-full flex-1 overflow-hidden bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">
         <SplitViewContainer renderView={renderView} />
