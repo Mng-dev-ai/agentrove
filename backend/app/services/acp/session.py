@@ -525,8 +525,7 @@ class AcpSession:
         # TLS settings, and tool paths are available to the agent process.
         env = dict(os.environ)
         if config.sandbox_id:
-            host_base = settings.get_host_sandbox_base_dir()
-            host_home = f"{host_base}/{config.sandbox_id}"
+            host_home = str(settings.get_host_sandbox_home(config.sandbox_id))
             # Rewrite virtual sandbox paths (/home/user/...) to the real
             # host sandbox directory so helpers like GIT_ASKPASS resolve.
             for key, val in config.env.items():

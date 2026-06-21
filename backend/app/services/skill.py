@@ -19,40 +19,54 @@ SKILL_MD_FILENAME = "SKILL.md"
 
 
 class SkillService:
-    def __init__(self, workspace_path: Path | None = None) -> None:
+    def __init__(
+        self,
+        workspace_path: Path | None = None,
+        home_bases: list[Path] | None = None,
+    ) -> None:
+        # home_bases are the global skill roots to scan. Desktop has one real
+        # home; cloud passes one per workspace sandbox HOME (where the CLIs
+        # actually install skills). Defaults preserve single-base behavior.
+        bases = home_bases if home_bases is not None else self._default_home_bases()
         self.paths_by_source, self.readonly_paths = self._build_paths_by_source(
-            workspace_path
+            workspace_path, bases
         )
 
     @staticmethod
+    def _default_home_bases() -> list[Path]:
+        # Only desktop has a single global skill home. Server mode always passes
+        # explicit per-sandbox bases — there is no skills root at STORAGE_PATH.
+        return [Path.home()] if settings.DESKTOP_MODE else []
+
+    @staticmethod
     def _namespace_paths(
-        workspace_path: Path | None, base: Path, namespaces: list[str]
+        workspace_path: Path | None, bases: list[Path], namespaces: list[str]
     ) -> list[Path]:
         # Workspace paths come first (per-namespace) so they take priority over globals.
         paths: list[Path] = []
         if workspace_path:
             paths.extend(workspace_path / f".{ns}" / "skills" for ns in namespaces)
-        paths.extend(base / f".{ns}" / "skills" for ns in namespaces)
+        for base in bases:
+            paths.extend(base / f".{ns}" / "skills" for ns in namespaces)
         return paths
 
     @staticmethod
     def _build_paths_by_source(
         workspace_path: Path | None,
+        bases: list[Path],
     ) -> tuple[dict[str, list[Path]], set[Path]]:
-        # Desktop mode reads from the user's home dir, server mode from STORAGE_PATH.
-        base = Path.home() if settings.DESKTOP_MODE else Path(settings.STORAGE_PATH)
         ns = SkillService._namespace_paths
 
         # .{name}/skills namespaces each agent searches. Codex/Copilot/Cursor share
         # the Vercel .agents/skills ecosystem; OpenCode additionally cross-reads
         # Claude-compatible skills.
         result: dict[str, list[Path]] = {
-            AgentKind.CODEX.value: ns(workspace_path, base, ["codex", "agents"]),
-            AgentKind.COPILOT.value: ns(workspace_path, base, ["copilot", "agents"]),
-            AgentKind.CURSOR.value: ns(workspace_path, base, ["cursor", "agents"]),
-            AgentKind.CLAUDE.value: ns(workspace_path, base, ["claude"]),
+            AgentKind.CODEX.value: ns(workspace_path, bases, ["codex", "agents"]),
+            AgentKind.COPILOT.value: ns(workspace_path, bases, ["copilot", "agents"]),
+            AgentKind.CURSOR.value: ns(workspace_path, bases, ["cursor", "agents"]),
+            AgentKind.CLAUDE.value: ns(workspace_path, bases, ["claude"]),
             AgentKind.OPENCODE.value: ns(
-                workspace_path, base, ["opencode", "agents", "claude"]
+                workspace_path, bases, ["opencode", "agents", "claude"]
             ),
         }
         readonly_paths: set[Path] = set()
@@ -60,49 +74,52 @@ class SkillService:
         # Cursor CLI ships built-in skills at ~/.cursor/skills-cursor/ and manages
         # that directory automatically (updates overwrite user edits), so we
         # surface those skills but flag them read-only.
-        cursor_builtin = base / ".cursor" / "skills-cursor"
-        result[AgentKind.CURSOR.value].append(cursor_builtin)
-        readonly_paths.add(cursor_builtin)
+        for base in bases:
+            cursor_builtin = base / ".cursor" / "skills-cursor"
+            result[AgentKind.CURSOR.value].append(cursor_builtin)
+            readonly_paths.add(cursor_builtin)
 
         # Claude plugins can also bundle skills.
         result[AgentKind.CLAUDE.value].extend(
-            SkillService._get_claude_plugin_skill_paths()
+            SkillService._get_claude_plugin_skill_paths(bases)
         )
 
         return result, readonly_paths
 
     @staticmethod
-    def _get_claude_plugin_skill_paths() -> list[Path]:
-        # Claude-specific: cross-reference ~/.claude/settings.json (enabled flags)
-        # with installed_plugins.json (install paths) to discover plugin-bundled skills.
-        claude_dir = Path.home() / ".claude"
-        settings_path = claude_dir / "settings.json"
-        installed_path = claude_dir / "plugins" / "installed_plugins.json"
-        if not settings_path.is_file() or not installed_path.is_file():
-            return []
-        try:
-            settings = json.loads(settings_path.read_text(encoding="utf-8"))
-            installed = json.loads(installed_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
-            return []
-        enabled_plugins = settings.get("enabledPlugins", {})
-        # Plugin IDs use the format "plugin-name@marketplace"
-        enabled_ids = {
-            pid for pid, enabled in enabled_plugins.items() if enabled is True
-        }
-        if not enabled_ids:
-            return []
+    def _get_claude_plugin_skill_paths(bases: list[Path]) -> list[Path]:
+        # Claude-specific: cross-reference each home's .claude/settings.json
+        # (enabled flags) with installed_plugins.json (install paths) to discover
+        # plugin-bundled skills.
         paths: list[Path] = []
-        for plugin_id, installs in installed.get("plugins", {}).items():
-            if plugin_id not in enabled_ids:
+        for base in bases:
+            claude_dir = base / ".claude"
+            settings_path = claude_dir / "settings.json"
+            installed_path = claude_dir / "plugins" / "installed_plugins.json"
+            if not settings_path.is_file() or not installed_path.is_file():
                 continue
-            for entry in installs:
-                install_path = entry.get("installPath")
-                if not install_path:
+            try:
+                claude_settings = json.loads(settings_path.read_text(encoding="utf-8"))
+                installed = json.loads(installed_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+                continue
+            enabled_plugins = claude_settings.get("enabledPlugins", {})
+            # Plugin IDs use the format "plugin-name@marketplace"
+            enabled_ids = {
+                pid for pid, enabled in enabled_plugins.items() if enabled is True
+            }
+            if not enabled_ids:
+                continue
+            for plugin_id, installs in installed.get("plugins", {}).items():
+                if plugin_id not in enabled_ids:
                     continue
-                skills_dir = Path(install_path) / "skills"
-                if skills_dir.is_dir():
-                    paths.append(skills_dir)
+                for entry in installs:
+                    install_path = entry.get("installPath")
+                    if not install_path:
+                        continue
+                    skills_dir = Path(install_path) / "skills"
+                    if skills_dir.is_dir():
+                        paths.append(skills_dir)
         return paths
 
     @staticmethod

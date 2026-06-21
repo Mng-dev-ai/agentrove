@@ -184,6 +184,10 @@ class Settings(BaseSettings):
             return self.HOST_SANDBOX_BASE_DIR
         return f"{self.STORAGE_PATH.rstrip('/')}/host-sandboxes"
 
+    def get_host_sandbox_home(self, sandbox_id: str) -> Path:
+        # The real host HOME directory backing a sandbox's virtual /home/user.
+        return Path(self.get_host_sandbox_base_dir()) / sandbox_id
+
     # Security Headers Configuration
     ENABLE_SECURITY_HEADERS: bool = True
     HSTS_MAX_AGE: int = 31536000
