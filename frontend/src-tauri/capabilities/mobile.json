@@ -1,11 +1,12 @@
 {
   "$schema": "../gen/schemas/mobile-schema.json",
   "identifier": "mobile-capability",
-  "description": "Mobile capability — no window/tray/updater/process plugins on iOS/Android",
+  "description": "Mobile capability — only window show (for launch reveal); no tray/updater/process plugins on iOS/Android",
   "platforms": ["iOS", "android"],
   "windows": ["main"],
   "permissions": [
     "core:default",
+    "core:window:allow-show",
     "store:default",
     "notification:default",
     "dialog:default",

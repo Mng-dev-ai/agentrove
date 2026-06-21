@@ -1,14 +1,13 @@
 import { useCallback } from 'react';
 import { Command } from 'lucide-react';
 import { useMatch } from 'react-router-dom';
-import { isTauri } from '@tauri-apps/api/core';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button';
 import { ToggleButton } from '@/components/ui/ToggleButton';
 import { ViewSwitcher } from './ViewSwitcher';
 import { cn } from '@/utils/cn';
-import { IS_MAC_PLATFORM } from '@/utils/platform';
+import { IS_MAC_PLATFORM, isDesktopApp } from '@/utils/platform';
 
 async function getTauriWindow() {
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -16,7 +15,7 @@ async function getTauriWindow() {
 }
 
 // The native title bar is only hidden on macOS — traffic lights and custom drag region are macOS-only
-const IS_MACOS_DESKTOP = isTauri() && IS_MAC_PLATFORM;
+const IS_MACOS_DESKTOP = isDesktopApp() && IS_MAC_PLATFORM;
 
 export function TrafficLights() {
   const handleClose = useCallback(async () => {
@@ -148,17 +147,17 @@ export function TitleBar() {
 
   return (
     <div
-      // Sections carry the top safe-area inset (h = 2.5rem bar + inset, padded
-      // down) so the bar's own background bleeds under the iOS status bar.
-      // env() is 0 on desktop/web, so the bar stays a plain h-10 there.
-      className="z-50 flex flex-shrink-0 select-none"
+      // The row owns the height (2.5rem bar + top inset); each section pads its
+      // content below the inset (pt) so the section's background bleeds under the
+      // iOS status bar. env() is 0 on desktop/web, so the bar stays a plain h-10.
+      className="z-50 flex h-[calc(2.5rem+env(safe-area-inset-top))] flex-shrink-0 select-none"
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
       {/* Sidebar-width section — matches sidebar background */}
       <div
         className={cn(
-          'flex h-[calc(2.5rem+env(safe-area-inset-top))] items-center gap-1 pt-[env(safe-area-inset-top)]',
+          'flex h-full items-center gap-1 pt-[env(safe-area-inset-top)]',
           'bg-surface-secondary dark:bg-surface-dark-secondary',
           'transition-[width,padding] duration-[var(--sidebar-transition-duration,500ms)] ease-in-out',
           isAuthenticated && showSidebar && sidebarOpen
@@ -200,7 +199,7 @@ export function TitleBar() {
       </div>
 
       {/* Main content area — matches main bg */}
-      <div className="flex h-[calc(2.5rem+env(safe-area-inset-top))] flex-1 items-center justify-end bg-surface px-3 pt-[env(safe-area-inset-top)] dark:bg-surface-dark">
+      <div className="flex h-full flex-1 items-center justify-end bg-surface px-3 pt-[env(safe-area-inset-top)] dark:bg-surface-dark">
         {isChatPage && <ViewSwitcher />}
       </div>
     </div>
