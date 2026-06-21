@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { ChevronRight, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';
@@ -42,7 +42,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   return (
     <div
       className={cn(
-        'group relative -mx-2 flex items-center gap-[11px] rounded-lg px-2 py-[7px] transition-colors duration-200',
+        'group relative -mx-2 flex items-center gap-2 rounded-lg px-2 py-[7px] transition-colors duration-200',
         isActive
           ? 'bg-surface-hover/50 text-text-primary dark:bg-surface-dark-hover/50 dark:text-text-dark-primary'
           : 'text-text-secondary hover:bg-surface-hover/50 hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover/50 dark:hover:text-text-dark-secondary',
@@ -50,46 +50,57 @@ export const SidebarChatItem = memo(function SidebarChatItem({
       onMouseEnter={() => onMouseEnter(chat.id)}
       onMouseLeave={onMouseLeave}
     >
-      {isActive && !isChatStreaming && (
-        <div className="absolute bottom-2 left-0 top-2 w-0.5 rounded-full bg-text-primary dark:bg-text-dark-primary" />
-      )}
-
-      {isChatStreaming ? (
-        <div className="h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
+      {hasSubThreads ? (
+        <Button
+          onClick={() => onToggleSubThreads(chat.id)}
+          aria-expanded={isSubThreadsExpanded}
+          aria-label={`${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`}
+          variant="unstyled"
+          // Leading disclosure caret toggles sub-threads; -m-1/p-1 keeps a large thumb target without shifting the row
+          className="-m-1 flex-shrink-0 p-1 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+        >
+          <ChevronRight
+            className={cn(
+              'h-3 w-3 transition-transform duration-200',
+              isSubThreadsExpanded && 'rotate-90',
+            )}
+          />
+        </Button>
       ) : (
-        <div className="h-1.5 w-1.5 flex-shrink-0" />
+        // Spacer aligns childless-chat titles with rows that show a caret
+        <div className="h-3 w-3 flex-shrink-0" />
       )}
 
-      <Button
-        onClick={(e) => {
-          if (e.shiftKey && onOpenInSplit && !isActive) {
-            e.preventDefault();
-            onOpenInSplit(chat.id);
-            return;
-          }
-          onSelect(chat.id);
-          if (hasSubThreads) {
-            onToggleSubThreads(chat.id);
-          }
-        }}
-        aria-current={isSelected ? 'page' : undefined}
-        aria-expanded={hasSubThreads ? isSubThreadsExpanded : undefined}
-        variant="unstyled"
-        title={onOpenInSplit ? `${chat.title} (Shift-click to open in split)` : chat.title}
-        className="min-w-0 flex-1 pr-10 text-left text-[13px]"
-      >
-        <span className="flex min-w-0 items-center gap-1.5">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5 pr-10">
+        {isChatStreaming && (
+          <div className="h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
+        )}
+        <Button
+          onClick={(e) => {
+            if (e.shiftKey && onOpenInSplit && !isActive) {
+              e.preventDefault();
+              onOpenInSplit(chat.id);
+              return;
+            }
+            onSelect(chat.id);
+          }}
+          aria-current={isSelected ? 'page' : undefined}
+          variant="unstyled"
+          title={onOpenInSplit ? `${chat.title} (Shift-click to open in split)` : chat.title}
+          // flex-1 keeps the whole row width as the open-chat hit target, not just the text
+          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]"
+        >
           <span className={cn('min-w-0 truncate', isActive && 'font-medium')}>
             {stripMarkdownTitle(chat.title)}
           </span>
-          {/* Sub-thread count pill — only shown when collapsed so the user knows there are expandable threads */}
-          {chat.sub_thread_count > 0 && !isSubThreadsExpanded && (
-            <span className="flex-shrink-0 rounded-full bg-surface-tertiary px-1.5 py-0.5 text-2xs text-text-tertiary dark:bg-surface-dark-tertiary dark:text-text-dark-tertiary">
+          {/* Quiet sub-thread count — the toggle itself lives in the leading caret */}
+          {hasSubThreads && !isSubThreadsExpanded && (
+            <span className="flex-shrink-0 text-2xs tabular-nums text-text-quaternary dark:text-text-dark-quaternary">
               {chat.sub_thread_count}
             </span>
           )}
-        </span>
-      </Button>
+        </Button>
+      </div>
 
       <span
         className={cn(

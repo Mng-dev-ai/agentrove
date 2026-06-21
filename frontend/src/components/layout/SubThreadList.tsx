@@ -74,10 +74,6 @@ export const SubThreadList = memo(function SubThreadList({
           >
             <div className="absolute -left-[22px] top-1/2 h-px w-[18px] bg-border-secondary dark:bg-border-dark-secondary" />
 
-            {isActive && !isStreaming && (
-              <div className="absolute bottom-1.5 left-0 top-1.5 w-0.5 rounded-full bg-text-primary dark:bg-text-dark-primary" />
-            )}
-
             <Button
               variant="unstyled"
               type="button"
