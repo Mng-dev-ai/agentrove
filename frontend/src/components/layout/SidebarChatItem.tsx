@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { ChevronRight, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
@@ -90,6 +91,12 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           // flex-1 keeps the whole row width as the open-chat hit target, not just the text
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]"
         >
+          {chat.session_agent_kind && (
+            <ProviderIcon
+              agentKind={chat.session_agent_kind}
+              className="h-3.5 w-3.5 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
+            />
+          )}
           <span className={cn('min-w-0 truncate', isActive && 'font-medium')}>
             {stripMarkdownTitle(chat.title)}
           </span>
