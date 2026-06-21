@@ -154,15 +154,16 @@ export function TitleBar() {
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Sidebar-width section — matches sidebar background */}
+      {/* Left section — wears the sidebar color only while the sidebar is open (so it
+          reads as the sidebar's header strip); otherwise matches the main bar to avoid
+          a floating two-tone block hugging the icons. */}
       <div
         className={cn(
           'flex h-full items-center gap-1 pt-[env(safe-area-inset-top)]',
-          'bg-surface-secondary dark:bg-surface-dark-secondary',
           'transition-[width,padding] duration-[var(--sidebar-transition-duration,500ms)] ease-in-out',
           isAuthenticated && showSidebar && sidebarOpen
-            ? 'w-[var(--sidebar-width)] border-r border-border/50 dark:border-border-dark/50'
-            : 'w-auto',
+            ? 'w-[var(--sidebar-width)] border-r border-border/50 bg-surface-secondary dark:border-border-dark/50 dark:bg-surface-dark-secondary'
+            : 'w-auto bg-surface dark:bg-surface-dark',
         )}
       >
         {IS_MACOS_DESKTOP && <TrafficLights />}
