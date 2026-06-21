@@ -25,7 +25,7 @@ import type { Workspace } from '@/types/workspace.types';
 import type { GitHubRepo } from '@/types/github.types';
 import { formatRelativeTime } from '@/utils/date';
 import { cn } from '@/utils/cn';
-import { isTauri } from '@tauri-apps/api/core';
+import { isDesktopApp } from '@/utils/platform';
 import { open } from '@tauri-apps/plugin-dialog';
 
 const VISIBLE_LIMIT = 5;
@@ -369,7 +369,9 @@ export function WorkspaceSelector({
   onWorkspaceChange,
   enabled,
 }: WorkspaceSelectorProps) {
-  const isDesktop = isTauri();
+  // isTauri() is true on iOS too — gate the host-filesystem "Local folder" option
+  // on desktop only, where a real local sidecar and directory picker exist.
+  const isDesktop = isDesktopApp();
   const workspaces = useWorkspacesList({ enabled });
   const { data: settings } = useSettingsQuery({ enabled });
   const createWorkspace = useCreateWorkspaceMutation();

@@ -101,8 +101,11 @@ Install on your own iPhone with a free Apple ID — no paid developer account ne
 Build a standalone `.ipa` and install it on the connected iPhone:
 
 ```bash
-# from frontend/ — rebuild the bundled UI + native app any time the code changes
-npm run ios:build -- --debug --export-method debugging
+# from frontend/ — rebuild the bundled UI + native app any time the code changes.
+# Sign with your own Apple team (find the ID in Xcode → Signing & Capabilities,
+# or `xcrun security find-identity`); nothing is hardcoded to anyone else's team.
+APPLE_DEVELOPMENT_TEAM=<YOUR_TEAM_ID> \
+  npm run ios:build -- --debug --export-method debugging
 # -> src-tauri/gen/apple/build/arm64/Agentrove.ipa
 
 # find your device id, then install the freshly built .ipa

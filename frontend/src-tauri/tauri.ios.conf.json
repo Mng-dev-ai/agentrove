@@ -11,9 +11,6 @@
   },
   "bundle": {
     "resources": [],
-    "createUpdaterArtifacts": false,
-    "iOS": {
-      "developmentTeam": "S4QKFZ7PA6"
-    }
+    "createUpdaterArtifacts": false
   }
 }

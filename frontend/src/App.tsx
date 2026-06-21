@@ -213,10 +213,17 @@ export default function App() {
     // (.env.mobile), so just mark ready and skip the desktop backend startup.
     if (isMobileApp()) {
       setDesktopReady(true);
+      // Mobile inherits visible:false from the base window config but has no
+      // backend-port step to trigger the reveal — show the window directly.
+      getCurrentWindow()
+        .show()
+        .catch((error) => {
+          console.error('Failed to show mobile window:', error);
+        });
       return;
     }
 
-    if (!isTauri()) return;
+    if (!isDesktopApp()) return;
 
     let cancelled = false;
 
