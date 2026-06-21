@@ -216,7 +216,7 @@ class LocalHostProvider(SandboxProvider):
 
         env = os.environ.copy()
         if sandbox_id and not settings.DESKTOP_MODE:
-            host_home = Path(settings.get_host_sandbox_base_dir()) / sandbox_id
+            host_home = settings.get_host_sandbox_home(sandbox_id)
             host_home.mkdir(parents=True, exist_ok=True)
             env["HOME"] = str(host_home)
         env["TERM"] = TERMINAL_TYPE

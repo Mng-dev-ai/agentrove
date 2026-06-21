@@ -6,6 +6,7 @@ from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.security import get_current_user
 from app.core.user_manager import optional_current_active_user
 from app.db.session import SessionLocal, get_db
@@ -31,6 +32,7 @@ from app.services.user import UserService
 from app.utils.cache import CacheError, cache_connection
 
 logger = logging.getLogger(__name__)
+settings = get_settings()
 
 
 def get_user_service() -> UserService:
@@ -41,8 +43,29 @@ def get_refresh_token_service() -> RefreshTokenService:
     return RefreshTokenService(session_factory=SessionLocal)
 
 
-def get_skill_service() -> SkillService:
-    return SkillService()
+async def get_skill_service(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SkillService:
+    # Desktop reads the single real home; cloud aggregates each workspace's
+    # per-sandbox HOME, where CLI-installed skills actually land.
+    if settings.DESKTOP_MODE:
+        return SkillService()
+    # Stable ordering so duplicate skill names across workspaces resolve to the
+    # same sandbox home on every request — list and edit must agree, otherwise a
+    # PUT can target a different workspace's skill than the one shown.
+    result = await db.execute(
+        select(Workspace.sandbox_id)
+        .where(
+            Workspace.user_id == current_user.id,
+            Workspace.deleted_at.is_(None),
+        )
+        .order_by(Workspace.id)
+    )
+    home_bases = [
+        settings.get_host_sandbox_home(sid) for sid in result.scalars().all()
+    ]
+    return SkillService(home_bases=home_bases)
 
 
 async def get_github_token(
