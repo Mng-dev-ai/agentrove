@@ -7,11 +7,19 @@ RUN groupadd -r appuser && useradd -r -g appuser -m -d /home/appuser appuser
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc libpq-dev curl git gnupg \
-    ca-certificates \
+    apt-get install -y --no-install-recommends curl ca-certificates gnupg && \
+    # gh isn't in Debian's repos — add GitHub's apt source (needs curl, just installed)
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    -o /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends gcc libpq-dev git \
     gosu docker-cli \
     build-essential \
-    openssh-client && \
+    openssh-client \
+    gh ripgrep fd-find jq less tree unzip && \
+    ln -s "$(command -v fdfind)" /usr/local/bin/fd && \
     curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \
     apt-get clean && \
