@@ -84,47 +84,43 @@ class SkillService:
             result[AgentKind.CODEX.value].append(codex_builtin)
             readonly_paths.add(codex_builtin)
 
-        # Claude plugins can also bundle skills.
-        result[AgentKind.CLAUDE.value].extend(
-            SkillService._get_claude_plugin_skill_paths(bases)
-        )
+        # Claude marketplace plugins bundle skills; surface them read-only since
+        # the marketplace manages those dirs (updates overwrite edits).
+        plugin_skill_paths = SkillService._get_claude_plugin_skill_paths(bases)
+        result[AgentKind.CLAUDE.value].extend(plugin_skill_paths)
+        readonly_paths.update(plugin_skill_paths)
 
         return result, readonly_paths
 
     @staticmethod
     def _get_claude_plugin_skill_paths(bases: list[Path]) -> list[Path]:
-        # Claude-specific: cross-reference each home's .claude/settings.json
-        # (enabled flags) with installed_plugins.json (install paths) to discover
-        # plugin-bundled skills.
+        # Claude plugins bundle skills under each installed marketplace. Read
+        # known_marketplaces.json for the marketplace install location, then
+        # collect the skills/ dir of every downloaded plugin and external plugin.
         paths: list[Path] = []
         for base in bases:
-            claude_dir = base / ".claude"
-            settings_path = claude_dir / "settings.json"
-            installed_path = claude_dir / "plugins" / "installed_plugins.json"
-            if not settings_path.is_file() or not installed_path.is_file():
+            known_path = base / ".claude" / "plugins" / "known_marketplaces.json"
+            if not known_path.is_file():
                 continue
             try:
-                claude_settings = json.loads(settings_path.read_text(encoding="utf-8"))
-                installed = json.loads(installed_path.read_text(encoding="utf-8"))
+                marketplaces = json.loads(known_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError, UnicodeDecodeError):
                 continue
-            enabled_plugins = claude_settings.get("enabledPlugins", {})
-            # Plugin IDs use the format "plugin-name@marketplace"
-            enabled_ids = {
-                pid for pid, enabled in enabled_plugins.items() if enabled is True
-            }
-            if not enabled_ids:
-                continue
-            for plugin_id, installs in installed.get("plugins", {}).items():
-                if plugin_id not in enabled_ids:
+            for entry in marketplaces.values():
+                install_location = entry.get("installLocation")
+                if not install_location:
                     continue
-                for entry in installs:
-                    install_path = entry.get("installPath")
-                    if not install_path:
+                mp_root = Path(install_location)
+                # Plugins from this marketplace repo live under plugins/; remote
+                # ones it references are mirrored under external_plugins/.
+                for group in ("plugins", "external_plugins"):
+                    group_dir = mp_root / group
+                    if not group_dir.is_dir():
                         continue
-                    skills_dir = Path(install_path) / "skills"
-                    if skills_dir.is_dir():
-                        paths.append(skills_dir)
+                    for plugin_dir in group_dir.iterdir():
+                        skills_dir = plugin_dir / "skills"
+                        if skills_dir.is_dir():
+                            paths.append(skills_dir)
         return paths
 
     @staticmethod
