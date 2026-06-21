@@ -89,7 +89,8 @@ export function Header({ isAuthPage = false }: HeaderProps) {
   if (!isAuthPage && isAuthenticated && isSidebarPage) return null;
 
   return (
-    <header className="z-50 border-b border-border/50 bg-surface px-4 dark:border-border-dark/50 dark:bg-surface-dark">
+    <header className="z-50 border-b border-border/50 bg-surface px-4 pt-[env(safe-area-inset-top)] dark:border-border-dark/50 dark:bg-surface-dark">
+      {/* pt carries the iOS top inset here too — TitleBar (which normally owns it) is null on these pages */}
       <div className="relative flex h-10 items-center justify-between">
         <div className="flex items-center gap-1">
           {isAuthPage && (

@@ -355,7 +355,8 @@ const SettingsPage: React.FC = () => {
 
       {/* Mobile top bar for settings nav */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5 dark:border-border-dark md:hidden">
+        {/* pt folds in the iOS top inset (no TitleBar on settings) — env() is 0 on web, so pt stays 0.625rem there */}
+        <div className="flex items-center gap-2 border-b border-border px-4 pb-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] dark:border-border-dark md:hidden">
           <Button
             onClick={() => navigate('/')}
             variant="unstyled"
