@@ -223,6 +223,8 @@ body,
 
 body {
   max-width: 100vw;
+  /* Kill iOS WebKit's gray flash box on tapped buttons/icons — inherited, no-op on desktop */
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
