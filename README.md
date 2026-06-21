@@ -102,10 +102,11 @@ Build a standalone `.ipa` and install it on the connected iPhone:
 
 ```bash
 # from frontend/ — rebuild the bundled UI + native app any time the code changes.
-# Sign with your own Apple team (find the ID in Xcode → Signing & Capabilities,
-# or `xcrun security find-identity`); nothing is hardcoded to anyone else's team.
-APPLE_DEVELOPMENT_TEAM=<YOUR_TEAM_ID> \
-  npm run ios:build -- --debug --export-method debugging
+# Sign with your own Apple team (find the ID in Xcode → Signing & Capabilities);
+# nothing is hardcoded to anyone else's team. The -c flag injects it into both
+# the build signing and the IPA export, so it stays out of the committed config.
+npm run ios:build -- --debug --export-method debugging \
+  -c '{"bundle":{"iOS":{"developmentTeam":"<YOUR_TEAM_ID>"}}}'
 # -> src-tauri/gen/apple/build/arm64/Agentrove.ipa
 
 # find your device id, then install the freshly built .ipa
