@@ -17,6 +17,7 @@ import { toasterConfig } from '@/config/toaster';
 import { AuthRoute } from '@/components/routes/AuthRoute';
 import { setApiPort } from '@/lib/api';
 import { isTauri, invoke } from '@tauri-apps/api/core';
+import { isDesktopApp, isMobileApp } from '@/utils/platform';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { clearCloudOrigins } from '@/utils/chatOrigin';
@@ -208,6 +209,13 @@ export default function App() {
   }, [resolvedTheme, theme]);
 
   useMountEffect(() => {
+    // Mobile has no local sidecar — the backend URL is baked in at build time
+    // (.env.mobile), so just mark ready and skip the desktop backend startup.
+    if (isMobileApp()) {
+      setDesktopReady(true);
+      return;
+    }
+
     if (!isTauri()) return;
 
     let cancelled = false;
@@ -240,7 +248,7 @@ export default function App() {
   });
 
   useMountEffect(() => {
-    if (import.meta.env.DEV || !isTauri()) return;
+    if (import.meta.env.DEV || !isDesktopApp()) return;
 
     checkDesktopUpdate().catch((error) => {
       console.error('Desktop updater check failed:', error);
