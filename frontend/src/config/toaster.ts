@@ -12,6 +12,12 @@ const toastSurfaceClass =
 
 export const toasterConfig: ToasterProps = {
   position: 'top-right',
+  // Push toasts below the iOS status-bar/notch inset (env() is 0 on web/desktop).
+  // The +1rem is just the gap below that inset — it does NOT account for the
+  // TitleBar height, so on chat screens toasts still sit partly over the bar.
+  containerStyle: {
+    top: 'calc(env(safe-area-inset-top) + 1rem)',
+  },
   toastOptions: {
     className: '',
     style: {

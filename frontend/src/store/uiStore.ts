@@ -218,6 +218,13 @@ export const useUIStore = create<UIStoreState>()(
           }
           return;
         }
+        // Mobile shows one view at a time and the switcher has no agent icon, so
+        // re-tapping the active view returns to agent (removeTileFromMosaic can't
+        // collapse a single-string layout).
+        if (!isDesktop()) {
+          get().handleViewClick(toggle && state.currentView === view ? 'agent' : view, false);
+          return;
+        }
         // Target the tile of the pane the user is in — falls back to the primary
         // tile when there's no secondary chat to scope to.
         const secondary = isSecondaryPaneActive(state.activeAgentTile, state.secondaryChatId);
