@@ -1,5 +1,6 @@
 import logging
 from collections.abc import AsyncIterator
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
@@ -39,10 +40,6 @@ def get_user_service() -> UserService:
 
 def get_refresh_token_service() -> RefreshTokenService:
     return RefreshTokenService(session_factory=SessionLocal)
-
-
-def get_skill_service() -> SkillService:
-    return SkillService()
 
 
 async def get_github_token(
@@ -170,6 +167,18 @@ async def get_workspace_service(
         user_service,
         session_factory=SessionLocal,
     )
+
+
+async def get_skill_service(
+    workspace_id: UUID,
+    current_user: User = Depends(get_current_user),
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
+) -> SkillService:
+    # Skills live under each workspace's .{agent}/skills dir, so scope discovery
+    # to the selected workspace rather than a single global root that, in cloud
+    # mode, holds no skills.
+    workspace = await workspace_service.get_workspace(workspace_id, current_user)
+    return SkillService(workspace_path=Path(workspace.workspace_path))
 
 
 def get_attachment_service() -> AttachmentService:

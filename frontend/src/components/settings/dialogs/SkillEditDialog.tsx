@@ -34,6 +34,7 @@ const EDITOR_OPTIONS = {
 
 interface SkillEditDialogProps {
   isOpen: boolean;
+  workspaceId: string;
   skill: CustomSkill | null;
   onClose: () => void;
   onSaved: () => Promise<void>;
@@ -41,6 +42,7 @@ interface SkillEditDialogProps {
 
 export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
   isOpen,
+  workspaceId,
   skill,
   onClose,
   onSaved,
@@ -73,7 +75,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
 
     let cancelled = false;
     void skillService
-      .getSkillFiles(skill.source, skill.name)
+      .getSkillFiles(workspaceId, skill.source, skill.name)
       .then((loaded) => {
         if (cancelled) return;
         setFiles(loaded);
@@ -98,7 +100,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, skill]);
+  }, [isOpen, skill, workspaceId]);
 
   const selectedSkillFile = useMemo(
     () => files.find((file) => file.path === selectedFile?.path) ?? null,
@@ -142,7 +144,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
         const modified = modifiedFiles.get(file.path);
         return modified === undefined ? file : { ...file, content: modified };
       });
-      await skillService.updateSkill(skill.source, skill.name, merged);
+      await skillService.updateSkill(workspaceId, skill.source, skill.name, merged);
       await onSaved();
       onClose();
       toast.success('Skill updated');
@@ -151,7 +153,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
     } finally {
       setSaving(false);
     }
-  }, [files, modifiedFiles, onClose, onSaved, skill]);
+  }, [files, modifiedFiles, onClose, onSaved, skill, workspaceId]);
 
   if (!isOpen || !skill) return null;
 

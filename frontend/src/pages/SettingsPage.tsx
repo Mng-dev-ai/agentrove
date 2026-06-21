@@ -17,7 +17,6 @@ import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ApiFieldKey } from '@/types/settings.types';
 import { useDeleteAllChatsMutation } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
-import { useSkillsQuery } from '@/hooks/queries/useSkillsQueries';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/primitives/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner';
@@ -111,7 +110,6 @@ const SettingsPage: React.FC = () => {
   const generalSecretFields = getGeneralSecretFields();
 
   const { data: settings, error: fetchError } = useSettingsQuery();
-  const { data: skills, refetch: refetchSkills } = useSkillsQuery();
   const deleteAllChats = useDeleteAllChatsMutation();
 
   const [localSettings, setLocalSettings] = useState<UserSettings | null>(settings ?? null);
@@ -490,7 +488,7 @@ const SettingsPage: React.FC = () => {
 
                   {activeTab === 'skills' && (
                     <div role="tabpanel" id="skills-panel" aria-labelledby="skills-tab">
-                      <SkillsSettingsTab skills={skills} onSkillsChanged={refetchSkills} />
+                      <SkillsSettingsTab />
                     </div>
                   )}
 
