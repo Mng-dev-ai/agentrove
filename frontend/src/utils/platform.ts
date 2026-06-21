@@ -8,6 +8,9 @@ export const IS_MAC_PLATFORM = navigator.platform.toUpperCase().startsWith('MAC'
 // build time, so the desktop sidecar/updater/tray boot paths must be skipped.
 const IS_MOBILE_BUILD = import.meta.env.VITE_PLATFORM === 'mobile';
 
+// Intentionally no isTauri() guard (unlike isDesktopApp): in browser `dev:mobile`
+// this is true so the mobile build stays testable in a plain browser. The Tauri-only
+// calls it gates (e.g. window.show()) reject harmlessly there.
 export const isMobileApp = (): boolean => IS_MOBILE_BUILD;
 
 export const isDesktopApp = (): boolean => isTauri() && !IS_MOBILE_BUILD;
