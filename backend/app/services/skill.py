@@ -73,11 +73,16 @@ class SkillService:
 
         # Cursor CLI ships built-in skills at ~/.cursor/skills-cursor/ and manages
         # that directory automatically (updates overwrite user edits), so we
-        # surface those skills but flag them read-only.
+        # surface those skills but flag them read-only. Codex does the same for
+        # its preinstalled skills under .codex/skills/.system/ (user-installed
+        # ones stay flat in .codex/skills/ and are found via the namespace path).
         for base in bases:
             cursor_builtin = base / ".cursor" / "skills-cursor"
             result[AgentKind.CURSOR.value].append(cursor_builtin)
             readonly_paths.add(cursor_builtin)
+            codex_builtin = base / ".codex" / "skills" / ".system"
+            result[AgentKind.CODEX.value].append(codex_builtin)
+            readonly_paths.add(codex_builtin)
 
         # Claude plugins can also bundle skills.
         result[AgentKind.CLAUDE.value].extend(
