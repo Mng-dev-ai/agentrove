@@ -110,7 +110,7 @@ const SettingsPage: React.FC = () => {
 
   const generalSecretFields = getGeneralSecretFields();
 
-  const { data: settings, isLoading: loading, error: fetchError } = useSettingsQuery();
+  const { data: settings, error: fetchError } = useSettingsQuery();
   const { data: skills, refetch: refetchSkills } = useSkillsQuery();
   const deleteAllChats = useDeleteAllChatsMutation();
 
@@ -195,7 +195,8 @@ const SettingsPage: React.FC = () => {
   });
 
   const hasUnsavedChanges = useMemo(() => {
-    if (!settings) return false;
+    // localSettings lags settings by one render on first load (synced via effect) — bail until it's populated.
+    if (!settings || !localSettings) return false;
     if (activeTab !== 'general' && activeTab !== 'instructions') return false;
 
     const changedPayload = buildChangedPayload(localSettings, settings);
@@ -269,14 +270,6 @@ const SettingsPage: React.FC = () => {
     setMobileNavOpen(false);
   }, []);
 
-  if (loading) {
-    return (
-      <div className="min-h-viewport flex items-center justify-center bg-surface dark:bg-surface-dark">
-        <Spinner size="lg" className="text-text-quaternary dark:text-text-dark-quaternary" />
-      </div>
-    );
-  }
-
   if (fetchError && !settings) {
     return (
       <div className="min-h-viewport flex items-center justify-center bg-surface dark:bg-surface-dark">
@@ -285,8 +278,14 @@ const SettingsPage: React.FC = () => {
     );
   }
 
+  // Covers both first load (no settings yet) and the one render where settings has resolved but the
+  // syncing effect hasn't populated localSettings yet.
   if (!settings || !localSettings) {
-    throw new Error('Settings data is required after the loading gate');
+    return (
+      <div className="min-h-viewport flex items-center justify-center bg-surface dark:bg-surface-dark">
+        <Spinner size="lg" className="text-text-quaternary dark:text-text-dark-quaternary" />
+      </div>
+    );
   }
 
   return (
