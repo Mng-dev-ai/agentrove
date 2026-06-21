@@ -91,11 +91,28 @@ Install on your own iPhone with a free Apple ID — no paid developer account ne
 (the app must be re-signed every 7 days):
 
 1. `npm run tauri ios init` generates the Xcode project (first run only).
-2. Open `frontend/src-tauri/gen/apple/*.xcodeproj` in Xcode, pick your Team under
-   **Signing & Capabilities**, connect your iPhone, and press Run — or build a
-   standalone bundle with `npm run ios:build -- --export-method debugging`.
-3. On the phone, enable Developer Mode and trust the certificate under
+2. Open `frontend/src-tauri/gen/apple/*.xcodeproj` in Xcode once, pick your Team
+   under **Signing & Capabilities**, and connect your iPhone (Xcode needs to
+   register the device and create the provisioning profile).
+3. On the phone, enable Developer Mode (**Settings → Privacy & Security**), then
+   after the first install trust the certificate under
    **Settings → General → VPN & Device Management**.
+
+Build a standalone `.ipa` and install it on the connected iPhone:
+
+```bash
+# from frontend/ — rebuild the bundled UI + native app any time the code changes
+npm run ios:build -- --debug --export-method debugging
+# -> src-tauri/gen/apple/build/arm64/Agentrove.ipa
+
+# find your device id, then install the freshly built .ipa
+xcrun devicectl list devices
+xcrun devicectl device install app --device <DEVICE_ID> \
+  src-tauri/gen/apple/build/arm64/Agentrove.ipa
+```
+
+To update the app later, re-run those two commands — the standalone build runs on
+the phone without keeping a Mac connected.
 
 ## Production
 
