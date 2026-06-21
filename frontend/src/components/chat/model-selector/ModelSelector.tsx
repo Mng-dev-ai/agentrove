@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, ComponentType, SVGProps } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { Dropdown } from '@/components/ui/primitives/Dropdown';
@@ -7,11 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/store/modelStore';
 import { useModelSelection } from '@/hooks/queries/useModelQueries';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
-import { ClaudeIcon } from '@/components/ui/icons/ClaudeIcon';
-import { CodexIcon } from '@/components/ui/icons/CodexIcon';
-import { CopilotIcon } from '@/components/ui/icons/CopilotIcon';
-import { CursorIcon } from '@/components/ui/icons/CursorIcon';
-import { OpencodeIcon } from '@/components/ui/icons/OpencodeIcon';
+import { AGENT_ICONS } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';
 import { formatNumberCompact } from '@/utils/format';
 import type { AgentKind, Model } from '@/types/chat.types';
@@ -24,14 +20,6 @@ const AGENT_LABELS: Record<AgentKind, string> = {
   copilot: 'Copilot',
   cursor: 'Cursor',
   opencode: 'OpenCode',
-};
-
-const AGENT_ICONS: Record<AgentKind, ComponentType<SVGProps<SVGSVGElement>>> = {
-  claude: ClaudeIcon,
-  codex: CodexIcon,
-  copilot: CopilotIcon,
-  cursor: CursorIcon,
-  opencode: OpencodeIcon,
 };
 
 export interface ModelSelectorProps {

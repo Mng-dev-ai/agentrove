@@ -2,6 +2,7 @@ import { memo, useState, useCallback } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import { useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
 import { Button } from '@/components/ui/primitives/Button';
+import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
@@ -88,6 +89,12 @@ export const SubThreadList = memo(function SubThreadList({
             >
               {isStreaming && (
                 <div className="h-[5px] w-[5px] flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
+              )}
+              {thread.session_agent_kind && (
+                <ProviderIcon
+                  agentKind={thread.session_agent_kind}
+                  className="h-3 w-3 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
+                />
               )}
               <span className={cn('truncate text-xs', isActive && 'font-medium')}>
                 {stripMarkdownTitle(thread.title)}
