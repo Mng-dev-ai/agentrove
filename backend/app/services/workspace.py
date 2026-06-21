@@ -271,11 +271,7 @@ class WorkspaceService(BaseDbService[Workspace]):
         # Thread-offloaded: SkillService walks the filesystem synchronously.
         workspace = await self.get_workspace(workspace_id, user)
         workspace_path = Path(workspace.workspace_path)
-        # Cloud mode: skills live in per-sandbox HOME dirs, not STORAGE_PATH root.
-        home_bases = None
-        if not settings.DESKTOP_MODE:
-            home_bases = [settings.get_host_sandbox_home(workspace.sandbox_id)]
-        skill_service = SkillService(workspace_path=workspace_path, home_bases=home_bases)
+        skill_service = SkillService(workspace_path=workspace_path)
 
         return await asyncio.to_thread(self._build_workspace_resources, skill_service)
 
