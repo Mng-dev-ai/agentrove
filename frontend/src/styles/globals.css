@@ -166,40 +166,19 @@ body,
   min-height: 100dvh;
 }
 
-/* iOS safe areas: with viewport-fit=cover the webview is edge-to-edge, so inset
-   the app shell by the notch/Dynamic Island (top) and the landscape notch (sides).
-   Bottom (home indicator) is intentionally NOT padded here — the chat composer
-   already insets itself via `pb-safe`; padding #root too would double the gap.
-   No-op on desktop/web where the env() values are 0. */
-@supports (padding: env(safe-area-inset-top)) {
-  #root {
-    padding-top: env(safe-area-inset-top);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-  }
-}
-
 @layer utilities {
-  /* Subtract the top inset that #root now pads with, so full-height containers
-     fit the padded box instead of overflowing it (would scroll on iOS). Bottom
-     isn't padded on #root, so it isn't subtracted here either.
-     env() is 0 on desktop/web, so these stay full viewport height there. */
+  /* iOS safe areas are handled by the surfaces that touch the screen edges (the
+     TitleBar bleeds under the status bar via env(safe-area-inset-top); the chat
+     composer lifts above the home indicator via `pb-safe`) — NOT by insetting
+     #root, which leaves a flat strip the dim sidebar backdrop turns gray. */
   .h-viewport {
     height: 100vh;
-    height: calc(100dvh - env(safe-area-inset-top));
+    height: 100dvh;
   }
 
   .min-h-viewport {
     min-height: 100vh;
-    min-height: calc(100dvh - env(safe-area-inset-top));
-  }
-
-  .h-screen {
-    height: calc(100dvh - env(safe-area-inset-top));
-  }
-
-  .min-h-screen {
-    min-height: calc(100dvh - env(safe-area-inset-top));
+    min-height: 100dvh;
   }
 
   @keyframes fade-in {

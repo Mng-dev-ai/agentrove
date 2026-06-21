@@ -92,3 +92,6 @@ Library/
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# Mobile build config holds the self-hoster's own backend URL — keep it local
+frontend/.env.mobile

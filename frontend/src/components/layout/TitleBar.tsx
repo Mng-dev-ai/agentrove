@@ -148,14 +148,18 @@ export function TitleBar() {
 
   return (
     <div
-      className="z-50 flex h-10 flex-shrink-0 select-none items-center"
+      // Sections carry the top safe-area inset (h = 2.5rem bar + inset, padded
+      // down) so the bar's own background bleeds under the iOS status bar.
+      // env() is 0 on desktop/web, so the bar stays a plain h-10 there.
+      className="z-50 flex flex-shrink-0 select-none"
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
       {/* Sidebar-width section — matches sidebar background */}
       <div
         className={cn(
-          'flex h-full items-center gap-1 bg-surface-secondary dark:bg-surface-dark-secondary',
+          'flex h-[calc(2.5rem+env(safe-area-inset-top))] items-center gap-1 pt-[env(safe-area-inset-top)]',
+          'bg-surface-secondary dark:bg-surface-dark-secondary',
           'transition-[width,padding] duration-[var(--sidebar-transition-duration,500ms)] ease-in-out',
           isAuthenticated && showSidebar && sidebarOpen
             ? 'w-[var(--sidebar-width)] border-r border-border/50 dark:border-border-dark/50'
@@ -196,7 +200,7 @@ export function TitleBar() {
       </div>
 
       {/* Main content area — matches main bg */}
-      <div className="flex flex-1 items-center justify-end bg-surface px-3 dark:bg-surface-dark">
+      <div className="flex h-[calc(2.5rem+env(safe-area-inset-top))] flex-1 items-center justify-end bg-surface px-3 pt-[env(safe-area-inset-top)] dark:bg-surface-dark">
         {isChatPage && <ViewSwitcher />}
       </div>
     </div>

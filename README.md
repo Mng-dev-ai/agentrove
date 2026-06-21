@@ -20,7 +20,7 @@ Self-hosted AI coding workspace for running Claude Code, Codex, Copilot, Cursor,
 - Streams agent sessions with cancellation, permission prompts, queued follow-up messages, file mentions, slash commands, and attachments.
 - Includes sub-threads, pinned chats, worktree mode, personas, custom instructions, environment variables, and installed agent skills.
 - Provides GitHub-assisted repository browsing, pull request review, PR creation, reviewer selection, and git branch/commit/push/pull helpers.
-- Ships as a Docker web app and a macOS desktop app.
+- Ships as a Docker web app, a macOS desktop app, and a native iOS app.
 
 ## Quick Start
 
@@ -61,6 +61,41 @@ cd frontend
 npm install
 npm run desktop:dev
 ```
+
+## Mobile (iOS)
+
+Agentrove also builds a native iOS app with Tauri. Since iOS can't run the local
+backend sidecar, the app is a thin client: it talks to an Agentrove instance you
+already host (your Docker or production deployment), reachable from the phone over
+`https`/`wss`. Because the project is open source, you build and sign it yourself —
+nothing is hardcoded to anyone else's server.
+
+Requirements: macOS with Xcode (plus its iOS SDK and Simulator), the Rust iOS
+targets (`rustup target add aarch64-apple-ios aarch64-apple-ios-sim`), and CocoaPods.
+
+Point the app at your instance:
+
+```bash
+cd frontend
+cp .env.mobile.example .env.mobile   # then set your https/wss URLs
+npm install
+```
+
+Run in the simulator:
+
+```bash
+npm run ios:dev
+```
+
+Install on your own iPhone with a free Apple ID — no paid developer account needed
+(the app must be re-signed every 7 days):
+
+1. `npm run tauri ios init` generates the Xcode project (first run only).
+2. Open `frontend/src-tauri/gen/apple/*.xcodeproj` in Xcode, pick your Team under
+   **Signing & Capabilities**, connect your iPhone, and press Run — or build a
+   standalone bundle with `npm run ios:build -- --export-method debugging`.
+3. On the phone, enable Developer Mode and trust the certificate under
+   **Settings → General → VPN & Device Management**.
 
 ## Production
 
