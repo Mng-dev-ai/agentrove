@@ -20,7 +20,7 @@ Self-hosted AI coding workspace for running Claude Code, Codex, Copilot, Cursor,
 - Streams agent sessions with cancellation, permission prompts, queued follow-up messages, file mentions, slash commands, and attachments.
 - Includes sub-threads, pinned chats, worktree mode, personas, custom instructions, environment variables, and installed agent skills.
 - Provides GitHub-assisted repository browsing, pull request review, PR creation, reviewer selection, and git branch/commit/push/pull helpers.
-- Ships as a Docker web app and a macOS desktop app.
+- Ships as a Docker web app, a macOS desktop app, and a native iOS app.
 
 ## Quick Start
 
@@ -61,6 +61,62 @@ cd frontend
 npm install
 npm run desktop:dev
 ```
+
+## Mobile (iOS)
+
+Agentrove also builds a native iOS app with Tauri. Since iOS can't run the local
+backend sidecar, the app is a thin client: it talks to an Agentrove instance you
+already host (your Docker or production deployment), reachable from the phone over
+`https`/`wss`. Because the project is open source, you build and sign it yourself —
+nothing is hardcoded to anyone else's server.
+
+Requirements: macOS with Xcode (plus its iOS SDK and Simulator), the Rust iOS
+targets (`rustup target add aarch64-apple-ios aarch64-apple-ios-sim`), and CocoaPods.
+
+Point the app at your instance:
+
+```bash
+cd frontend
+cp .env.mobile.example .env.mobile   # then set your https/wss URLs
+npm install
+```
+
+Run in the simulator:
+
+```bash
+npm run ios:dev
+```
+
+Install on your own iPhone with a free Apple ID — no paid developer account needed
+(the app must be re-signed every 7 days):
+
+1. `npm run tauri ios init` generates the Xcode project (first run only).
+2. Open `frontend/src-tauri/gen/apple/*.xcodeproj` in Xcode once, pick your Team
+   under **Signing & Capabilities**, and connect your iPhone (Xcode needs to
+   register the device and create the provisioning profile).
+3. On the phone, enable Developer Mode (**Settings → Privacy & Security**), then
+   after the first install trust the certificate under
+   **Settings → General → VPN & Device Management**.
+
+Build a standalone `.ipa` and install it on the connected iPhone:
+
+```bash
+# from frontend/ — rebuild the bundled UI + native app any time the code changes.
+# Sign with your own Apple team (find the ID in Xcode → Signing & Capabilities);
+# nothing is hardcoded to anyone else's team. The -c flag injects it into both
+# the build signing and the IPA export, so it stays out of the committed config.
+npm run ios:build -- --debug --export-method debugging \
+  -c '{"bundle":{"iOS":{"developmentTeam":"<YOUR_TEAM_ID>"}}}'
+# -> src-tauri/gen/apple/build/arm64/Agentrove.ipa
+
+# find your device id, then install the freshly built .ipa
+xcrun devicectl list devices
+xcrun devicectl device install app --device <DEVICE_ID> \
+  src-tauri/gen/apple/build/arm64/Agentrove.ipa
+```
+
+To update the app later, re-run those two commands — the standalone build runs on
+the phone without keeping a Mac connected.
 
 ## Production
 

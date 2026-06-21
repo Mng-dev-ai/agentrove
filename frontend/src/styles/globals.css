@@ -167,6 +167,10 @@ body,
 }
 
 @layer utilities {
+  /* iOS safe areas are handled by the surfaces that touch the screen edges (the
+     TitleBar bleeds under the status bar via env(safe-area-inset-top); the chat
+     composer lifts above the home indicator via `pb-safe`) — NOT by insetting
+     #root, which leaves a flat strip the dim sidebar backdrop turns gray. */
   .h-viewport {
     height: 100vh;
     height: 100dvh;
@@ -219,6 +223,8 @@ body,
 
 body {
   max-width: 100vw;
+  /* Kill iOS WebKit's gray flash box on tapped buttons/icons — inherited, no-op on desktop */
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {

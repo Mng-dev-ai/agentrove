@@ -6,13 +6,18 @@
   "scripts": {
     "dev": "vite",
     "dev:desktop": "vite --mode desktop",
+    "dev:mobile": "vite --mode mobile",
     "build": "vite build",
+    "build:mobile": "vite build --mode mobile",
+    "ios:dev": "tauri ios dev",
+    "ios:build": "tauri ios build",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
+    "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build"
   },

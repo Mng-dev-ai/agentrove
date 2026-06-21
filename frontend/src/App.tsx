@@ -17,6 +17,7 @@ import { toasterConfig } from '@/config/toaster';
 import { AuthRoute } from '@/components/routes/AuthRoute';
 import { setApiPort } from '@/lib/api';
 import { isTauri, invoke } from '@tauri-apps/api/core';
+import { isDesktopApp, isMobileApp } from '@/utils/platform';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { clearCloudOrigins } from '@/utils/chatOrigin';
@@ -159,14 +160,22 @@ function AppContent() {
   );
 }
 
+// The window starts hidden (visible:false) on every shell — reveal it once the shell is ready.
+function revealAppWindow() {
+  getCurrentWindow()
+    .show()
+    .catch((error) => console.error('Failed to reveal app window:', error));
+}
+
 export default function App() {
   const resolvedTheme = useResolvedTheme();
   const theme = useUIStore((state) => state.theme);
-  const [desktopReady, setDesktopReady] = useState(!isTauri());
+  // Ready = the shell can talk to a backend: web/mobile immediately, desktop after the sidecar port resolves
+  const [shellReady, setShellReady] = useState(!isTauri());
   const [desktopError, setDesktopError] = useState<string | null>(null);
   const [authHydrated, setAuthHydrated] = useState(false);
 
-  useGlobalStream({ enabled: authHydrated && desktopReady });
+  useGlobalStream({ enabled: authHydrated && shellReady });
 
   useMountEffect(() => {
     let cancelled = false;
@@ -208,7 +217,16 @@ export default function App() {
   }, [resolvedTheme, theme]);
 
   useMountEffect(() => {
-    if (!isTauri()) return;
+    // Mobile has no local sidecar — the backend URL is baked in at build time
+    // (.env.mobile), so just mark ready and skip the desktop backend startup.
+    if (isMobileApp()) {
+      setShellReady(true);
+      // Mobile has no backend-port step to trigger the reveal — show it directly.
+      revealAppWindow();
+      return;
+    }
+
+    if (!isDesktopApp()) return;
 
     let cancelled = false;
 
@@ -216,22 +234,14 @@ export default function App() {
       .then((port) => {
         if (cancelled) return;
         setApiPort(port);
-        setDesktopReady(true);
-        getCurrentWindow()
-          .show()
-          .catch((error) => {
-            console.error('Failed to show desktop window:', error);
-          });
+        setShellReady(true);
+        revealAppWindow();
       })
       .catch((error) => {
         if (cancelled) return;
         console.error('Failed to resolve desktop backend port:', error);
         setDesktopError('Desktop backend failed to start. Restart Agentrove and try again.');
-        getCurrentWindow()
-          .show()
-          .catch((error) => {
-            console.error('Failed to show desktop window:', error);
-          });
+        revealAppWindow();
       });
 
     return () => {
@@ -240,7 +250,7 @@ export default function App() {
   });
 
   useMountEffect(() => {
-    if (import.meta.env.DEV || !isTauri()) return;
+    if (import.meta.env.DEV || !isDesktopApp()) return;
 
     checkDesktopUpdate().catch((error) => {
       console.error('Desktop updater check failed:', error);
@@ -302,7 +312,7 @@ export default function App() {
     );
   }
 
-  if (!desktopReady || !authHydrated) {
+  if (!shellReady || !authHydrated) {
     return <LoadingScreen />;
   }
 

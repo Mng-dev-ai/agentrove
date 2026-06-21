@@ -5,3 +5,9 @@ node_modules
 package-lock.json
 bun.lockb
 .git
+
+# Generated / build artifacts — don't reformat machine-generated files
+src-tauri/gen
+src-tauri/target
+backend-sidecar
+.claude
