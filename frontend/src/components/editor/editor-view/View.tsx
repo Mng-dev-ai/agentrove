@@ -37,7 +37,17 @@ export const View = memo(function View({
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof monaco | null>(null);
   const prevSelectedFileRef = useRef<FileStructure | null>(null);
-  const isUserEditRef = useRef(false);
+  const selectedFilePath = selectedFile?.path ?? null;
+  const mountedEditorPathRef = useRef(selectedFilePath);
+  const [mountedEditorPath, setMountedEditorPath] = useState<string | null>(null);
+
+  if (mountedEditorPathRef.current !== selectedFilePath) {
+    // Content remounts by path; clear stale Monaco refs before jump effects run.
+    mountedEditorPathRef.current = selectedFilePath;
+    editorRef.current = null;
+    monacoRef.current = null;
+    if (mountedEditorPath !== null) setMountedEditorPath(null);
+  }
 
   const { currentTheme, setupEditorTheme } = useEditorTheme();
   const updateFileMutation = useUpdateFileMutation();
@@ -51,6 +61,11 @@ export const View = memo(function View({
     retry: 1,
   });
 
+  const selectedFileContent =
+    selectedFile && fileContentData?.path === selectedFile.path
+      ? fileContentData.content
+      : undefined;
+
   useEffect(() => {
     if (!selectedFile) return;
 
@@ -58,24 +73,23 @@ export const View = memo(function View({
       !prevSelectedFileRef.current || prevSelectedFileRef.current.path !== selectedFile.path;
 
     const queryContentChanged =
-      fileContentData &&
+      selectedFileContent !== undefined &&
       prevSelectedFileRef.current?.path === selectedFile.path &&
-      prevSelectedFileRef.current?.content !== fileContentData.content;
+      prevSelectedFileRef.current?.content !== selectedFileContent;
 
     if (fileChanged || queryContentChanged) {
-      const contentToUse = fileContentData?.content ?? '';
+      const contentToUse = selectedFileContent ?? '';
 
       prevSelectedFileRef.current = {
         ...selectedFile,
         content: contentToUse,
-        isLoaded: !!fileContentData,
+        isLoaded: selectedFileContent !== undefined,
       };
 
       setCurrentContent(contentToUse);
       setHasUnsavedChanges(false);
-      isUserEditRef.current = false;
     }
-  }, [selectedFile, fileContentData]);
+  }, [selectedFile, selectedFileContent]);
 
   const error = fileContentError
     ? fileContentError instanceof Error
@@ -105,12 +119,15 @@ export const View = memo(function View({
   }, [selectedFile]);
 
   const language = selectedFile ? detectLanguage(selectedFile.path) : 'javascript';
-  const displayContent = currentContent;
+  const hasLoadedSelectedFile = prevSelectedFileRef.current?.path === selectedFile?.path;
+  // File selection updates before the content effect resets state; keep the
+  // previous file's text out of Monaco during that one render.
+  const displayContent = hasLoadedSelectedFile ? currentContent : (selectedFileContent ?? '');
+  const displayHasUnsavedChanges = hasLoadedSelectedFile && hasUnsavedChanges;
 
   const handleEditorChange = useCallback((value: string | undefined) => {
     if (value === undefined) return;
 
-    isUserEditRef.current = true;
     setCurrentContent(value);
 
     const originalContent = prevSelectedFileRef.current?.content || '';
@@ -118,7 +135,7 @@ export const View = memo(function View({
   }, []);
 
   const handleUpdateFile = useCallback(async () => {
-    if (!selectedFile || !sandboxId || !hasUnsavedChanges) return;
+    if (!selectedFile || !sandboxId || !hasUnsavedChanges || !hasLoadedSelectedFile) return;
 
     updateFileMutation.mutate(
       {
@@ -129,7 +146,6 @@ export const View = memo(function View({
       {
         onSuccess: () => {
           setHasUnsavedChanges(false);
-          isUserEditRef.current = false;
           toast.success('File saved');
         },
         onError: (err) => {
@@ -137,15 +153,25 @@ export const View = memo(function View({
         },
       },
     );
-  }, [selectedFile, sandboxId, currentContent, hasUnsavedChanges, updateFileMutation]);
+  }, [
+    selectedFile,
+    sandboxId,
+    currentContent,
+    hasUnsavedChanges,
+    hasLoadedSelectedFile,
+    updateFileMutation,
+  ]);
 
   const handleEditorMount = useCallback(
     (editor: monaco.editor.IStandaloneCodeEditor, monaco: typeof import('monaco-editor')) => {
+      if (!selectedFilePath) return;
+
       editorRef.current = editor;
       monacoRef.current = monaco;
       setupEditorTheme(monaco);
+      setMountedEditorPath(selectedFilePath);
     },
-    [setupEditorTheme],
+    [selectedFilePath, setupEditorTheme],
   );
 
   const lastAppliedTargetRef = useRef<string>('');
@@ -158,13 +184,15 @@ export const View = memo(function View({
     // the line number would be clamped wrong.
     if (!targetLine || !selectedFile) return;
     if (selectedFile.path !== targetLine.path) return;
-    if (!fileContentData) return;
+    if (selectedFileContent === undefined) return;
+    if (mountedEditorPath !== selectedFile.path) return;
     const editor = editorRef.current;
     if (!editor) return;
     const key = `${targetLine.path}:${targetLine.line}:${targetLine.nonce}`;
     if (lastAppliedTargetRef.current === key) return;
 
     const raf = requestAnimationFrame(() => {
+      if (editorRef.current !== editor) return;
       lastAppliedTargetRef.current = key;
       const lineNumber = Math.max(1, targetLine.line);
       editor.revealLineInCenter(lineNumber);
@@ -178,7 +206,7 @@ export const View = memo(function View({
       editor.focus();
     });
     return () => cancelAnimationFrame(raf);
-  }, [targetLine, selectedFile, fileContentData]);
+  }, [targetLine, selectedFile, selectedFileContent, mountedEditorPath]);
 
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const prevShowPreviewRef = useRef(showPreview);
@@ -243,7 +271,7 @@ export const View = memo(function View({
         selectedFile={selectedFile}
         showPreview={showPreview}
         onTogglePreview={handlePreviewToggle}
-        hasUnsavedChanges={hasUnsavedChanges}
+        hasUnsavedChanges={displayHasUnsavedChanges}
         isSaving={updateFileMutation.isPending}
         onSave={handleUpdateFile}
         onToggleFileTree={onToggleFileTree}
@@ -264,6 +292,7 @@ export const View = memo(function View({
 
         {!(isPreviewable && showPreview) && (
           <Content
+            key={selectedFile.path}
             content={displayContent}
             language={language}
             isReadOnly={false}

@@ -1,6 +1,7 @@
 import { memo, lazy, Suspense } from 'react';
 import type * as monaco from 'monaco-editor';
 import { MONACO_FONT_FAMILY } from '@/config/constants';
+import { cn } from '@/utils/cn';
 
 const Editor = lazy(() => import('@monaco-editor/react'));
 
@@ -60,10 +61,13 @@ export const Content = memo(function Content({
   onMount,
   theme,
 }: ContentProps) {
+  const loadingClassName = cn(
+    'flex h-full w-full items-center justify-center text-xs',
+    'text-text-quaternary dark:text-text-dark-quaternary',
+    theme === 'custom-light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary',
+  );
   const loadingFallback = (
-    <div
-      className={`flex h-full items-center justify-center text-xs text-text-quaternary ${theme === 'custom-light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary'}`}
-    >
+    <div className={loadingClassName}>
       <div className="animate-pulse">Loading editor...</div>
     </div>
   );
@@ -84,9 +88,7 @@ export const Content = memo(function Content({
           }}
           onMount={onMount}
           loading={
-            <div
-              className={`flex h-full items-center justify-center text-xs text-text-quaternary ${theme === 'custom-light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary'}`}
-            >
+            <div className={loadingClassName}>
               <div className="animate-pulse">Loading editor...</div>
             </div>
           }
