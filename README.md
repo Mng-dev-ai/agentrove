@@ -98,24 +98,31 @@ Install on your own iPhone with a free Apple ID — no paid developer account ne
    after the first install trust the certificate under
    **Settings → General → VPN & Device Management**.
 
-Build a standalone `.ipa` and install it on the connected iPhone:
+Build a standalone `.ipa` and install it on the connected iPhone. The easiest path
+is the bundled helper, which builds, signs, exports, and installs in one step. It
+reads your team from `APPLE_DEVELOPMENT_TEAM` (so nothing is hardcoded to anyone
+else's team) and auto-detects the connected device:
 
 ```bash
-# from frontend/ — rebuild the bundled UI + native app any time the code changes.
-# Sign with your own Apple team (find the ID in Xcode → Signing & Capabilities);
-# nothing is hardcoded to anyone else's team. The -c flag injects it into both
-# the build signing and the IPA export, so it stays out of the committed config.
-npm run ios:build -- --debug --export-method debugging \
+export APPLE_DEVELOPMENT_TEAM=<YOUR_TEAM_ID>   # find it in Xcode → Signing & Capabilities
+cd frontend
+npm run ios:install
+```
+
+Or run the steps yourself. The `-c` flag injects the team into both the build
+signing and the IPA export, so it stays out of the committed config:
+
+```bash
+npm run ios:build -- --export-method debugging \
   -c '{"bundle":{"iOS":{"developmentTeam":"<YOUR_TEAM_ID>"}}}'
 # -> src-tauri/gen/apple/build/arm64/Agentrove.ipa
 
-# find your device id, then install the freshly built .ipa
-xcrun devicectl list devices
+xcrun devicectl list devices   # find your device id
 xcrun devicectl device install app --device <DEVICE_ID> \
   src-tauri/gen/apple/build/arm64/Agentrove.ipa
 ```
 
-To update the app later, re-run those two commands — the standalone build runs on
+To update the app later, re-run `npm run ios:install` — the standalone build runs on
 the phone without keeping a Mac connected.
 
 ## Production

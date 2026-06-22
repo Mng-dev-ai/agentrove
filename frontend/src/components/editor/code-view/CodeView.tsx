@@ -88,12 +88,15 @@ export const CodeView = memo(function CodeView({
 
   const handleMobileFileSelect = useCallback(
     (file: FileStructure | null) => {
-      onFileSelect(file);
-      if (file && file.type === 'file') {
+      const isSameFile = file?.path === selectedFile?.path;
+      // Pierre replays the current selection when the mobile tree mounts; keep that
+      // sync from immediately closing the just-opened drawer.
+      if (!isSameFile) onFileSelect(file);
+      if (file && file.type === 'file' && !isSameFile) {
         setShowMobileTree(false);
       }
     },
-    [onFileSelect],
+    [onFileSelect, selectedFile?.path],
   );
 
   // Read the latest file tree through a ref so handleOpenResult stays
