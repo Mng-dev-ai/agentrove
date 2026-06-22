@@ -1,9 +1,26 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { generatePaletteCss, generateDiffPaletteCss } from './src/styles/generatePaletteCss';
+
+// CSS generated from the hex palette source (src/styles/palettes.ts) at build time, so
+// the RGB-channel vars aren't a second hand-maintained copy. Consumers import the virtual
+// ids as a side-effect: main.tsx (surface tokens, global), DiffView (pierre diff tokens).
+const VIRTUAL_CSS: Record<string, () => string> = {
+  'virtual:palette-overrides.css': generatePaletteCss,
+  'virtual:diff-palette-overrides.css': generateDiffPaletteCss,
+};
+
+function paletteCssPlugin(): Plugin {
+  return {
+    name: 'agentrove:palette-css',
+    resolveId: (id) => (id in VIRTUAL_CSS ? `\0${id}` : null),
+    load: (id) => (id.startsWith('\0') ? (VIRTUAL_CSS[id.slice(1)]?.() ?? null) : null),
+  };
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), paletteCssPlugin()],
   worker: {
     // @pierre/diffs ships an imported worker entry, so desktop builds need
     // module workers instead of Vite's default IIFE output.
