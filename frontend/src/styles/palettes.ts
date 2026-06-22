@@ -18,7 +18,8 @@ export type PaletteKey =
   | 'midnight'
   | 'dracula'
   | 'tokyo-night'
-  | 'catppuccin-latte';
+  | 'catppuccin-latte'
+  | 'ember';
 
 export interface PaletteDef {
   base: 'light' | 'dark';
@@ -171,5 +172,20 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textSecondary: '#5c5f77',
     textTertiary: '#8c8fa1',
     textQuaternary: '#9ca0b0',
+  },
+  ember: {
+    base: 'dark',
+    surface: '#1a1310',
+    surfaceSecondary: '#211813',
+    surfaceTertiary: '#2e211a',
+    surfaceHover: '#3a2a20',
+    surfaceActive: '#4a3528',
+    border: '#3a2a20',
+    borderSecondary: '#4a3528',
+    borderHover: '#6b4a32',
+    textPrimary: '#f5e6d8',
+    textSecondary: '#e0b894',
+    textTertiary: '#b3835f',
+    textQuaternary: '#856249',
   },
 };

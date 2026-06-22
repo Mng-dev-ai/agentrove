@@ -16,7 +16,8 @@ export type Theme =
   | 'midnight'
   | 'dracula'
   | 'tokyo-night'
-  | 'catppuccin-latte';
+  | 'catppuccin-latte'
+  | 'ember';
 export type ResolvedTheme = 'light' | 'dark';
 // Active palette with `system` resolved away — used where concrete per-theme colors
 // are built outside CSS (Monaco/xterm can't read CSS vars). Theme = Palette | 'system'.
