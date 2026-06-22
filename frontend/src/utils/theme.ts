@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   BookOpen,
+  Ghost,
   Monitor,
   Moon,
   MoonStar,
@@ -43,6 +44,7 @@ export const THEMES: ThemeMeta[] = [
   { value: 'solarized-dark', label: 'Solarized Dark', icon: Sunset, base: 'dark', shortcut: 'r' },
   { value: 'nord', label: 'Nord', icon: Snowflake, base: 'dark', shortcut: 'v' },
   { value: 'midnight', label: 'Midnight', icon: Sparkles, base: 'dark', shortcut: 'x' },
+  { value: 'dracula', label: 'Dracula', icon: Ghost, base: 'dark', shortcut: 'z' },
   { value: 'system', label: 'System', icon: Monitor, base: null, shortcut: 'y' },
 ];
 
@@ -124,5 +126,13 @@ export const CUSTOM_PALETTE_TOKENS: Record<CustomPalette, PaletteTokens> = {
     textPrimary: '#e6ecff',
     textSecondary: '#aebbd8',
     textTertiary: '#7384a8',
+  },
+  dracula: {
+    surface: '#21222c',
+    surfaceSecondary: '#282a36',
+    surfaceTertiary: '#343746',
+    textPrimary: '#f8f8f2',
+    textSecondary: '#c8cadc',
+    textTertiary: '#989fbd',
   },
 };
