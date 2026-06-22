@@ -13,7 +13,8 @@ export type Theme =
   | 'solarized-light'
   | 'solarized-dark'
   | 'nord'
-  | 'midnight';
+  | 'midnight'
+  | 'dracula';
 export type ResolvedTheme = 'light' | 'dark';
 // Active palette with `system` resolved away — used where concrete per-theme colors
 // are built outside CSS (Monaco/xterm can't read CSS vars). Theme = Palette | 'system'.

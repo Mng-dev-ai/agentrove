@@ -26,7 +26,8 @@
 :root[data-palette='dim'],
 :root[data-palette='solarized-dark'],
 :root[data-palette='nord'],
-:root[data-palette='midnight'] {
+:root[data-palette='midnight'],
+:root[data-palette='dracula'] {
   --diffs-bg-context-override: rgb(var(--surface-dark-secondary) / 1);
   --diffs-bg-buffer-override: rgb(var(--surface-dark) / 1);
   --diffs-bg-context-gutter-override: rgb(var(--surface-dark) / 1);

@@ -155,6 +155,22 @@
   --text-dark-quaternary: 86 104 140;
 }
 
+/* Dracula — dark base; surfaces mirror CUSTOM_PALETTE_TOKENS.dracula (hex) */
+:root[data-palette='dracula'] {
+  --surface-dark: 33 34 44;
+  --surface-dark-secondary: 40 42 54;
+  --surface-dark-tertiary: 52 55 70;
+  --surface-dark-hover: 66 68 80;
+  --surface-dark-active: 68 71 90;
+  --border-dark: 52 55 70;
+  --border-dark-secondary: 66 68 80;
+  --border-dark-hover: 98 114 164;
+  --text-dark-primary: 248 248 242;
+  --text-dark-secondary: 200 202 220;
+  --text-dark-tertiary: 152 159 189;
+  --text-dark-quaternary: 98 114 164;
+}
+
 html,
 body,
 #root {
