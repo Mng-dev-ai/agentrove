@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import App from './App.tsx';
 import './styles/globals.css';
+// Build-time-generated `data-palette` override blocks (see vite.config.ts).
+import 'virtual:palette-overrides.css';
 import { queryClient } from './lib/queryClient';
 import { isMobileApp } from './utils/platform';
 

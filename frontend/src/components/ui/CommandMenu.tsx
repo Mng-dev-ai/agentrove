@@ -23,7 +23,8 @@ import { HighlightMatch } from '@/components/ui/shared/HighlightMatch';
 import { SearchPanel } from '@/components/editor/file-search/SearchPanel';
 import { ChatSearchPanel } from '@/components/chat/chat-search/ChatSearchPanel';
 import { cn } from '@/utils/cn';
-import type { ViewType, MosaicDirection } from '@/types/ui.types';
+import { THEMES, type ThemeMeta } from '@/utils/theme';
+import type { ViewType, MosaicDirection, Theme } from '@/types/ui.types';
 import {
   ALL_COMMANDS,
   COMMAND_TO_MODE,
@@ -61,6 +62,7 @@ export function CommandMenu() {
   const filteredFilesRef = useRef<FlatFileItem[]>([]);
   const filteredCommandsRef = useRef<CommandItem[]>([]);
   const filteredBranchesRef = useRef<string[]>([]);
+  const filteredThemesRef = useRef<ThemeMeta[]>([]);
   const listLengthRef = useRef(0);
   const listId = 'command-menu-list';
 
@@ -156,12 +158,19 @@ export function CommandMenu() {
     [mode, query, orderedBranches],
   );
 
+  const filteredThemes = useMemo(
+    () => (mode !== 'themes' ? [] : fuzzySearch(query, THEMES, { keys: ['label'], limit: 30 })),
+    [mode, query],
+  );
+
   const listLength =
     mode === 'files'
       ? filteredFiles.length
       : mode === 'branches'
         ? filteredBranches.length
-        : filteredCommands.length;
+        : mode === 'themes'
+          ? filteredThemes.length
+          : filteredCommands.length;
 
   const switchMode = useCallback((next: MenuMode) => {
     setMode(next);
@@ -258,6 +267,14 @@ export function CommandMenu() {
     [sandboxId, worktreeCwd, branchesData, checkoutBranch, close],
   );
 
+  const handleSelectTheme = useCallback(
+    (value: Theme) => {
+      useUIStore.getState().setTheme(value);
+      close();
+    },
+    [close],
+  );
+
   const handleSplit = useCallback(
     (viewId: ViewType, direction: MosaicDirection) => {
       useUIStore.getState().addTileToMosaic(viewId, direction);
@@ -271,6 +288,7 @@ export function CommandMenu() {
   filteredFilesRef.current = filteredFiles;
   filteredCommandsRef.current = filteredCommands;
   filteredBranchesRef.current = filteredBranches;
+  filteredThemesRef.current = filteredThemes;
   listLengthRef.current = listLength;
 
   useEffect(() => {
@@ -299,7 +317,7 @@ export function CommandMenu() {
         case 'Escape':
           e.preventDefault();
           e.stopImmediatePropagation();
-          if (m === 'files' || m === 'branches') {
+          if (m === 'files' || m === 'branches' || m === 'themes') {
             switchMode('commands');
           } else {
             close();
@@ -325,6 +343,9 @@ export function CommandMenu() {
           } else if (m === 'branches') {
             const branch = filteredBranchesRef.current[idx];
             if (branch) handleSelectBranch(branch);
+          } else if (m === 'themes') {
+            const themeItem = filteredThemesRef.current[idx];
+            if (themeItem) handleSelectTheme(themeItem.value);
           } else {
             const cmd = filteredCommandsRef.current[idx];
             if (cmd) {
@@ -339,7 +360,15 @@ export function CommandMenu() {
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [isOpen, handleSelectItem, handleSelectFile, handleSelectBranch, switchMode, close]);
+  }, [
+    isOpen,
+    handleSelectItem,
+    handleSelectFile,
+    handleSelectBranch,
+    handleSelectTheme,
+    switchMode,
+    close,
+  ]);
 
   if (!isOpen) return null;
 
@@ -410,14 +439,14 @@ export function CommandMenu() {
         ) : (
           <>
             <div className="flex items-center gap-2 border-b border-border/50 px-3 dark:border-border-dark/50">
-              {(mode === 'files' || mode === 'branches') && (
+              {(mode === 'files' || mode === 'branches' || mode === 'themes') && (
                 <Button
                   variant="unstyled"
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => switchMode('commands')}
                   className="shrink-0 rounded-md bg-surface-hover px-1.5 py-0.5 text-2xs font-medium text-text-secondary dark:bg-surface-dark-hover dark:text-text-dark-secondary"
                 >
-                  {mode === 'files' ? 'Files' : 'Branches'}
+                  {mode === 'files' ? 'Files' : mode === 'branches' ? 'Branches' : 'Themes'}
                 </Button>
               )}
               <Search className="h-3.5 w-3.5 shrink-0 text-text-tertiary dark:text-text-dark-tertiary" />
@@ -434,7 +463,9 @@ export function CommandMenu() {
                     ? 'Search files...'
                     : mode === 'branches'
                       ? 'Search branches...'
-                      : 'Search...'
+                      : mode === 'themes'
+                        ? 'Search themes...'
+                        : 'Search...'
                 }
                 className="h-10 w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-quaternary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary"
                 role="combobox"
@@ -449,9 +480,13 @@ export function CommandMenu() {
                       ? filteredBranches[activeIndex]
                         ? `branch-item-${activeIndex}`
                         : undefined
-                      : filteredCommands[activeIndex]
-                        ? `command-item-${filteredCommands[activeIndex].id}`
-                        : undefined
+                      : mode === 'themes'
+                        ? filteredThemes[activeIndex]
+                          ? `theme-item-${activeIndex}`
+                          : undefined
+                        : filteredCommands[activeIndex]
+                          ? `command-item-${filteredCommands[activeIndex].id}`
+                          : undefined
                 }
               />
             </div>
@@ -553,6 +588,51 @@ export function CommandMenu() {
                     </p>
                   )}
                 </>
+              ) : mode === 'themes' ? (
+                <>
+                  {filteredThemes.map((themeItem, index) => {
+                    const Icon = themeItem.icon;
+                    const isActive = themeItem.value === theme;
+                    return (
+                      <div
+                        key={themeItem.value}
+                        ref={index === activeIndex ? activeItemRef : undefined}
+                        className={cn(
+                          rowClass,
+                          index === activeIndex
+                            ? 'bg-surface-active dark:bg-surface-dark-active'
+                            : 'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
+                        )}
+                        onMouseEnter={() => setActiveIndex(index)}
+                      >
+                        <Button
+                          variant="unstyled"
+                          id={`theme-item-${index}`}
+                          role="option"
+                          aria-selected={index === activeIndex}
+                          className="flex flex-1 items-center gap-3 overflow-hidden"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleSelectTheme(themeItem.value)}
+                        >
+                          <Icon className="h-3.5 w-3.5 shrink-0 text-text-tertiary dark:text-text-dark-tertiary" />
+                          <HighlightMatch
+                            text={themeItem.label}
+                            searchQuery={query}
+                            className="flex-1 truncate text-left"
+                          />
+                          {isActive && (
+                            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-text-primary dark:bg-text-dark-primary" />
+                          )}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                  {filteredThemes.length === 0 && (
+                    <p className="px-3 py-4 text-center text-xs text-text-quaternary dark:text-text-dark-quaternary">
+                      No matching themes
+                    </p>
+                  )}
+                </>
               ) : (
                 <>
                   {filteredCommands.map((cmd, index) => {
@@ -562,9 +642,8 @@ export function CommandMenu() {
                     // (e.g. editor:secondary) is already a leaf, so the split
                     // buttons stay available to open it in the other pane.
                     const isActive =
-                      (cmd.type === 'view' &&
-                        leafTileIds.has(viewTypeToTileId(cmd.id, useSecondary))) ||
-                      cmd.id === `theme-${theme}`;
+                      cmd.type === 'view' &&
+                      leafTileIds.has(viewTypeToTileId(cmd.id, useSecondary));
 
                     return (
                       <div
@@ -648,7 +727,9 @@ export function CommandMenu() {
                     ? '↵ Open file · Esc to go back'
                     : mode === 'branches'
                       ? '↵ Switch branch · Esc to go back'
-                      : '↵ Select · Split via icons · Shortcuts work globally · Esc to close'}
+                      : mode === 'themes'
+                        ? '↵ Set theme · Esc to go back'
+                        : '↵ Select · Split via icons · Shortcuts work globally · Esc to close'}
                 </span>
               </div>
             )}

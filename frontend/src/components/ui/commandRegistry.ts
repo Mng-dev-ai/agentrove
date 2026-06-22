@@ -18,6 +18,7 @@ import {
   ArrowUpFromLine,
   ArrowDownFromLine,
   MessageSquare,
+  Palette,
 } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
@@ -26,8 +27,7 @@ import { queryKeys } from '@/hooks/queries/queryKeys';
 import { isSecondaryPaneActive } from '@/utils/mosaicHelpers';
 import { traverseFileStructure, getFileName } from '@/utils/file';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
-import { THEMES } from '@/utils/theme';
-import type { Theme, ViewType } from '@/types/ui.types';
+import type { ViewType } from '@/types/ui.types';
 import type { Chat } from '@/types/chat.types';
 import type { FileStructure } from '@/types/file-system.types';
 import type { GitBranchesData } from '@/types/sandbox.types';
@@ -54,7 +54,7 @@ export interface ActionCommandItem {
 
 export type CommandItem = ViewCommandItem | ActionCommandItem;
 
-export type MenuMode = 'commands' | 'files' | 'branches' | 'search' | 'chat-search';
+export type MenuMode = 'commands' | 'files' | 'branches' | 'search' | 'chat-search' | 'themes';
 
 export interface FlatFileItem {
   path: string;
@@ -143,14 +143,6 @@ const ACTION_COMMANDS: ActionCommandItem[] = [
   },
 ];
 
-const THEME_COMMANDS: ActionCommandItem[] = THEMES.map((t) => ({
-  type: 'action',
-  id: `theme-${t.value}`,
-  label: `Theme: ${t.label}`,
-  icon: t.icon,
-  shortcut: t.shortcut,
-}));
-
 const SETTING_COMMANDS: ActionCommandItem[] = [
   {
     type: 'action',
@@ -159,7 +151,9 @@ const SETTING_COMMANDS: ActionCommandItem[] = [
     icon: PanelLeftClose,
     shortcut: '.',
   },
-  ...THEME_COMMANDS,
+  // Opens the theme picker sub-mode (every theme as a list) instead of one command per
+  // theme — keeps the chord space sane as themes grow.
+  { type: 'action', id: 'set-theme', label: 'Set theme', icon: Palette, shortcut: 'm' },
   { type: 'action', id: 'search-in-files', label: 'Search in files', icon: Search, shortcut: 'f' },
   {
     type: 'action',
@@ -190,6 +184,7 @@ export const COMMAND_TO_MODE: Partial<Record<string, MenuMode>> = {
   'search-in-chats': 'chat-search',
   'go-to-file': 'files',
   'switch-branch': 'branches',
+  'set-theme': 'themes',
 };
 
 export const flattenFiles = (files: FileStructure[]): FlatFileItem[] =>
@@ -294,8 +289,9 @@ export function executeCommand(
     });
   } else if (cmd.id === 'toggle-sidebar') {
     ui.setSidebarOpen(!ui.sidebarOpen);
-  } else if (cmd.id.startsWith('theme-')) {
-    ui.setTheme(cmd.id.slice(6) as Theme);
+  } else if (cmd.id === 'set-theme') {
+    ui.setPendingMenuMode('themes');
+    ui.setCommandMenuOpen(true);
   } else if (cmd.id === 'search-in-files') {
     ui.setPendingMenuMode('search');
     ui.setCommandMenuOpen(true);
