@@ -3,6 +3,7 @@ import {
   BookOpen,
   Building2,
   Coffee,
+  Flame,
   Ghost,
   Monitor,
   Moon,
@@ -41,6 +42,7 @@ export const THEMES: ThemeMeta[] = [
   { value: 'dracula', label: 'Dracula', icon: Ghost },
   { value: 'tokyo-night', label: 'Tokyo Night', icon: Building2 },
   { value: 'catppuccin-latte', label: 'Catppuccin Latte', icon: Coffee },
+  { value: 'ember', label: 'Ember', icon: Flame },
   { value: 'system', label: 'System', icon: Monitor },
 ];
 
