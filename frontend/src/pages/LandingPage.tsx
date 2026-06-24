@@ -253,12 +253,19 @@ export function LandingPage() {
           useChatStore.getState().setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, []);
 
           // Register the chat as cloud-owned and refresh the sidebar's Cloud list
-          // so it appears immediately and routes to the VPS when opened.
+          // so it appears immediately and routes to the VPS when opened. Also
+          // refresh the cloud workspace list so the project bubbles to the top by
+          // last_chat_at — mirrors the local create mutation invalidating workspaces.
           markCloudChats([newChat.id]);
           const cloud = useCloudSettingsStore.getState();
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.cloudChats(cloud.cloudUrl, cloud.connectedEmail),
-          });
+          void Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.cloudChats(cloud.cloudUrl, cloud.connectedEmail),
+            }),
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.cloudWorkspaces(cloud.cloudUrl, cloud.connectedEmail),
+            }),
+          ]).catch((err) => console.error('Failed to refresh cloud sidebar', err));
 
           useModelStore.getState().selectModel(newChat.id, selectedModelId);
           useChatSettingsStore.getState().initChatFromDefaults(newChat.id);
