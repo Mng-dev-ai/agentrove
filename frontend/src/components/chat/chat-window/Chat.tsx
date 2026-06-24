@@ -408,7 +408,9 @@ export const Chat = memo(function Chat() {
 
     return (
       <div className="w-full lg:mx-auto lg:max-w-3xl">
-        {showThinking && <ThinkingIndicator streamStartTime={streamStartTime} />}
+        {showThinking && (
+          <ThinkingIndicator key={streamStartTime} streamStartTime={streamStartTime} />
+        )}
         {showPermissionAtEnd && <MessageInlinePermission />}
         {showStreamActions && chatId && <StreamActionsBar chatId={chatId} />}
       </div>

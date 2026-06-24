@@ -12,6 +12,7 @@ export const ThinkingIndicator = memo(function ThinkingIndicator({
   // Seed from the active stream's start so the timer survives chat switches —
   // the indicator sits inside the chat-keyed scroller and remounts on switch.
   // Fall back to mount time when loading begins before the stream exists yet.
+  // Callers key this on streamStartTime so a new stream remounts and resets.
   const startTime = useRef(streamStartTime ?? Date.now());
 
   useMountEffect(() => {
