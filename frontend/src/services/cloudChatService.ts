@@ -5,7 +5,11 @@ import { cloudAuthStorage } from '@/utils/storage';
 import { markCloudChats, markCloudSandboxes, clearCloudOrigins } from '@/utils/chatOrigin';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import type { AuthResponse, UserSettings } from '@/types/user.types';
-import type { Workspace, WorkspaceResources } from '@/types/workspace.types';
+import type {
+  Workspace,
+  WorkspaceResources,
+  UpdateWorkspaceRequest,
+} from '@/types/workspace.types';
 import type { Chat, ChatRequest, CreateChatRequest } from '@/types/chat.types';
 import type { PaginatedChats, PaginatedResponse } from '@/types/api.types';
 
@@ -71,6 +75,22 @@ async function createChat(data: CreateChatRequest): Promise<Chat> {
   });
 }
 
+async function updateWorkspace(
+  workspaceId: string,
+  data: UpdateWorkspaceRequest,
+): Promise<Workspace> {
+  return serviceCall(async () => {
+    const response = await remoteApiClient.patch<Workspace>(`/workspaces/${workspaceId}`, data);
+    return ensureResponse(response, 'Failed to rename cloud workspace');
+  });
+}
+
+async function deleteWorkspace(workspaceId: string): Promise<void> {
+  await serviceCall(async () => {
+    await remoteApiClient.delete(`/workspaces/${workspaceId}`);
+  });
+}
+
 // Fetch a VPS workspace's skills and builtin slash-commands. The landing
 // composer needs these before a chat exists, so there's no chatId to route by —
 // call the VPS directly instead of going through resolveChatClient.
@@ -105,6 +125,8 @@ export const cloudChatService = {
   connect,
   disconnect,
   listWorkspaces,
+  updateWorkspace,
+  deleteWorkspace,
   listChats,
   createChat,
   getWorkspaceResources,

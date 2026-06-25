@@ -92,30 +92,45 @@ export function LandingPage() {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const consumedInitialMessageRef = useRef(false);
-  const routeState = location.state as { workspaceId?: string; initialMessage?: string } | null;
+  const routeState = location.state as {
+    workspaceId?: string;
+    cloudWorkspaceId?: string;
+    initialMessage?: string;
+  } | null;
   const initialWorkspaceId = routeState?.workspaceId ?? null;
+  const initialCloudWorkspaceId = routeState?.cloudWorkspaceId ?? null;
   const initialMessage = routeState?.initialMessage ?? null;
-  const consumedWorkspaceRef = useRef<string | null>(null);
+  // Keyed on location.key, not the target ID: React Router mints a fresh key on
+  // every navigation, so re-clicking the same workspace's "new thread" re-consumes
+  // the target and re-applies its run location even after a manual toggle.
+  const consumedNavKeyRef = useRef<string | null>(null);
 
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 
   const isCloud = useChatSettingsStore((state) => state.runOnCloud);
   const [selectedCloudWorkspaceId, setSelectedCloudWorkspaceId] = useState<string | null>(null);
 
+  // Default the local workspace once the list loads or the current pick goes stale.
   useEffect(() => {
     if (!workspaces.length) return;
-    if (
-      initialWorkspaceId &&
-      initialWorkspaceId !== consumedWorkspaceRef.current &&
-      workspaces.some((ws) => ws.id === initialWorkspaceId)
-    ) {
-      consumedWorkspaceRef.current = initialWorkspaceId;
-      setSelectedWorkspaceId(initialWorkspaceId);
-      return;
-    }
     if (selectedWorkspaceId && workspaces.some((ws) => ws.id === selectedWorkspaceId)) return;
     setSelectedWorkspaceId(workspaces[0].id);
-  }, [initialWorkspaceId, workspaces, selectedWorkspaceId]);
+  }, [workspaces, selectedWorkspaceId]);
+
+  // Consume the sidebar "new thread" target once per navigation: preselect its
+  // workspace and flip the run location to match (cloud target → cloud, local →
+  // local). Keyed on location.key so re-clicking the same workspace re-applies it.
+  useEffect(() => {
+    if (location.key === consumedNavKeyRef.current) return;
+    consumedNavKeyRef.current = location.key;
+    if (initialCloudWorkspaceId) {
+      setSelectedCloudWorkspaceId(initialCloudWorkspaceId);
+      useChatSettingsStore.getState().setRunOnCloud(true);
+    } else if (initialWorkspaceId) {
+      setSelectedWorkspaceId(initialWorkspaceId);
+      useChatSettingsStore.getState().setRunOnCloud(false);
+    }
+  }, [location.key, initialWorkspaceId, initialCloudWorkspaceId]);
 
   if (initialMessage && !consumedInitialMessageRef.current) {
     consumedInitialMessageRef.current = true;

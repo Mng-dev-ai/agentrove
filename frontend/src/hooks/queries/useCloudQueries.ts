@@ -1,8 +1,13 @@
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { cloudChatService } from '@/services/cloudChatService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { createMutation } from '@/hooks/queries/createMutation';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
-import type { Workspace, WorkspaceResources } from '@/types/workspace.types';
+import type {
+  Workspace,
+  WorkspaceResources,
+  UpdateWorkspaceRequest,
+} from '@/types/workspace.types';
 import type { UserSettings } from '@/types/user.types';
 
 const CLOUD_CHATS_PER_PAGE = 25;
@@ -19,6 +24,37 @@ export const useCloudWorkspacesQuery = (enabled: boolean) => {
     staleTime: 30_000,
   });
 };
+
+// Rename/delete a VPS workspace. cloudUrl + connectedEmail are read at cache-update
+// time so the invalidation targets the same instance/account the query is keyed by.
+export const useCloudUpdateWorkspaceMutation = createMutation<
+  Workspace,
+  Error,
+  { workspaceId: string; data: UpdateWorkspaceRequest }
+>(
+  ({ workspaceId, data }) => cloudChatService.updateWorkspace(workspaceId, data),
+  (queryClient) => {
+    const { cloudUrl, connectedEmail } = useCloudSettingsStore.getState();
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.cloudWorkspaces(cloudUrl, connectedEmail),
+    });
+  },
+);
+
+export const useCloudDeleteWorkspaceMutation = createMutation<void, Error, string>(
+  (workspaceId) => cloudChatService.deleteWorkspace(workspaceId),
+  async (queryClient) => {
+    const { cloudUrl, connectedEmail } = useCloudSettingsStore.getState();
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.cloudWorkspaces(cloudUrl, connectedEmail),
+      }),
+      // Prefix-invalidate every project's cloud chats — the deleted workspace's
+      // chats are gone server-side and the sidebar list must drop them.
+      queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll }),
+    ]);
+  },
+);
 
 // VPS workspace skills and builtin slash-commands for the landing composer
 // before a chat exists. Keyed by cloudUrl + connectedEmail + workspaceId so

@@ -105,8 +105,11 @@ interface ChatGroupProps {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   onLoadMore: () => void;
-  // Local groups supply new-thread + context-menu buttons; cloud groups none.
-  headerActions?: React.ReactNode;
+  // Workspace identity for the header-action buttons. Both local and cloud groups
+  // render the same new-thread + context-menu actions, so the shell owns them.
+  workspaceId: string;
+  onNewThread: (e: React.MouseEvent, workspaceId: string) => void;
+  onWorkspaceContextMenu: (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => void;
   rowProps: ChatRowProps;
 }
 
@@ -124,7 +127,9 @@ const SidebarChatGroup = memo(function SidebarChatGroup({
   hasNextPage,
   isFetchingNextPage,
   onLoadMore,
-  headerActions,
+  workspaceId,
+  onNewThread,
+  onWorkspaceContextMenu,
   rowProps,
 }: ChatGroupProps) {
   const [isChatsExpanded, setIsChatsExpanded] = useState(false);
@@ -154,7 +159,24 @@ const SidebarChatGroup = memo(function SidebarChatGroup({
             </span>
           )}
         </Button>
-        {headerActions}
+        <Button
+          variant="unstyled"
+          type="button"
+          title="New thread"
+          onClick={(e) => onNewThread(e, workspaceId)}
+          className="flex shrink-0 items-center justify-center rounded p-0.5 text-text-quaternary opacity-0 transition-all duration-200 hover:text-text-primary group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+        >
+          <SquarePen className="h-3 w-3" />
+        </Button>
+        <Button
+          variant="unstyled"
+          type="button"
+          data-ws-dropdown-trigger
+          onClick={(e) => onWorkspaceContextMenu(e, workspaceId)}
+          className="flex shrink-0 items-center justify-center rounded p-0.5 text-text-quaternary opacity-0 transition-all duration-200 hover:text-text-primary group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+        >
+          <MoreHorizontal className="h-3 w-3" />
+        </Button>
       </div>
       {!isCollapsed && (
         <div>
@@ -263,28 +285,9 @@ export const SidebarWorkspaceGroup = memo(function SidebarWorkspaceGroup({
       hasNextPage={!!hasNextPage}
       isFetchingNextPage={isFetchingNextPage}
       onLoadMore={() => void fetchNextPage()}
-      headerActions={
-        <>
-          <Button
-            variant="unstyled"
-            type="button"
-            title="New thread"
-            onClick={(e) => onNewThread(e, workspace.id)}
-            className="flex shrink-0 items-center justify-center rounded p-0.5 text-text-quaternary opacity-0 transition-all duration-200 hover:text-text-primary group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-          >
-            <SquarePen className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="unstyled"
-            type="button"
-            data-ws-dropdown-trigger
-            onClick={(e) => onWorkspaceContextMenu(e, workspace.id)}
-            className="flex shrink-0 items-center justify-center rounded p-0.5 text-text-quaternary opacity-0 transition-all duration-200 hover:text-text-primary group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-          >
-            <MoreHorizontal className="h-3 w-3" />
-          </Button>
-        </>
-      }
+      workspaceId={workspace.id}
+      onNewThread={onNewThread}
+      onWorkspaceContextMenu={onWorkspaceContextMenu}
       rowProps={rowProps}
     />
   );
@@ -294,14 +297,19 @@ interface CloudGroupProps extends ChatRowProps {
   workspace: Workspace;
   isCollapsed: boolean;
   onToggleCollapse: (workspaceId: string) => void;
+  onNewThread: (e: React.MouseEvent, workspaceId: string) => void;
+  onWorkspaceContextMenu: (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => void;
 }
 
-// A cloud project's chats — same shell as local, minus local-only affordances
-// (new thread, workspace context menu, which aren't wired for cloud).
+// A cloud project's chats — same shell and header affordances as local. New-thread
+// routes to the landing composer with the cloud target preselected; the context
+// menu (rename/delete) proxies to the VPS via the cloud workspace mutations.
 export const SidebarCloudGroup = memo(function SidebarCloudGroup({
   workspace,
   isCollapsed,
   onToggleCollapse,
+  onNewThread,
+  onWorkspaceContextMenu,
   ...rowProps
 }: CloudGroupProps) {
   const { data, hasNextPage, fetchNextPage, isFetchingNextPage, isLoading } =
@@ -326,6 +334,9 @@ export const SidebarCloudGroup = memo(function SidebarCloudGroup({
       hasNextPage={!!hasNextPage}
       isFetchingNextPage={isFetchingNextPage}
       onLoadMore={() => void fetchNextPage()}
+      workspaceId={workspace.id}
+      onNewThread={onNewThread}
+      onWorkspaceContextMenu={onWorkspaceContextMenu}
       rowProps={rowProps}
     />
   );
