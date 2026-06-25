@@ -160,6 +160,20 @@ export function Sidebar({
   // Cloud projects (workspaces on the connected VPS, desktop only). Each renders
   // its own paginated group, mirroring the local per-workspace groups.
   const { data: cloudWorkspaces } = useCloudWorkspacesQuery(true);
+  const orderedWorkspaces = useMemo(
+    () =>
+      [
+        ...workspaces.map((workspace) => ({ workspace, isCloud: false })),
+        ...(cloudWorkspaces ?? []).map((workspace) => ({ workspace, isCloud: true })),
+      ].sort((a, b) => {
+        // Local and cloud lists are fetched separately; merge by activity so a
+        // fresh cloud chat can move its project above stale local projects.
+        const aTime = Date.parse(a.workspace.last_chat_at ?? a.workspace.updated_at);
+        const bTime = Date.parse(b.workspace.last_chat_at ?? b.workspace.updated_at);
+        return bTime - aTime;
+      }),
+    [workspaces, cloudWorkspaces],
+  );
 
   const hasAnyContent =
     pinnedChats.length > 0 || workspaces.length > 0 || (cloudWorkspaces?.length ?? 0) > 0;
@@ -450,6 +464,21 @@ export function Sidebar({
     }
   }, [workspaceToDelete, deleteWorkspace, selectedChatId, selectedChatWorkspaceId, navigate]);
 
+  // Props every workspace group needs identically — local and cloud differ only in
+  // the namespaced key and the local-only header actions (new thread, context menu).
+  const sharedGroupProps = {
+    selectedChatId,
+    secondaryChatId,
+    dropdownChatId: dropdown?.chat.id ?? null,
+    streamingChatIdSet,
+    onToggleCollapse: toggleWorkspaceCollapse,
+    onChatSelect: handleChatSelect,
+    onOpenInSplit: canOpenInSplit ? handleOpenInSplit : undefined,
+    onDropdownClick: handleDropdownClick,
+    expandedSubThreads,
+    onToggleSubThreads: handleToggleSubThreads,
+  };
+
   return (
     <>
       <aside
@@ -524,43 +553,25 @@ export function Sidebar({
                 </div>
               )}
 
-              {workspaces.map((workspace) => (
-                <SidebarWorkspaceGroup
-                  key={workspace.id}
-                  workspace={workspace}
-                  selectedChatId={selectedChatId}
-                  secondaryChatId={secondaryChatId}
-                  dropdownChatId={dropdown?.chat.id ?? null}
-                  streamingChatIdSet={streamingChatIdSet}
-                  isCollapsed={collapsedWorkspaces.has(workspace.id)}
-                  onToggleCollapse={toggleWorkspaceCollapse}
-                  onChatSelect={handleChatSelect}
-                  onOpenInSplit={canOpenInSplit ? handleOpenInSplit : undefined}
-                  onDropdownClick={handleDropdownClick}
-                  onNewThread={handleNewWorkspaceThread}
-                  onWorkspaceContextMenu={handleWorkspaceContextMenu}
-                  expandedSubThreads={expandedSubThreads}
-                  onToggleSubThreads={handleToggleSubThreads}
-                />
-              ))}
-
-              {cloudWorkspaces?.map((workspace) => (
-                <SidebarCloudGroup
-                  key={workspace.id}
-                  workspace={workspace}
-                  selectedChatId={selectedChatId}
-                  secondaryChatId={secondaryChatId}
-                  dropdownChatId={dropdown?.chat.id ?? null}
-                  streamingChatIdSet={streamingChatIdSet}
-                  isCollapsed={collapsedWorkspaces.has(workspace.id)}
-                  onToggleCollapse={toggleWorkspaceCollapse}
-                  onChatSelect={handleChatSelect}
-                  onOpenInSplit={canOpenInSplit ? handleOpenInSplit : undefined}
-                  onDropdownClick={handleDropdownClick}
-                  expandedSubThreads={expandedSubThreads}
-                  onToggleSubThreads={handleToggleSubThreads}
-                />
-              ))}
+              {orderedWorkspaces.map(({ workspace, isCloud }) =>
+                isCloud ? (
+                  <SidebarCloudGroup
+                    key={`cloud:${workspace.id}`}
+                    workspace={workspace}
+                    isCollapsed={collapsedWorkspaces.has(workspace.id)}
+                    {...sharedGroupProps}
+                  />
+                ) : (
+                  <SidebarWorkspaceGroup
+                    key={`local:${workspace.id}`}
+                    workspace={workspace}
+                    isCollapsed={collapsedWorkspaces.has(workspace.id)}
+                    onNewThread={handleNewWorkspaceThread}
+                    onWorkspaceContextMenu={handleWorkspaceContextMenu}
+                    {...sharedGroupProps}
+                  />
+                ),
+              )}
             </div>
           )}
         </div>
