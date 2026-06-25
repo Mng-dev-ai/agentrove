@@ -19,7 +19,11 @@ import {
   useDeleteWorkspaceMutation,
   useUpdateWorkspaceMutation,
 } from '@/hooks/queries/useWorkspaceQueries';
-import { useCloudWorkspacesQuery } from '@/hooks/queries/useCloudQueries';
+import {
+  useCloudWorkspacesQuery,
+  useCloudUpdateWorkspaceMutation,
+  useCloudDeleteWorkspaceMutation,
+} from '@/hooks/queries/useCloudQueries';
 import { useToggleSet } from '@/hooks/useToggleSet';
 import { cn } from '@/utils/cn';
 import { useUIStore } from '@/store/uiStore';
@@ -128,14 +132,21 @@ export function Sidebar({
   const [pinnedHoveredId, setPinnedHoveredId] = useState<string | null>(null);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [chatToRename, setChatToRename] = useState<Chat | null>(null);
-  const [workspaceToDelete, setWorkspaceToDelete] = useState<string | null>(null);
-  const [workspaceToRename, setWorkspaceToRename] = useState<Workspace | null>(null);
+  const [workspaceToDelete, setWorkspaceToDelete] = useState<{
+    id: string;
+    isCloud: boolean;
+  } | null>(null);
+  const [workspaceToRename, setWorkspaceToRename] = useState<{
+    workspace: Workspace;
+    isCloud: boolean;
+  } | null>(null);
   const [dropdown, setDropdown] = useState<{
     chat: Chat;
     position: { top: number; left: number };
   } | null>(null);
   const [workspaceDropdown, setWorkspaceDropdown] = useState<{
     workspaceId: string;
+    isCloud: boolean;
     position: { top: number; left: number };
   } | null>(null);
   // Tracks which parent chats have their sub-threads expanded — collapsed by default to keep the sidebar compact
@@ -150,6 +161,8 @@ export function Sidebar({
   const pinChat = usePinChatMutation();
   const deleteWorkspace = useDeleteWorkspaceMutation();
   const updateWorkspace = useUpdateWorkspaceMutation();
+  const cloudUpdateWorkspace = useCloudUpdateWorkspaceMutation();
+  const cloudDeleteWorkspace = useCloudDeleteWorkspaceMutation();
 
   const { data: pinnedChatsData } = useInfiniteChatsQuery({ pinned: true });
   const pinnedChats = useMemo(() => {
@@ -173,6 +186,13 @@ export function Sidebar({
         return bTime - aTime;
       }),
     [workspaces, cloudWorkspaces],
+  );
+
+  // Distinguishes cloud vs local when the context menu opens, so rename/delete
+  // route to the right backend. Workspace IDs are UUIDs from separate DBs — no collisions.
+  const cloudWorkspaceIdSet = useMemo(
+    () => new Set((cloudWorkspaces ?? []).map((ws) => ws.id)),
+    [cloudWorkspaces],
   );
 
   const hasAnyContent =
@@ -401,34 +421,45 @@ export function Sidebar({
     [navigate, isMobile],
   );
 
+  const handleNewCloudThread = useCallback(
+    (e: React.MouseEvent, workspaceId: string) => {
+      e.stopPropagation();
+      // Landing composer flips to cloud and preselects this VPS workspace.
+      navigate('/', { state: { cloudWorkspaceId: workspaceId } });
+      if (isMobile) {
+        useUIStore.getState().setSidebarOpen(false);
+      }
+    },
+    [navigate, isMobile],
+  );
+
   const handleWorkspaceContextMenu = useCallback(
     (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
+      const isCloud = cloudWorkspaceIdSet.has(workspaceId);
       setWorkspaceDropdown((prev) => {
         if (prev?.workspaceId === workspaceId) return null;
         const position = calculateDropdownPosition(rect);
-        return { workspaceId, position };
+        return { workspaceId, isCloud, position };
       });
     },
-    [],
+    [cloudWorkspaceIdSet],
   );
 
-  const handleRenameWorkspace = useCallback((workspace: Workspace) => {
-    setWorkspaceToRename(workspace);
+  const handleRenameWorkspace = useCallback((workspace: Workspace, isCloud: boolean) => {
+    setWorkspaceToRename({ workspace, isCloud });
     setWorkspaceDropdown(null);
   }, []);
 
   const handleSaveWorkspaceRename = useCallback(
     async (newName: string) => {
       if (!workspaceToRename) return;
+      const { workspace, isCloud } = workspaceToRename;
+      const mutation = isCloud ? cloudUpdateWorkspace : updateWorkspace;
       try {
         await mutateWithToast(
-          () =>
-            updateWorkspace.mutateAsync({
-              workspaceId: workspaceToRename.id,
-              data: { name: newName },
-            }),
+          () => mutation.mutateAsync({ workspaceId: workspace.id, data: { name: newName } }),
           'Workspace renamed',
           'Failed to rename workspace',
         );
@@ -438,23 +469,25 @@ export function Sidebar({
         setWorkspaceToRename(null);
       }
     },
-    [workspaceToRename, updateWorkspace],
+    [workspaceToRename, updateWorkspace, cloudUpdateWorkspace],
   );
 
-  const handleDeleteWorkspace = useCallback((workspaceId: string) => {
-    setWorkspaceToDelete(workspaceId);
+  const handleDeleteWorkspace = useCallback((workspaceId: string, isCloud: boolean) => {
+    setWorkspaceToDelete({ id: workspaceId, isCloud });
     setWorkspaceDropdown(null);
   }, []);
 
   const confirmDeleteWorkspace = useCallback(async () => {
     if (!workspaceToDelete) return;
+    const { id, isCloud } = workspaceToDelete;
+    const mutation = isCloud ? cloudDeleteWorkspace : deleteWorkspace;
     try {
       await mutateWithToast(
-        () => deleteWorkspace.mutateAsync(workspaceToDelete),
+        () => mutation.mutateAsync(id),
         'Workspace deleted',
         'Failed to delete workspace',
       );
-      if (selectedChatId && selectedChatWorkspaceId === workspaceToDelete) {
+      if (selectedChatId && selectedChatWorkspaceId === id) {
         navigate('/');
       }
     } catch {
@@ -462,7 +495,14 @@ export function Sidebar({
     } finally {
       setWorkspaceToDelete(null);
     }
-  }, [workspaceToDelete, deleteWorkspace, selectedChatId, selectedChatWorkspaceId, navigate]);
+  }, [
+    workspaceToDelete,
+    deleteWorkspace,
+    cloudDeleteWorkspace,
+    selectedChatId,
+    selectedChatWorkspaceId,
+    navigate,
+  ]);
 
   // Props every workspace group needs identically — local and cloud differ only in
   // the namespaced key and the local-only header actions (new thread, context menu).
@@ -559,6 +599,8 @@ export function Sidebar({
                     key={`cloud:${workspace.id}`}
                     workspace={workspace}
                     isCollapsed={collapsedWorkspaces.has(workspace.id)}
+                    onNewThread={handleNewCloudThread}
+                    onWorkspaceContextMenu={handleWorkspaceContextMenu}
                     {...sharedGroupProps}
                   />
                 ) : (
@@ -613,8 +655,9 @@ export function Sidebar({
             variant="unstyled"
             type="button"
             onClick={() => {
-              const ws = workspaces.find((w) => w.id === workspaceDropdown.workspaceId);
-              if (ws) handleRenameWorkspace(ws);
+              const list = workspaceDropdown.isCloud ? (cloudWorkspaces ?? []) : workspaces;
+              const ws = list.find((w) => w.id === workspaceDropdown.workspaceId);
+              if (ws) handleRenameWorkspace(ws, workspaceDropdown.isCloud);
             }}
             className="w-full rounded-md px-2.5 py-1.5 text-left text-xs text-text-secondary transition-colors duration-200 hover:bg-surface-hover dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover"
           >
@@ -623,7 +666,9 @@ export function Sidebar({
           <Button
             variant="unstyled"
             type="button"
-            onClick={() => handleDeleteWorkspace(workspaceDropdown.workspaceId)}
+            onClick={() =>
+              handleDeleteWorkspace(workspaceDropdown.workspaceId, workspaceDropdown.isCloud)
+            }
             className="w-full rounded-md px-2.5 py-1.5 text-left text-xs text-error-500 transition-colors duration-200 hover:bg-surface-hover dark:text-error-400 dark:hover:bg-surface-dark-hover"
           >
             Delete
@@ -665,8 +710,8 @@ export function Sidebar({
         isOpen={!!workspaceToRename}
         onClose={() => setWorkspaceToRename(null)}
         onSave={handleSaveWorkspaceRename}
-        currentTitle={workspaceToRename?.name || ''}
-        isLoading={updateWorkspace.isPending}
+        currentTitle={workspaceToRename?.workspace.name || ''}
+        isLoading={updateWorkspace.isPending || cloudUpdateWorkspace.isPending}
       />
     </>
   );
