@@ -31,6 +31,7 @@ interface ChatRowProps {
   secondaryChatId: string | null;
   dropdownChatId: string | null;
   streamingChatIdSet: Set<string>;
+  blockedChatIdSet: Set<string>;
   onChatSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
@@ -54,6 +55,7 @@ function SidebarChatRow({
     secondaryChatId,
     dropdownChatId,
     streamingChatIdSet,
+    blockedChatIdSet,
     onChatSelect,
     onOpenInSplit,
     onDropdownClick,
@@ -71,6 +73,7 @@ function SidebarChatRow({
         isHovered={hover.isHovered}
         isDropdownOpen={dropdownChatId === chat.id}
         isChatStreaming={streamingChatIdSet.has(chat.id)}
+        isChatBlocked={blockedChatIdSet.has(chat.id)}
         onSelect={onChatSelect}
         onOpenInSplit={onOpenInSplit}
         onDropdownClick={onDropdownClick}
@@ -87,6 +90,7 @@ function SidebarChatRow({
           onSelect={onChatSelect}
           onDropdownClick={onDropdownClick}
           streamingChatIdSet={streamingChatIdSet}
+          blockedChatIdSet={blockedChatIdSet}
         />
       )}
     </div>
