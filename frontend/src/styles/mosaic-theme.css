@@ -95,15 +95,8 @@
   overflow: hidden;
 }
 
-.mosaic-agentrove .mosaic-window .mosaic-window-toolbar.draggable {
-  cursor: grab;
-}
-
-.mosaic-agentrove .mosaic-window .mosaic-window-toolbar.draggable:active {
-  cursor: grabbing;
-}
-
-/* Hide the default title and controls — we render our own via renderToolbar */
+/* Defensive: hide any default toolbar chrome. Titles/controls live in the
+   title-bar SplitTabs; the per-pane toolbar renders empty. */
 .mosaic-agentrove .mosaic-window .mosaic-window-title,
 .mosaic-agentrove .mosaic-window .mosaic-window-controls {
   display: none;

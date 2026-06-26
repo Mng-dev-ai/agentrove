@@ -9,8 +9,8 @@ import { CommandMenu } from '@/components/ui/CommandMenu';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useActiveViews } from '@/hooks/useActiveViews';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
-import type { AgentTileId, MosaicTileId, ViewType } from '@/types/ui.types';
-import { isSecondaryTile, tileIdToViewType, VIEW_LABELS, VIEW_TYPES } from '@/utils/mosaicHelpers';
+import type { MosaicTileId, ViewType } from '@/types/ui.types';
+import { isSecondaryTile, tileIdToViewType } from '@/utils/mosaicHelpers';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
@@ -164,6 +164,12 @@ export function ChatPage() {
       createCommitDialogOpen: false,
       createPRDialogOpen: false,
       createBranchDialogOpen: false,
+      // Ephemeral pane pointers don't belong to the new chat — a same-id tile in
+      // its split must not inherit chat A's maximize/focus. activeAgentTile (the
+      // coarse pointer) resets with them so the three stay consistent.
+      maximizedTile: null,
+      focusedTile: null,
+      activeAgentTile: 'agent:primary',
     });
   }
 
@@ -247,9 +253,6 @@ export function ChatPage() {
     (tileId: MosaicTileId, slot: string): ReactNode => {
       const isSecondary = isSecondaryTile(tileId);
       const isTerminal = tileId === 'terminal' || tileId === 'terminal:secondary';
-      // Every tile maps to the chat it shows; recording it on any interaction
-      // keeps pane-scoped shortcuts aimed at the chat the user is actually in.
-      const activePane: AgentTileId = isSecondary ? 'agent:secondary' : 'agent:primary';
       // The secondary terminal runs in the second chat's sandbox; the hidden
       // terminals kept alive in other slots stay on the primary chat.
       const terminalSandboxId = isSecondary
@@ -259,7 +262,9 @@ export function ChatPage() {
       return (
         <div
           className="relative flex h-full w-full"
-          onPointerDownCapture={() => useUIStore.getState().setActiveAgentTile(activePane)}
+          // Record focus on any interaction so shortcuts and the active tab both
+          // track the pane in use (focusTile derives the chat from the tile).
+          onPointerDownCapture={() => useUIStore.getState().focusTile(tileId)}
         >
           <div className={isTerminal ? 'flex h-full w-full' : 'hidden'}>
             <Suspense fallback={viewLoadingFallback}>
@@ -279,44 +284,6 @@ export function ChatPage() {
     },
     [currentChat, renderNonTerminalView, secondaryChatId, secondaryQuery.data?.sandbox_id],
   );
-
-  const handleCloseTile = useCallback(
-    (tileId: MosaicTileId) => {
-      const ui = useUIStore.getState();
-      if (tileId === 'agent:secondary') {
-        ui.closeSplitChat();
-        return;
-      }
-      if (tileId === 'agent:primary' && ui.secondaryChatId && chatId) {
-        const newPrimary = ui.swapChatPanes(chatId);
-        if (newPrimary) {
-          navigate(`/chat/${newPrimary}`);
-          ui.closeSplitChat();
-          return;
-        }
-      }
-      ui.removeTileFromMosaic(tileId);
-    },
-    [chatId, navigate],
-  );
-
-  const agentTitles = useMemo<Partial<Record<MosaicTileId, string>>>(() => {
-    const titles: Partial<Record<MosaicTileId, string>> = {};
-    const primaryTitle = currentChat?.title;
-    const secondaryTitle = secondaryQuery.data?.title;
-    if (primaryTitle) titles['agent:primary'] = primaryTitle;
-    if (secondaryChatId && secondaryTitle) {
-      titles['agent:secondary'] = secondaryTitle;
-      // Each non-agent view's two tiles can coexist in split-chat view — name
-      // them by chat so the two copies (primary/secondary) are distinguishable.
-      for (const view of VIEW_TYPES) {
-        if (view === 'agent') continue;
-        if (primaryTitle) titles[view] = `${primaryTitle} · ${VIEW_LABELS[view]}`;
-        titles[`${view}:secondary`] = `${secondaryTitle} · ${VIEW_LABELS[view]}`;
-      }
-    }
-    return titles;
-  }, [currentChat?.title, secondaryChatId, secondaryQuery.data?.title]);
 
   if (!chatId) return <Navigate to="/" />;
 
@@ -341,11 +308,7 @@ export function ChatPage() {
       >
         <div className="relative flex h-full">
           <div className="flex h-full flex-1 overflow-hidden bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">
-            <SplitViewContainer
-              renderView={renderView}
-              agentTitles={agentTitles}
-              onCloseTile={handleCloseTile}
-            />
+            <SplitViewContainer renderView={renderView} />
           </div>
           <CommandMenu />
           {subThreadDialogOpen && <SubThreadDialog />}
