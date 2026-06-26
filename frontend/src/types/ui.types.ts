@@ -104,8 +104,9 @@ export interface SplitViewActions {
   // active chat (primary/secondary) from the tile, so tab and pane clicks agree.
   focusTile: (tileId: MosaicTileId) => void;
   // Opens or (when toggling) closes a view's tile for the active agent pane,
-  // so the shortcut targets the chat the user is currently in.
-  toggleView: (view: ViewType, toggle: boolean) => void;
+  // so the shortcut targets the chat the user is currently in. `direction` sets
+  // how a newly opened pane splits (row = side by side, column = stacked).
+  toggleView: (view: ViewType, toggle: boolean, direction?: MosaicDirection) => void;
 }
 
 export interface UIState {
