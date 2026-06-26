@@ -14,6 +14,7 @@ interface SidebarChatItemProps {
   isHovered: boolean;
   isDropdownOpen: boolean;
   isChatStreaming: boolean;
+  isChatBlocked: boolean;
   onSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
@@ -30,6 +31,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   isHovered,
   isDropdownOpen,
   isChatStreaming,
+  isChatBlocked,
   onSelect,
   onOpenInSplit,
   onDropdownClick,
@@ -72,8 +74,17 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         <div className="h-3 w-3 flex-shrink-0" />
       )}
 
-      <div className="flex min-w-0 flex-1 items-center gap-1.5 pr-10">
-        {isChatStreaming && (
+      {/* Wider right padding when blocked reserves room for the "Awaiting approval"
+          pill so long titles truncate before reaching it. */}
+      <div
+        className={cn(
+          'flex min-w-0 flex-1 items-center gap-1.5',
+          isChatBlocked ? 'pr-[104px]' : 'pr-10',
+        )}
+      >
+        {/* A pending plan/question/permission request blocks the agent; show the
+            approval pill instead of the running pulse. */}
+        {isChatStreaming && !isChatBlocked && (
           <div className="h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
         )}
         <Button
@@ -111,12 +122,14 @@ export const SidebarChatItem = memo(function SidebarChatItem({
 
       <span
         className={cn(
-          'absolute right-2 text-[10px] tabular-nums text-text-quaternary dark:text-text-dark-quaternary',
-          'transition-opacity duration-200',
+          'absolute right-2 text-[10px] transition-opacity duration-200',
+          isChatBlocked
+            ? 'rounded-md bg-text-primary px-1.5 py-0.5 font-medium text-surface dark:bg-text-dark-primary dark:text-surface-dark'
+            : 'tabular-nums text-text-quaternary dark:text-text-dark-quaternary',
           isHovered || isActive || isDropdownOpen ? 'opacity-0' : 'opacity-100',
         )}
       >
-        {getRelativeTime(chat.updated_at)}
+        {isChatBlocked ? 'Awaiting approval' : getRelativeTime(chat.updated_at)}
       </span>
 
       <Button

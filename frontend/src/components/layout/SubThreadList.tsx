@@ -15,6 +15,7 @@ interface SubThreadListProps {
   onSelect: (chatId: string) => void;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
   streamingChatIdSet: Set<string>;
+  blockedChatIdSet: Set<string>;
 }
 
 export const SubThreadList = memo(function SubThreadList({
@@ -24,6 +25,7 @@ export const SubThreadList = memo(function SubThreadList({
   onSelect,
   onDropdownClick,
   streamingChatIdSet,
+  blockedChatIdSet,
 }: SubThreadListProps) {
   const { data: subThreads, isLoading, isError, refetch } = useSubThreadsQuery(parentChatId);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -59,6 +61,7 @@ export const SubThreadList = memo(function SubThreadList({
         const isSelected = thread.id === selectedChatId;
         const isActive = isSelected || thread.id === secondaryChatId;
         const isStreaming = streamingChatIdSet.has(thread.id);
+        const isBlocked = blockedChatIdSet.has(thread.id);
         const isHovered = hoveredId === thread.id;
 
         return (
@@ -81,13 +84,14 @@ export const SubThreadList = memo(function SubThreadList({
               onClick={() => onSelect(thread.id)}
               title={thread.title}
               className={cn(
-                'flex w-full items-center gap-2 px-2 py-1.5 pr-10 transition-colors duration-200',
+                'flex w-full items-center gap-2 px-2 py-1.5 transition-colors duration-200',
+                isBlocked ? 'pr-[104px]' : 'pr-10',
                 isActive
                   ? 'text-text-primary dark:text-text-dark-primary'
                   : 'text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary',
               )}
             >
-              {isStreaming && (
+              {isStreaming && !isBlocked && (
                 <div className="h-[5px] w-[5px] flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
               )}
               {thread.session_agent_kind && (
@@ -103,12 +107,14 @@ export const SubThreadList = memo(function SubThreadList({
 
             <span
               className={cn(
-                'absolute right-2 text-[10px] tabular-nums text-text-quaternary dark:text-text-dark-quaternary',
-                'transition-opacity duration-200',
+                'absolute right-2 text-[10px] transition-opacity duration-200',
+                isBlocked
+                  ? 'rounded-md bg-text-primary px-1.5 py-0.5 font-medium text-surface dark:bg-text-dark-primary dark:text-surface-dark'
+                  : 'tabular-nums text-text-quaternary dark:text-text-dark-quaternary',
                 isHovered || isActive ? 'opacity-0' : 'opacity-100',
               )}
             >
-              {getRelativeTime(thread.updated_at)}
+              {isBlocked ? 'Awaiting approval' : getRelativeTime(thread.updated_at)}
             </span>
 
             <Button

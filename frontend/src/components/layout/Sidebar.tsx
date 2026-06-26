@@ -29,6 +29,7 @@ import { cn } from '@/utils/cn';
 import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
 import { useStreamStore } from '@/store/streamStore';
+import { usePermissionStore } from '@/store/permissionStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useCurrentUserQuery, useLogoutMutation } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
@@ -127,6 +128,11 @@ export function Sidebar({
     () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
     [activeStreamMetadata],
   );
+  // Chats with a pending plan/question/permission request — the agent is
+  // blocked on the user. Empty queues are deleted from the store, so every
+  // remaining key has an outstanding request.
+  const pendingRequests = usePermissionStore((state) => state.pendingRequests);
+  const blockedChatIdSet = useMemo(() => new Set(pendingRequests.keys()), [pendingRequests]);
   const [collapsedWorkspaces, toggleWorkspaceCollapse, setCollapsedWorkspaces] =
     useToggleSet<string>();
   const [pinnedHoveredId, setPinnedHoveredId] = useState<string | null>(null);
@@ -511,6 +517,7 @@ export function Sidebar({
     secondaryChatId,
     dropdownChatId: dropdown?.chat.id ?? null,
     streamingChatIdSet,
+    blockedChatIdSet,
     onToggleCollapse: toggleWorkspaceCollapse,
     onChatSelect: handleChatSelect,
     onOpenInSplit: canOpenInSplit ? handleOpenInSplit : undefined,
@@ -565,6 +572,7 @@ export function Sidebar({
                           isHovered={pinnedHoveredId === chat.id}
                           isDropdownOpen={dropdown?.chat.id === chat.id}
                           isChatStreaming={streamingChatIdSet.has(chat.id)}
+                          isChatBlocked={blockedChatIdSet.has(chat.id)}
                           onSelect={handleChatSelect}
                           onOpenInSplit={canOpenInSplit ? handleOpenInSplit : undefined}
                           onDropdownClick={handleDropdownClick}
@@ -585,6 +593,7 @@ export function Sidebar({
                             onSelect={handleChatSelect}
                             onDropdownClick={handleDropdownClick}
                             streamingChatIdSet={streamingChatIdSet}
+                            blockedChatIdSet={blockedChatIdSet}
                           />
                         )}
                       </div>
