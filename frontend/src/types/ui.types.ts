@@ -78,6 +78,13 @@ export interface SplitViewState {
   // The agent pane the user last interacted with — targets pane-scoped actions
   // (e.g. the diff shortcut) at the chat the user is actually in.
   activeAgentTile: AgentTileId;
+  // Ephemeral (not persisted): the tile expanded over the split. The whole tree
+  // stays mounted; CSS expands this one, so clearing it restores every pane's state.
+  maximizedTile: MosaicTileId | null;
+  // The exact pane the user last touched — drives the active tab highlight.
+  // Distinct from activeAgentTile, which only tracks the active chat (primary vs
+  // secondary), not the specific tile.
+  focusedTile: MosaicTileId | null;
 }
 
 export interface SplitViewActions {
@@ -92,7 +99,10 @@ export interface SplitViewActions {
   closeSplitChat: () => void;
   // Returns the chatId that should become the new route primary (caller navigates).
   swapChatPanes: (currentPrimaryChatId: string) => string | null;
-  setActiveAgentTile: (tile: AgentTileId) => void;
+  setMaximizedTile: (tileId: MosaicTileId | null) => void;
+  // Single focus path: records the exact pane (highlights its tab) and scopes the
+  // active chat (primary/secondary) from the tile, so tab and pane clicks agree.
+  focusTile: (tileId: MosaicTileId) => void;
   // Opens or (when toggling) closes a view's tile for the active agent pane,
   // so the shortcut targets the chat the user is currently in.
   toggleView: (view: ViewType, toggle: boolean) => void;

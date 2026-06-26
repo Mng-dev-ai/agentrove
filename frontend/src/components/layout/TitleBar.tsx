@@ -6,6 +6,7 @@ import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button';
 import { ToggleButton } from '@/components/ui/ToggleButton';
 import { ViewSwitcher } from './ViewSwitcher';
+import { SplitTabs } from './SplitTabs';
 import { cn } from '@/utils/cn';
 import { IS_MAC_PLATFORM, isDesktopApp } from '@/utils/platform';
 
@@ -199,8 +200,14 @@ export function TitleBar() {
         {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className="w-1" />}
       </div>
 
-      {/* Main content area — matches main bg */}
-      <div className="flex h-full flex-1 items-center justify-end bg-surface px-3 pt-[env(safe-area-inset-top)] dark:bg-surface-dark">
+      {/* Main content area — matches main bg. Pane tabs (split view only) sit on
+          the left; the view switcher stays pinned right. */}
+      <div className="flex h-full flex-1 items-center justify-between gap-2 bg-surface px-3 pt-[env(safe-area-inset-top)] dark:bg-surface-dark">
+        {/* Landing can also split (opening a workspace file adds an editor pane),
+            so its panes need the same tab controls. */}
+        <div className="flex min-w-0 flex-1 items-center">
+          {(isChatPage || isLandingPage) && <SplitTabs />}
+        </div>
         {isChatPage && <ViewSwitcher />}
       </div>
     </div>

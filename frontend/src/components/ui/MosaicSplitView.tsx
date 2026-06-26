@@ -1,74 +1,32 @@
-import { useCallback, useMemo, useState, ReactNode } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
+import { useCallback, useMemo, ReactNode } from 'react';
 import { Mosaic, MosaicWindow } from 'react-mosaic-component';
-import { X, SplitSquareHorizontal, Maximize2, Minimize2 } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/utils/cn';
-import {
-  mosaicLayoutToLibrary,
-  libraryToMosaicLayout,
-  getLeaves,
-  tileIdToViewType,
-  VIEW_LABELS,
-} from '@/utils/mosaicHelpers';
+import { getLeaves, mosaicLayoutToLibrary, libraryToMosaicLayout } from '@/utils/mosaicHelpers';
 import type { MosaicLayoutNode, MosaicTileId } from '@/types/ui.types';
 
 import 'react-mosaic-component/react-mosaic-component.css';
 import '@/styles/mosaic-theme.css';
 
-const TOOLBAR_BUTTON_CLASS = cn(
-  'flex items-center justify-center',
-  'h-5 w-5 rounded-md',
-  'text-text-tertiary dark:text-text-dark-tertiary',
-  'hover:text-text-primary dark:hover:text-text-dark-primary',
-  'transition-colors duration-200',
-);
-
-function getTileLabel(
-  tileId: MosaicTileId,
-  agentTitles: Partial<Record<MosaicTileId, string>>,
-): string {
-  return agentTitles[tileId] ?? VIEW_LABELS[tileIdToViewType(tileId)] ?? tileId;
-}
-
 interface MosaicSplitViewProps {
   mosaicLayout: MosaicLayoutNode;
   renderView: (tileId: MosaicTileId, slot: string) => ReactNode;
-  agentTitles?: Partial<Record<MosaicTileId, string>>;
-  onCloseTile?: (tileId: MosaicTileId) => void;
 }
 
-export function MosaicSplitView({
-  mosaicLayout,
-  renderView,
-  agentTitles,
-  onCloseTile,
-}: MosaicSplitViewProps) {
-  // Ephemeral: the tile expanded over the split via CSS (see `.has-maximized`).
-  // The store layout and every pane stay mounted, so minimizing just clears this
-  // and the split reappears with all panes' local state intact.
-  const [maximizedTile, setMaximizedTile] = useState<MosaicTileId | null>(null);
+export function MosaicSplitView({ mosaicLayout, renderView }: MosaicSplitViewProps) {
+  // Pane titles/controls live in the title bar's SplitTabs; the maximize state is
+  // shared via the store so the tab toggle and this CSS expansion stay in sync.
+  // Derived on read: a maximizedTile that's no longer a leaf (after any single-tile
+  // transition) is treated as cleared, so the store never needs to chase it.
+  const rawMaximized = useUIStore((s) => s.maximizedTile);
 
   const handleMosaicChange = useCallback((newNode: Parameters<typeof libraryToMosaicLayout>[0]) => {
     const layout = libraryToMosaicLayout(newNode);
     useUIStore.getState().setMosaicLayout(layout);
   }, []);
 
-  const handleCloseTile = useCallback(
-    (tileId: MosaicTileId) => {
-      if (onCloseTile) onCloseTile(tileId);
-      else useUIStore.getState().removeTileFromMosaic(tileId);
-    },
-    [onCloseTile],
-  );
-
   const leaves = useMemo(() => getLeaves(mosaicLayout), [mosaicLayout]);
-
-  // Drop the maximized tile once its pane is gone (closed/collapsed) so the
-  // split renders normally again.
-  if (maximizedTile && !leaves.includes(maximizedTile)) {
-    setMaximizedTile(null);
-  }
+  const maximizedTile = rawMaximized && leaves.includes(rawMaximized) ? rawMaximized : null;
 
   const libraryValue = useMemo(() => mosaicLayoutToLibrary(mosaicLayout), [mosaicLayout]);
 
@@ -91,59 +49,14 @@ export function MosaicSplitView({
             <MosaicWindow<string>
               path={path}
               className={maximizedTile === tileId ? 'mosaic-window--maximized' : undefined}
-              title={getTileLabel(tileId, agentTitles ?? {})}
-              toolbarControls={
-                <div className="flex items-center gap-0.5 pr-0.5">
-                  {leaves.length > 1 && (
-                    <>
-                      <Button
-                        variant="unstyled"
-                        onClick={() =>
-                          setMaximizedTile((current) => (current === tileId ? null : tileId))
-                        }
-                        className={TOOLBAR_BUTTON_CLASS}
-                        title={maximizedTile === tileId ? 'Restore split' : 'Maximize'}
-                      >
-                        {maximizedTile === tileId ? (
-                          <Minimize2 className="h-3 w-3" />
-                        ) : (
-                          <Maximize2 className="h-3 w-3" />
-                        )}
-                      </Button>
-                      {!maximizedTile && (
-                        <Button
-                          variant="unstyled"
-                          onClick={() => handleCloseTile(tileId)}
-                          className={TOOLBAR_BUTTON_CLASS}
-                          title="Close tile"
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              }
-              renderToolbar={(props) => (
-                <div
-                  className={cn(
-                    // w-full so it fills the wrapping .mosaic-window-toolbar —
-                    // otherwise the div shrinks to content and justify-between
-                    // can't push the controls to the right edge.
-                    'flex h-7 w-full items-center justify-between px-2',
-                    'bg-surface-secondary dark:bg-surface-dark-secondary',
-                    'border-b border-border/50 dark:border-border-dark/50',
-                  )}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <SplitSquareHorizontal className="h-3 w-3 text-text-quaternary dark:text-text-dark-quaternary" />
-                    <span className="text-2xs font-medium text-text-secondary dark:text-text-dark-secondary">
-                      {props.title}
-                    </span>
-                  </div>
-                  <div className="flex items-center">{props.toolbarControls}</div>
-                </div>
-              )}
+              // title is a required prop but never renders — labels/controls live
+              // in the title-bar SplitTabs and the per-pane toolbar renders empty.
+              title={tileId}
+              // draggable=false skips react-dnd's connectDragSource on the empty
+              // toolbar — passing a Fragment to the connector throws in react-dnd 16,
+              // and there's no grab target anyway since the toolbar renders empty.
+              draggable={false}
+              renderToolbar={() => <></>}
             >
               <div className="flex h-full w-full overflow-hidden">
                 {renderView(tileId, `tile-${tileId}`)}

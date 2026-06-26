@@ -199,9 +199,24 @@ export const useUIStore = create<UIStoreState>()(
       mosaicLayout: null,
       secondaryChatId: null,
       activeAgentTile: 'agent:primary',
+      maximizedTile: null,
+      focusedTile: null,
 
-      setActiveAgentTile: (tile) => {
-        if (get().activeAgentTile !== tile) set({ activeAgentTile: tile });
+      setMaximizedTile: (tileId) => {
+        if (get().maximizedTile !== tileId) set({ maximizedTile: tileId });
+      },
+
+      focusTile: (tileId) => {
+        if (get().focusedTile === tileId) return;
+        // Single focus path for both tab and pane clicks. activeAgentTile is the
+        // coarsening of focusedTile (primary vs secondary chat). It stays a separate
+        // field because focusedTile is nullable (no interaction yet) while the ~6
+        // imperative coarse readers need an always-defined value — collapsing would
+        // scatter `?? 'agent:primary'` fallbacks across all of them.
+        set({
+          focusedTile: tileId,
+          activeAgentTile: isSecondaryTile(tileId) ? 'agent:secondary' : 'agent:primary',
+        });
       },
 
       toggleView: (view, toggle) => {
@@ -299,6 +314,10 @@ export const useUIStore = create<UIStoreState>()(
         if (!layout || typeof layout === 'string') return;
         const leaves = getLeaves(layout);
         if (!leaves.includes(tileId)) return;
+        // Clear maximize at the canonical "tile went away" event. Derive-on-read
+        // hides a stale pointer while the tile is absent, but only clearing here
+        // stops it resurrecting if the same tile id is re-added later.
+        if (state.maximizedTile === tileId) set({ maximizedTile: null });
         const clearedJumps = clearJumpsForTile(state, tileId);
         if (Object.keys(clearedJumps).length > 0) set(clearedJumps);
         const remaining = leaves.filter((v) => v !== tileId);
@@ -342,7 +361,11 @@ export const useUIStore = create<UIStoreState>()(
         const secondaryChanged = state.secondaryChatId !== chatId;
         const resetForNewSecondary: Partial<UIStoreState> = secondaryChanged
           ? {
+              // Reset all three pane pointers together — activeAgentTile alone
+              // would leave the tab highlight/maximize aimed at the old secondary.
               activeAgentTile: 'agent:primary',
+              focusedTile: null,
+              maximizedTile: null,
               ...clearJumpsForChat(state, state.secondaryChatId),
             }
           : {};
@@ -367,7 +390,11 @@ export const useUIStore = create<UIStoreState>()(
         // secondary chat.
         const reset: Partial<UIStoreState> = {
           secondaryChatId: null,
+          // All three pane pointers reset together so the tab highlight, command
+          // targeting, and maximize don't keep aiming at the closed secondary.
           activeAgentTile: 'agent:primary',
+          focusedTile: null,
+          maximizedTile: null,
           ...clearJumpsForChat(state, state.secondaryChatId),
         };
         if (layout && isMosaicSplitNode(layout)) {

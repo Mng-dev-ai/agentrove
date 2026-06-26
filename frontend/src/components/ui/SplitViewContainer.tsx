@@ -11,14 +11,10 @@ const MosaicSplitView = lazy(() =>
 
 interface SplitViewContainerProps {
   renderView: (tileId: MosaicTileId, slot: string) => ReactNode;
-  agentTitles?: Partial<Record<MosaicTileId, string>>;
-  onCloseTile?: (tileId: MosaicTileId) => void;
 }
 
 export const SplitViewContainer = memo(function SplitViewContainer({
   renderView,
-  agentTitles,
-  onCloseTile,
 }: SplitViewContainerProps) {
   const currentView = useUIStore((state) => state.currentView);
   const mosaicLayout = useUIStore((state) => state.mosaicLayout);
@@ -34,12 +30,7 @@ export const SplitViewContainer = memo(function SplitViewContainer({
 
   return (
     <Suspense fallback={viewLoadingFallback}>
-      <MosaicSplitView
-        mosaicLayout={mosaicLayout}
-        renderView={renderView}
-        agentTitles={agentTitles}
-        onCloseTile={onCloseTile}
-      />
+      <MosaicSplitView mosaicLayout={mosaicLayout} renderView={renderView} />
     </Suspense>
   );
 });
