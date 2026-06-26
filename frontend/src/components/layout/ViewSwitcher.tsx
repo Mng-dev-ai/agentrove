@@ -39,8 +39,11 @@ export function ViewSwitcher() {
           <Button
             key={view}
             variant="unstyled"
-            // Toggle: open the view as a tile, or close it if already visible
-            onClick={() => useUIStore.getState().toggleView(view, true)}
+            // Toggle: open the view as a tile, or close it if already visible.
+            // Shift-click opens the new pane stacked (column) instead of side by side.
+            onClick={(e) =>
+              useUIStore.getState().toggleView(view, true, e.shiftKey ? 'column' : 'row')
+            }
             className={cn(
               'rounded-md p-1.5 transition-colors duration-200',
               isActive
@@ -49,7 +52,9 @@ export function ViewSwitcher() {
             )}
             aria-label={`Toggle ${VIEW_LABELS[view]} view`}
             aria-pressed={isActive}
-            title={VIEW_LABELS[view]}
+            // Hint shift-to-stack only while opening — shift has no effect on the
+            // close (active) click.
+            title={isActive ? VIEW_LABELS[view] : `${VIEW_LABELS[view]} · ⇧ to stack`}
           >
             <Icon className="h-3.5 w-3.5" />
           </Button>

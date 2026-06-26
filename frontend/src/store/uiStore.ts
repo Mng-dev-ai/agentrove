@@ -8,6 +8,7 @@ import type {
   SplitViewActions,
   MosaicTileId,
   MosaicLayoutNode,
+  MosaicDirection,
 } from '@/types/ui.types';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 import {
@@ -90,6 +91,9 @@ function ensureTileVisible(
   set: (partial: Partial<UIStoreState>) => void,
   get: () => UIStoreState,
   tileId: MosaicTileId,
+  // row = side by side (default), column = stacked. Shift-clicking a view icon
+  // opens the new pane stacked instead.
+  direction: MosaicDirection = 'row',
 ): void {
   if (!isDesktop()) {
     set({ currentView: tileIdToViewType(tileId), mosaicLayout: tileId });
@@ -99,13 +103,13 @@ function ensureTileVisible(
   const layout = state.mosaicLayout;
   if (layout && isMosaicSplitNode(layout)) {
     if (!getLeaves(layout).includes(tileId)) {
-      set({ mosaicLayout: { direction: 'row', first: layout, second: tileId } });
+      set({ mosaicLayout: { direction, first: layout, second: tileId } });
     }
     return;
   }
   const currentTile = getEffectiveLayout(layout, state.currentView);
   if (currentTile !== tileId) {
-    set({ mosaicLayout: { direction: 'row', first: currentTile, second: tileId } });
+    set({ mosaicLayout: { direction, first: currentTile, second: tileId } });
   }
 }
 
@@ -219,7 +223,7 @@ export const useUIStore = create<UIStoreState>()(
         });
       },
 
-      toggleView: (view, toggle) => {
+      toggleView: (view, toggle, direction) => {
         const state = get();
         const layout = getEffectiveLayout(state.mosaicLayout, state.currentView);
         // Agent has no per-pane toggle: closing it tears down the split (or the
@@ -247,7 +251,7 @@ export const useUIStore = create<UIStoreState>()(
         if (toggle && getLeaves(layout).includes(tileId)) {
           get().removeTileFromMosaic(tileId);
         } else {
-          ensureTileVisible(set, get, tileId);
+          ensureTileVisible(set, get, tileId, direction);
         }
       },
 
