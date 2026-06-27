@@ -32,7 +32,7 @@ from app.core.deps import (
 )
 from app.core.security import get_current_user
 from app.models.db_models.chat import Chat
-from app.models.db_models.enums import MessageRole, MessageStreamStatus
+from app.models.db_models.enums import MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.types import MessageAttachmentDict, PermissionMode
 from app.models.schemas.chat import (
@@ -179,27 +179,17 @@ async def generate_chat_title(
     chat: Chat = Depends(ensure_chat_access),
     current_user: User = Depends(get_current_user),
     ai_service: AgentService = Depends(get_agent_service),
+    chat_service: ChatService = Depends(get_chat_service),
 ) -> dict[str, str]:
     # Title from the first user message — same source the automatic
     # background titling uses when a chat starts.
-    user_messages = [
-        m
-        for m in chat.messages
-        if m.role == MessageRole.USER and m.content_text.strip()
-    ]
-    # model_id is only stored on assistant messages, so pick the most
-    # recent one — that's the model the chat is currently using.
-    model_ids = [
-        (m.created_at, m.model_id) for m in chat.messages if m.model_id is not None
-    ]
-    if not user_messages or not model_ids:
+    source = await chat_service.get_title_source(chat.id)
+    if source is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Chat has no messages to generate a title from",
         )
-
-    prompt = min(user_messages, key=lambda m: m.created_at).content_text
-    model_id = max(model_ids)[1]
+    prompt, model_id = source
 
     title = await ai_service.generate_title(prompt, model_id, current_user, chat=chat)
     if not title:
@@ -279,7 +269,11 @@ async def get_chat_detail(
     chat_service: ChatService = Depends(get_chat_service),
 ) -> ChatSchema:
     try:
-        return await chat_service.get_chat(chat_id, current_user)
+        chat = await chat_service.get_chat(chat_id, current_user)
+        chat.sub_thread_count = await chat_service.count_sub_threads(
+            chat_id, current_user
+        )
+        return chat
     except ChatException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     except SQLAlchemyError as e:

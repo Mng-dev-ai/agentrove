@@ -421,9 +421,10 @@ class ChatService(BaseDbService[Chat]):
             return chat
 
     async def get_chat(self, chat_id: UUID, user: User) -> Chat:
-        # Fetch a single chat with its messages (non-deleted) and workspace eagerly loaded.
-        # Also computes sub_thread_count as a transient attribute on the ORM object
-        # so ChatSchema.model_validate() picks it up via from_attributes=True.
+        # Fetch a single chat with its workspace eagerly loaded (sandbox_id reads it).
+        # Messages aren't loaded here — the Chat schema has no message field; the
+        # paginated /messages endpoint serves the visible history. sub_thread_count
+        # is computed only by callers that serialize it (see count_sub_threads).
         async with self.session_factory() as db:
             query = (
                 select(Chat)
@@ -433,9 +434,6 @@ class ChatService(BaseDbService[Chat]):
                     Chat.deleted_at.is_(None),
                 )
                 .options(
-                    selectinload(
-                        Chat.messages.and_(Message.deleted_at.is_(None))
-                    ).selectinload(Message.attachments),
                     selectinload(Chat.workspace),
                 )
             )
@@ -450,16 +448,55 @@ class ChatService(BaseDbService[Chat]):
                     status_code=404,
                 )
 
-            sub_count_result = await db.execute(
+            return chat
+
+    async def count_sub_threads(self, chat_id: UUID, user: User) -> int:
+        async with self.session_factory() as db:
+            result = await db.execute(
                 select(func.count(Chat.id)).filter(
                     Chat.parent_chat_id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
                 )
             )
-            chat.sub_thread_count = sub_count_result.scalar()
+            return result.scalar() or 0
 
-            return chat
+    async def get_title_source(self, chat_id: UUID) -> tuple[str, str] | None:
+        # Title prompt is the first non-empty user message; model is the most
+        # recent one stored on a message (only assistant messages carry it).
+        # Returns None when either is missing. Queried directly so callers don't
+        # need the full message history loaded.
+        async with self.session_factory() as db:
+            prompt = (
+                await db.execute(
+                    select(Message.content_text)
+                    .filter(
+                        Message.chat_id == chat_id,
+                        Message.role == MessageRole.USER,
+                        Message.deleted_at.is_(None),
+                        func.trim(Message.content_text) != "",
+                    )
+                    .order_by(Message.created_at.asc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+
+            model_id = (
+                await db.execute(
+                    select(Message.model_id)
+                    .filter(
+                        Message.chat_id == chat_id,
+                        Message.deleted_at.is_(None),
+                        Message.model_id.is_not(None),
+                    )
+                    .order_by(Message.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+
+        if not prompt or not model_id:
+            return None
+        return prompt, model_id
 
     async def get_model_context_window(self, chat_id: UUID) -> int | None:
         last_msg = await self.message_service.get_latest_assistant_message(chat_id)
