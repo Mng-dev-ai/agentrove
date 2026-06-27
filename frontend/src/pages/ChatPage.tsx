@@ -9,14 +9,15 @@ import { CommandMenu } from '@/components/ui/CommandMenu';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useActiveViews } from '@/hooks/useActiveViews';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
-import type { MosaicTileId, ViewType } from '@/types/ui.types';
-import { isSecondaryTile, tileIdToViewType } from '@/utils/mosaicHelpers';
+import type { TileId, ViewType } from '@/types/ui.types';
+import { isSecondaryTile, tileIdToViewType } from '@/utils/tileHelpers';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
 import { useChatData } from '@/hooks/useChatData';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useMountEffect } from '@/hooks/useMountEffect';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
@@ -92,7 +93,16 @@ export function ChatPage() {
     }
   }, [secondaryChatId, secondaryQueryIsError]);
 
-  // mosaicLayout isn't persisted; rebuild it on refresh and when returning to desktop.
+  // Each chat keeps its own tabs: restore them on entry, stash them on leave.
+  // Must run before the split-rebuild effect below — on mount it restores the
+  // primary-only layout, and the split-rebuild then reapplies a persisted
+  // secondary split on top. Reversed, the restore would wipe the rebuilt split.
+  useMountEffect(() => {
+    if (chatId) useUIStore.getState().loadWorkspaceForChat(chatId);
+    return () => useUIStore.getState().stashWorkspace();
+  });
+
+  // The split layout isn't persisted; rebuild it on refresh and when returning to desktop.
   useEffect(() => {
     if (secondaryChatId === chatId) {
       useUIStore.getState().closeSplitChat();
@@ -150,11 +160,11 @@ export function ChatPage() {
   if (prevChatIdForResetRef.current !== chatId) {
     prevChatIdForResetRef.current = chatId;
     const ui = useUIStore.getState();
+    // Restore the chat's own saved tabs (stashing the outgoing chat's first).
+    if (chatId) ui.loadWorkspaceForChat(chatId);
+    // Switching into a chat that's currently the secondary pane collapses the split.
     if (ui.secondaryChatId === chatId) {
       ui.closeSplitChat();
-    }
-    if (!ui.secondaryChatId) {
-      ui.setCurrentView('agent');
     }
     useUIStore.setState({
       pendingFilePath: null,
@@ -165,9 +175,8 @@ export function ChatPage() {
       createPRDialogOpen: false,
       createBranchDialogOpen: false,
       // Ephemeral pane pointers don't belong to the new chat — a same-id tile in
-      // its split must not inherit chat A's maximize/focus. activeAgentTile (the
-      // coarse pointer) resets with them so the three stay consistent.
-      maximizedTile: null,
+      // its split must not inherit chat A's focus. activeAgentTile (the coarse
+      // pointer) resets with focus so the two stay consistent.
       focusedTile: null,
       activeAgentTile: 'agent:primary',
     });
@@ -179,15 +188,6 @@ export function ChatPage() {
     },
     [navigate],
   );
-
-  // Auto-close sidebar when switching to non-agent views (editor-only, terminal-only, etc.)
-  // to reclaim the 300px. Users can re-open via the TitleBar toggle.
-  const agentVisible = activeViews.includes('agent');
-  useEffect(() => {
-    if (!agentVisible) {
-      useUIStore.getState().setSidebarOpen(false);
-    }
-  }, [agentVisible]);
 
   // Sidebar is always available on chat pages — it holds navigation, settings, and logout
   const sidebarContent = useMemo(() => {
@@ -211,7 +211,7 @@ export function ChatPage() {
   useLayoutSidebar(sidebarContent);
 
   const renderNonTerminalView = useCallback(
-    (tileId: MosaicTileId): ReactNode => {
+    (tileId: TileId): ReactNode => {
       if (tileId === 'agent:primary') return <ChatComponent />;
       if (tileId === 'agent:secondary') {
         if (!secondaryChatId) return null;
@@ -250,7 +250,7 @@ export function ChatPage() {
   );
 
   const renderView = useCallback(
-    (tileId: MosaicTileId, slot: string): ReactNode => {
+    (tileId: TileId, isVisible: boolean): ReactNode => {
       const isSecondary = isSecondaryTile(tileId);
       const isTerminal = tileId === 'terminal' || tileId === 'terminal:secondary';
       // The secondary terminal runs in the second chat's sandbox; the hidden
@@ -271,8 +271,10 @@ export function ChatPage() {
               <TerminalContainer
                 sandboxId={terminalSandboxId}
                 chatId={terminalChatId}
-                isVisible={isTerminal}
-                panelKey={slot}
+                // Only fit/focus the terminal when its tile is actually on screen —
+                // a background tab is mounted but hidden (zero-size container).
+                isVisible={isTerminal && isVisible}
+                panelKey={`tile-${tileId}`}
               />
             </Suspense>
           </div>

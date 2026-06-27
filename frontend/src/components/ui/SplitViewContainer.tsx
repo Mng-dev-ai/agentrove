@@ -1,36 +1,33 @@
-import { memo, lazy, Suspense, ReactNode } from 'react';
+import { memo, useMemo, ReactNode } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { isMosaicSplitNode, viewTypeToPrimaryTile } from '@/utils/mosaicHelpers';
-import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
-import type { MosaicTileId } from '@/types/ui.types';
-
-const MosaicSplitView = lazy(() =>
-  import('@/components/ui/MosaicSplitView').then((m) => ({ default: m.MosaicSplitView })),
-);
+import { WorkspaceSplit } from '@/components/ui/WorkspaceSplit';
+import type { TileId } from '@/types/ui.types';
 
 interface SplitViewContainerProps {
-  renderView: (tileId: MosaicTileId, slot: string) => ReactNode;
+  renderView: (tileId: TileId, isVisible: boolean) => ReactNode;
 }
 
 export const SplitViewContainer = memo(function SplitViewContainer({
   renderView,
 }: SplitViewContainerProps) {
-  const currentView = useUIStore((state) => state.currentView);
-  const mosaicLayout = useUIStore((state) => state.mosaicLayout);
+  const openTabs = useUIStore((state) => state.openTabs);
+  const visibleLayout = useUIStore((state) => state.visibleLayout);
+  const focusedTile = useUIStore((state) => state.focusedTile);
   const isMobile = useIsMobile();
 
-  const isSingleView = isMobile || !mosaicLayout || !isMosaicSplitNode(mosaicLayout);
+  // Mobile shows exactly one pane regardless of the stored layout — collapse a
+  // multi-pane split (e.g. carried over from a desktop session that resized down)
+  // to the focused tile, falling back to the first visible one. Render-only, so
+  // the split returns intact when the viewport grows back. The store also owns
+  // mobile semantics (uiStore.toggleView accumulates tabs differently on mobile);
+  // this collapse only governs what's painted.
+  const layout = useMemo(() => {
+    if (!isMobile) return visibleLayout;
+    const flat = visibleLayout.flat();
+    const tile = focusedTile && flat.includes(focusedTile) ? focusedTile : flat[0];
+    return [[tile]];
+  }, [isMobile, visibleLayout, focusedTile]);
 
-  if (isSingleView) {
-    const tileId: MosaicTileId =
-      typeof mosaicLayout === 'string' ? mosaicLayout : viewTypeToPrimaryTile(currentView);
-    return <div className="flex h-full flex-1 overflow-hidden">{renderView(tileId, 'single')}</div>;
-  }
-
-  return (
-    <Suspense fallback={viewLoadingFallback}>
-      <MosaicSplitView mosaicLayout={mosaicLayout} renderView={renderView} />
-    </Suspense>
-  );
+  return <WorkspaceSplit openTabs={openTabs} visibleLayout={layout} renderView={renderView} />;
 });

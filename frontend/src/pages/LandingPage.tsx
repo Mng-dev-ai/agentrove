@@ -56,8 +56,8 @@ import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useEditorState } from '@/hooks/useEditorState';
 import { usePendingFileOpen } from '@/hooks/usePendingFileOpen';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
-import { PENDING_NEW_CHAT_KEY, type MosaicTileId } from '@/types/ui.types';
-import { tileIdToViewType } from '@/utils/mosaicHelpers';
+import { PENDING_NEW_CHAT_KEY, type TileId } from '@/types/ui.types';
+import { tileIdToViewType } from '@/utils/tileHelpers';
 
 const Editor = lazy(() =>
   import('@/components/editor/editor-core/Editor').then((m) => ({ default: m.Editor })),
@@ -193,9 +193,9 @@ export function LandingPage() {
 
   useMountEffect(() => {
     useChatStore.getState().setCurrentChat(null);
-    // Reset to the agent (workspace selector) leaf — a stale split layout from a prior chat
+    // Reset to the agent (workspace selector) view — a stale split layout from a prior chat
     // would otherwise persist into the landing screen.
-    useUIStore.getState().setCurrentView('agent');
+    useUIStore.getState().resetWorkspace();
   });
 
   const handleFileAttach = useCallback((files: File[]) => {
@@ -352,7 +352,7 @@ export function LandingPage() {
   useLayoutSidebar(sidebarContent);
 
   const renderView = useCallback(
-    (tileId: MosaicTileId): ReactNode => {
+    (tileId: TileId): ReactNode => {
       switch (tileIdToViewType(tileId)) {
         case 'agent':
           return (

@@ -24,7 +24,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
 import { sandboxService } from '@/services/sandboxService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-import { isSecondaryPaneActive } from '@/utils/mosaicHelpers';
+import { isSecondaryPaneActive } from '@/utils/tileHelpers';
 import { traverseFileStructure, getFileName } from '@/utils/file';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
 import type { ViewType } from '@/types/ui.types';

@@ -6,24 +6,17 @@ import type {
   UIActions,
   SplitViewState,
   SplitViewActions,
-  MosaicTileId,
-  MosaicLayoutNode,
-  MosaicDirection,
+  TileId,
+  AgentTileId,
+  WorkspaceLayout,
 } from '@/types/ui.types';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 import {
-  getEffectiveLayout,
-  getLeafViewTypes,
-  getLeaves,
-  isMosaicSplitNode,
   isSecondaryPaneActive,
   isSecondaryTile,
-  removeTileFromLayout,
-  SECONDARY_TILE_IDS,
   tileIdToViewType,
-  viewTypeToPrimaryTile,
   viewTypeToTileId,
-} from '@/utils/mosaicHelpers';
+} from '@/utils/tileHelpers';
 import type { MenuMode } from '@/components/ui/commandRegistry';
 import { THEME_CYCLE } from '@/utils/theme';
 
@@ -85,32 +78,37 @@ const getInitialSidebarState = (): boolean => {
 const isDesktop = (): boolean =>
   typeof window !== 'undefined' && window.innerWidth >= MOBILE_BREAKPOINT;
 
-// Mobile switches the sole view; desktop appends a tile to the mosaic
-// unless the tile is already present.
-function ensureTileVisible(
-  set: (partial: Partial<UIStoreState>) => void,
-  get: () => UIStoreState,
-  tileId: MosaicTileId,
-  // row = side by side (default), column = stacked. Shift-clicking a view icon
-  // opens the new pane stacked instead.
-  direction: MosaicDirection = 'row',
-): void {
-  if (!isDesktop()) {
-    set({ currentView: tileIdToViewType(tileId), mosaicLayout: tileId });
-    return;
-  }
-  const state = get();
-  const layout = state.mosaicLayout;
-  if (layout && isMosaicSplitNode(layout)) {
-    if (!getLeaves(layout).includes(tileId)) {
-      set({ mosaicLayout: { direction, first: layout, second: tileId } });
-    }
-    return;
-  }
-  const currentTile = getEffectiveLayout(layout, state.currentView);
-  if (currentTile !== tileId) {
-    set({ mosaicLayout: { direction, first: currentTile, second: tileId } });
-  }
+// Which agent chat (primary vs secondary) a tile belongs to.
+function agentTileFor(tileId: TileId): AgentTileId {
+  return isSecondaryTile(tileId) ? 'agent:secondary' : 'agent:primary';
+}
+
+// Drops tiles from the layout, removing any row left empty.
+function filterLayout(layout: TileId[][], keep: (tileId: TileId) => boolean): TileId[][] {
+  return layout.map((row) => row.filter(keep)).filter((row) => row.length > 0);
+}
+
+// Appends a tile to the last row (side-by-side split).
+function appendToLastRow(layout: TileId[][], tileId: TileId): TileId[][] {
+  if (layout.length === 0) return [[tileId]];
+  return layout.map((row, i) => (i === layout.length - 1 ? [...row, tileId] : row));
+}
+
+// Last tile in layout order — the fallback focus target after a removal.
+function lastVisibleTile(layout: TileId[][]): TileId {
+  const flat = layout.flat();
+  return flat[flat.length - 1];
+}
+
+// The per-chat tabs we persist, stripped of split-chat (:secondary) tiles — those
+// belong to the transient pairing, not the primary chat, and are rebuilt from
+// secondaryChatId. Guards against an all-secondary layout collapsing to empty.
+function ownTabs(openTabs: TileId[], visibleLayout: TileId[][]): WorkspaceLayout {
+  const layout = filterLayout(visibleLayout, (t) => !isSecondaryTile(t));
+  return {
+    openTabs: openTabs.filter((t) => !isSecondaryTile(t)),
+    visibleLayout: layout.length ? layout : [['agent:primary']],
+  };
 }
 
 // The diff/editor jumps are chat-bound; a jump for a chat that's going away (its
@@ -126,7 +124,7 @@ function clearJumpsForChat(state: UIStoreState, chatId: string | null): Partial<
 // A pending jump can't survive its own tile being closed. Only the tile that
 // would have claimed it clears it: a secondary tile owns jumps for the secondary
 // chat, the primary owns the rest.
-function clearJumpsForTile(state: UIStoreState, tileId: MosaicTileId): Partial<UIStoreState> {
+function clearJumpsForTile(state: UIStoreState, tileId: TileId): Partial<UIStoreState> {
   const view = tileIdToViewType(tileId);
   if (view !== 'diff' && view !== 'editor') return {};
   const owns = (jump: { chatId: string | undefined } | null) =>
@@ -182,32 +180,63 @@ export const useUIStore = create<UIStoreState>()(
       pendingDiffFile: null,
       consumeDiffFileJump: () => set({ pendingDiffFile: null }),
       openFileInEditor: (path, chatId, line) => {
-        const secondary = chatId === get().secondaryChatId;
+        const state = get();
+        const secondary = chatId === state.secondaryChatId;
+        const tileId = viewTypeToTileId('editor', secondary);
         set({
           pendingFilePath: { path, chatId },
           pendingFileJump:
             line != null
-              ? { path, line, chatId, nonce: (get().pendingFileJump?.nonce ?? 0) + 1 }
+              ? { path, line, chatId, nonce: (state.pendingFileJump?.nonce ?? 0) + 1 }
               : null,
+          openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
         });
-        ensureTileVisible(set, get, viewTypeToTileId('editor', secondary));
+        get().activateTab(tileId);
       },
       openInDiffView: (path, chatId) => {
-        const secondary = chatId === get().secondaryChatId;
-        set({ pendingDiffFile: { path, chatId } });
-        ensureTileVisible(set, get, viewTypeToTileId('diff', secondary));
+        const state = get();
+        const secondary = chatId === state.secondaryChatId;
+        const tileId = viewTypeToTileId('diff', secondary);
+        set({
+          pendingDiffFile: { path, chatId },
+          openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
+        });
+        get().activateTab(tileId);
       },
 
-      currentView: 'agent',
-      splitDirection: 'row',
-      mosaicLayout: null,
+      openTabs: ['agent:primary'],
+      visibleLayout: [['agent:primary']],
       secondaryChatId: null,
       activeAgentTile: 'agent:primary',
-      maximizedTile: null,
       focusedTile: null,
+      layoutsByChat: {},
+      currentWorkspaceChatId: null,
 
-      setMaximizedTile: (tileId) => {
-        if (get().maximizedTile !== tileId) set({ maximizedTile: tileId });
+      activateTab: (tileId) => {
+        const state = get();
+        if (!state.openTabs.includes(tileId)) return;
+        set({
+          visibleLayout: [[tileId]],
+          focusedTile: tileId,
+          activeAgentTile: agentTileFor(tileId),
+        });
+      },
+
+      splitView: (direction, tileId) => {
+        const state = get();
+        if (!state.openTabs.includes(tileId)) return;
+        // Already on screen — just focus it, don't duplicate it into the layout.
+        // Otherwise 'row' adds it beside the last row, 'column' starts a new row.
+        const visibleLayout = state.visibleLayout.flat().includes(tileId)
+          ? state.visibleLayout
+          : direction === 'row'
+            ? appendToLastRow(state.visibleLayout, tileId)
+            : [...state.visibleLayout, [tileId]];
+        set({
+          visibleLayout,
+          focusedTile: tileId,
+          activeAgentTile: agentTileFor(tileId),
+        });
       },
 
       focusTile: (tileId) => {
@@ -217,145 +246,124 @@ export const useUIStore = create<UIStoreState>()(
         // field because focusedTile is nullable (no interaction yet) while the ~6
         // imperative coarse readers need an always-defined value — collapsing would
         // scatter `?? 'agent:primary'` fallbacks across all of them.
-        set({
-          focusedTile: tileId,
-          activeAgentTile: isSecondaryTile(tileId) ? 'agent:secondary' : 'agent:primary',
-        });
+        set({ focusedTile: tileId, activeAgentTile: agentTileFor(tileId) });
       },
 
-      toggleView: (view, toggle, direction) => {
+      toggleView: (view, toggle) => {
         const state = get();
-        const layout = getEffectiveLayout(state.mosaicLayout, state.currentView);
-        // Agent has no per-pane toggle: closing it tears down the split (or the
-        // lone primary tile); opening it goes through the regular view click.
+        // Agent is the base view and is never torn down to nothing; toggling it
+        // just closes any split chat or re-focuses the primary pane.
         if (view === 'agent') {
-          if (toggle && getLeafViewTypes(layout).includes('agent')) {
-            if (state.secondaryChatId) get().closeSplitChat();
-            else get().removeTileFromMosaic('agent:primary');
-          } else {
-            get().handleViewClick('agent', true);
-          }
+          if (toggle && state.secondaryChatId) get().closeSplitChat();
+          else get().activateTab('agent:primary');
           return;
         }
-        // Mobile shows one view at a time and the switcher has no agent icon, so
-        // re-tapping the active view returns to agent (removeTileFromMosaic can't
-        // collapse a single-string layout).
-        if (!isDesktop()) {
-          get().handleViewClick(toggle && state.currentView === view ? 'agent' : view, false);
-          return;
-        }
-        // Target the tile of the pane the user is in — falls back to the primary
-        // tile when there's no secondary chat to scope to.
         const secondary = isSecondaryPaneActive(state.activeAgentTile, state.secondaryChatId);
         const tileId = viewTypeToTileId(view, secondary);
-        if (toggle && getLeaves(layout).includes(tileId)) {
-          get().removeTileFromMosaic(tileId);
-        } else {
-          ensureTileVisible(set, get, tileId, direction);
-        }
-      },
-
-      setCurrentView: (view) =>
-        set({
-          currentView: view,
-          mosaicLayout: viewTypeToPrimaryTile(view),
-          secondaryChatId: null,
-        }),
-
-      exitSplitMode: () => {
-        const state = get();
-        set({
-          mosaicLayout: viewTypeToPrimaryTile(state.currentView),
-          secondaryChatId: null,
-        });
-      },
-
-      setSplitDirection: (direction) => set({ splitDirection: direction }),
-
-      setMosaicLayout: (layout) => {
-        if (layout === null) {
-          set({ mosaicLayout: null });
+        // Mobile shows one view; re-tapping the on-screen view returns to agent.
+        if (!isDesktop()) {
+          const target =
+            toggle && state.visibleLayout[0]?.[0] === tileId ? 'agent:primary' : tileId;
+          // Keep agent:primary open even when a non-agent view fills the screen, so
+          // the Agent command/icon can always switch back to it (activateTab guards
+          // on openTabs membership).
+          set({
+            openTabs: target === 'agent:primary' ? ['agent:primary'] : ['agent:primary', target],
+            visibleLayout: [[target]],
+            focusedTile: target,
+            activeAgentTile: agentTileFor(target),
+          });
           return;
         }
-        if (typeof layout === 'string') {
-          const leaf: MosaicTileId = layout === 'agent:secondary' ? 'agent:primary' : layout;
-          set({
-            mosaicLayout: leaf,
-            currentView: tileIdToViewType(leaf),
-            ...(layout === 'agent:secondary' ? { secondaryChatId: null } : {}),
-          });
+        if (state.openTabs.includes(tileId)) {
+          if (toggle) get().removeTab(tileId);
+          else get().activateTab(tileId);
         } else {
-          const leaves = getLeaves(layout);
-          set({
-            mosaicLayout: layout,
-            currentView: tileIdToViewType(leaves[0]),
-            ...(leaves.includes('agent:secondary') ? {} : { secondaryChatId: null }),
-          });
+          set({ openTabs: [...state.openTabs, tileId] });
+          get().activateTab(tileId);
         }
       },
 
-      addTileToMosaic: (view, direction) => {
+      addViewToSplit: (view, direction) => {
         const state = get();
         // Split controls used from the secondary pane open <view>:secondary.
         const secondary = isSecondaryPaneActive(state.activeAgentTile, state.secondaryChatId);
         const tileId = viewTypeToTileId(view, secondary);
-        const currentLayout = getEffectiveLayout(state.mosaicLayout, state.currentView);
+        if (!state.openTabs.includes(tileId)) set({ openTabs: [...state.openTabs, tileId] });
+        get().splitView(direction, tileId);
+      },
 
-        if (getLeaves(currentLayout).includes(tileId)) return;
+      removeTab: (tileId) => {
+        const state = get();
+        // The base agent tab can't be closed; the secondary agent tears down the split.
+        if (tileId === 'agent:primary' || !state.openTabs.includes(tileId)) return;
+        if (tileId === 'agent:secondary') {
+          get().closeSplitChat();
+          return;
+        }
+        const openTabs = state.openTabs.filter((t) => t !== tileId);
+        let visibleLayout = filterLayout(state.visibleLayout, (t) => t !== tileId);
+        // Never leave an empty viewport — fall back to the last remaining open tab.
+        if (visibleLayout.length === 0) visibleLayout = [[openTabs[openTabs.length - 1]]];
+        const patch: Partial<UIStoreState> = {
+          openTabs,
+          visibleLayout,
+          ...clearJumpsForTile(state, tileId),
+        };
+        // If the focused tile went away, re-aim at a surviving visible pane.
+        if (state.focusedTile === tileId) {
+          const next = lastVisibleTile(visibleLayout);
+          patch.focusedTile = next;
+          patch.activeAgentTile = agentTileFor(next);
+        }
+        set(patch);
+      },
 
+      // Resets to a single agent view AND tears down any split chat — a lingering
+      // secondaryChatId would otherwise be rebuilt into the next chat page.
+      // Detaches from any chat so the next chat entry restores its own tabs.
+      resetWorkspace: () =>
         set({
-          mosaicLayout: {
-            direction,
-            first: currentLayout,
-            second: tileId,
-          },
+          openTabs: ['agent:primary'],
+          visibleLayout: [['agent:primary']],
+          secondaryChatId: null,
+          activeAgentTile: 'agent:primary',
+          focusedTile: null,
+          currentWorkspaceChatId: null,
+        }),
+
+      loadWorkspaceForChat: (chatId) => {
+        const state = get();
+        if (state.currentWorkspaceChatId === chatId) return;
+        const layoutsByChat = { ...state.layoutsByChat };
+        // Stash the chat we're leaving before swapping in the new one's tabs.
+        if (state.currentWorkspaceChatId) {
+          layoutsByChat[state.currentWorkspaceChatId] = ownTabs(
+            state.openTabs,
+            state.visibleLayout,
+          );
+        }
+        const restored = layoutsByChat[chatId] ?? {
+          openTabs: ['agent:primary'],
+          visibleLayout: [['agent:primary']],
+        };
+        set({
+          layoutsByChat,
+          currentWorkspaceChatId: chatId,
+          openTabs: restored.openTabs,
+          visibleLayout: restored.visibleLayout,
         });
       },
 
-      removeTileFromMosaic: (tileId) => {
+      stashWorkspace: () => {
         const state = get();
-        const layout = state.mosaicLayout;
-        if (!layout || typeof layout === 'string') return;
-        const leaves = getLeaves(layout);
-        if (!leaves.includes(tileId)) return;
-        // Clear maximize at the canonical "tile went away" event. Derive-on-read
-        // hides a stale pointer while the tile is absent, but only clearing here
-        // stops it resurrecting if the same tile id is re-added later.
-        if (state.maximizedTile === tileId) set({ maximizedTile: null });
-        const clearedJumps = clearJumpsForTile(state, tileId);
-        if (Object.keys(clearedJumps).length > 0) set(clearedJumps);
-        const remaining = leaves.filter((v) => v !== tileId);
-        if (remaining.length === 0) return;
-        if (remaining.length === 1) {
-          // A lone 'agent:secondary' is hoisted to 'agent:primary' so the
-          // secondary slot is never occupied without a primary.
-          const collapseTo: MosaicTileId =
-            remaining[0] === 'agent:secondary' ? 'agent:primary' : remaining[0];
-          const hadSecondary = leaves.includes('agent:secondary');
-          set({
-            currentView: tileIdToViewType(collapseTo),
-            mosaicLayout: collapseTo,
-            ...(hadSecondary ? { secondaryChatId: null } : {}),
-          });
-        } else {
-          const newLayout = removeTileFromLayout(layout, tileId);
-          if (newLayout) get().setMosaicLayout(newLayout);
-        }
-      },
-
-      // Shift-click adds the view as a new tile in the mosaic (split mode);
-      // regular click switches to it as the sole view.
-      handleViewClick: (view, isShiftClick) => {
-        const tileId = viewTypeToPrimaryTile(view);
-        if (isShiftClick && isDesktop()) {
-          get().addTileToMosaic(view, get().splitDirection);
-        } else {
-          set({
-            currentView: view,
-            mosaicLayout: tileId,
-            secondaryChatId: null,
-          });
-        }
+        if (!state.currentWorkspaceChatId) return;
+        set({
+          layoutsByChat: {
+            ...state.layoutsByChat,
+            [state.currentWorkspaceChatId]: ownTabs(state.openTabs, state.visibleLayout),
+          },
+        });
       },
 
       openChatInSplit: (chatId) => {
@@ -365,11 +373,8 @@ export const useUIStore = create<UIStoreState>()(
         const secondaryChanged = state.secondaryChatId !== chatId;
         const resetForNewSecondary: Partial<UIStoreState> = secondaryChanged
           ? {
-              // Reset all three pane pointers together — activeAgentTile alone
-              // would leave the tab highlight/maximize aimed at the old secondary.
               activeAgentTile: 'agent:primary',
               focusedTile: null,
-              maximizedTile: null,
               ...clearJumpsForChat(state, state.secondaryChatId),
             }
           : {};
@@ -378,37 +383,33 @@ export const useUIStore = create<UIStoreState>()(
           set({ secondaryChatId: chatId, ...resetForNewSecondary });
           return;
         }
-        const nextLayout = buildSplitChatLayout(state.mosaicLayout);
-        if (state.secondaryChatId === chatId && !nextLayout) return;
+        const openTabs = state.openTabs.includes('agent:secondary')
+          ? state.openTabs
+          : [...state.openTabs, 'agent:secondary'];
         set({
           secondaryChatId: chatId,
-          ...(nextLayout ? { mosaicLayout: nextLayout } : {}),
+          openTabs,
+          // Show both agents side by side; other tabs drop to the background.
+          visibleLayout: [['agent:primary', 'agent:secondary']],
           ...resetForNewSecondary,
         });
       },
 
       closeSplitChat: () => {
         const state = get();
-        const layout = state.mosaicLayout;
         // Shared reset: focus back to primary, drop any jump aimed at the now-gone
         // secondary chat.
         const reset: Partial<UIStoreState> = {
           secondaryChatId: null,
-          // All three pane pointers reset together so the tab highlight, command
-          // targeting, and maximize don't keep aiming at the closed secondary.
           activeAgentTile: 'agent:primary',
           focusedTile: null,
-          maximizedTile: null,
           ...clearJumpsForChat(state, state.secondaryChatId),
         };
-        if (layout && isMosaicSplitNode(layout)) {
-          // Every secondary tile is scoped to the closing chat — drop them all.
-          let newLayout: MosaicLayoutNode | null = layout;
-          for (const tile of SECONDARY_TILE_IDS) {
-            if (!newLayout) break;
-            newLayout = removeTileFromLayout(newLayout, tile);
-          }
-          set({ ...reset, mosaicLayout: newLayout ?? 'agent:primary' });
+        if (state.openTabs.some(isSecondaryTile)) {
+          const openTabs = state.openTabs.filter((t) => !isSecondaryTile(t));
+          let visibleLayout = filterLayout(state.visibleLayout, (t) => !isSecondaryTile(t));
+          if (visibleLayout.length === 0) visibleLayout = [['agent:primary']];
+          set({ ...reset, openTabs, visibleLayout });
         } else if (state.secondaryChatId !== null) {
           set(reset);
         }
@@ -426,39 +427,17 @@ export const useUIStore = create<UIStoreState>()(
       name: 'ui-storage',
       partialize: (state) => ({
         theme: state.theme,
-        currentView: state.currentView,
-        splitDirection: state.splitDirection,
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,
         secondaryChatId: state.secondaryChatId,
+        // Persist the live workspace so a refresh restores the active view/tabs.
+        // currentWorkspaceChatId must rehydrate too: loadWorkspaceForChat
+        // early-returns when it matches the route chat, leaving this layout intact
+        // instead of resetting to the default agent view.
+        openTabs: state.openTabs,
+        visibleLayout: state.visibleLayout,
+        currentWorkspaceChatId: state.currentWorkspaceChatId,
       }),
     },
   ),
 );
-
-// Returns a layout that includes both agent tiles, or null if `layout` already does.
-function buildSplitChatLayout(
-  layout: SplitViewState['mosaicLayout'],
-): SplitViewState['mosaicLayout'] | null {
-  if (!layout) {
-    return { direction: 'row', first: 'agent:primary', second: 'agent:secondary' };
-  }
-  if (typeof layout === 'string') {
-    if (layout === 'agent:primary') {
-      return { direction: 'row', first: 'agent:primary', second: 'agent:secondary' };
-    }
-    return {
-      direction: 'row',
-      first: 'agent:primary',
-      second: { direction: 'row', first: layout, second: 'agent:secondary' },
-    };
-  }
-  const leaves = getLeaves(layout);
-  const needsPrimary = !leaves.includes('agent:primary');
-  const needsSecondary = !leaves.includes('agent:secondary');
-  if (!needsPrimary && !needsSecondary) return null;
-  let next = layout;
-  if (needsPrimary) next = { direction: 'row', first: 'agent:primary', second: next };
-  if (needsSecondary) next = { direction: 'row', first: next, second: 'agent:secondary' };
-  return next;
-}

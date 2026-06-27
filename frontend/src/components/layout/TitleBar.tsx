@@ -202,7 +202,7 @@ export function TitleBar() {
 
       {/* Main content area — matches main bg. Pane tabs (split view only) sit on
           the left; the view switcher stays pinned right. */}
-      <div className="flex h-full flex-1 items-center justify-between gap-2 bg-surface px-3 pt-[env(safe-area-inset-top)] dark:bg-surface-dark">
+      <div className="flex h-full min-w-0 flex-1 items-center justify-between gap-2 bg-surface px-3 pt-[env(safe-area-inset-top)] dark:bg-surface-dark">
         {/* Landing can also split (opening a workspace file adds an editor pane),
             so its panes need the same tab controls. */}
         <div className="flex min-w-0 flex-1 items-center">

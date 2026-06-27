@@ -8,12 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUIStore } from '@/store/uiStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import {
-  getEffectiveLayout,
-  getLeaves,
-  isSecondaryPaneActive,
-  viewTypeToTileId,
-} from '@/utils/mosaicHelpers';
+import { isSecondaryPaneActive, viewTypeToTileId } from '@/utils/tileHelpers';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
@@ -24,7 +19,7 @@ import { SearchPanel } from '@/components/editor/file-search/SearchPanel';
 import { ChatSearchPanel } from '@/components/chat/chat-search/ChatSearchPanel';
 import { cn } from '@/utils/cn';
 import { THEMES, type ThemeMeta } from '@/utils/theme';
-import type { ViewType, MosaicDirection, Theme } from '@/types/ui.types';
+import type { ViewType, SplitDirection, Theme } from '@/types/ui.types';
 import {
   ALL_COMMANDS,
   COMMAND_TO_MODE,
@@ -69,15 +64,11 @@ export function CommandMenu() {
   const isOpen = useUIStore((state) => state.commandMenuOpen);
   const theme = useUIStore((state) => state.theme);
   const isMobile = useIsMobile();
-  // Leaf tile ids (not deduped view kinds) so the active-state/split affordances
+  // Open tile ids (not deduped view kinds) so the active-state/split affordances
   // can distinguish a view's primary tile from its `:secondary` variant. Gated on
-  // open — layout/view churn is irrelevant while the always-mounted menu is closed.
-  const mosaicLayout = useUIStore((s) => (s.commandMenuOpen ? s.mosaicLayout : null));
-  const currentView = useUIStore((s) => (s.commandMenuOpen ? s.currentView : 'agent'));
-  const leafTileIds = useMemo(
-    () => new Set(getLeaves(getEffectiveLayout(mosaicLayout, currentView))),
-    [mosaicLayout, currentView],
-  );
+  // open — tab churn is irrelevant while the always-mounted menu is closed.
+  const openTabs = useUIStore((s) => (s.commandMenuOpen ? s.openTabs : null));
+  const leafTileIds = useMemo(() => new Set(openTabs ?? []), [openTabs]);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const primaryCtx = useChatContext();
@@ -276,8 +267,8 @@ export function CommandMenu() {
   );
 
   const handleSplit = useCallback(
-    (viewId: ViewType, direction: MosaicDirection) => {
-      useUIStore.getState().addTileToMosaic(viewId, direction);
+    (viewId: ViewType, direction: SplitDirection) => {
+      useUIStore.getState().addViewToSplit(viewId, direction);
       close();
     },
     [close],
