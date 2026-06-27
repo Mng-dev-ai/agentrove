@@ -5,10 +5,9 @@ import type { QueryClient } from '@tanstack/react-query';
 import {
   MessagesSquare,
   MessageSquarePlus,
-  Code,
-  SquareTerminal,
-  KeyRound,
-  GitCompareArrows,
+  CodeXml,
+  Terminal,
+  Lock,
   GitBranch,
   Search,
   PanelLeftClose,
@@ -63,12 +62,12 @@ export interface FlatFileItem {
 
 const VIEW_COMMANDS: ViewCommandItem[] = [
   { type: 'view', id: 'agent', label: 'Agent', icon: MessagesSquare, shortcut: 'a' },
-  { type: 'view', id: 'editor', label: 'Editor', icon: Code, shortcut: 'e' },
+  { type: 'view', id: 'editor', label: 'Editor', icon: CodeXml, shortcut: 'e' },
   {
     type: 'view',
     id: 'terminal',
     label: 'Terminal',
-    icon: SquareTerminal,
+    icon: Terminal,
     shortcut: 't',
     requiresChat: true,
   },
@@ -76,11 +75,11 @@ const VIEW_COMMANDS: ViewCommandItem[] = [
     type: 'view',
     id: 'diff',
     label: 'Diff',
-    icon: GitCompareArrows,
+    icon: GitBranch,
     shortcut: 'd',
     requiresChat: true,
   },
-  { type: 'view', id: 'secrets', label: 'Secrets', icon: KeyRound, shortcut: 's' },
+  { type: 'view', id: 'secrets', label: 'Secrets', icon: Lock, shortcut: 's' },
 ];
 
 const ACTION_COMMANDS: ActionCommandItem[] = [

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Code, GitCompareArrows, KeyRound, SquareTerminal } from 'lucide-react';
+import { CodeXml, GitBranch, Lock, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/utils/cn';
@@ -8,11 +8,11 @@ import type { ViewType } from '@/types/ui.types';
 
 // Non-agent secondary views, in the order Cursor lays them out: diff (git),
 // editor (file), terminal, secrets. Icons mirror the command registry.
-const SWITCHABLE_VIEWS: { view: Exclude<ViewType, 'agent'>; icon: typeof Code }[] = [
-  { view: 'diff', icon: GitCompareArrows },
-  { view: 'editor', icon: Code },
-  { view: 'terminal', icon: SquareTerminal },
-  { view: 'secrets', icon: KeyRound },
+const SWITCHABLE_VIEWS: { view: Exclude<ViewType, 'agent'>; icon: typeof GitBranch }[] = [
+  { view: 'diff', icon: GitBranch },
+  { view: 'editor', icon: CodeXml },
+  { view: 'terminal', icon: Terminal },
+  { view: 'secrets', icon: Lock },
 ];
 
 export function ViewSwitcher() {
@@ -45,7 +45,7 @@ export function ViewSwitcher() {
             aria-pressed={isActive}
             title={VIEW_LABELS[view]}
           >
-            <Icon className="h-3.5 w-3.5" />
+            <Icon className="h-4 w-4" />
           </Button>
         );
       })}
