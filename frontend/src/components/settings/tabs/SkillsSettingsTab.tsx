@@ -77,18 +77,23 @@ export const SkillsSettingsTab: React.FC = () => {
             <div className="space-y-2">
               {items.map((skill) => (
                 <div
-                  key={`${skill.source}/${skill.name}`}
+                  key={`${skill.name}/${skill.sources.join(',')}`}
                   className="rounded-lg border border-border/50 px-4 py-3 dark:border-border-dark/50"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="mb-1 flex items-center gap-2">
+                      <div className="mb-1 flex flex-wrap items-center gap-2">
                         <h3 className="min-w-0 max-w-full truncate text-xs font-medium text-text-primary dark:text-text-dark-primary sm:max-w-[250px]">
                           {skill.name}
                         </h3>
-                        <span className="rounded-md bg-surface-tertiary px-1.5 py-0.5 text-2xs text-text-quaternary dark:bg-surface-dark-tertiary dark:text-text-dark-quaternary">
-                          {skill.source}
-                        </span>
+                        {skill.sources.map((source) => (
+                          <span
+                            key={source}
+                            className="rounded-md bg-surface-tertiary px-1.5 py-0.5 text-2xs text-text-quaternary dark:bg-surface-dark-tertiary dark:text-text-dark-quaternary"
+                          >
+                            {source}
+                          </span>
+                        ))}
                         {skill.read_only && (
                           <span className="rounded-md bg-surface-tertiary px-1.5 py-0.5 text-2xs text-text-quaternary dark:bg-surface-dark-tertiary dark:text-text-dark-quaternary">
                             built-in

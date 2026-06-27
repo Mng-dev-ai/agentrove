@@ -26,7 +26,7 @@ class FakeSkillService:
                 "description": "Review code changes",
                 "size_bytes": 128,
                 "file_count": 2,
-                "source": "codex",
+                "sources": ["codex"],
                 "read_only": False,
             }
         ]
@@ -61,7 +61,7 @@ class FakeSkillService:
             "description": "Updated skill",
             "size_bytes": sum(len(file.content) for file in files),
             "file_count": len(files),
-            "source": source,
+            "sources": [source],
             "read_only": False,
         }
 
@@ -96,7 +96,7 @@ async def test_list_skills_returns_available_skills(
             "description": "Review code changes",
             "size_bytes": 128,
             "file_count": 2,
-            "source": "codex",
+            "sources": ["codex"],
             "read_only": False,
         }
     ]
@@ -155,7 +155,7 @@ async def test_update_skill_passes_files_to_service(
         "description": "Updated skill",
         "size_bytes": 35,
         "file_count": 1,
-        "source": "codex",
+        "sources": ["codex"],
         "read_only": False,
     }
     assert len(fake_skill_service.updated) == 1

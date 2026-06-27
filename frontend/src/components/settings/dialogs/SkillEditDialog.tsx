@@ -75,7 +75,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
 
     let cancelled = false;
     void skillService
-      .getSkillFiles(workspaceId, skill.source, skill.name)
+      .getSkillFiles(workspaceId, skill.sources[0], skill.name)
       .then((loaded) => {
         if (cancelled) return;
         setFiles(loaded);
@@ -144,7 +144,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
         const modified = modifiedFiles.get(file.path);
         return modified === undefined ? file : { ...file, content: modified };
       });
-      await skillService.updateSkill(workspaceId, skill.source, skill.name, merged);
+      await skillService.updateSkill(workspaceId, skill.sources[0], skill.name, merged);
       await onSaved();
       onClose();
       toast.success('Skill updated');
