@@ -9,7 +9,7 @@ import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useDropdown } from '@/hooks/useDropdown';
 import { cn } from '@/utils/cn';
-import { isSecondaryTile, tileIdToViewType, VIEW_LABELS } from '@/utils/tileHelpers';
+import { isSecondaryTile, tileIdToViewType, VIEW_ICONS, VIEW_LABELS } from '@/utils/tileHelpers';
 import type { SplitDirection, TileId } from '@/types/ui.types';
 
 const TAB_BUTTON_CLASS = cn(
@@ -128,6 +128,7 @@ export function SplitTabs() {
       {openTabs.map((tileId) => {
         const isVisible = visibleSet.has(tileId);
         const { name, kind } = tabParts(tileId, primaryTitle, secondaryTitle);
+        const Icon = VIEW_ICONS[tileIdToViewType(tileId)];
         return (
           <div
             key={tileId}
@@ -136,25 +137,22 @@ export function SplitTabs() {
               openMenu(tileId, e.currentTarget);
             }}
             className={cn(
-              'flex min-w-0 max-w-[220px] items-center gap-1 rounded-md py-1 pl-2.5 pr-1',
+              'relative flex min-w-0 max-w-[220px] items-center gap-1 rounded-md py-1 pl-2 pr-1',
               'transition-colors duration-200',
               isVisible
-                ? 'bg-surface-active text-text-primary dark:bg-surface-dark-active dark:text-text-dark-primary'
+                ? 'text-text-primary dark:text-text-dark-primary'
                 : 'text-text-tertiary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
             )}
           >
             <Button
               variant="unstyled"
               onClick={() => useUIStore.getState().activateTab(tileId)}
-              className="flex min-w-0 flex-1 items-center text-left text-2xs font-medium"
+              className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-2xs font-medium"
               title={kind ? `${name} · ${kind}` : name}
             >
+              {/* Icon inherits the tab's text color, so it tracks active/hover state */}
+              <Icon className="h-3 w-3 flex-shrink-0" />
               <span className="min-w-0 truncate">{name}</span>
-              {kind && (
-                <span className="ml-1 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary">
-                  · {kind}
-                </span>
-              )}
             </Button>
             <Button
               variant="unstyled"
@@ -164,6 +162,11 @@ export function SplitTabs() {
             >
               <MoreHorizontal className="h-3 w-3" />
             </Button>
+            {/* Underline active indicator — inset from the tab edges, pinned to the
+                tab's bottom (overflow-y is clipped, so it can't sit below the strip) */}
+            {isVisible && (
+              <span className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-text-primary dark:bg-text-dark-primary" />
+            )}
           </div>
         );
       })}

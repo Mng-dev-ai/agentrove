@@ -1,19 +1,18 @@
 import { useMemo } from 'react';
-import { CodeXml, GitBranch, Lock, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/utils/cn';
-import { isSecondaryPaneActive, VIEW_LABELS, viewTypeToTileId } from '@/utils/tileHelpers';
+import {
+  isSecondaryPaneActive,
+  VIEW_ICONS,
+  VIEW_LABELS,
+  viewTypeToTileId,
+} from '@/utils/tileHelpers';
 import type { ViewType } from '@/types/ui.types';
 
 // Non-agent secondary views, in the order Cursor lays them out: diff (git),
-// editor (file), terminal, secrets. Icons mirror the command registry.
-const SWITCHABLE_VIEWS: { view: Exclude<ViewType, 'agent'>; icon: typeof GitBranch }[] = [
-  { view: 'diff', icon: GitBranch },
-  { view: 'editor', icon: CodeXml },
-  { view: 'terminal', icon: Terminal },
-  { view: 'secrets', icon: Lock },
-];
+// editor (file), terminal, secrets.
+const SWITCHABLE_VIEWS: Exclude<ViewType, 'agent'>[] = ['diff', 'editor', 'terminal', 'secrets'];
 
 export function ViewSwitcher() {
   const activeAgentTile = useUIStore((s) => s.activeAgentTile);
@@ -27,7 +26,8 @@ export function ViewSwitcher() {
 
   return (
     <div className="flex items-center gap-0.5">
-      {SWITCHABLE_VIEWS.map(({ view, icon: Icon }) => {
+      {SWITCHABLE_VIEWS.map((view) => {
+        const Icon = VIEW_ICONS[view];
         const isActive = openSet.has(viewTypeToTileId(view, secondary));
         return (
           <Button
