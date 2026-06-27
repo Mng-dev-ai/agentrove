@@ -1,14 +1,9 @@
+import { useMemo } from 'react';
 import { Code, GitCompareArrows, KeyRound, SquareTerminal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { useUIStore } from '@/store/uiStore';
 import { cn } from '@/utils/cn';
-import {
-  getEffectiveLayout,
-  getLeaves,
-  isSecondaryPaneActive,
-  VIEW_LABELS,
-  viewTypeToTileId,
-} from '@/utils/mosaicHelpers';
+import { isSecondaryPaneActive, VIEW_LABELS, viewTypeToTileId } from '@/utils/tileHelpers';
 import type { ViewType } from '@/types/ui.types';
 
 // Non-agent secondary views, in the order Cursor lays them out: diff (git),
@@ -23,27 +18,23 @@ const SWITCHABLE_VIEWS: { view: Exclude<ViewType, 'agent'>; icon: typeof Code }[
 export function ViewSwitcher() {
   const activeAgentTile = useUIStore((s) => s.activeAgentTile);
   const secondaryChatId = useUIStore((s) => s.secondaryChatId);
-  const mosaicLayout = useUIStore((s) => s.mosaicLayout);
-  const currentView = useUIStore((s) => s.currentView);
+  const openTabs = useUIStore((s) => s.openTabs);
 
   // Resolve active state against the exact tile toggleView() will act on, so the
   // highlight (and the close-on-click) tracks the focused pane in split-chat mode.
   const secondary = isSecondaryPaneActive(activeAgentTile, secondaryChatId);
-  const leaves = getLeaves(getEffectiveLayout(mosaicLayout, currentView));
+  const openSet = useMemo(() => new Set(openTabs), [openTabs]);
 
   return (
     <div className="flex items-center gap-0.5">
       {SWITCHABLE_VIEWS.map(({ view, icon: Icon }) => {
-        const isActive = leaves.includes(viewTypeToTileId(view, secondary));
+        const isActive = openSet.has(viewTypeToTileId(view, secondary));
         return (
           <Button
             key={view}
             variant="unstyled"
-            // Toggle: open the view as a tile, or close it if already visible.
-            // Shift-click opens the new pane stacked (column) instead of side by side.
-            onClick={(e) =>
-              useUIStore.getState().toggleView(view, true, e.shiftKey ? 'column' : 'row')
-            }
+            // Toggle: open the view as a full tab, or close it if already open.
+            onClick={() => useUIStore.getState().toggleView(view, true)}
             className={cn(
               'rounded-md p-1.5 transition-colors duration-200',
               isActive
@@ -52,9 +43,7 @@ export function ViewSwitcher() {
             )}
             aria-label={`Toggle ${VIEW_LABELS[view]} view`}
             aria-pressed={isActive}
-            // Hint shift-to-stack only while opening — shift has no effect on the
-            // close (active) click.
-            title={isActive ? VIEW_LABELS[view] : `${VIEW_LABELS[view]} · ⇧ to stack`}
+            title={VIEW_LABELS[view]}
           >
             <Icon className="h-3.5 w-3.5" />
           </Button>

@@ -1,7 +1,7 @@
 import { useChatStore } from '@/store/chatStore';
 import { useUIStore } from '@/store/uiStore';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
-import { isSecondaryPaneActive } from '@/utils/mosaicHelpers';
+import { isSecondaryPaneActive } from '@/utils/tileHelpers';
 import type { Chat } from '@/types/chat.types';
 
 // Resolves the chat for the pane the user last interacted with. In split view the

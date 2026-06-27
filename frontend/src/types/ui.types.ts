@@ -47,7 +47,7 @@ export interface ModelSelectionState {
 
 export type ViewType = 'agent' | 'diff' | 'editor' | 'terminal' | 'secrets';
 
-// Mosaic leaves used to be ViewType strings, but split-chat view renders two
+// A tile id used to be a bare ViewType string, but split-chat view renders two
 // panes scoped to different chats, so every view has a `:secondary` variant
 // disambiguating the second chat. Primary tile ids match their ViewType (the
 // agent slot is the one exception: 'agent:primary').
@@ -56,57 +56,71 @@ export type SecondaryTileId = `${ViewType}:secondary`;
 export type NonAgentTileId =
   | Exclude<ViewType, 'agent'>
   | Exclude<SecondaryTileId, 'agent:secondary'>;
-export type MosaicTileId = AgentTileId | NonAgentTileId;
+export type TileId = AgentTileId | NonAgentTileId;
 
-export type MosaicDirection = 'row' | 'column';
+// The axis a single split adds along: 'row' = side by side (split right),
+// 'column' = stacked below (split bottom).
+export type SplitDirection = 'row' | 'column';
 
-export interface MosaicSplitNode {
-  direction: MosaicDirection;
-  first: MosaicLayoutNode;
-  second: MosaicLayoutNode;
-  splitPercentages?: number[];
+// A chat's saved workspace tabs — what's restored when the chat is revisited.
+export interface WorkspaceLayout {
+  openTabs: TileId[];
+  visibleLayout: TileId[][];
 }
 
-export type MosaicLayoutNode = MosaicSplitNode | MosaicTileId;
-
 export interface SplitViewState {
-  currentView: ViewType;
-  splitDirection: MosaicDirection;
-  mosaicLayout: MosaicLayoutNode | null;
+  // Every open tab, in strip order. Always holds at least 'agent:primary'.
+  openTabs: TileId[];
+  // The on-screen layout as rows of tiles: rows stack vertically, tiles within a
+  // row sit side by side. [[A]] = full view; [[A, B]] = side by side; [[A], [B]]
+  // = stacked; [[A, B], [C]] = A│B over C. Background tabs (open but not visible)
+  // stay mounted off-screen. Always holds at least one tile.
+  visibleLayout: TileId[][];
   // Secondary chat for split-chat view. Primary chat is always the route param.
   secondaryChatId: string | null;
   // The agent pane the user last interacted with — targets pane-scoped actions
   // (e.g. the diff shortcut) at the chat the user is actually in.
   activeAgentTile: AgentTileId;
-  // Ephemeral (not persisted): the tile expanded over the split. The whole tree
-  // stays mounted; CSS expands this one, so clearing it restores every pane's state.
-  maximizedTile: MosaicTileId | null;
-  // The exact pane the user last touched — drives the active tab highlight.
+  // The exact pane the user last touched — drives the focused-tab highlight.
   // Distinct from activeAgentTile, which only tracks the active chat (primary vs
   // secondary), not the specific tile.
-  focusedTile: MosaicTileId | null;
+  focusedTile: TileId | null;
+  // Saved tabs per chat, so each chat restores its own workspace when revisited.
+  // Excludes split-chat (:secondary) tiles, which the split effects rebuild.
+  layoutsByChat: Record<string, WorkspaceLayout>;
+  // Which chat the live openTabs/visibleLayout belong to — drives save-on-switch.
+  currentWorkspaceChatId: string | null;
 }
 
 export interface SplitViewActions {
-  setCurrentView: (view: ViewType) => void;
-  exitSplitMode: () => void;
-  handleViewClick: (view: ViewType, isShiftClick: boolean) => void;
-  setSplitDirection: (direction: MosaicDirection) => void;
-  setMosaicLayout: (layout: MosaicLayoutNode | null) => void;
-  addTileToMosaic: (view: ViewType, direction: MosaicDirection) => void;
-  removeTileFromMosaic: (tileId: MosaicTileId) => void;
+  // Opens a view as a full tab, or — when toggling — closes it if already open.
+  // Scoped to the active agent pane so shortcuts hit the chat the user is in.
+  toggleView: (view: ViewType, toggle: boolean) => void;
+  // Opens a view (if needed) and adds it to the on-screen layout: 'row' beside
+  // the last row, 'column' as a new row below.
+  addViewToSplit: (view: ViewType, direction: SplitDirection) => void;
+  // Closes a tab, dropping it from the open and visible sets.
+  removeTab: (tileId: TileId) => void;
+  // Resets the workspace to a single agent view and tears down any split chat
+  // (used by the landing page). Detaches the live layout from any chat.
+  resetWorkspace: () => void;
+  // Saves the outgoing chat's tabs and restores the incoming chat's (defaulting
+  // to a lone agent view). Called on chat navigation.
+  loadWorkspaceForChat: (chatId: string) => void;
+  // Saves the current chat's tabs in place — used when leaving the chat page.
+  stashWorkspace: () => void;
   openChatInSplit: (chatId: string) => void;
   closeSplitChat: () => void;
   // Returns the chatId that should become the new route primary (caller navigates).
   swapChatPanes: (currentPrimaryChatId: string) => string | null;
-  setMaximizedTile: (tileId: MosaicTileId | null) => void;
+  // Shows a tile full (sole visible pane) and focuses it — the default tab click.
+  activateTab: (tileId: TileId) => void;
+  // Adds a tile to the on-screen layout, keeping the rest visible: 'row' appends
+  // it to the last row (side by side), 'column' starts a new row below.
+  splitView: (direction: SplitDirection, tileId: TileId) => void;
   // Single focus path: records the exact pane (highlights its tab) and scopes the
   // active chat (primary/secondary) from the tile, so tab and pane clicks agree.
-  focusTile: (tileId: MosaicTileId) => void;
-  // Opens or (when toggling) closes a view's tile for the active agent pane,
-  // so the shortcut targets the chat the user is currently in. `direction` sets
-  // how a newly opened pane splits (row = side by side, column = stacked).
-  toggleView: (view: ViewType, toggle: boolean, direction?: MosaicDirection) => void;
+  focusTile: (tileId: TileId) => void;
 }
 
 export interface UIState {
