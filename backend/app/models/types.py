@@ -25,7 +25,9 @@ class CustomSkillDict(TypedDict):
     description: str
     size_bytes: int
     file_count: int
-    source: str
+    # Agent kinds whose scan dirs resolve to this skill's directory; overlapping
+    # namespaces mean one on-disk skill can belong to several kinds.
+    sources: list[str]
     read_only: bool
 
 

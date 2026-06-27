@@ -24,7 +24,7 @@ export const useSlashCommandSuggestions = ({
 
     // Custom skills filtered to match the active agent kind
     const skillCommands: SlashCommand[] = customSkills
-      .filter((skill) => skill.source === agentKind)
+      .filter((skill) => skill.sources.includes(agentKind))
       .map((skill) => ({
         value: `/${skill.name}`,
         label: skill.name,

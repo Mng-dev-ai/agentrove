@@ -25,7 +25,7 @@ export interface CustomSkill {
   description: string;
   size_bytes: number;
   file_count: number;
-  source: string;
+  sources: string[];
   read_only: boolean;
 }
 

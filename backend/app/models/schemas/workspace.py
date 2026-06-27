@@ -12,7 +12,7 @@ class CustomSkill(BaseModel):
     description: str
     size_bytes: int
     file_count: int
-    source: str
+    sources: list[str]
     read_only: bool
 
 

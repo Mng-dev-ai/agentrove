@@ -127,7 +127,10 @@ class SkillService:
         return None
 
     def list_all(self) -> list[CustomSkillDict]:
-        skills: list[CustomSkillDict] = []
+        # Group by resolved directory so a skill scanned under several agent kinds
+        # (overlapping namespaces) surfaces once with all its sources, while
+        # same-named skills in distinct dirs stay separate.
+        by_path: dict[Path, CustomSkillDict] = {}
         for source, paths in self.paths_by_source.items():
             seen_names: set[str] = set()
             for base_path in paths:
@@ -140,6 +143,12 @@ class SkillService:
                     skill_md = entry / SKILL_MD_FILENAME
                     if not skill_md.exists():
                         continue
+                    resolved = entry.resolve()
+                    existing = by_path.get(resolved)
+                    if existing is not None:
+                        existing["sources"].append(source)
+                        seen_names.add(entry.name)
+                        continue
                     try:
                         content = skill_md.read_text(encoding="utf-8")
                     except (OSError, UnicodeDecodeError):
@@ -149,18 +158,16 @@ class SkillService:
                     except ValueError:
                         metadata = {}
                     file_count, total_size = self._compute_dir_stats(entry)
-                    skills.append(
-                        {
-                            "name": entry.name,
-                            "description": str(metadata.get("description", "")),
-                            "size_bytes": total_size,
-                            "file_count": file_count,
-                            "source": source,
-                            "read_only": is_readonly,
-                        }
-                    )
+                    by_path[resolved] = {
+                        "name": entry.name,
+                        "description": str(metadata.get("description", "")),
+                        "size_bytes": total_size,
+                        "file_count": file_count,
+                        "sources": [source],
+                        "read_only": is_readonly,
+                    }
                     seen_names.add(entry.name)
-        return skills
+        return list(by_path.values())
 
     def get_files(self, source: str, skill_name: str) -> list[SkillFileEntry]:
         # Text files are returned as-is, binary files as base64-encoded strings.
@@ -222,14 +229,18 @@ class SkillService:
             )
             file_count, total_size = self._compute_dir_stats(tmp_dir)
 
-            shutil.rmtree(skill_dir)
-            shutil.copytree(tmp_dir, skill_dir)
+            # Skills are often symlinked across agent namespaces to one canonical
+            # dir; rmtree refuses to run on a symlink, so replace the resolved
+            # target — the symlink keeps pointing at it.
+            target_dir = skill_dir.resolve()
+            shutil.rmtree(target_dir)
+            shutil.copytree(tmp_dir, target_dir)
 
         return {
             "name": skill_name,
             "description": str(metadata.get("description", "")),
             "size_bytes": total_size,
             "file_count": file_count,
-            "source": source,
+            "sources": [source],
             "read_only": skill_dir.parent in self.readonly_paths,
         }
