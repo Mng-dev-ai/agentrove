@@ -210,6 +210,7 @@ export const useUIStore = create<UIStoreState>()(
       activeAgentTile: 'agent:primary',
       focusedTile: null,
       layoutsByChat: {},
+      selectedFileByChat: {},
       currentWorkspaceChatId: null,
 
       activateTab: (tileId) => {
