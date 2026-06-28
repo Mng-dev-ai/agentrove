@@ -180,7 +180,7 @@ export function LandingPage() {
   );
 
   const { selectedFile, setSelectedFile, isRefreshing, handleRefresh, handleFileSelect } =
-    useEditorState(refetchFilesMetadata);
+    useEditorState(refetchFilesMetadata, undefined, fileStructure);
 
   const prevSandboxIdRef = useRef(selectedSandboxId);
   if (prevSandboxIdRef.current !== selectedSandboxId) {

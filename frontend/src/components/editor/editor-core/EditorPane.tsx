@@ -1,4 +1,4 @@
-import { memo, useRef } from 'react';
+import { memo } from 'react';
 import { Editor } from '@/components/editor/editor-core/Editor';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
@@ -15,14 +15,7 @@ export const EditorPane = memo(function EditorPane({ chatId }: { chatId: string 
     chatId,
   );
   const { selectedFile, setSelectedFile, handleFileSelect, isRefreshing, handleRefresh } =
-    useEditorState(refetchFilesMetadata);
-  // Swapping the pane's chat reuses this same instance — drop the prior chat's
-  // selection so it doesn't show a file that belongs to the old chat.
-  const prevChatIdRef = useRef(chatId);
-  if (prevChatIdRef.current !== chatId) {
-    prevChatIdRef.current = chatId;
-    setSelectedFile(null);
-  }
+    useEditorState(refetchFilesMetadata, chatId, fileStructure);
   usePendingFileOpen(fileStructure, setSelectedFile, chatId);
 
   return (
