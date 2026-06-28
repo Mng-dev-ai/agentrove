@@ -178,23 +178,38 @@ export const View = memo(function View({
 
   useEffect(() => {
     // Reveal + select the requested line after Monaco's model has absorbed the
-    // new file content. @monaco-editor/react syncs `value` -> model inside its
-    // own effect; we rAF to ensure that effect has flushed before we reveal,
-    // otherwise the editor would still be on the previous file's model and
-    // the line number would be clamped wrong.
+    // loaded content. @monaco-editor/react syncs `value` -> model inside its
+    // own effect; rAF lets that flush before we reveal, otherwise the editor
+    // would still hold the old model and the line would be clamped wrong.
     if (!targetLine || !selectedFile) return;
     if (selectedFile.path !== targetLine.path) return;
     if (selectedFileContent === undefined) return;
     if (mountedEditorPath !== selectedFile.path) return;
     const editor = editorRef.current;
     if (!editor) return;
+    // Dedupe by the requested target, not the resolved/clamped line — after a
+    // jump to line 100, editing the file down to fewer lines shouldn't re-fire
+    // the same target and yank focus back to the clamped position.
     const key = `${targetLine.path}:${targetLine.line}:${targetLine.nonce}`;
     if (lastAppliedTargetRef.current === key) return;
 
     const raf = requestAnimationFrame(() => {
       if (editorRef.current !== editor) return;
+      const model = editor.getModel();
+      if (!model) return;
+      let lineNumber = Math.max(1, targetLine.line);
+      if (model.getLineCount() < lineNumber) {
+        // The model is shorter than the requested line. If the loaded content
+        // hasn't synced into Monaco's value prop yet, wait for the next run
+        // (currentContent is in deps) instead of clamping a stale buffer.
+        // Otherwise the file genuinely lacks the line — clamp to the last.
+        // Compare against currentContent (not model.getValue()) to avoid
+        // Monaco's EOL normalization breaking the readiness check.
+        const contentReady = hasUnsavedChanges || currentContent === selectedFileContent;
+        if (!contentReady) return;
+        lineNumber = model.getLineCount();
+      }
       lastAppliedTargetRef.current = key;
-      const lineNumber = Math.max(1, targetLine.line);
       editor.revealLineInCenter(lineNumber);
       editor.setPosition({ lineNumber, column: 1 });
       editor.setSelection({
@@ -206,7 +221,14 @@ export const View = memo(function View({
       editor.focus();
     });
     return () => cancelAnimationFrame(raf);
-  }, [targetLine, selectedFile, selectedFileContent, mountedEditorPath]);
+  }, [
+    targetLine,
+    selectedFile,
+    selectedFileContent,
+    currentContent,
+    hasUnsavedChanges,
+    mountedEditorPath,
+  ]);
 
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const prevShowPreviewRef = useRef(showPreview);
