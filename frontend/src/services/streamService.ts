@@ -21,6 +21,7 @@ export interface StreamOptions {
     messageId?: string,
     streamId?: string,
     terminalKind?: 'complete' | 'cancelled',
+    durationMs?: number | null,
   ) => void;
   onError?: (error: Error, messageId?: string, streamId?: string) => void;
   onQueueProcess?: (data: QueueProcessingData) => void;
@@ -35,6 +36,7 @@ interface StreamReconnectOptions {
     messageId?: string,
     streamId?: string,
     terminalKind?: 'complete' | 'cancelled',
+    durationMs?: number | null,
   ) => void;
   onError?: (error: Error, messageId?: string, streamId?: string) => void;
   onQueueProcess?: (data: QueueProcessingData) => void;
@@ -184,8 +186,10 @@ class StreamService {
 
     if (parsed.kind === 'complete' || parsed.kind === 'cancelled') {
       const { callbacks } = currentStream;
+      const durationMs =
+        typeof parsed.payload?.duration_ms === 'number' ? parsed.payload.duration_ms : null;
       useStreamStore.getState().removeStream(streamId);
-      callbacks?.onComplete?.(parsed.messageId, parsed.streamId, parsed.kind);
+      callbacks?.onComplete?.(parsed.messageId, parsed.streamId, parsed.kind, durationMs);
       return;
     }
 

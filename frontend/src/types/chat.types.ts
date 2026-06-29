@@ -23,6 +23,7 @@ export interface Message {
   is_bot?: boolean;
   role: 'user' | 'assistant';
   model_id: string | null;
+  duration_ms: number | null;
   attachments: MessageAttachment[];
   created_at: string;
   checkpoint_id: string | null;

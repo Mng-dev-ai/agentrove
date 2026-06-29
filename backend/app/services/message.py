@@ -148,6 +148,17 @@ class MessageService(BaseDbService[Message]):
             }
             if stream_status is not None:
                 values["stream_status"] = stream_status
+                # Record total run time once, at the terminal snapshot. created_at
+                # marks run start — the empty assistant row is inserted before
+                # streaming begins.
+                if stream_status != MessageStreamStatus.IN_PROGRESS:
+                    created_at = await db.scalar(
+                        select(Message.created_at).where(Message.id == message_id)
+                    )
+                    if created_at is not None:
+                        values["duration_ms"] = int(
+                            (now - created_at).total_seconds() * 1000
+                        )
             if total_cost_usd is not None:
                 values["total_cost_usd"] = total_cost_usd
 

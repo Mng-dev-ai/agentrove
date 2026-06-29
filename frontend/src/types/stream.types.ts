@@ -56,6 +56,7 @@ export interface ActiveStream {
       messageId?: string,
       streamId?: string,
       terminalKind?: 'complete' | 'cancelled',
+      durationMs?: number | null,
     ) => void;
     onError?: (error: Error, messageId?: string, streamId?: string) => void;
     onQueueProcess?: (data: QueueProcessingData) => void;

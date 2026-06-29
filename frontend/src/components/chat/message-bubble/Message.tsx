@@ -74,6 +74,7 @@ export interface AssistantMessageProps extends SharedContentProps {
   checkpointId: string | null;
   createdAt?: string;
   modelId?: string;
+  durationMs?: number | null;
   isLastBotMessage?: boolean;
 }
 
@@ -86,6 +87,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   isStreaming,
   createdAt,
   modelId,
+  durationMs,
   isLastBotMessage,
 }: AssistantMessageProps) {
   const { chatId, sandboxId } = useChatContext();
@@ -127,6 +129,7 @@ export const AssistantMessage = memo(function AssistantMessage({
               isStreaming={isStreaming}
               chatId={chatId}
               isLastBotMessage={isLastBotMessage}
+              durationMs={durationMs}
               onSuggestionSelect={onSuggestionSelect}
               agentKind={agentKind}
             />

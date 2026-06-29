@@ -160,6 +160,8 @@ class Message(Base):
     total_cost_usd: Mapped[float | None] = mapped_column(
         Float, nullable=True, default=0.0, server_default="0.0"
     )
+    # Total wall-clock run time, recorded once at the terminal snapshot.
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     stream_status: Mapped[MessageStreamStatus] = mapped_column(
         SQLAlchemyEnum(
             MessageStreamStatus,

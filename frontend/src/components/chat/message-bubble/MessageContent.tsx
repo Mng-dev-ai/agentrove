@@ -37,6 +37,7 @@ export const UserMessageContent = memo(function UserMessageContent({
 
 interface AssistantMessageContentProps extends SharedContentProps {
   isLastBotMessage?: boolean;
+  durationMs?: number | null;
   onSuggestionSelect?: (suggestion: string) => void;
   agentKind?: AgentKind;
 }
@@ -47,6 +48,7 @@ export const AssistantMessageContent = memo(function AssistantMessageContent({
   isStreaming,
   chatId,
   isLastBotMessage,
+  durationMs,
   onSuggestionSelect,
   agentKind,
 }: AssistantMessageContentProps) {
@@ -57,6 +59,7 @@ export const AssistantMessageContent = memo(function AssistantMessageContent({
         isStreaming={isStreaming}
         chatId={chatId}
         isLastBotMessage={isLastBotMessage}
+        durationMs={durationMs}
         onSuggestionSelect={onSuggestionSelect}
         agentKind={agentKind}
       />

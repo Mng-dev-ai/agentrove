@@ -190,6 +190,7 @@ interface UseStreamCallbacksResult {
     messageId?: string,
     streamId?: string,
     terminalKind?: 'complete' | 'cancelled',
+    durationMs?: number | null,
   ) => void;
   onError: (error: Error, messageId?: string, streamId?: string) => void;
   onQueueProcess: (data: QueueProcessingData) => void;
@@ -236,6 +237,7 @@ export function useStreamCallbacks({
       messageId?: string,
       streamId?: string,
       terminalKind?: 'complete' | 'cancelled',
+      durationMs?: number | null,
     ) => void;
     onError?: (error: Error, messageId?: string, streamId?: string) => void;
     onQueueProcess?: (data: QueueProcessingData) => void;
@@ -553,6 +555,7 @@ export function useStreamCallbacks({
       messageId?: string,
       streamId?: string,
       terminalKind: 'complete' | 'cancelled' = 'complete',
+      durationMs?: number | null,
     ) => {
       const resolvedStreamId = streamId ?? findStreamIdByMessage(messageId);
       const isCancelled = terminalKind === 'cancelled';
@@ -578,6 +581,10 @@ export function useStreamCallbacks({
           ...message,
           active_stream_id: null,
           stream_status: isCancelled ? 'interrupted' : 'completed',
+          // Backend records the run duration at the terminal snapshot and ships
+          // it on the complete event, so the rollup shows the real time without
+          // waiting for a refetch. Older messages persisted before this carry null.
+          duration_ms: durationMs ?? message.duration_ms,
         });
         if (targetChatId) {
           updateMessageInCacheForChat(queryClient, targetChatId, messageId, finalizeMessage);
@@ -744,6 +751,7 @@ export function useStreamCallbacks({
         created_at: new Date().toISOString(),
         attachments: data.attachments || [],
         is_bot: false,
+        duration_ms: null,
         checkpoint_id: null,
       };
 
@@ -760,6 +768,7 @@ export function useStreamCallbacks({
         model_id: data.modelId,
         attachments: [],
         is_bot: true,
+        duration_ms: null,
         checkpoint_id: data.checkpointId,
       };
 

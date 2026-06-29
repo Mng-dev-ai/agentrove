@@ -350,7 +350,7 @@ export const Chat = memo(function Chat() {
       const uploadingAttachmentIds = shouldShowUploadingOverlay ? localAttachmentIds : undefined;
 
       return (
-        <div className="w-full lg:mx-auto lg:max-w-3xl">
+        <div className="w-full lg:mx-auto lg:max-w-4xl">
           {isBotMessage ? (
             <AssistantMessage
               id={msg.id}
@@ -360,6 +360,7 @@ export const Chat = memo(function Chat() {
               isStreaming={messageIsStreaming}
               createdAt={msg.created_at}
               modelId={msg.model_id}
+              durationMs={msg.duration_ms}
               checkpointId={msg.checkpoint_id}
               isLastBotMessage={isLastBotMessage && !messageIsStreaming}
             />
@@ -386,7 +387,7 @@ export const Chat = memo(function Chat() {
     }
 
     return (
-      <div className="w-full lg:mx-auto lg:max-w-3xl">
+      <div className="w-full lg:mx-auto lg:max-w-4xl">
         <div className="flex h-4 items-center justify-center p-4">
           {isFetchingNextPage && (
             <div className="flex items-center gap-2 text-sm text-text-secondary dark:text-text-dark-secondary">
@@ -407,7 +408,7 @@ export const Chat = memo(function Chat() {
     }
 
     return (
-      <div className="w-full lg:mx-auto lg:max-w-3xl">
+      <div className="w-full lg:mx-auto lg:max-w-4xl">
         {showThinking && (
           <ThinkingIndicator key={streamStartTime} streamStartTime={streamStartTime} />
         )}
@@ -442,7 +443,7 @@ export const Chat = memo(function Chat() {
         {showScrollButton && <ScrollButton onClick={scrollToBottom} />}
 
         <div className="relative bg-surface pb-safe dark:bg-surface-dark">
-          <div className="relative w-full py-2 lg:mx-auto lg:max-w-3xl">
+          <div className="relative w-full py-2 lg:mx-auto lg:max-w-4xl">
             {pendingMessages.length > 0 && (
               <div className="relative z-0 -mb-4 px-10 sm:px-14">
                 <div className="flex flex-col overflow-hidden rounded-t-2xl border border-b-0 border-border/50 bg-surface-secondary pb-4 dark:border-border-dark/50 dark:bg-surface-dark-secondary">

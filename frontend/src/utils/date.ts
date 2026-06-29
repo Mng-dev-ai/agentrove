@@ -51,6 +51,14 @@ export function getRelativeTime(dateStr: string): string {
   return `${months}mo`;
 }
 
+export const formatDuration = (ms: number): string => {
+  const totalSeconds = Math.round(ms / 1000);
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${seconds}s`;
+};
+
 export const formatFullTimestamp = (date: string | Date): string => {
   const targetDate = typeof date === 'string' ? new Date(date) : date;
 

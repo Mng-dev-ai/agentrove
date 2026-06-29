@@ -380,11 +380,13 @@ class ChatStreamRuntime:
         self,
         stream_result: StreamResult,
         stream_status: MessageStreamStatus,
-    ) -> None:
+    ) -> int | None:
+        # Returns the persisted run duration so the terminal event can carry it
+        # to the live client without waiting for a refetch.
         if not self.assistant_message_id:
-            return
+            return None
         await self._flush_event_buffer()
-        await self.message_service.update_message_snapshot(
+        message = await self.message_service.update_message_snapshot(
             UUID(self.assistant_message_id),
             content_text=self.snapshot.content_text,
             content_render=self.snapshot.to_render(),
@@ -393,13 +395,14 @@ class ChatStreamRuntime:
             stream_status=stream_status,
             total_cost_usd=stream_result.total_cost_usd,
         )
+        return message.duration_ms if message else None
 
     async def _complete_stream(
         self,
         stream_result: StreamResult,
         status: MessageStreamStatus,
     ) -> str:
-        await self._save_final_snapshot(stream_result, status)
+        duration_ms = await self._save_final_snapshot(stream_result, status)
         final_content = self.snapshot.content_text
 
         if status == MessageStreamStatus.COMPLETED:
@@ -413,7 +416,7 @@ class ChatStreamRuntime:
                 await self._emit_context_usage(stream_result)
                 await self.emit_event(
                     "complete",
-                    {"status": "completed"},
+                    {"status": "completed", "duration_ms": duration_ms},
                     apply_snapshot=False,
                 )
         elif status == MessageStreamStatus.INTERRUPTED:
@@ -428,14 +431,14 @@ class ChatStreamRuntime:
             await self._emit_context_usage(stream_result)
             await self.emit_event(
                 "cancelled",
-                {"status": status.value},
+                {"status": status.value, "duration_ms": duration_ms},
                 apply_snapshot=False,
             )
         else:
             await self._emit_context_usage(stream_result)
             await self.emit_event(
                 "complete",
-                {"status": status.value},
+                {"status": status.value, "duration_ms": duration_ms},
                 apply_snapshot=False,
             )
 
