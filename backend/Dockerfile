@@ -49,6 +49,12 @@ RUN /root/.local/bin/uv pip install --system --no-cache -r requirements.lock
 
 COPY backend/ /app/
 
+# Agentrove chat MCP server (mcp-server/server.py) lives at the repo root, not
+# under backend/. The backend spawns it from /app/mcp-server/ (see MCP_SERVER_PATH
+# in services/agent.py), so it must ship in the image — the desktop sidecar bundles
+# it separately via run_build.mjs, but the cloud/VPS image needs it copied here.
+COPY mcp-server/ /app/mcp-server/
+
 RUN chown -R appuser:appuser /app && \
     chmod -R 755 /app && \
     chmod +x /app/entrypoint.sh

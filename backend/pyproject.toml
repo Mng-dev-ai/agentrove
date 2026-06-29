@@ -110,4 +110,7 @@ DEP002 = [
     "python-multipart",
     "bcrypt",
     "email-validator",
+    # Imported by the bundled mcp-server/ (outside backend/), which the backend
+    # spawns at runtime — not imported by backend source, so deptry can't see it.
+    "mcp",
 ]
