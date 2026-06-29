@@ -289,6 +289,7 @@ class ChatService(BaseDbService[Chat]):
     async def create_chat(self, user: User, chat_data: ChatCreate) -> Chat:
         async with self.session_factory() as db:
             workspace_id = chat_data.workspace_id
+            worktree_cwd: str | None = None
 
             if chat_data.parent_chat_id:
                 parent_result = await db.execute(
@@ -313,6 +314,9 @@ class ChatService(BaseDbService[Chat]):
                         status_code=400,
                     )
                 workspace_id = parent.workspace_id
+                # Sub-threads run in the parent's worktree so they see its
+                # uncommitted changes (e.g. /review-branch on the parent's diff).
+                worktree_cwd = parent.worktree_cwd
                 parent.updated_at = datetime.now(timezone.utc)
 
             ws_result = await db.execute(
@@ -336,6 +340,7 @@ class ChatService(BaseDbService[Chat]):
                 user_id=user.id,
                 workspace_id=workspace.id,
                 parent_chat_id=chat_data.parent_chat_id,
+                worktree_cwd=worktree_cwd,
             )
 
             db.add(chat)
@@ -680,11 +685,11 @@ class ChatService(BaseDbService[Chat]):
             return None
 
         try:
-            if worktree:
-                await AgentService(session_factory=session_factory).ensure_worktree_cwd(
-                    chat
-                )
-            cwd = chat.worktree_cwd if worktree else ""
+            # Resolve the same cwd the agent turn runs in, so the checkpoint's
+            # diff and restore target match where the agent actually edited.
+            cwd = await AgentService(session_factory=session_factory).resolve_cwd(
+                chat, worktree
+            )
             provider = SandboxProvider.create_provider(
                 chat.sandbox_provider, workspace_path=chat.workspace_path
             )

@@ -98,6 +98,15 @@ class AgentService:
         await self._save_worktree_cwd(chat.id, worktree_cwd)
         return worktree_cwd
 
+    async def resolve_cwd(self, chat: Chat, worktree: bool) -> str:
+        # A chat already bound to a worktree (e.g. a sub-thread inheriting the
+        # parent's) always runs in it, even when this turn didn't request one;
+        # otherwise only materialize one when the turn asks and a sandbox exists.
+        # "" is the canonical workspace root, resolved to an absolute cwd at the edge.
+        if chat.worktree_cwd or (worktree and chat.sandbox_id):
+            return await self.ensure_worktree_cwd(chat)
+        return ""
+
     async def build_session_config(
         self,
         *,
@@ -116,9 +125,6 @@ class AgentService:
         sandbox_provider = SandboxProviderType(chat.sandbox_provider)
         sandbox_id: str = chat.sandbox_id or ""
         workspace_path = chat.workspace_path
-        # "" is the canonical workspace-relative root cwd; providers resolve
-        # it to a runtime-absolute cwd at the edge.
-        cwd = ""
 
         agent_kind = MODELS[model_id].agent_kind
         stored_agent_kind = getattr(chat, "session_agent_kind", None)
@@ -128,8 +134,7 @@ class AgentService:
                 error_code=ErrorCode.VALIDATION_ERROR,
             )
 
-        if worktree and sandbox_id:
-            cwd = await self.ensure_worktree_cwd(chat)
+        cwd = await self.resolve_cwd(chat, worktree)
 
         is_custom_persona = selected_persona_name != DEFAULT_PERSONA_NAME
 
