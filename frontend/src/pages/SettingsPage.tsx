@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
 import {
-  Check,
   Settings2,
   Zap,
   UserCircle,
@@ -17,7 +16,6 @@ import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ApiFieldKey } from '@/types/settings.types';
 import { useDeleteAllChatsMutation } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
-import { useMountEffect } from '@/hooks/useMountEffect';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/primitives/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner';
@@ -108,20 +106,6 @@ const SettingsPage: React.FC = () => {
 
   const instantUpdateMutation = useUpdateSettingsMutation();
 
-  // Transient "Saved" confirmation shown after any successful auto-persist.
-  const [showSaved, setShowSaved] = useState(false);
-  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showSavedIndicator = useCallback(() => {
-    setShowSaved(true);
-    if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
-    savedTimeoutRef.current = setTimeout(() => setShowSaved(false), 2000);
-  }, []);
-
-  useMountEffect(() => () => {
-    if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
-  });
-
   useEffect(() => {
     localSettingsRef.current = localSettings;
   }, [localSettings]);
@@ -170,7 +154,8 @@ const SettingsPage: React.FC = () => {
         const result = await instantUpdateMutation.mutateAsync(payload);
         setLocalSettings(result);
         localSettingsRef.current = result;
-        showSavedIndicator();
+        // Stable id collapses rapid successive autosaves into one updating toast
+        toast.success('Saved', { id: 'settings-saved' });
       } catch (error) {
         setLocalSettings(previousSettings);
         localSettingsRef.current = previousSettings;
@@ -178,7 +163,7 @@ const SettingsPage: React.FC = () => {
         throw error;
       }
     },
-    [instantUpdateMutation, buildChangedPayload, showSavedIndicator],
+    [instantUpdateMutation, buildChangedPayload],
   );
 
   const [revealedFields, setRevealedFields] = useState<Record<ApiFieldKey, boolean>>({
@@ -386,12 +371,6 @@ const SettingsPage: React.FC = () => {
 
         {/* Main content area */}
         <div className="relative flex-1 overflow-y-auto">
-          {showSaved && (
-            <div className="animate-in fade-in pointer-events-none absolute right-4 top-4 z-10 flex items-center gap-1.5 rounded-md border border-border/50 bg-surface-secondary px-2.5 py-1 text-2xs font-medium text-text-tertiary shadow-sm duration-200 dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-tertiary">
-              <Check className="h-3 w-3" />
-              Saved
-            </div>
-          )}
           <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
             {errorMessage && (
               <div className="mb-5 rounded-xl border border-border p-3 dark:border-border-dark">
