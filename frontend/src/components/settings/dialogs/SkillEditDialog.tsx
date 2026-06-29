@@ -147,7 +147,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
       await skillService.updateSkill(workspaceId, skill.sources[0], skill.name, merged);
       await onSaved();
       onClose();
-      toast.success('Skill updated');
+      toast.success('Saved');
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : 'Failed to update skill');
     } finally {
