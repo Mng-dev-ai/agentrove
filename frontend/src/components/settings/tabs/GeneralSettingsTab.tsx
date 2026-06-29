@@ -1,3 +1,4 @@
+import { useDraftField } from '@/hooks/useDraftField';
 import { Button } from '@/components/ui/primitives/Button';
 import { Select } from '@/components/ui/primitives/Select';
 import { Switch } from '@/components/ui/primitives/Switch';
@@ -13,7 +14,7 @@ interface GeneralSettingsTabProps {
   fields: GeneralSecretFieldConfig[];
   settings: UserSettings;
   revealedFields: Record<ApiFieldKey, boolean>;
-  onSecretChange: (field: ApiFieldKey, value: string) => void;
+  onPersistSecret: (field: ApiFieldKey, value: string) => void;
   onToggleVisibility: (field: ApiFieldKey) => void;
   onDeleteAllChats: () => void;
   onNotificationsEnabledChange: (enabled: boolean) => void;
@@ -60,11 +61,51 @@ function ThemeControl() {
   );
 }
 
+function SecretField({
+  field,
+  savedValue,
+  isVisible,
+  onPersist,
+  onToggleVisibility,
+}: {
+  field: GeneralSecretFieldConfig;
+  savedValue: string;
+  isVisible: boolean;
+  onPersist: (field: ApiFieldKey, value: string) => void;
+  onToggleVisibility: (field: ApiFieldKey) => void;
+}) {
+  const { draft, setDraft, handleBlur } = useDraftField(savedValue, (v) => onPersist(field.key, v));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
+            {field.label}
+          </h3>
+          <p className="mt-0.5 text-xs text-text-tertiary dark:text-text-dark-tertiary">
+            {field.description}
+          </p>
+        </div>
+      </div>
+      <SecretInput
+        value={draft}
+        placeholder={field.placeholder}
+        isVisible={isVisible}
+        onChange={setDraft}
+        onBlur={handleBlur}
+        onToggleVisibility={() => onToggleVisibility(field.key)}
+        helperText={field.helperText}
+      />
+    </div>
+  );
+}
+
 export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
   fields,
   settings,
   revealedFields,
-  onSecretChange,
+  onPersistSecret,
   onToggleVisibility,
   onDeleteAllChats,
   onNotificationsEnabledChange,
@@ -73,26 +114,14 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
     <SectionCard title="API Keys & Authentication">
       <div className="space-y-4">
         {fields.map((field) => (
-          <div key={field.key}>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
-                  {field.label}
-                </h3>
-                <p className="mt-0.5 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-                  {field.description}
-                </p>
-              </div>
-            </div>
-            <SecretInput
-              value={settings[field.key] ?? ''}
-              placeholder={field.placeholder}
-              isVisible={revealedFields[field.key]}
-              onChange={(value) => onSecretChange(field.key, value)}
-              onToggleVisibility={() => onToggleVisibility(field.key)}
-              helperText={field.helperText}
-            />
-          </div>
+          <SecretField
+            key={field.key}
+            field={field}
+            savedValue={settings[field.key] ?? ''}
+            isVisible={revealedFields[field.key]}
+            onPersist={onPersistSecret}
+            onToggleVisibility={onToggleVisibility}
+          />
         ))}
       </div>
     </SectionCard>
