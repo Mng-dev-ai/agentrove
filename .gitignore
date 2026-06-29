@@ -55,12 +55,14 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.venv/
 
 # Database files
 *.db
 
 # Env
 .env
+.env.desktop
 
 .agents/
 **/.claude/settings.local.json

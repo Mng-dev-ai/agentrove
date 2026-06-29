@@ -6,7 +6,7 @@ import type { TreeHandle } from '../file-tree/Tree';
 import { View } from '../editor-view/View';
 import type { FileStructure } from '@/types/file-system.types';
 import { cn } from '@/utils/cn';
-import { findFileInStructure } from '@/utils/file';
+import { findFileByToolPath, findFileInStructure } from '@/utils/file';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useUIStore } from '@/store/uiStore';
@@ -137,6 +137,23 @@ export const CodeView = memo(function CodeView({
     });
     useUIStore.getState().consumeFileJump();
   }, [pendingFileJump, chatId]);
+
+  // `openFileInEditor` (the write/edit tool buttons) only activates the editor tile;
+  // expand the collapsed tree panel here, then scroll on the next frame so pierre's
+  // scroll/highlight has a real viewport and doesn't race selectedFile's commit cycle.
+  const pendingFilePath = useUIStore((s) => s.pendingFilePath);
+  useEffect(() => {
+    if (!pendingFilePath || pendingFilePath.chatId !== chatId) return;
+    const path = pendingFilePath.path;
+    const panel = fileTreePanelRef.current;
+    if (panel && panel.isCollapsed()) panel.expand();
+    requestAnimationFrame(() => {
+      const file = findFileByToolPath(filesRef.current, path);
+      const treePath = file?.path ?? path;
+      treeRef.current?.expandAncestors(treePath);
+      treeRef.current?.focusPath(treePath);
+    });
+  }, [pendingFilePath, chatId]);
 
   const sharedSidebarProps = {
     files,

@@ -156,6 +156,14 @@ class Settings(BaseSettings):
     GIT_CONFIG_GLOBAL: str = str(Path.home() / ".gitconfig")
     GNUPGHOME: str = str(Path.home() / ".gnupg")
 
+    # Agentrove chat MCP server — exposes its chat tools to spawned agents via a
+    # stdio MCP server (mcp-server/server.py, bundled next to the backend). Opt-in
+    # and only wired with credentials. The server logs into this same backend
+    # (reached at BASE_URL), so it needs a user's email/password.
+    AGENTROVE_MCP_ENABLED: bool = False
+    AGENTROVE_MCP_EMAIL: str | None = None
+    AGENTROVE_MCP_PASSWORD: str | None = None
+
     # Docker Sandbox configuration
     DOCKER_IMAGE: str = "ghcr.io/mng-dev-ai/agentrove-sandbox:latest"
     DOCKER_NETWORK: str = "agentrove-sandbox-net"
