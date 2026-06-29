@@ -301,6 +301,7 @@ export function ChatPage() {
       personas={settings?.personas}
     >
       <ChatSessionOrchestrator
+        key={chatId}
         chatId={chatId}
         currentChat={currentChat}
         fetchedMessages={fetchedMessages}
