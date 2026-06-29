@@ -7,6 +7,19 @@ from client import DEFAULT_API_URL, AgentroveClient, AgentroveError
 
 mcp = FastMCP("agentrove")
 
+# Each agent's unattended (no-prompt, full-execution) session mode. The backend
+# rejects modes that don't belong to the target agent (e.g. Codex only accepts
+# auto/read-only/full-access), so the mode must match the model's agent kind.
+# Canonical valid modes live in backend adapters.py (*_SESSION_MODES); this thin
+# HTTP client can't import them, so the unattended tier is mirrored here.
+PERMISSION_MODE_BY_AGENT = {
+    "claude": "bypassPermissions",
+    "codex": "full-access",
+    "copilot": "autopilot",
+    "cursor": "agent",
+    "opencode": "build",
+}
+
 
 def _build_client() -> AgentroveClient:
     email = os.environ.get("AGENTROVE_EMAIL")
@@ -49,6 +62,17 @@ async def list_models(
             for m in models
         ]
     }
+
+
+@mcp.tool()
+async def get_current_chat() -> dict[str, Any]:
+    """Return the chat this MCP server is running inside, when known.
+
+    Use its chat_id as send_message's parent_chat_id to create sub-threads under the
+    current chat. Returns {"chat_id": null} if unknown (e.g. the server was launched
+    standalone rather than for an AgentRove chat session).
+    """
+    return {"chat_id": os.environ.get("AGENTROVE_CURRENT_CHAT_ID")}
 
 
 @mcp.tool()
@@ -123,9 +147,11 @@ async def send_message(
 
     Returns immediately with chat_id and the streaming message_id. To get the reply, poll
     get_messages and watch that message's stream_status flip from "in_progress" to
-    "completed". Permissions are bypassed so the turn runs unattended.
+    "completed". The turn runs unattended — it uses the model's full-execution permission
+    mode (e.g. bypassPermissions for Claude, full-access for Codex).
     """
-    resolved_model = await client.resolve_model_id(model_id)
+    resolved_model, agent_kind = await client.resolve_model(model_id)
+    permission_mode = PERMISSION_MODE_BY_AGENT[agent_kind]
     if chat_id is None:
         resolved_workspace = await client.resolve_workspace_id(workspace_id)
         chat_title = (title or prompt[:60]).strip() or "New chat"
@@ -137,7 +163,7 @@ async def send_message(
         chat_id,
         prompt,
         resolved_model,
-        permission_mode="bypassPermissions",
+        permission_mode=permission_mode,
         thinking_mode=thinking_mode,
         worktree=worktree,
         plan_mode=plan_mode,

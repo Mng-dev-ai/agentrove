@@ -17,8 +17,8 @@ class AgentroveClient:
         self._http = httpx.AsyncClient(base_url=self._base_url, timeout=60.0)
         self._access_token: str | None = None
         self._refresh_token: str | None = None
-        # Resolved lazily and cached so create_chat/create_message don't re-list every call
-        self._default_model_id: str | None = None
+        # Cached model list so send_message doesn't re-fetch on every call
+        self._models_cache: list[dict[str, Any]] | None = None
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -99,19 +99,23 @@ class AgentroveClient:
         resp = await self.request("GET", "/models/", params=params)
         return resp.json()
 
-    async def resolve_model_id(self, model_id: str | None) -> str:
-        if model_id:
-            return model_id
-        if self._default_model_id:
-            return self._default_model_id
-        resp = await self.request("GET", "/models/")
-        models = resp.json()
+    async def resolve_model(self, model_id: str | None) -> tuple[str, str]:
+        # Returns (model_id, agent_kind). agent_kind drives the per-agent permission
+        # mode, so it must come from the model registry, not be assumed.
+        if self._models_cache is None:
+            resp = await self.request("GET", "/models/")
+            self._models_cache = resp.json()
+        models = self._models_cache
         if not models:
             raise AgentroveError("No models available.")
-        # Default to a Claude model when present, otherwise the first listed
-        claude = next((m for m in models if m["agent_kind"] == "claude"), None)
-        self._default_model_id = (claude or models[0])["model_id"]
-        return self._default_model_id
+        if model_id is None:
+            # Default to a Claude model when present, otherwise the first listed
+            chosen = next((m for m in models if m["agent_kind"] == "claude"), models[0])
+        else:
+            chosen = next((m for m in models if m["model_id"] == model_id), None)
+            if chosen is None:
+                raise AgentroveError(f"Unknown model_id: {model_id}")
+        return chosen["model_id"], chosen["agent_kind"]
 
     async def create_chat(
         self,
