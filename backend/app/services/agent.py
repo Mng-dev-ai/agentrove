@@ -1,6 +1,8 @@
 import asyncio
 import logging
+import sys
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any, cast
 from uuid import UUID
 
@@ -37,6 +39,10 @@ from app.services.user import UserService
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# MCP server ships next to the backend (bundled into the sidecar by run_build.mjs),
+# so its path derives from this file: app/services/agent.py -> ../../mcp-server/server.py
+MCP_SERVER_PATH = Path(__file__).resolve().parents[2] / "mcp-server" / "server.py"
 
 
 class StreamResult:
@@ -393,6 +399,29 @@ class AgentService:
                 env[env_var["key"]] = env_var["value"]
         return env
 
+    @staticmethod
+    def _build_mcp_server_configs() -> list[dict[str, Any]]:
+        # Opt-in: hand the agent Agentrove's own chat tools over a stdio MCP server.
+        # Skipped unless enabled with credentials — the server logs into this backend.
+        if not settings.AGENTROVE_MCP_ENABLED:
+            return []
+        if not (settings.AGENTROVE_MCP_EMAIL and settings.AGENTROVE_MCP_PASSWORD):
+            return []
+        return [
+            {
+                "name": "agentrove",
+                # Spawn with the backend's own interpreter (the bundled sidecar
+                # Python, which ships mcp+httpx) — avoids PATH/version surprises
+                "command": sys.executable,
+                "args": [str(MCP_SERVER_PATH)],
+                "env": {
+                    "AGENTROVE_API_URL": f"{settings.BASE_URL}{settings.API_V1_STR}",
+                    "AGENTROVE_EMAIL": settings.AGENTROVE_MCP_EMAIL,
+                    "AGENTROVE_PASSWORD": settings.AGENTROVE_MCP_PASSWORD,
+                },
+            }
+        ]
+
     async def _build_acp_config(
         self,
         *,
@@ -445,6 +474,7 @@ class AgentService:
             cwd=cwd,
             agent_kind=agent_kind,
             env=env,
+            mcp_servers=self._build_mcp_server_configs(),
             model=model_id,
             permission_mode=session_config.permission.session_mode,
             launch_approval_policy=session_config.permission.launch_approval_policy,

@@ -239,6 +239,14 @@ function copySource() {
   copyFileSync(join(backendDir, 'alembic.ini'), join(sidecarDir, 'alembic.ini'));
   copyFileSync(join(backendDir, 'migrate.py'), join(sidecarDir, 'migrate.py'));
   copyFileSync(join(dir, 'entry.py'), join(sidecarDir, 'entry.py'));
+  // Bundle the MCP server alongside the backend so agent.py can compute its path
+  // (sidecar/app/services/agent.py -> sidecar/mcp-server/server.py) without config
+  rmSync(join(sidecarDir, 'mcp-server'), { recursive: true, force: true });
+  cpSync(join(rootDir, 'mcp-server'), join(sidecarDir, 'mcp-server'), {
+    recursive: true,
+    filter: (src) =>
+      !src.includes('__pycache__') && !src.endsWith('.pyc') && !src.includes('.venv'),
+  });
 }
 
 function writeLauncher() {

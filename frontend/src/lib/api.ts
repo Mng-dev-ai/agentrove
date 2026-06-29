@@ -287,8 +287,14 @@ class APIClient {
   }
 }
 
-let API_BASE_URL: string = resolveHttpBaseUrl(import.meta.env.VITE_API_BASE_URL);
-export let WS_BASE_URL: string = resolveWsBaseUrl(import.meta.env.VITE_WS_URL);
+// Desktop has no VITE_* env (the real backend port is injected at runtime via
+// setApiPort); fall back to the local default so the initial URL is well-formed.
+let API_BASE_URL: string = resolveHttpBaseUrl(
+  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8081/api/v1',
+);
+export let WS_BASE_URL: string = resolveWsBaseUrl(
+  import.meta.env.VITE_WS_URL ?? 'ws://localhost:8081/api/v1/ws',
+);
 // Cloud WS origin, set alongside the cloud HTTP base so sandbox terminals on the
 // VPS connect to the right host. Empty until a VPS is connected.
 let CLOUD_WS_BASE_URL = '';
