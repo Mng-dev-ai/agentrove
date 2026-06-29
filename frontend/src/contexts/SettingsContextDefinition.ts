@@ -3,7 +3,7 @@ import type { UserSettings } from '@/types/user.types';
 
 type PersistSettingsFn = (
   updater: (previous: UserSettings) => UserSettings,
-  options?: { successMessage?: string; errorMessage?: string },
+  options?: { errorMessage?: string },
 ) => Promise<void>;
 
 export interface SettingsContextValue {

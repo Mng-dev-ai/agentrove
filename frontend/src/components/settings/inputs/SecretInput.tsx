@@ -10,6 +10,7 @@ export interface SecretInputProps {
   placeholder: string;
   isVisible: boolean;
   onChange: (newValue: string) => void;
+  onBlur?: () => void;
   onToggleVisibility: () => void;
   helperText?: HelperTextLink | HelperTextCode;
   containerClassName?: string;
@@ -53,6 +54,7 @@ export const SecretInput: React.FC<SecretInputProps> = ({
   placeholder,
   isVisible,
   onChange,
+  onBlur,
   onToggleVisibility,
   helperText,
   containerClassName = 'mt-2',
@@ -65,6 +67,7 @@ export const SecretInput: React.FC<SecretInputProps> = ({
         type={isVisible ? 'text' : 'password'}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         className={cn('pr-9 text-xs', inputClassName)}
       />

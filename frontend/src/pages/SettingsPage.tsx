@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
+import { useState, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
 import {
-  AlertCircle,
+  Check,
   Settings2,
   Zap,
   UserCircle,
@@ -17,6 +17,7 @@ import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ApiFieldKey } from '@/types/settings.types';
 import { useDeleteAllChatsMutation } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
+import { useMountEffect } from '@/hooks/useMountEffect';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/primitives/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner';
@@ -50,16 +51,6 @@ type TabKey =
 
 const getErrorMessage = (error: unknown): string | undefined =>
   error instanceof Error ? error.message : undefined;
-
-const TAB_FIELDS: Record<TabKey, (keyof UserSettings)[]> = {
-  general: ['github_personal_access_token'],
-  skills: [],
-  personas: ['personas'],
-  stream_actions: ['stream_actions'],
-  env_vars: ['custom_env_vars'],
-  instructions: ['custom_instructions'],
-  cloud: [],
-};
 
 interface SettingsNavItem {
   id: TabKey;
@@ -102,7 +93,7 @@ const SettingsPage: React.FC = () => {
   // Honor a deep-link tab (e.g. the "Connect a cloud instance" CTA → Cloud tab).
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const requested = (location.state as { tab?: TabKey } | null)?.tab;
-    return requested && requested in TAB_FIELDS ? requested : 'general';
+    return requested && requested in TAB_LABELS ? requested : 'general';
   });
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -115,17 +106,21 @@ const SettingsPage: React.FC = () => {
   const [localSettings, setLocalSettings] = useState<UserSettings | null>(settings ?? null);
   const localSettingsRef = useRef<UserSettings | null>(localSettings);
 
-  const manualUpdateMutation = useUpdateSettingsMutation({
-    onSuccess: (data) => {
-      toast.success('Settings saved successfully');
-      setLocalSettings(data);
-    },
-    onError: (error) => {
-      toast.error(getErrorMessage(error) || 'Failed to save settings');
-    },
-  });
-
   const instantUpdateMutation = useUpdateSettingsMutation();
+
+  // Transient "Saved" confirmation shown after any successful auto-persist.
+  const [showSaved, setShowSaved] = useState(false);
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showSavedIndicator = useCallback(() => {
+    setShowSaved(true);
+    if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+    savedTimeoutRef.current = setTimeout(() => setShowSaved(false), 2000);
+  }, []);
+
+  useMountEffect(() => () => {
+    if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+  });
 
   useEffect(() => {
     localSettingsRef.current = localSettings;
@@ -156,7 +151,7 @@ const SettingsPage: React.FC = () => {
   const persistSettings = useCallback(
     async (
       updater: (previous: UserSettings) => UserSettings,
-      options: { successMessage?: string; errorMessage?: string } = {},
+      options: { errorMessage?: string } = {},
     ) => {
       if (!localSettingsRef.current) {
         throw new Error('Settings data is required before persisting changes');
@@ -175,9 +170,7 @@ const SettingsPage: React.FC = () => {
         const result = await instantUpdateMutation.mutateAsync(payload);
         setLocalSettings(result);
         localSettingsRef.current = result;
-        if (options.successMessage) {
-          toast.success(options.successMessage);
-        }
+        showSavedIndicator();
       } catch (error) {
         setLocalSettings(previousSettings);
         localSettingsRef.current = previousSettings;
@@ -185,50 +178,22 @@ const SettingsPage: React.FC = () => {
         throw error;
       }
     },
-    [instantUpdateMutation, buildChangedPayload],
+    [instantUpdateMutation, buildChangedPayload, showSavedIndicator],
   );
 
   const [revealedFields, setRevealedFields] = useState<Record<ApiFieldKey, boolean>>({
     github_personal_access_token: false,
   });
 
-  const hasUnsavedChanges = useMemo(() => {
-    // localSettings lags settings by one render on first load (synced via effect) — bail until it's populated.
-    if (!settings || !localSettings) return false;
-    if (activeTab !== 'general' && activeTab !== 'instructions') return false;
-
-    const changedPayload = buildChangedPayload(localSettings, settings);
-    const currentTabFields = TAB_FIELDS[activeTab] ?? [];
-
-    return currentTabFields.some((field) => field in changedPayload);
-  }, [localSettings, settings, activeTab, buildChangedPayload]);
-
-  const handleCancel = () => {
-    if (settings) {
-      setLocalSettings({ ...settings });
-      toast.success('Changes discarded');
-    }
+  // persistSettings already surfaces failures via toast, so swallow the rejection here.
+  const handlePersistSecret = (field: ApiFieldKey, value: string) => {
+    void persistSettings((prev) => ({ ...prev, [field]: value || null })).catch(() => undefined);
   };
 
-  const handleSave = () => {
-    if (!settings) {
-      throw new Error('Settings data is required before saving changes');
-    }
-
-    const payload = buildChangedPayload(localSettings, settings);
-    if (Object.keys(payload).length === 0) {
-      toast.success('No changes to save');
-      return;
-    }
-    manualUpdateMutation.mutate(payload);
-  };
-
-  const handleInputChange = <K extends keyof UserSettings>(field: K, value: UserSettings[K]) => {
-    setLocalSettings((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleSecretFieldChange = (field: ApiFieldKey, value: string) => {
-    handleInputChange(field, value);
+  const handlePersistInstructions = (value: string) => {
+    void persistSettings((prev) => ({ ...prev, custom_instructions: value || null })).catch(
+      () => undefined,
+    );
   };
 
   const toggleFieldVisibility = (field: ApiFieldKey) => {
@@ -240,7 +205,9 @@ const SettingsPage: React.FC = () => {
   };
 
   const handleNotificationsEnabledChange = (enabled: boolean) => {
-    persistSettings((prev) => ({ ...prev, notifications_enabled: enabled }));
+    void persistSettings((prev) => ({ ...prev, notifications_enabled: enabled })).catch(
+      () => undefined,
+    );
   };
 
   const confirmDeleteAllChats = async () => {
@@ -260,8 +227,7 @@ const SettingsPage: React.FC = () => {
     }
   }, [settings]);
 
-  const errorMessage =
-    getErrorMessage(fetchError) ?? getErrorMessage(manualUpdateMutation.error) ?? null;
+  const errorMessage = getErrorMessage(fetchError) ?? null;
 
   const handleTabChange = useCallback((tab: TabKey) => {
     setActiveTab(tab);
@@ -419,43 +385,14 @@ const SettingsPage: React.FC = () => {
         )}
 
         {/* Main content area */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="relative flex-1 overflow-y-auto">
+          {showSaved && (
+            <div className="animate-in fade-in pointer-events-none absolute right-4 top-4 z-10 flex items-center gap-1.5 rounded-md border border-border/50 bg-surface-secondary px-2.5 py-1 text-2xs font-medium text-text-tertiary shadow-sm duration-200 dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-tertiary">
+              <Check className="h-3 w-3" />
+              Saved
+            </div>
+          )}
           <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
-            {hasUnsavedChanges && (
-              <div className="animate-in fade-in slide-in-from-top-2 mb-5 flex flex-col gap-3 rounded-xl border border-border p-4 duration-300 dark:border-border-dark sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-tertiary dark:bg-surface-dark-tertiary">
-                    <AlertCircle className="h-3.5 w-3.5 text-text-tertiary dark:text-text-dark-tertiary" />
-                  </div>
-                  <span className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
-                    You have unsaved changes
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    onClick={handleCancel}
-                    variant="outline"
-                    size="sm"
-                    className="flex-1 text-text-secondary dark:text-text-dark-secondary sm:flex-none"
-                  >
-                    Discard
-                  </Button>
-                  <Button
-                    type="button"
-                    onClick={handleSave}
-                    variant="primary"
-                    size="sm"
-                    className="flex-1 sm:flex-none"
-                    isLoading={manualUpdateMutation.isPending}
-                    loadingText="Saving..."
-                  >
-                    Save Changes
-                  </Button>
-                </div>
-              </div>
-            )}
-
             {errorMessage && (
               <div className="mb-5 rounded-xl border border-border p-3 dark:border-border-dark">
                 <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
@@ -478,7 +415,7 @@ const SettingsPage: React.FC = () => {
                         fields={generalSecretFields}
                         settings={localSettings}
                         revealedFields={revealedFields}
-                        onSecretChange={handleSecretFieldChange}
+                        onPersistSecret={handlePersistSecret}
                         onToggleVisibility={toggleFieldVisibility}
                         onDeleteAllChats={handleDeleteAllChats}
                         onNotificationsEnabledChange={handleNotificationsEnabledChange}
@@ -525,9 +462,7 @@ const SettingsPage: React.FC = () => {
                       <Suspense fallback={tabLoadingFallback}>
                         <InstructionsSettingsTab
                           instructions={localSettings.custom_instructions || ''}
-                          onInstructionsChange={(value) =>
-                            handleInputChange('custom_instructions', value)
-                          }
+                          onPersist={handlePersistInstructions}
                         />
                       </Suspense>
                     </div>

@@ -8,10 +8,7 @@ interface UseCrudFormOptions<S, T, K extends keyof S> {
   itemName: string;
 }
 
-type PersistFn<S> = (
-  updater: (prev: S) => S,
-  options?: { successMessage?: string; errorMessage?: string },
-) => Promise<void>;
+type PersistFn<S> = (updater: (prev: S) => S, options?: { errorMessage?: string }) => Promise<void>;
 
 export const useCrudForm = <S, T, K extends keyof S>(
   settings: S,
@@ -54,13 +51,6 @@ export const useCrudForm = <S, T, K extends keyof S>(
 
   const handleDelete = useCallback(
     async (index: number) => {
-      const items = getItems();
-      const item = items[index];
-      const targetName =
-        item && typeof item === 'object' && 'name' in item
-          ? (item as { name: string }).name
-          : undefined;
-
       try {
         await persistSettings(
           (prev: S) => {
@@ -71,16 +61,13 @@ export const useCrudForm = <S, T, K extends keyof S>(
               [options.getArrayKey]: arr.length > 0 ? arr : null,
             } as S;
           },
-          {
-            successMessage: targetName ? `Deleted ${targetName}` : `${options.itemName} deleted`,
-            errorMessage: `Failed to delete ${options.itemName}`,
-          },
+          { errorMessage: `Failed to delete ${options.itemName}` },
         );
       } catch (error) {
         logger.error(`Failed to delete ${options.itemName}`, 'useCrudForm', error);
       }
     },
-    [getItems, persistSettings, options],
+    [persistSettings, options],
   );
 
   const handleFormChange = useCallback(<K extends keyof T>(field: K, value: T[K]) => {
@@ -100,7 +87,6 @@ export const useCrudForm = <S, T, K extends keyof S>(
     }
 
     try {
-      const isUpdate = editingIndex !== null;
       await persistSettings(
         (prev: S) => {
           const nextItems = [...((prev[options.getArrayKey] as T[] | null | undefined) ?? [])];
@@ -111,10 +97,7 @@ export const useCrudForm = <S, T, K extends keyof S>(
           }
           return { ...prev, [options.getArrayKey]: nextItems } as S;
         },
-        {
-          successMessage: isUpdate ? `${options.itemName} updated` : `${options.itemName} added`,
-          errorMessage: `Failed to save ${options.itemName}`,
-        },
+        { errorMessage: `Failed to save ${options.itemName}` },
       );
 
       setIsDialogOpen(false);
