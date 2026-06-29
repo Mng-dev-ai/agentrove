@@ -147,11 +147,14 @@ export const CodeView = memo(function CodeView({
     const path = pendingFilePath.path;
     const panel = fileTreePanelRef.current;
     if (panel && panel.isCollapsed()) panel.expand();
+    const file = findFileByToolPath(filesRef.current, path);
+    const treePath = file?.path ?? path;
+    // Two frames before scrolling: the just-expanded panel lays out first, then
+    // pierre's virtualized viewport picks up its new size (a single frame no-ops).
+    // No cleanup: pendingFilePath clears right after, and a cancel would kill the scroll.
+    treeRef.current?.expandAncestors(treePath);
     requestAnimationFrame(() => {
-      const file = findFileByToolPath(filesRef.current, path);
-      const treePath = file?.path ?? path;
-      treeRef.current?.expandAncestors(treePath);
-      treeRef.current?.focusPath(treePath);
+      requestAnimationFrame(() => treeRef.current?.focusPath(treePath));
     });
   }, [pendingFilePath, chatId]);
 
