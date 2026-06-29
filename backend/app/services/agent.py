@@ -139,6 +139,7 @@ class AgentService:
             permission_mode=permission_mode,
             model_id=model_id,
             session_id=session_id,
+            chat_id=str(chat.id),
             thinking_mode=thinking_mode,
             cwd=cwd,
             sandbox_provider=sandbox_provider,
@@ -400,13 +401,21 @@ class AgentService:
         return env
 
     @staticmethod
-    def _build_mcp_server_configs() -> list[dict[str, Any]]:
+    def _build_mcp_server_configs(chat_id: str | None) -> list[dict[str, Any]]:
         # Opt-in: hand the agent Agentrove's own chat tools over a stdio MCP server.
         # Skipped unless enabled with credentials — the server logs into this backend.
         if not settings.AGENTROVE_MCP_ENABLED:
             return []
         if not (settings.AGENTROVE_MCP_EMAIL and settings.AGENTROVE_MCP_PASSWORD):
             return []
+        env = {
+            "AGENTROVE_API_URL": f"{settings.BASE_URL}{settings.API_V1_STR}",
+            "AGENTROVE_EMAIL": settings.AGENTROVE_MCP_EMAIL,
+            "AGENTROVE_PASSWORD": settings.AGENTROVE_MCP_PASSWORD,
+        }
+        # The chat this session runs in — lets the agent create sub-threads under it
+        if chat_id:
+            env["AGENTROVE_CURRENT_CHAT_ID"] = chat_id
         return [
             {
                 "name": "agentrove",
@@ -414,11 +423,7 @@ class AgentService:
                 # Python, which ships mcp+httpx) — avoids PATH/version surprises
                 "command": sys.executable,
                 "args": [str(MCP_SERVER_PATH)],
-                "env": {
-                    "AGENTROVE_API_URL": f"{settings.BASE_URL}{settings.API_V1_STR}",
-                    "AGENTROVE_EMAIL": settings.AGENTROVE_MCP_EMAIL,
-                    "AGENTROVE_PASSWORD": settings.AGENTROVE_MCP_PASSWORD,
-                },
+                "env": env,
             }
         ]
 
@@ -430,6 +435,7 @@ class AgentService:
         permission_mode: PermissionMode,
         model_id: str,
         session_id: str | None,
+        chat_id: str | None = None,
         thinking_mode: str | None = None,
         cwd: str = "",
         sandbox_provider: SandboxProviderType,
@@ -474,7 +480,7 @@ class AgentService:
             cwd=cwd,
             agent_kind=agent_kind,
             env=env,
-            mcp_servers=self._build_mcp_server_configs(),
+            mcp_servers=self._build_mcp_server_configs(chat_id),
             model=model_id,
             permission_mode=session_config.permission.session_mode,
             launch_approval_policy=session_config.permission.launch_approval_policy,
