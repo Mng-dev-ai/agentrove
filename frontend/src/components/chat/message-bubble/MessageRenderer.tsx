@@ -1,13 +1,10 @@
-import React, { memo, Suspense } from 'react';
-import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
-import { ThinkingBlock } from './ThinkingBlock';
-import { PromptSuggestions } from './PromptSuggestions';
-import { getToolComponent } from '@/components/chat/tools/registry';
+import React, { memo } from 'react';
+import { SegmentView } from './SegmentView';
+import { WorkedRollup } from './WorkedRollup';
 import { buildSegments } from './segmentBuilder';
 import { AgentToolsContext } from '@/contexts/AgentToolsContext';
 import type { AgentKind, AssistantStreamEvent } from '@/types/chat.types';
 import type { ToolAggregate } from '@/types/tools.types';
-import { Spinner } from '@/components/ui/primitives/Spinner';
 
 interface MessageRendererProps {
   events: AssistantStreamEvent[];
@@ -15,6 +12,7 @@ interface MessageRendererProps {
   isStreaming?: boolean;
   chatId?: string;
   isLastBotMessage?: boolean;
+  durationMs?: number | null;
   onSuggestionSelect?: (suggestion: string) => void;
   agentKind?: AgentKind;
 }
@@ -25,6 +23,7 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
   isStreaming = false,
   chatId,
   isLastBotMessage = false,
+  durationMs = null,
   onSuggestionSelect,
   agentKind,
 }) => {
@@ -65,68 +64,54 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
     [segments],
   );
 
+  // Split a completed turn at its last tool/thinking segment: everything up to
+  // it is the collapsible work trace, everything after is the final answer.
+  // While streaming, the trace stays empty so the live work renders flat.
+  const { traceSegments, tailSegments } = React.useMemo(() => {
+    if (isStreaming) return { traceSegments: [], tailSegments: segments };
+    let traceEnd = -1;
+    for (let i = segments.length - 1; i >= 0; i--) {
+      if (segments[i].kind === 'tool' || segments[i].kind === 'thinking') {
+        traceEnd = i;
+        break;
+      }
+    }
+    if (traceEnd < 0) return { traceSegments: [], tailSegments: segments };
+    return {
+      traceSegments: segments.slice(0, traceEnd + 1),
+      tailSegments: segments.slice(traceEnd + 1),
+    };
+  }, [segments, isStreaming]);
+
   return (
     <AgentToolsContext value={agentTools}>
       <div className={className}>
-        {segments.map((segment) => {
-          switch (segment.kind) {
-            case 'text':
-              return (
-                <div
-                  key={segment.id}
-                  className="prose prose-sm dark:prose-invert max-w-none break-words"
-                >
-                  <LazyMarkDown content={segment.text} />
-                </div>
-              );
-            case 'thinking': {
-              return (
-                <div key={segment.id} className="mb-2 mt-0.5">
-                  <ThinkingBlock
-                    content={segment.text}
-                    isActiveThinking={segment.eventIndex === activeThinkingIndex}
-                  />
-                </div>
-              );
-            }
-            case 'tool': {
-              const Component = getToolComponent(segment.tool.name, agentKind);
-              return (
-                <div key={segment.id} className="mb-2 mt-1">
-                  <Suspense
-                    fallback={
-                      <div className="flex items-center gap-2 rounded-lg border border-border/50 px-3 py-2 dark:border-border-dark/50">
-                        <Spinner
-                          size="sm"
-                          className="text-text-quaternary dark:text-text-dark-quaternary"
-                        />
-                        <span className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
-                          Loading tool output...
-                        </span>
-                      </div>
-                    }
-                  >
-                    <Component tool={segment.tool} chatId={chatId} />
-                  </Suspense>
-                </div>
-              );
-            }
-            case 'suggestions': {
-              if (!isLastBotMessage || !onSuggestionSelect) {
-                return null;
-              }
-              return (
-                <PromptSuggestions
-                  key={segment.id}
-                  suggestions={segment.suggestions}
-                  onSelect={onSuggestionSelect}
-                />
-              );
-            }
-            default:
-              return null;
-          }
-        })}
+        {traceSegments.length > 0 && (
+          <WorkedRollup durationMs={durationMs}>
+            {traceSegments.map((segment) => (
+              <SegmentView
+                key={segment.id}
+                segment={segment}
+                chatId={chatId}
+                agentKind={agentKind}
+                activeThinkingIndex={activeThinkingIndex}
+                isLastBotMessage={isLastBotMessage}
+                onSuggestionSelect={onSuggestionSelect}
+              />
+            ))}
+          </WorkedRollup>
+        )}
+        {tailSegments.map((segment) => (
+          <SegmentView
+            key={segment.id}
+            segment={segment}
+            chatId={chatId}
+            agentKind={agentKind}
+            activeThinkingIndex={activeThinkingIndex}
+            isLastBotMessage={isLastBotMessage}
+            onSuggestionSelect={onSuggestionSelect}
+          />
+        ))}
       </div>
     </AgentToolsContext>
   );

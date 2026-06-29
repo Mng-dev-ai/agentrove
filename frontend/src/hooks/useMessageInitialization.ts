@@ -68,6 +68,7 @@ export function useMessageInitialization({
         attachments: processedAttachments,
         created_at: msg.created_at,
         model_id: msg.model_id,
+        duration_ms: msg.duration_ms,
         checkpoint_id: msg.checkpoint_id,
       };
     });

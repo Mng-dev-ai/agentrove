@@ -142,6 +142,7 @@ export function useMessageActions({
           attachments: [],
           created_at: new Date().toISOString(),
           model_id: selectedModelId ?? undefined,
+          duration_ms: null,
           checkpoint_id: checkpointId,
         };
 
@@ -233,6 +234,7 @@ export function useMessageActions({
         model_id: selectedModelId,
         created_at: new Date().toISOString(),
         attachments: createAttachmentsFromFiles(inputFiles, storeBlobUrl) ?? [],
+        duration_ms: null,
         checkpoint_id: null,
       };
 

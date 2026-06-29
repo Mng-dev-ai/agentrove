@@ -54,6 +54,7 @@ class Message(MessageBase):
     created_at: datetime
     model_id: str | None = None
     stream_status: MessageStreamStatus | None = None
+    duration_ms: int | None = None
     attachments: list[MessageAttachment] = Field(default_factory=list)
     checkpoint_id: UUID | None = None
 
