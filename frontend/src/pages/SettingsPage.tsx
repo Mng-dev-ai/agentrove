@@ -26,8 +26,9 @@ import { SkillsSettingsTab } from '@/components/settings/tabs/SkillsSettingsTab'
 import { CloudSettingsTab } from '@/components/settings/tabs/CloudSettingsTab';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { UserProfileMenu } from '@/components/layout/UserProfileMenu';
-import { useCurrentUserQuery, useLogoutMutation } from '@/hooks/queries/useAuthQueries';
+import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
+import { useLogout } from '@/hooks/useLogout';
 import { getGeneralSecretFields } from '@/utils/settings';
 import { lazyNamed } from '@/utils/lazyNamed';
 const PersonasSettingsTab = lazyNamed(
@@ -91,12 +92,7 @@ const SettingsPage: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
   const userDisplayName = currentUser?.username || currentUser?.email || '';
-  const logoutMutation = useLogoutMutation({
-    onSuccess: () => {
-      useAuthStore.getState().setAuthenticated(false);
-      navigate('/login');
-    },
-  });
+  const logoutMutation = useLogout();
   // Honor a deep-link tab (e.g. the "Connect a cloud instance" CTA → Cloud tab).
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const requested = (location.state as { tab?: TabKey } | null)?.tab;

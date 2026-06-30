@@ -31,8 +31,9 @@ import { useChatStore } from '@/store/chatStore';
 import { useStreamStore } from '@/store/streamStore';
 import { usePermissionStore } from '@/store/permissionStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useCurrentUserQuery, useLogoutMutation } from '@/hooks/queries/useAuthQueries';
+import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
+import { useLogout } from '@/hooks/useLogout';
 import { UserProfileMenu } from './UserProfileMenu';
 import { SidebarChatItem } from './SidebarChatItem';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
@@ -116,12 +117,7 @@ export function Sidebar({
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
   const userDisplayName = currentUser?.username || currentUser?.email || '';
-  const logoutMutation = useLogoutMutation({
-    onSuccess: () => {
-      useAuthStore.getState().setAuthenticated(false);
-      navigate('/login');
-    },
-  });
+  const logoutMutation = useLogout();
   const activeStreamMetadata = useStreamStore((state) => state.activeStreamMetadata);
   const secondaryChatId = useUIStore((state) => state.secondaryChatId);
   const streamingChatIdSet = useMemo(
