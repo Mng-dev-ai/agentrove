@@ -17,7 +17,7 @@ import { Input as ChatInput } from '@/components/chat/message-input/Input';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
 import { WorktreeToggle } from '@/components/chat/worktree-selector/WorktreeToggle';
-import { CloudWorkspaceSelector } from '@/components/chat/cloud/CloudWorkspaceSelector';
+import { CloudWorkspaceSelector } from '@/components/chat/workspace-selector/CloudWorkspaceSelector';
 import {
   useCloudWorkspacesQuery,
   useCloudWorkspaceResourcesQuery,
