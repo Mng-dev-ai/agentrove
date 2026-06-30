@@ -4,7 +4,7 @@ import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError';
 import { Tree } from '@/components/editor/file-tree/Tree';
-import { useResolvedTheme } from '@/hooks/useResolvedTheme';
+import { useEditorTheme } from '@/hooks/useEditorTheme';
 import type { CustomSkill } from '@/types/user.types';
 import type { FileStructure } from '@/types/file-system.types';
 import { skillService, type SkillFileEntry } from '@/services/skillService';
@@ -53,7 +53,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const theme = useResolvedTheme();
+  const { currentTheme, setupEditorTheme } = useEditorTheme();
 
   const fileTree = useMemo(() => skillFilesToFileTree(files), [files]);
   const modifiedPathsKey = useMemo(
@@ -181,7 +181,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
           )}
         </div>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden bg-surface-secondary dark:bg-surface-dark-secondary">
           {!selectedSkillFile ? (
             <div className="flex h-full items-center justify-center text-xs text-text-quaternary dark:text-text-dark-quaternary">
               {loading ? 'Loading...' : 'Select a file to edit'}
@@ -203,7 +203,8 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
                 language={detectLanguage(selectedSkillFile.path)}
                 value={currentContent}
                 onChange={handleEditorChange}
-                theme={theme === 'dark' ? 'vs-dark' : 'vs'}
+                beforeMount={setupEditorTheme}
+                theme={currentTheme}
                 options={EDITOR_OPTIONS}
               />
             </Suspense>
