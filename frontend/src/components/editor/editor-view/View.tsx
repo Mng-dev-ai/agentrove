@@ -3,11 +3,14 @@ import type * as monaco from 'monaco-editor';
 import { Header } from './Header';
 import { Content } from './Content';
 import { EmptyState } from './EmptyState';
+import { EditorTabs } from './EditorTabs';
 import { FilePreview } from '../file-preview/FilePreview';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useEditorTheme } from '@/hooks/useEditorTheme';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
+import { useEditorDrafts } from '@/hooks/useEditorDrafts';
 import type { FileStructure } from '@/types/file-system.types';
-import { detectLanguage, findFileInStructure } from '@/utils/file';
+import { detectLanguage, findFileInStructure, getFileName } from '@/utils/file';
 import { useUpdateFileMutation, useFileContentQuery } from '@/hooks/queries/useSandboxQueries';
 import { isPreviewableFile, isHtmlFile } from '@/utils/fileTypes';
 import toast from 'react-hot-toast';
@@ -19,6 +22,9 @@ export interface ViewProps {
   onToggleFileTree?: () => void;
   isFileTreeCollapsed?: boolean;
   targetLine?: { path: string; line: number; nonce: number } | null;
+  openFiles: FileStructure[];
+  onFileSelect: (file: FileStructure) => void;
+  onCloseFile: (path: string) => void;
 }
 
 export const View = memo(function View({
@@ -28,15 +34,15 @@ export const View = memo(function View({
   onToggleFileTree,
   isFileTreeCollapsed,
   targetLine,
+  openFiles,
+  onFileSelect,
+  onCloseFile,
 }: ViewProps) {
   const theme = useResolvedTheme();
   const previousFileRef = useRef<FileStructure | null>(null);
   const [showPreview, setShowPreview] = useState(false);
-  const [currentContent, setCurrentContent] = useState('');
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof monaco | null>(null);
-  const prevSelectedFileRef = useRef<FileStructure | null>(null);
   const selectedFilePath = selectedFile?.path ?? null;
   const mountedEditorPathRef = useRef(selectedFilePath);
   const [mountedEditorPath, setMountedEditorPath] = useState<string | null>(null);
@@ -66,30 +72,20 @@ export const View = memo(function View({
       ? fileContentData.content
       : undefined;
 
-  useEffect(() => {
-    if (!selectedFile) return;
-
-    const fileChanged =
-      !prevSelectedFileRef.current || prevSelectedFileRef.current.path !== selectedFile.path;
-
-    const queryContentChanged =
-      selectedFileContent !== undefined &&
-      prevSelectedFileRef.current?.path === selectedFile.path &&
-      prevSelectedFileRef.current?.content !== selectedFileContent;
-
-    if (fileChanged || queryContentChanged) {
-      const contentToUse = selectedFileContent ?? '';
-
-      prevSelectedFileRef.current = {
-        ...selectedFile,
-        content: contentToUse,
-        isLoaded: selectedFileContent !== undefined,
-      };
-
-      setCurrentContent(contentToUse);
-      setHasUnsavedChanges(false);
-    }
-  }, [selectedFile, selectedFileContent]);
+  // Per-file unsaved drafts, the dirty set, and the close-confirm flow live in this hook.
+  const {
+    currentContent,
+    displayContent,
+    hasUnsavedChanges,
+    hasLoadedSelectedFile,
+    dirtyPaths,
+    pendingClosePath,
+    handleEditorChange,
+    handleCloseTab,
+    confirmCloseTab,
+    cancelCloseTab,
+    commitSave,
+  } = useEditorDrafts({ selectedFile, selectedFileContent, sandboxId, onCloseFile });
 
   const error = fileContentError
     ? fileContentError instanceof Error
@@ -119,33 +115,24 @@ export const View = memo(function View({
   }, [selectedFile]);
 
   const language = selectedFile ? detectLanguage(selectedFile.path) : 'javascript';
-  const hasLoadedSelectedFile = prevSelectedFileRef.current?.path === selectedFile?.path;
-  // File selection updates before the content effect resets state; keep the
-  // previous file's text out of Monaco during that one render.
-  const displayContent = hasLoadedSelectedFile ? currentContent : (selectedFileContent ?? '');
   const displayHasUnsavedChanges = hasLoadedSelectedFile && hasUnsavedChanges;
-
-  const handleEditorChange = useCallback((value: string | undefined) => {
-    if (value === undefined) return;
-
-    setCurrentContent(value);
-
-    const originalContent = prevSelectedFileRef.current?.content || '';
-    setHasUnsavedChanges(value !== originalContent);
-  }, []);
 
   const handleUpdateFile = useCallback(async () => {
     if (!selectedFile || !sandboxId || !hasUnsavedChanges || !hasLoadedSelectedFile) return;
 
+    // Capture what we're saving; the active tab/content may change before this resolves.
+    const savedPath = selectedFile.path;
+    const submitted = currentContent;
+
     updateFileMutation.mutate(
       {
         sandboxId,
-        filePath: selectedFile.path,
-        content: currentContent,
+        filePath: savedPath,
+        content: submitted,
       },
       {
         onSuccess: () => {
-          setHasUnsavedChanges(false);
+          commitSave(savedPath, submitted);
           toast.success('File saved');
         },
         onError: (err) => {
@@ -160,6 +147,7 @@ export const View = memo(function View({
     hasUnsavedChanges,
     hasLoadedSelectedFile,
     updateFileMutation,
+    commitSave,
   ]);
 
   const handleEditorMount = useCallback(
@@ -268,11 +256,7 @@ export const View = memo(function View({
   const isValidFile =
     selectedFile && findFileInStructure(fileStructure, selectedFile.path) !== undefined;
 
-  if (!selectedFile || !isValidFile) {
-    return <EmptyState theme={theme} onToggleFileTree={onToggleFileTree} />;
-  }
-
-  const isPreviewable = isPreviewableFile(selectedFile);
+  const isPreviewable = selectedFile ? isPreviewableFile(selectedFile) : false;
 
   const handlePreviewToggle = (showPreviewState: boolean) => {
     setShowPreview(showPreviewState);
@@ -285,55 +269,84 @@ export const View = memo(function View({
       }
     : null;
 
+  // Tabs stay mounted above the content even when the active file is invalid
+  // (e.g. deleted from the tree), so the user can still switch to a sibling tab.
   return (
     <div className="relative flex h-full flex-col">
-      <Header
-        filePath={selectedFile.path}
-        error={error}
-        selectedFile={selectedFile}
-        showPreview={showPreview}
-        onTogglePreview={handlePreviewToggle}
-        hasUnsavedChanges={displayHasUnsavedChanges}
-        isSaving={updateFileMutation.isPending}
-        onSave={handleUpdateFile}
-        onToggleFileTree={onToggleFileTree}
-        isFileTreeCollapsed={isFileTreeCollapsed}
-        onToggleFullscreen={
-          isPreviewable && showPreview ? handleTogglePreviewFullscreen : undefined
-        }
+      <EditorTabs
+        openFiles={openFiles}
+        selectedPath={selectedFile?.path ?? null}
+        dirtyPaths={dirtyPaths}
+        onSelect={onFileSelect}
+        onClose={handleCloseTab}
       />
 
-      <div className="relative flex-1 overflow-hidden">
-        {isLoadingContent && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface-secondary bg-opacity-75 dark:bg-surface-dark-secondary">
-            <div className="text-sm text-text-secondary dark:text-text-dark-secondary">
-              Loading file content...
-            </div>
-          </div>
-        )}
-
-        {!(isPreviewable && showPreview) && (
-          <Content
-            key={selectedFile.path}
-            content={displayContent}
-            language={language}
-            isReadOnly={false}
-            onChange={handleEditorChange}
-            onMount={handleEditorMount}
-            theme={currentTheme}
+      {!selectedFile || !isValidFile ? (
+        <EmptyState theme={theme} onToggleFileTree={onToggleFileTree} />
+      ) : (
+        <>
+          <Header
+            filePath={selectedFile.path}
+            error={error}
+            selectedFile={selectedFile}
+            showPreview={showPreview}
+            onTogglePreview={handlePreviewToggle}
+            hasUnsavedChanges={displayHasUnsavedChanges}
+            isSaving={updateFileMutation.isPending}
+            onSave={handleUpdateFile}
+            onToggleFileTree={onToggleFileTree}
+            isFileTreeCollapsed={isFileTreeCollapsed}
+            onToggleFullscreen={
+              isPreviewable && showPreview ? handleTogglePreviewFullscreen : undefined
+            }
           />
-        )}
 
-        {isPreviewable && showPreview && fileForPreview && (
-          <div className="h-full">
-            <FilePreview
-              file={fileForPreview}
-              isFullscreen={isPreviewFullscreen}
-              onToggleFullscreen={handleTogglePreviewFullscreen}
-            />
+          <div className="relative flex-1 overflow-hidden">
+            {isLoadingContent && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface-secondary bg-opacity-75 dark:bg-surface-dark-secondary">
+                <div className="text-sm text-text-secondary dark:text-text-dark-secondary">
+                  Loading file content...
+                </div>
+              </div>
+            )}
+
+            {!(isPreviewable && showPreview) && (
+              <Content
+                key={selectedFile.path}
+                content={displayContent}
+                language={language}
+                // Lock edits while a save is in flight so the in-flight buffer can't
+                // diverge from what was submitted — the success handler then clears the
+                // draft unconditionally without risking newer keystrokes.
+                isReadOnly={updateFileMutation.isPending}
+                onChange={handleEditorChange}
+                onMount={handleEditorMount}
+                theme={currentTheme}
+              />
+            )}
+
+            {isPreviewable && showPreview && fileForPreview && (
+              <div className="h-full">
+                <FilePreview
+                  file={fileForPreview}
+                  isFullscreen={isPreviewFullscreen}
+                  onToggleFullscreen={handleTogglePreviewFullscreen}
+                />
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      )}
+
+      <ConfirmDialog
+        isOpen={pendingClosePath !== null}
+        onClose={cancelCloseTab}
+        onConfirm={confirmCloseTab}
+        title="Discard unsaved changes?"
+        message={`"${getFileName(pendingClosePath ?? '')}" has unsaved edits that will be lost.`}
+        confirmLabel="Discard"
+        cancelLabel="Cancel"
+      />
     </div>
   );
 });

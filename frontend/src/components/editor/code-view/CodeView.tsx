@@ -15,6 +15,8 @@ export interface CodeViewProps {
   files: FileStructure[];
   selectedFile: FileStructure | null;
   onFileSelect: (file: FileStructure | null) => void;
+  openFiles: FileStructure[];
+  onCloseFile: (path: string) => void;
   theme: string;
   sandboxId?: string;
   cwd?: string;
@@ -30,6 +32,8 @@ export const CodeView = memo(function CodeView({
   files,
   selectedFile,
   onFileSelect,
+  openFiles,
+  onCloseFile,
   theme,
   sandboxId,
   cwd,
@@ -205,6 +209,9 @@ export const CodeView = memo(function CodeView({
             sandboxId={sandboxId}
             onToggleFileTree={() => setShowMobileTree(true)}
             targetLine={targetLine}
+            openFiles={openFiles}
+            onFileSelect={onFileSelect}
+            onCloseFile={onCloseFile}
           />
         </div>
       </div>
@@ -252,6 +259,9 @@ export const CodeView = memo(function CodeView({
               onToggleFileTree={handleToggleFileTree}
               isFileTreeCollapsed={isFileTreeCollapsed}
               targetLine={targetLine}
+              openFiles={openFiles}
+              onFileSelect={onFileSelect}
+              onCloseFile={onCloseFile}
             />
           </div>
         </Panel>

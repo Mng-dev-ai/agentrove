@@ -14,7 +14,7 @@ export const EditorPane = memo(function EditorPane({ chatId }: { chatId: string 
     currentChat,
     chatId,
   );
-  const { selectedFile, setSelectedFile, handleFileSelect, isRefreshing, handleRefresh } =
+  const { selectedFile, setSelectedFile, openFiles, closeFile, isRefreshing, handleRefresh } =
     useEditorState(refetchFilesMetadata, chatId, fileStructure);
   usePendingFileOpen(fileStructure, setSelectedFile, chatId);
 
@@ -22,7 +22,9 @@ export const EditorPane = memo(function EditorPane({ chatId }: { chatId: string 
     <Editor
       files={fileStructure}
       selectedFile={selectedFile}
-      onFileSelect={handleFileSelect}
+      onFileSelect={setSelectedFile}
+      openFiles={openFiles}
+      onCloseFile={closeFile}
       sandboxId={currentChat?.sandbox_id ?? undefined}
       worktreeCwd={currentChat?.worktree_cwd ?? undefined}
       isSandboxSyncing={isFileMetadataLoading}

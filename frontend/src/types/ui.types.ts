@@ -68,6 +68,12 @@ export interface WorkspaceLayout {
   visibleLayout: TileId[][];
 }
 
+// Per-chat editor pane state: the open file tabs (in strip order) and the active one.
+export interface EditorPaneState {
+  open: string[];
+  selected: string | null;
+}
+
 export interface SplitViewState {
   // Every open tab, in strip order. Always holds at least 'agent:primary'.
   openTabs: TileId[];
@@ -88,9 +94,10 @@ export interface SplitViewState {
   // Saved tabs per chat, so each chat restores its own workspace when revisited.
   // Excludes split-chat (:secondary) tiles, which the split effects rebuild.
   layoutsByChat: Record<string, WorkspaceLayout>;
-  // The file the user had open in each chat's editor — restored when revisiting
-  // a chat, since EditorPane's local selectedFile is lost on unmount.
-  selectedFileByChat: Record<string, string>;
+  // The open file tabs + active file in each chat's editor — restored when revisiting
+  // a chat, since EditorPane's selection is lost on unmount. Keyed by chat id (or a
+  // landing-editor sentinel for the chat-less landing page).
+  editorByChat: Record<string, EditorPaneState>;
   // Which chat the live openTabs/visibleLayout belong to — drives save-on-switch.
   currentWorkspaceChatId: string | null;
 }
