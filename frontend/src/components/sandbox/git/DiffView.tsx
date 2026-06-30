@@ -229,9 +229,12 @@ interface DiffViewProps {
   // The chat this tile renders — resolves the sandbox/cwd it diffs and binds it
   // to jumps so the primary and secondary diff tiles never consume each other's.
   chatId: string | undefined;
+  // Whether this tile is currently on screen — background tiles stay mounted, so
+  // visibility is how we know the user just switched to the diff view.
+  isVisible: boolean;
 }
 
-export const DiffView = memo(function DiffView({ chatId }: DiffViewProps) {
+export const DiffView = memo(function DiffView({ chatId, isVisible }: DiffViewProps) {
   const theme = useResolvedTheme();
   const { data: chat } = useChatQuery(chatId);
   const sandboxId = chat?.sandbox_id ?? undefined;
@@ -410,6 +413,17 @@ export const DiffView = memo(function DiffView({ chatId }: DiffViewProps) {
     }
     useUIStore.getState().consumeDiffFileJump();
   }, [pendingDiffFile, parsedFiles, setExpandedFiles, chatId, isPlaceholderData]);
+
+  // The tile stays mounted while hidden, so switching back to it doesn't remount
+  // or refetch. Force a refresh on each hidden→visible transition so the user
+  // sees current changes without clicking refresh.
+  const wasVisibleRef = useRef(isVisible);
+  useEffect(() => {
+    // Guard on sandboxId — imperative refetch() bypasses the query's enabled
+    // gate, and getGitDiff throws on an undefined id.
+    if (isVisible && !wasVisibleRef.current && sandboxId) refetch();
+    wasVisibleRef.current = isVisible;
+  }, [isVisible, refetch, sandboxId]);
 
   const allExpanded = parsedFiles.length > 0 && parsedFiles.every((f) => expandedFiles.has(f.name));
 

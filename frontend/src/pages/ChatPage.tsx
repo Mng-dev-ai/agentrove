@@ -211,7 +211,7 @@ export function ChatPage() {
   useLayoutSidebar(sidebarContent);
 
   const renderNonTerminalView = useCallback(
-    (tileId: TileId): ReactNode => {
+    (tileId: TileId, isVisible: boolean): ReactNode => {
       if (tileId === 'agent:primary') return <ChatComponent />;
       if (tileId === 'agent:secondary') {
         if (!secondaryChatId) return null;
@@ -239,7 +239,7 @@ export function ChatPage() {
         case 'diff':
           return (
             <Suspense fallback={viewLoadingFallback}>
-              <DiffView chatId={paneChatId} />
+              <DiffView chatId={paneChatId} isVisible={isVisible} />
             </Suspense>
           );
         default:
@@ -279,7 +279,7 @@ export function ChatPage() {
             </Suspense>
           </div>
           <div className={isTerminal ? 'hidden' : 'flex h-full w-full'}>
-            {renderNonTerminalView(tileId)}
+            {renderNonTerminalView(tileId, isVisible)}
           </div>
         </div>
       );
