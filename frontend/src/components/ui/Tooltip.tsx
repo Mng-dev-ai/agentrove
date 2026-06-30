@@ -4,7 +4,9 @@ import { cn } from '@/utils/cn';
 interface TooltipProps {
   content: string;
   children: ReactNode;
-  position?: 'top' | 'right' | 'bottom' | 'left';
+  // 'bottom-end' drops below the trigger but right-aligns the bubble, so tooltips
+  // on right-edge controls (e.g. the view switcher) grow leftward and never clip.
+  position?: 'top' | 'right' | 'bottom' | 'bottom-end' | 'left';
   className?: string;
 }
 
@@ -12,6 +14,7 @@ const positionClasses = {
   top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
   right: 'left-full top-1/2 -translate-y-1/2 ml-2',
   bottom: 'top-full left-1/2 -translate-x-1/2 mt-2',
+  'bottom-end': 'top-full right-0 mt-2',
   left: 'right-full top-1/2 -translate-y-1/2 mr-2',
 };
 
@@ -21,6 +24,8 @@ const arrowClasses = {
     'right-full top-1/2 -translate-y-1/2 border-r-surface-tertiary dark:border-r-surface-dark-tertiary border-y-transparent border-l-transparent',
   bottom:
     'bottom-full left-1/2 -translate-x-1/2 border-b-surface-tertiary dark:border-b-surface-dark-tertiary border-x-transparent border-t-transparent',
+  'bottom-end':
+    'bottom-full right-2 border-b-surface-tertiary dark:border-b-surface-dark-tertiary border-x-transparent border-t-transparent',
   left: 'left-full top-1/2 -translate-y-1/2 border-l-surface-tertiary dark:border-l-surface-dark-tertiary border-y-transparent border-r-transparent',
 };
 
