@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, Suspense, lazy } from 'react';
+import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import {
   Settings2,
   Zap,
@@ -29,13 +29,22 @@ import { UserProfileMenu } from '@/components/layout/UserProfileMenu';
 import { useCurrentUserQuery, useLogoutMutation } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
 import { getGeneralSecretFields } from '@/utils/settings';
-import { PersonasSection } from '@/components/settings/sections/PersonasSection';
-import { EnvVarsSection } from '@/components/settings/sections/EnvVarsSection';
-import { StreamActionsSection } from '@/components/settings/sections/StreamActionsSection';
-const InstructionsSettingsTab = lazy(() =>
-  import('@/components/settings/tabs/InstructionsSettingsTab').then((m) => ({
-    default: m.InstructionsSettingsTab,
-  })),
+import { lazyNamed } from '@/utils/lazyNamed';
+const PersonasSettingsTab = lazyNamed(
+  () => import('@/components/settings/tabs/PersonasSettingsTab'),
+  'PersonasSettingsTab',
+);
+const StreamActionsSettingsTab = lazyNamed(
+  () => import('@/components/settings/tabs/StreamActionsSettingsTab'),
+  'StreamActionsSettingsTab',
+);
+const EnvVarsSettingsTab = lazyNamed(
+  () => import('@/components/settings/tabs/EnvVarsSettingsTab'),
+  'EnvVarsSettingsTab',
+);
+const InstructionsSettingsTab = lazyNamed(
+  () => import('@/components/settings/tabs/InstructionsSettingsTab'),
+  'InstructionsSettingsTab',
 );
 
 type TabKey =
@@ -411,7 +420,7 @@ const SettingsPage: React.FC = () => {
                   {activeTab === 'personas' && (
                     <div role="tabpanel" id="personas-panel" aria-labelledby="personas-tab">
                       <Suspense fallback={tabLoadingFallback}>
-                        <PersonasSection />
+                        <PersonasSettingsTab />
                       </Suspense>
                     </div>
                   )}
@@ -423,7 +432,7 @@ const SettingsPage: React.FC = () => {
                       aria-labelledby="stream_actions-tab"
                     >
                       <Suspense fallback={tabLoadingFallback}>
-                        <StreamActionsSection />
+                        <StreamActionsSettingsTab />
                       </Suspense>
                     </div>
                   )}
@@ -431,7 +440,7 @@ const SettingsPage: React.FC = () => {
                   {activeTab === 'env_vars' && (
                     <div role="tabpanel" id="env_vars-panel" aria-labelledby="env_vars-tab">
                       <Suspense fallback={tabLoadingFallback}>
-                        <EnvVarsSection />
+                        <EnvVarsSettingsTab />
                       </Suspense>
                     </div>
                   )}
