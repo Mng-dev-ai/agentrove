@@ -9,6 +9,8 @@ export interface EditorProps {
   files: FileStructure[];
   selectedFile: FileStructure | null;
   onFileSelect: (file: FileStructure | null) => void;
+  openFiles: FileStructure[];
+  onCloseFile: (path: string) => void;
   sandboxId?: string;
   worktreeCwd?: string;
   isSandboxSyncing?: boolean;
@@ -23,6 +25,8 @@ export const Editor = memo(function Editor({
   files,
   onFileSelect,
   selectedFile,
+  openFiles,
+  onCloseFile,
   sandboxId,
   worktreeCwd,
   isSandboxSyncing = false,
@@ -69,6 +73,8 @@ export const Editor = memo(function Editor({
         files={files}
         selectedFile={selectedFile}
         onFileSelect={onFileSelect}
+        openFiles={openFiles}
+        onCloseFile={onCloseFile}
         theme={theme}
         sandboxId={sandboxId}
         cwd={worktreeCwd}

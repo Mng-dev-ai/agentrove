@@ -179,14 +179,16 @@ export function LandingPage() {
     [filesMetadata],
   );
 
-  const { selectedFile, setSelectedFile, isRefreshing, handleRefresh, handleFileSelect } =
+  const { selectedFile, setSelectedFile, isRefreshing, handleRefresh, openFiles, closeFile } =
     useEditorState(refetchFilesMetadata, undefined, fileStructure);
 
-  const prevSandboxIdRef = useRef(selectedSandboxId);
-  if (prevSandboxIdRef.current !== selectedSandboxId) {
-    prevSandboxIdRef.current = selectedSandboxId;
+  // The landing editor's selection/tabs live under a shared store key (not component
+  // state), so reset them when the chosen sandbox changes and on mount — otherwise a
+  // prior session's tabs would linger. An effect (not a render-phase store write) keeps
+  // the external-store mutation off the render path.
+  useEffect(() => {
     setSelectedFile(null);
-  }
+  }, [selectedSandboxId, setSelectedFile]);
 
   // No chat exists on the landing page, so there are no chat-bound file jumps.
   usePendingFileOpen(fileStructure, setSelectedFile, undefined);
@@ -412,7 +414,9 @@ export function LandingPage() {
               <Editor
                 files={fileStructure}
                 selectedFile={selectedFile}
-                onFileSelect={handleFileSelect}
+                onFileSelect={setSelectedFile}
+                openFiles={openFiles}
+                onCloseFile={closeFile}
                 sandboxId={selectedSandboxId}
                 isSandboxSyncing={false}
                 onRefresh={handleRefresh}
@@ -445,7 +449,9 @@ export function LandingPage() {
       selectedCloudWorkspaceId,
       fileStructure,
       selectedFile,
-      handleFileSelect,
+      setSelectedFile,
+      openFiles,
+      closeFile,
       selectedSandboxId,
       handleRefresh,
       isRefreshing,

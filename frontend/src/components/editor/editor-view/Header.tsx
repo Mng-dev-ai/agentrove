@@ -62,9 +62,6 @@ export const Header = memo(function Header({
         <span className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-tertiary">
           {filePath}
         </span>
-        {hasUnsavedChanges && (
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-text-quaternary dark:bg-text-dark-quaternary" />
-        )}
       </div>
 
       <div className="flex items-center gap-1.5">
