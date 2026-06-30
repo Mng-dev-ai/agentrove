@@ -438,6 +438,9 @@ export const useUIStore = create<UIStoreState>()(
         openTabs: state.openTabs,
         visibleLayout: state.visibleLayout,
         currentWorkspaceChatId: state.currentWorkspaceChatId,
+        // Persist each chat's open files + active file so a refresh reopens what
+        // the user had open, instead of rehydrating to an empty editor.
+        editorByChat: state.editorByChat,
       }),
     },
   ),

@@ -95,8 +95,9 @@ export interface SplitViewState {
   // Excludes split-chat (:secondary) tiles, which the split effects rebuild.
   layoutsByChat: Record<string, WorkspaceLayout>;
   // The open file tabs + active file in each chat's editor — restored when revisiting
-  // a chat, since EditorPane's selection is lost on unmount. Keyed by chat id (or a
-  // landing-editor sentinel for the chat-less landing page).
+  // a chat (EditorPane's selection is lost on unmount) and persisted so a page refresh
+  // reopens them. Keyed by chat id (or a landing-editor sentinel for the chat-less
+  // landing page).
   editorByChat: Record<string, EditorPaneState>;
   // Which chat the live openTabs/visibleLayout belong to — drives save-on-switch.
   currentWorkspaceChatId: string | null;
