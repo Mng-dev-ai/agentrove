@@ -128,7 +128,7 @@ SANDBOX_BASHRC_PATH: Final[str] = "/home/user/.bashrc"
 
 
 MODELS: dict[str, ModelInfo] = {
-    "sonnet": ModelInfo("Sonnet", AgentKind.CLAUDE, 200_000),
+    "sonnet": ModelInfo("Sonnet", AgentKind.CLAUDE, 1_000_000),
     "opus": ModelInfo("Opus", AgentKind.CLAUDE, 1_000_000),
     "haiku": ModelInfo("Haiku", AgentKind.CLAUDE, 200_000),
     "claude-fable-5": ModelInfo("Fable 5", AgentKind.CLAUDE, 1_000_000),
