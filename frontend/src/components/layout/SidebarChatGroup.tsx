@@ -12,7 +12,7 @@ import { useStreamRestoration } from '@/hooks/useStreamRestoration';
 import { SidebarChatItem } from './SidebarChatItem';
 import { SubThreadList } from './SubThreadList';
 
-const CHATS_PER_WORKSPACE = 5;
+const CHATS_PER_WORKSPACE = 10;
 
 function flattenChatPages(data: InfiniteData<PaginatedChats> | undefined): Chat[] {
   return data?.pages.flatMap((page) => page.items) ?? [];
