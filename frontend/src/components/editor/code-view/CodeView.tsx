@@ -120,36 +120,23 @@ export const CodeView = memo(function CodeView({
     [onFileSelect, isMobile],
   );
 
-  // Consume jumps dispatched from outside the editor (e.g. command menu search).
-  // ChatPage handles the file selection via pendingFilePath; we only translate the
-  // line nonce into local targetLine so View scrolls/highlights the line.
-  const pendingFileJump = useUIStore((s) => s.pendingFileJump);
+  // `openFileInEditor` (tool buttons, command menu, changed-files) activates the
+  // editor tile; this editor instance claims only opens for its chat.
+  const pendingFileOpen = useUIStore((s) => s.pendingFileOpen);
   useEffect(() => {
-    // Only the editor of the jump's chat reacts — the other editor leaves it
-    // for its own instance to claim.
-    if (!pendingFileJump || pendingFileJump.chatId !== chatId) return;
-    setTargetLine({
-      path: pendingFileJump.path,
-      line: pendingFileJump.line,
-      nonce: pendingFileJump.nonce,
-    });
-    useUIStore.getState().consumeFileJump();
-  }, [pendingFileJump, chatId]);
-
-  // `openFileInEditor` (tool buttons, command menu, changed-files) only activates the
-  // editor tile, so expand the collapsed tree panel and reveal the file here. Reveal
-  // must run on every open — re-opening the already-selected file leaves selectedPath
-  // unchanged, so Tree's selection effect wouldn't re-run — and it routes through the
-  // same robust Tree.reveal(), the one place that handles the scroll-timing race.
-  const pendingFilePath = useUIStore((s) => s.pendingFilePath);
-  useEffect(() => {
-    if (!pendingFilePath || pendingFilePath.chatId !== chatId) return;
+    if (!pendingFileOpen || pendingFileOpen.chatId !== chatId) return;
+    if (files.length === 0) return;
+    const file = findFileByToolPath(filesRef.current, pendingFileOpen.path);
+    const path = file?.path ?? pendingFileOpen.path;
+    onFileSelect(file ?? { path, type: 'file', content: '' });
     const panel = fileTreePanelRef.current;
     if (panel && panel.isCollapsed()) panel.expand();
-    const treePath =
-      findFileByToolPath(filesRef.current, pendingFilePath.path)?.path ?? pendingFilePath.path;
-    treeRef.current?.reveal(treePath);
-  }, [pendingFilePath, chatId]);
+    treeRef.current?.reveal(path);
+    if (pendingFileOpen.line != null) {
+      setTargetLine({ path, line: pendingFileOpen.line, nonce: pendingFileOpen.nonce });
+    }
+    useUIStore.setState({ pendingFileOpen: null });
+  }, [pendingFileOpen, chatId, onFileSelect, files.length]);
 
   const sharedSidebarProps = {
     files,

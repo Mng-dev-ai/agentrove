@@ -44,6 +44,7 @@ const EDITOR_OPTIONS = {
 export interface ContentProps {
   content: string;
   language: string;
+  modelPath: string;
   isReadOnly: boolean;
   onChange: (value: string | undefined) => void;
   onMount: (
@@ -56,6 +57,7 @@ export interface ContentProps {
 export const Content = memo(function Content({
   content,
   language,
+  modelPath,
   isReadOnly,
   onChange,
   onMount,
@@ -78,7 +80,7 @@ export const Content = memo(function Content({
         <Editor
           height="100%"
           language={language}
-          path={`file://${language}`}
+          path={modelPath}
           value={content}
           onChange={onChange}
           theme={theme}

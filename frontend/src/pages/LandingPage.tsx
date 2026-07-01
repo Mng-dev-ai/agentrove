@@ -54,7 +54,6 @@ import { SplitViewContainer } from '@/components/ui/SplitViewContainer';
 import { CommandMenu } from '@/components/ui/CommandMenu';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useEditorState } from '@/hooks/useEditorState';
-import { usePendingFileOpen } from '@/hooks/usePendingFileOpen';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
 import { PENDING_NEW_CHAT_KEY, type TileId } from '@/types/ui.types';
 import { tileIdToViewType } from '@/utils/tileHelpers';
@@ -190,9 +189,6 @@ export function LandingPage() {
   useEffect(() => {
     setSelectedFile(null);
   }, [selectedSandboxId, setSelectedFile]);
-
-  // No chat exists on the landing page, so there are no chat-bound file jumps.
-  usePendingFileOpen(fileStructure, setSelectedFile, undefined);
 
   useMountEffect(() => {
     useChatStore.getState().setCurrentChat(null);

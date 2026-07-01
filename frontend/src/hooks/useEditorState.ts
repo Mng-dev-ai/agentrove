@@ -47,7 +47,7 @@ export function useEditorState(
   );
 
   // Derived from the stashed path + fileStructure (no re-seed effect needed): the
-  // derivation recomputes when the tree loads, and usePendingFileOpen writes the
+  // derivation recomputes when the tree loads, and pending editor opens write the
   // path directly via setSelectedFile.
   const selectedFile = useMemo(() => {
     if (!selectedFilePath || fileStructure.length === 0) return null;

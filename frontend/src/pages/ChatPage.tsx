@@ -167,8 +167,7 @@ export function ChatPage() {
       ui.closeSplitChat();
     }
     useUIStore.setState({
-      pendingFilePath: null,
-      pendingFileJump: null,
+      pendingFileOpen: null,
       pendingDiffFile: null,
       subThreadDialogOpen: false,
       createCommitDialogOpen: false,

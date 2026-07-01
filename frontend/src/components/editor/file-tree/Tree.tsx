@@ -82,7 +82,6 @@ export interface TreeHandle {
   // actually scroll (see revealWhenSized). The single canonical reveal used
   // by every caller so the layout race is handled in exactly one place.
   reveal: (path: string) => void;
-  openSearch: () => void;
 }
 
 export interface TreeProps {
@@ -115,7 +114,10 @@ export const Tree = memo(function Tree({
     () => traverseFileStructure(files, (item) => (item.type === 'file' ? item.path : null)),
     [files],
   );
+  const pathSet = useMemo(() => new Set(paths), [paths]);
   const selectedPath = selectedFile?.path ?? null;
+  // Retry selection/reveal when the tree model catches up to a newly-known path.
+  const selectedPathIsKnown = selectedPath ? pathSet.has(selectedPath) : false;
   const initialPathsRef = useRef(paths);
 
   const { model } = useFileTree({
@@ -169,7 +171,7 @@ export const Tree = memo(function Tree({
     if (next && !currentPaths.includes(next)) {
       model.getItem(next)?.select();
     }
-  }, [selectedPath, model]);
+  }, [selectedPath, model, selectedPathIsKnown]);
 
   // The single reveal path for every caller (selection changes + imperative reveal).
   // One in-flight reveal's cleanup lives in a ref so a new reveal always cancels the
@@ -186,7 +188,7 @@ export const Tree = memo(function Tree({
 
   useEffect(() => {
     if (selectedPath) startReveal(selectedPath);
-  }, [selectedPath, startReveal]);
+  }, [selectedPath, startReveal, selectedPathIsKnown]);
 
   // Stop a reveal still waiting on a ResizeObserver when the tree unmounts (tab close
   // / navigation) so it can't touch a torn-down pierre model.
@@ -196,11 +198,8 @@ export const Tree = memo(function Tree({
     ref,
     () => ({
       reveal: (path: string) => startReveal(path),
-      openSearch: () => {
-        model.openSearch();
-      },
     }),
-    [model, startReveal],
+    [startReveal],
   );
 
   useEffect(() => {
