@@ -130,6 +130,18 @@ export function useEditorTheme() {
         monaco.editor.defineTheme(`custom-${name}`, data);
       }
 
+      // Monaco runs in the browser without the repo's tsconfig/node_modules, so semantic
+      // diagnostics mark valid imports and React types as missing. Keep syntax checks only.
+      monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: true,
+        noSuggestionDiagnostics: true,
+      });
+
+      monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+        noSemanticValidation: true,
+        noSuggestionDiagnostics: true,
+      });
+
       monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
         target: monaco.languages.typescript.ScriptTarget.ES2020,
         module: monaco.languages.typescript.ModuleKind.ESNext,

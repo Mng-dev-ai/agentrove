@@ -27,6 +27,14 @@ export const DEFAULT_SIDEBAR_WIDTH = 300;
 export const clampSidebarWidth = (width: number): number =>
   Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, Math.round(width)));
 
+interface PendingFileOpen {
+  path: string;
+  chatId: string | undefined;
+  line?: number;
+  // Re-opens can repeat the same path/line after the user scrolls away.
+  nonce: number;
+}
+
 type UIStoreState = ThemeState &
   Pick<UIState, 'sidebarOpen' | 'sidebarWidth'> &
   Pick<UIActions, 'setSidebarOpen' | 'setSidebarWidth'> &
@@ -50,17 +58,8 @@ type UIStoreState = ThemeState &
     // claims it (the primary and secondary editors share these store fields).
     // `undefined` is the chat-less landing editor, which exposes workspace files
     // before any chat exists.
-    pendingFilePath: { path: string; chatId: string | undefined } | null;
-    // Nonce lets the consumer re-jump even when path+line repeat, so that clicking
-    // the same search result after scrolling away still reveals it.
-    pendingFileJump: {
-      path: string;
-      line: number;
-      nonce: number;
-      chatId: string | undefined;
-    } | null;
+    pendingFileOpen: PendingFileOpen | null;
     openFileInEditor: (path: string, chatId: string | undefined, line?: number) => void;
-    consumeFileJump: () => void;
     // `chatId` binds the jump to its chat so only that chat's diff tile claims
     // it — a jump can't be consumed by a different chat mounted in the same slot.
     pendingDiffFile: { path: string; chatId: string } | null;
@@ -116,8 +115,7 @@ function ownTabs(openTabs: TileId[], visibleLayout: TileId[][]): WorkspaceLayout
 function clearJumpsForChat(state: UIStoreState, chatId: string | null): Partial<UIStoreState> {
   const cleared: Partial<UIStoreState> = {};
   if (state.pendingDiffFile?.chatId === chatId) cleared.pendingDiffFile = null;
-  if (state.pendingFilePath?.chatId === chatId) cleared.pendingFilePath = null;
-  if (state.pendingFileJump?.chatId === chatId) cleared.pendingFileJump = null;
+  if (state.pendingFileOpen?.chatId === chatId) cleared.pendingFileOpen = null;
   return cleared;
 }
 
@@ -134,8 +132,7 @@ function clearJumpsForTile(state: UIStoreState, tileId: TileId): Partial<UIStore
       : jump.chatId !== state.secondaryChatId);
   const cleared: Partial<UIStoreState> = {};
   if (view === 'diff' && owns(state.pendingDiffFile)) cleared.pendingDiffFile = null;
-  if (view === 'editor' && owns(state.pendingFilePath)) cleared.pendingFilePath = null;
-  if (view === 'editor' && owns(state.pendingFileJump)) cleared.pendingFileJump = null;
+  if (view === 'editor' && owns(state.pendingFileOpen)) cleared.pendingFileOpen = null;
   return cleared;
 }
 
@@ -174,9 +171,7 @@ export const useUIStore = create<UIStoreState>()(
       pendingChatMessage: null,
       setPendingChatMessage: (payload) => set({ pendingChatMessage: payload }),
 
-      pendingFilePath: null,
-      pendingFileJump: null,
-      consumeFileJump: () => set({ pendingFileJump: null }),
+      pendingFileOpen: null,
       pendingDiffFile: null,
       consumeDiffFileJump: () => set({ pendingDiffFile: null }),
       openFileInEditor: (path, chatId, line) => {
@@ -184,11 +179,12 @@ export const useUIStore = create<UIStoreState>()(
         const secondary = chatId === state.secondaryChatId;
         const tileId = viewTypeToTileId('editor', secondary);
         set({
-          pendingFilePath: { path, chatId },
-          pendingFileJump:
-            line != null
-              ? { path, line, chatId, nonce: (state.pendingFileJump?.nonce ?? 0) + 1 }
-              : null,
+          pendingFileOpen: {
+            path,
+            chatId,
+            nonce: (state.pendingFileOpen?.nonce ?? 0) + 1,
+            ...(line != null ? { line } : {}),
+          },
           openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
         });
         get().activateTab(tileId);

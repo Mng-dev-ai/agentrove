@@ -42,7 +42,7 @@ export const SearchPanel = memo(function SearchPanel({
   const activeInputRef = inputRef ?? localInputRef;
 
   useMountEffect(() => {
-    inputRef?.current?.focus();
+    activeInputRef.current?.focus();
   });
 
   const handleOpen = useCallback(

@@ -39,10 +39,8 @@ export const View = memo(function View({
   onCloseFile,
 }: ViewProps) {
   const theme = useResolvedTheme();
-  const previousFileRef = useRef<FileStructure | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const monacoRef = useRef<typeof monaco | null>(null);
   const selectedFilePath = selectedFile?.path ?? null;
   const mountedEditorPathRef = useRef(selectedFilePath);
   const [mountedEditorPath, setMountedEditorPath] = useState<string | null>(null);
@@ -51,7 +49,6 @@ export const View = memo(function View({
     // Content remounts by path; clear stale Monaco refs before jump effects run.
     mountedEditorPathRef.current = selectedFilePath;
     editorRef.current = null;
-    monacoRef.current = null;
     if (mountedEditorPath !== null) setMountedEditorPath(null);
   }
 
@@ -87,6 +84,10 @@ export const View = memo(function View({
     commitSave,
   } = useEditorDrafts({ selectedFile, selectedFileContent, sandboxId, onCloseFile });
 
+  const shouldShowSelectedFilePreview = selectedFile
+    ? isPreviewableFile(selectedFile) && !isHtmlFile(selectedFile)
+    : false;
+
   const error = fileContentError
     ? fileContentError instanceof Error
       ? fileContentError.message
@@ -94,25 +95,15 @@ export const View = memo(function View({
     : null;
 
   useEffect(() => {
-    if (!selectedFile) {
-      previousFileRef.current = null;
+    if (!selectedFilePath) {
       setShowPreview(false);
       return;
     }
 
-    const previousFile = previousFileRef.current;
-    const fileChanged = !previousFile || previousFile.path !== selectedFile.path;
-    const contentChanged =
-      previousFile?.path === selectedFile.path && previousFile.content !== selectedFile.content;
-
-    if (fileChanged) {
-      previousFileRef.current = selectedFile;
-      const shouldShowPreview = isPreviewableFile(selectedFile) && !isHtmlFile(selectedFile);
-      setShowPreview((current) => (current === shouldShowPreview ? current : shouldShowPreview));
-    } else if (contentChanged) {
-      previousFileRef.current = selectedFile;
-    }
-  }, [selectedFile]);
+    setShowPreview((current) =>
+      current === shouldShowSelectedFilePreview ? current : shouldShowSelectedFilePreview,
+    );
+  }, [selectedFilePath, shouldShowSelectedFilePreview]);
 
   const language = selectedFile ? detectLanguage(selectedFile.path) : 'javascript';
   const displayHasUnsavedChanges = hasLoadedSelectedFile && hasUnsavedChanges;
@@ -155,7 +146,6 @@ export const View = memo(function View({
       if (!selectedFilePath) return;
 
       editorRef.current = editor;
-      monacoRef.current = monaco;
       setupEditorTheme(monaco);
       setMountedEditorPath(selectedFilePath);
     },
@@ -315,6 +305,7 @@ export const View = memo(function View({
                 key={selectedFile.path}
                 content={displayContent}
                 language={language}
+                modelPath={`/${sandboxId ?? 'workspace'}/${selectedFile.path}`}
                 // Lock edits while a save is in flight so the in-flight buffer can't
                 // diverge from what was submitted — the success handler then clears the
                 // draft unconditionally without risking newer keystrokes.
