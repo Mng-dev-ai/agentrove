@@ -79,15 +79,9 @@ export const CodeView = memo(function CodeView({
   const handleFileTreeExpand = useCallback(() => {
     setIsFileTreeCollapsed(false);
     if (!selectedFile || selectedFile.type !== 'file') return;
-
-    // Expand collapsed ancestor folders and scroll the selected file into view
-    // via pierre's imperative handle. rAF lets the panel finish expanding first
-    // so the tree has a non-zero viewport height to scroll within.
-    const path = selectedFile.path;
-    requestAnimationFrame(() => {
-      treeRef.current?.expandAncestors(path);
-      treeRef.current?.focusPath(path);
-    });
+    // reveal() waits for the just-expanded panel to lay out before scrolling, so
+    // the selected file is brought into view even though expansion isn't instant.
+    treeRef.current?.reveal(selectedFile.path);
   }, [selectedFile]);
 
   const handleMobileFileSelect = useCallback(
@@ -142,24 +136,19 @@ export const CodeView = memo(function CodeView({
     useUIStore.getState().consumeFileJump();
   }, [pendingFileJump, chatId]);
 
-  // `openFileInEditor` (the write/edit tool buttons) only activates the editor tile;
-  // expand the collapsed tree panel here, then scroll on the next frame so pierre's
-  // scroll/highlight has a real viewport and doesn't race selectedFile's commit cycle.
+  // `openFileInEditor` (tool buttons, command menu, changed-files) only activates the
+  // editor tile, so expand the collapsed tree panel and reveal the file here. Reveal
+  // must run on every open — re-opening the already-selected file leaves selectedPath
+  // unchanged, so Tree's selection effect wouldn't re-run — and it routes through the
+  // same robust Tree.reveal(), the one place that handles the scroll-timing race.
   const pendingFilePath = useUIStore((s) => s.pendingFilePath);
   useEffect(() => {
     if (!pendingFilePath || pendingFilePath.chatId !== chatId) return;
-    const path = pendingFilePath.path;
     const panel = fileTreePanelRef.current;
     if (panel && panel.isCollapsed()) panel.expand();
-    const file = findFileByToolPath(filesRef.current, path);
-    const treePath = file?.path ?? path;
-    // Two frames before scrolling: the just-expanded panel lays out first, then
-    // pierre's virtualized viewport picks up its new size (a single frame no-ops).
-    // No cleanup: pendingFilePath clears right after, and a cancel would kill the scroll.
-    treeRef.current?.expandAncestors(treePath);
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => treeRef.current?.focusPath(treePath));
-    });
+    const treePath =
+      findFileByToolPath(filesRef.current, pendingFilePath.path)?.path ?? pendingFilePath.path;
+    treeRef.current?.reveal(treePath);
   }, [pendingFilePath, chatId]);
 
   const sharedSidebarProps = {

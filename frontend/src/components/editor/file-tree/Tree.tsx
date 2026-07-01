@@ -1,5 +1,6 @@
 import {
   memo,
+  useCallback,
   useEffect,
   useImperativeHandle,
   useMemo,
@@ -11,6 +12,7 @@ import { FolderOpen } from 'lucide-react';
 import { FileTree as PierreFileTree, useFileTree } from '@pierre/trees/react';
 import type { FileTree } from '@pierre/trees';
 import { Spinner } from '@/components/ui/primitives/Spinner';
+import { useMountEffect } from '@/hooks/useMountEffect';
 import type { FileStructure } from '@/types/file-system.types';
 import {
   findFileInStructure,
@@ -43,9 +45,43 @@ function expandAncestorFolders(model: FileTree, path: string): void {
   }
 }
 
+// Reveal `path` once its tree container actually has a size. A file opened from the
+// chat, a hidden background tab (display:none), or a collapsed panel leaves the
+// container zero-sized when the reveal is requested, and pierre no-ops a scroll until
+// its virtualized viewport has a real box. A ResizeObserver fires the moment the box
+// appears (same idiom as useXterm's cold-mount fit), then one settle frame lets pierre
+// re-measure before scrolling (a scroll issued on the same frame the size changes
+// no-ops). Returns a cleanup that stops a still-pending reveal.
+function revealWhenSized(model: FileTree, path: string): () => void {
+  expandAncestorFolders(model, path);
+  let rafId = 0;
+  let observer: ResizeObserver | null = null;
+  const container = model.getFileTreeContainer();
+  const rect = container?.getBoundingClientRect();
+  if (rect && rect.width > 0 && rect.height > 0) {
+    rafId = window.requestAnimationFrame(() => focusPathWithTreeOwnership(model, path));
+  } else if (container) {
+    observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+        observer?.disconnect();
+        observer = null;
+        rafId = window.requestAnimationFrame(() => focusPathWithTreeOwnership(model, path));
+      }
+    });
+    observer.observe(container);
+  }
+  return () => {
+    window.cancelAnimationFrame(rafId);
+    observer?.disconnect();
+  };
+}
+
 export interface TreeHandle {
-  expandAncestors: (path: string) => void;
-  focusPath: (path: string) => void;
+  // Expand the path's ancestor folders and scroll it into view once the tree can
+  // actually scroll (see revealWhenSized). The single canonical reveal used
+  // by every caller so the layout race is handled in exactly one place.
+  reveal: (path: string) => void;
   openSearch: () => void;
 }
 
@@ -135,31 +171,36 @@ export const Tree = memo(function Tree({
     }
   }, [selectedPath, model]);
 
+  // The single reveal path for every caller (selection changes + imperative reveal).
+  // One in-flight reveal's cleanup lives in a ref so a new reveal always cancels the
+  // one still waiting on the previous path — otherwise two concurrent reveals (e.g. a
+  // stale onExpand reveal racing a fresh selection) fight over the scroll position.
+  const revealCleanupRef = useRef<(() => void) | null>(null);
+  const startReveal = useCallback(
+    (path: string) => {
+      revealCleanupRef.current?.();
+      revealCleanupRef.current = revealWhenSized(model, path);
+    },
+    [model],
+  );
+
   useEffect(() => {
-    const next = selectedPath;
-    if (!next) return;
-    expandAncestorFolders(model, next);
-    // Let the panel mount/expand before pierre computes scroll against its viewport.
-    const frameId = window.requestAnimationFrame(() => {
-      focusPathWithTreeOwnership(model, next);
-    });
-    return () => window.cancelAnimationFrame(frameId);
-  }, [selectedPath, model]);
+    if (selectedPath) startReveal(selectedPath);
+  }, [selectedPath, startReveal]);
+
+  // Stop a reveal still waiting on a ResizeObserver when the tree unmounts (tab close
+  // / navigation) so it can't touch a torn-down pierre model.
+  useMountEffect(() => () => revealCleanupRef.current?.());
 
   useImperativeHandle(
     ref,
     () => ({
-      expandAncestors: (path: string) => {
-        expandAncestorFolders(model, path);
-      },
-      focusPath: (path: string) => {
-        focusPathWithTreeOwnership(model, path);
-      },
+      reveal: (path: string) => startReveal(path),
       openSearch: () => {
         model.openSearch();
       },
     }),
-    [model],
+    [model, startReveal],
   );
 
   useEffect(() => {
