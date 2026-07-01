@@ -169,6 +169,7 @@ export function LandingPage() {
 
   const { data: filesMetadata = [], refetch: refetchFilesMetadata } = useFilesMetadataQuery(
     selectedSandboxId,
+    undefined,
     {
       enabled: isAuthenticated && !!selectedSandboxId,
     },

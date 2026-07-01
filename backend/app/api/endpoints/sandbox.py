@@ -56,9 +56,22 @@ router = APIRouter()
 async def get_files_metadata(
     sandbox_id: str = Depends(validate_sandbox_ownership),
     sandbox_service: SandboxService = Depends(get_sandbox_service),
+    cwd: str | None = Query(None),
 ) -> SandboxFilesMetadataResponse:
-    files = await sandbox_service.get_files_metadata(sandbox_id)
-    return SandboxFilesMetadataResponse(files=[FileMetadata(**f) for f in files])
+    try:
+        normalized_cwd = normalize_relative_path(cwd)
+        files = await sandbox_service.get_files_metadata(sandbox_id, normalized_cwd)
+        return SandboxFilesMetadataResponse(files=[FileMetadata(**f) for f in files])
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except SandboxException as e:
+        raise HTTPException(
+            status_code=e.status_code,
+            detail=str(e),
+        )
 
 
 @router.get(

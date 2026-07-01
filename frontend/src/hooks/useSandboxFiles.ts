@@ -21,7 +21,7 @@ export function useSandboxFiles(
     data: filesMetadata = [],
     isLoading,
     refetch,
-  } = useFilesMetadataQuery(sandboxId, {
+  } = useFilesMetadataQuery(sandboxId, currentChat?.worktree_cwd ?? undefined, {
     enabled: !!sandboxId && !!chatId,
   });
 

@@ -37,6 +37,7 @@ class FakeSandboxProvider(SandboxProvider):
         }
         self.writes: list[tuple[str, str, str | bytes]] = []
         self.commands: list[tuple[str, str, dict[str, str] | None]] = []
+        self.list_paths: list[str] = []
 
     @property
     def workspace_root(self) -> str:
@@ -136,6 +137,7 @@ class FakeSandboxProvider(SandboxProvider):
         sandbox_id: str,
         path: str = "",
     ) -> list[FileMetadata]:
+        self.list_paths.append(path)
         return [
             FileMetadata(path="src", type="directory"),
             *[
