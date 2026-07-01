@@ -19,11 +19,12 @@ import type {
 } from '@/types/sandbox.types';
 import { validateRequired } from '@/utils/validation';
 
-async function getSandboxFilesMetadata(sandboxId: string): Promise<FileMetadata[]> {
+async function getSandboxFilesMetadata(sandboxId: string, cwd?: string): Promise<FileMetadata[]> {
   validateRequired(sandboxId, 'Sandbox ID');
 
   return serviceCall(async () => {
-    const url = `/sandbox/${sandboxId}/files/metadata`;
+    const qs = buildQueryString({ cwd });
+    const url = `/sandbox/${sandboxId}/files/metadata${qs}`;
     const response = await resolveSandboxClient(sandboxId).get<{ files: FileMetadata[] }>(url);
 
     if (!response || !response.files) {

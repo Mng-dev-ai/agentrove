@@ -150,11 +150,14 @@ class SandboxService:
                 exc_info=True,
             )
 
-    async def get_files_metadata(self, sandbox_id: str) -> list[dict[str, Any]]:
-        metadata = await self.provider.list_files(sandbox_id)
+    async def get_files_metadata(
+        self, sandbox_id: str, cwd: str | None = None
+    ) -> list[dict[str, Any]]:
+        metadata = await self.provider.list_files(sandbox_id, cwd or "")
+        path_prefix = f"{cwd}/" if cwd else ""
         return [
             {
-                "path": m.path,
+                "path": f"{path_prefix}{m.path}",
                 "type": m.type,
                 "is_binary": m.is_binary,
             }

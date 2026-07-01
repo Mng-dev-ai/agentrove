@@ -44,6 +44,10 @@ async def test_file_endpoints_use_owned_sandbox_and_provider(
         f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata",
         headers=headers,
     )
+    worktree_metadata_response = await client.get(
+        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata?cwd=.worktrees/wt-1",
+        headers=headers,
+    )
     content_response = await client.get(
         f"/api/v1/sandbox/{workspace.sandbox_id}/files/content/README.md",
         headers=headers,
@@ -68,6 +72,12 @@ async def test_file_endpoints_use_owned_sandbox_and_provider(
         {"path": "src", "type": "directory", "is_binary": False},
         {"path": "README.md", "type": "file", "is_binary": False},
     ]
+    assert worktree_metadata_response.status_code == 200
+    assert worktree_metadata_response.json()["files"] == [
+        {"path": ".worktrees/wt-1/src", "type": "directory", "is_binary": False},
+        {"path": ".worktrees/wt-1/README.md", "type": "file", "is_binary": False},
+    ]
+    assert fake_provider.list_paths == ["", ".worktrees/wt-1"]
     assert content_response.status_code == 200
     assert content_response.json()["content"] == "Initial readme"
     assert update_response.status_code == 200

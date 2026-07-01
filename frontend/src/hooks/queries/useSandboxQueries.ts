@@ -32,11 +32,12 @@ export const useFileContentQuery = (
 
 export const useFilesMetadataQuery = (
   sandboxId: string | undefined,
+  cwd?: string,
   options?: Partial<UseQueryOptions<FileMetadata[]>>,
 ) => {
   return useQuery({
-    queryKey: queryKeys.sandbox.filesMetadata(sandboxId),
-    queryFn: () => sandboxService.getSandboxFilesMetadata(sandboxId),
+    queryKey: queryKeys.sandbox.filesMetadata(sandboxId, cwd),
+    queryFn: () => sandboxService.getSandboxFilesMetadata(sandboxId, cwd),
     enabled: !!sandboxId,
     ...options,
   });
@@ -68,7 +69,7 @@ export const useUpdateFileMutation = createMutation<UpdateFileResult, Error, Upd
         queryKey: queryKeys.sandbox.fileContent(sandboxId, filePath),
       }),
       queryClient.invalidateQueries({
-        queryKey: queryKeys.sandbox.filesMetadata(sandboxId),
+        queryKey: queryKeys.sandbox.filesMetadataAll(sandboxId),
       }),
     ]);
   },
@@ -124,7 +125,7 @@ export const useCheckoutBranchMutation = () => {
           queryKey: queryKeys.sandbox.gitBranchesAll(variables.sandboxId),
         }),
         queryClient.invalidateQueries({
-          queryKey: queryKeys.sandbox.filesMetadata(variables.sandboxId),
+          queryKey: queryKeys.sandbox.filesMetadataAll(variables.sandboxId),
         }),
         queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.gitDiffAll(variables.sandboxId),
@@ -198,7 +199,7 @@ export const useGitPullMutation = createMutation<
         queryKey: queryKeys.sandbox.gitBranchesAll(variables.sandboxId),
       }),
       queryClient.invalidateQueries({
-        queryKey: queryKeys.sandbox.filesMetadata(variables.sandboxId),
+        queryKey: queryKeys.sandbox.filesMetadataAll(variables.sandboxId),
       }),
       queryClient.invalidateQueries({
         queryKey: queryKeys.sandbox.gitDiffAll(variables.sandboxId),
@@ -239,7 +240,7 @@ export const useSearchInFilesQuery = (
 export const invalidateAfterGitRestore = (queryClient: QueryClient, sandboxId: string) =>
   Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.filesMetadata(sandboxId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.filesMetadataAll(sandboxId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.fileContentAll(sandboxId) }),
   ]);
 
@@ -279,7 +280,7 @@ export const useGitCreateBranchMutation = createMutation<
         queryKey: queryKeys.sandbox.gitBranchesAll(variables.sandboxId),
       }),
       queryClient.invalidateQueries({
-        queryKey: queryKeys.sandbox.filesMetadata(variables.sandboxId),
+        queryKey: queryKeys.sandbox.filesMetadataAll(variables.sandboxId),
       }),
       queryClient.invalidateQueries({
         queryKey: queryKeys.sandbox.gitDiffAll(variables.sandboxId),

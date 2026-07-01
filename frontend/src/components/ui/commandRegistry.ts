@@ -280,7 +280,7 @@ export function executeCommand(
             queryKey: queryKeys.sandbox.gitBranchesAll(sandboxId),
           }),
           queryClient.invalidateQueries({
-            queryKey: queryKeys.sandbox.filesMetadata(sandboxId),
+            queryKey: queryKeys.sandbox.filesMetadataAll(sandboxId),
           }),
           queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
         ]);
