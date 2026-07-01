@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { FileStructure } from '@/types/file-system.types';
 import { Button } from '@/components/ui/primitives/Button';
@@ -23,6 +23,12 @@ export const EditorTabs = memo(function EditorTabs({
   onSelect,
   onClose,
 }: EditorTabsProps) {
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [selectedPath]);
+
   if (openFiles.length === 0) return null;
 
   return (
@@ -39,20 +45,19 @@ export const EditorTabs = memo(function EditorTabs({
           <div
             key={file.path}
             className={cn(
-              'group flex shrink-0 items-stretch border-r border-border/30 transition-colors duration-200 dark:border-border-dark/30',
-              isActive
-                ? 'bg-surface-primary dark:bg-surface-dark-primary'
-                : 'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
+              'group relative flex shrink-0 items-stretch border-r border-border/30 transition-colors duration-200 dark:border-border-dark/30',
+              !isActive && 'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
             )}
           >
             {/* Select and close are sibling buttons (not nested) so both are keyboard-operable. */}
             <Button
+              ref={isActive ? activeTabRef : undefined}
               variant="unstyled"
               role="tab"
               aria-selected={isActive}
               onClick={() => onSelect(file)}
               className={cn(
-                'flex items-center gap-1.5 py-0 pl-3 pr-1 font-mono text-2xs transition-colors duration-200',
+                'flex items-center gap-1.5 py-0 pl-3 pr-1 font-mono text-2xs transition-colors duration-200 focus-visible:relative focus-visible:z-10',
                 isActive
                   ? 'text-text-primary dark:text-text-dark-primary'
                   : 'text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary',
@@ -77,6 +82,9 @@ export const EditorTabs = memo(function EditorTabs({
                 <X className="h-3 w-3" />
               </Button>
             </span>
+            {isActive && (
+              <span className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-text-primary dark:bg-text-dark-primary" />
+            )}
           </div>
         );
       })}
