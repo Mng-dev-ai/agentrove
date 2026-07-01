@@ -18,7 +18,6 @@ interface StreamState {
   ) => void;
   updateStreamMessageId: (chatId: string, oldMessageId: string, newMessageId: string) => void;
   abortStream: (streamId: string) => void;
-  abortAllStreams: () => void;
   removeStreamMetadata: (chatId: string) => void;
   addStreamMetadata: (metadata: StreamMetadata) => void;
 }
@@ -175,18 +174,6 @@ export const useStreamStore = create<StreamState>((set, get) => ({
 
   abortStream: (streamId: string) => {
     get().removeStream(streamId);
-  },
-
-  abortAllStreams: () => {
-    get().activeStreams.forEach((stream) => {
-      shutdownStream(stream);
-    });
-
-    set({
-      activeStreams: new Map<string, ActiveStream>(),
-      streamIdByChatMessage: new Map<string, string>(),
-      activeStreamMetadata: [],
-    });
   },
 
   removeStreamMetadata: (chatId: string) => {

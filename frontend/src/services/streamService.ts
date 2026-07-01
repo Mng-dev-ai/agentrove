@@ -224,6 +224,16 @@ class StreamService {
     this.cleanupStream(streamId, wrappedError, messageId);
   }
 
+  private finalizeStreamAsCancelled(stream: ActiveStream): void {
+    stream.callbacks?.onComplete?.(
+      stream.messageId,
+      undefined,
+      'cancelled',
+      Date.now() - stream.startTime,
+    );
+    useStreamStore.getState().abortStream(stream.id);
+  }
+
   private attachStreamHandlers(streamId: string, messageId: string): void {
     const activeStream = useStreamStore.getState().getStream(streamId);
     if (!activeStream) return;
@@ -281,46 +291,15 @@ class StreamService {
     }
   }
 
-  stopStream(streamId: string): void {
-    useStreamStore.getState().abortStream(streamId);
-  }
-
-  async stopStreamByMessage(chatId: string, messageId: string): Promise<void> {
+  async stopStreamByMessage(chatId: string, messageId: string): Promise<boolean> {
     const stream = useStreamStore.getState().getStreamByChatAndMessage(chatId, messageId);
+    await chatService.stopStream(chatId);
+
     if (stream) {
-      useStreamStore.getState().abortStream(stream.id);
-
-      try {
-        await chatService.stopStream(chatId);
-      } catch (error) {
-        logger.error('Stream stop failed', 'streamService', error);
-      }
+      this.finalizeStreamAsCancelled(stream);
+      return true;
     }
-  }
-
-  async stopAllStreams(): Promise<void> {
-    const { activeStreams, abortAllStreams } = useStreamStore.getState();
-
-    const chatIds = new Set<string>();
-    activeStreams.forEach((stream) => {
-      chatIds.add(stream.chatId);
-    });
-
-    abortAllStreams();
-
-    const chatIdArr = Array.from(chatIds);
-    const results = await Promise.allSettled(
-      chatIdArr.map((chatId) => chatService.stopStream(chatId)),
-    );
-
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        logger.error('Batch stream stop failed', 'streamService', {
-          chatId: chatIdArr[index],
-          error: result.reason,
-        });
-      }
-    });
+    return false;
   }
 
   async reconnectToStream(options: StreamReconnectOptions): Promise<string> {

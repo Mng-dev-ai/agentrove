@@ -249,6 +249,7 @@ export function useStreamCallbacks({
   const buffersRef = useRef<Map<string, StreamContentBuffer>>(new Map());
   const flushTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const streamSessionsRef = useRef<Map<string, StreamSessionState>>(new Map());
+  const pendingStopEnvelopesRef = useRef<Map<string, StreamEnvelope[]>>(new Map());
   const chatIdRef = useRef(chatId);
   chatIdRef.current = chatId;
 
@@ -281,6 +282,12 @@ export function useStreamCallbacks({
     }
 
     return undefined;
+  }, []);
+
+  const replayPendingStopEnvelopes = useCallback((messageId: string) => {
+    const envelopes = pendingStopEnvelopesRef.current.get(messageId);
+    pendingStopEnvelopesRef.current.delete(messageId);
+    return envelopes ?? [];
   }, []);
 
   // Writes the buffer's collected tokens to React state (live chat) and/or
@@ -381,6 +388,7 @@ export function useStreamCallbacks({
     const flushTimers = flushTimersRef.current;
     const buffers = buffersRef.current;
     const streamSessions = streamSessionsRef.current;
+    const pendingStopEnvelopes = pendingStopEnvelopesRef.current;
 
     return () => {
       timerIdsRef.current.forEach(clearTimeout);
@@ -401,6 +409,7 @@ export function useStreamCallbacks({
 
       buffers.clear();
       streamSessions.clear();
+      pendingStopEnvelopes.clear();
     };
   }, [queryClient]);
 
@@ -419,6 +428,9 @@ export function useStreamCallbacks({
   const onEnvelope = useCallback(
     (envelope: StreamEnvelope) => {
       if (pendingStopRef.current.has(envelope.messageId)) {
+        const envelopes = pendingStopEnvelopesRef.current.get(envelope.messageId) ?? [];
+        envelopes.push(envelope);
+        pendingStopEnvelopesRef.current.set(envelope.messageId, envelopes);
         return;
       }
 
@@ -577,6 +589,8 @@ export function useStreamCallbacks({
       // Cache finalization must run even for off-screen chats so returning
       // to the chat within the staleTime window doesn't show a stuck message.
       if (messageId) {
+        pendingStopRef.current.delete(messageId);
+        pendingStopEnvelopesRef.current.delete(messageId);
         const finalizeMessage = (message: Message): Message => ({
           ...message,
           active_stream_id: null,
@@ -866,9 +880,20 @@ export function useStreamCallbacks({
   const stopStream = useCallback(
     async (messageId: string) => {
       if (!chatId) return;
-      await streamService.stopStreamByMessage(chatId, messageId);
+      try {
+        const locallyFinalized = await streamService.stopStreamByMessage(chatId, messageId);
+        if (!locallyFinalized) {
+          onComplete(messageId, undefined, 'cancelled');
+        }
+      } catch (error) {
+        pendingStopRef.current.delete(messageId);
+        for (const envelope of replayPendingStopEnvelopes(messageId)) {
+          onEnvelope(envelope);
+        }
+        throw error;
+      }
     },
-    [chatId],
+    [chatId, onComplete, onEnvelope, pendingStopRef, replayPendingStopEnvelopes],
   );
 
   return {

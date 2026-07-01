@@ -14,6 +14,7 @@ import { useInputState } from '@/hooks/useInputState';
 import { useClipboard } from '@/hooks/useClipboard';
 import { useStreamCallbacks } from '@/hooks/useStreamCallbacks';
 import { useStreamReconnect } from '@/hooks/useStreamReconnect';
+import { chatService } from '@/services/chatService';
 
 interface UseChatStreamingParams {
   chatId: string | undefined;
@@ -172,40 +173,42 @@ export function useChatStreaming({
     setMessages([]);
   }
 
+  const reconcileStreamState = useCallback(() => {
+    if (!chatId) return;
+
+    const activeStreamForChat = useStreamStore.getState().getStreamByChat(chatId);
+
+    if (activeStreamForChat) {
+      const isPendingStop = pendingStopRef.current.has(activeStreamForChat.messageId);
+
+      if (!isPendingStop) {
+        setStreamState('streaming');
+        setCurrentMessageId(activeStreamForChat.messageId);
+        setWasAborted(false);
+      }
+    } else {
+      setStreamState((prev) => {
+        if (prev === 'streaming') {
+          setCurrentMessageId(null);
+          pendingStopRef.current.clear();
+          return 'idle';
+        }
+        return prev;
+      });
+    }
+  }, [chatId]);
+
   // Subscribes to the stream store and mirrors active-stream presence into
   // local React state (streamState, currentMessageId). This is the bridge
   // between the global EventSource lifecycle and the per-chat UI indicators.
   useEffect(() => {
     if (!chatId) return;
 
-    const reconcileStreamState = () => {
-      const activeStreamForChat = useStreamStore.getState().getStreamByChat(chatId);
-
-      if (activeStreamForChat) {
-        const isPendingStop = pendingStopRef.current.has(activeStreamForChat.messageId);
-
-        if (!isPendingStop) {
-          setStreamState('streaming');
-          setCurrentMessageId(activeStreamForChat.messageId);
-          setWasAborted(false);
-        }
-      } else {
-        setStreamState((prev) => {
-          if (prev === 'streaming') {
-            setCurrentMessageId(null);
-            pendingStopRef.current.clear();
-            return 'idle';
-          }
-          return prev;
-        });
-      }
-    };
-
     reconcileStreamState();
 
     const unsubscribe = useStreamStore.subscribe(reconcileStreamState);
     return () => unsubscribe();
-  }, [chatId]);
+  }, [chatId, reconcileStreamState]);
 
   const {
     sendMessage,
@@ -256,7 +259,8 @@ export function useChatStreaming({
 
   // Sends stop requests for one or all active streams in the current chat.
   // Immediately marks the UI as idle (optimistic) and tracks pending stops
-  // so incoming envelopes for the stopping stream are ignored.
+  // so active stream presence does not flip the UI back to streaming while
+  // the stop request is in flight.
   const stopActiveStreams = useCallback(
     async (messageId?: string) => {
       const pendingIds = new Set<string>();
@@ -285,9 +289,10 @@ export function useChatStreaming({
       }
       if (anyFailed) {
         pendingStopRef.current.clear();
+        reconcileStreamState();
       }
     },
-    [chatId, markStreamIdleAfterAbort, stopStream],
+    [chatId, markStreamIdleAfterAbort, reconcileStreamState, stopStream],
   );
 
   useEffect(() => {
@@ -298,12 +303,25 @@ export function useChatStreaming({
     if (streamState === 'loading') {
       cancelPendingStart();
       markStreamIdleAfterAbort();
+      if (chatId) {
+        void chatService.stopStream(chatId).catch((error) => {
+          logger.error('Pending stream stop request failed', 'useChatStreaming', error);
+          setWasAborted(false);
+        });
+      }
       clearInput();
       return;
     }
     void stopActiveStreams(currentMessageIdRef.current || undefined);
     clearInput();
-  }, [cancelPendingStart, clearInput, markStreamIdleAfterAbort, stopActiveStreams, streamState]);
+  }, [
+    cancelPendingStart,
+    chatId,
+    clearInput,
+    markStreamIdleAfterAbort,
+    stopActiveStreams,
+    streamState,
+  ]);
 
   useMountEffect(() => {
     cleanupExpiredPdfBlobs();

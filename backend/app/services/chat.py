@@ -974,22 +974,22 @@ class ChatService(BaseDbService[Chat]):
             if envelope.get("kind") in TERMINAL_STREAM_EVENT_TYPES:
                 return
 
+    async def has_cancelable_pending_start(self, chat_id: UUID) -> bool:
+        message = await self.message_service.get_in_progress_assistant_message(chat_id)
+        return bool(message and message.active_stream_id is None)
+
     async def _get_active_stream_targets(
         self, chat_id: UUID
     ) -> tuple[UUID | None, UUID | None]:
         # Look up the in-progress assistant message so create_event_stream has
         # real IDs for error reporting if the stream fails unexpectedly.
-        latest_assistant_message = (
-            await self.message_service.get_latest_assistant_message(chat_id)
+        active_assistant_message = (
+            await self.message_service.get_in_progress_assistant_message(chat_id)
         )
-        if (
-            latest_assistant_message
-            and latest_assistant_message.stream_status
-            == MessageStreamStatus.IN_PROGRESS
-        ):
+        if active_assistant_message:
             return (
-                latest_assistant_message.id,
-                latest_assistant_message.active_stream_id,
+                active_assistant_message.id,
+                active_assistant_message.active_stream_id,
             )
         return None, None
 
