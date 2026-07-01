@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { logger } from '@/utils/logger';
 import { useStreamStore } from '@/store/streamStore';
-import { streamService } from '@/services/streamService';
 import { chatService } from '@/services/chatService';
 
 interface UseGlobalStreamOptions {
@@ -76,12 +75,4 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
       clearInterval(intervalId);
     };
   }, [enabled, onPruneComplete]);
-
-  const stopAllStreams = useCallback(async () => {
-    await streamService.stopAllStreams();
-  }, []);
-
-  return {
-    stopAllStreams,
-  };
 }

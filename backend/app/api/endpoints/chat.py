@@ -32,7 +32,6 @@ from app.core.deps import (
 )
 from app.core.security import get_current_user
 from app.models.db_models.chat import Chat
-from app.models.db_models.enums import MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.types import MessageAttachmentDict, PermissionMode
 from app.models.schemas.chat import (
@@ -418,21 +417,20 @@ async def get_stream_status(
         )
 
     try:
-        latest_assistant_message = (
-            await chat_service.message_service.get_latest_assistant_message(chat_id)
+        active_assistant_message = (
+            await chat_service.message_service.get_in_progress_assistant_message(
+                chat_id
+            )
         )
 
-        if (
-            not latest_assistant_message
-            or latest_assistant_message.stream_status != MessageStreamStatus.IN_PROGRESS
-        ):
+        if not active_assistant_message:
             return INACTIVE_TASK_RESPONSE.copy()
 
         return {
             "has_active_task": True,
-            "message_id": latest_assistant_message.id,
-            "stream_id": latest_assistant_message.active_stream_id,
-            "last_seq": latest_assistant_message.last_seq,
+            "message_id": active_assistant_message.id,
+            "stream_id": active_assistant_message.active_stream_id,
+            "last_seq": active_assistant_message.last_seq,
         }
     except SQLAlchemyError as e:
         logger.error("Database error checking chat status: %s", e, exc_info=True)
@@ -535,10 +533,15 @@ async def get_message_file_diff(
 async def cancel_stream(
     chat_id: UUID,
     _chat: Chat = Depends(ensure_chat_access),
+    chat_service: ChatService = Depends(get_chat_service),
 ) -> None:
-    if not ChatStreamRuntime.has_active_chat(str(chat_id)):
+    if not ChatStreamRuntime.has_active_chat(
+        str(chat_id)
+    ) and not await chat_service.has_cancelable_pending_start(chat_id):
         return
 
+    # Stop can arrive after the assistant row exists but before the runtime task
+    # starts; the registry carries that pending cancel into the task.
     await session_registry.cancel_generation(str(chat_id))
 
 

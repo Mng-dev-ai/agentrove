@@ -82,36 +82,31 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
       tailSegments: segments.slice(traceEnd + 1),
     };
   }, [segments, isStreaming]);
+  // If a turn is cut off before an answer, the trace is the only visible content.
+  const rollUpTrace = traceSegments.length > 0 && tailSegments.length > 0;
+  const segmentViewProps = {
+    chatId,
+    agentKind,
+    activeThinkingIndex,
+    isLastBotMessage,
+    onSuggestionSelect,
+  };
+  const traceNodes = traceSegments.map((segment) => (
+    <SegmentView key={segment.id} segment={segment} {...segmentViewProps} />
+  ));
+  const tailNodes = tailSegments.map((segment) => (
+    <SegmentView key={segment.id} segment={segment} {...segmentViewProps} />
+  ));
 
   return (
     <AgentToolsContext value={agentTools}>
       <div className={className}>
-        {traceSegments.length > 0 && (
-          <WorkedRollup durationMs={durationMs}>
-            {traceSegments.map((segment) => (
-              <SegmentView
-                key={segment.id}
-                segment={segment}
-                chatId={chatId}
-                agentKind={agentKind}
-                activeThinkingIndex={activeThinkingIndex}
-                isLastBotMessage={isLastBotMessage}
-                onSuggestionSelect={onSuggestionSelect}
-              />
-            ))}
-          </WorkedRollup>
+        {rollUpTrace ? (
+          <WorkedRollup durationMs={durationMs}>{traceNodes}</WorkedRollup>
+        ) : (
+          traceNodes
         )}
-        {tailSegments.map((segment) => (
-          <SegmentView
-            key={segment.id}
-            segment={segment}
-            chatId={chatId}
-            agentKind={agentKind}
-            activeThinkingIndex={activeThinkingIndex}
-            isLastBotMessage={isLastBotMessage}
-            onSuggestionSelect={onSuggestionSelect}
-          />
-        ))}
+        {tailNodes}
       </div>
     </AgentToolsContext>
   );

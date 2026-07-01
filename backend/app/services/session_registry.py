@@ -16,6 +16,8 @@ TASK_CANCEL_TIMEOUT_SECONDS = 5.0
 
 IDLE_CHECK_INTERVAL_SECONDS = 60.0
 
+PENDING_CANCEL_TTL_SECONDS = 30.0
+
 
 @dataclass
 class ChatSession:
@@ -40,7 +42,7 @@ class SessionRegistry:
         # Pending cancels are tracked separately so a cancel request that
         # arrives between generations (no active task to cancel) is still
         # honoured when the next generation starts.
-        self._pending_cancels: set[str] = set()
+        self._pending_cancels: dict[str, float] = {}
 
     async def get_or_create(
         self,
@@ -78,7 +80,7 @@ class SessionRegistry:
         return session, created
 
     async def cancel_generation(self, chat_id: str) -> None:
-        self._pending_cancels.add(chat_id)
+        self._pending_cancels[chat_id] = time.monotonic()
         session = self._sessions.get(chat_id)
         if session is None:
             return
@@ -101,8 +103,10 @@ class SessionRegistry:
         )
 
     def consume_pending_cancel(self, chat_id: str) -> bool:
-        if chat_id in self._pending_cancels:
-            self._pending_cancels.discard(chat_id)
+        created_at = self._pending_cancels.pop(chat_id, None)
+        if created_at is None:
+            return False
+        if (time.monotonic() - created_at) <= PENDING_CANCEL_TTL_SECONDS:
             return True
         return False
 

@@ -119,6 +119,12 @@ class MessageService(BaseDbService[Message]):
             result = await db.execute(query)
             return cast(Message | None, result.scalar_one_or_none())
 
+    async def get_in_progress_assistant_message(self, chat_id: UUID) -> Message | None:
+        message = await self.get_latest_assistant_message(chat_id)
+        if message and message.stream_status == MessageStreamStatus.IN_PROGRESS:
+            return message
+        return None
+
     async def update_message_snapshot(
         self,
         message_id: UUID,
