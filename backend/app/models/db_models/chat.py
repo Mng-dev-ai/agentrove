@@ -77,11 +77,11 @@ class Chat(Base):
     )
 
     @property
-    def sandbox_id(self) -> str | None:
+    def sandbox_id(self) -> str:
         if self.workspace:
             sid: str = self.workspace.sandbox_id
             return sid
-        val: str | None = getattr(self, "_sandbox_id", None)
+        val: str = self._sandbox_id
         return val
 
     @property
@@ -111,7 +111,10 @@ class Chat(Base):
             session_agent_kind=data.get("session_agent_kind"),
         )
         # Stash sandbox fields for streaming runtime (workspace not loaded from DB)
-        chat._sandbox_id = data.get("sandbox_id")
+        sandbox_id = data.get("sandbox_id")
+        if sandbox_id is None:
+            raise ValueError("Missing sandbox_id in chat data")
+        chat._sandbox_id = sandbox_id
         chat._workspace_path = data.get("workspace_path")
         sandbox_provider = data.get("sandbox_provider")
         if sandbox_provider is None:

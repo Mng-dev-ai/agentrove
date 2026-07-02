@@ -3,7 +3,11 @@ import { useMountEffect } from '@/hooks/useMountEffect';
 import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
 import { useQueryClient } from '@tanstack/react-query';
-import { SHORTCUT_MAP, executeCommand } from '@/components/ui/commandRegistry';
+import {
+  SHORTCUT_MAP,
+  executeCommand,
+  resolveActiveGitTarget,
+} from '@/components/ui/commandRegistry';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 
 function isEmbeddedEditor(target: EventTarget | null): boolean {
@@ -36,9 +40,11 @@ export function useCommandMenu() {
 
       if (cmd.hideOnMobile && window.innerWidth < MOBILE_BREAKPOINT) return;
       if (cmd.requiresChat && !useChatStore.getState().currentChat) return;
+      const gitTarget = resolveActiveGitTarget(queryClient);
+      if (cmd.requiresSandbox && !gitTarget.sandboxId) return;
 
       e.preventDefault();
-      executeCommand(cmd, queryClient, navigate, true);
+      executeCommand(cmd, queryClient, navigate, true, gitTarget);
     };
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });

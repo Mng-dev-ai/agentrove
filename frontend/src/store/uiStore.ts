@@ -68,6 +68,10 @@ type UIStoreState = ThemeState &
     consumeDiffFileJump: () => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
+    // Sandbox of the workspace selected on the landing page. Lets context-less
+    // consumers (the global git shortcuts) resolve a target before a chat exists.
+    workspaceSandboxId: string | null;
+    setWorkspaceSandboxId: (sandboxId: string | null) => void;
   };
 
 const getInitialSidebarState = (): boolean => {
@@ -171,6 +175,9 @@ export const useUIStore = create<UIStoreState>()(
 
       pendingChatMessage: null,
       setPendingChatMessage: (payload) => set({ pendingChatMessage: payload }),
+
+      workspaceSandboxId: null,
+      setWorkspaceSandboxId: (sandboxId) => set({ workspaceSandboxId: sandboxId }),
 
       pendingFileOpen: null,
       pendingDiffFile: null,

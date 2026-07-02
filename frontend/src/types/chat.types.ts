@@ -57,7 +57,7 @@ export interface Chat {
   user_id: string;
   title: string;
   workspace_id: string;
-  sandbox_id: string | null;
+  sandbox_id: string;
   created_at: string;
   updated_at: string;
   context_token_usage?: number;
