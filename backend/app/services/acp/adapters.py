@@ -212,6 +212,10 @@ class ClaudeAgentAdapter(AgentAdapter):
         permission_mode: str,
     ) -> SessionConfig:
         meta = build_system_prompt_meta(system_prompt, system_prompt_is_full_replace)
+        # Effort controls depth; visible thinking requires the SDK display option.
+        meta["claudeCode"] = {
+            "options": {"thinking": {"type": "adaptive", "display": "summarized"}}
+        }
 
         # Claude exposes thinking budget as the "effort" session config option,
         # applied post-handshake via set_config_option; the UI's named tiers
@@ -255,6 +259,7 @@ class CodexAgentAdapter(AgentAdapter):
         args: list[str] = []
         # Required for Codex to expose ACP session modes (auto/read-only/full-access).
         args.extend(["-c", "features.collaboration_modes=true"])
+        args.extend(["-c", 'model_reasoning_summary="detailed"'])
         if system_prompt:
             if system_prompt_is_full_replace and instructions_file_path:
                 # Codex ignores base_instructions for replacing the full system
