@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.deps import get_skill_service
@@ -15,7 +17,9 @@ async def list_skills(
     current_user: User = Depends(get_current_user),
     skill_service: SkillService = Depends(get_skill_service),
 ) -> list[CustomSkillDict]:
-    return skill_service.list_all()
+    # SkillService does blocking filesystem walks — offload so the event loop
+    # (including active streams) isn't stalled. Matches workspace.py.
+    return await asyncio.to_thread(skill_service.list_all)
 
 
 @router.get("/{source}/{skill_name}/files", response_model=SkillFilesResponse)
@@ -26,7 +30,7 @@ async def get_skill_files(
     skill_service: SkillService = Depends(get_skill_service),
 ) -> SkillFilesResponse:
     try:
-        files = skill_service.get_files(source, skill_name)
+        files = await asyncio.to_thread(skill_service.get_files, source, skill_name)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -42,7 +46,9 @@ async def update_skill(
     skill_service: SkillService = Depends(get_skill_service),
 ) -> CustomSkillDict:
     try:
-        return skill_service.update(source, skill_name, request.files)
+        return await asyncio.to_thread(
+            skill_service.update, source, skill_name, request.files
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
