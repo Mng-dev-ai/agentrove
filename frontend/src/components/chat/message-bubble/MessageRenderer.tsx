@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { SegmentView } from './SegmentView';
 import { WorkedRollup } from './WorkedRollup';
-import { buildSegments } from './segmentBuilder';
+import { buildSegments, segmentsEqual, type MessageSegment } from './segmentBuilder';
 import { AgentToolsContext } from '@/contexts/AgentToolsContext';
 import type { AgentKind, AssistantStreamEvent } from '@/types/chat.types';
 import type { ToolAggregate } from '@/types/tools.types';
@@ -27,26 +27,37 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
   onSuggestionSelect,
   agentKind,
 }) => {
-  const { segments, activeThinkingIndex } = React.useMemo(() => {
+  const prevSegmentsRef = React.useRef<Map<string, MessageSegment>>(new Map());
+
+  const { segments, activeThinkingId, activeTextId } = React.useMemo(() => {
     const builtSegments = buildSegments(events);
 
-    let thinkingIndex = -1;
-    if (isStreaming && events.length > 0) {
-      const lastEvent = events[events.length - 1];
-      if (lastEvent.type === 'assistant_thinking') {
-        for (let i = events.length - 1; i >= 0; i--) {
-          if (events[i].type === 'assistant_thinking') {
-            thinkingIndex = i;
-            break;
-          }
-        }
-      }
-    }
+    // Reuse the previous object for any segment whose content didn't change so
+    // memoized SegmentViews bail out — otherwise every stream flush re-renders
+    // every completed tool/thinking/text segment, not just the growing tail.
+    const previousById = prevSegmentsRef.current;
+    const stableSegments = builtSegments.map((segment) => {
+      const previous = previousById.get(segment.id);
+      return previous && segmentsEqual(previous, segment) ? previous : segment;
+    });
+    prevSegmentsRef.current = new Map(stableSegments.map((segment) => [segment.id, segment]));
 
-    return {
-      segments: builtSegments,
-      activeThinkingIndex: thinkingIndex,
-    };
+    // The live thinking indicator and the word-reveal animation apply only to
+    // the segment currently receiving stream output — always the last segment,
+    // gated on the last event's type so a late tool update on an earlier
+    // segment doesn't masquerade as active thinking/typing.
+    const lastEvent = events[events.length - 1];
+    const lastSegment = stableSegments[stableSegments.length - 1];
+    const thinkingId =
+      isStreaming && lastEvent?.type === 'assistant_thinking' && lastSegment?.kind === 'thinking'
+        ? lastSegment.id
+        : null;
+    const textId =
+      isStreaming && lastEvent?.type === 'assistant_text' && lastSegment?.kind === 'text'
+        ? lastSegment.id
+        : null;
+
+    return { segments: stableSegments, activeThinkingId: thinkingId, activeTextId: textId };
   }, [events, isStreaming]);
 
   const agentTools = React.useMemo(
@@ -87,15 +98,28 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
   const segmentViewProps = {
     chatId,
     agentKind,
-    activeThinkingIndex,
     isLastBotMessage,
     onSuggestionSelect,
   };
+  // Per-segment booleans instead of the active ids: when the active segment
+  // changes, only the segments whose flag flipped lose their memo bailout.
   const traceNodes = traceSegments.map((segment) => (
-    <SegmentView key={segment.id} segment={segment} {...segmentViewProps} />
+    <SegmentView
+      key={segment.id}
+      segment={segment}
+      isActiveThinking={segment.id === activeThinkingId}
+      isActiveText={segment.id === activeTextId}
+      {...segmentViewProps}
+    />
   ));
   const tailNodes = tailSegments.map((segment) => (
-    <SegmentView key={segment.id} segment={segment} {...segmentViewProps} />
+    <SegmentView
+      key={segment.id}
+      segment={segment}
+      isActiveThinking={segment.id === activeThinkingId}
+      isActiveText={segment.id === activeTextId}
+      {...segmentViewProps}
+    />
   ));
 
   return (

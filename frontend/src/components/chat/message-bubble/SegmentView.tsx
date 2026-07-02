@@ -1,5 +1,6 @@
-import React, { Suspense } from 'react';
+import { memo, Suspense } from 'react';
 import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
+import { useSmoothText } from '@/hooks/useSmoothText';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';
 import { getToolComponent } from '@/components/chat/tools/registry';
@@ -11,33 +12,41 @@ interface SegmentViewProps {
   segment: MessageSegment;
   chatId?: string;
   agentKind?: AgentKind;
-  activeThinkingIndex: number;
+  isActiveThinking: boolean;
+  isActiveText: boolean;
   isLastBotMessage: boolean;
   onSuggestionSelect?: (suggestion: string) => void;
 }
 
-export const SegmentView: React.FC<SegmentViewProps> = ({
+const TextSegment = ({ text, isActive }: { text: string; isActive: boolean }) => {
+  // The segment receiving stream output reveals its text word-by-word instead
+  // of jumping a flush-sized chunk at a time.
+  const smoothText = useSmoothText(text, isActive);
+  return (
+    <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+      <LazyMarkDown content={smoothText} streaming={isActive} />
+    </div>
+  );
+};
+
+export const SegmentView = memo(function SegmentView({
   segment,
   chatId,
   agentKind,
-  activeThinkingIndex,
+  isActiveThinking,
+  isActiveText,
   isLastBotMessage,
   onSuggestionSelect,
-}) => {
+}: SegmentViewProps) {
+  // Memoized so stream flushes only re-render segments whose object identity
+  // changed — MessageRenderer keeps unchanged segments referentially stable.
   switch (segment.kind) {
     case 'text':
-      return (
-        <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-          <LazyMarkDown content={segment.text} />
-        </div>
-      );
+      return <TextSegment text={segment.text} isActive={isActiveText} />;
     case 'thinking':
       return (
         <div className="mb-2 mt-0.5">
-          <ThinkingBlock
-            content={segment.text}
-            isActiveThinking={segment.eventIndex === activeThinkingIndex}
-          />
+          <ThinkingBlock content={segment.text} isActiveThinking={isActiveThinking} />
         </div>
       );
     case 'tool': {
@@ -68,4 +77,4 @@ export const SegmentView: React.FC<SegmentViewProps> = ({
     default:
       return null;
   }
-};
+});

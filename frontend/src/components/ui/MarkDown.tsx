@@ -1,7 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useMemo, useState, useCallback, memo, useEffect, lazy, Suspense } from 'react';
-import type { Components } from 'react-markdown';
+import { useMemo, useState, memo, useEffect, lazy, Suspense } from 'react';
+import type { Components, Options } from 'react-markdown';
 import type { AnchorHTMLAttributes, HTMLAttributes, ImgHTMLAttributes } from 'react';
 import { AttachmentViewer } from './AttachmentViewer';
 import { Button } from './primitives/Button';
@@ -38,6 +38,15 @@ const OPENING_VISUALIZER_RE = /```visualizer$/;
 
 // Matches a complete ```visualizer ... ``` block.
 const CLOSED_VISUALIZER_RE = /```visualizer\n([\s\S]*?)```/g;
+
+// Matches a line that can safely start a new markdown block. Indented lines,
+// list items, and blockquote lines must stay attached to the previous block —
+// splitting a loose list or nested content would change how it renders.
+const SAFE_BLOCK_START_RE = /^(?![ \t]|[-*+] |\d+[.)] |>)\S/;
+// Captures the fence marker and any trailing info string separately — closing
+// a fence requires matching the opening marker, not just any 3+ fence chars.
+const CODE_FENCE_LINE_RE = /^\s*(`{3,}|~{3,})(.*)$/;
+const MATH_FENCE_LINE_RE = /^\s*\$\$\s*$/;
 
 const createImageAttachment = (url: string, alt?: string): MessageAttachment => {
   return {
@@ -84,12 +93,379 @@ function splitVisualizerBlocks(raw: string): Array<{ type: 'md' | 'visualizer'; 
   return segments;
 }
 
-function MarkDownInner({ content, className = '' }: { content: string; className?: string }) {
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+// Split markdown into block-level chunks at blank lines outside code/math
+// fences. Streaming only appends text, so completed chunks stay byte-identical
+// across flushes and their memoized renderers skip re-parsing entirely.
+// Blocks parse in isolation, breaking cross-block reference links/footnotes —
+// so this only runs on actively streaming content; static renders and the
+// final parse at stream end get full document semantics.
+function splitMarkdownBlocks(md: string): string[] {
+  const lines = md.split('\n');
+  const blocks: string[] = [];
+  let current: string[] = [];
+  let openFence: string | null = null;
+  let inMathFence = false;
+  let pendingBlanks = 0;
+
+  for (const line of lines) {
+    if (!openFence && !inMathFence && line.trim() === '') {
+      if (current.length > 0) pendingBlanks++;
+      continue;
+    }
+    if (pendingBlanks > 0) {
+      if (SAFE_BLOCK_START_RE.test(line)) {
+        blocks.push(current.join('\n'));
+        current = [];
+      } else {
+        // Blank lines inside a loose list / continuation must be preserved
+        for (let i = 0; i < pendingBlanks; i++) current.push('');
+      }
+      pendingBlanks = 0;
+    }
+    current.push(line);
+    const fence = inMathFence ? null : CODE_FENCE_LINE_RE.exec(line);
+    if (fence) {
+      if (!openFence) {
+        openFence = fence[1];
+      } else if (
+        // Per CommonMark, a closing fence uses the same character, is at least
+        // as long as the opener, and has no info string — so ``` examples
+        // inside a ```` fence don't end the block early.
+        fence[1][0] === openFence[0] &&
+        fence[1].length >= openFence.length &&
+        fence[2].trim() === ''
+      ) {
+        openFence = null;
+      }
+    } else if (!openFence && MATH_FENCE_LINE_RE.test(line)) {
+      inMathFence = !inMathFence;
+    }
+  }
+  if (current.length > 0) blocks.push(current.join('\n'));
+  return blocks;
+}
+
+interface CodeBlockProps extends HTMLAttributes<HTMLElement> {
+  language: string;
+  codeContent: string;
+}
+
+const CodeBlock = ({ language, codeContent, className, ...props }: CodeBlockProps) => {
+  // Copied state lives here, not in MarkDownInner, so a copy click doesn't
+  // change the components mapping identity and re-parse every memoized block.
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(codeContent);
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  return (
+    <div className="group relative my-4">
+      <div className="absolute right-0 top-0 z-10 flex overflow-hidden rounded-bl">
+        <div className="border-b border-l border-border bg-surface-secondary/50 px-1.5 py-0.5 text-xs font-medium text-text-tertiary dark:border-border-dark dark:bg-surface-dark-secondary dark:text-text-dark-tertiary">
+          {language}
+        </div>
+        <Button
+          onClick={handleCopy}
+          variant="unstyled"
+          className="border-b border-l border-border bg-surface-secondary/50 px-1.5 py-0.5 text-xs font-medium text-text-tertiary hover:text-text-primary dark:border-border-dark dark:bg-surface-dark-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+          aria-label="Copy code"
+        >
+          {isCopied ? 'Copied!' : 'Copy'}
+        </Button>
+      </div>
+      <pre className="overflow-x-auto rounded-lg border border-border bg-surface-secondary p-2 pt-5 dark:border-border-dark dark:bg-surface-dark-secondary">
+        <code
+          className={`${className || ''} font-mono text-xs text-text-primary dark:text-text-dark-primary`}
+          {...props}
+        >
+          {codeContent}
+        </code>
+      </pre>
+    </div>
+  );
+};
+
+// Module-level so every MarkdownBlock sees the same components identity forever
+// — the memo on completed blocks never busts after CodeBlock took copy state.
+const MARKDOWN_COMPONENTS: Components = {
+  table: ({ children, ...props }: CommonProps) => (
+    <div className="my-6 overflow-x-auto">
+      <table className="min-w-full divide-y divide-border dark:divide-border-dark" {...props}>
+        {children}
+      </table>
+    </div>
+  ),
+  thead: ({ children, ...props }: CommonProps) => (
+    <thead className="bg-surface-secondary dark:bg-surface-dark-secondary" {...props}>
+      {children}
+    </thead>
+  ),
+  tbody: ({ children, ...props }: CommonProps) => (
+    <tbody
+      className="divide-y divide-border bg-surface dark:divide-border-dark dark:bg-surface-dark"
+      {...props}
+    >
+      {children}
+    </tbody>
+  ),
+  tr: ({ children, ...props }: CommonProps) => (
+    <tr
+      className="transition-colors hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
+      {...props}
+    >
+      {children}
+    </tr>
+  ),
+  th: ({ children, ...props }: CommonProps) => (
+    <th
+      className="px-3 py-2 text-left text-xs font-semibold text-text-primary dark:text-text-dark-primary"
+      {...props}
+    >
+      {children}
+    </th>
+  ),
+  td: ({ children, ...props }: CommonProps) => (
+    <td className="px-3 py-2 text-xs text-text-secondary dark:text-text-dark-secondary" {...props}>
+      {children}
+    </td>
+  ),
+
+  h1: ({ children, ...props }: CommonProps) => (
+    <h1
+      className="mb-3 mt-4 text-lg font-semibold text-text-primary first:mt-0 dark:text-text-dark-primary"
+      {...props}
+    >
+      {children}
+    </h1>
+  ),
+  h2: ({ children, ...props }: CommonProps) => (
+    <h2
+      className="mb-2 mt-4 text-base font-semibold text-text-primary dark:text-text-dark-primary"
+      {...props}
+    >
+      {children}
+    </h2>
+  ),
+  h3: ({ children, ...props }: CommonProps) => (
+    <h3
+      className="mb-1.5 mt-3 text-sm font-semibold text-text-primary dark:text-text-dark-primary"
+      {...props}
+    >
+      {children}
+    </h3>
+  ),
+
+  p: ({ children, ...props }: CommonProps) => {
+    if (typeof children === 'string' && isImageUrl(children.trim())) {
+      const url = children.trim();
+      return (
+        <div className="mb-3 last:mb-0">
+          <AttachmentViewer attachments={[createImageAttachment(url)]} />
+        </div>
+      );
+    }
+
+    return (
+      <p
+        className="mb-3 whitespace-pre-wrap leading-5 text-text-secondary [overflow-wrap:anywhere] last:mb-0 dark:text-text-dark-secondary"
+        {...props}
+      >
+        {children}
+      </p>
+    );
+  },
+  strong: ({ children, ...props }: CommonProps) => (
+    <strong className="font-semibold text-text-primary dark:text-text-dark-primary" {...props}>
+      {children}
+    </strong>
+  ),
+  em: ({ children, ...props }: CommonProps) => (
+    <em className="italic text-text-secondary dark:text-text-dark-secondary" {...props}>
+      {children}
+    </em>
+  ),
+
+  code: ({ inline, className, children, ...props }: CodeProps) => {
+    const match = /language-(\w+)/.exec(className || '');
+    const codeContent = String(children).replace(/\n$/, '');
+    const hasNewlines = codeContent.includes('\n');
+    const isInline = inline || (!match && !hasNewlines);
+
+    if (isInline) {
+      return (
+        <code
+          className={`rounded bg-surface-secondary px-1 py-0.5 font-mono text-xs text-text-primary dark:bg-surface-dark-secondary dark:text-text-dark-primary ${className || ''}`}
+          {...props}
+        >
+          {codeContent}
+        </code>
+      );
+    }
+
+    if (!match) {
+      return (
+        <div className="my-4">
+          <pre className="overflow-x-auto rounded-lg border border-border bg-surface-secondary p-2 dark:border-border-dark dark:bg-surface-dark-secondary">
+            <code
+              className="font-mono text-xs text-text-primary dark:text-text-dark-primary"
+              {...props}
+            >
+              {codeContent}
+            </code>
+          </pre>
+        </div>
+      );
+    }
+
+    const language = match[1];
+    if (language === 'mermaid') {
+      return (
+        <Suspense
+          fallback={
+            <pre className="overflow-x-auto rounded-lg border border-border bg-surface-secondary p-2 dark:border-border-dark dark:bg-surface-dark-secondary">
+              <code className="font-mono text-xs text-text-primary dark:text-text-dark-primary">
+                {codeContent}
+              </code>
+            </pre>
+          }
+        >
+          <Mermaid content={codeContent} />
+        </Suspense>
+      );
+    }
+
+    return (
+      <CodeBlock language={language} codeContent={codeContent} className={className} {...props} />
+    );
+  },
+
+  ul: ({ children, ...props }: CommonProps) => (
+    <ul
+      className="mb-3 list-disc space-y-1 pl-4 text-text-secondary dark:text-text-dark-secondary"
+      {...props}
+    >
+      {children}
+    </ul>
+  ),
+  ol: ({ children, ...props }: CommonProps) => (
+    <ol
+      className="mb-3 list-decimal space-y-1 pl-4 text-text-secondary dark:text-text-dark-secondary"
+      {...props}
+    >
+      {children}
+    </ol>
+  ),
+  li: ({ children, ...props }: CommonProps) => (
+    <li className="pl-1 text-text-secondary dark:text-text-dark-secondary" {...props}>
+      {children}
+    </li>
+  ),
+  blockquote: ({ children, ...props }: CommonProps) => (
+    <blockquote
+      className="my-3 border-l-2 border-border pl-3 italic text-text-secondary dark:border-border-dark dark:text-text-dark-secondary"
+      {...props}
+    >
+      {children}
+    </blockquote>
+  ),
+
+  a: ({ children, href, ...props }: LinkProps) => {
+    if (href && isImageUrl(href)) {
+      return <AttachmentViewer attachments={[createImageAttachment(href)]} />;
+    }
+
+    return (
+      <Link
+        href={href}
+        variant="unstyled"
+        className="text-text-primary underline transition-colors hover:text-text-secondary dark:text-text-dark-primary dark:hover:text-text-dark-secondary"
+        target="_blank"
+        rel="noopener noreferrer"
+        {...props}
+      >
+        {children}
+      </Link>
+    );
+  },
+
+  img: ({ src, alt, ...props }: ImageProps) => {
+    if (src) {
+      return <AttachmentViewer attachments={[createImageAttachment(src, alt)]} />;
+    }
+
+    return (
+      <img
+        className="my-4 h-auto max-w-full rounded-lg border border-border dark:border-border-dark"
+        alt={alt || ''}
+        loading="lazy"
+        {...props}
+      />
+    );
+  },
+
+  hr: (props: HTMLAttributes<HTMLHRElement>) => (
+    <hr className="my-6 border-border dark:border-border-dark" {...props} />
+  ),
+
+  pre: ({ children, ...props }: CommonProps) => (
+    <pre className="overflow-x-auto" {...props}>
+      {children}
+    </pre>
+  ),
+};
+
+interface MarkdownBlockProps {
+  content: string;
+  remarkPlugins: Options['remarkPlugins'];
+  rehypePlugins: Options['rehypePlugins'];
+}
+
+const MarkdownBlock = memo(function MarkdownBlock({
+  content,
+  remarkPlugins,
+  rehypePlugins,
+}: MarkdownBlockProps) {
+  // Memoized per block so a streaming message only re-parses its growing tail
+  // block each flush; completed blocks keep identical props and bail out.
+  return (
+    <ReactMarkdown
+      remarkPlugins={remarkPlugins}
+      rehypePlugins={rehypePlugins}
+      components={MARKDOWN_COMPONENTS}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+});
+
+interface MarkDownProps {
+  content: string;
+  className?: string;
+  // True only while this content is actively receiving stream output — block
+  // splitting trades cross-block references for cheap incremental re-parses,
+  // so static content parses as one document.
+  streaming?: boolean;
+}
+
+function MarkDownInner({ content, className = '', streaming = false }: MarkDownProps) {
   const [remarkMathPlugin, setRemarkMathPlugin] = useState<unknown>(null);
   const [rehypeKatexPlugin, setRehypeKatexPlugin] = useState<unknown>(null);
 
-  const segments = useMemo(() => splitVisualizerBlocks(content), [content]);
+  const blocks = useMemo(
+    () =>
+      splitVisualizerBlocks(content).flatMap((seg) =>
+        seg.type === 'md' && streaming
+          ? splitMarkdownBlocks(seg.content).map((chunk) => ({
+              type: 'md' as const,
+              content: chunk,
+            }))
+          : [seg],
+      ),
+    [content, streaming],
+  );
 
   const needsMath = useMemo(() => MATH_PATTERN.test(content), [content]);
 
@@ -117,269 +493,6 @@ function MarkDownInner({ content, className = '' }: { content: string; className
     };
   }, [needsMath, remarkMathPlugin, rehypeKatexPlugin]);
 
-  const handleCopyCode = useCallback((code: string) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCode(code);
-    setTimeout(() => setCopiedCode(null), 2000);
-  }, []);
-
-  const components = useMemo<Components>(
-    () => ({
-      table: ({ children, ...props }: CommonProps) => (
-        <div className="my-6 overflow-x-auto">
-          <table className="min-w-full divide-y divide-border dark:divide-border-dark" {...props}>
-            {children}
-          </table>
-        </div>
-      ),
-      thead: ({ children, ...props }: CommonProps) => (
-        <thead className="bg-surface-secondary dark:bg-surface-dark-secondary" {...props}>
-          {children}
-        </thead>
-      ),
-      tbody: ({ children, ...props }: CommonProps) => (
-        <tbody
-          className="divide-y divide-border bg-surface dark:divide-border-dark dark:bg-surface-dark"
-          {...props}
-        >
-          {children}
-        </tbody>
-      ),
-      tr: ({ children, ...props }: CommonProps) => (
-        <tr
-          className="transition-colors hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
-          {...props}
-        >
-          {children}
-        </tr>
-      ),
-      th: ({ children, ...props }: CommonProps) => (
-        <th
-          className="px-3 py-2 text-left text-xs font-semibold text-text-primary dark:text-text-dark-primary"
-          {...props}
-        >
-          {children}
-        </th>
-      ),
-      td: ({ children, ...props }: CommonProps) => (
-        <td
-          className="px-3 py-2 text-xs text-text-secondary dark:text-text-dark-secondary"
-          {...props}
-        >
-          {children}
-        </td>
-      ),
-
-      h1: ({ children, ...props }: CommonProps) => (
-        <h1
-          className="mb-3 mt-4 text-lg font-semibold text-text-primary first:mt-0 dark:text-text-dark-primary"
-          {...props}
-        >
-          {children}
-        </h1>
-      ),
-      h2: ({ children, ...props }: CommonProps) => (
-        <h2
-          className="mb-2 mt-4 text-base font-semibold text-text-primary dark:text-text-dark-primary"
-          {...props}
-        >
-          {children}
-        </h2>
-      ),
-      h3: ({ children, ...props }: CommonProps) => (
-        <h3
-          className="mb-1.5 mt-3 text-sm font-semibold text-text-primary dark:text-text-dark-primary"
-          {...props}
-        >
-          {children}
-        </h3>
-      ),
-
-      p: ({ children, ...props }: CommonProps) => {
-        if (typeof children === 'string' && isImageUrl(children.trim())) {
-          const url = children.trim();
-          return (
-            <div className="mb-3 last:mb-0">
-              <AttachmentViewer attachments={[createImageAttachment(url)]} />
-            </div>
-          );
-        }
-
-        return (
-          <p
-            className="mb-3 whitespace-pre-wrap leading-5 text-text-secondary [overflow-wrap:anywhere] last:mb-0 dark:text-text-dark-secondary"
-            {...props}
-          >
-            {children}
-          </p>
-        );
-      },
-      strong: ({ children, ...props }: CommonProps) => (
-        <strong className="font-semibold text-text-primary dark:text-text-dark-primary" {...props}>
-          {children}
-        </strong>
-      ),
-      em: ({ children, ...props }: CommonProps) => (
-        <em className="italic text-text-secondary dark:text-text-dark-secondary" {...props}>
-          {children}
-        </em>
-      ),
-
-      code: ({ inline, className, children, ...props }: CodeProps) => {
-        const match = /language-(\w+)/.exec(className || '');
-        const codeContent = String(children).replace(/\n$/, '');
-        const hasNewlines = codeContent.includes('\n');
-        const isInline = inline || (!match && !hasNewlines);
-
-        if (isInline) {
-          return (
-            <code
-              className={`rounded bg-surface-secondary px-1 py-0.5 font-mono text-xs text-text-primary dark:bg-surface-dark-secondary dark:text-text-dark-primary ${className || ''}`}
-              {...props}
-            >
-              {codeContent}
-            </code>
-          );
-        }
-
-        if (!match) {
-          return (
-            <div className="my-4">
-              <pre className="overflow-x-auto rounded-lg border border-border bg-surface-secondary p-2 dark:border-border-dark dark:bg-surface-dark-secondary">
-                <code
-                  className="font-mono text-xs text-text-primary dark:text-text-dark-primary"
-                  {...props}
-                >
-                  {codeContent}
-                </code>
-              </pre>
-            </div>
-          );
-        }
-
-        const language = match[1];
-        if (language === 'mermaid') {
-          return (
-            <Suspense
-              fallback={
-                <pre className="overflow-x-auto rounded-lg border border-border bg-surface-secondary p-2 dark:border-border-dark dark:bg-surface-dark-secondary">
-                  <code className="font-mono text-xs text-text-primary dark:text-text-dark-primary">
-                    {codeContent}
-                  </code>
-                </pre>
-              }
-            >
-              <Mermaid content={codeContent} />
-            </Suspense>
-          );
-        }
-
-        const isCopied = copiedCode === codeContent;
-
-        return (
-          <div className="group relative my-4">
-            <div className="absolute right-0 top-0 z-10 flex overflow-hidden rounded-bl">
-              <div className="border-b border-l border-border bg-surface-secondary/50 px-1.5 py-0.5 text-xs font-medium text-text-tertiary dark:border-border-dark dark:bg-surface-dark-secondary dark:text-text-dark-tertiary">
-                {language}
-              </div>
-              <Button
-                onClick={() => handleCopyCode(codeContent)}
-                variant="unstyled"
-                className="border-b border-l border-border bg-surface-secondary/50 px-1.5 py-0.5 text-xs font-medium text-text-tertiary hover:text-text-primary dark:border-border-dark dark:bg-surface-dark-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
-                aria-label="Copy code"
-              >
-                {isCopied ? 'Copied!' : 'Copy'}
-              </Button>
-            </div>
-            <pre className="overflow-x-auto rounded-lg border border-border bg-surface-secondary p-2 pt-5 dark:border-border-dark dark:bg-surface-dark-secondary">
-              <code
-                className={`${className || ''} font-mono text-xs text-text-primary dark:text-text-dark-primary`}
-                {...props}
-              >
-                {codeContent}
-              </code>
-            </pre>
-          </div>
-        );
-      },
-
-      ul: ({ children, ...props }: CommonProps) => (
-        <ul
-          className="mb-3 list-disc space-y-1 pl-4 text-text-secondary dark:text-text-dark-secondary"
-          {...props}
-        >
-          {children}
-        </ul>
-      ),
-      ol: ({ children, ...props }: CommonProps) => (
-        <ol
-          className="mb-3 list-decimal space-y-1 pl-4 text-text-secondary dark:text-text-dark-secondary"
-          {...props}
-        >
-          {children}
-        </ol>
-      ),
-      li: ({ children, ...props }: CommonProps) => (
-        <li className="pl-1 text-text-secondary dark:text-text-dark-secondary" {...props}>
-          {children}
-        </li>
-      ),
-      blockquote: ({ children, ...props }: CommonProps) => (
-        <blockquote
-          className="my-3 border-l-2 border-border pl-3 italic text-text-secondary dark:border-border-dark dark:text-text-dark-secondary"
-          {...props}
-        >
-          {children}
-        </blockquote>
-      ),
-
-      a: ({ children, href, ...props }: LinkProps) => {
-        if (href && isImageUrl(href)) {
-          return <AttachmentViewer attachments={[createImageAttachment(href)]} />;
-        }
-
-        return (
-          <Link
-            href={href}
-            variant="unstyled"
-            className="text-text-primary underline transition-colors hover:text-text-secondary dark:text-text-dark-primary dark:hover:text-text-dark-secondary"
-            target="_blank"
-            rel="noopener noreferrer"
-            {...props}
-          >
-            {children}
-          </Link>
-        );
-      },
-
-      img: ({ src, alt, ...props }: ImageProps) => {
-        if (src) {
-          return <AttachmentViewer attachments={[createImageAttachment(src, alt)]} />;
-        }
-
-        return (
-          <img
-            className="my-4 h-auto max-w-full rounded-lg border border-border dark:border-border-dark"
-            alt={alt || ''}
-            loading="lazy"
-            {...props}
-          />
-        );
-      },
-
-      hr: (props: HTMLAttributes<HTMLHRElement>) => (
-        <hr className="my-6 border-border dark:border-border-dark" {...props} />
-      ),
-
-      pre: ({ children, ...props }: CommonProps) => (
-        <pre className="overflow-x-auto" {...props}>
-          {children}
-        </pre>
-      ),
-    }),
-    [copiedCode, handleCopyCode],
-  );
-
   const remarkPlugins = useMemo(
     () => [remarkGfm, ...(remarkMathPlugin ? [remarkMathPlugin as never] : [])],
     [remarkMathPlugin],
@@ -402,24 +515,9 @@ function MarkDownInner({ content, className = '' }: { content: string; className
     );
   }
 
-  const hasSingleMdSegment = segments.length === 1 && segments[0].type === 'md';
-
-  if (hasSingleMdSegment) {
-    return (
-      <ReactMarkdown
-        remarkPlugins={remarkPlugins}
-        rehypePlugins={rehypePlugins}
-        className={mdClassName}
-        components={components}
-      >
-        {segments[0].content}
-      </ReactMarkdown>
-    );
-  }
-
   return (
     <div className={mdClassName}>
-      {segments.map((seg, i) =>
+      {blocks.map((seg, i) =>
         seg.type === 'visualizer' ? (
           <Suspense
             key={`viz-${i}`}
@@ -434,14 +532,12 @@ function MarkDownInner({ content, className = '' }: { content: string; className
             <VisualWidget code={seg.content} />
           </Suspense>
         ) : (
-          <ReactMarkdown
+          <MarkdownBlock
             key={`md-${i}`}
+            content={seg.content}
             remarkPlugins={remarkPlugins}
             rehypePlugins={rehypePlugins}
-            components={components}
-          >
-            {seg.content}
-          </ReactMarkdown>
+          />
         ),
       )}
     </div>

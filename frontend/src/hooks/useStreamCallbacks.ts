@@ -30,8 +30,10 @@ import type { PaginatedMessages } from '@/types/api.types';
 
 // Batching window for streaming content updates. Envelopes arrive at token-level
 // granularity (~10-50ms apart); flushing on every token would thrash React state
-// and the query cache. 130ms collects a visible chunk of text per paint cycle.
-const STREAM_FLUSH_INTERVAL_MS = 130;
+// and the query cache. 50ms keeps the text cadence smooth (~20 updates/sec) —
+// affordable because memoized markdown blocks and segments mean each flush only
+// re-renders the growing tail of the message.
+const STREAM_FLUSH_INTERVAL_MS = 50;
 
 // Cross-chat cache mutators: unlike the hook-scoped useMessageCache (which
 // closes over the currently viewed chatId), these target a specific chat by
@@ -216,7 +218,7 @@ interface StreamSessionState {
 
 // Core streaming pipeline: receives raw SSE envelopes, buffers renderable
 // content per stream, and flushes batched updates to React state and the query
-// cache on a 130ms coalescing timer. Also owns the start/replay/stop lifecycle
+// cache on a coalescing timer. Also owns the start/replay/stop lifecycle
 // and the terminal handlers (complete, error, queue continuation).
 export function useStreamCallbacks({
   messages,
@@ -317,7 +319,7 @@ export function useStreamCallbacks({
   );
 
   // Coalescing timer: only one pending flush per stream. Multiple envelopes arriving
-  // within the same 130ms window are batched into a single flushBufferedContent call.
+  // within the same window are batched into a single flushBufferedContent call.
   const scheduleContentFlush = useCallback(
     (streamId: string) => {
       if (flushTimersRef.current.has(streamId)) {

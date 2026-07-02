@@ -258,20 +258,12 @@ export const Chat = memo(function Chat() {
     prevScrollHeightRef.current = null;
   }, [messages]);
 
-  // Follow output during streaming
-  useEffect(() => {
-    if (isStreaming && isAtBottomRef.current) {
-      const container = scrollerRef.current;
-      if (container) {
-        container.scrollTop = container.scrollHeight;
-      }
-    }
-  }, [messages, isStreaming]);
-
   const scrollToBottom = useCallback(() => {
     setShowScrollButton(false);
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
   }, []);
+
+  const contentResizeObserverRef = useRef<ResizeObserver | null>(null);
 
   const containerRefCallback = useCallback(
     (node: HTMLDivElement | null) => {
@@ -279,10 +271,27 @@ export const Chat = memo(function Chat() {
       if (prev) {
         prev.removeEventListener('scroll', handleScroll);
       }
+      contentResizeObserverRef.current?.disconnect();
+      contentResizeObserverRef.current = null;
       scrollerRef.current = node;
       if (node) {
         lastScrollTopRef.current = node.scrollTop;
         node.addEventListener('scroll', handleScroll, { passive: true });
+        // Stick to bottom whenever the content grows while the user is anchored
+        // there. Growth comes from stream flushes, the word-reveal animation
+        // ticking between flushes, and late layout (images, KaTeX) — a
+        // messages-keyed effect misses the latter two. ResizeObserver fires
+        // after layout and before paint, so the scroll never lags the growth.
+        const content = node.firstElementChild;
+        if (content) {
+          const observer = new ResizeObserver(() => {
+            if (isAtBottomRef.current) {
+              node.scrollTop = node.scrollHeight;
+            }
+          });
+          observer.observe(content);
+          contentResizeObserverRef.current = observer;
+        }
       }
     },
     [handleScroll],
@@ -429,13 +438,16 @@ export const Chat = memo(function Chat() {
             ref={containerRefCallback}
             className="scrollbar-thin scrollbar-thumb-border-secondary dark:scrollbar-thumb-border-dark hover:scrollbar-thumb-text-quaternary dark:hover:scrollbar-thumb-border-dark-hover scrollbar-track-transparent h-full overflow-y-auto overflow-x-hidden"
           >
-            {listHeader}
+            {/* Single wrapper so the stick-to-bottom ResizeObserver tracks all content */}
+            <div>
+              {listHeader}
 
-            {messages.map((msg) => (
-              <div key={msg.id}>{renderMessage(msg)}</div>
-            ))}
+              {messages.map((msg) => (
+                <div key={msg.id}>{renderMessage(msg)}</div>
+              ))}
 
-            {listFooter}
+              {listFooter}
+            </div>
           </div>
         )}
       </div>

@@ -14,7 +14,6 @@ export interface ThinkingSegment {
   kind: 'thinking';
   id: string;
   text: string;
-  eventIndex: number;
 }
 
 export interface ToolSegment {
@@ -30,6 +29,37 @@ export interface SuggestionsSegment {
 }
 
 export type MessageSegment = TextSegment | ThinkingSegment | ToolSegment | SuggestionsSegment;
+
+const toolsEqual = (a: ToolAggregate, b: ToolAggregate): boolean => {
+  // Aggregates are rebuilt from scratch on every stream flush, but input/result/
+  // error come straight off the underlying event payloads, which keep object
+  // identity across rebuilds — reference checks detect real changes.
+  if (
+    a.id !== b.id ||
+    a.name !== b.name ||
+    a.title !== b.title ||
+    a.status !== b.status ||
+    a.parentId !== b.parentId ||
+    a.input !== b.input ||
+    a.result !== b.result ||
+    a.error !== b.error ||
+    a.children.length !== b.children.length
+  ) {
+    return false;
+  }
+  return a.children.every((child, i) => toolsEqual(child, b.children[i]));
+};
+
+export const segmentsEqual = (a: MessageSegment, b: MessageSegment): boolean => {
+  // Lets MessageRenderer hand unchanged segments the same object identity across
+  // flushes so memoized SegmentViews bail out instead of re-rendering.
+  if (a.id !== b.id) return false;
+  if (a.kind === 'text' && b.kind === 'text') return a.text === b.text;
+  if (a.kind === 'thinking' && b.kind === 'thinking') return a.text === b.text;
+  if (a.kind === 'tool' && b.kind === 'tool') return toolsEqual(a.tool, b.tool);
+  if (a.kind === 'suggestions' && b.kind === 'suggestions') return a.suggestions === b.suggestions;
+  return false;
+};
 
 const statusMap: Record<'tool_started' | 'tool_completed' | 'tool_failed', ToolEventStatus> = {
   tool_started: 'started',
@@ -318,7 +348,6 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
   const pendingChildren = new Map<string, ToolAggregate[]>();
   let pendingText = '';
   let pendingThinking = '';
-  let pendingThinkingIndex = -1;
   let textSegmentCount = 0;
   let thinkingSegmentCount = 0;
   let suggestionsSegmentCount = 0;
@@ -350,11 +379,9 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
       kind: 'thinking',
       id: `thinking-${thinkingSegmentCount}`,
       text: pendingThinking,
-      eventIndex: pendingThinkingIndex,
     });
     thinkingSegmentCount++;
     pendingThinking = '';
-    pendingThinkingIndex = -1;
   };
 
   const context: ProcessToolEventContext = {
@@ -364,7 +391,7 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
     segments,
   };
 
-  events.forEach((event, index) => {
+  events.forEach((event) => {
     switch (event.type) {
       case 'assistant_text':
         flushThinking();
@@ -372,7 +399,6 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
         break;
       case 'assistant_thinking':
         flushText();
-        pendingThinkingIndex = index;
         pendingThinking += event.thinking;
         break;
       case 'prompt_suggestions':
