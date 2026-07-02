@@ -170,13 +170,13 @@ export default {
           '0%': { opacity: '0', transform: 'translateY(4px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
-        'dot-pulse': {
-          '0%, 100%': { opacity: '0.3' },
-          '50%': { opacity: '1' },
-        },
         'progress-bar': {
           '0%': { width: '0%' },
           '100%': { width: '100%' },
+        },
+        'caret-blink': {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0' },
         },
       },
 
@@ -190,8 +190,8 @@ export default {
         'pulse-slow': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'bounce-gentle': 'bounce 1s infinite',
         'fade-in-up': 'fade-in-up 0.35s ease-out forwards',
-        'dot-pulse': 'dot-pulse 1.4s ease-in-out infinite',
         'progress-bar': 'progress-bar 5s linear infinite',
+        'caret-blink': 'caret-blink 1.1s step-end infinite',
       },
 
       // Custom spacing
