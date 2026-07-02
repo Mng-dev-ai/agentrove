@@ -18,6 +18,7 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import Chat as ChatSchema
 from app.models.schemas.chat import (
+    ActiveStreamStatus,
     ChatCreate,
     ChatRequest,
     ChatSearchMatch,
@@ -387,6 +388,37 @@ class ChatService(BaseDbService[Chat]):
                 .order_by(Chat.updated_at.desc())
             )
             return list(result.scalars().all())
+
+    async def get_active_streams(
+        self, user: User, chat_ids: list[UUID]
+    ) -> list[ActiveStreamStatus]:
+        # Bulk startup discovery: one ownership query for all runtime-active chats,
+        # then resolve the in-progress message per surviving chat (rarely more than a few).
+        async with self.session_factory() as db:
+            result = await db.execute(
+                select(Chat.id).filter(
+                    Chat.id.in_(chat_ids),
+                    Chat.user_id == user.id,
+                    Chat.deleted_at.is_(None),
+                )
+            )
+            owned_ids = list(result.scalars().all())
+
+        statuses: list[ActiveStreamStatus] = []
+        for chat_id in owned_ids:
+            message = await self.message_service.get_in_progress_assistant_message(
+                chat_id
+            )
+            if message:
+                statuses.append(
+                    ActiveStreamStatus(
+                        chat_id=chat_id,
+                        message_id=message.id,
+                        stream_id=message.active_stream_id,
+                        last_seq=message.last_seq,
+                    )
+                )
+        return statuses
 
     async def update_chat(
         self, chat_id: UUID, chat_update: ChatUpdate, user: User

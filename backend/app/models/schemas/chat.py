@@ -119,6 +119,13 @@ class ChatStatusResponse(BaseModel):
     last_seq: int = 0
 
 
+class ActiveStreamStatus(BaseModel):
+    chat_id: UUID
+    message_id: UUID
+    stream_id: UUID | None = None
+    last_seq: int = 0
+
+
 class MessageEvent(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

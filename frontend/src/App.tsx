@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useEffect, useMemo, useState, Suspense, lazy } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { Layout } from '@/components/layout/Layout';
 import { Toaster } from 'react-hot-toast';
@@ -8,10 +8,9 @@ import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useUIStore } from '@/store/uiStore';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
-import { useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useGlobalStream } from '@/hooks/useGlobalStream';
-import { useStreamRestoration } from '@/hooks/useStreamRestoration';
+import { useLocalStreamRestoration } from '@/hooks/useLocalStreamRestoration';
 import { authService } from '@/services/authService';
 import { toasterConfig } from '@/config/toaster';
 import { AuthRoute } from '@/components/routes/AuthRoute';
@@ -66,20 +65,7 @@ function AppContent() {
     }
   }, [user, hasToken, isAuthenticated]);
 
-  const { data: chatsData, isLoading: isChatsLoading } = useInfiniteChatsQuery({
-    enabled: isSessionAuthenticated,
-  });
-
-  const allChats = useMemo(
-    () => chatsData?.pages.flatMap((page) => page.items) ?? [],
-    [chatsData?.pages],
-  );
-
-  useStreamRestoration({
-    chats: allChats,
-    isLoading: isChatsLoading,
-    enabled: isSessionAuthenticated,
-  });
+  useLocalStreamRestoration({ enabled: isSessionAuthenticated });
 
   const showLoading = hasToken && isLoading;
 

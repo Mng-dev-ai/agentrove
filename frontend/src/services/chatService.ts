@@ -100,6 +100,19 @@ async function checkChatStatus(chatId: string): Promise<{
   return serviceCall(() => resolveChatClient(chatId).get(`/chat/chats/${chatId}/status`));
 }
 
+async function getActiveStreams(): Promise<
+  Array<{
+    chat_id: string;
+    message_id: string;
+    stream_id: string | null;
+    last_seq: number;
+  }>
+> {
+  // Local backend only — its runtime registry covers every local chat and
+  // sub-thread, so startup restoration needs a single request.
+  return serviceCall(() => apiClient.get('/chat/chats/active-streams'));
+}
+
 async function reconnectToStream(
   chatId: string,
   messageId: string,
@@ -406,6 +419,7 @@ export const chatService = {
   createCompletion,
   startCompletion,
   checkChatStatus,
+  getActiveStreams,
   reconnectToStream,
   stopStream,
   getMessages,

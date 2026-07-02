@@ -1,11 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { QueryClientProvider } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import App from './App.tsx';
 import './styles/globals.css';
 // Build-time-generated `data-palette` override blocks (see vite.config.ts).
 import 'virtual:palette-overrides.css';
-import { queryClient } from './lib/queryClient';
+import { queryClient, persistOptions } from './lib/queryClient';
 import { isMobileApp } from './utils/platform';
 
 // iOS WebKit zooms into any focused input with font-size < 16px. The app's dense
@@ -22,8 +22,8 @@ if (isMobileApp()) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
       <App />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </StrictMode>,
 );
