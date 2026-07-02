@@ -5,16 +5,17 @@ const MarkDown = lazy(() => import('./MarkDown'));
 interface LazyMarkDownProps {
   content: string;
   className?: string;
+  streaming?: boolean;
 }
 
-export function LazyMarkDown({ content, className }: LazyMarkDownProps) {
+export function LazyMarkDown({ content, className, streaming }: LazyMarkDownProps) {
   return (
     <Suspense
       fallback={
         <div className={`whitespace-pre-wrap text-sm ${className ?? ''}`.trim()}>{content}</div>
       }
     >
-      <MarkDown content={content} className={className} />
+      <MarkDown content={content} className={className} streaming={streaming} />
     </Suspense>
   );
 }
