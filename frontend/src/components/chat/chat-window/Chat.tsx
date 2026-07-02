@@ -16,7 +16,7 @@ import { StreamActionsBar } from './StreamActionsBar';
 import { Input } from '@/components/chat/message-input/Input';
 import { ChatSkeleton } from './ChatSkeleton';
 import { ScrollButton } from './ScrollButton';
-import { ThinkingIndicator } from './ThinkingIndicator';
+import { StatusTypewriter } from './StatusTypewriter';
 import { Spinner } from '@/components/ui/primitives/Spinner';
 import { useStreamStore } from '@/store/streamStore';
 import { useMessageQueueStore, EMPTY_QUEUE } from '@/store/messageQueueStore';
@@ -351,6 +351,13 @@ export const Chat = memo(function Chat() {
       const messageIsStreaming = streamingMessageIdSet.has(msg.id);
       const isBotMessage = msg.is_bot ?? msg.role === 'assistant';
       const isLastBotMessage = isBotMessage && msg.id === lastBotMessageId;
+      // A not-yet-populated bot row renders only its padding, pushing the thinking
+      // indicator below it down a few pixels — hide it until content lands. Gate on the
+      // turn being active, not streamingMessageIdSet: the row can land in the message
+      // list before the stream store registers its message id.
+      if (isLastBotMessage && !lastBotHasContent && (isLoading || isStreaming)) {
+        return null;
+      }
       const attachments = msg.attachments ?? [];
       const localAttachmentIds = attachments.reduce<string[]>((acc, attachment) => {
         if (isBrowserObjectUrl(attachment.file_url)) acc.push(attachment.id);
@@ -392,7 +399,15 @@ export const Chat = memo(function Chat() {
         </div>
       );
     },
-    [isLoading, lastBotMessageId, latestUserMessageId, pendingUserMessageId, streamingMessageIdSet],
+    [
+      isLoading,
+      isStreaming,
+      lastBotHasContent,
+      lastBotMessageId,
+      latestUserMessageId,
+      pendingUserMessageId,
+      streamingMessageIdSet,
+    ],
   );
 
   const listHeader = useMemo(() => {
@@ -414,7 +429,11 @@ export const Chat = memo(function Chat() {
     );
   }, [hasNextPage, isFetchingNextPage]);
 
-  const showThinking = isLoading || (isStreaming && !lastBotHasContent);
+  // !lastBotIsStreaming covers the follow-up-turn handoff: the previous turn's
+  // message (with content) is still the last bot row until the new stream's message
+  // lands in the list — without it the indicator unmounts/remounts, restarting the
+  // typewriter at "Pondering".
+  const showThinking = isLoading || (isStreaming && (!lastBotIsStreaming || !lastBotHasContent));
 
   const listFooter = useMemo(() => {
     if (!showThinking && !showPermissionAtEnd && !(showStreamActions && chatId)) {
@@ -423,9 +442,7 @@ export const Chat = memo(function Chat() {
 
     return (
       <div className="w-full lg:mx-auto lg:max-w-4xl">
-        {showThinking && (
-          <ThinkingIndicator key={streamStartTime} streamStartTime={streamStartTime} />
-        )}
+        {showThinking && <StatusTypewriter streamStartTime={streamStartTime} />}
         {showPermissionAtEnd && <MessageInlinePermission />}
         {showStreamActions && chatId && <StreamActionsBar chatId={chatId} />}
       </div>
