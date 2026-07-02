@@ -186,7 +186,7 @@ async function getChat(chatId: string): Promise<Chat> {
     const chat = ensureResponse(response, 'Failed to fetch chat');
     // Register a cloud chat's sandbox so its files/git/terminal route to the VPS
     // even on a cold deep-link, before the sidebar list has run.
-    if (isCloudChat(chatId) && chat.sandbox_id) {
+    if (isCloudChat(chatId)) {
       markCloudSandboxes([chat.sandbox_id]);
     }
     return chat;
@@ -203,7 +203,7 @@ async function createChat(data: CreateChatRequest): Promise<Chat> {
     const chat = ensureResponse(response, 'Failed to create chat');
     if (parentChatId && isCloudChat(parentChatId)) {
       markCloudChats([chat.id]);
-      if (chat.sandbox_id) markCloudSandboxes([chat.sandbox_id]);
+      markCloudSandboxes([chat.sandbox_id]);
     }
     return chat;
   });
@@ -308,9 +308,7 @@ async function getSubThreads(chatId: string): Promise<Chat[]> {
     // one routes its stream/files/terminal to the cloud, not local.
     if (isCloudChat(chatId)) {
       markCloudChats(subThreads.map((chat) => chat.id));
-      markCloudSandboxes(
-        subThreads.map((chat) => chat.sandbox_id).filter((id): id is string => !!id),
-      );
+      markCloudSandboxes(subThreads.map((chat) => chat.sandbox_id));
     }
     return subThreads;
   });

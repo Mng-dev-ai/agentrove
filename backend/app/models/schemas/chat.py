@@ -80,7 +80,7 @@ class Chat(ChatBase):
     id: UUID
     user_id: UUID
     workspace_id: UUID
-    sandbox_id: str | None = None
+    sandbox_id: str
     created_at: datetime
     updated_at: datetime
     context_token_usage: int | None = None

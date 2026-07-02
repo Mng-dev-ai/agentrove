@@ -190,6 +190,14 @@ export function LandingPage() {
     setSelectedFile(null);
   }, [selectedSandboxId, setSelectedFile]);
 
+  // Publish the selected workspace's sandbox so the context-less global git
+  // shortcuts resolve a target on landing; clear it on unmount so it can't leak
+  // into a later chat with no sandbox of its own.
+  useEffect(() => {
+    useUIStore.getState().setWorkspaceSandboxId(selectedSandboxId ?? null);
+    return () => useUIStore.getState().setWorkspaceSandboxId(null);
+  }, [selectedSandboxId]);
+
   useMountEffect(() => {
     useChatStore.getState().setCurrentChat(null);
     // Reset to the agent (workspace selector) view — a stale split layout from a prior chat

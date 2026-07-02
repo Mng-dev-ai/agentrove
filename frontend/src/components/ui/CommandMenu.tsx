@@ -123,10 +123,11 @@ export function CommandMenu() {
       ALL_COMMANDS.filter((cmd) => {
         if (isMobile && cmd.hideOnMobile) return false;
         if (cmd.requiresChat && !chatId) return false;
+        if (cmd.requiresSandbox && !sandboxId) return false;
         if (cmd.id === 'switch-branch' && !canSwitchBranch) return false;
         return true;
       }),
-    [isMobile, canSwitchBranch, chatId],
+    [isMobile, canSwitchBranch, chatId, sandboxId],
   );
 
   const filteredCommands = useMemo(
@@ -196,10 +197,10 @@ export function CommandMenu() {
 
   const handleSelectItem = useCallback(
     (cmd: CommandItem) => {
-      executeCommand(cmd, queryClient, navigate, false);
+      executeCommand(cmd, queryClient, navigate, false, { sandboxId, worktreeCwd });
       close();
     },
-    [close, queryClient, navigate],
+    [close, queryClient, navigate, sandboxId, worktreeCwd],
   );
 
   const handleSelectFile = useCallback(

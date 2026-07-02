@@ -50,9 +50,7 @@ async function listChats(params?: {
     const response = await remoteApiClient.get<PaginatedChats>(`/chat/chats${queryString}`);
     const data = ensureResponse(response, 'Failed to load cloud chats');
     markCloudChats(data.items.map((chat) => chat.id));
-    markCloudSandboxes(
-      data.items.map((chat) => chat.sandbox_id).filter((id): id is string => !!id),
-    );
+    markCloudSandboxes(data.items.map((chat) => chat.sandbox_id));
     return data;
   });
 }

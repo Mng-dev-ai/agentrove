@@ -39,6 +39,7 @@ export interface ViewCommandItem {
   shortcut: string;
   hideOnMobile?: boolean;
   requiresChat?: boolean;
+  requiresSandbox?: boolean;
 }
 
 export interface ActionCommandItem {
@@ -49,6 +50,7 @@ export interface ActionCommandItem {
   shortcut: string;
   hideOnMobile?: boolean;
   requiresChat?: boolean;
+  requiresSandbox?: boolean;
 }
 
 export type CommandItem = ViewCommandItem | ActionCommandItem;
@@ -122,7 +124,7 @@ const ACTION_COMMANDS: ActionCommandItem[] = [
     label: 'Switch branch',
     icon: GitBranch,
     shortcut: 'b',
-    requiresChat: true,
+    requiresSandbox: true,
   },
   {
     type: 'action',
@@ -130,7 +132,7 @@ const ACTION_COMMANDS: ActionCommandItem[] = [
     label: 'Push to remote',
     icon: ArrowUpFromLine,
     shortcut: 'u',
-    requiresChat: true,
+    requiresSandbox: true,
   },
   {
     type: 'action',
@@ -138,7 +140,7 @@ const ACTION_COMMANDS: ActionCommandItem[] = [
     label: 'Pull from remote',
     icon: ArrowDownFromLine,
     shortcut: 'j',
-    requiresChat: true,
+    requiresSandbox: true,
   },
 ];
 
@@ -196,9 +198,16 @@ export function formatShortcut(key: string): string {
   return `${mod}⇧${key === '.' ? '.' : key.toUpperCase()}`;
 }
 
-// Chat-scoped actions (git, sub-threads) target the pane the user last interacted
-// with — in split view the secondary pane is a different chat. The secondary chat
-// is cache-warm here since it's rendered in the split.
+// The sandbox a git action targets. Resolved from the active pane's chat context
+// (or the selected workspace on the landing page), decoupled from whether a chat exists.
+export interface GitTarget {
+  sandboxId?: string;
+  worktreeCwd?: string;
+}
+
+// Chat-scoped actions (sub-threads) target the pane the user last interacted with —
+// in split view the secondary pane is a different chat. The secondary chat is
+// cache-warm here since it's rendered in the split.
 function getActiveChat(queryClient: QueryClient): Chat | null {
   const ui = useUIStore.getState();
   if (isSecondaryPaneActive(ui.activeAgentTile, ui.secondaryChatId) && ui.secondaryChatId) {
@@ -209,8 +218,19 @@ function getActiveChat(queryClient: QueryClient): Chat | null {
   return useChatStore.getState().currentChat;
 }
 
+// Git target for the global keyboard-shortcut path, which has no chat context.
+// Prefers the active chat; on the landing page (no chat) it falls back to the
+// selected workspace's sandbox so branch/pull/push shortcuts still resolve.
+export function resolveActiveGitTarget(queryClient: QueryClient): GitTarget {
+  const chat = getActiveChat(queryClient);
+  if (chat?.sandbox_id) {
+    return { sandboxId: chat.sandbox_id, worktreeCwd: chat.worktree_cwd ?? undefined };
+  }
+  return { sandboxId: useUIStore.getState().workspaceSandboxId ?? undefined };
+}
+
 function executeGitRemoteCommand(
-  chat: Chat | null,
+  target: GitTarget,
   fn: (
     sandboxId: string,
     cwd?: string,
@@ -218,11 +238,11 @@ function executeGitRemoteCommand(
   label: string,
   onSuccess?: () => void,
 ) {
-  if (!chat?.sandbox_id) {
+  if (!target.sandboxId) {
     toast.error('No sandbox connected');
     return;
   }
-  void fn(chat.sandbox_id, chat.worktree_cwd ?? undefined)
+  void fn(target.sandboxId, target.worktreeCwd)
     .then((r) => {
       if (r.success) {
         toast.success(`${label}${r.output ? `: ${r.output.slice(0, 80)}` : ''}`);
@@ -239,6 +259,7 @@ export function executeCommand(
   queryClient: QueryClient,
   navigate: NavigateFunction,
   toggle: boolean,
+  gitTarget: GitTarget,
 ) {
   const ui = useUIStore.getState();
 
@@ -261,9 +282,8 @@ export function executeCommand(
   } else if (cmd.id === 'create-branch') {
     ui.setCreateBranchDialogOpen(toggle ? !ui.createBranchDialogOpen : true);
   } else if (cmd.id === 'push-remote') {
-    const chat = getActiveChat(queryClient);
-    const sandboxId = chat?.sandbox_id;
-    executeGitRemoteCommand(chat, sandboxService.gitPush, 'Pushed to remote', () => {
+    const sandboxId = gitTarget.sandboxId;
+    executeGitRemoteCommand(gitTarget, sandboxService.gitPush, 'Pushed to remote', () => {
       if (sandboxId) {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.gitBranchesAll(sandboxId),
@@ -271,9 +291,8 @@ export function executeCommand(
       }
     });
   } else if (cmd.id === 'pull-remote') {
-    const chat = getActiveChat(queryClient);
-    const sandboxId = chat?.sandbox_id;
-    executeGitRemoteCommand(chat, sandboxService.gitPull, 'Pulled from remote', () => {
+    const sandboxId = gitTarget.sandboxId;
+    executeGitRemoteCommand(gitTarget, sandboxService.gitPull, 'Pulled from remote', () => {
       if (sandboxId) {
         void Promise.all([
           queryClient.invalidateQueries({
@@ -301,15 +320,14 @@ export function executeCommand(
     ui.setPendingMenuMode('files');
     ui.setCommandMenuOpen(true);
   } else if (cmd.id === 'switch-branch') {
-    const chat = getActiveChat(queryClient);
-    if (!chat?.sandbox_id) {
+    if (!gitTarget.sandboxId) {
       toast.error('No sandbox connected');
       return;
     }
     // Bail out only if we know the repo state and it's unavailable; if the cache is cold,
     // let the menu open and fall through to its loading/empty states.
     const cached = queryClient.getQueryData<GitBranchesData>(
-      queryKeys.sandbox.gitBranches(chat.sandbox_id, chat.worktree_cwd ?? undefined),
+      queryKeys.sandbox.gitBranches(gitTarget.sandboxId, gitTarget.worktreeCwd),
     );
     if (cached && (!cached.is_git_repo || cached.branches.length === 0)) {
       toast.error('No git branches available');
