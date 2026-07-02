@@ -4,6 +4,7 @@ import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { TerminalTab } from './TerminalTab';
 import { cn } from '@/utils/cn';
+import { terminalStorageKey } from '@/utils/terminal';
 
 export interface ContainerProps {
   sandboxId?: string;
@@ -19,7 +20,7 @@ interface TerminalInstance {
 
 export const Container: FC<ContainerProps> = ({ sandboxId, chatId, isVisible, panelKey }) => {
   const defaultTerminalId = `terminal-${panelKey}-1`;
-  const storageKey = chatId ? `terminal:${chatId}:${panelKey}` : null;
+  const storageKey = chatId ? terminalStorageKey(chatId, panelKey) : null;
   const [terminals, setTerminals] = useState<TerminalInstance[]>([
     { id: defaultTerminalId, label: 'Terminal 1' },
   ]);

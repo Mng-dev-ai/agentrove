@@ -184,6 +184,7 @@ export const CodeView = memo(function CodeView({
             fileStructure={files}
             sandboxId={sandboxId}
             onToggleFileTree={() => setShowMobileTree(true)}
+            isSandboxSyncing={isSandboxSyncing}
             targetLine={targetLine}
             openFiles={openFiles}
             onFileSelect={onFileSelect}
@@ -234,6 +235,7 @@ export const CodeView = memo(function CodeView({
               sandboxId={sandboxId}
               onToggleFileTree={handleToggleFileTree}
               isFileTreeCollapsed={isFileTreeCollapsed}
+              isSandboxSyncing={isSandboxSyncing}
               targetLine={targetLine}
               openFiles={openFiles}
               onFileSelect={onFileSelect}

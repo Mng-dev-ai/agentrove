@@ -31,3 +31,18 @@ export const buildTerminalTheme = (palette: Palette): ITerminalOptions['theme'] 
 
 export const getTerminalBackgroundClass = (palette: Palette): string =>
   DARK_PALETTES.has(palette) ? 'bg-surface-dark-secondary' : 'bg-surface-secondary';
+
+// Terminal tab layouts live in their own localStorage entries outside the zustand
+// persist blob. The key scheme is owned here so the Container's writes and the
+// uiStore's delete-time sweeps can't silently drift apart.
+export const terminalStorageKey = (chatId: string, panelKey: string): string =>
+  `terminal:${chatId}:${panelKey}`;
+
+export function clearTerminalStorage(chatId?: string): void {
+  // Sweep one chat's entries, or every chat's when chatId is omitted.
+  const prefix = chatId ? `terminal:${chatId}:` : 'terminal:';
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(prefix)) localStorage.removeItem(key);
+  }
+}

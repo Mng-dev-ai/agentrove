@@ -26,6 +26,9 @@ export const useFileContentQuery = (
     queryKey: queryKeys.sandbox.fileContent(sandboxId, filePath),
     queryFn: () => sandboxService.getFileContent(sandboxId, filePath),
     enabled: !!sandboxId && !!filePath,
+    // The editor unmounts on every chat switch; outlive the default 2-minute gc
+    // so returning to a chat reopens its files from cache instead of refetching.
+    gcTime: 1000 * 60 * 30,
     ...options,
   });
 };
@@ -39,6 +42,9 @@ export const useFilesMetadataQuery = (
     queryKey: queryKeys.sandbox.filesMetadata(sandboxId, cwd),
     queryFn: () => sandboxService.getSandboxFilesMetadata(sandboxId, cwd),
     enabled: !!sandboxId,
+    // The listing is the slow sandbox call in the editor's reopen path; keep it
+    // cached across chat switches (ChatPage refetches it when the editor re-activates).
+    gcTime: 1000 * 60 * 30,
     ...options,
   });
 };
@@ -121,6 +127,12 @@ export const useCheckoutBranchMutation = () => {
     onSuccess: async (data, variables) => {
       if (!data.success) return;
       await Promise.all([
+        // Checkout rewrites file contents wholesale; reset (not remove — remove
+        // doesn't refetch active observers) so an open editor file reloads from
+        // the new branch instead of keeping the old branch's buffer.
+        queryClient.resetQueries({
+          queryKey: queryKeys.sandbox.fileContentAll(variables.sandboxId),
+        }),
         queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.gitBranchesAll(variables.sandboxId),
         }),

@@ -20,8 +20,8 @@ export function useEditorDrafts({
   onCloseFile,
 }: UseEditorDraftsArgs) {
   const [currentContent, setCurrentContent] = useState('');
-  // path -> baseline + loaded flag for the active file; the baseline is the saved
-  // content the live buffer diffs against.
+  // path + baseline for the active file; the baseline is the saved content the
+  // live buffer diffs against.
   const prevSelectedFileRef = useRef<FileStructure | null>(null);
   // Per-file unsaved buffers (path -> content).
   const draftsRef = useRef<Map<string, string>>(new Map());
@@ -85,31 +85,27 @@ export function useEditorDrafts({
 
     if (fileChanged || queryContentChanged) {
       const baseline = selectedFileContent ?? '';
-      // An external update (the file was already loaded and its server content changed,
-      // e.g. an agent edited it) refreshes to the new content and discards any draft.
-      const externalUpdate = queryContentChanged && !fileChanged && (prev?.isLoaded ?? false);
-      if (externalUpdate && selectedFileContent !== undefined) {
+      // Restore an unsaved draft once content has loaded — covers a tab switch, a
+      // deferred load, and an external update (agent edited the file mid-draft):
+      // the user's unsaved buffer always wins over refetched content, rebased on
+      // the new baseline so the dirty diff tracks the current server state.
+      // Guarded on loaded content to not race the async fetch.
+      const draft =
+        selectedFileContent !== undefined ? draftsRef.current.get(selectedFile.path) : undefined;
+      // The refetch may return exactly what the draft already says (the agent
+      // made the same edit) — the buffer is no longer dirty then.
+      if (draft !== undefined && draft === baseline) {
         setDraft(selectedFile.path, null);
       }
-
-      // Otherwise restore an unsaved draft once content has loaded — covers both a tab
-      // switch and a deferred load (content evicted from cache then refetched), so edits
-      // survive either path. Guarded on loaded content to not race the async fetch.
-      const draft =
-        !externalUpdate && selectedFileContent !== undefined
-          ? draftsRef.current.get(selectedFile.path)
-          : undefined;
-      const contentToUse = draft ?? baseline;
 
       prevSelectedFileRef.current = {
         ...selectedFile,
         content: baseline,
-        isLoaded: selectedFileContent !== undefined,
       };
 
       // dirtyPaths already reflects this file's draft (kept in sync by handleEditorChange),
       // so the derived hasUnsavedChanges is correct without a separate write here.
-      setCurrentContent(contentToUse);
+      setCurrentContent(draft ?? baseline);
     }
   }, [selectedFile, selectedFileContent, setDraft]);
 
@@ -160,7 +156,6 @@ export function useEditorDrafts({
         prevSelectedFileRef.current = {
           ...prevSelectedFileRef.current,
           content: submitted,
-          isLoaded: true,
         };
       }
       setDraft(savedPath, null);

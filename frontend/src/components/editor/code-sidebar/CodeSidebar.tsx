@@ -17,7 +17,6 @@ export interface CodeSidebarProps {
   isSandboxSyncing?: boolean;
   onRefresh?: () => void;
   isRefreshing?: boolean;
-  modifiedPaths?: Set<string>;
   sandboxId: string | undefined;
   cwd?: string;
   treeRef?: Ref<TreeHandle>;
@@ -35,7 +34,6 @@ export const CodeSidebar = memo(function CodeSidebar({
   isSandboxSyncing = false,
   onRefresh,
   isRefreshing = false,
-  modifiedPaths,
   sandboxId,
   cwd,
   treeRef,
@@ -68,7 +66,6 @@ export const CodeSidebar = memo(function CodeSidebar({
           selectedFile={selectedFile}
           onFileSelect={onFileSelect}
           isSandboxSyncing={isSandboxSyncing}
-          modifiedPaths={modifiedPaths}
           header={treeHeader}
         />
       </div>

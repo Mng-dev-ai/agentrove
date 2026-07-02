@@ -132,6 +132,10 @@ export interface SplitViewActions {
   // Single focus path: records the exact pane (highlights its tab) and scopes the
   // active chat (primary/secondary) from the tile, so tab and pane clicks agree.
   focusTile: (tileId: TileId) => void;
+  // Drops a deleted chat's saved workspace tabs, editor tabs, and terminal tab
+  // layout so per-chat state doesn't accumulate in localStorage forever.
+  cleanupChat: (chatId: string) => void;
+  cleanupAllChats: () => void;
 }
 
 export interface UIState {

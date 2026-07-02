@@ -306,7 +306,6 @@ export function ChatPage() {
         fetchedMessages={fetchedMessages}
         hasFetchedMessages={hasFetchedMessages}
         messagesQuery={messagesQuery}
-        refetchFilesMetadata={refetchFilesMetadata}
       >
         <div className="relative flex h-full">
           <div className="flex h-full flex-1 overflow-hidden bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">

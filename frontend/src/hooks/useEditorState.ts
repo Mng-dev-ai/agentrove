@@ -48,19 +48,18 @@ export function useEditorState(
 
   // Derived from the stashed path + fileStructure (no re-seed effect needed): the
   // derivation recomputes when the tree loads, and pending editor opens write the
-  // path directly via setSelectedFile.
+  // path directly via setSelectedFile. Not gated on the tree being loaded — the
+  // stub fallback lets the file-content fetch run in parallel with the slow
+  // metadata listing instead of serializing behind it.
   const selectedFile = useMemo(() => {
-    if (!selectedFilePath || fileStructure.length === 0) return null;
+    if (!selectedFilePath) return null;
     return resolveFile(selectedFilePath);
-  }, [selectedFilePath, fileStructure, resolveFile]);
+  }, [selectedFilePath, resolveFile]);
 
-  // The open tabs, resolved in stored order. Empty until the tree loads. Tabs only
-  // track which files are open; View holds the active buffer and preserves per-file
-  // unsaved drafts across tab switches/closes within the session.
-  const openFiles = useMemo(() => {
-    if (fileStructure.length === 0) return [];
-    return openFilePaths.map(resolveFile);
-  }, [openFilePaths, fileStructure, resolveFile]);
+  // The open tabs, resolved in stored order. Tabs only track which files are open;
+  // View holds the active buffer and preserves per-file unsaved drafts across tab
+  // switches/closes within the session.
+  const openFiles = useMemo(() => openFilePaths.map(resolveFile), [openFilePaths, resolveFile]);
 
   const setSelectedFile = useCallback(
     (file: FileStructure | null) => {

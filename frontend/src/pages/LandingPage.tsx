@@ -166,16 +166,16 @@ export function LandingPage() {
     ? cloudWorkspaces?.find((ws) => ws.id === selectedCloudWorkspaceId)?.sandbox_id
     : workspaces.find((ws) => ws.id === selectedWorkspaceId)?.sandbox_id;
 
-  const { data: filesMetadata = [], refetch: refetchFilesMetadata } = useFilesMetadataQuery(
-    selectedSandboxId,
-    undefined,
-    {
-      enabled: isAuthenticated && !!selectedSandboxId,
-    },
-  );
+  const {
+    data: filesMetadata = [],
+    isLoading: isFilesMetadataLoading,
+    refetch: refetchFilesMetadata,
+  } = useFilesMetadataQuery(selectedSandboxId, undefined, {
+    enabled: isAuthenticated && !!selectedSandboxId,
+  });
 
   const fileStructure = useMemo(
-    () => buildFileStructureFromSandboxFiles(filesMetadata, []),
+    () => buildFileStructureFromSandboxFiles(filesMetadata),
     [filesMetadata],
   );
 
@@ -415,7 +415,7 @@ export function LandingPage() {
                 openFiles={openFiles}
                 onCloseFile={closeFile}
                 sandboxId={selectedSandboxId}
-                isSandboxSyncing={false}
+                isSandboxSyncing={isFilesMetadataLoading}
                 onRefresh={handleRefresh}
                 isRefreshing={isRefreshing}
                 chatId={undefined}
