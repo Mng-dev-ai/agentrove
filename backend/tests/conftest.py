@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import tests.bootstrap
 from app.api.endpoints import auth as auth_endpoint
+from app.core import deps
 from app.core.config import get_settings
 from app.core.security import get_password_hash
 from app.db.base_class import Base
@@ -129,6 +130,15 @@ async def database() -> AsyncIterator[None]:
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest.fixture(autouse=True)
+def clear_sandbox_provider_cache() -> Iterator[None]:
+    # Providers persist across requests in deps.sandbox_provider_cache — clear
+    # it per test so one test's monkeypatched fake isn't served to the next.
+    deps.sandbox_provider_cache.clear()
+    yield
+    deps.sandbox_provider_cache.clear()
 
 
 @pytest.fixture
