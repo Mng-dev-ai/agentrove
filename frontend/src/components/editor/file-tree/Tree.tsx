@@ -8,6 +8,7 @@ import {
   type ReactNode,
   type Ref,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { FolderOpen } from 'lucide-react';
 import { FileTree as PierreFileTree, useFileTree } from '@pierre/trees/react';
 import type { FileTree } from '@pierre/trees';
@@ -28,13 +29,25 @@ const UNSAFE_CSS = `
   }
 `;
 
-function focusPathWithTreeOwnership(model: FileTree, path: string): void {
+function focusPathWithTreeOwnership(
+  model: FileTree,
+  path: string,
+  bouncePath: string | null,
+): void {
   const root = model
     .getFileTreeContainer()
     ?.shadowRoot?.querySelector<HTMLElement>('[data-file-tree-virtualized-root]');
   if (!root) return;
   // pierre only scrolls focus changes when its root owns DOM focus.
   root.dispatchEvent(new FocusEvent('focusin', { bubbles: true }));
+  if (model.getFocusedPath() === path && bouncePath != null) {
+    // pierre scrolls only when its focused path *changes* — re-focusing the already-focused
+    // path emits nothing and the row stays off-screen. Hop focus through a visible neighbor;
+    // flushSync commits each hop separately so the return to `path` registers as a change.
+    flushSync(() => model.focusPath(bouncePath));
+    flushSync(() => model.focusPath(path));
+    return;
+  }
   model.focusPath(path);
 }
 
@@ -52,21 +65,23 @@ function expandAncestorFolders(model: FileTree, path: string): void {
 // appears (same idiom as useXterm's cold-mount fit), then one settle frame lets pierre
 // re-measure before scrolling (a scroll issued on the same frame the size changes
 // no-ops). Returns a cleanup that stops a still-pending reveal.
-function revealWhenSized(model: FileTree, path: string): () => void {
+function revealWhenSized(model: FileTree, path: string, bouncePath: string | null): () => void {
   expandAncestorFolders(model, path);
   let rafId = 0;
   let observer: ResizeObserver | null = null;
   const container = model.getFileTreeContainer();
   const rect = container?.getBoundingClientRect();
   if (rect && rect.width > 0 && rect.height > 0) {
-    rafId = window.requestAnimationFrame(() => focusPathWithTreeOwnership(model, path));
+    rafId = window.requestAnimationFrame(() => focusPathWithTreeOwnership(model, path, bouncePath));
   } else if (container) {
     observer = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (entry && entry.contentRect.width > 0 && entry.contentRect.height > 0) {
         observer?.disconnect();
         observer = null;
-        rafId = window.requestAnimationFrame(() => focusPathWithTreeOwnership(model, path));
+        rafId = window.requestAnimationFrame(() =>
+          focusPathWithTreeOwnership(model, path, bouncePath),
+        );
       }
     });
     observer.observe(container);
@@ -181,7 +196,14 @@ export const Tree = memo(function Tree({
   const startReveal = useCallback(
     (path: string) => {
       revealCleanupRef.current?.();
-      revealCleanupRef.current = revealWhenSized(model, path);
+      // Bounce target for the already-focused case: the just-expanded parent folder,
+      // or any other root entry when the file sits at the root (roots are always visible).
+      const ancestors = getAncestorFolderPaths(path);
+      const bouncePath =
+        ancestors[ancestors.length - 1] ??
+        filesRef.current.find((entry) => entry.path !== path)?.path ??
+        null;
+      revealCleanupRef.current = revealWhenSized(model, path, bouncePath);
     },
     [model],
   );
