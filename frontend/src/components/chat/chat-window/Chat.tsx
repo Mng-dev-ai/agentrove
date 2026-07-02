@@ -287,6 +287,11 @@ export const Chat = memo(function Chat() {
           const observer = new ResizeObserver(() => {
             if (isAtBottomRef.current) {
               node.scrollTop = node.scrollHeight;
+            } else {
+              // Content shrinking (e.g. collapsing a rollup) may leave scrollTop
+              // unchanged so no scroll event fires — re-check at-bottom state or
+              // the scroll button stays visible with nothing left to scroll.
+              handleScroll();
             }
           });
           observer.observe(content);
