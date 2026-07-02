@@ -29,7 +29,6 @@ interface ChatSessionOrchestratorProps {
   fetchedMessages: Message[];
   hasFetchedMessages: boolean;
   messagesQuery: ReturnType<typeof useInfiniteMessagesQuery>;
-  refetchFilesMetadata: () => Promise<unknown>;
   useRouteInitialPrompt?: boolean;
   children: ReactNode;
 }
@@ -40,7 +39,6 @@ export function ChatSessionOrchestrator({
   fetchedMessages,
   hasFetchedMessages,
   messagesQuery,
-  refetchFilesMetadata,
   useRouteInitialPrompt = true,
   children,
 }: ChatSessionOrchestratorProps) {
@@ -112,7 +110,6 @@ export function ChatSessionOrchestrator({
     hasFetchedMessages,
     isInitialLoading: messagesQuery.isLoading,
     queryClient,
-    refetchFilesMetadata,
     onContextUsageUpdate: updateContextUsage,
     selectedModelId,
     permissionMode,

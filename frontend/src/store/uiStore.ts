@@ -17,6 +17,7 @@ import {
   tileIdToViewType,
   viewTypeToTileId,
 } from '@/utils/tileHelpers';
+import { clearTerminalStorage } from '@/utils/terminal';
 import type { MenuMode } from '@/components/ui/commandRegistry';
 import { THEME_CYCLE } from '@/utils/theme';
 
@@ -361,6 +362,33 @@ export const useUIStore = create<UIStoreState>()(
             [state.currentWorkspaceChatId]: ownTabs(state.openTabs, state.visibleLayout),
           },
         });
+      },
+
+      cleanupChat: (chatId) => {
+        const state = get();
+        const editorByChat = { ...state.editorByChat };
+        delete editorByChat[chatId];
+        const layoutsByChat = { ...state.layoutsByChat };
+        delete layoutsByChat[chatId];
+        set({
+          editorByChat,
+          layoutsByChat,
+          // Deleting the on-screen chat navigates away after this runs, and
+          // ChatPage's unmount stash would write the deleted entry right back —
+          // null the live pointer so that stash no-ops (same resurrection guard
+          // as cleanupAllChats).
+          ...(state.currentWorkspaceChatId === chatId ? { currentWorkspaceChatId: null } : {}),
+        });
+        clearTerminalStorage(chatId);
+      },
+
+      cleanupAllChats: () => {
+        // The live workspace (openTabs, currentWorkspaceChatId, split) may still
+        // reference a deleted chat — without the reset, the next
+        // loadWorkspaceForChat would stash it right back into layoutsByChat.
+        get().resetWorkspace();
+        set({ editorByChat: {}, layoutsByChat: {} });
+        clearTerminalStorage();
       },
 
       openChatInSplit: (chatId) => {

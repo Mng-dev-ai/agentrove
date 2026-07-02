@@ -23,7 +23,6 @@ interface UseChatStreamingParams {
   hasFetchedMessages: boolean;
   isInitialLoading: boolean;
   queryClient: QueryClient;
-  refetchFilesMetadata: () => Promise<unknown>;
   onContextUsageUpdate?: (data: ContextUsage, chatId?: string) => void;
   selectedModelId: string | null | undefined;
   permissionMode: PermissionMode;
@@ -71,7 +70,6 @@ export function useChatStreaming({
   hasFetchedMessages,
   isInitialLoading,
   queryClient,
-  refetchFilesMetadata,
   onContextUsageUpdate,
   selectedModelId,
   permissionMode,
@@ -124,7 +122,6 @@ export function useChatStreaming({
     chatId,
     currentChat,
     queryClient,
-    refetchFilesMetadata,
     onContextUsageUpdate,
     onPermissionRequest,
     setMessages,

@@ -6,7 +6,6 @@ import type { FileStructure } from '@/types/file-system.types';
 
 interface UseSandboxFilesResult {
   fileStructure: FileStructure[];
-  filesMetadata: Parameters<typeof buildFileStructureFromSandboxFiles>[0];
   isFileMetadataLoading: boolean;
   refetchFilesMetadata: () => Promise<unknown>;
 }
@@ -27,14 +26,13 @@ export function useSandboxFiles(
 
   const fileStructure = useMemo(() => {
     if (filesMetadata.length > 0) {
-      return buildFileStructureFromSandboxFiles(filesMetadata, []);
+      return buildFileStructureFromSandboxFiles(filesMetadata);
     }
     return [];
   }, [filesMetadata]);
 
   return {
     fileStructure,
-    filesMetadata,
     isFileMetadataLoading: isLoading,
     refetchFilesMetadata: refetch,
   };

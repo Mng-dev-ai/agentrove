@@ -21,6 +21,7 @@ export interface ViewProps {
   sandboxId?: string;
   onToggleFileTree?: () => void;
   isFileTreeCollapsed?: boolean;
+  isSandboxSyncing?: boolean;
   targetLine?: { path: string; line: number; nonce: number } | null;
   openFiles: FileStructure[];
   onFileSelect: (file: FileStructure) => void;
@@ -33,6 +34,7 @@ export const View = memo(function View({
   sandboxId,
   onToggleFileTree,
   isFileTreeCollapsed,
+  isSandboxSyncing = false,
   targetLine,
   openFiles,
   onFileSelect,
@@ -243,8 +245,14 @@ export const View = memo(function View({
     };
   }, [isPreviewFullscreen]);
 
+  // While the listing is still pending (sandbox unresolved or metadata fetching),
+  // keep the file rendering so its content (fetched in parallel) shows without
+  // waiting. Once loaded — including a genuinely empty workspace — tree
+  // membership decides, so stale/deleted selections fall to EmptyState.
+  const isTreePending = fileStructure.length === 0 && (!sandboxId || isSandboxSyncing);
   const isValidFile =
-    selectedFile && findFileInStructure(fileStructure, selectedFile.path) !== undefined;
+    selectedFile &&
+    (isTreePending || findFileInStructure(fileStructure, selectedFile.path) !== undefined);
 
   const isPreviewable = selectedFile ? isPreviewableFile(selectedFile) : false;
 

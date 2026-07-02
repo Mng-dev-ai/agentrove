@@ -1,6 +1,6 @@
 import type { FileStructure } from '@/types/file-system.types';
+import type { FileMetadata } from '@/types/sandbox.types';
 import toast from 'react-hot-toast';
-import { logger } from '@/utils/logger';
 import { isSupportedUploadedFile } from '@/utils/fileTypes';
 import { MAX_UPLOAD_SIZE_BYTES } from '@/config/constants';
 import {
@@ -168,15 +168,6 @@ export function filterChatAttachmentFiles(
   return validFiles;
 }
 
-const buildPathMap = (files: FileStructure[], pathToFile: Map<string, FileStructure>) => {
-  files.forEach((file) => {
-    pathToFile.set(file.path, file);
-    if (file.type === 'folder' && file.children) {
-      buildPathMap(file.children, pathToFile);
-    }
-  });
-};
-
 const createDirectoryPath = (
   dirPath: string,
   pathToFile: Map<string, FileStructure>,
@@ -214,73 +205,42 @@ const createDirectoryPath = (
   });
 };
 
-export function buildFileStructureFromSandboxFiles(
-  sandboxFiles: Array<{
-    path: string;
-    content?: string;
-    type: string;
-    is_binary?: boolean;
-    size?: number;
-    modified?: number;
-  }>,
-  existingFileStructure: FileStructure[] = [],
-): FileStructure[] {
-  if (!Array.isArray(sandboxFiles)) {
-    return existingFileStructure;
-  }
-
-  const newFileStructure: FileStructure[] =
-    typeof structuredClone === 'function'
-      ? structuredClone(existingFileStructure)
-      : JSON.parse(JSON.stringify(existingFileStructure));
+export function buildFileStructureFromSandboxFiles(sandboxFiles: FileMetadata[]): FileStructure[] {
+  // The metadata listing carries paths/types only — file content is fetched
+  // per-file on demand, so tree nodes always start with empty content.
+  const fileStructure: FileStructure[] = [];
   const pathToFile: Map<string, FileStructure> = new Map();
 
-  buildPathMap(newFileStructure, pathToFile);
+  for (const file of sandboxFiles) {
+    const normalizedPath = file.path.replace(LEADING_SLASH_RE, '');
+    if (!normalizedPath || pathToFile.has(normalizedPath)) continue;
 
-  sandboxFiles.forEach((file) => {
-    try {
-      const normalizedPath = file.path.replace(LEADING_SLASH_RE, '');
-      if (!normalizedPath) {
-        return;
+    if (file.type === 'directory') {
+      createDirectoryPath(normalizedPath, pathToFile, fileStructure);
+    } else if (file.type === 'file') {
+      const pathParts = normalizedPath.split('/');
+      pathParts.pop();
+      const dirPath = pathParts.join('/');
+
+      const newFile: FileStructure = {
+        path: normalizedPath,
+        type: 'file',
+        content: '',
+        is_binary: file.is_binary,
+      };
+
+      if (dirPath) {
+        createDirectoryPath(dirPath, pathToFile, fileStructure);
+        pathToFile.get(dirPath)?.children?.push(newFile);
+      } else {
+        fileStructure.push(newFile);
       }
 
-      if (file.type === 'directory') {
-        createDirectoryPath(normalizedPath, pathToFile, newFileStructure);
-      } else if (file.type === 'file') {
-        if (pathToFile.has(normalizedPath)) {
-          return;
-        }
-
-        const pathParts = normalizedPath.split('/');
-        pathParts.pop();
-        const dirPath = pathParts.join('/');
-
-        const newFile: FileStructure = {
-          path: normalizedPath,
-          type: 'file',
-          content: file.content || '',
-          is_binary: file.is_binary,
-          isLoaded: !!file.content,
-        };
-
-        if (dirPath) {
-          createDirectoryPath(dirPath, pathToFile, newFileStructure);
-          const parent = pathToFile.get(dirPath);
-          if (parent && parent.children) {
-            parent.children.push(newFile);
-          }
-        } else {
-          newFileStructure.push(newFile);
-        }
-
-        pathToFile.set(normalizedPath, newFile);
-      }
-    } catch (error) {
-      logger.error('File structure build failed', 'file', error);
+      pathToFile.set(normalizedPath, newFile);
     }
-  });
+  }
 
-  return sortFiles(newFileStructure);
+  return sortFiles(fileStructure);
 }
 
 export function hasActualFiles(files: FileStructure[]): boolean {

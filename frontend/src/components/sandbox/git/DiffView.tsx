@@ -25,6 +25,8 @@ import {
   useGitRestoreFileMutation,
 } from '@/hooks/queries/useSandboxQueries';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
+import { useFirstPaint } from '@/hooks/useFirstPaint';
+import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useUIStore } from '@/store/uiStore';
 import { parsePatchFiles, parseDiffFromFile } from '@pierre/diffs';
@@ -234,7 +236,17 @@ interface DiffViewProps {
   isVisible: boolean;
 }
 
-export const DiffView = memo(function DiffView({ chatId, isVisible }: DiffViewProps) {
+export const DiffView = memo(function DiffView(props: DiffViewProps) {
+  // Chat switches remount this tile with the lazy chunk already cached, so patch
+  // parsing + pierre diff rendering would mount inside the navigation's commit
+  // and block its first paint (same deferral as EditorPane).
+  const hasPainted = useFirstPaint();
+
+  if (!hasPainted) return viewLoadingFallback;
+  return <DiffViewContent {...props} />;
+});
+
+const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: DiffViewProps) {
   const theme = useResolvedTheme();
   const { data: chat } = useChatQuery(chatId);
   const sandboxId = chat?.sandbox_id ?? undefined;

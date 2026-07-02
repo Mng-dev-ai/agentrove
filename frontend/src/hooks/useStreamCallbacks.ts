@@ -174,7 +174,6 @@ interface UseStreamCallbacksParams {
   chatId: string | undefined;
   currentChat: Chat | undefined;
   queryClient: QueryClient;
-  refetchFilesMetadata: () => Promise<unknown>;
   onContextUsageUpdate?: (data: ContextUsage, chatId?: string) => void;
   onPermissionRequest?: (request: PermissionRequest) => void;
   setMessages: Dispatch<SetStateAction<Message[]>>;
@@ -210,6 +209,9 @@ interface StreamSessionState {
   messageId: string;
   lastSeq: number;
   chatId: string;
+  // Captured at session creation so an off-screen completion can invalidate the
+  // right sandbox's caches — the user may be viewing a different chat by then.
+  sandboxId: string | undefined;
 }
 
 // Core streaming pipeline: receives raw SSE envelopes, buffers renderable
@@ -221,7 +223,6 @@ export function useStreamCallbacks({
   chatId,
   currentChat,
   queryClient,
-  refetchFilesMetadata,
   onContextUsageUpdate,
   onPermissionRequest,
   setMessages,
@@ -373,6 +374,9 @@ export function useStreamCallbacks({
         messageId,
         lastSeq: seq,
         chatId: streamChatId,
+        // The chat query is warm here (the stream was just started/replayed from
+        // it); resolving at completion time instead could miss after gc eviction.
+        sandboxId: queryClient.getQueryData<Chat>(queryKeys.chat(streamChatId))?.sandbox_id,
       });
 
       return buffer;
@@ -573,9 +577,11 @@ export function useStreamCallbacks({
       const isCancelled = terminalKind === 'cancelled';
       const isCurrentChat = chatId === chatIdRef.current;
       // Capture before clearStreamSession deletes it
-      const sessionChatId = resolvedStreamId
-        ? streamSessionsRef.current.get(resolvedStreamId)?.chatId
+      const session = resolvedStreamId
+        ? streamSessionsRef.current.get(resolvedStreamId)
         : undefined;
+      const sessionChatId = session?.chatId;
+      const sessionSandboxId = session?.sandboxId;
 
       if (resolvedStreamId) {
         flushBufferedContent(resolvedStreamId, { writeToCache: true });
@@ -622,6 +628,29 @@ export function useStreamCallbacks({
         queryClient.invalidateQueries({ queryKey: queryKeys.chat(targetChatId), exact: true });
       }
 
+      // Sandbox state (files, branches) is mutated server-side during the turn,
+      // so refresh it even when the completion lands off-screen — the long-lived
+      // file caches would otherwise serve stale content when the user returns to
+      // that chat. Cancelled runs still leave real file/branch side effects, so
+      // this is not kind-gated — only the notification below is.
+      const targetSandboxId =
+        sessionSandboxId ?? (isCurrentChat ? currentChat?.sandbox_id : undefined);
+      if (targetSandboxId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.sandbox.filesMetadataAll(targetSandboxId),
+        });
+        // Reset, not remove — remove doesn't refetch active observers, so an
+        // open editor file would keep showing the pre-turn content.
+        queryClient.resetQueries({
+          queryKey: queryKeys.sandbox.fileContentAll(targetSandboxId),
+        });
+        // Agent may have switched/created a branch during the turn (e.g. `git checkout -b`),
+        // so refresh the branch list to keep the UI in sync with HEAD.
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.sandbox.gitBranchesAll(targetSandboxId),
+        });
+      }
+
       if (!isCurrentChat) return;
 
       setPendingUserMessageId(null);
@@ -630,21 +659,6 @@ export function useStreamCallbacks({
 
       if (!isCancelled && (settings?.notifications_enabled ?? true)) {
         void notifyStreamComplete();
-      }
-
-      // Cancelled runs still leave real file/branch side effects in the sandbox,
-      // so these refreshes run regardless of terminal kind — only the
-      // notification above is kind-gated.
-      if (chatId && currentChat?.sandbox_id) {
-        refetchFilesMetadata().catch(() => {});
-        queryClient.removeQueries({
-          queryKey: ['sandbox', currentChat.sandbox_id, 'file-content'],
-        });
-        // Agent may have switched/created a branch during the turn (e.g. `git checkout -b`),
-        // so refresh the branch list to keep the UI in sync with HEAD.
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.sandbox.gitBranchesAll(currentChat.sandbox_id),
-        });
       }
 
       timerIdsRef.current.forEach(clearTimeout);
@@ -671,7 +685,6 @@ export function useStreamCallbacks({
       currentChat?.sandbox_id,
       currentChat?.parent_chat_id,
       queryClient,
-      refetchFilesMetadata,
       findStreamIdByMessage,
       setCurrentMessageId,
       setMessages,

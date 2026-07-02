@@ -15,6 +15,7 @@ import type {
 import { chatService } from '@/services/chatService';
 import { isCloudChat } from '@/utils/chatOrigin';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
+import { useUIStore } from '@/store/uiStore';
 import type { Chat, ChatSearchResponse, ContextUsage, CreateChatRequest } from '@/types/chat.types';
 import type { ChangedFilesData, FileDiffData } from '@/types/sandbox.types';
 import type { PaginatedChats } from '@/types/api.types';
@@ -288,6 +289,7 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
         queryClient.removeQueries({ queryKey: queryKeys.messages(data.id) });
         queryClient.removeQueries({ queryKey: queryKeys.contextUsage(data.id) });
         useMessageQueueStore.getState().cleanupChat(data.id);
+        useUIStore.getState().cleanupChat(data.id);
       }
     }
 
@@ -304,6 +306,7 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
     invalidateCloudChats(queryClient, chatId);
     useMessageQueueStore.getState().cleanupChat(chatId);
+    useUIStore.getState().cleanupChat(chatId);
   },
 );
 
@@ -313,6 +316,7 @@ export const useDeleteAllChatsMutation = createMutation<void, Error, void>(
     // removeQueries on the prefix ['chats'] also clears chatsSearch entries.
     queryClient.removeQueries({ queryKey: [queryKeys.chats] });
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+    useUIStore.getState().cleanupAllChats();
   },
 );
 

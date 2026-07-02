@@ -40,7 +40,7 @@ export const Editor = memo(function Editor({
   const handleDownload = useCallback(async () => {
     try {
       if (!sandboxId) {
-        return false;
+        return;
       }
 
       setIsDownloading(true);
@@ -57,11 +57,8 @@ export const Editor = memo(function Editor({
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-
-      return true;
     } catch (error) {
       logger.error('Sandbox download failed', 'Editor', error);
-      return false;
     } finally {
       setIsDownloading(false);
     }

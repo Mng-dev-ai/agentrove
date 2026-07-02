@@ -16,7 +16,7 @@ interface AgentPaneProps {
 // envelope.chatId so two panes can stream concurrently.
 export const AgentPane = memo(function AgentPane({ chatId }: AgentPaneProps) {
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
-  const { fileStructure, refetchFilesMetadata } = useSandboxFiles(currentChat, chatId);
+  const { fileStructure } = useSandboxFiles(currentChat, chatId);
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
     currentChat?.workspace_id,
     chatId,
@@ -40,7 +40,6 @@ export const AgentPane = memo(function AgentPane({ chatId }: AgentPaneProps) {
         fetchedMessages={fetchedMessages}
         hasFetchedMessages={hasFetchedMessages}
         messagesQuery={messagesQuery}
-        refetchFilesMetadata={refetchFilesMetadata}
         useRouteInitialPrompt={false}
       >
         <ChatComponent />
