@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/primitives/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner';
 import { useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useInfiniteCloudChatsQuery } from '@/hooks/queries/useCloudQueries';
-import { useStreamRestoration } from '@/hooks/useStreamRestoration';
+import { useCloudStreamRestoration } from '@/hooks/useCloudStreamRestoration';
 import { SidebarChatItem } from './SidebarChatItem';
 import { SubThreadList } from './SubThreadList';
 
@@ -320,12 +320,11 @@ export const SidebarCloudGroup = memo(function SidebarCloudGroup({
     useInfiniteCloudChatsQuery(workspace.id, !isCollapsed);
   const chats = useMemo(() => flattenChatPages(data), [data]);
 
-  // App-level restoration only sees local chats — restore cloud streams here from
-  // this group's fetched pages so reopened active VPS runs show the sidebar pulse
-  // and get tracked by the global watcher without first opening the chat. Continuous
-  // because cloud is polled (no push): each poll that surfaces a newly active run
-  // must register it, not just the first pass.
-  useStreamRestoration({ chats, isLoading, enabled: !isCollapsed, continuous: true });
+  // App-level restoration only covers the local backend — restore cloud streams
+  // here from this group's fetched pages so reopened active VPS runs show the
+  // sidebar pulse and get tracked by the global watcher without first opening
+  // the chat. Reruns on each poll that surfaces a newly active run.
+  useCloudStreamRestoration({ chats, isLoading, enabled: !isCollapsed });
 
   return (
     <SidebarChatGroup

@@ -35,6 +35,7 @@ from app.models.db_models.chat import Chat
 from app.models.db_models.user import User
 from app.models.types import MessageAttachmentDict, PermissionMode
 from app.models.schemas.chat import (
+    ActiveStreamStatus,
     Chat as ChatSchema,
     ChatCompletionResponse,
     ChatCreate,
@@ -238,6 +239,22 @@ async def search_chats(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Database error while searching chats",
         ) from e
+
+
+@router.get("/chats/active-streams", response_model=list[ActiveStreamStatus])
+async def get_active_streams(
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> list[ActiveStreamStatus]:
+    # Bulk variant of /chats/{chat_id}/status: the runtime registry already knows
+    # every active chat, so startup restoration needs one call instead of a
+    # per-chat (and per-sub-thread) polling fan-out.
+    active_ids = ChatStreamRuntime.active_chat_ids()
+    if not active_ids:
+        return []
+    return await chat_service.get_active_streams(
+        current_user, [UUID(chat_id) for chat_id in active_ids]
+    )
 
 
 @router.get("/chats/{chat_id}/sub-threads", response_model=list[ChatSchema])

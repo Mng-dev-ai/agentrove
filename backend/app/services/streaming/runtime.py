@@ -711,6 +711,11 @@ class ChatStreamRuntime:
         return chat_id in cls._background_task_chat_ids.values()
 
     @classmethod
+    def active_chat_ids(cls) -> set[str]:
+        cls._prune_done_tasks()
+        return set(cls._background_task_chat_ids.values())
+
+    @classmethod
     def _on_background_task_done(cls, chat_id: str, task: asyncio.Task[str]) -> None:
         try:
             if task.cancelled():

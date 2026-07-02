@@ -1,41 +1,31 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { logger } from '@/utils/logger';
 import { useStreamStore } from '@/store/streamStore';
 import type { Chat } from '@/types/chat.types';
 import type { StreamMetadata } from '@/types/stream.types';
 import { chatService } from '@/services/chatService';
 
-interface UseStreamRestorationOptions {
+interface UseCloudStreamRestorationOptions {
   chats: Chat[] | undefined;
   isLoading: boolean;
   enabled?: boolean;
-  // Cloud has no push channel, so the list is polled — rerun restoration on each
-  // changed list (deduping already-tracked chats) instead of latching after the
-  // first pass. Local stays single-pass: its global SSE surfaces new runs live.
-  continuous?: boolean;
 }
 
-// After the chat list loads, writes StreamMetadata entries for any chat (or
+// After each cloud chat-list poll, writes StreamMetadata entries for any chat (or
 // sub-thread) with an active backend task so the sidebar can show streaming
 // indicators without waiting for the user to open each chat. Checks the 20
-// most recent chats to keep the fan-out bounded.
-export function useStreamRestoration({
+// most recent chats to keep the fan-out bounded. Cloud has no push channel, so
+// this reruns on each changed list (deduping already-tracked chats) instead of
+// latching after the first pass.
+export function useCloudStreamRestoration({
   chats,
   isLoading,
   enabled = true,
-  continuous = false,
-}: UseStreamRestorationOptions) {
-  const hasRestoredRef = useRef(false);
-
+}: UseCloudStreamRestorationOptions) {
   useEffect(() => {
     if (!enabled || isLoading || !chats || chats.length === 0) {
       return;
     }
-    if (!continuous && hasRestoredRef.current) {
-      return;
-    }
-
-    hasRestoredRef.current = true;
 
     const discoverActiveStreams = async () => {
       // Skip chats already tracked — avoids redundant status checks on reruns and
@@ -58,7 +48,7 @@ export function useStreamRestoration({
             useStreamStore.getState().addStreamMetadata(metadata);
           }
         } catch (error) {
-          logger.error('Failed to check chat status', 'useStreamRestoration', {
+          logger.error('Failed to check chat status', 'useCloudStreamRestoration', {
             chatId,
             error,
           });
@@ -68,8 +58,9 @@ export function useStreamRestoration({
       const chatCheckPromises = chatsToCheck.map((chat) => checkAndRegister(chat.id));
 
       // Fetch sub-threads for parents that have them and check each for active
-      // streams. This fans out into N additional requests per parent — acceptable
-      // for a single-user app. A bulk active-streams endpoint would reduce this.
+      // streams. Per-chat fan-out is unavoidable here: only the chat-scoped client
+      // reaches the remote instance. Local restoration uses the bulk endpoint in
+      // useLocalStreamRestoration instead.
       const subThreadPromises = chatsToCheck
         .filter((chat) => chat.sub_thread_count > 0)
         .map(async (chat) => {
@@ -77,7 +68,7 @@ export function useStreamRestoration({
             const subThreads = await chatService.getSubThreads(chat.id);
             await Promise.allSettled(subThreads.map((sub) => checkAndRegister(sub.id)));
           } catch (error) {
-            logger.error('Failed to restore sub-thread streams', 'useStreamRestoration', {
+            logger.error('Failed to restore sub-thread streams', 'useCloudStreamRestoration', {
               chatId: chat.id,
               error,
             });
@@ -88,9 +79,7 @@ export function useStreamRestoration({
     };
 
     discoverActiveStreams().catch((error) => {
-      logger.error('Stream restoration failed', 'useStreamRestoration', error);
+      logger.error('Stream restoration failed', 'useCloudStreamRestoration', error);
     });
-  }, [chats, isLoading, enabled, continuous]);
-
-  return { hasRestored: hasRestoredRef.current };
+  }, [chats, isLoading, enabled]);
 }
