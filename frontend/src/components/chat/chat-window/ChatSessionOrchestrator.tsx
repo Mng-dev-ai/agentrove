@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChatSessionProvider } from '@/contexts/ChatSessionContext';
 import { ChatInputMessageProvider } from '@/contexts/ChatInputMessageContext';
+import { ChatCopiedMessageProvider } from '@/contexts/ChatCopiedMessageContext';
 import type { ChatSessionState, ChatSessionActions } from '@/contexts/ChatSessionContextDefinition';
 import { useChatStore } from '@/store/chatStore';
 import {
@@ -194,7 +195,6 @@ export function ChatSessionOrchestrator({
       isLoading,
       isStreaming,
       isInitialLoading: messagesQuery.isLoading || (hasFetchedMessages && messages.length === 0),
-      copiedMessageId: streamingState.copiedMessageId,
       pendingUserMessageId: streamingState.pendingUserMessageId,
       attachedFiles: streamingState.inputFiles,
       selectedModelId,
@@ -207,7 +207,6 @@ export function ChatSessionOrchestrator({
     }),
     [
       messages,
-      streamingState.copiedMessageId,
       streamingState.pendingUserMessageId,
       streamingState.inputFiles,
       isLoading,
@@ -249,12 +248,14 @@ export function ChatSessionOrchestrator({
 
   return (
     <ChatSessionProvider state={chatSessionState} actions={chatSessionActions}>
-      <ChatInputMessageProvider
-        inputMessage={streamingState.inputMessage}
-        setInputMessage={streamingState.setInputMessage}
-      >
-        {children}
-      </ChatInputMessageProvider>
+      <ChatCopiedMessageProvider copiedMessageId={streamingState.copiedMessageId}>
+        <ChatInputMessageProvider
+          inputMessage={streamingState.inputMessage}
+          setInputMessage={streamingState.setInputMessage}
+        >
+          {children}
+        </ChatInputMessageProvider>
+      </ChatCopiedMessageProvider>
     </ChatSessionProvider>
   );
 }

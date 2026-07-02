@@ -33,6 +33,12 @@ from app.utils.cache import CacheError, cache_connection
 
 logger = logging.getLogger(__name__)
 
+# Providers cached for the process lifetime — creating one per request pays
+# aiodocker client setup plus a container-inspect round-trip before any real
+# work on every sandbox operation. Keyed by workspace path so host providers
+# with different roots don't collide.
+sandbox_provider_cache: dict[tuple[str, str | None], SandboxProvider] = {}
+
 
 def get_user_service() -> UserService:
     return UserService(session_factory=SessionLocal)
@@ -102,7 +108,7 @@ async def get_sandbox_service(
     user: User | None = Depends(optional_current_active_user),
     db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
-) -> AsyncIterator[SandboxService]:
+) -> SandboxService:
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -132,20 +138,21 @@ async def get_sandbox_service(
             detail="Sandbox not found",
         )
 
-    provider = SandboxProvider.create_provider(
-        SandboxProviderType(row.sandbox_provider),
-        workspace_path=row.workspace_path,
-    )
+    cache_key = (row.sandbox_provider, row.workspace_path)
+    provider = sandbox_provider_cache.get(cache_key)
+    if provider is None:
+        provider = SandboxProvider.create_provider(
+            SandboxProviderType(row.sandbox_provider),
+            workspace_path=row.workspace_path,
+        )
+        sandbox_provider_cache[cache_key] = provider
 
     env_vars = SandboxService.build_env_vars(
         user_settings.custom_env_vars,
         user_settings.github_personal_access_token,
     )
 
-    try:
-        yield SandboxService(provider, env_vars=env_vars)
-    finally:
-        await provider.cleanup()
+    return SandboxService(provider, env_vars=env_vars)
 
 
 def get_git_service(

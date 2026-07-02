@@ -2,7 +2,8 @@ import { memo } from 'react';
 import { CheckCircle2, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { useChatSessionState, useChatSessionActions } from '@/hooks/useChatSessionContext';
+import { useChatSessionActions } from '@/hooks/useChatSessionContext';
+import { useChatCopiedMessageContext } from '@/hooks/useChatCopiedMessageContext';
 
 interface MessageActionsProps {
   messageId: string;
@@ -17,7 +18,10 @@ export const MessageActions = memo(function MessageActions({
   copyLabel = 'Copy',
   showTooltip = true,
 }: MessageActionsProps) {
-  const { copiedMessageId } = useChatSessionState();
+  // Read from the dedicated context, not ChatSessionState — the session state
+  // object changes on every stream flush, which would re-render every visible
+  // message's action bar for the whole turn.
+  const { copiedMessageId } = useChatCopiedMessageContext();
   const { onCopy } = useChatSessionActions();
 
   const button = (

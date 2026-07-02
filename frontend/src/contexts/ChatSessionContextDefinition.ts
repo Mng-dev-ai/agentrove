@@ -7,7 +7,6 @@ export interface ChatSessionState {
   isLoading: boolean;
   isStreaming: boolean;
   isInitialLoading: boolean;
-  copiedMessageId: string | null;
   pendingUserMessageId: string | null;
   attachedFiles: File[] | null;
   selectedModelId: string;
