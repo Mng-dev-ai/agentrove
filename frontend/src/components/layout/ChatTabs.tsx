@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
@@ -57,11 +57,14 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
         if (e.button === 1) onClose(chatId);
       }}
       className={cn(
-        'group flex min-w-0 max-w-[180px] flex-shrink-0 items-center gap-1 rounded-md py-1 pl-2 pr-1',
+        'group flex h-8 min-w-0 max-w-[180px] flex-shrink-0 items-center gap-1 pl-2 pr-1',
         'transition-colors duration-200',
         isActive
-          ? 'bg-surface-active text-text-primary dark:bg-surface-dark-active dark:text-text-dark-primary'
-          : 'text-text-tertiary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
+          ? // Browser-style: the active tab wears the page surface and sits over the
+            // band's hairline, merging into the content below.
+            'rounded-t-lg border border-b-0 border-border/50 bg-surface text-text-primary dark:border-border-dark/50 dark:bg-surface-dark dark:text-text-dark-primary'
+          : // mb-px lifts inactive tabs back above the hairline the strip overlaps.
+            'mb-px rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
       )}
     >
       <Button
@@ -202,8 +205,10 @@ export function ChatTabs() {
   if (isMobile || chatTabs.length === 0) return null;
 
   return (
-    <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
-      {chatTabs.map((chatId) => {
+    // -mb-px drops the strip over the title bar's hairline so the active tab's
+    // surface can cover its segment of the border.
+    <div className="-mb-px flex h-full min-w-0 items-end gap-1 overflow-x-auto">
+      {chatTabs.map((chatId, index) => {
         const status: ChatTabStatus | null = blockedChatIdSet.has(chatId)
           ? 'blocked'
           : streamingChatIdSet.has(chatId)
@@ -211,16 +216,27 @@ export function ChatTabs() {
             : finishedChatIds.has(chatId)
               ? 'finished'
               : null;
+        // Browser-tab convention: separators only between two inactive neighbors —
+        // the active tab's raised card draws its own boundary.
+        const showSeparator =
+          index > 0 && !visibleChatIds.has(chatId) && !visibleChatIds.has(chatTabs[index - 1]);
         return (
-          <ChatTab
-            key={chatId}
-            chatId={chatId}
-            isActive={visibleChatIds.has(chatId)}
-            isCurrent={chatId === routedChatId}
-            status={status}
-            onSelect={handleSelect}
-            onClose={handleClose}
-          />
+          <Fragment key={chatId}>
+            {showSeparator && (
+              <span
+                aria-hidden="true"
+                className="mb-2.5 h-3.5 w-px flex-shrink-0 bg-border dark:bg-border-dark"
+              />
+            )}
+            <ChatTab
+              chatId={chatId}
+              isActive={visibleChatIds.has(chatId)}
+              isCurrent={chatId === routedChatId}
+              status={status}
+              onSelect={handleSelect}
+              onClose={handleClose}
+            />
+          </Fragment>
         );
       })}
     </div>
