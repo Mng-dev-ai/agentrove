@@ -7,6 +7,8 @@ import { useEnhancePromptMutation } from '@/hooks/queries/useChatQueries';
 import { useMentionSuggestions } from '@/hooks/useMentionSuggestions';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore, type EditorCodeSelection } from '@/store/uiStore';
+import { formatEditorSelections } from '@/lib/editorChatActions';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
 import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
@@ -41,6 +43,9 @@ const AGENTS_WITHOUT_USAGE_UPDATE: ReadonlySet<AgentKind> = new Set([
   'opencode',
 ]);
 
+// Stable fallback so chat-less composers (landing page) don't churn the selector.
+const NO_SELECTIONS: EditorCodeSelection[] = [];
+
 export function InputProvider({
   message,
   setMessage,
@@ -73,6 +78,11 @@ export function InputProvider({
   // UsageUpdate notifications — without those events the value stays 0 and
   // the bar is misleading.
   const visibleContextUsage = AGENTS_WITHOUT_USAGE_UPDATE.has(agentKind) ? undefined : contextUsage;
+  const storedSelections = useUIStore((s) =>
+    chatId ? s.editorSelectionsByChat[chatId] : undefined,
+  );
+  const attachedSelections = storedSelections ?? NO_SELECTIONS;
+
   const formRef = useRef<HTMLFormElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [previewDismissed, setPreviewDismissed] = useState(false);
@@ -81,6 +91,8 @@ export function InputProvider({
   messageRef.current = message;
 
   const hasMessage = message.trim().length > 0;
+  // A selection chip is prompt content on its own — it can be sent without text.
+  const hasContent = hasMessage || attachedSelections.length > 0;
   const hasAttachments = (attachedFiles?.length ?? 0) > 0;
 
   const prevHasAttachments = useRef(hasAttachments);
@@ -197,23 +209,23 @@ export function InputProvider({
     (event: React.FormEvent) => {
       event.preventDefault();
       if (disabled) return;
-      if (!hasMessage) return;
+      if (!hasContent) return;
 
       setPreviewDismissed(true);
       onSubmit(event);
     },
-    [disabled, hasMessage, onSubmit],
+    [disabled, hasContent, onSubmit],
   );
 
   const submitOrStop = useCallback(() => {
-    if (isStreaming && !hasMessage) {
+    if (isStreaming && !hasContent) {
       onStopStream?.();
       return;
     }
 
     if (disabled) return;
 
-    if (isStreaming && hasMessage && chatId) {
+    if (isStreaming && hasContent && chatId) {
       const settings = useChatSettingsStore.getState();
       const permissionMode = coercePermissionModeForAgent(
         settings.permissionModeByChat[chatId] ?? DEFAULT_PERMISSION_MODE,
@@ -229,7 +241,8 @@ export function InputProvider({
         agentKind === 'codex' && (settings.planModeByChat[chatId] ?? DEFAULT_PLAN_MODE);
       const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
       const validPersona = resolvePersona(storedPersona, personas);
-      const fullMessage = messageRef.current.trim();
+      // Queued messages are stored as plain text, so serialize chips here.
+      const fullMessage = formatEditorSelections(attachedSelections, messageRef.current.trim());
       void useMessageQueueStore
         .getState()
         .queueMessage(
@@ -245,6 +258,7 @@ export function InputProvider({
         );
       setMessage('');
       onAttach?.([]);
+      if (attachedSelections.length > 0) useUIStore.getState().clearEditorSelections(chatId);
       setPreviewDismissed(true);
       return;
     }
@@ -254,7 +268,7 @@ export function InputProvider({
       return;
     }
 
-    if (!hasMessage) return;
+    if (!hasContent) return;
 
     setPreviewDismissed(true);
 
@@ -271,19 +285,27 @@ export function InputProvider({
     onSubmit(formEvent);
   }, [
     disabled,
-    hasMessage,
+    hasContent,
     isLoading,
     isStreaming,
     onStopStream,
     onSubmit,
     chatId,
     attachedFiles,
+    attachedSelections,
     setMessage,
     onAttach,
     agentKind,
     selectedModelId,
     personas,
   ]);
+
+  const handleRemoveSelection = useCallback(
+    (index: number) => {
+      if (chatId) useUIStore.getState().removeEditorSelection(chatId, index);
+    },
+    [chatId],
+  );
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<Element>) => {
@@ -325,6 +347,7 @@ export function InputProvider({
       isStreaming,
       isEnhancing,
       hasMessage,
+      hasContent,
       hasAttachments,
       showPreview,
       showFileUpload,
@@ -337,6 +360,7 @@ export function InputProvider({
       selectedModelId,
       dropdownPosition,
       attachedFiles,
+      attachedSelections,
       previewUrls,
       editingImageIndex,
       contextUsage: visibleContextUsage,
@@ -355,6 +379,7 @@ export function InputProvider({
       isStreaming,
       isEnhancing,
       hasMessage,
+      hasContent,
       hasAttachments,
       showPreview,
       showFileUpload,
@@ -367,6 +392,7 @@ export function InputProvider({
       selectedModelId,
       dropdownPosition,
       attachedFiles,
+      attachedSelections,
       previewUrls,
       editingImageIndex,
       visibleContextUsage,
@@ -392,6 +418,7 @@ export function InputProvider({
       handleEnhancePrompt,
       handleFileSelect,
       handleRemoveFile,
+      handleRemoveSelection,
       handleDrawClick,
       handleDrawingSave,
       closeDrawingModal,
@@ -411,6 +438,7 @@ export function InputProvider({
       handleEnhancePrompt,
       handleFileSelect,
       handleRemoveFile,
+      handleRemoveSelection,
       handleDrawClick,
       handleDrawingSave,
       closeDrawingModal,

@@ -36,6 +36,14 @@ interface PendingFileOpen {
   nonce: number;
 }
 
+export interface EditorCodeSelection {
+  path: string;
+  startLine: number;
+  endLine: number;
+  languageId: string;
+  text: string;
+}
+
 type UIStoreState = ThemeState &
   Pick<UIState, 'sidebarOpen' | 'sidebarWidth'> &
   Pick<UIActions, 'setSidebarOpen' | 'setSidebarWidth'> &
@@ -68,6 +76,12 @@ type UIStoreState = ThemeState &
     consumeDiffFileJump: () => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
+    // Code snippets attached to a chat's input as removable chips (VS Code
+    // "add selection to chat") — serialized into the prompt only at send time.
+    editorSelectionsByChat: Record<string, EditorCodeSelection[]>;
+    addEditorSelection: (chatId: string, selection: EditorCodeSelection) => void;
+    removeEditorSelection: (chatId: string, index: number) => void;
+    clearEditorSelections: (chatId: string) => void;
     // Sandbox of the workspace selected on the landing page. Lets context-less
     // consumers (the global git shortcuts) resolve a target before a chat exists.
     workspaceSandboxId: string | null;
@@ -175,6 +189,26 @@ export const useUIStore = create<UIStoreState>()(
 
       pendingChatMessage: null,
       setPendingChatMessage: (payload) => set({ pendingChatMessage: payload }),
+
+      editorSelectionsByChat: {},
+      addEditorSelection: (chatId, selection) =>
+        set((state) => ({
+          editorSelectionsByChat: {
+            ...state.editorSelectionsByChat,
+            [chatId]: [...(state.editorSelectionsByChat[chatId] ?? []), selection],
+          },
+        })),
+      removeEditorSelection: (chatId, index) =>
+        set((state) => ({
+          editorSelectionsByChat: {
+            ...state.editorSelectionsByChat,
+            [chatId]: (state.editorSelectionsByChat[chatId] ?? []).filter((_, i) => i !== index),
+          },
+        })),
+      clearEditorSelections: (chatId) =>
+        set((state) => ({
+          editorSelectionsByChat: { ...state.editorSelectionsByChat, [chatId]: [] },
+        })),
 
       workspaceSandboxId: null,
       setWorkspaceSandboxId: (sandboxId) => set({ workspaceSandboxId: sandboxId }),

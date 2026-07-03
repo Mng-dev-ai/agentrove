@@ -9,6 +9,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useEditorTheme } from '@/hooks/useEditorTheme';
 import { attachEditorNavigationContext, setupEditorNavigation } from '@/lib/editorNavigation';
 import type { EditorNavigationContext } from '@/lib/editorNavigation';
+import { attachAddSelectionToChat } from '@/lib/editorChatActions';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useEditorDrafts } from '@/hooks/useEditorDrafts';
 import type { FileStructure } from '@/types/file-system.types';
@@ -166,6 +167,7 @@ export const View = memo(function View({
       // A sandbox-less context is inert (contextForResource rejects it), so
       // attaching unconditionally is safe and picks up a late-arriving sandbox.
       attachEditorNavigationContext(editor, navigationContext.current);
+      attachAddSelectionToChat(monaco, editor, navigationContext.current);
       setMountedEditorPath(selectedFilePath);
     },
     [selectedFilePath, setupEditorTheme],

@@ -1,0 +1,63 @@
+import type * as monacoNs from 'monaco-editor';
+import type { EditorNavigationContext } from '@/lib/editorNavigation';
+import { useUIStore, type EditorCodeSelection } from '@/store/uiStore';
+
+type Monaco = typeof import('monaco-editor');
+
+const BACKTICK_RUN = /`+/g;
+
+export function attachAddSelectionToChat(
+  m: Monaco,
+  editor: monacoNs.editor.IStandaloneCodeEditor,
+  context: EditorNavigationContext,
+): void {
+  // Registered per editor instance (disposed with it) rather than globally —
+  // the action reads chatId from the pane's mutable context object, so chat
+  // swaps on an already-mounted editor route to the right chat.
+  editor.addAction({
+    id: 'agentrove.addSelectionToChat',
+    label: 'Add Selection to Chat',
+    contextMenuGroupId: '0_chat',
+    contextMenuOrder: 1,
+    keybindings: [m.KeyMod.CtrlCmd | m.KeyCode.KeyL],
+    // Without a selection Cmd+L falls through to Monaco's default line-select.
+    precondition: 'editorHasSelection',
+    run: (ed) => {
+      const selection = ed.getSelection();
+      const model = ed.getModel();
+      const { chatId } = context;
+      if (!selection || selection.isEmpty() || !model || !chatId) return;
+      let text = model.getValueInRange(selection);
+      let endLine = selection.endLineNumber;
+      // Full-line drag selections end at column 1 of the line below — don't
+      // count that empty line in the range label or the snippet.
+      if (endLine > selection.startLineNumber && selection.endColumn === 1) {
+        endLine -= 1;
+        text = text.slice(0, -1);
+      }
+      useUIStore.getState().addEditorSelection(chatId, {
+        // Model URIs are `sandbox://{sandboxId}/{workspace path}` (View.tsx).
+        path: model.uri.path.slice(1),
+        startLine: selection.startLineNumber,
+        endLine,
+        languageId: model.getLanguageId(),
+        text,
+      });
+    },
+  });
+}
+
+export function formatEditorSelections(selections: EditorCodeSelection[], message: string): string {
+  // Chips are UI-only; at send time the code rides in the prompt as fenced
+  // blocks above the user's text.
+  const blocks = selections.map((s) => {
+    const lineRef = s.startLine === s.endLine ? `${s.startLine}` : `${s.startLine}-${s.endLine}`;
+    // Snippets can contain ``` (Markdown, nested fences) which would close a
+    // bare fence early — use one longer than the longest run in the text.
+    const longestRun =
+      s.text.match(BACKTICK_RUN)?.reduce((max, run) => Math.max(max, run.length), 0) ?? 0;
+    const fence = '`'.repeat(Math.max(3, longestRun + 1));
+    return `${s.path}:${lineRef}\n${fence}${s.languageId}\n${s.text}\n${fence}`;
+  });
+  return [...blocks, message].filter(Boolean).join('\n\n');
+}
