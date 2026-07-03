@@ -24,8 +24,8 @@
   },
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
-    "@pierre/diffs": "^1.2.2",
-    "@pierre/trees": "^1.0.0-beta.3",
+    "@pierre/diffs": "^1.2.12",
+    "@pierre/trees": "^1.0.0-beta.5",
     "@tanstack/query-sync-storage-persister": "^5.101.2",
     "@tanstack/react-query": "^5.101.2",
     "@tanstack/react-query-devtools": "^5.101.2",
