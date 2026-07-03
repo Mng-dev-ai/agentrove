@@ -4,7 +4,6 @@ import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
 import { ToolCard } from '../common/ToolCard';
 import { SearchLoadingDots } from '../common/SearchLoadingDots';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
 import {
   type ShellLikeInput,
   type ShellLikeOutput,
@@ -61,7 +60,6 @@ const SearchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
         <SearchLoadingDots label="Searching files" />
       }
       error={tool.error}
-      actions={filePath ? <OpenInEditorButton filePath={filePath} /> : null}
     >
       {(filePath || command || output) && (
         <div className="space-y-1.5">
