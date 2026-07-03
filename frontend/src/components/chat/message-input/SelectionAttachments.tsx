@@ -22,7 +22,7 @@ export const SelectionAttachments = memo(function SelectionAttachments({
         <div
           // Duplicate chips of the same range are allowed, so the index keys them apart.
           key={`${selection.path}:${selection.startLine}:${index}`}
-          title={selection.path}
+          title={selection.comment ? `${selection.path}\n\n${selection.comment}` : selection.path}
           className="flex items-center gap-1 rounded-md border border-border/50 bg-surface-tertiary py-0.5 pl-1.5 pr-0.5 dark:border-border-dark/50 dark:bg-surface-dark-tertiary"
         >
           <FileIcon name={getFileName(selection.path)} className="h-3 w-3" />

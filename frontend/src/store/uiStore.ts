@@ -42,6 +42,8 @@ export interface EditorCodeSelection {
   endLine: number;
   languageId: string;
   text: string;
+  // Set by diff-view review comments; serialized under the code block at send time.
+  comment?: string;
 }
 
 type UIStoreState = ThemeState &

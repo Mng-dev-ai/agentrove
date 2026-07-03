@@ -30,7 +30,14 @@ import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback'
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useUIStore } from '@/store/uiStore';
 import { parsePatchFiles, parseDiffFromFile } from '@pierre/diffs';
-import type { FileDiffMetadata, FileContents } from '@pierre/diffs';
+import type {
+  FileDiffMetadata,
+  FileContents,
+  SelectedLineRange,
+  DiffLineAnnotation,
+} from '@pierre/diffs';
+import { DiffCommentComposer } from '@/components/sandbox/git/DiffCommentComposer';
+import { useDiffComments } from '@/hooks/useDiffComments';
 import { FileDiff, Virtualizer, WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
@@ -82,6 +89,17 @@ const STATUS_COLORS: Record<string, string> = {
   'rename-changed':
     'bg-warning-600/15 text-warning-600 dark:bg-warning-400/15 dark:text-warning-400',
 };
+
+// Stable empty value — the library re-renders a file whenever the annotations
+// array identity changes.
+const NO_ANNOTATIONS: DiffLineAnnotation[] = [];
+
+// The library washes annotation rows with the line-selection tint when they sit
+// inside the selected range; keep the comment composer's row on the plain
+// annotation background. Injected into the shadow root, where unlayered rules
+// beat the library's @layer base styles.
+const DIFF_UNSAFE_CSS =
+  '[data-selected-line]:is([data-line-annotation],[data-gutter-buffer=annotation]){--diffs-computed-selected-line-bg:var(--diffs-annotation-bg)}';
 
 const MENU_ITEM_CLASS =
   'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary transition-colors duration-200 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover';
@@ -167,13 +185,76 @@ function DiffEmptyState({
   );
 }
 
-function FileDiffRenderer({
+const FileDiffRenderer = memo(function FileDiffRenderer({
   file,
   options,
+  canComment,
+  commentRange,
+  isComposing,
+  onSelectionChange,
+  onSelectionEnd,
+  onSubmitComment,
+  onCancelComment,
 }: {
   file: FileDiffMetadata;
   options: Record<string, unknown>;
+  canComment: boolean;
+  commentRange: SelectedLineRange | null;
+  isComposing: boolean;
+  onSelectionChange: (fileName: string, range: SelectedLineRange | null) => void;
+  onSelectionEnd: (fileName: string, range: SelectedLineRange | null) => void;
+  onSubmitComment: (file: FileDiffMetadata, range: SelectedLineRange, comment: string) => void;
+  onCancelComment: () => void;
 }) {
+  // Selection is gated on a chat being connected — the comment has nowhere to
+  // go otherwise. Fully controlled via `selectedLines` so closing the composer
+  // clears the highlight; start/change echoes keep the drag highlight live
+  // (the library doesn't self-render selection in controlled mode).
+  const fileOptions = useMemo(
+    () =>
+      canComment
+        ? {
+            ...options,
+            enableLineSelection: true,
+            onLineSelectionStart: (range: SelectedLineRange | null) =>
+              onSelectionChange(file.name, range),
+            onLineSelectionChange: (range: SelectedLineRange | null) =>
+              onSelectionChange(file.name, range),
+            onLineSelectionEnd: (range: SelectedLineRange | null) =>
+              onSelectionEnd(file.name, range),
+          }
+        : options,
+    [options, canComment, file.name, onSelectionChange, onSelectionEnd],
+  );
+
+  const annotations = useMemo<DiffLineAnnotation[]>(
+    () =>
+      isComposing && commentRange
+        ? [
+            {
+              side: commentRange.endSide ?? commentRange.side ?? 'additions',
+              lineNumber: commentRange.end,
+            },
+          ]
+        : NO_ANNOTATIONS,
+    [isComposing, commentRange],
+  );
+
+  const renderComposer = useCallback(() => {
+    if (!commentRange) return null;
+    return (
+      <DiffCommentComposer
+        lineLabel={
+          commentRange.start === commentRange.end
+            ? `line ${commentRange.start}`
+            : `lines ${commentRange.start}-${commentRange.end}`
+        }
+        onSubmit={(comment) => onSubmitComment(file, commentRange, comment)}
+        onCancel={onCancelComment}
+      />
+    );
+  }, [file, commentRange, onSubmitComment, onCancelComment]);
+
   return (
     <ErrorBoundary
       fallback={
@@ -182,10 +263,16 @@ function FileDiffRenderer({
         </div>
       }
     >
-      <FileDiff fileDiff={file} options={options} />
+      <FileDiff
+        fileDiff={file}
+        options={fileOptions}
+        selectedLines={commentRange}
+        lineAnnotations={annotations}
+        renderAnnotation={renderComposer}
+      />
     </ErrorBoundary>
   );
-}
+});
 
 function FileStats({ file }: { file: FileDiffMetadata }) {
   const { hunks } = file;
@@ -256,6 +343,13 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
   const [discardTarget, setDiscardTarget] = useState<FileDiffMetadata | null>(null);
   const [discardAllOpen, setDiscardAllOpen] = useState(false);
+  const {
+    pendingComment,
+    resetComments,
+    handleSelectionChange,
+    handleSelectionEnd,
+    handleSubmitComment,
+  } = useDiffComments(chatId, cwd);
 
   const {
     data: diffData,
@@ -283,6 +377,7 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     setExpandedFiles(new Set());
     setDiscardTarget(null);
     setDiscardAllOpen(false);
+    resetComments();
   }
 
   // Portal escapes the toolbar's overflow-x-auto clip (CSS clips both axes).
@@ -391,6 +486,7 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
       diffStyle,
       expandUnchanged: false,
       disableFileHeader: true,
+      unsafeCSS: DIFF_UNSAFE_CSS,
     }),
     [theme, diffStyle],
   );
@@ -670,7 +766,23 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
                       )}
                       <FileStats file={file} />
                     </div>
-                    {isExpanded && <FileDiffRenderer file={file} options={options} />}
+                    {isExpanded && (
+                      <FileDiffRenderer
+                        file={file}
+                        options={options}
+                        canComment={!!chatId}
+                        commentRange={
+                          pendingComment?.fileName === file.name ? pendingComment.range : null
+                        }
+                        isComposing={
+                          pendingComment?.fileName === file.name && pendingComment.composing
+                        }
+                        onSelectionChange={handleSelectionChange}
+                        onSelectionEnd={handleSelectionEnd}
+                        onSubmitComment={handleSubmitComment}
+                        onCancelComment={resetComments}
+                      />
+                    )}
                   </div>
                 );
               })}
