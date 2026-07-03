@@ -16,6 +16,7 @@ import { StreamActionsBar } from './StreamActionsBar';
 import { Input } from '@/components/chat/message-input/Input';
 import { ChatSkeleton } from './ChatSkeleton';
 import { ScrollButton } from './ScrollButton';
+import { MessageTrail } from './MessageTrail';
 import { StatusTypewriter } from './StatusTypewriter';
 import { Spinner } from '@/components/ui/primitives/Spinner';
 import { useStreamStore } from '@/store/streamStore';
@@ -451,26 +452,31 @@ export const Chat = memo(function Chat() {
 
   return (
     <div className="relative flex min-w-0 flex-1 flex-col">
-      <div className="flex-1 overflow-hidden">
+      <div className="relative flex-1 overflow-hidden">
         {isInitialLoading && messages.length === 0 ? (
           <ChatSkeleton messageCount={3} className="py-4" />
         ) : (
-          <div
-            key={chatId ?? 'chat'}
-            ref={containerRefCallback}
-            className="scrollbar-thin scrollbar-thumb-border-secondary dark:scrollbar-thumb-border-dark hover:scrollbar-thumb-text-quaternary dark:hover:scrollbar-thumb-border-dark-hover scrollbar-track-transparent h-full overflow-y-auto overflow-x-hidden"
-          >
-            {/* Single wrapper so the stick-to-bottom ResizeObserver tracks all content */}
-            <div>
-              {listHeader}
+          <>
+            <div
+              key={chatId ?? 'chat'}
+              ref={containerRefCallback}
+              className="scrollbar-thin scrollbar-thumb-border-secondary dark:scrollbar-thumb-border-dark hover:scrollbar-thumb-text-quaternary dark:hover:scrollbar-thumb-border-dark-hover scrollbar-track-transparent h-full overflow-y-auto overflow-x-hidden"
+            >
+              {/* Single wrapper so the stick-to-bottom ResizeObserver tracks all content */}
+              <div>
+                {listHeader}
 
-              {messages.map((msg) => (
-                <div key={msg.id}>{renderMessage(msg)}</div>
-              ))}
+                {messages.map((msg) => (
+                  <div key={msg.id} data-message-id={msg.id}>
+                    {renderMessage(msg)}
+                  </div>
+                ))}
 
-              {listFooter}
+                {listFooter}
+              </div>
             </div>
-          </div>
+            <MessageTrail messages={messages} scrollerRef={scrollerRef} />
+          </>
         )}
       </div>
       <div className="relative">
