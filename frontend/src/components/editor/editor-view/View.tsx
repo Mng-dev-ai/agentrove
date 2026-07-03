@@ -7,6 +7,8 @@ import { EditorTabs } from './EditorTabs';
 import { FilePreview } from '../file-preview/FilePreview';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useEditorTheme } from '@/hooks/useEditorTheme';
+import { attachEditorNavigationContext, setupEditorNavigation } from '@/lib/editorNavigation';
+import type { EditorNavigationContext } from '@/lib/editorNavigation';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useEditorDrafts } from '@/hooks/useEditorDrafts';
 import type { FileStructure } from '@/types/file-system.types';
@@ -19,6 +21,8 @@ export interface ViewProps {
   selectedFile: FileStructure | null;
   fileStructure?: FileStructure[];
   sandboxId?: string;
+  chatId: string | undefined;
+  cwd?: string;
   onToggleFileTree?: () => void;
   isFileTreeCollapsed?: boolean;
   isSandboxSyncing?: boolean;
@@ -32,6 +36,8 @@ export const View = memo(function View({
   selectedFile,
   fileStructure = [],
   sandboxId,
+  chatId,
+  cwd,
   onToggleFileTree,
   isFileTreeCollapsed,
   isSandboxSyncing = false,
@@ -53,6 +59,13 @@ export const View = memo(function View({
     editorRef.current = null;
     if (mountedEditorPath !== null) setMountedEditorPath(null);
   }
+
+  // Mutated in place each render: the navigation claim holds this same object,
+  // so chat/cwd prop changes apply to an already-mounted editor without remount.
+  const navigationContext = useRef<EditorNavigationContext>({ sandboxId, chatId, cwd });
+  navigationContext.current.sandboxId = sandboxId;
+  navigationContext.current.chatId = chatId;
+  navigationContext.current.cwd = cwd;
 
   const { currentTheme, setupEditorTheme } = useEditorTheme();
   const updateFileMutation = useUpdateFileMutation();
@@ -149,6 +162,10 @@ export const View = memo(function View({
 
       editorRef.current = editor;
       setupEditorTheme(monaco);
+      setupEditorNavigation(monaco);
+      // A sandbox-less context is inert (contextForResource rejects it), so
+      // attaching unconditionally is safe and picks up a late-arriving sandbox.
+      attachEditorNavigationContext(editor, navigationContext.current);
       setMountedEditorPath(selectedFilePath);
     },
     [selectedFilePath, setupEditorTheme],
@@ -313,7 +330,9 @@ export const View = memo(function View({
                 key={selectedFile.path}
                 content={displayContent}
                 language={language}
-                modelPath={`/${sandboxId ?? 'workspace'}/${selectedFile.path}`}
+                // The sandbox rides in the URI authority so uri.path stays the clean
+                // workspace path — peek widgets label results straight from uri.path.
+                modelPath={`sandbox://${sandboxId ?? 'workspace'}/${selectedFile.path}`}
                 // Lock edits while a save is in flight so the in-flight buffer can't
                 // diverge from what was submitted — the success handler then clears the
                 // draft unconditionally without risking newer keystrokes.
