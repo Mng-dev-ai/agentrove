@@ -100,6 +100,7 @@ function InputLayout() {
             isLoading={state.isLoading}
             disabled={state.isDisabled}
             onKeyDown={actions.handleKeyDown}
+            onPaste={actions.handlePaste}
             onCursorPositionChange={actions.setCursorPosition}
             compact={state.compact}
           />
@@ -155,8 +156,8 @@ function InputLayout() {
 
       {state.showTip && !state.hasAttachments && (
         <div className="mt-1 animate-fade-in text-center text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-          <span className="font-medium">Tip:</span> Drag and drop images, pdfs and xlsx files into
-          the input area, type `/` for slash commands, or `@` to mention files and agents
+          <span className="font-medium">Tip:</span> Drag and drop or paste images, pdfs and xlsx
+          files into the input area, type `/` for slash commands, or `@` to mention files and agents
         </div>
       )}
     </form>

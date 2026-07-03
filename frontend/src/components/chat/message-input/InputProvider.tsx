@@ -127,6 +127,18 @@ export function InputProvider({
     onFilesDrop: handleDroppedFiles,
   });
 
+  const handlePaste = useCallback(
+    (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      // Pasted screenshots/files arrive as clipboard files — route them through the
+      // same validated attach path as drag-and-drop instead of losing them.
+      const files = Array.from(event.clipboardData.files);
+      if (!onAttach || files.length === 0) return;
+      event.preventDefault();
+      handleDroppedFiles(files);
+    },
+    [onAttach, handleDroppedFiles],
+  );
+
   const focusTextarea = useCallback((text: string) => {
     const textarea = textareaRef.current;
     if (textarea) {
@@ -421,6 +433,7 @@ export function InputProvider({
       handleRemoveSelection,
       handleDrawClick,
       handleDrawingSave,
+      handlePaste,
       closeDrawingModal,
       resetDragState,
       selectSlashCommand,
@@ -441,6 +454,7 @@ export function InputProvider({
       handleRemoveSelection,
       handleDrawClick,
       handleDrawingSave,
+      handlePaste,
       closeDrawingModal,
       resetDragState,
       selectSlashCommand,
