@@ -51,6 +51,7 @@ export interface InputActions {
   handleRemoveSelection: (index: number) => void;
   handleDrawClick: (index: number) => void;
   handleDrawingSave: (dataUrl: string) => Promise<void>;
+  handlePaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   closeDrawingModal: () => void;
   resetDragState: () => void;
   selectSlashCommand: (command: SlashCommand) => void;

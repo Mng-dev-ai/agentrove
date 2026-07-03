@@ -20,6 +20,7 @@ export interface TextareaProps {
   isLoading: boolean;
   disabled?: boolean;
   onKeyDown: (e: React.KeyboardEvent) => void;
+  onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onCursorPositionChange?: (position: number) => void;
   compact?: boolean;
 }
@@ -34,6 +35,7 @@ export function Textarea({
   isLoading,
   disabled = false,
   onKeyDown,
+  onPaste,
   onCursorPositionChange,
   compact,
 }: TextareaProps) {
@@ -119,6 +121,7 @@ export function Textarea({
       value={message}
       onChange={handleChange}
       onKeyDown={onKeyDown}
+      onPaste={onPaste}
       onKeyUp={handleCursorChange}
       onClick={handleCursorChange}
       onSelect={handleCursorChange}
