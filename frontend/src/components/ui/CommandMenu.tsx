@@ -64,11 +64,13 @@ export function CommandMenu() {
   const isOpen = useUIStore((state) => state.commandMenuOpen);
   const theme = useUIStore((state) => state.theme);
   const isMobile = useIsMobile();
-  // Open tile ids (not deduped view kinds) so the active-state/split affordances
-  // can distinguish a view's primary tile from its `:secondary` variant. Gated on
-  // open — tab churn is irrelevant while the always-mounted menu is closed.
-  const openTabs = useUIStore((s) => (s.commandMenuOpen ? s.openTabs : null));
-  const leafTileIds = useMemo(() => new Set(openTabs ?? []), [openTabs]);
+  // On-screen tile ids (not deduped view kinds) so the active-state/split
+  // affordances can distinguish a view's primary tile from its `:secondary`
+  // variant. Keyed on visibility, not open membership — views have no tabs, so an
+  // open-but-hidden background tile must stay surfaceable/splittable. Gated on
+  // open — layout churn is irrelevant while the always-mounted menu is closed.
+  const visibleLayout = useUIStore((s) => (s.commandMenuOpen ? s.visibleLayout : null));
+  const leafTileIds = useMemo(() => new Set(visibleLayout?.flat() ?? []), [visibleLayout]);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const primaryCtx = useChatContext();
@@ -630,9 +632,9 @@ export function CommandMenu() {
                   {filteredCommands.map((cmd, index) => {
                     const Icon = cmd.icon;
                     // Active/split state is scoped to the pane the user is in: the
-                    // view counts as open only if the active pane's target tile
-                    // (e.g. editor:secondary) is already a leaf, so the split
-                    // buttons stay available to open it in the other pane.
+                    // view counts as active only if the active pane's target tile
+                    // (e.g. editor:secondary) is already on screen, so the split
+                    // buttons stay available to surface it beside the other panes.
                     const isActive =
                       cmd.type === 'view' &&
                       leafTileIds.has(viewTypeToTileId(cmd.id, useSecondary));

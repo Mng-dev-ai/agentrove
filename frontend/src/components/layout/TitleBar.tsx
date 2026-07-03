@@ -5,10 +5,14 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button';
 import { ToggleButton } from '@/components/ui/ToggleButton';
-import { ViewSwitcher } from './ViewSwitcher';
-import { SplitTabs } from './SplitTabs';
+import { ViewSwitcher, type SwitchableView } from './ViewSwitcher';
+import { ChatTabs } from './ChatTabs';
 import { cn } from '@/utils/cn';
 import { IS_MAC_PLATFORM, isDesktopApp } from '@/utils/platform';
+
+// The landing page's renderView only supports these two non-agent views —
+// diff/terminal need a chat, so their switcher buttons would open blank panes.
+const LANDING_VIEWS: SwitchableView[] = ['editor', 'secrets'];
 
 async function getTauriWindow() {
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -200,15 +204,20 @@ export function TitleBar() {
         {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className="w-1" />}
       </div>
 
-      {/* Main content area — matches main bg. Pane tabs (split view only) sit on
-          the left; the view switcher stays pinned right. */}
+      {/* Main content area — matches main bg. Chat tabs (the open working set)
+          sit on the left; the view switcher stays pinned right. */}
       <div className="flex h-full min-w-0 flex-1 items-center justify-between gap-2 bg-surface px-3 pt-[env(safe-area-inset-top)] dark:bg-surface-dark">
-        {/* Landing can also split (opening a workspace file adds an editor pane),
-            so its panes need the same tab controls. */}
-        <div className="flex min-w-0 flex-1 items-center">
-          {(isChatPage || isLandingPage) && <SplitTabs />}
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          {/* Auth gate: on macOS desktop the bar renders even when logged out, and
+              persisted chatTabs would fire protected chat queries (and self-close
+              on the resulting 401s, wiping the working set). */}
+          {isAuthenticated && (isChatPage || isLandingPage) && <ChatTabs />}
         </div>
+        {/* Views have no tabs — the switcher is the only affordance to open and
+            close them, so landing (which can show an editor/secrets pane) needs
+            it too, just restricted to the views it can render. */}
         {isChatPage && <ViewSwitcher />}
+        {isLandingPage && <ViewSwitcher views={LANDING_VIEWS} />}
       </div>
     </div>
   );

@@ -75,12 +75,13 @@ export interface EditorPaneState {
 }
 
 export interface SplitViewState {
-  // Every open tab, in strip order. Always holds at least 'agent:primary'.
+  // Every open view. Always holds at least 'agent:primary'. Views have no tab
+  // strip: an open-but-hidden tile stays mounted in the background (preserving
+  // editor/terminal state) until the switcher surfaces or closes it.
   openTabs: TileId[];
   // The on-screen layout as rows of tiles: rows stack vertically, tiles within a
   // row sit side by side. [[A]] = full view; [[A, B]] = side by side; [[A], [B]]
-  // = stacked; [[A, B], [C]] = A│B over C. Background tabs (open but not visible)
-  // stay mounted off-screen. Always holds at least one tile.
+  // = stacked; [[A, B], [C]] = A│B over C. Always holds at least one tile.
   visibleLayout: TileId[][];
   // Secondary chat for split-chat view. Primary chat is always the route param.
   secondaryChatId: string | null;
@@ -104,13 +105,13 @@ export interface SplitViewState {
 }
 
 export interface SplitViewActions {
-  // Opens a view as a full tab, or — when toggling — closes it if already open.
-  // Scoped to the active agent pane so shortcuts hit the chat the user is in.
+  // Shows a view full screen, or — when toggling — closes it if already on
+  // screen. Scoped to the active agent pane so shortcuts hit the chat the user is in.
   toggleView: (view: ViewType, toggle: boolean) => void;
   // Opens a view (if needed) and adds it to the on-screen layout: 'row' beside
   // the last row, 'column' as a new row below.
   addViewToSplit: (view: ViewType, direction: SplitDirection) => void;
-  // Closes a tab, dropping it from the open and visible sets.
+  // Closes a view, dropping it from the open and visible sets.
   removeTab: (tileId: TileId) => void;
   // Resets the workspace to a single agent view and tears down any split chat
   // (used by the landing page). Detaches the live layout from any chat.
@@ -122,13 +123,8 @@ export interface SplitViewActions {
   stashWorkspace: () => void;
   openChatInSplit: (chatId: string) => void;
   closeSplitChat: () => void;
-  // Returns the chatId that should become the new route primary (caller navigates).
-  swapChatPanes: (currentPrimaryChatId: string) => string | null;
-  // Shows a tile full (sole visible pane) and focuses it — the default tab click.
+  // Shows a tile full (sole visible pane) and focuses it.
   activateTab: (tileId: TileId) => void;
-  // Adds a tile to the on-screen layout, keeping the rest visible: 'row' appends
-  // it to the last row (side by side), 'column' starts a new row below.
-  splitView: (direction: SplitDirection, tileId: TileId) => void;
   // Single focus path: records the exact pane (highlights its tab) and scopes the
   // active chat (primary/secondary) from the tile, so tab and pane clicks agree.
   focusTile: (tileId: TileId) => void;

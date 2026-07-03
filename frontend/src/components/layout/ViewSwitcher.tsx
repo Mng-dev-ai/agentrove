@@ -13,9 +13,11 @@ import {
 } from '@/utils/tileHelpers';
 import type { ViewType } from '@/types/ui.types';
 
+export type SwitchableView = Exclude<ViewType, 'agent'>;
+
 // Non-agent secondary views, in the order Cursor lays them out: diff (git),
 // editor (file), terminal, secrets.
-const SWITCHABLE_VIEWS: Exclude<ViewType, 'agent'>[] = ['diff', 'editor', 'terminal', 'secrets'];
+const SWITCHABLE_VIEWS: SwitchableView[] = ['diff', 'editor', 'terminal', 'secrets'];
 
 // Reuse the command palette's shortcut bindings so the tooltips can't drift from
 // the real keys (⌘⇧E etc.).
@@ -25,35 +27,37 @@ const VIEW_SHORTCUTS = new Map<ViewType, string>(
   ),
 );
 
-function viewTooltip(view: Exclude<ViewType, 'agent'>): string {
+function viewTooltip(view: SwitchableView): string {
   const shortcut = VIEW_SHORTCUTS.get(view);
   const label = shortcut ? `${VIEW_LABELS[view]} · ${shortcut}` : VIEW_LABELS[view];
   return `${label} · Right-click to split`;
 }
 
-export function ViewSwitcher() {
+export function ViewSwitcher({ views = SWITCHABLE_VIEWS }: { views?: SwitchableView[] }) {
   const activeAgentTile = useUIStore((s) => s.activeAgentTile);
   const secondaryChatId = useUIStore((s) => s.secondaryChatId);
-  const openTabs = useUIStore((s) => s.openTabs);
+  const visibleLayout = useUIStore((s) => s.visibleLayout);
   const isMobile = useIsMobile();
 
   // Resolve active state against the exact tile toggleView() will act on, so the
   // highlight (and the close-on-click) tracks the focused pane in split-chat mode.
   const secondary = isSecondaryPaneActive(activeAgentTile, secondaryChatId);
-  const openSet = useMemo(() => new Set(openTabs), [openTabs]);
+  // Views have no tabs, so the highlight means "on screen" — a view kept mounted
+  // in the background stays unlit and a click surfaces it instead of closing it.
+  const visibleSet = useMemo(() => new Set(visibleLayout.flat()), [visibleLayout]);
 
   return (
     <div className="flex items-center gap-0.5">
-      {SWITCHABLE_VIEWS.map((view) => {
+      {views.map((view) => {
         const Icon = VIEW_ICONS[view];
-        const isActive = openSet.has(viewTypeToTileId(view, secondary));
+        const isActive = visibleSet.has(viewTypeToTileId(view, secondary));
         return (
           <Tooltip key={view} content={viewTooltip(view)} position="bottom-end">
             <Button
               variant="unstyled"
               // Left-click toggles the view full; right-click opens it beside the
-              // active pane (the split is the hero gesture, otherwise buried in the
-              // tab context menu).
+              // active pane (with no view tabs, this and the command palette are
+              // the only split gestures).
               onClick={() => useUIStore.getState().toggleView(view, true)}
               onContextMenu={(e) => {
                 // Splitting is a desktop layout; leave the native long-press menu

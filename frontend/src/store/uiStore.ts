@@ -88,6 +88,11 @@ type UIStoreState = ThemeState &
     // consumers (the global git shortcuts) resolve a target before a chat exists.
     workspaceSandboxId: string | null;
     setWorkspaceSandboxId: (sandboxId: string | null) => void;
+    // Working set of chats shown as title-bar tabs — only explicitly opened
+    // chats, ordered by open time; the sidebar remains the full archive.
+    chatTabs: string[];
+    openChatTab: (chatId: string) => void;
+    closeChatTab: (chatId: string) => void;
   };
 
 const getInitialSidebarState = (): boolean => {
@@ -215,6 +220,18 @@ export const useUIStore = create<UIStoreState>()(
       workspaceSandboxId: null,
       setWorkspaceSandboxId: (sandboxId) => set({ workspaceSandboxId: sandboxId }),
 
+      chatTabs: [],
+      openChatTab: (chatId) => {
+        const { chatTabs } = get();
+        if (chatTabs.includes(chatId)) return;
+        set({ chatTabs: [...chatTabs, chatId] });
+      },
+      closeChatTab: (chatId) => {
+        const { chatTabs } = get();
+        if (!chatTabs.includes(chatId)) return;
+        set({ chatTabs: chatTabs.filter((id) => id !== chatId) });
+      },
+
       pendingFileOpen: null,
       pendingDiffFile: null,
       consumeDiffFileJump: () => set({ pendingDiffFile: null }),
@@ -263,23 +280,6 @@ export const useUIStore = create<UIStoreState>()(
         });
       },
 
-      splitView: (direction, tileId) => {
-        const state = get();
-        if (!state.openTabs.includes(tileId)) return;
-        // Already on screen — just focus it, don't duplicate it into the layout.
-        // Otherwise 'row' adds it beside the last row, 'column' starts a new row.
-        const visibleLayout = state.visibleLayout.flat().includes(tileId)
-          ? state.visibleLayout
-          : direction === 'row'
-            ? appendToLastRow(state.visibleLayout, tileId)
-            : [...state.visibleLayout, [tileId]];
-        set({
-          visibleLayout,
-          focusedTile: tileId,
-          activeAgentTile: agentTileFor(tileId),
-        });
-      },
-
       focusTile: (tileId) => {
         if (get().focusedTile === tileId) return;
         // Single focus path for both tab and pane clicks. activeAgentTile is the
@@ -317,7 +317,9 @@ export const useUIStore = create<UIStoreState>()(
           return;
         }
         if (state.openTabs.includes(tileId)) {
-          if (toggle) get().removeTab(tileId);
+          // Views have no tabs, so toggle keys on visibility: an on-screen view
+          // closes; one kept mounted in the background resurfaces instead.
+          if (toggle && state.visibleLayout.flat().includes(tileId)) get().removeTab(tileId);
           else get().activateTab(tileId);
         } else {
           set({ openTabs: [...state.openTabs, tileId] });
@@ -330,8 +332,19 @@ export const useUIStore = create<UIStoreState>()(
         // Split controls used from the secondary pane open <view>:secondary.
         const secondary = isSecondaryPaneActive(state.activeAgentTile, state.secondaryChatId);
         const tileId = viewTypeToTileId(view, secondary);
-        if (!state.openTabs.includes(tileId)) set({ openTabs: [...state.openTabs, tileId] });
-        get().splitView(direction, tileId);
+        // Already on screen — just focus it, don't duplicate it into the layout.
+        // Otherwise 'row' adds it beside the last row, 'column' starts a new row.
+        const visibleLayout = state.visibleLayout.flat().includes(tileId)
+          ? state.visibleLayout
+          : direction === 'row'
+            ? appendToLastRow(state.visibleLayout, tileId)
+            : [...state.visibleLayout, [tileId]];
+        set({
+          openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
+          visibleLayout,
+          focusedTile: tileId,
+          activeAgentTile: agentTileFor(tileId),
+        });
       },
 
       removeTab: (tileId) => {
@@ -344,8 +357,13 @@ export const useUIStore = create<UIStoreState>()(
         }
         const openTabs = state.openTabs.filter((t) => t !== tileId);
         let visibleLayout = filterLayout(state.visibleLayout, (t) => t !== tileId);
-        // Never leave an empty viewport — fall back to the last remaining open tab.
-        if (visibleLayout.length === 0) visibleLayout = [[openTabs[openTabs.length - 1]]];
+        // Never leave an empty viewport — closing a full-screen view lands back on
+        // its own chat's agent pane (agent:secondary for a secondary-pane view),
+        // not whatever background view happened to be opened last.
+        if (visibleLayout.length === 0) {
+          const owner = agentTileFor(tileId);
+          visibleLayout = [[openTabs.includes(owner) ? owner : 'agent:primary']];
+        }
         const patch: Partial<UIStoreState> = {
           openTabs,
           visibleLayout,
@@ -375,6 +393,9 @@ export const useUIStore = create<UIStoreState>()(
 
       loadWorkspaceForChat: (chatId) => {
         const state = get();
+        // Visiting a chat adds it to the title-bar working set — runs before the
+        // early return so a rehydrated same-chat entry still keeps its tab.
+        get().openChatTab(chatId);
         if (state.currentWorkspaceChatId === chatId) return;
         const layoutsByChat = { ...state.layoutsByChat };
         // Stash the chat we're leaving before swapping in the new one's tabs.
@@ -416,6 +437,7 @@ export const useUIStore = create<UIStoreState>()(
         set({
           editorByChat,
           layoutsByChat,
+          chatTabs: state.chatTabs.filter((id) => id !== chatId),
           // Deleting the on-screen chat navigates away after this runs, and
           // ChatPage's unmount stash would write the deleted entry right back —
           // null the live pointer so that stash no-ops (same resurrection guard
@@ -430,12 +452,15 @@ export const useUIStore = create<UIStoreState>()(
         // reference a deleted chat — without the reset, the next
         // loadWorkspaceForChat would stash it right back into layoutsByChat.
         get().resetWorkspace();
-        set({ editorByChat: {}, layoutsByChat: {} });
+        set({ editorByChat: {}, layoutsByChat: {}, chatTabs: [] });
         clearTerminalStorage();
       },
 
       openChatInSplit: (chatId) => {
         const state = get();
+        // A chat opened in split joins the working set — it stays reachable from
+        // the tab strip after the split closes.
+        get().openChatTab(chatId);
         // When the secondary slot shows a different chat, default the active pane
         // back to primary and drop a jump still pending for the replaced chat.
         const secondaryChanged = state.secondaryChatId !== chatId;
@@ -482,14 +507,6 @@ export const useUIStore = create<UIStoreState>()(
           set(reset);
         }
       },
-
-      swapChatPanes: (currentPrimaryChatId) => {
-        const state = get();
-        const newPrimary = state.secondaryChatId;
-        if (!newPrimary) return null;
-        set({ secondaryChatId: currentPrimaryChatId });
-        return newPrimary;
-      },
     }),
     {
       name: 'ui-storage',
@@ -508,6 +525,7 @@ export const useUIStore = create<UIStoreState>()(
         // Persist each chat's open files + active file so a refresh reopens what
         // the user had open, instead of rehydrating to an empty editor.
         editorByChat: state.editorByChat,
+        chatTabs: state.chatTabs,
       }),
     },
   ),
