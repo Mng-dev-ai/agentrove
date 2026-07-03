@@ -23,6 +23,7 @@ from app.prompts.generate_pr_description import (
     GENERATE_PR_DESCRIPTION_SYSTEM_PROMPT,
     GENERATE_PR_DESCRIPTION_TITLE_PREFIX,
 )
+from app.prompts.inline_chat import INLINE_CHAT_SYSTEM_PROMPT
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.prompts.generate_title import GENERATE_TITLE_SYSTEM_PROMPT
 from app.services.acp.adapters import AGENT_ADAPTERS, NORMAL_SESSION_MODE, AgentKind
@@ -314,6 +315,37 @@ class AgentService:
         )
         if not result:
             raise AgentException("AI returned an empty commit message")
+        return result
+
+    async def answer_code_question(
+        self,
+        question: str,
+        code: str,
+        file_path: str,
+        language: str,
+        start_line: int,
+        end_line: int,
+        model_id: str,
+        user: User,
+        chat: Chat,
+    ) -> str:
+        line_ref = (
+            str(start_line)
+            if start_line == end_line
+            else str(start_line) + "-" + str(end_line)
+        )
+        # XML-ish wrapping instead of Markdown fences — snippets can contain
+        # backtick runs that would close any fence we pick.
+        user_message = (
+            "File: " + file_path + " (lines " + line_ref + ", " + language + ")\n"
+            "<code>\n" + code + "\n</code>\n\n"
+            "<question>\n" + question + "\n</question>"
+        )
+        result = await self._generate_text(
+            INLINE_CHAT_SYSTEM_PROMPT, user_message, model_id, user, chat=chat
+        )
+        if not result:
+            raise AgentException("AI returned an empty answer")
         return result
 
     async def _generate_text(

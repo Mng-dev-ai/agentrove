@@ -15,7 +15,7 @@ import type {
 import { chatService } from '@/services/chatService';
 import { isCloudChat } from '@/utils/chatOrigin';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
-import { useUIStore } from '@/store/uiStore';
+import { useUIStore, type EditorCodeSelection } from '@/store/uiStore';
 import type { Chat, ChatSearchResponse, ContextUsage, CreateChatRequest } from '@/types/chat.types';
 import type { ChangedFilesData, FileDiffData } from '@/types/sandbox.types';
 import type { PaginatedChats } from '@/types/api.types';
@@ -367,5 +367,19 @@ export const useEnhancePromptMutation = (
     mutationFn: ({ prompt, modelId }: EnhancePromptParams) =>
       chatService.enhancePrompt(prompt, modelId),
     ...options,
+  });
+};
+
+interface AskAboutCodeParams {
+  chatId: string;
+  selection: EditorCodeSelection;
+  question: string;
+  modelId: string;
+}
+
+export const useAskAboutCodeMutation = () => {
+  return useMutation({
+    mutationFn: ({ chatId, selection, question, modelId }: AskAboutCodeParams) =>
+      chatService.askAboutCode(chatId, selection, question, modelId),
   });
 };

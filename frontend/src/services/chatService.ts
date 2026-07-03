@@ -12,6 +12,7 @@ import type {
 } from '@/types/chat.types';
 import type { ChangedFilesData, FileDiffData, GitCommitResult } from '@/types/sandbox.types';
 import type { CursorPaginationParams, PaginatedChats, PaginatedMessages } from '@/types/api.types';
+import type { EditorCodeSelection } from '@/store/uiStore';
 
 export function buildChatFormData(request: ChatRequest): FormData {
   // Single encoding of the /chat/chat multipart contract — shared with
@@ -354,6 +355,34 @@ async function enhancePrompt(prompt: string, modelId: string): Promise<string> {
   });
 }
 
+async function askAboutCode(
+  chatId: string,
+  selection: EditorCodeSelection,
+  question: string,
+  modelId: string,
+): Promise<string> {
+  validateId(chatId, 'Chat ID');
+  validateRequired(question, 'Question');
+  validateRequired(modelId, 'Model ID');
+
+  return serviceCall(async () => {
+    const response = await resolveChatClient(chatId).post<{ answer: string }>(
+      `/chat/chats/${chatId}/ask-code`,
+      {
+        question,
+        code: selection.text,
+        file_path: selection.path,
+        language: selection.languageId,
+        start_line: selection.startLine,
+        end_line: selection.endLine,
+        model_id: modelId,
+      },
+    );
+
+    return ensureResponse(response, 'Failed to answer question').answer;
+  });
+}
+
 async function generateChatTitle(chatId: string): Promise<string> {
   validateId(chatId, 'Chat ID');
 
@@ -430,6 +459,7 @@ export const chatService = {
   deleteAllChats,
   getContextUsage,
   enhancePrompt,
+  askAboutCode,
   generateChatTitle,
   getMessageChanges,
   getMessageFileDiff,
