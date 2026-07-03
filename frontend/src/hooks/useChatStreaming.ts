@@ -335,18 +335,35 @@ export function useChatStreaming({
       // Selection chips live in the UI store; serialize them into the prompt
       // only now so the visible input text stays clean while they're attached.
       const selections = chatId ? (useUIStore.getState().editorSelectionsByChat[chatId] ?? []) : [];
+      const draftMessage = inputMessageRef.current;
+      const draftFiles = inputFiles;
+      // Clear optimistically — the send awaits a server round-trip (startStream),
+      // and the draft would otherwise linger in the input bar until it resolves.
+      clearInput();
+      if (chatId && selections.length > 0) {
+        useUIStore.getState().clearEditorSelections(chatId);
+      }
       const result = await handleMessageSendAction(
-        formatEditorSelections(selections, inputMessageRef.current),
-        inputFiles,
+        formatEditorSelections(selections, draftMessage),
+        draftFiles,
       );
-      if (result?.success) {
-        clearInput();
-        if (chatId && selections.length > 0) {
-          useUIStore.getState().clearEditorSelections(chatId);
+      if (!result?.success) {
+        // Send failed or was rejected (validation toast) — restore the draft.
+        setInputMessageWithRef(draftMessage);
+        setInputFiles(draftFiles);
+        if (chatId) {
+          selections.forEach((sel) => useUIStore.getState().addEditorSelection(chatId, sel));
         }
       }
     },
-    [chatId, handleMessageSendAction, inputFiles, clearInput],
+    [
+      chatId,
+      handleMessageSendAction,
+      inputFiles,
+      clearInput,
+      setInputMessageWithRef,
+      setInputFiles,
+    ],
   );
 
   return {
