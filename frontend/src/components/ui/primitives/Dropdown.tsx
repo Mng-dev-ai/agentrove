@@ -150,9 +150,9 @@ function DropdownInner<T>({
   const showIconOnly = (compactOnMobile || forceCompact) && LeftIcon;
   const labelClasses = showIconOnly
     ? forceCompact
-      ? 'hidden truncate text-2xs font-medium text-text-primary dark:text-text-dark-secondary'
-      : 'hidden sm:inline truncate text-2xs font-medium text-text-primary dark:text-text-dark-secondary'
-    : 'truncate text-2xs font-medium text-text-primary dark:text-text-dark-secondary';
+      ? 'hidden truncate text-2xs font-medium text-text-secondary dark:text-text-dark-secondary'
+      : 'hidden sm:inline truncate text-2xs font-medium text-text-secondary dark:text-text-dark-secondary'
+    : 'truncate text-2xs font-medium text-text-secondary dark:text-text-dark-secondary';
   const chevronClasses = showIconOnly
     ? forceCompact
       ? 'hidden'

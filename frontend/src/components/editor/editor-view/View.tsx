@@ -9,7 +9,9 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useEditorTheme } from '@/hooks/useEditorTheme';
 import { attachEditorNavigationContext, setupEditorNavigation } from '@/lib/editorNavigation';
 import type { EditorNavigationContext } from '@/lib/editorNavigation';
-import { attachAddSelectionToChat } from '@/lib/editorChatActions';
+import { attachAddSelectionToChat, attachAskAboutSelection } from '@/lib/editorChatActions';
+import { InlineChatWidget } from './InlineChatWidget';
+import type { EditorCodeSelection } from '@/store/uiStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useEditorDrafts } from '@/hooks/useEditorDrafts';
 import type { FileStructure } from '@/types/file-system.types';
@@ -50,9 +52,20 @@ export const View = memo(function View({
   const theme = useResolvedTheme();
   const [showPreview, setShowPreview] = useState(false);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
   const selectedFilePath = selectedFile?.path ?? null;
   const mountedEditorPathRef = useRef(selectedFilePath);
   const [mountedEditorPath, setMountedEditorPath] = useState<string | null>(null);
+  const [inlineChat, setInlineChat] = useState<{
+    selection: EditorCodeSelection;
+    nonce: number;
+  } | null>(null);
+
+  // Nonce remounts the widget on every trigger — line ranges alone can't tell
+  // a new selection from the last one (same lines, different text/columns).
+  const openInlineChat = useCallback((selection: EditorCodeSelection) => {
+    setInlineChat((prev) => ({ selection, nonce: (prev?.nonce ?? 0) + 1 }));
+  }, []);
 
   if (mountedEditorPathRef.current !== selectedFilePath) {
     // Content remounts by path; clear stale Monaco refs before jump effects run.
@@ -162,15 +175,17 @@ export const View = memo(function View({
       if (!selectedFilePath) return;
 
       editorRef.current = editor;
+      monacoRef.current = monaco;
       setupEditorTheme(monaco);
       setupEditorNavigation(monaco);
       // A sandbox-less context is inert (contextForResource rejects it), so
       // attaching unconditionally is safe and picks up a late-arriving sandbox.
       attachEditorNavigationContext(editor, navigationContext.current);
       attachAddSelectionToChat(monaco, editor, navigationContext.current);
+      attachAskAboutSelection(monaco, editor, openInlineChat);
       setMountedEditorPath(selectedFilePath);
     },
-    [selectedFilePath, setupEditorTheme],
+    [selectedFilePath, setupEditorTheme, openInlineChat],
   );
 
   const lastAppliedTargetRef = useRef<string>('');
@@ -243,7 +258,14 @@ export const View = memo(function View({
     if (isPreviewFullscreen) {
       setIsPreviewFullscreen(false);
     }
+    // Sole inline-chat reset: preview toggles and file switches both remount
+    // Content, so the widget's captured editor would go stale either way.
+    if (inlineChat !== null) setInlineChat(null);
   }
+
+  const handleCloseInlineChat = useCallback(() => {
+    setInlineChat(null);
+  }, []);
 
   const handleTogglePreviewFullscreen = useCallback(() => {
     setIsPreviewFullscreen((prev) => !prev);
@@ -326,6 +348,23 @@ export const View = memo(function View({
                 </div>
               </div>
             )}
+
+            {/* Listed before Content so its cleanup removes the content widget
+                before @monaco-editor/react disposes the editor on unmount. */}
+            {!(isPreviewable && showPreview) &&
+              inlineChat &&
+              chatId &&
+              editorRef.current &&
+              monacoRef.current && (
+                <InlineChatWidget
+                  key={inlineChat.nonce}
+                  monaco={monacoRef.current}
+                  editor={editorRef.current}
+                  chatId={chatId}
+                  selection={inlineChat.selection}
+                  onClose={handleCloseInlineChat}
+                />
+              )}
 
             {!(isPreviewable && showPreview) && (
               <Content

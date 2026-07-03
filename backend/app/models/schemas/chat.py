@@ -108,6 +108,20 @@ class EnhancePromptResponse(BaseModel):
     enhanced_prompt: str
 
 
+class AskCodeRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=10000)
+    code: str = Field(..., min_length=1, max_length=100000)
+    file_path: str = Field(..., min_length=1, max_length=1024)
+    language: str = Field(..., min_length=1, max_length=64)
+    start_line: int = Field(..., ge=1)
+    end_line: int = Field(..., ge=1)
+    model_id: str = Field(..., min_length=1, max_length=255)
+
+
+class AskCodeResponse(BaseModel):
+    answer: str
+
+
 class GenerateTitleResponse(BaseModel):
     title: str
 

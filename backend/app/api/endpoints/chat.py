@@ -36,6 +36,8 @@ from app.models.db_models.user import User
 from app.models.types import MessageAttachmentDict, PermissionMode
 from app.models.schemas.chat import (
     ActiveStreamStatus,
+    AskCodeRequest,
+    AskCodeResponse,
     Chat as ChatSchema,
     ChatCompletionResponse,
     ChatCreate,
@@ -198,6 +200,32 @@ async def generate_chat_title(
             detail="Title generation failed",
         )
     return {"title": title[:255]}
+
+
+@router.post("/chats/{chat_id}/ask-code", response_model=AskCodeResponse)
+async def ask_about_code(
+    request: AskCodeRequest,
+    chat: Chat = Depends(ensure_chat_access),
+    current_user: User = Depends(get_current_user),
+    ai_service: AgentService = Depends(get_agent_service),
+) -> dict[str, str]:
+    # Editor inline chat: one-off Q&A about a code selection — no chat turn or
+    # message rows; the chat only supplies workspace context and access control.
+    try:
+        answer = await ai_service.answer_code_question(
+            request.question,
+            request.code,
+            request.file_path,
+            request.language,
+            request.start_line,
+            request.end_line,
+            request.model_id,
+            current_user,
+            chat=chat,
+        )
+    except AgentException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return {"answer": answer}
 
 
 @router.get("/chats", response_model=PaginatedResponse[ChatSchema])

@@ -96,6 +96,7 @@ class ChatCompletionServiceOverride:
 class AgentServiceOverride:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, User]] = []
+        self.ask_code_calls: list[tuple[str, str, str, str, User, Chat]] = []
         self.fail = False
 
     def __call__(self) -> "AgentServiceOverride":
@@ -106,6 +107,23 @@ class AgentServiceOverride:
         if self.fail:
             raise AgentException("Enhance failed", status_code=503)
         return "Enhanced: " + prompt
+
+    async def answer_code_question(
+        self,
+        question: str,
+        code: str,
+        file_path: str,
+        language: str,
+        start_line: int,
+        end_line: int,
+        model_id: str,
+        user: User,
+        chat: Chat,
+    ) -> str:
+        self.ask_code_calls.append((question, code, file_path, model_id, user, chat))
+        if self.fail:
+            raise AgentException("Ask failed", status_code=503)
+        return "Answer: " + question
 
 
 @pytest.fixture
@@ -360,6 +378,71 @@ async def test_enhance_prompt_endpoint_uses_agent_service(
 
     assert failure_response.status_code == 503
     assert failure_response.json()["detail"] == "Enhance failed"
+
+
+async def test_ask_code_endpoint_answers_and_enforces_chat_access(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    agent_service = AgentServiceOverride()
+    app.dependency_overrides[get_agent_service] = agent_service
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="ask-code-owner@example.com",
+        username="askcodeowner",
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    payload = {
+        "question": "What does this do?",
+        "code": "def add(a, b):\n    return a + b",
+        "file_path": "src/math.py",
+        "language": "python",
+        "start_line": 1,
+        "end_line": 2,
+        "model_id": TEST_MODEL_ID,
+    }
+    response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/ask-code", json=payload, headers=headers
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"answer": "Answer: What does this do?"}
+    [(question, code, file_path, model_id, stored_user, stored_chat)] = (
+        agent_service.ask_code_calls
+    )
+    assert (question, code, file_path, model_id) == (
+        payload["question"],
+        payload["code"],
+        payload["file_path"],
+        TEST_MODEL_ID,
+    )
+    assert stored_user.id == user.id
+    assert stored_chat.id == chat.id
+
+    other_headers, _other_user, _other_workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="ask-code-other@example.com",
+        username="askcodeother",
+    )
+    other_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/ask-code", json=payload, headers=other_headers
+    )
+    assert other_response.status_code == 404
+
+    agent_service.fail = True
+    failure_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/ask-code", json=payload, headers=headers
+    )
+    assert failure_response.status_code == 503
+    assert failure_response.json()["detail"] == "Ask failed"
 
 
 async def test_chat_access_is_limited_to_owner(
