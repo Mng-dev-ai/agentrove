@@ -1,5 +1,6 @@
 import { createContext, type RefObject } from 'react';
 import type { MentionItem, SlashCommand } from '@/types/ui.types';
+import type { EditorCodeSelection } from '@/store/uiStore';
 import type { ContextUsageInfo } from './ContextUsageIndicator';
 
 export interface InputState {
@@ -10,6 +11,7 @@ export interface InputState {
   isStreaming: boolean;
   isEnhancing: boolean;
   hasMessage: boolean;
+  hasContent: boolean;
   hasAttachments: boolean;
   showPreview: boolean;
   showFileUpload: boolean;
@@ -22,6 +24,7 @@ export interface InputState {
   selectedModelId: string;
   dropdownPosition: 'top' | 'bottom';
   attachedFiles: File[] | null;
+  attachedSelections: EditorCodeSelection[];
   previewUrls: string[];
   editingImageIndex: number | null;
   contextUsage?: ContextUsageInfo;
@@ -45,6 +48,7 @@ export interface InputActions {
   handleEnhancePrompt: () => void;
   handleFileSelect: (files: File[]) => void;
   handleRemoveFile: (index: number) => void;
+  handleRemoveSelection: (index: number) => void;
   handleDrawClick: (index: number) => void;
   handleDrawingSave: (dataUrl: string) => Promise<void>;
   closeDrawingModal: () => void;

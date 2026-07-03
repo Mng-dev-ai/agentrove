@@ -9,6 +9,7 @@ import { EnhanceButton } from './EnhanceButton';
 import { Textarea } from './Textarea';
 import { InputControls } from './InputControls';
 import { InputAttachments } from './InputAttachments';
+import { SelectionAttachments } from './SelectionAttachments';
 import { InputSuggestionsPanel } from './InputSuggestionsPanel';
 import { ContextUsageIndicator } from './ContextUsageIndicator';
 import { InputProvider } from './InputProvider';
@@ -55,12 +56,12 @@ function InputLayout() {
     state.attachedFiles.length > 0;
 
   const sendStatus: SendButtonStatus = state.isStreaming
-    ? state.hasMessage
+    ? state.hasContent
       ? 'ready'
       : 'streaming'
     : state.isLoading
       ? 'loading'
-      : state.hasMessage
+      : state.hasContent
         ? 'ready'
         : 'idle';
 
@@ -84,6 +85,11 @@ function InputLayout() {
             onEditImage={actions.handleDrawClick}
           />
         )}
+
+        <SelectionAttachments
+          selections={state.attachedSelections}
+          onRemove={actions.handleRemoveSelection}
+        />
 
         <div className="relative px-4 pt-2.5">
           <Textarea

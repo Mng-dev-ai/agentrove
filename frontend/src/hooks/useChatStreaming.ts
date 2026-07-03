@@ -15,6 +15,8 @@ import { useClipboard } from '@/hooks/useClipboard';
 import { useStreamCallbacks } from '@/hooks/useStreamCallbacks';
 import { useStreamReconnect } from '@/hooks/useStreamReconnect';
 import { chatService } from '@/services/chatService';
+import { useUIStore } from '@/store/uiStore';
+import { formatEditorSelections } from '@/lib/editorChatActions';
 
 interface UseChatStreamingParams {
   chatId: string | undefined;
@@ -330,12 +332,21 @@ export function useChatStreaming({
   const handleMessageSend = useCallback(
     async (event: FormEvent) => {
       event.preventDefault();
-      const result = await handleMessageSendAction(inputMessageRef.current, inputFiles);
+      // Selection chips live in the UI store; serialize them into the prompt
+      // only now so the visible input text stays clean while they're attached.
+      const selections = chatId ? (useUIStore.getState().editorSelectionsByChat[chatId] ?? []) : [];
+      const result = await handleMessageSendAction(
+        formatEditorSelections(selections, inputMessageRef.current),
+        inputFiles,
+      );
       if (result?.success) {
         clearInput();
+        if (chatId && selections.length > 0) {
+          useUIStore.getState().clearEditorSelections(chatId);
+        }
       }
     },
-    [handleMessageSendAction, inputFiles, clearInput],
+    [chatId, handleMessageSendAction, inputFiles, clearInput],
   );
 
   return {
