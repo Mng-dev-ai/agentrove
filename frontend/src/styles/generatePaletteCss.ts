@@ -66,45 +66,14 @@ const DIFF_OVERRIDES: Record<string, string> = {
   'bg-selection-number': 'surface-active',
 };
 
-// Add/delete tints are semantic, not per-palette: they mirror the success/error scale in
-// tailwind.config.js (light base → 600 step, dark base → 400 step), matching the +/- count
-// badges in DiffView. Only the diff's green/red rows are pulled onto our tokens so they stop
-// reading as Pierre's default theme; surfaces still come from DIFF_OVERRIDES.
-const DIFF_SEMANTIC_CHANNELS = {
-  light: { addition: hexToChannels('#16a34a'), deletion: hexToChannels('#dc2626') },
-  dark: { addition: hexToChannels('#4ade80'), deletion: hexToChannels('#f87171') },
-} as const;
-
-type DiffSemanticSide = keyof (typeof DIFF_SEMANTIC_CHANNELS)['light'];
-
-// Pierre var (sans `--diffs-`/`-override`) → [semantic side, alpha]. Rows and gutter cells get
-// a subtle tint; intra-line emphasis is stronger; number text and the accent marker are solid.
-const DIFF_SEMANTIC_OVERRIDES: Record<string, readonly [DiffSemanticSide, number]> = {
-  'bg-addition': ['addition', 0.15],
-  'bg-deletion': ['deletion', 0.15],
-  'bg-addition-emphasis': ['addition', 0.3],
-  'bg-deletion-emphasis': ['deletion', 0.3],
-  'bg-addition-number': ['addition', 0.15],
-  'bg-deletion-number': ['deletion', 0.15],
-  'fg-number-addition': ['addition', 1],
-  'fg-number-deletion': ['deletion', 1],
-  'addition-color': ['addition', 1],
-  'deletion-color': ['deletion', 1],
-};
-
 export function generateDiffPaletteCss(): string {
   const blocks = (Object.keys(PALETTES) as (keyof typeof PALETTES)[]).map((name) => {
     const dark = PALETTES[name].base === 'dark';
-    const channels = DIFF_SEMANTIC_CHANNELS[dark ? 'dark' : 'light'];
-    const surfaceLines = Object.entries(DIFF_OVERRIDES).map(([diffVar, token]) => {
+    const lines = Object.entries(DIFF_OVERRIDES).map(([diffVar, token]) => {
       const ref = dark ? toDarkVar(token) : token;
       return `  --diffs-${diffVar}-override: rgb(var(--${ref}) / 1);`;
     });
-    const semanticLines = Object.entries(DIFF_SEMANTIC_OVERRIDES).map(
-      ([diffVar, [side, alpha]]) =>
-        `  --diffs-${diffVar}-override: rgb(${channels[side]} / ${alpha});`,
-    );
-    return `:root[data-palette='${name}'] {\n${[...surfaceLines, ...semanticLines].join('\n')}\n}`;
+    return `:root[data-palette='${name}'] {\n${lines.join('\n')}\n}`;
   });
   return `${blocks.join('\n\n')}\n`;
 }
