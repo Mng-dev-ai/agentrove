@@ -73,7 +73,15 @@ export function generateDiffPaletteCss(): string {
       const ref = dark ? toDarkVar(token) : token;
       return `  --diffs-${diffVar}-override: rgb(var(--${ref}) / 1);`;
     });
-    return `:root[data-palette='${name}'] {\n${lines.join('\n')}\n}`;
+    // The main code/gutter background has no -override hook — pierre derives it from the
+    // Shiki theme's bg via --diffs-light-bg/--diffs-dark-bg, set on :host inside the shadow
+    // root. Outer-context declarations on the host element beat shadow :host rules, so
+    // re-point the active slot at the palette surface. Must target diffs-container, not
+    // :root — :host sets the var on the host directly, which beats inheritance.
+    const bgVar = dark ? 'dark-bg' : 'light-bg';
+    const bgRef = dark ? toDarkVar('surface-secondary') : 'surface-secondary';
+    const host = `:root[data-palette='${name}'] diffs-container {\n  --diffs-${bgVar}: rgb(var(--${bgRef}) / 1);\n}`;
+    return `:root[data-palette='${name}'] {\n${lines.join('\n')}\n}\n${host}`;
   });
   return `${blocks.join('\n\n')}\n`;
 }
