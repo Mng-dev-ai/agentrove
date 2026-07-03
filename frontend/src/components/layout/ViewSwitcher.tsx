@@ -30,7 +30,7 @@ const VIEW_SHORTCUTS = new Map<ViewType, string>(
 function viewTooltip(view: SwitchableView): string {
   const shortcut = VIEW_SHORTCUTS.get(view);
   const label = shortcut ? `${VIEW_LABELS[view]} · ${shortcut}` : VIEW_LABELS[view];
-  return `${label} · Right-click to split`;
+  return `${label} · ⇧-click or right-click to split`;
 }
 
 export function ViewSwitcher({ views = SWITCHABLE_VIEWS }: { views?: SwitchableView[] }) {
@@ -55,10 +55,16 @@ export function ViewSwitcher({ views = SWITCHABLE_VIEWS }: { views?: SwitchableV
           <Tooltip key={view} content={viewTooltip(view)} position="bottom-end">
             <Button
               variant="unstyled"
-              // Left-click toggles the view full; right-click opens it beside the
-              // active pane (with no view tabs, this and the command palette are
-              // the only split gestures).
-              onClick={() => useUIStore.getState().toggleView(view, true)}
+              // Left-click toggles the view full; shift-click or right-click
+              // opens it beside the active pane (with no view tabs, these and
+              // the command palette are the only split gestures).
+              onClick={(e) => {
+                if (e.shiftKey && !isMobile) {
+                  useUIStore.getState().addViewToSplit(view, 'row');
+                  return;
+                }
+                useUIStore.getState().toggleView(view, true);
+              }}
               onContextMenu={(e) => {
                 // Splitting is a desktop layout; leave the native long-press menu
                 // alone on mobile, where the workspace is single-pane anyway.
