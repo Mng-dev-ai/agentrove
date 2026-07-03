@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useUIStore } from '@/store/uiStore';
-import type { CustomPalette } from '@/utils/theme';
+import type { CustomPalette, PaletteTokens } from '@/utils/theme';
 import { CUSTOM_PALETTE_TOKENS, DARK_PALETTES } from '@/utils/theme';
 import type { Palette } from '@/types/ui.types';
 import type * as monaco from 'monaco-editor';
@@ -40,6 +40,30 @@ const LIGHT_THEME: monaco.editor.IStandaloneThemeData = {
     'editorIndentGuide.activeBackground': '#00000000',
     'scrollbar.shadow': '#00000000',
     'editorOverviewRuler.border': '#00000000',
+    // Monochrome go-to-definition affordances: ctrl+hover link + peek widget.
+    'editorLink.activeForeground': '#24292E',
+    'peekView.border': '#E5E5E5',
+    'peekViewEditor.background': '#FFFFFF',
+    'peekViewEditor.matchHighlightBackground': '#E8E8E8',
+    'peekViewResult.background': '#FFFFFF',
+    'peekViewResult.matchHighlightBackground': '#F0F0F0',
+    'peekViewResult.selectionBackground': '#F0F0F0',
+    'peekViewResult.selectionForeground': '#24292E',
+    'peekViewResult.fileForeground': '#24292E',
+    'peekViewResult.lineForeground': '#8B949E',
+    'peekViewTitle.background': '#FFFFFF',
+    'peekViewTitleLabel.foreground': '#24292E',
+    'peekViewTitleDescription.foreground': '#8B949E',
+    // The peek results tree is a generic Monaco list; kill the blue focus
+    // outline and badge so selection stays monochrome.
+    'list.focusOutline': '#00000000',
+    'list.focusBackground': '#F0F0F0',
+    'list.activeSelectionBackground': '#F0F0F0',
+    'list.activeSelectionForeground': '#24292E',
+    'list.inactiveSelectionBackground': '#F0F0F0',
+    'list.hoverBackground': '#F5F5F5',
+    'badge.background': '#E8E8E8',
+    'badge.foreground': '#5A5A5A',
   },
 };
 
@@ -77,6 +101,30 @@ const DARK_THEME: monaco.editor.IStandaloneThemeData = {
     'editorIndentGuide.activeBackground': '#00000000',
     'scrollbar.shadow': '#00000000',
     'editorOverviewRuler.border': '#00000000',
+    // Monochrome go-to-definition affordances: ctrl+hover link + peek widget.
+    'editorLink.activeForeground': '#C8C8C8',
+    'peekView.border': '#2A2A2A',
+    'peekViewEditor.background': '#1A1A1A',
+    'peekViewEditor.matchHighlightBackground': '#2A2A2A',
+    'peekViewResult.background': '#1A1A1A',
+    'peekViewResult.matchHighlightBackground': '#333333',
+    'peekViewResult.selectionBackground': '#252525',
+    'peekViewResult.selectionForeground': '#C8C8C8',
+    'peekViewResult.fileForeground': '#B0B0B0',
+    'peekViewResult.lineForeground': '#555555',
+    'peekViewTitle.background': '#1A1A1A',
+    'peekViewTitleLabel.foreground': '#B0B0B0',
+    'peekViewTitleDescription.foreground': '#555555',
+    // The peek results tree is a generic Monaco list; kill the blue focus
+    // outline and badge so selection stays monochrome.
+    'list.focusOutline': '#00000000',
+    'list.focusBackground': '#252525',
+    'list.activeSelectionBackground': '#252525',
+    'list.activeSelectionForeground': '#C8C8C8',
+    'list.inactiveSelectionBackground': '#252525',
+    'list.hoverBackground': '#202020',
+    'badge.background': '#2A2A2A',
+    'badge.foreground': '#A0A0A0',
   },
 };
 
@@ -85,9 +133,10 @@ const DARK_THEME: monaco.editor.IStandaloneThemeData = {
 // surface = editor.background; widget = suggest/widget popup background.
 function skin(
   base: monaco.editor.IStandaloneThemeData,
-  surface: string,
-  widget: string,
+  tokens: PaletteTokens,
 ): monaco.editor.IStandaloneThemeData {
+  const surface = tokens.surfaceSecondary;
+  const widget = tokens.surface;
   return {
     ...base,
     rules: base.rules.map((r) => (r.token === '' ? { ...r, background: surface } : r)),
@@ -96,6 +145,20 @@ function skin(
       'editor.background': surface,
       'editorSuggestWidget.background': widget,
       'editorWidget.background': widget,
+      'peekViewEditor.background': surface,
+      'peekViewResult.background': widget,
+      'peekViewTitle.background': widget,
+      // Selection/hover/badge must track the palette too — the base theme's
+      // grays read inverted against re-skinned surfaces.
+      'peekViewResult.selectionBackground': tokens.surfaceTertiary,
+      'peekViewResult.selectionForeground': tokens.textPrimary,
+      'list.focusBackground': tokens.surfaceTertiary,
+      'list.activeSelectionBackground': tokens.surfaceTertiary,
+      'list.activeSelectionForeground': tokens.textPrimary,
+      'list.inactiveSelectionBackground': tokens.surfaceTertiary,
+      'list.hoverBackground': tokens.surfaceTertiary,
+      'badge.background': tokens.surfaceTertiary,
+      'badge.foreground': tokens.textSecondary,
     },
   };
 }
@@ -105,7 +168,7 @@ const CUSTOM_THEMES = Object.fromEntries(
   (Object.keys(CUSTOM_PALETTE_TOKENS) as CustomPalette[]).map((p) => {
     const tokens = CUSTOM_PALETTE_TOKENS[p];
     const base = DARK_PALETTES.has(p) ? DARK_THEME : LIGHT_THEME;
-    return [p, skin(base, tokens.surfaceSecondary, tokens.surface)];
+    return [p, skin(base, tokens)];
   }),
 ) as Record<CustomPalette, monaco.editor.IStandaloneThemeData>;
 

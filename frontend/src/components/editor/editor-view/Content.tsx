@@ -36,6 +36,9 @@ const EDITOR_OPTIONS = {
     indentation: false,
   },
   renderLineHighlightOnlyWhenFocus: true,
+  // On by default since monaco 0.44; the peek preview inherits it and burns
+  // rows on pinned ancestor scopes in an already-small viewport.
+  stickyScroll: { enabled: false },
   cursorBlinking: 'smooth',
   cursorSmoothCaretAnimation: 'on',
   smoothScrolling: true,
