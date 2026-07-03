@@ -159,16 +159,16 @@ export function TitleBar() {
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Left section — wears the sidebar color only while the sidebar is open (so it
-          reads as the sidebar's header strip); otherwise matches the main bar to avoid
-          a floating two-tone block hugging the icons. */}
+      {/* Left section — same secondary surface as the main band. While the sidebar is
+          open it doubles as the sidebar's header strip (border-r, no hairline below so
+          it merges into the sidebar); when closed the band's hairline runs to the edge. */}
       <div
         className={cn(
-          'flex h-full items-center gap-1 pt-[env(safe-area-inset-top)]',
+          'flex h-full items-center gap-1 bg-surface-secondary pt-[env(safe-area-inset-top)] dark:bg-surface-dark-secondary',
           'transition-[width,padding] duration-[var(--sidebar-transition-duration,500ms)] ease-in-out',
           isAuthenticated && showSidebar && sidebarOpen
-            ? 'w-[var(--sidebar-width)] border-r border-border/50 bg-surface-secondary dark:border-border-dark/50 dark:bg-surface-dark-secondary'
-            : 'w-auto bg-surface dark:bg-surface-dark',
+            ? 'w-[var(--sidebar-width)] border-r border-border/50 dark:border-border-dark/50'
+            : 'w-auto border-b border-border/50 dark:border-border-dark/50',
         )}
       >
         {IS_MACOS_DESKTOP && <TrafficLights />}
@@ -204,10 +204,12 @@ export function TitleBar() {
         {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className="w-1" />}
       </div>
 
-      {/* Main content area — matches main bg. Chat tabs (the open working set)
-          sit on the left; the view switcher stays pinned right. */}
-      <div className="flex h-full min-w-0 flex-1 items-center justify-between gap-2 bg-surface px-3 pt-[env(safe-area-inset-top)] dark:bg-surface-dark">
-        <div className="flex min-w-0 flex-1 items-center gap-1">
+      {/* Main content area — a secondary-surface band with a hairline below, so the
+          active chat tab (browser-style, bg-surface) merges into the page under it.
+          Chat tabs (the open working set) sit on the left; the view switcher stays
+          pinned right. */}
+      <div className="flex h-full min-w-0 flex-1 items-center justify-between gap-2 border-b border-border/50 bg-surface-secondary px-3 pt-[env(safe-area-inset-top)] dark:border-border-dark/50 dark:bg-surface-dark-secondary">
+        <div className="flex h-full min-w-0 flex-1 items-end gap-1">
           {/* Auth gate: on macOS desktop the bar renders even when logged out, and
               persisted chatTabs would fire protected chat queries (and self-close
               on the resulting 401s, wiping the working set). */}
