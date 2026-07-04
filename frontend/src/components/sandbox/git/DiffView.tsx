@@ -25,7 +25,6 @@ import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useFirstPaint } from '@/hooks/useFirstPaint';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
-import { useUIStore } from '@/store/uiStore';
 import { parsePatchFiles, parseDiffFromFile } from '@pierre/diffs';
 import type { FileDiffMetadata, FileContents } from '@pierre/diffs';
 import { DiffFileSidebar, type FileChangeStats } from '@/components/sandbox/git/DiffFileSidebar';
@@ -407,24 +406,6 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     },
     [jumpToFile, filesMenu.close],
   );
-
-  // External request (from ChangedFilesPanel "open in diff view") to focus a
-  // specific file. Best-effort match against parsedFiles — exact, then suffix
-  // either way to absorb cwd/repo-root prefix differences.
-  const pendingDiffFile = useUIStore((s) => s.pendingDiffFile);
-  useEffect(() => {
-    // Ignore jumps bound to a different chat so this tile can't consume one
-    // meant for the other diff tile (or a since-replaced chat in this slot).
-    if (!pendingDiffFile || pendingDiffFile.chatId !== chatId) return;
-    // Wait for fresh rows — placeholder rows belong to the previous scope.
-    if (parsedFiles.length === 0 || isPlaceholderData) return;
-    const path = pendingDiffFile.path;
-    const match =
-      parsedFiles.find((f) => f.name === path) ??
-      parsedFiles.find((f) => f.name.endsWith(path) || path.endsWith(f.name));
-    if (match) jumpToFile(match.name);
-    useUIStore.getState().consumeDiffFileJump();
-  }, [pendingDiffFile, parsedFiles, jumpToFile, chatId, isPlaceholderData]);
 
   // The tile stays mounted while hidden, so switching back to it doesn't remount
   // or refetch. Force a refresh on each hidden→visible transition so the user

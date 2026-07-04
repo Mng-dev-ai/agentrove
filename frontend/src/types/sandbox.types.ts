@@ -81,25 +81,6 @@ export interface GitCreateBranchResult {
   error?: string;
 }
 
-export type ChangedFileStatus = 'M' | 'A' | 'D';
-
-export interface ChangedFile {
-  path: string;
-  status: ChangedFileStatus;
-  additions: number;
-  deletions: number;
-}
-
-export interface ChangedFilesData {
-  files: ChangedFile[];
-  cwd: string;
-}
-
-export interface FileDiffData {
-  path: string;
-  diff: string;
-}
-
 export interface GitRemoteUrlData {
   owner: string;
   repo: string;

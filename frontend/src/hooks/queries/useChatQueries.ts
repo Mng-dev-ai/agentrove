@@ -17,7 +17,6 @@ import { isCloudChat } from '@/utils/chatOrigin';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type EditorCodeSelection } from '@/store/uiStore';
 import type { Chat, ChatSearchResponse, ContextUsage, CreateChatRequest } from '@/types/chat.types';
-import type { ChangedFilesData, FileDiffData } from '@/types/sandbox.types';
 import type { PaginatedChats } from '@/types/api.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
@@ -131,36 +130,6 @@ export const useContextUsageQuery = (
     queryFn: () => chatService.getContextUsage(chatId),
     enabled: !!chatId,
     staleTime: 0,
-    ...options,
-  });
-};
-
-export const useMessageChangesQuery = (
-  chatId: string | undefined,
-  messageId: string | undefined,
-  options?: Partial<UseQueryOptions<ChangedFilesData>>,
-) => {
-  return useQuery({
-    queryKey: queryKeys.messageChanges(chatId, messageId),
-    queryFn: () => chatService.getMessageChanges(chatId, messageId!),
-    enabled: !!messageId,
-    staleTime: Infinity,
-    ...options,
-  });
-};
-
-export const useMessageFileDiffQuery = (
-  chatId: string | undefined,
-  messageId: string | undefined,
-  path: string | undefined,
-  options?: Partial<UseQueryOptions<FileDiffData>>,
-) => {
-  return useQuery({
-    queryKey: queryKeys.messageFileDiff(chatId, messageId, path),
-    queryFn: () => chatService.getMessageFileDiff(chatId, messageId!, path!),
-    enabled: !!messageId && !!path,
-    staleTime: Infinity,
-    gcTime: 1000 * 60 * 5,
     ...options,
   });
 };

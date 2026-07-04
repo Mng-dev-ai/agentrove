@@ -168,7 +168,6 @@ export function ChatPage() {
     }
     useUIStore.setState({
       pendingFileOpen: null,
-      pendingDiffFile: null,
       subThreadDialogOpen: false,
       createCommitDialogOpen: false,
       createPRDialogOpen: false,

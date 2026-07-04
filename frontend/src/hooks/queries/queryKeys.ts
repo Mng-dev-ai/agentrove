@@ -7,12 +7,6 @@ export const queryKeys = {
   chat: (chatId?: string) => ['chat', chatId] as const,
   messages: (chatId?: string) => ['messages', chatId] as const,
   contextUsage: (chatId?: string) => ['chat', chatId, 'context-usage'] as const,
-  // chatId is the routing dimension (local vs cloud backend) — keep it in the key so a
-  // message-keyed entry can't serve data fetched from the wrong backend under staleTime.
-  messageChanges: (chatId?: string, messageId?: string) =>
-    ['message', chatId, messageId, 'changes'] as const,
-  messageFileDiff: (chatId?: string, messageId?: string, path?: string) =>
-    ['message', chatId, messageId, 'changes', 'diff', path] as const,
   subThreads: (chatId?: string) => ['chat', chatId, 'sub-threads'] as const,
   auth: {
     user: 'auth-user',

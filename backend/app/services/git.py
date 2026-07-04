@@ -6,8 +6,6 @@ from typing import Literal, NamedTuple
 from uuid import uuid4
 
 from app.models.schemas.sandbox import (
-    ChangedFile,
-    FileDiffResponse,
     GitBranchesResponse,
     GitChangedPathsResponse,
     GitCheckoutResponse,
@@ -77,55 +75,6 @@ GIT_WORKTREE_ADD_TEMPLATE = Template(
     "if [ -e '$worktree_dir/.git' ]; then echo 'exists'; exit 0; fi && "
     "mkdir -p '$base_worktrees_dir' && "
     "git worktree add '$worktree_dir' -b '$branch_name' 2>&1"
-)
-
-# Build two trees and diff them so the result reflects only the assistant's
-# turn. The base tree is base_head + pre_run_diff applied via a temp index
-# (otherwise pre-existing dirty changes captured by the checkpoint would be
-# attributed to the assistant). The current tree is the working tree captured
-# by copying the real index then `git add -A` into a temp index — this folds
-# untracked files into the comparison, so pre-existing untracked files stay
-# silent and assistant-created files surface as additions.
-# `--no-renames` collapses renames to add+delete so the parser stays simple.
-# Builds `base_tree` (HEAD-or-`$base` with optional `$patch_file` applied) and
-# `cur_tree` (current working tree staged via temp index) so callers can diff
-# them with `git diff "$base_tree" "$cur_tree"`. Closes with `}` in the caller.
-GIT_BUILD_TREES_PREFIX = (
-    "{ base_tree='$base'; "
-    'if [ -n "$patch_file" ]; then '
-    "tmp_b=$$(mktemp); "
-    "if GIT_INDEX_FILE=\"$$tmp_b\" git read-tree '$base' 2>/dev/null "
-    '&& GIT_INDEX_FILE="$$tmp_b" git apply --cached --whitespace=nowarn '
-    "$patch_file 2>/dev/null; then "
-    'base_tree=$$(GIT_INDEX_FILE="$$tmp_b" git write-tree); '
-    "fi; "
-    'rm -f "$$tmp_b" $patch_file; '
-    "fi; "
-    "tmp_c=$$(mktemp); "
-    'cp "$$(git rev-parse --git-path index)" "$$tmp_c" 2>/dev/null '
-    '|| GIT_INDEX_FILE="$$tmp_c" git read-tree HEAD 2>/dev/null; '
-    'GIT_INDEX_FILE="$$tmp_c" git add -A 2>/dev/null; '
-    'cur_tree=$$(GIT_INDEX_FILE="$$tmp_c" git write-tree 2>/dev/null); '
-    'rm -f "$$tmp_c"; '
-)
-
-GIT_CHANGED_FILES_TEMPLATE = Template(
-    GIT_BUILD_TREES_PREFIX + "git diff --numstat --no-renames "
-    '"$$base_tree" "$$cur_tree" -- . '
-    "':(exclude).agentrove-changed-*.patch' "
-    "':(exclude,glob)**/.agentrove-changed-*.patch' 2>/dev/null; "
-    "printf '__STATUS__\\n'; "
-    "git diff --name-status --no-renames "
-    '"$$base_tree" "$$cur_tree" -- . '
-    "':(exclude).agentrove-changed-*.patch' "
-    "':(exclude,glob)**/.agentrove-changed-*.patch' 2>/dev/null; "
-    "}"
-)
-
-GIT_FILE_DIFF_TEMPLATE = Template(
-    GIT_BUILD_TREES_PREFIX + "git diff --no-renames "
-    '"$$base_tree" "$$cur_tree" -- $path 2>/dev/null; '
-    "}"
 )
 
 GIT_DIFF_STAGED_TEMPLATE = Template("git diff$ctx --cached 2>/dev/null")
@@ -548,56 +497,6 @@ class GitService:
         )
         return await self.run_command(sandbox_id, cmd, cwd)
 
-    async def get_changed_files(
-        self,
-        sandbox_id: str,
-        base_head: str,
-        pre_run_diff: str = "",
-        cwd: str | None = None,
-    ) -> list[ChangedFile]:
-        if not re.fullmatch(r"[0-9a-fA-F]{40}", base_head):
-            raise ValueError("Invalid checkpoint commit")
-        patch_file = await self._write_patch_file(
-            sandbox_id, pre_run_diff, cwd, ".agentrove-changed-"
-        )
-        cd_prefix = git_cd_prefix(cwd)
-        cmd = GIT_CHANGED_FILES_TEMPLATE.substitute(
-            base=base_head, patch_file=patch_file
-        )
-        result = await self.sandbox_service.execute_command(
-            sandbox_id, f"{cd_prefix}{cmd}"
-        )
-        if result.exit_code != 0:
-            return []
-        return self._parse_changed_files(result.stdout)
-
-    async def get_file_diff(
-        self,
-        sandbox_id: str,
-        base_head: str,
-        path: str,
-        pre_run_diff: str = "",
-        cwd: str | None = None,
-    ) -> FileDiffResponse:
-        if not re.fullmatch(r"[0-9a-fA-F]{40}", base_head):
-            raise ValueError("Invalid checkpoint commit")
-        self._validate_relative_path(path)
-        patch_file = await self._write_patch_file(
-            sandbox_id, pre_run_diff, cwd, ".agentrove-changed-"
-        )
-        cd_prefix = git_cd_prefix(cwd)
-        cmd = GIT_FILE_DIFF_TEMPLATE.substitute(
-            base=base_head,
-            patch_file=patch_file,
-            path=shlex.quote(path),
-        )
-        result = await self.sandbox_service.execute_command(
-            sandbox_id, f"{cd_prefix}{cmd}"
-        )
-        return FileDiffResponse(
-            path=path, diff=result.stdout if result.exit_code == 0 else ""
-        )
-
     async def _write_patch_file(
         self,
         sandbox_id: str,
@@ -615,48 +514,6 @@ class GitService:
         return shlex.quote(
             self.sandbox_service.provider.resolve_workspace_path(patch_path)
         )
-
-    @staticmethod
-    def _parse_changed_files(output: str) -> list[ChangedFile]:
-        numstat_section, _, status_section = output.partition("__STATUS__\n")
-
-        # Binary files render as `-\t-\t<path>` in numstat — keep the path with
-        # zeroed counts so the panel still lists the file.
-        stats: dict[str, tuple[int, int]] = {}
-        for line in numstat_section.splitlines():
-            parts = line.split("\t")
-            if len(parts) < 3:
-                continue
-            add_str, del_str, path = parts[0], parts[1], parts[2]
-            additions = int(add_str) if add_str.isdigit() else 0
-            deletions = int(del_str) if del_str.isdigit() else 0
-            stats[path] = (additions, deletions)
-
-        statuses: dict[str, Literal["M", "A", "D"]] = {}
-        for line in status_section.splitlines():
-            parts = line.split("\t")
-            if len(parts) < 2:
-                continue
-            code, path = parts[0], parts[1]
-            letter = code[:1]
-            if letter == "M":
-                statuses[path] = "M"
-            elif letter == "A":
-                statuses[path] = "A"
-            elif letter == "D":
-                statuses[path] = "D"
-
-        files = [
-            ChangedFile(
-                path=path,
-                status=statuses.get(path, "M"),
-                additions=additions,
-                deletions=deletions,
-            )
-            for path, (additions, deletions) in stats.items()
-        ]
-        files.sort(key=lambda f: f.path)
-        return files
 
     async def create_branch(
         self,
