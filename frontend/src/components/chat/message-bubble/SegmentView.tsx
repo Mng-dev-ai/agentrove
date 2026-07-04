@@ -16,15 +16,28 @@ interface SegmentViewProps {
   isActiveText: boolean;
   isLastBotMessage: boolean;
   onSuggestionSelect?: (suggestion: string) => void;
+  highlightMentions?: boolean;
 }
 
-const TextSegment = ({ text, isActive }: { text: string; isActive: boolean }) => {
+const TextSegment = ({
+  text,
+  isActive,
+  highlightMentions,
+}: {
+  text: string;
+  isActive: boolean;
+  highlightMentions?: boolean;
+}) => {
   // The segment receiving stream output reveals its text word-by-word instead
   // of jumping a flush-sized chunk at a time.
   const smoothText = useSmoothText(text, isActive);
   return (
     <div className="prose prose-sm dark:prose-invert max-w-none break-words">
-      <LazyMarkDown content={smoothText} streaming={isActive} />
+      <LazyMarkDown
+        content={smoothText}
+        streaming={isActive}
+        highlightMentions={highlightMentions}
+      />
     </div>
   );
 };
@@ -37,12 +50,19 @@ export const SegmentView = memo(function SegmentView({
   isActiveText,
   isLastBotMessage,
   onSuggestionSelect,
+  highlightMentions,
 }: SegmentViewProps) {
   // Memoized so stream flushes only re-render segments whose object identity
   // changed — MessageRenderer keeps unchanged segments referentially stable.
   switch (segment.kind) {
     case 'text':
-      return <TextSegment text={segment.text} isActive={isActiveText} />;
+      return (
+        <TextSegment
+          text={segment.text}
+          isActive={isActiveText}
+          highlightMentions={highlightMentions}
+        />
+      );
     case 'thinking':
       return (
         <div className="mb-2 mt-0.5">
