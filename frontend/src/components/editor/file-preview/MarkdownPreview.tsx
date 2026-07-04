@@ -20,7 +20,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
       fileName={getDisplayFileName(file)}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
-      contentClassName="overflow-auto p-6 prose max-w-none dark:prose-invert"
+      contentClassName="overflow-auto p-6 max-w-none"
     >
       <LazyMarkDown content={file.content} />
     </PreviewContainer>
