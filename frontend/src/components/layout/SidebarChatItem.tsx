@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { ChevronRight, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';
@@ -76,7 +77,8 @@ export const SidebarChatItem = memo(function SidebarChatItem({
 
       {/* Wider right padding when blocked reserves room for the "Awaiting approval"
           pill so long titles truncate before reaching it. */}
-      <div
+      <FloatingTooltip
+        content={onOpenInSplit ? `${chat.title} (Shift-click to open in split)` : chat.title}
         className={cn(
           'flex min-w-0 flex-1 items-center gap-1.5',
           isChatBlocked ? 'pr-[104px]' : 'pr-10',
@@ -98,7 +100,6 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           }}
           aria-current={isSelected ? 'page' : undefined}
           variant="unstyled"
-          title={onOpenInSplit ? `${chat.title} (Shift-click to open in split)` : chat.title}
           // flex-1 keeps the whole row width as the open-chat hit target, not just the text
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]"
         >
@@ -118,7 +119,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
             </span>
           )}
         </Button>
-      </div>
+      </FloatingTooltip>
 
       <span
         className={cn(

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useRef, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Bot, Maximize2 } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { ToolCard } from '../common/ToolCard';
@@ -44,18 +45,20 @@ export const AgentTool: React.FC<AgentToolProps> = ({ tool }) => {
   );
 
   const expandAction = (
-    <Button
-      variant="unstyled"
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        setModalOpen(true);
-      }}
-      className="rounded-sm opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/tool:opacity-100"
-      title="Expand agent view"
-    >
-      <Maximize2 className="h-3 w-3 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary" />
-    </Button>
+    <FloatingTooltip content="Expand agent view" className="flex">
+      <Button
+        variant="unstyled"
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setModalOpen(true);
+        }}
+        className="rounded-sm opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/tool:opacity-100"
+        aria-label="Expand agent view"
+      >
+        <Maximize2 className="h-3 w-3 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary" />
+      </Button>
+    </FloatingTooltip>
   );
 
   return (

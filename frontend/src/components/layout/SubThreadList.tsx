@@ -2,6 +2,7 @@ import { memo, useState, useCallback } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import { useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';
@@ -78,32 +79,33 @@ export const SubThreadList = memo(function SubThreadList({
           >
             <div className="absolute -left-[22px] top-1/2 h-px w-[18px] bg-border-secondary dark:bg-border-dark-secondary" />
 
-            <Button
-              variant="unstyled"
-              type="button"
-              onClick={() => onSelect(thread.id)}
-              title={thread.title}
-              className={cn(
-                'flex w-full items-center gap-2 px-2 py-1.5 transition-colors duration-200',
-                isBlocked ? 'pr-[104px]' : 'pr-10',
-                isActive
-                  ? 'text-text-primary dark:text-text-dark-primary'
-                  : 'text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary',
-              )}
-            >
-              {isStreaming && !isBlocked && (
-                <div className="h-[5px] w-[5px] flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
-              )}
-              {thread.session_agent_kind && (
-                <ProviderIcon
-                  agentKind={thread.session_agent_kind}
-                  className="h-3 w-3 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
-                />
-              )}
-              <span className={cn('truncate text-xs', isActive && 'font-medium')}>
-                {stripMarkdownTitle(thread.title)}
-              </span>
-            </Button>
+            <FloatingTooltip content={thread.title} className="flex min-w-0 flex-1">
+              <Button
+                variant="unstyled"
+                type="button"
+                onClick={() => onSelect(thread.id)}
+                className={cn(
+                  'flex w-full min-w-0 items-center gap-2 px-2 py-1.5 transition-colors duration-200',
+                  isBlocked ? 'pr-[104px]' : 'pr-10',
+                  isActive
+                    ? 'text-text-primary dark:text-text-dark-primary'
+                    : 'text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary',
+                )}
+              >
+                {isStreaming && !isBlocked && (
+                  <div className="h-[5px] w-[5px] flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
+                )}
+                {thread.session_agent_kind && (
+                  <ProviderIcon
+                    agentKind={thread.session_agent_kind}
+                    className="h-3 w-3 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
+                  />
+                )}
+                <span className={cn('truncate text-xs', isActive && 'font-medium')}>
+                  {stripMarkdownTitle(thread.title)}
+                </span>
+              </Button>
+            </FloatingTooltip>
 
             <span
               className={cn(

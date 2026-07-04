@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { useMatch, useNavigate } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { usePermissionStore } from '@/store/permissionStore';
@@ -67,24 +68,28 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
             'mb-px rounded-md text-text-tertiary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
       )}
     >
-      <Button
-        variant="unstyled"
-        onClick={() => onSelect(chatId)}
-        aria-current={isCurrent ? 'page' : undefined}
-        title={status ? `${title} · ${STATUS_LABELS[status]}` : title}
-        className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-2xs font-medium"
+      <FloatingTooltip
+        content={status ? `${title} · ${STATUS_LABELS[status]}` : title}
+        className="flex min-w-0 flex-1"
       >
-        {/* The status dot claims the icon slot while the turn is live — the
-            agent glyph carries no information a colored dot doesn't. */}
-        {status ? (
-          <span
-            className={cn('h-1.5 w-1.5 flex-shrink-0 rounded-full', STATUS_DOT_CLASS[status])}
-          />
-        ) : (
-          <AgentIcon className="h-3 w-3 flex-shrink-0" />
-        )}
-        <span className="min-w-0 truncate">{title}</span>
-      </Button>
+        <Button
+          variant="unstyled"
+          onClick={() => onSelect(chatId)}
+          aria-current={isCurrent ? 'page' : undefined}
+          className="flex w-full min-w-0 items-center gap-1.5 text-left text-2xs font-medium"
+        >
+          {/* The status dot claims the icon slot while the turn is live — the
+              agent glyph carries no information a colored dot doesn't. */}
+          {status ? (
+            <span
+              className={cn('h-1.5 w-1.5 flex-shrink-0 rounded-full', STATUS_DOT_CLASS[status])}
+            />
+          ) : (
+            <AgentIcon className="h-3 w-3 flex-shrink-0" />
+          )}
+          <span className="min-w-0 truncate">{title}</span>
+        </Button>
+      </FloatingTooltip>
       <Button
         variant="unstyled"
         onClick={() => onClose(chatId)}
