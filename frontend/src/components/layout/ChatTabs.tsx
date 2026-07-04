@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
@@ -239,6 +239,21 @@ export function ChatTabs() {
           </Fragment>
         );
       })}
+      {/* Browser-style new-tab button — the landing page is the "new tab page",
+          so + just routes there instead of creating a chat eagerly. */}
+      <Button
+        variant="unstyled"
+        onClick={() => navigate('/')}
+        aria-label="New chat"
+        className={cn(
+          'mb-1.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md',
+          'text-text-tertiary hover:bg-surface-hover hover:text-text-primary',
+          'dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
+          'transition-colors duration-200',
+        )}
+      >
+        <Plus className="h-3.5 w-3.5" />
+      </Button>
     </div>
   );
 }
