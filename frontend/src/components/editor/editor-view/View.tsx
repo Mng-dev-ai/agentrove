@@ -366,7 +366,11 @@ export const View = memo(function View({
       />
 
       {!selectedFile || !isValidFile ? (
-        <EmptyState theme={theme} onToggleFileTree={onToggleFileTree} />
+        <EmptyState
+          theme={theme}
+          onToggleFileTree={onToggleFileTree}
+          isFileTreeCollapsed={isFileTreeCollapsed}
+        />
       ) : (
         <>
           <Header

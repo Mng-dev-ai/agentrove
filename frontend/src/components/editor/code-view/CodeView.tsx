@@ -76,6 +76,8 @@ export const CodeView = memo(function CodeView({
     }
   }, []);
 
+  const handleCloseMobileTree = useCallback(() => setShowMobileTree(false), []);
+
   const handleFileTreeExpand = useCallback(() => {
     setIsFileTreeCollapsed(false);
     if (!selectedFile || selectedFile.type !== 'file') return;
@@ -173,7 +175,11 @@ export const CodeView = memo(function CodeView({
                 backgroundClass,
               )}
             >
-              <CodeSidebar {...sharedSidebarProps} onFileSelect={handleMobileFileSelect} />
+              <CodeSidebar
+                {...sharedSidebarProps}
+                onFileSelect={handleMobileFileSelect}
+                onCollapse={handleCloseMobileTree}
+              />
             </div>
           </>
         )}
@@ -186,6 +192,7 @@ export const CodeView = memo(function CodeView({
             chatId={chatId}
             cwd={cwd}
             onToggleFileTree={() => setShowMobileTree(true)}
+            isFileTreeCollapsed={!showMobileTree}
             isSandboxSyncing={isSandboxSyncing}
             targetLine={targetLine}
             openFiles={openFiles}
@@ -214,7 +221,11 @@ export const CodeView = memo(function CodeView({
             data-code-sidebar
             className={`h-full overflow-hidden border-r border-border dark:border-border-dark ${backgroundClass}`}
           >
-            <CodeSidebar {...sharedSidebarProps} onFileSelect={onFileSelect} />
+            <CodeSidebar
+              {...sharedSidebarProps}
+              onFileSelect={onFileSelect}
+              onCollapse={handleToggleFileTree}
+            />
           </div>
         </Panel>
 

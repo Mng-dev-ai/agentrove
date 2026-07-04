@@ -6,9 +6,14 @@ import { cn } from '@/utils/cn';
 export interface EmptyStateProps {
   theme: string;
   onToggleFileTree?: () => void;
+  isFileTreeCollapsed?: boolean;
 }
 
-export const EmptyState = memo(function EmptyState({ theme, onToggleFileTree }: EmptyStateProps) {
+export const EmptyState = memo(function EmptyState({
+  theme,
+  onToggleFileTree,
+  isFileTreeCollapsed = false,
+}: EmptyStateProps) {
   return (
     <div
       className={cn(
@@ -16,13 +21,14 @@ export const EmptyState = memo(function EmptyState({ theme, onToggleFileTree }: 
         theme === 'light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary',
       )}
     >
-      {onToggleFileTree && (
+      {/* Reopen affordance only — closing happens from the FILES panel header. */}
+      {onToggleFileTree && isFileTreeCollapsed && (
         <div className="flex h-9 items-center border-b border-border/50 px-3 dark:border-border-dark/50">
           <Button
             variant="unstyled"
             onClick={onToggleFileTree}
             className="shrink-0 rounded-md p-1 text-text-quaternary transition-colors duration-150 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
-            aria-label="Toggle file tree"
+            aria-label="Open file tree"
           >
             <PanelLeft size={14} />
           </Button>

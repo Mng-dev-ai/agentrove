@@ -5,7 +5,6 @@ import {
   FileText,
   GitCompareArrows,
   PanelLeft,
-  PanelLeftClose,
   Maximize2,
 } from 'lucide-react';
 import type { FileStructure } from '@/types/file-system.types';
@@ -51,7 +50,6 @@ export const Header = memo(function Header({
   isFileTreeCollapsed = false,
   onToggleFullscreen,
 }: HeaderProps) {
-  const ToggleIcon = isFileTreeCollapsed ? PanelLeft : PanelLeftClose;
   const isPreviewable = selectedFile ? isPreviewableFile(selectedFile) : false;
 
   if (!filePath) return null;
@@ -59,7 +57,8 @@ export const Header = memo(function Header({
   return (
     <div className="flex h-9 items-center justify-between border-b border-border/50 bg-surface-secondary px-3 dark:border-border-dark/50 dark:bg-surface-dark-secondary">
       <div className="flex min-w-0 items-center gap-2">
-        {onToggleFileTree && (
+        {/* The close affordance lives in the FILES panel header — the editor only reopens. */}
+        {onToggleFileTree && isFileTreeCollapsed && (
           <Button
             variant="unstyled"
             onClick={onToggleFileTree}
@@ -69,9 +68,9 @@ export const Header = memo(function Header({
               'dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
               'transition-colors duration-150',
             )}
-            aria-label={isFileTreeCollapsed ? 'Open file tree' : 'Close file tree'}
+            aria-label="Open file tree"
           >
-            <ToggleIcon size={14} />
+            <PanelLeft size={14} />
           </Button>
         )}
         <FileIcon name={getFileName(filePath)} className="h-3.5 w-3.5 shrink-0" />
