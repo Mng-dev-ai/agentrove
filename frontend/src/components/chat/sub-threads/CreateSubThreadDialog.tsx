@@ -26,6 +26,7 @@ import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { useCreateSubThreadMutation } from '@/hooks/queries/useChatQueries';
 import { useSlashCommandSuggestions } from '@/hooks/useSlashCommandSuggestions';
 import { useChatContext } from '@/hooks/useChatContext';
+import { insertToken } from '@/utils/mentionParser';
 import { useModelStore } from '@/store/modelStore';
 import {
   useChatSettingsStore,
@@ -73,18 +74,27 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
     thinkingModes.find((mode) => mode.value === effectiveThinkingMode) ?? thinkingModes[0];
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [cursorPosition, setCursorPosition] = useState(0);
 
-  const handleSlashCommandSelect = useCallback((command: SlashCommand) => {
-    const newMessage = `${command.value} `;
-    setMessage(newMessage);
-    setTimeout(() => {
-      const textarea = textareaRef.current;
-      if (textarea) {
-        textarea.focus();
-        textarea.setSelectionRange(newMessage.length, newMessage.length);
-      }
-    }, 0);
+  const handleCursorChange = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    setCursorPosition(e.currentTarget.selectionStart);
   }, []);
+
+  const handleSlashCommandSelect = useCallback(
+    (command: SlashCommand, startPos: number, endPos: number) => {
+      const { text, cursor } = insertToken(message, command.value, startPos, endPos);
+      setMessage(text);
+      setTimeout(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+          textarea.focus();
+          textarea.setSelectionRange(cursor, cursor);
+        }
+        setCursorPosition(cursor);
+      }, 0);
+    },
+    [message],
+  );
 
   const {
     filteredCommands,
@@ -94,6 +104,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
     handleKeyDown: handleSlashKeyDown,
   } = useSlashCommandSuggestions({
     message,
+    cursorPosition,
     onSelect: handleSlashCommandSelect,
     customSkills,
     builtinSlashCommands,
@@ -239,8 +250,14 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
                 ref={textareaRef}
                 variant="unstyled"
                 value={message}
-                onChange={(e) => setMessage(e.target.value)}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  setCursorPosition(e.target.selectionStart);
+                }}
                 onKeyDown={handleSlashKeyDown}
+                onKeyUp={handleCursorChange}
+                onClick={handleCursorChange}
+                onSelect={handleCursorChange}
                 placeholder="Message Agentrove... (/ for commands)"
                 rows={3}
                 className="w-full resize-none rounded-lg border border-border/50 bg-surface-secondary px-3 py-2 text-xs text-text-primary outline-none transition-colors duration-200 placeholder:text-text-quaternary focus:border-border-hover dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus:border-border-dark-hover"
