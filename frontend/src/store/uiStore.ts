@@ -71,11 +71,6 @@ type UIStoreState = ThemeState &
     // before any chat exists.
     pendingFileOpen: PendingFileOpen | null;
     openFileInEditor: (path: string, chatId: string | undefined, line?: number) => void;
-    // `chatId` binds the jump to its chat so only that chat's diff tile claims
-    // it — a jump can't be consumed by a different chat mounted in the same slot.
-    pendingDiffFile: { path: string; chatId: string } | null;
-    openInDiffView: (path: string, chatId: string) => void;
-    consumeDiffFileJump: () => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
     // Code snippets attached to a chat's input as removable chips (VS Code
@@ -136,11 +131,10 @@ function ownTabs(openTabs: TileId[], visibleLayout: TileId[][]): WorkspaceLayout
   };
 }
 
-// The diff/editor jumps are chat-bound; a jump for a chat that's going away (its
-// pane closed/replaced) is stale and would otherwise fire in the wrong tile.
+// The editor jump is chat-bound; a jump for a chat that's going away (its pane
+// closed/replaced) is stale and would otherwise fire in the wrong tile.
 function clearJumpsForChat(state: UIStoreState, chatId: string | null): Partial<UIStoreState> {
   const cleared: Partial<UIStoreState> = {};
-  if (state.pendingDiffFile?.chatId === chatId) cleared.pendingDiffFile = null;
   if (state.pendingFileOpen?.chatId === chatId) cleared.pendingFileOpen = null;
   return cleared;
 }
@@ -149,17 +143,13 @@ function clearJumpsForChat(state: UIStoreState, chatId: string | null): Partial<
 // would have claimed it clears it: a secondary tile owns jumps for the secondary
 // chat, the primary owns the rest.
 function clearJumpsForTile(state: UIStoreState, tileId: TileId): Partial<UIStoreState> {
-  const view = tileIdToViewType(tileId);
-  if (view !== 'diff' && view !== 'editor') return {};
-  const owns = (jump: { chatId: string | undefined } | null) =>
-    !!jump &&
-    (isSecondaryTile(tileId)
-      ? jump.chatId === state.secondaryChatId
-      : jump.chatId !== state.secondaryChatId);
-  const cleared: Partial<UIStoreState> = {};
-  if (view === 'diff' && owns(state.pendingDiffFile)) cleared.pendingDiffFile = null;
-  if (view === 'editor' && owns(state.pendingFileOpen)) cleared.pendingFileOpen = null;
-  return cleared;
+  if (tileIdToViewType(tileId) !== 'editor') return {};
+  const jump = state.pendingFileOpen;
+  if (!jump) return {};
+  const owns = isSecondaryTile(tileId)
+    ? jump.chatId === state.secondaryChatId
+    : jump.chatId !== state.secondaryChatId;
+  return owns ? { pendingFileOpen: null } : {};
 }
 
 export const useUIStore = create<UIStoreState>()(
@@ -233,8 +223,6 @@ export const useUIStore = create<UIStoreState>()(
       },
 
       pendingFileOpen: null,
-      pendingDiffFile: null,
-      consumeDiffFileJump: () => set({ pendingDiffFile: null }),
       openFileInEditor: (path, chatId, line) => {
         const state = get();
         const secondary = chatId === state.secondaryChatId;
@@ -250,18 +238,6 @@ export const useUIStore = create<UIStoreState>()(
         });
         // Editor already on screen (possibly in a split) — keep the layout and just
         // focus it; activateTab would collapse the split to a full-view editor.
-        if (state.visibleLayout.flat().includes(tileId)) get().focusTile(tileId);
-        else get().activateTab(tileId);
-      },
-      openInDiffView: (path, chatId) => {
-        const state = get();
-        const secondary = chatId === state.secondaryChatId;
-        const tileId = viewTypeToTileId('diff', secondary);
-        set({
-          pendingDiffFile: { path, chatId },
-          openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
-        });
-        // Same as openFileInEditor: a diff tile visible in a split keeps its layout.
         if (state.visibleLayout.flat().includes(tileId)) get().focusTile(tileId);
         else get().activateTab(tileId);
       },

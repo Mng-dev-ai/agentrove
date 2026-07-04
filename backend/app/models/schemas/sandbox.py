@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import BaseModel, Field
 
 
@@ -108,26 +106,6 @@ class GitRemoteUrlResponse(BaseModel):
     owner: str
     repo: str
     remote_url: str
-
-
-class ChangedFile(BaseModel):
-    path: str
-    status: Literal["M", "A", "D"]
-    additions: int
-    deletions: int
-
-
-class ChangedFilesResponse(BaseModel):
-    files: list[ChangedFile]
-    # Workspace-root-relative cwd the file paths are reported against — the
-    # frontend joins it onto each path to navigate the editor (which keys on
-    # workspace-root paths). Empty for non-worktree chats.
-    cwd: str = ""
-
-
-class FileDiffResponse(BaseModel):
-    path: str
-    diff: str
 
 
 class SearchMatch(BaseModel):

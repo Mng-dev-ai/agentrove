@@ -11,7 +11,7 @@ import type {
   ContextUsage,
 } from '@/types/chat.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
-import type { ChangedFilesData, FileDiffData, GitCommitResult } from '@/types/sandbox.types';
+import type { GitCommitResult } from '@/types/sandbox.types';
 import type { CursorPaginationParams, PaginatedChats, PaginatedMessages } from '@/types/api.types';
 import type { EditorCodeSelection } from '@/store/uiStore';
 
@@ -402,39 +402,8 @@ async function generateChatTitle(chatId: string): Promise<string> {
   });
 }
 
-// These endpoints are keyed by messageId but live on whichever backend owns the
-// chat, so callers thread chatId through purely for routing.
-async function getMessageChanges(
-  chatId: string | undefined,
-  messageId: string,
-): Promise<ChangedFilesData> {
-  validateId(messageId, 'Message ID');
-
-  return serviceCall(async () => {
-    const response = await resolveChatClient(chatId).get<ChangedFilesData>(
-      `/chat/messages/${messageId}/changes`,
-    );
-    return ensureResponse(response, 'Failed to load changed files');
-  });
-}
-
-async function getMessageFileDiff(
-  chatId: string | undefined,
-  messageId: string,
-  path: string,
-): Promise<FileDiffData> {
-  validateId(messageId, 'Message ID');
-  validateRequired(path, 'Path');
-
-  return serviceCall(async () => {
-    const queryString = buildQueryString({ path });
-    const response = await resolveChatClient(chatId).get<FileDiffData>(
-      `/chat/messages/${messageId}/changes/diff${queryString}`,
-    );
-    return ensureResponse(response, 'Failed to load file diff');
-  });
-}
-
+// Keyed by messageId but lives on whichever backend owns the chat, so callers
+// thread chatId through purely for routing.
 async function restoreMessageCheckpoint(
   chatId: string | undefined,
   messageId: string,
@@ -468,8 +437,6 @@ export const chatService = {
   enhancePrompt,
   askAboutCode,
   generateChatTitle,
-  getMessageChanges,
-  getMessageFileDiff,
   restoreMessageCheckpoint,
   pinChat,
   unpinChat,
