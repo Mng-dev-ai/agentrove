@@ -204,10 +204,9 @@ export function TitleBar() {
         {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className="w-1" />}
       </div>
 
-      {/* Main content area — a secondary-surface band with a hairline below, so the
-          active chat tab (browser-style, bg-surface) merges into the page under it.
-          Chat tabs (the open working set) sit on the left; the view switcher stays
-          pinned right. */}
+      {/* Main content area — a secondary-surface band with a hairline below, which
+          the active chat tab's underline indicator crosses. Chat tabs (the open
+          working set) sit on the left; the view switcher stays pinned right. */}
       <div className="flex h-full min-w-0 flex-1 items-center justify-between gap-2 border-b border-border/50 bg-surface-secondary px-3 pt-[env(safe-area-inset-top)] dark:border-border-dark/50 dark:bg-surface-dark-secondary">
         <div className="flex h-full min-w-0 flex-1 items-end gap-1">
           {/* Auth gate: on macOS desktop the bar renders even when logged out, and
