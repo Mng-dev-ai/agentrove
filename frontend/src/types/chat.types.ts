@@ -68,6 +68,12 @@ export interface Chat {
   session_agent_kind: AgentKind | null;
 }
 
+// Wire contract of the per-user chat lifecycle SSE feed (/chat/chats/events),
+// consumed by useChatEvents (local) and useCloudChatEvents (VPS).
+export type ChatEvent =
+  | { kind: 'chat_created'; chat: Chat }
+  | { kind: 'stream_started'; chat_id: string; message_id: string };
+
 export interface ChatRequest {
   prompt: string;
   chat_id?: string;

@@ -10,6 +10,7 @@ import type {
   CreateChatRequest,
   ContextUsage,
 } from '@/types/chat.types';
+import type { ActiveStreamSnapshot } from '@/types/stream.types';
 import type { ChangedFilesData, FileDiffData, GitCommitResult } from '@/types/sandbox.types';
 import type { CursorPaginationParams, PaginatedChats, PaginatedMessages } from '@/types/api.types';
 import type { EditorCodeSelection } from '@/store/uiStore';
@@ -101,14 +102,7 @@ async function checkChatStatus(chatId: string): Promise<{
   return serviceCall(() => resolveChatClient(chatId).get(`/chat/chats/${chatId}/status`));
 }
 
-async function getActiveStreams(): Promise<
-  Array<{
-    chat_id: string;
-    message_id: string;
-    stream_id: string | null;
-    last_seq: number;
-  }>
-> {
+async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
   // Local backend only — its runtime registry covers every local chat and
   // sub-thread, so startup restoration needs a single request.
   return serviceCall(() => apiClient.get('/chat/chats/active-streams'));
@@ -299,8 +293,8 @@ function createEventSource(
 }
 
 function createChatEventsSource(): EventSource {
-  // Local backend only — cloud chats have their own sidebar list, and the MCP
-  // server this feed exists for always targets the local instance.
+  // Local backend only — the VPS feed is opened separately via
+  // cloudChatService.createChatEventsSource, against the remote client's auth.
   const token = apiClient.getToken();
   if (!token) {
     throw new Error('Authentication token required');

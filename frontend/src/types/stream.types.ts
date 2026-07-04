@@ -69,6 +69,14 @@ export interface StreamMetadata {
   startTime: number;
 }
 
+// Wire shape of GET /chat/chats/active-streams — one entry per running turn.
+export interface ActiveStreamSnapshot {
+  chat_id: string;
+  message_id: string;
+  stream_id: string | null;
+  last_seq: number;
+}
+
 export class StreamProcessingError extends Error {
   constructor(
     message: string,

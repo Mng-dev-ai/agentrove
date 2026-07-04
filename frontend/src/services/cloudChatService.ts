@@ -11,6 +11,7 @@ import type {
   UpdateWorkspaceRequest,
 } from '@/types/workspace.types';
 import type { Chat, ChatRequest, CreateChatRequest } from '@/types/chat.types';
+import type { ActiveStreamSnapshot } from '@/types/stream.types';
 import type { PaginatedChats, PaginatedResponse } from '@/types/api.types';
 
 // Log into the VPS and persist its refresh token. The remote client mints
@@ -18,13 +19,23 @@ import type { PaginatedChats, PaginatedResponse } from '@/types/api.types';
 async function connect(url: string, email: string, password: string): Promise<void> {
   // Store the URL slash-trimmed — consumers compose paths like `${cloudUrl}/chat/{id}`.
   const trimmedUrl = trimTrailingSlash(url);
+  // The login must hit the new host, but a failed attempt while connected to
+  // another VPS must not leave remoteApiClient pointed at a URL that never
+  // authenticated — existing cloud chats would misroute until reconnect/reload.
+  const previousUrl = useCloudSettingsStore.getState().cloudUrl;
   setCloudApiBaseUrl(trimmedUrl);
   const formData = new FormData();
   formData.append('username', email);
   formData.append('password', password);
 
-  const response = await remoteApiClient.postForm<AuthResponse>('/auth/jwt/login', formData);
-  const auth = ensureResponse(response, 'Failed to connect to cloud instance');
+  let auth: AuthResponse;
+  try {
+    const response = await remoteApiClient.postForm<AuthResponse>('/auth/jwt/login', formData);
+    auth = ensureResponse(response, 'Failed to connect to cloud instance');
+  } catch (error) {
+    if (previousUrl) setCloudApiBaseUrl(previousUrl);
+    throw error;
+  }
 
   cloudAuthStorage.setRefreshToken(auth.refresh_token);
   cloudAuthStorage.setAccessToken(auth.access_token);
@@ -119,6 +130,32 @@ async function startCompletion(request: ChatRequest): Promise<void> {
   });
 }
 
+// Bulk snapshot of every active stream on the VPS — the same registry-backed
+// endpoint local restoration uses, so no per-chat status fan-out. Marks the chat
+// IDs cloud-owned so reconnects and status checks route back to the VPS.
+async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
+  return serviceCall(async () => {
+    const response = await remoteApiClient.get<ActiveStreamSnapshot[]>(
+      '/chat/chats/active-streams',
+    );
+    const streams = ensureResponse(response, 'Failed to fetch cloud active streams');
+    markCloudChats(streams.map((stream) => stream.chat_id));
+    return streams;
+  });
+}
+
+// Per-user chat lifecycle SSE feed from the VPS — the cloud twin of
+// chatService.createChatEventsSource. Async because EventSource bypasses
+// APIClient's 401→refresh path, so the token must be minted up front.
+async function createChatEventsSource(): Promise<EventSource> {
+  const token = await remoteApiClient.getValidToken();
+  if (!token) {
+    throw new Error('Not connected to cloud instance');
+  }
+  const params = new URLSearchParams({ token });
+  return new EventSource(`${remoteApiClient.getBaseUrl()}/chat/chats/events?${params.toString()}`);
+}
+
 export const cloudChatService = {
   connect,
   disconnect,
@@ -130,4 +167,6 @@ export const cloudChatService = {
   getWorkspaceResources,
   getSettings,
   startCompletion,
+  getActiveStreams,
+  createChatEventsSource,
 };
