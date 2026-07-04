@@ -1,4 +1,5 @@
 import { useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { chatService } from '@/services/chatService';
 import { useCreateSubThreadMutation } from '@/hooks/queries/useChatQueries';
@@ -11,10 +12,10 @@ import { getAgentKindForModelId } from '@/types/chat.types';
 import type { Chat } from '@/types/chat.types';
 import type { StreamAction } from '@/types/user.types';
 
-// Spawns a stream action as a background sub-thread: creates the sub-thread,
-// fires its turn server-side, and registers stream metadata so the sidebar
-// shows the pulse without the user opening it.
+// Spawns a stream action as a sub-thread: creates the sub-thread, fires its
+// turn server-side, then navigates to the new chat so the user lands on it.
 export function useRunStreamAction(parentChat: Chat | undefined) {
+  const navigate = useNavigate();
   const createSubThread = useCreateSubThreadMutation(parentChat?.id ?? '');
 
   return useCallback(
@@ -61,10 +62,13 @@ export function useRunStreamAction(parentChat: Chat | undefined) {
         });
 
         toast.success(`Started "${action.label}"`);
+        // Land on the sub-thread — navigating also adds its tab to the title
+        // bar via loadWorkspaceForChat.
+        navigate(`/chat/${newChat.id}`);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : `Failed to start "${action.label}"`);
       }
     },
-    [parentChat, createSubThread],
+    [parentChat, createSubThread, navigate],
   );
 }
