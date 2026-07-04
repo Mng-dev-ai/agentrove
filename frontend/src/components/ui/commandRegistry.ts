@@ -18,6 +18,7 @@ import {
   ArrowDownFromLine,
   MessageSquare,
   Palette,
+  Settings,
 } from 'lucide-react';
 import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
@@ -165,6 +166,7 @@ const SETTING_COMMANDS: ActionCommandItem[] = [
     shortcut: 'k',
   },
   { type: 'action', id: 'go-to-file', label: 'Go to file', icon: FileSearch, shortcut: 'o' },
+  { type: 'action', id: 'open-settings', label: 'Settings', icon: Settings, shortcut: ',' },
 ];
 
 export const ALL_COMMANDS: CommandItem[] = [
@@ -320,6 +322,8 @@ export function executeCommand(
   } else if (cmd.id === 'go-to-file') {
     ui.setPendingMenuMode('files');
     ui.setCommandMenuOpen(true);
+  } else if (cmd.id === 'open-settings') {
+    navigate('/settings');
   } else if (cmd.id === 'switch-branch') {
     if (!gitTarget.sandboxId) {
       toast.error('No sandbox connected');
