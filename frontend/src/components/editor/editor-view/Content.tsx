@@ -66,10 +66,12 @@ export const Content = memo(function Content({
   onMount,
   theme,
 }: ContentProps) {
+  // Surface tokens track the active palette's CSS vars, matching Monaco's
+  // editor.background for every palette — not just the default light/dark.
   const loadingClassName = cn(
     'flex h-full w-full items-center justify-center text-xs',
     'text-text-quaternary dark:text-text-dark-quaternary',
-    theme === 'custom-light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary',
+    'bg-surface-secondary dark:bg-surface-dark-secondary',
   );
   const loadingFallback = (
     <div className={loadingClassName}>
@@ -97,9 +99,7 @@ export const Content = memo(function Content({
               <div className="animate-pulse">Loading editor...</div>
             </div>
           }
-          className={
-            theme === 'custom-light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary'
-          }
+          className="bg-surface-secondary dark:bg-surface-dark-secondary"
         />
       </Suspense>
     </div>
