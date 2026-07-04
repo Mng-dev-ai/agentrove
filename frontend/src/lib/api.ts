@@ -118,6 +118,24 @@ class APIClient {
     return this.auth.getToken();
   }
 
+  // For SSE openers that bypass request(): the token rides the URL and the cached
+  // one may be missing (after a restart) or expired (reopening a dead feed), so
+  // mint a fresh one from the refresh token on every open.
+  async getValidToken(): Promise<string | null> {
+    if (!this.auth.getRefreshToken()) return this.auth.getToken();
+    try {
+      return (await this.refreshTokenIfNeeded()).access_token;
+    } catch (error) {
+      // Mirror request(): a terminal refresh failure means the session is dead —
+      // tear it down instead of letting SSE reopen loops retry it forever.
+      if (shouldInvalidateSession(error)) {
+        this.auth.onSessionExpired();
+        return null;
+      }
+      throw error;
+    }
+  }
+
   setBaseUrl(url: string): void {
     this.baseURL = url;
   }

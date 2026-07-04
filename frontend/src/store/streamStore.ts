@@ -20,6 +20,7 @@ interface StreamState {
   abortStream: (streamId: string) => void;
   removeStreamMetadata: (chatId: string) => void;
   addStreamMetadata: (metadata: StreamMetadata) => void;
+  addStreamMetadataIfAbsent: (metadata: StreamMetadata) => void;
 }
 
 function getChatMessageKey(chatId: string, messageId: string): string {
@@ -203,5 +204,15 @@ export const useStreamStore = create<StreamState>((set, get) => ({
         activeStreamMetadata: upsertStreamMetadata(state.activeStreamMetadata, metadata),
       };
     });
+  },
+
+  addStreamMetadataIfAbsent: (metadata: StreamMetadata) => {
+    // Unlike addStreamMetadata's upsert, an already-tracked chat keeps its entry —
+    // restoration and event feeds must not reset a live stream's startTime.
+    set((state) =>
+      state.activeStreamMetadata.some((item) => item.chatId === metadata.chatId)
+        ? state
+        : { activeStreamMetadata: [...state.activeStreamMetadata, metadata] },
+    );
   },
 }));

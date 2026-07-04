@@ -89,10 +89,11 @@ export const useCloudSettingsQuery = (enabled: boolean) => {
 
 // Cloud chats for one project, paginated like the local sidebar groups. The
 // queryFn registers returned IDs as cloud-owned (markCloudChats), so opening one
-// routes its messages/status/SSE to the VPS. Polled so cloud-side activity (new
-// chats, runs starting) surfaces without a manual refresh — the desktop has no
-// push channel for cloud state. Key extends queryKeys.cloudChats so the
-// LandingPage invalidation prefix-matches every project's query.
+// routes its messages/status/SSE to the VPS. New chats and runs arrive live via
+// the cloud events feed (useCloudChatEvents); the poll is a safety net for
+// changes the feed doesn't carry (titles, deletes, other-device edits). Key
+// extends queryKeys.cloudChats so the LandingPage invalidation prefix-matches
+// every project's query.
 export const useInfiniteCloudChatsQuery = (workspaceId: string, enabled: boolean) => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);

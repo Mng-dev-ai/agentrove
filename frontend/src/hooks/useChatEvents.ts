@@ -6,11 +6,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { logger } from '@/utils/logger';
-import type { Chat } from '@/types/chat.types';
-
-type ChatEvent =
-  | { kind: 'chat_created'; chat: Chat }
-  | { kind: 'stream_started'; chat_id: string; message_id: string };
+import type { ChatEvent } from '@/types/chat.types';
 
 // Subscribes to the backend's per-user chat lifecycle SSE feed so chats created
 // and turns started out-of-band (e.g. by agents via the MCP server) surface
@@ -56,11 +52,9 @@ export function useChatEvents(options?: { enabled?: boolean }) {
         // lists so the chat surfaces even from outside the loaded pages.
         queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-        const store = useStreamStore.getState();
-        // Skip chats already tracked (self-started turns register via addStream).
-        // Settled turns are cleaned up by useGlobalStream's orphan pruning.
-        if (store.activeStreamMetadata.some((meta) => meta.chatId === parsed.chat_id)) return;
-        store.addStreamMetadata({
+        // Self-started turns are already tracked via addStream; settled turns
+        // are cleaned up by useGlobalStream's orphan pruning.
+        useStreamStore.getState().addStreamMetadataIfAbsent({
           chatId: parsed.chat_id,
           messageId: parsed.message_id,
           startTime: Date.now(),
