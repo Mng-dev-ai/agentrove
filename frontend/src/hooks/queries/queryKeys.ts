@@ -85,6 +85,8 @@ export const queryKeys = {
     ['cloud', 'settings', cloudUrl, connectedEmail] as const,
   cloudChats: (cloudUrl?: string, connectedEmail?: string | null) =>
     ['cloud', 'chats', cloudUrl, connectedEmail] as const,
+  cloudActiveStreams: (cloudUrl?: string, connectedEmail?: string | null) =>
+    ['cloud', 'active-streams', cloudUrl, connectedEmail] as const,
   // Prefix key for invalidating every cloud chats query regardless of instance/account.
   cloudChatsAll: ['cloud', 'chats'] as const,
   models: 'models',
