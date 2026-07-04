@@ -2,24 +2,20 @@ import { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { useToggleSet } from '@/hooks/useToggleSet';
+import { useAnchoredPanel } from '@/hooks/useAnchoredPanel';
 import {
   AlertCircle,
-  ChevronRight,
+  ChevronDown,
   ChevronsUpDown,
-  ExternalLink,
   GitCompareArrows,
-  MoreHorizontal,
   RotateCcw,
-  Undo2,
   type LucideIcon,
 } from 'lucide-react';
-import { FileIcon } from '@/components/ui/shared/FileIcon';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Button } from '@/components/ui/primitives/Button';
 import { SegmentedControl } from '@/components/ui/primitives/SegmentedControl';
 import { Spinner } from '@/components/ui/primitives/Spinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import {
   useGitDiffQuery,
   useGitRestoreAllMutation,
@@ -31,15 +27,11 @@ import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback'
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useUIStore } from '@/store/uiStore';
 import { parsePatchFiles, parseDiffFromFile } from '@pierre/diffs';
-import type {
-  FileDiffMetadata,
-  FileContents,
-  SelectedLineRange,
-  DiffLineAnnotation,
-} from '@pierre/diffs';
-import { DiffCommentComposer } from '@/components/sandbox/git/DiffCommentComposer';
+import type { FileDiffMetadata, FileContents } from '@pierre/diffs';
+import { DiffFileSidebar, type FileChangeStats } from '@/components/sandbox/git/DiffFileSidebar';
+import { DiffFileRow, isRenameFileType } from '@/components/sandbox/git/DiffFileRow';
 import { useDiffComments } from '@/hooks/useDiffComments';
-import { FileDiff, Virtualizer, WorkerPoolContextProvider } from '@pierre/diffs/react';
+import { Virtualizer, WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
 import type { DiffMode } from '@/types/sandbox.types';
@@ -76,25 +68,6 @@ const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
   branch: 'No changes from base branch',
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  new: 'New',
-  deleted: 'Deleted',
-  'rename-pure': 'Renamed',
-  'rename-changed': 'Renamed',
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  new: 'bg-success-600/15 text-success-600 dark:bg-success-400/15 dark:text-success-400',
-  deleted: 'bg-error-600/15 text-error-600 dark:bg-error-400/15 dark:text-error-400',
-  'rename-pure': 'bg-warning-600/15 text-warning-600 dark:bg-warning-400/15 dark:text-warning-400',
-  'rename-changed':
-    'bg-warning-600/15 text-warning-600 dark:bg-warning-400/15 dark:text-warning-400',
-};
-
-// Stable empty value — the library re-renders a file whenever the annotations
-// array identity changes.
-const NO_ANNOTATIONS: DiffLineAnnotation[] = [];
-
 // The library washes annotation rows with the line-selection tint when they sit
 // inside the selected range; keep the comment composer's row on the plain
 // annotation background. Injected into the shadow root, where unlayered rules
@@ -102,16 +75,26 @@ const NO_ANNOTATIONS: DiffLineAnnotation[] = [];
 const DIFF_UNSAFE_CSS =
   '[data-selected-line]:is([data-line-annotation],[data-gutter-buffer=annotation]){--diffs-computed-selected-line-bg:var(--diffs-annotation-bg)}';
 
-const MENU_ITEM_CLASS =
-  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-text-secondary transition-colors duration-200 hover:bg-surface-hover disabled:cursor-not-allowed disabled:opacity-50 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover';
+// Below this tile width the sidebar can't coexist with a readable diff — it
+// collapses into the toolbar file dropdown instead.
+const NARROW_BREAKPOINT = 600;
 
-// 6px below trigger, right-aligned — shared by open + reposition handlers.
+const FILES_PANEL_WIDTH = 256;
+
+// 6px below trigger, left-aligned, clamped so the panel stays on screen.
 const computeMenuPos = (rect: DOMRect) => ({
   top: rect.bottom + 6,
-  right: window.innerWidth - rect.right,
+  left: Math.max(8, Math.min(rect.left, window.innerWidth - FILES_PANEL_WIDTH - 8)),
 });
 
-const isRenameFileType = (type?: string) => type === 'rename-pure' || type === 'rename-changed';
+// Nearest scrollable ancestor, bounded to the diff pane — the Virtualizer owns
+// the scroll container and doesn't expose a ref to it.
+function findScroller(el: HTMLElement, boundary: HTMLElement | null): HTMLElement | null {
+  for (let p = el.parentElement; p && p !== boundary; p = p.parentElement) {
+    if (p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
+}
 
 // Backend always sends full-context diffs, so deletion/additionLines hold the
 // complete bodies. Lines keep trailing '\n', so raw join reconstructs the file.
@@ -186,135 +169,6 @@ function DiffEmptyState({
   );
 }
 
-const FileDiffRenderer = memo(function FileDiffRenderer({
-  file,
-  options,
-  canComment,
-  commentRange,
-  isComposing,
-  onSelectionChange,
-  onSelectionEnd,
-  onSubmitComment,
-  onCancelComment,
-}: {
-  file: FileDiffMetadata;
-  options: Record<string, unknown>;
-  canComment: boolean;
-  commentRange: SelectedLineRange | null;
-  isComposing: boolean;
-  onSelectionChange: (fileName: string, range: SelectedLineRange | null) => void;
-  onSelectionEnd: (fileName: string, range: SelectedLineRange | null) => void;
-  onSubmitComment: (file: FileDiffMetadata, range: SelectedLineRange, comment: string) => void;
-  onCancelComment: () => void;
-}) {
-  // Selection is gated on a chat being connected — the comment has nowhere to
-  // go otherwise. Fully controlled via `selectedLines` so closing the composer
-  // clears the highlight; start/change echoes keep the drag highlight live
-  // (the library doesn't self-render selection in controlled mode).
-  const fileOptions = useMemo(
-    () =>
-      canComment
-        ? {
-            ...options,
-            enableLineSelection: true,
-            onLineSelectionStart: (range: SelectedLineRange | null) =>
-              onSelectionChange(file.name, range),
-            onLineSelectionChange: (range: SelectedLineRange | null) =>
-              onSelectionChange(file.name, range),
-            onLineSelectionEnd: (range: SelectedLineRange | null) =>
-              onSelectionEnd(file.name, range),
-          }
-        : options,
-    [options, canComment, file.name, onSelectionChange, onSelectionEnd],
-  );
-
-  const annotations = useMemo<DiffLineAnnotation[]>(
-    () =>
-      isComposing && commentRange
-        ? [
-            {
-              side: commentRange.endSide ?? commentRange.side ?? 'additions',
-              lineNumber: commentRange.end,
-            },
-          ]
-        : NO_ANNOTATIONS,
-    [isComposing, commentRange],
-  );
-
-  const renderComposer = useCallback(() => {
-    if (!commentRange) return null;
-    return (
-      <DiffCommentComposer
-        lineLabel={
-          commentRange.start === commentRange.end
-            ? `line ${commentRange.start}`
-            : `lines ${commentRange.start}-${commentRange.end}`
-        }
-        onSubmit={(comment) => onSubmitComment(file, commentRange, comment)}
-        onCancel={onCancelComment}
-      />
-    );
-  }, [file, commentRange, onSubmitComment, onCancelComment]);
-
-  return (
-    <ErrorBoundary
-      fallback={
-        <div className="px-3 py-4 text-xs text-error-600 dark:text-error-400">
-          Failed to render diff for this file
-        </div>
-      }
-    >
-      <FileDiff
-        fileDiff={file}
-        options={fileOptions}
-        selectedLines={commentRange}
-        lineAnnotations={annotations}
-        renderAnnotation={renderComposer}
-      />
-    </ErrorBoundary>
-  );
-});
-
-function FileStats({ file }: { file: FileDiffMetadata }) {
-  const { hunks } = file;
-  if (hunks.length === 0) return null;
-
-  let additions = 0;
-  let deletions = 0;
-  for (const h of hunks) {
-    additions += h.additionLines;
-    deletions += h.deletionLines;
-  }
-
-  if (additions === 0 && deletions === 0) return null;
-
-  return (
-    <span className="flex shrink-0 items-center gap-1.5 pr-3 font-mono text-2xs">
-      {additions > 0 && (
-        <span className="text-success-600 dark:text-success-400">+{additions}</span>
-      )}
-      {deletions > 0 && (
-        <span className="text-error-600 dark:text-error-400">&minus;{deletions}</span>
-      )}
-    </span>
-  );
-}
-
-function FileStatusBadge({ type }: { type?: string }) {
-  if (!type || type === 'change') return null;
-  const label = STATUS_LABELS[type];
-  const colors = STATUS_COLORS[type];
-  if (!label || !colors) return null;
-
-  return (
-    <span
-      className={cn('shrink-0 rounded px-1 py-0.5 text-[9px] font-medium leading-none', colors)}
-    >
-      {label}
-    </span>
-  );
-}
-
 interface DiffViewProps {
   // The chat this tile renders — resolves the sandbox/cwd it diffs and binds it
   // to jumps so the primary and secondary diff tiles never consume each other's.
@@ -339,11 +193,16 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   const { data: chat } = useChatQuery(chatId);
   const sandboxId = chat?.sandbox_id ?? undefined;
   const cwd = chat?.worktree_cwd ?? undefined;
-  const [expandedFiles, toggleFile, setExpandedFiles] = useToggleSet<string>();
+  // Files render expanded by default (continuous review scroll) — track the
+  // exceptions the user collapsed instead of the ones they opened.
+  const [collapsedFiles, toggleCollapsed, setCollapsedFiles] = useToggleSet<string>();
   const [mode, setMode] = useState<DiffMode>('all');
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
   const [discardTarget, setDiscardTarget] = useState<FileDiffMetadata | null>(null);
   const [discardAllOpen, setDiscardAllOpen] = useState(false);
+  // Scrollspy target — the file whose diff currently tops the pane.
+  const [activeFile, setActiveFile] = useState<string | null>(null);
+  const [isNarrow, setIsNarrow] = useState(false);
   const {
     pendingComment,
     resetComments,
@@ -367,6 +226,24 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   // identical data-diff-file-path attributes, so a document-wide query could
   // target the other tile.
   const rootRef = useRef<HTMLDivElement>(null);
+  // Diff pane wrapper — its top edge is the scrollspy's reference line.
+  const paneRef = useRef<HTMLDivElement>(null);
+
+  // Callback ref instead of an effect — the root div appears only once a
+  // sandbox is connected, so a mount-only effect could observe nothing.
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const rootRefCallback = useCallback((node: HTMLDivElement | null) => {
+    rootRef.current = node;
+    resizeObserverRef.current?.disconnect();
+    resizeObserverRef.current = null;
+    if (node) {
+      const observer = new ResizeObserver(([entry]) => {
+        setIsNarrow(entry.contentRect.width < NARROW_BREAKPOINT);
+      });
+      observer.observe(node);
+      resizeObserverRef.current = observer;
+    }
+  }, []);
 
   // Filename keys persist across refetches, but mean different content across
   // scopes — reset on scope change. Ref check avoids a double render. Discard
@@ -375,56 +252,16 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   const prevScopeRef = useRef(scopeKey);
   if (prevScopeRef.current !== scopeKey) {
     prevScopeRef.current = scopeKey;
-    setExpandedFiles(new Set());
+    setCollapsedFiles(new Set());
     setDiscardTarget(null);
     setDiscardAllOpen(false);
+    setActiveFile(null);
     resetComments();
   }
 
-  // Portal escapes the toolbar's overflow-x-auto clip (CSS clips both axes).
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuPanelRef = useRef<HTMLDivElement>(null);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
-
-  const toggleMenu = useCallback(() => {
-    if (menuOpen) {
-      setMenuOpen(false);
-      return;
-    }
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    setMenuPos(computeMenuPos(trigger.getBoundingClientRect()));
-    setMenuOpen(true);
-  }, [menuOpen]);
-
-  useEffect(() => {
-    if (!menuOpen) return;
-    const handleMouseDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (triggerRef.current?.contains(target)) return;
-      if (menuPanelRef.current?.contains(target)) return;
-      setMenuOpen(false);
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    };
-    // Resize only — document scroll thrashes layout, and any real scroll
-    // closes the menu via the mousedown handler anyway.
-    const reposition = () => {
-      const trigger = triggerRef.current;
-      if (!trigger) return;
-      setMenuPos(computeMenuPos(trigger.getBoundingClientRect()));
-    };
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('resize', reposition);
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('resize', reposition);
-    };
-  }, [menuOpen]);
+  // Narrow-mode file dropdown — portaled to escape the toolbar's
+  // overflow-x-auto clip (CSS clips both axes).
+  const filesMenu = useAnchoredPanel(computeMenuPos);
 
   const handleDiscard = useCallback(async () => {
     if (!sandboxId || !discardTarget) return;
@@ -460,6 +297,13 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     }
   }, [sandboxId, cwd, restoreAll]);
 
+  // Closing the file dropdown is a no-op when it isn't open, so wide and narrow
+  // sidebars share these handlers.
+  const openDiscardAll = useCallback(() => {
+    setDiscardAllOpen(true);
+    filesMenu.close();
+  }, [filesMenu.close]);
+
   const diffContent = diffData?.diff ?? '';
   const diffCacheKey = useMemo(
     () => (diffContent ? `${scopeKey}\0${hashDiffContent(diffContent)}` : undefined),
@@ -480,6 +324,25 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     );
   }, [diffContent, diffCacheKey]);
 
+  const statsByFile = useMemo(() => {
+    const map = new Map<string, FileChangeStats>();
+    for (const file of parsedFiles) {
+      let additions = 0;
+      let deletions = 0;
+      for (const h of file.hunks) {
+        additions += h.additionLines;
+        deletions += h.deletionLines;
+      }
+      map.set(file.name, { additions, deletions });
+    }
+    return map;
+  }, [parsedFiles]);
+
+  // Refetches can drop the tracked file (e.g. after a discard) — fall back to
+  // the first file so the sidebar highlight never points at a missing row.
+  const currentFile =
+    activeFile && statsByFile.has(activeFile) ? activeFile : (parsedFiles[0]?.name ?? null);
+
   const options = useMemo(
     () => ({
       theme: DIFF_THEMES,
@@ -490,6 +353,59 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
       unsafeCSS: DIFF_UNSAFE_CSS,
     }),
     [theme, diffStyle],
+  );
+
+  // In-flight jump animation — a new click cancels the previous one.
+  const jumpRafRef = useRef(0);
+
+  const jumpToFile = useCallback(
+    (name: string) => {
+      setActiveFile(name);
+      setCollapsedFiles((prev) => {
+        if (!prev.has(name)) return prev;
+        const next = new Set(prev);
+        next.delete(name);
+        return next;
+      });
+      cancelAnimationFrame(jumpRafRef.current);
+      // rAF: a just-expanded file needs a render before its body has height.
+      jumpRafRef.current = requestAnimationFrame(() => {
+        const el = rootRef.current?.querySelector<HTMLElement>(
+          `[data-diff-file-path="${CSS.escape(name)}"]`,
+        );
+        if (!el) return;
+        const scroller = findScroller(el, paneRef.current);
+        if (!scroller) return;
+        // Hand-rolled animation instead of smooth scrollIntoView: the Virtualizer
+        // reconciles estimated heights as content renders in, shifting the target
+        // mid-flight — scrollIntoView animates to the position measured at call
+        // time and lands on a neighboring file. Re-measuring every frame converges
+        // on the live position; instant teleports are equally off the table since
+        // the Virtualizer only renders from scroll/intersection events.
+        let frames = 0;
+        const step = () => {
+          const delta = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+          if (Math.abs(delta) < 1) {
+            scroller.scrollTop += delta;
+            return;
+          }
+          scroller.scrollTop +=
+            Math.sign(delta) * Math.min(Math.abs(delta), Math.max(Math.abs(delta) * 0.3, 24));
+          // Frame cap so a target that never settles can't animate forever.
+          if ((frames += 1) < 180) jumpRafRef.current = requestAnimationFrame(step);
+        };
+        step();
+      });
+    },
+    [setCollapsedFiles],
+  );
+
+  const selectFile = useCallback(
+    (name: string) => {
+      jumpToFile(name);
+      filesMenu.close();
+    },
+    [jumpToFile, filesMenu.close],
   );
 
   // External request (from ChangedFilesPanel "open in diff view") to focus a
@@ -506,22 +422,9 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     const match =
       parsedFiles.find((f) => f.name === path) ??
       parsedFiles.find((f) => f.name.endsWith(path) || path.endsWith(f.name));
-    if (match) {
-      setExpandedFiles((prev) => {
-        if (prev.has(match.name)) return prev;
-        const next = new Set(prev);
-        next.add(match.name);
-        return next;
-      });
-      requestAnimationFrame(() => {
-        const el = rootRef.current?.querySelector(
-          `[data-diff-file-path="${CSS.escape(match.name)}"]`,
-        );
-        el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-      });
-    }
+    if (match) jumpToFile(match.name);
     useUIStore.getState().consumeDiffFileJump();
-  }, [pendingDiffFile, parsedFiles, setExpandedFiles, chatId, isPlaceholderData]);
+  }, [pendingDiffFile, parsedFiles, jumpToFile, chatId, isPlaceholderData]);
 
   // The tile stays mounted while hidden, so switching back to it doesn't remount
   // or refetch. Force a refresh on each hidden→visible transition so the user
@@ -534,23 +437,16 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     wasVisibleRef.current = isVisible;
   }, [isVisible, refetch, sandboxId]);
 
-  const allExpanded = parsedFiles.length > 0 && parsedFiles.every((f) => expandedFiles.has(f.name));
+  const allCollapsed =
+    parsedFiles.length > 0 && parsedFiles.every((f) => collapsedFiles.has(f.name));
 
   const toggleAll = useCallback(() => {
-    setExpandedFiles((prev) => {
-      const allOn = parsedFiles.length > 0 && parsedFiles.every((f) => prev.has(f.name));
-      if (allOn) return new Set();
+    setCollapsedFiles((prev) => {
+      const allOff = parsedFiles.length > 0 && parsedFiles.every((f) => prev.has(f.name));
+      if (allOff) return new Set();
       return new Set(parsedFiles.map((f) => f.name));
     });
-  }, [parsedFiles, setExpandedFiles]);
-
-  if (!sandboxId) {
-    return (
-      <div className="flex h-full items-center justify-center bg-surface-secondary text-xs text-text-quaternary dark:bg-surface-dark-secondary dark:text-text-dark-quaternary">
-        No sandbox connected
-      </div>
-    );
-  }
+  }, [parsedFiles, setCollapsedFiles]);
 
   const isLoading = isFetching && !diffData;
   const isGitRepo = diffData?.is_git_repo ?? false;
@@ -562,16 +458,65 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   // `!isPlaceholderData` blocks acting on rows from the previous mode's fetch.
   const canDiscard = ready && hasChanges && mode === 'all' && !isPlaceholderData;
 
+  // Scrollspy — capture-phase because scroll doesn't bubble and the Virtualizer
+  // owns the scroll container. The last header within 32px of the pane top wins,
+  // so the active file flips as each sticky header reaches its pinned position.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !showFiles) return;
+    let raf = 0;
+    const onScroll = () => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const pane = paneRef.current;
+        if (!pane) return;
+        const paneTop = pane.getBoundingClientRect().top;
+        let current: string | null = null;
+        for (const wrapper of pane.querySelectorAll<HTMLElement>('[data-diff-file-path]')) {
+          if (wrapper.getBoundingClientRect().top - paneTop > 32) break;
+          current = wrapper.dataset.diffFilePath ?? null;
+        }
+        if (current) setActiveFile(current);
+      });
+    };
+    root.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => {
+      root.removeEventListener('scroll', onScroll, { capture: true });
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [showFiles]);
+
+  if (!sandboxId) {
+    return (
+      <div className="flex h-full items-center justify-center bg-surface-secondary text-xs text-text-quaternary dark:bg-surface-dark-secondary dark:text-text-dark-quaternary">
+        No sandbox connected
+      </div>
+    );
+  }
+
+  const filesSidebar = showFiles ? (
+    <DiffFileSidebar
+      files={parsedFiles}
+      statsByFile={statsByFile}
+      activeFile={currentFile}
+      onSelectFile={selectFile}
+      canDiscard={canDiscard}
+      onDiscardAll={openDiscardAll}
+      discardPending={restoreAll.isPending}
+    />
+  ) : null;
+
   return (
     <WorkerPoolContextProvider
       poolOptions={WORKER_POOL_OPTIONS}
       highlighterOptions={WORKER_HIGHLIGHTER_OPTIONS}
     >
       <div
-        ref={rootRef}
+        ref={rootRefCallback}
         className="flex h-full w-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary"
       >
-        <div className="flex h-9 items-center gap-1.5 overflow-x-auto border-b border-border/50 px-3 [scrollbar-width:none] dark:border-border-dark/50 [&::-webkit-scrollbar]:hidden">
+        <div className="flex h-9 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border/50 px-3 [scrollbar-width:none] dark:border-border-dark/50 [&::-webkit-scrollbar]:hidden">
           <FloatingTooltip content="Refresh diff" className="flex shrink-0">
             <Button
               onClick={() => refetch()}
@@ -593,66 +538,64 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
             className="shrink-0"
           />
 
-          <div className="min-w-0 flex-1" />
-
-          {(showFiles || canDiscard) && (
+          {isNarrow && showFiles && currentFile && (
             <>
-              <FloatingTooltip content="More actions" className="flex shrink-0">
-                <Button
-                  ref={triggerRef}
-                  onClick={toggleMenu}
-                  variant="unstyled"
-                  className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
-                  aria-label="More actions"
-                  aria-haspopup="menu"
-                  aria-expanded={menuOpen}
-                >
-                  <MoreHorizontal className="h-3 w-3" />
-                </Button>
-              </FloatingTooltip>
-              {menuOpen &&
+              <Button
+                ref={filesMenu.triggerRef}
+                onClick={filesMenu.toggle}
+                variant="unstyled"
+                aria-haspopup="menu"
+                aria-expanded={filesMenu.isOpen}
+                className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 transition-colors duration-200 hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
+              >
+                <span className="max-w-36 truncate font-mono text-2xs text-text-secondary dark:text-text-dark-secondary">
+                  {currentFile.slice(currentFile.lastIndexOf('/') + 1)}
+                </span>
+                <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                  {parsedFiles.findIndex((f) => f.name === currentFile) + 1}/{parsedFiles.length}
+                </span>
+                <ChevronDown
+                  className={cn(
+                    'h-3 w-3 text-text-quaternary transition-transform duration-200 dark:text-text-dark-quaternary',
+                    filesMenu.isOpen && 'rotate-180',
+                  )}
+                />
+              </Button>
+              {filesMenu.isOpen &&
                 createPortal(
                   <div
-                    ref={menuPanelRef}
-                    role="menu"
-                    style={{ top: menuPos.top, right: menuPos.right }}
-                    className="fixed z-50 min-w-[180px] animate-fade-in space-y-px rounded-xl border border-border bg-surface-secondary/95 p-1 shadow-medium backdrop-blur-xl backdrop-saturate-150 dark:border-border-dark dark:bg-surface-dark-secondary/95"
+                    ref={filesMenu.panelRef}
+                    style={{
+                      top: filesMenu.pos.top,
+                      left: filesMenu.pos.left,
+                      width: FILES_PANEL_WIDTH,
+                    }}
+                    className="fixed z-50 flex max-h-96 animate-fade-in flex-col overflow-hidden rounded-xl border border-border bg-surface-secondary/95 shadow-medium backdrop-blur-xl backdrop-saturate-150 dark:border-border-dark dark:bg-surface-dark-secondary/95"
                   >
-                    {showFiles && (
-                      <Button
-                        variant="unstyled"
-                        role="menuitem"
-                        onClick={() => {
-                          toggleAll();
-                          setMenuOpen(false);
-                        }}
-                        className={MENU_ITEM_CLASS}
-                      >
-                        <ChevronsUpDown className="h-3 w-3 text-text-tertiary dark:text-text-dark-tertiary" />
-                        {allExpanded ? 'Collapse all files' : 'Expand all files'}
-                      </Button>
-                    )}
-                    {showFiles && canDiscard && (
-                      <div className="my-1 h-px bg-border/50 dark:bg-border-dark/50" />
-                    )}
-                    {canDiscard && (
-                      <Button
-                        variant="unstyled"
-                        role="menuitem"
-                        disabled={restoreAll.isPending}
-                        onClick={() => {
-                          setDiscardAllOpen(true);
-                          setMenuOpen(false);
-                        }}
-                        className={MENU_ITEM_CLASS}
-                      >
-                        <Undo2 className="h-3 w-3 text-text-tertiary dark:text-text-dark-tertiary" />
-                        Discard all changes
-                      </Button>
-                    )}
+                    {filesSidebar}
                   </div>,
                   document.body,
                 )}
+            </>
+          )}
+
+          <div className="min-w-0 flex-1" />
+
+          {showFiles && (
+            <>
+              <FloatingTooltip
+                content={allCollapsed ? 'Expand all files' : 'Collapse all files'}
+                className="flex shrink-0"
+              >
+                <Button
+                  onClick={toggleAll}
+                  variant="unstyled"
+                  className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+                  aria-label={allCollapsed ? 'Expand all files' : 'Collapse all files'}
+                >
+                  <ChevronsUpDown className="h-3 w-3" />
+                </Button>
+              </FloatingTooltip>
               <div className="h-3 w-px shrink-0 bg-border/50 dark:bg-border-dark/50" />
             </>
           )}
@@ -666,141 +609,100 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
           />
         </div>
 
-        <div className="relative min-h-0 flex-1 overflow-hidden">
-          {isLoading && (
-            <div className="flex h-full items-center justify-center">
-              <Spinner size="md" className="text-text-quaternary dark:text-text-dark-quaternary" />
+        <div className="flex min-h-0 flex-1">
+          {!isNarrow && filesSidebar && (
+            <div className="flex w-52 shrink-0 flex-col border-r border-border/50 dark:border-border-dark/50">
+              {filesSidebar}
             </div>
           )}
 
-          {!isLoading && isError && (
-            <DiffEmptyState icon={AlertCircle} label="Failed to load diff">
-              <Button
-                onClick={() => refetch()}
-                variant="unstyled"
-                className="text-2xs text-text-tertiary underline transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary"
+          <div ref={paneRef} className="relative min-h-0 flex-1 overflow-hidden">
+            {isLoading && (
+              <div className="flex h-full items-center justify-center">
+                <Spinner
+                  size="md"
+                  className="text-text-quaternary dark:text-text-dark-quaternary"
+                />
+              </div>
+            )}
+
+            {!isLoading && isError && (
+              <DiffEmptyState icon={AlertCircle} label="Failed to load diff">
+                <Button
+                  onClick={() => refetch()}
+                  variant="unstyled"
+                  className="text-2xs text-text-tertiary underline transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary"
+                >
+                  Retry
+                </Button>
+              </DiffEmptyState>
+            )}
+
+            {!isLoading && !isError && !isGitRepo && (
+              <DiffEmptyState icon={GitCompareArrows} label="Not a git repository" />
+            )}
+
+            {ready && diffError && <DiffEmptyState icon={GitCompareArrows} label={diffError} />}
+
+            {ready && !diffError && !hasChanges && (
+              <DiffEmptyState icon={GitCompareArrows} label={DIFF_EMPTY_LABELS[mode]} />
+            )}
+
+            {showFiles && (
+              // Virtualizer as scroll root — FileDiff auto-switches to the
+              // virtualized impl so offscreen hunks stay unrendered.
+              // overflow-anchor off: the library restores its own line-level
+              // scroll anchor on height changes (composer row insert/remove),
+              // and native anchoring double-corrects into a visible jump.
+              // CodeView disables it on its root; plain Virtualizer doesn't.
+              <Virtualizer
+                className="h-full w-full overflow-auto [overflow-anchor:none]"
+                contentClassName="divide-y divide-border/30 dark:divide-border-dark/30"
               >
-                Retry
-              </Button>
-            </DiffEmptyState>
-          )}
+                {parsedFiles.map((file) => (
+                  <DiffFileRow
+                    key={file.name}
+                    file={file}
+                    isExpanded={!collapsedFiles.has(file.name)}
+                    stats={statsByFile.get(file.name)}
+                    canDiscard={canDiscard}
+                    discardPending={restoreFile.isPending}
+                    cwd={cwd}
+                    chatId={chatId}
+                    options={options}
+                    commentRange={
+                      pendingComment?.fileName === file.name ? pendingComment.range : null
+                    }
+                    isComposing={pendingComment?.fileName === file.name && pendingComment.composing}
+                    onToggle={toggleCollapsed}
+                    onDiscard={setDiscardTarget}
+                    onSelectionChange={handleSelectionChange}
+                    onSelectionEnd={handleSelectionEnd}
+                    onSubmitComment={handleSubmitComment}
+                    onCancelComment={resetComments}
+                  />
+                ))}
+              </Virtualizer>
+            )}
 
-          {!isLoading && !isError && !isGitRepo && (
-            <DiffEmptyState icon={GitCompareArrows} label="Not a git repository" />
-          )}
-
-          {ready && diffError && <DiffEmptyState icon={GitCompareArrows} label={diffError} />}
-
-          {ready && !diffError && !hasChanges && (
-            <DiffEmptyState icon={GitCompareArrows} label={DIFF_EMPTY_LABELS[mode]} />
-          )}
-
-          {showFiles && (
-            // Virtualizer as scroll root — FileDiff auto-switches to the
-            // virtualized impl so offscreen hunks stay unrendered.
-            <Virtualizer
-              className="h-full w-full overflow-auto"
-              contentClassName="divide-y divide-border/30 dark:divide-border-dark/30"
-            >
-              {parsedFiles.map((file) => {
-                const isExpanded = expandedFiles.has(file.name);
-                const isRenamed = isRenameFileType(file.type);
-                return (
-                  <div key={file.name} data-diff-file-path={file.name}>
-                    <div className="group flex w-full items-center transition-colors duration-200 hover:bg-surface-hover dark:hover:bg-surface-dark-hover">
-                      <Button
-                        variant="unstyled"
-                        type="button"
-                        onClick={() => toggleFile(file.name)}
-                        className="flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left"
-                      >
-                        <ChevronRight
-                          className={cn(
-                            'h-3 w-3 shrink-0 text-text-quaternary transition-transform duration-200 dark:text-text-dark-quaternary',
-                            isExpanded && 'rotate-90',
-                          )}
-                        />
-                        <FileIcon name={file.name} className="h-3 w-3" />
-                        <span className="min-w-0 truncate font-mono text-2xs text-text-secondary dark:text-text-dark-secondary">
-                          {isRenamed && file.prevName ? (
-                            <>
-                              <span className="text-text-quaternary dark:text-text-dark-quaternary">
-                                {file.prevName}
-                              </span>
-                              <span className="mx-1 text-text-quaternary dark:text-text-dark-quaternary">
-                                &rarr;
-                              </span>
-                              {file.name}
-                            </>
-                          ) : (
-                            file.name
-                          )}
-                        </span>
-                        <FileStatusBadge type={file.type} />
-                      </Button>
-                      {file.type !== 'deleted' && (
-                        <FloatingTooltip content="Open in editor" className="mr-1 flex shrink-0">
-                          <Button
-                            variant="unstyled"
-                            type="button"
-                            onClick={() =>
-                              useUIStore
-                                .getState()
-                                .openFileInEditor(cwd ? `${cwd}/${file.name}` : file.name, chatId)
-                            }
-                            className="rounded-md p-1 text-text-quaternary opacity-0 transition-opacity duration-200 hover:text-text-primary focus-visible:opacity-100 group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-                            aria-label={`Open ${file.name} in editor`}
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </Button>
-                        </FloatingTooltip>
-                      )}
-                      {canDiscard && (
-                        <FloatingTooltip content="Discard changes" className="mr-1 flex shrink-0">
-                          <Button
-                            variant="unstyled"
-                            type="button"
-                            onClick={() => setDiscardTarget(file)}
-                            disabled={restoreFile.isPending}
-                            className="rounded-md p-1 text-text-quaternary opacity-0 transition-opacity duration-200 hover:text-text-primary focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-                            aria-label={`Discard changes for ${file.name}`}
-                          >
-                            <Undo2 className="h-3 w-3" />
-                          </Button>
-                        </FloatingTooltip>
-                      )}
-                      <FileStats file={file} />
-                    </div>
-                    {isExpanded && (
-                      <FileDiffRenderer
-                        file={file}
-                        options={options}
-                        canComment={!!chatId}
-                        commentRange={
-                          pendingComment?.fileName === file.name ? pendingComment.range : null
-                        }
-                        isComposing={
-                          pendingComment?.fileName === file.name && pendingComment.composing
-                        }
-                        onSelectionChange={handleSelectionChange}
-                        onSelectionEnd={handleSelectionEnd}
-                        onSubmitComment={handleSubmitComment}
-                        onCancelComment={resetComments}
-                      />
-                    )}
-                  </div>
-                );
-              })}
-            </Virtualizer>
-          )}
-
-          {ready && hasChanges && parsedFiles.length === 0 && (
-            <DiffEmptyState
-              icon={GitCompareArrows}
-              label="Changes detected but diff cannot be displayed"
-              sublabel="Binary or unsupported file formats"
-            />
-          )}
+            {ready && hasChanges && parsedFiles.length === 0 && (
+              <DiffEmptyState
+                icon={GitCompareArrows}
+                label="Changes detected but diff cannot be displayed"
+                sublabel="Binary or unsupported file formats"
+              >
+                {canDiscard && (
+                  <Button
+                    onClick={openDiscardAll}
+                    variant="unstyled"
+                    className="text-2xs text-text-tertiary underline transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary"
+                  >
+                    Discard all changes
+                  </Button>
+                )}
+              </DiffEmptyState>
+            )}
+          </div>
         </div>
 
         <ConfirmDialog
