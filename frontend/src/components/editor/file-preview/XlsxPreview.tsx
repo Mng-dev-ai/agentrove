@@ -3,6 +3,7 @@ import { logger } from '@/utils/logger';
 import { base64ToUint8Array } from '@/utils/base64';
 import type { FileStructure } from '@/types/file-system.types';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { PreviewContainer } from './PreviewContainer';
 import { PreviewEmptyState } from './PreviewEmptyState';
@@ -182,9 +183,10 @@ export const XlsxPreview = memo(function XlsxPreview({
                     <td
                       key={cellIndex}
                       className={`${tableBorderClass} break-words px-3 py-2 text-sm text-text-primary dark:text-text-dark-primary ${isFullscreen ? 'w-auto' : 'w-auto min-w-32'}`}
-                      title={cell.value}
                     >
-                      {cell.value || ''}
+                      <FloatingTooltip content={cell.value} className="block">
+                        {cell.value || ''}
+                      </FloatingTooltip>
                     </td>
                   ))}
                 </tr>

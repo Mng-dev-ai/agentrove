@@ -14,6 +14,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { FileIcon } from '@/components/ui/shared/FileIcon';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Button } from '@/components/ui/primitives/Button';
 import { SegmentedControl } from '@/components/ui/primitives/SegmentedControl';
 import { Spinner } from '@/components/ui/primitives/Spinner';
@@ -571,17 +572,18 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
         className="flex h-full w-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary"
       >
         <div className="flex h-9 items-center gap-1.5 overflow-x-auto border-b border-border/50 px-3 [scrollbar-width:none] dark:border-border-dark/50 [&::-webkit-scrollbar]:hidden">
-          <Button
-            onClick={() => refetch()}
-            variant="unstyled"
-            className="shrink-0 rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
-            title="Refresh diff"
-            aria-label="Refresh diff"
-          >
-            <RotateCcw
-              className={cn('h-3 w-3', isFetching && 'animate-spin motion-reduce:animate-none')}
-            />
-          </Button>
+          <FloatingTooltip content="Refresh diff" className="flex shrink-0">
+            <Button
+              onClick={() => refetch()}
+              variant="unstyled"
+              className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+              aria-label="Refresh diff"
+            >
+              <RotateCcw
+                className={cn('h-3 w-3', isFetching && 'animate-spin motion-reduce:animate-none')}
+              />
+            </Button>
+          </FloatingTooltip>
 
           <SegmentedControl
             options={DIFF_MODE_OPTIONS}
@@ -595,18 +597,19 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
 
           {(showFiles || canDiscard) && (
             <>
-              <Button
-                ref={triggerRef}
-                onClick={toggleMenu}
-                variant="unstyled"
-                className="shrink-0 rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
-                title="More actions"
-                aria-label="More actions"
-                aria-haspopup="menu"
-                aria-expanded={menuOpen}
-              >
-                <MoreHorizontal className="h-3 w-3" />
-              </Button>
+              <FloatingTooltip content="More actions" className="flex shrink-0">
+                <Button
+                  ref={triggerRef}
+                  onClick={toggleMenu}
+                  variant="unstyled"
+                  className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+                  aria-label="More actions"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                >
+                  <MoreHorizontal className="h-3 w-3" />
+                </Button>
+              </FloatingTooltip>
               {menuOpen &&
                 createPortal(
                   <div
@@ -736,33 +739,35 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
                         <FileStatusBadge type={file.type} />
                       </Button>
                       {file.type !== 'deleted' && (
-                        <Button
-                          variant="unstyled"
-                          type="button"
-                          onClick={() =>
-                            useUIStore
-                              .getState()
-                              .openFileInEditor(cwd ? `${cwd}/${file.name}` : file.name, chatId)
-                          }
-                          className="mr-1 shrink-0 rounded-md p-1 text-text-quaternary opacity-0 transition-opacity duration-200 hover:text-text-primary focus-visible:opacity-100 group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-                          title="Open in editor"
-                          aria-label={`Open ${file.name} in editor`}
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </Button>
+                        <FloatingTooltip content="Open in editor" className="mr-1 flex shrink-0">
+                          <Button
+                            variant="unstyled"
+                            type="button"
+                            onClick={() =>
+                              useUIStore
+                                .getState()
+                                .openFileInEditor(cwd ? `${cwd}/${file.name}` : file.name, chatId)
+                            }
+                            className="rounded-md p-1 text-text-quaternary opacity-0 transition-opacity duration-200 hover:text-text-primary focus-visible:opacity-100 group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+                            aria-label={`Open ${file.name} in editor`}
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                          </Button>
+                        </FloatingTooltip>
                       )}
                       {canDiscard && (
-                        <Button
-                          variant="unstyled"
-                          type="button"
-                          onClick={() => setDiscardTarget(file)}
-                          disabled={restoreFile.isPending}
-                          className="mr-1 shrink-0 rounded-md p-1 text-text-quaternary opacity-0 transition-opacity duration-200 hover:text-text-primary focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-                          title="Discard changes"
-                          aria-label={`Discard changes for ${file.name}`}
-                        >
-                          <Undo2 className="h-3 w-3" />
-                        </Button>
+                        <FloatingTooltip content="Discard changes" className="mr-1 flex shrink-0">
+                          <Button
+                            variant="unstyled"
+                            type="button"
+                            onClick={() => setDiscardTarget(file)}
+                            disabled={restoreFile.isPending}
+                            className="rounded-md p-1 text-text-quaternary opacity-0 transition-opacity duration-200 hover:text-text-primary focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50 group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+                            aria-label={`Discard changes for ${file.name}`}
+                          >
+                            <Undo2 className="h-3 w-3" />
+                          </Button>
+                        </FloatingTooltip>
                       )}
                       <FileStats file={file} />
                     </div>

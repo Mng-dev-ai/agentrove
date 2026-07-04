@@ -3,6 +3,7 @@ import { GitCommitHorizontal, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Textarea } from '@/components/ui/primitives/Textarea';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useModelStore } from '@/store/modelStore';
@@ -36,6 +37,11 @@ export function CreateCommitDialog({ onClose }: CreateCommitDialogProps) {
   const hasDiff = !!diffData?.diff && !isPlaceholderData;
   const hasModel = !!selectedModelId.trim();
   const canGenerate = hasDiff && hasModel && !generateMessage.isPending;
+  const generateDisabledReason = !hasModel
+    ? 'Select a model first'
+    : !hasDiff
+      ? (diffData?.error ?? 'No changes to commit')
+      : undefined;
 
   const [message, setMessage] = useState('');
 
@@ -102,27 +108,24 @@ export function CreateCommitDialog({ onClose }: CreateCommitDialogProps) {
             <label className="text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
               Commit message
             </label>
-            <Button
-              type="button"
-              variant="unstyled"
-              onClick={handleGenerate}
-              disabled={!canGenerate}
-              title={
-                !hasModel
-                  ? 'Select a model first'
-                  : !hasDiff
-                    ? (diffData?.error ?? 'No changes to commit')
-                    : undefined
-              }
-              className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs text-text-tertiary transition-colors duration-200 dark:text-text-dark-tertiary ${
-                canGenerate
-                  ? 'hover:bg-surface-hover hover:text-text-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
-                  : 'cursor-not-allowed opacity-50'
-              }`}
-            >
-              <Sparkles className={`h-3 w-3 ${generateMessage.isPending ? 'animate-pulse' : ''}`} />
-              {generateMessage.isPending ? 'Generating...' : 'Generate with AI'}
-            </Button>
+            <FloatingTooltip content={generateDisabledReason ?? ''} className="flex">
+              <Button
+                type="button"
+                variant="unstyled"
+                onClick={handleGenerate}
+                disabled={!canGenerate}
+                className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs text-text-tertiary transition-colors duration-200 dark:text-text-dark-tertiary ${
+                  canGenerate
+                    ? 'hover:bg-surface-hover hover:text-text-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
+                    : 'cursor-not-allowed opacity-50'
+                }`}
+              >
+                <Sparkles
+                  className={`h-3 w-3 ${generateMessage.isPending ? 'animate-pulse' : ''}`}
+                />
+                {generateMessage.isPending ? 'Generating...' : 'Generate with AI'}
+              </Button>
+            </FloatingTooltip>
           </div>
           <Textarea
             value={message}

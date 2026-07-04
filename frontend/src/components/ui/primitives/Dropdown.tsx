@@ -4,6 +4,7 @@ import { useDropdown } from '@/hooks/useDropdown';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/primitives/Button';
 import { SelectItem } from '@/components/ui/primitives/SelectItem';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { fuzzySearch } from '@/utils/fuzzySearch';
 import { cn } from '@/utils/cn';
 
@@ -148,11 +149,11 @@ function DropdownInner<T>({
   const displayItems = normalizeToGrouped(items, searchQuery);
 
   const showIconOnly = (compactOnMobile || forceCompact) && LeftIcon;
-  const labelClasses = showIconOnly
-    ? forceCompact
-      ? 'hidden truncate text-2xs font-medium text-text-secondary dark:text-text-dark-secondary'
-      : 'hidden sm:inline truncate text-2xs font-medium text-text-secondary dark:text-text-dark-secondary'
-    : 'truncate text-2xs font-medium text-text-secondary dark:text-text-dark-secondary';
+  // Visibility lives on the tooltip wrapper (the flex item) so a hidden label doesn't
+  // leave a zero-width slot that still consumes the trigger's gap in compact mode.
+  const labelVisibility = showIconOnly ? (forceCompact ? 'hidden' : 'hidden sm:block') : '';
+  const labelClasses =
+    'truncate text-2xs font-medium text-text-secondary dark:text-text-dark-secondary';
   const chevronClasses = showIconOnly
     ? forceCompact
       ? 'hidden'
@@ -187,12 +188,11 @@ function DropdownInner<T>({
                 )}
               />
             )}
-            <span
-              className={cn(labelClasses, 'text-inherit dark:text-inherit')}
-              title={triggerLabel}
-            >
-              {triggerLabel}
-            </span>
+            <FloatingTooltip content={triggerLabel} className={cn('min-w-0', labelVisibility)}>
+              <span className={cn(labelClasses, 'text-inherit dark:text-inherit')}>
+                {triggerLabel}
+              </span>
+            </FloatingTooltip>
           </>
         ) : (
           <>
@@ -204,9 +204,9 @@ function DropdownInner<T>({
                 )}
               />
             )}
-            <span className={labelClasses} title={triggerLabel}>
-              {triggerLabel}
-            </span>
+            <FloatingTooltip content={triggerLabel} className={cn('min-w-0', labelVisibility)}>
+              <span className={labelClasses}>{triggerLabel}</span>
+            </FloatingTooltip>
             {!disabled && (
               <ChevronDown className={`${chevronClasses} ${isOpen ? 'rotate-180' : ''}`} />
             )}
@@ -310,16 +310,17 @@ function DropdownInner<T>({
                     {renderItem ? (
                       renderItem(item, isSelected)
                     ) : (
-                      <span
-                        className={`block truncate text-2xs font-medium ${
-                          isSelected
-                            ? 'text-text-primary dark:text-text-dark-primary'
-                            : 'text-text-secondary dark:text-text-dark-secondary'
-                        }`}
-                        title={getItemLabel(item)}
-                      >
-                        {getItemLabel(item)}
-                      </span>
+                      <FloatingTooltip content={getItemLabel(item)} className="min-w-0">
+                        <span
+                          className={`block truncate text-2xs font-medium ${
+                            isSelected
+                              ? 'text-text-primary dark:text-text-dark-primary'
+                              : 'text-text-secondary dark:text-text-dark-secondary'
+                          }`}
+                        >
+                          {getItemLabel(item)}
+                        </span>
+                      </FloatingTooltip>
                     )}
                   </div>
                 </SelectItem>

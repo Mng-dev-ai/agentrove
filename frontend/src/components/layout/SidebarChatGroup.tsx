@@ -5,6 +5,7 @@ import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
 import type { PaginatedChats } from '@/types/api.types';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Spinner } from '@/components/ui/primitives/Spinner';
 import { useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useInfiniteCloudChatsQuery } from '@/hooks/queries/useCloudQueries';
@@ -163,15 +164,17 @@ const SidebarChatGroup = memo(function SidebarChatGroup({
             </span>
           )}
         </Button>
-        <Button
-          variant="unstyled"
-          type="button"
-          title="New thread"
-          onClick={(e) => onNewThread(e, workspaceId)}
-          className="flex shrink-0 items-center justify-center rounded p-0.5 text-text-quaternary opacity-0 transition-all duration-200 hover:text-text-primary group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-        >
-          <SquarePen className="h-3 w-3" />
-        </Button>
+        <FloatingTooltip content="New thread" className="flex">
+          <Button
+            variant="unstyled"
+            type="button"
+            aria-label="New thread"
+            onClick={(e) => onNewThread(e, workspaceId)}
+            className="flex shrink-0 items-center justify-center rounded p-0.5 text-text-quaternary opacity-0 transition-all duration-200 hover:text-text-primary group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+          >
+            <SquarePen className="h-3 w-3" />
+          </Button>
+        </FloatingTooltip>
         <Button
           variant="unstyled"
           type="button"

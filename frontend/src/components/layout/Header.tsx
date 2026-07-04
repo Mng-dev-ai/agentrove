@@ -3,6 +3,7 @@ import { useNavigate, useMatch } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { THEME_CYCLE, getThemeMeta } from '@/utils/theme';
 import type { Theme } from '@/types/ui.types';
 import { cn } from '@/utils/cn';
@@ -16,21 +17,22 @@ function ThemeToggleButton({ theme, onToggle }: { theme: Theme; onToggle: () => 
   const Icon = getThemeMeta(theme).icon;
   const next = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
   return (
-    <Button
-      onClick={onToggle}
-      variant="unstyled"
-      className={cn(
-        'relative rounded-full p-1.5',
-        'text-text-tertiary hover:text-text-primary',
-        'dark:text-text-dark-quaternary dark:hover:text-text-dark-primary',
-        'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
-        'transition-colors duration-200',
-      )}
-      aria-label="Toggle theme"
-      title={`Switch to ${getThemeMeta(next).label}`}
-    >
-      <Icon className="h-3.5 w-3.5" />
-    </Button>
+    <FloatingTooltip content={`Switch to ${getThemeMeta(next).label}`} className="flex">
+      <Button
+        onClick={onToggle}
+        variant="unstyled"
+        className={cn(
+          'relative rounded-full p-1.5',
+          'text-text-tertiary hover:text-text-primary',
+          'dark:text-text-dark-quaternary dark:hover:text-text-dark-primary',
+          'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
+          'transition-colors duration-200',
+        )}
+        aria-label="Toggle theme"
+      >
+        <Icon className="h-3.5 w-3.5" />
+      </Button>
+    </FloatingTooltip>
   );
 }
 

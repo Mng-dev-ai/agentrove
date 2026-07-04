@@ -1,3 +1,4 @@
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { formatNumberCompact } from '@/utils/format';
 
 export interface ContextUsageInfo {
@@ -32,9 +33,9 @@ export const ContextUsageIndicator = ({ usage }: { usage: ContextUsageInfo }) =>
   const tooltip = `${formatNumberCompact(usage.tokensUsed)}/${formatNumberCompact(usage.contextWindow)}`;
 
   return (
-    <div
+    <FloatingTooltip
+      content={tooltip}
       className="flex select-none items-center gap-1 text-2xs text-text-secondary dark:text-text-dark-secondary"
-      title={tooltip}
     >
       <span className="font-medium tabular-nums">{formattedPercentage}%</span>
       <svg viewBox="0 0 24 24" className="h-5 w-5" role="presentation" aria-hidden="true">
@@ -61,6 +62,6 @@ export const ContextUsageIndicator = ({ usage }: { usage: ContextUsageInfo }) =>
           transform="rotate(-90 12 12)"
         />
       </svg>
-    </div>
+    </FloatingTooltip>
   );
 };

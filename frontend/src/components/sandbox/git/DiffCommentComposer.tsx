@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CornerDownLeft, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { Textarea } from '@/components/ui/primitives/Textarea';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 
 interface DiffCommentComposerProps {
   lineLabel: string;
@@ -59,16 +60,17 @@ export function DiffCommentComposer({ lineLabel, onSubmit, onCancel }: DiffComme
           placeholder="Leave feedback for the agent…"
           className="max-h-24 flex-1 resize-none bg-transparent px-1 py-1 text-sm text-text-primary placeholder:text-text-quaternary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary"
         />
-        <Button
-          type="submit"
-          variant="unstyled"
-          disabled={!trimmed}
-          title="Add to chat (Enter)"
-          aria-label="Add comment to chat"
-          className="rounded-md p-1.5 text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary disabled:opacity-50 dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
-        >
-          <CornerDownLeft className="h-3.5 w-3.5" />
-        </Button>
+        <FloatingTooltip content="Add to chat (Enter)" className="flex">
+          <Button
+            type="submit"
+            variant="unstyled"
+            disabled={!trimmed}
+            aria-label="Add comment to chat"
+            className="rounded-md p-1.5 text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary disabled:opacity-50 dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+          >
+            <CornerDownLeft className="h-3.5 w-3.5" />
+          </Button>
+        </FloatingTooltip>
       </form>
     </div>
   );

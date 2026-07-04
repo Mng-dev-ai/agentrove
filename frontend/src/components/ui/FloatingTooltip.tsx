@@ -34,7 +34,7 @@ export function FloatingTooltip({ content, children, className }: FloatingToolti
   return (
     <div className={className} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
       {children}
-      {position != null && (
+      {position != null && content && (
         <div
           role="tooltip"
           style={{ top: position.top, left: position.left }}

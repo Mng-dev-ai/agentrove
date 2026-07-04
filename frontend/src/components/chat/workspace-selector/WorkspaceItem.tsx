@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { GitBranch, Box, HardDrive, Loader2, ChevronDown, ChevronRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
 import type { Workspace } from '@/types/workspace.types';
@@ -204,9 +205,9 @@ export function WorkspaceItem({
                                 ) : (
                                   <span className="h-3 w-3 shrink-0" />
                                 )}
-                                <span className="truncate font-mono" title={branch}>
-                                  {branch}
-                                </span>
+                                <FloatingTooltip content={branch} className="min-w-0 flex-1">
+                                  <span className="truncate font-mono">{branch}</span>
+                                </FloatingTooltip>
                               </Button>
                               {showDivider && (
                                 <div className="my-0.5 border-t border-border/50 dark:border-border-dark/50" />
