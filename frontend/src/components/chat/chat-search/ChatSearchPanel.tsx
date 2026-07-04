@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useSearchChatsQuery } from '@/hooks/queries/useChatQueries';
@@ -109,15 +110,16 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
             )}
           />
           {query && (
-            <Button
-              onClick={handleClear}
-              variant="unstyled"
-              title="Clear search"
-              aria-label="Clear search"
-              className="mr-1 flex h-5 w-5 items-center justify-center rounded text-text-quaternary transition-colors hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-            >
-              <X className="h-3 w-3" />
-            </Button>
+            <FloatingTooltip content="Clear search" className="flex">
+              <Button
+                onClick={handleClear}
+                variant="unstyled"
+                aria-label="Clear search"
+                className="mr-1 flex h-5 w-5 items-center justify-center rounded text-text-quaternary transition-colors hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </FloatingTooltip>
           )}
         </div>
       </div>

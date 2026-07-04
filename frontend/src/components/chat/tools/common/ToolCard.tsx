@@ -1,5 +1,6 @@
 import React, { memo, useState } from 'react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ChevronRight } from 'lucide-react';
 import type { ToolEventStatus } from '@/types/tools.types';
 import { TOOL_ERROR_PRE_CLASS } from '@/utils/toolStyles';
@@ -59,12 +60,11 @@ const ToolCardInner: React.FC<ToolCardProps> = ({
       <div className="flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary">
         {icon}
       </div>
-      <span
-        className="max-w-md truncate text-2xs text-text-tertiary dark:text-text-dark-tertiary"
-        title={resolvedTitle}
-      >
-        {resolvedTitle}
-      </span>
+      <FloatingTooltip content={resolvedTitle} className="min-w-0">
+        <span className="block max-w-md truncate text-2xs text-text-tertiary dark:text-text-dark-tertiary">
+          {resolvedTitle}
+        </span>
+      </FloatingTooltip>
       {statusIndicator[status]}
       {hasExpandableContent && (
         <ChevronRight

@@ -8,6 +8,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { DiffView } from '@/components/chat/tools/common/DiffView';
 import { useMessageChangesQuery, useMessageFileDiffQuery } from '@/hooks/queries/useChatQueries';
 import { useUIStore } from '@/store/uiStore';
@@ -113,18 +114,16 @@ const ChangedFileRow: React.FC<{
           ) : (
             <ChevronRight className="h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
           )}
-          <span
-            className={`w-3.5 flex-shrink-0 text-center font-mono text-2xs ${STATUS_COLOR[file.status]}`}
-            title={STATUS_LABEL[file.status]}
-          >
-            {file.status}
-          </span>
-          <span
-            className="min-w-0 flex-1 truncate font-mono text-xs text-text-secondary dark:text-text-dark-secondary"
-            title={file.path}
-          >
-            {file.path}
-          </span>
+          <FloatingTooltip content={STATUS_LABEL[file.status]} className="flex flex-shrink-0">
+            <span className={`w-3.5 text-center font-mono text-2xs ${STATUS_COLOR[file.status]}`}>
+              {file.status}
+            </span>
+          </FloatingTooltip>
+          <FloatingTooltip content={file.path} className="min-w-0 flex-1">
+            <span className="block truncate font-mono text-xs text-text-secondary dark:text-text-dark-secondary">
+              {file.path}
+            </span>
+          </FloatingTooltip>
           <span className="flex-shrink-0 font-mono text-2xs tabular-nums text-success-600 dark:text-success-400">
             +{file.additions}
           </span>
@@ -133,27 +132,29 @@ const ChangedFileRow: React.FC<{
           </span>
         </Button>
         <div className="flex flex-shrink-0 items-center gap-2">
-          <Button
-            type="button"
-            variant="unstyled"
-            onClick={() => chatId && useUIStore.getState().openInDiffView(file.path, chatId)}
-            aria-label="Open in diff view"
-            title="Open in diff view"
-            className="text-text-quaternary transition-colors duration-150 hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-          >
-            <GitCompareArrows className="h-3 w-3" />
-          </Button>
-          {!isDeleted && (
+          <FloatingTooltip content="Open in diff view" className="flex">
             <Button
               type="button"
               variant="unstyled"
-              onClick={() => useUIStore.getState().openFileInEditor(editorPath, chatId)}
-              aria-label="Open in editor"
-              title="Open in editor"
+              onClick={() => chatId && useUIStore.getState().openInDiffView(file.path, chatId)}
+              aria-label="Open in diff view"
               className="text-text-quaternary transition-colors duration-150 hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
             >
-              <ExternalLink className="h-3 w-3" />
+              <GitCompareArrows className="h-3 w-3" />
             </Button>
+          </FloatingTooltip>
+          {!isDeleted && (
+            <FloatingTooltip content="Open in editor" className="flex">
+              <Button
+                type="button"
+                variant="unstyled"
+                onClick={() => useUIStore.getState().openFileInEditor(editorPath, chatId)}
+                aria-label="Open in editor"
+                className="text-text-quaternary transition-colors duration-150 hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+              >
+                <ExternalLink className="h-3 w-3" />
+              </Button>
+            </FloatingTooltip>
           )}
         </div>
       </div>
