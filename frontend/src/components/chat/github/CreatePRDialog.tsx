@@ -3,6 +3,7 @@ import { ExternalLink, GitPullRequest, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input';
 import { Link } from '@/components/ui/primitives/Link';
 import { Select } from '@/components/ui/primitives/Select';
@@ -135,6 +136,11 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
   const diffError = diffData?.error;
   const hasModel = !!selectedModelId.trim();
   const canGenerate = hasDiff && hasModel && !generateDescription.isPending;
+  const generateDisabledReason = !hasModel
+    ? 'Select a model first'
+    : !hasDiff
+      ? (diffError ?? 'Commit your changes first')
+      : undefined;
   const titleInputId = 'create-pr-title';
   const bodyTextareaId = 'create-pr-description';
   const baseBranchSelectId = 'create-pr-base-branch';
@@ -300,29 +306,24 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
                 >
                   Description
                 </label>
-                <Button
-                  type="button"
-                  variant="unstyled"
-                  onClick={handleGenerateDescription}
-                  disabled={!canGenerate}
-                  title={
-                    !hasModel
-                      ? 'Select a model first'
-                      : !hasDiff
-                        ? (diffError ?? 'Commit your changes first')
-                        : undefined
-                  }
-                  className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs text-text-tertiary transition-colors duration-200 dark:text-text-dark-tertiary ${
-                    canGenerate
-                      ? 'hover:bg-surface-hover hover:text-text-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
-                      : 'cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  <Sparkles
-                    className={`h-3 w-3 ${generateDescription.isPending ? 'animate-pulse' : ''}`}
-                  />
-                  {generateDescription.isPending ? 'Generating...' : 'Generate with AI'}
-                </Button>
+                <FloatingTooltip content={generateDisabledReason ?? ''} className="flex">
+                  <Button
+                    type="button"
+                    variant="unstyled"
+                    onClick={handleGenerateDescription}
+                    disabled={!canGenerate}
+                    className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs text-text-tertiary transition-colors duration-200 dark:text-text-dark-tertiary ${
+                      canGenerate
+                        ? 'hover:bg-surface-hover hover:text-text-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
+                        : 'cursor-not-allowed opacity-50'
+                    }`}
+                  >
+                    <Sparkles
+                      className={`h-3 w-3 ${generateDescription.isPending ? 'animate-pulse' : ''}`}
+                    />
+                    {generateDescription.isPending ? 'Generating...' : 'Generate with AI'}
+                  </Button>
+                </FloatingTooltip>
               </div>
               <Textarea
                 id={bodyTextareaId}

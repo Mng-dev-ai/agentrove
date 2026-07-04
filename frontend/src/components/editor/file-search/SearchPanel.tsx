@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CaseSensitive, Loader2, Regex, Search, WholeWord, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useSearchInFilesQuery } from '@/hooks/queries/useSandboxQueries';
@@ -126,33 +127,34 @@ export const SearchPanel = memo(function SearchPanel({
           />
           <div className="flex items-center gap-0.5 pr-1">
             {TOGGLES.map(({ key, icon: Icon, label }) => (
-              <Button
-                key={key}
-                onClick={() => toggle(key)}
-                variant="unstyled"
-                title={label}
-                aria-label={label}
-                aria-pressed={toggles[key]}
-                className={cn(
-                  'flex h-5 w-5 items-center justify-center rounded transition-colors',
-                  toggles[key]
-                    ? 'bg-surface-active text-text-primary dark:bg-surface-dark-active dark:text-text-dark-primary'
-                    : 'text-text-quaternary hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary',
-                )}
-              >
-                <Icon className="h-3 w-3" />
-              </Button>
+              <FloatingTooltip key={key} content={label} className="flex">
+                <Button
+                  onClick={() => toggle(key)}
+                  variant="unstyled"
+                  aria-label={label}
+                  aria-pressed={toggles[key]}
+                  className={cn(
+                    'flex h-5 w-5 items-center justify-center rounded transition-colors',
+                    toggles[key]
+                      ? 'bg-surface-active text-text-primary dark:bg-surface-dark-active dark:text-text-dark-primary'
+                      : 'text-text-quaternary hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary',
+                  )}
+                >
+                  <Icon className="h-3 w-3" />
+                </Button>
+              </FloatingTooltip>
             ))}
             {query && (
-              <Button
-                onClick={handleClear}
-                variant="unstyled"
-                title="Clear search"
-                aria-label="Clear search"
-                className="flex h-5 w-5 items-center justify-center rounded text-text-quaternary transition-colors hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
-              >
-                <X className="h-3 w-3" />
-              </Button>
+              <FloatingTooltip content="Clear search" className="flex">
+                <Button
+                  onClick={handleClear}
+                  variant="unstyled"
+                  aria-label="Clear search"
+                  className="flex h-5 w-5 items-center justify-center rounded text-text-quaternary transition-colors hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </FloatingTooltip>
             )}
           </div>
         </div>

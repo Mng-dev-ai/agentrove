@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/primitives/Button';
 import { Input } from '@/components/ui/primitives/Input';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { createPortal } from 'react-dom';
 import { GitBranch, Search, PanelRight, PanelBottom, File } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -681,24 +682,28 @@ export function CommandMenu() {
                         )}
                         {cmd.type === 'view' && !isMobile && !isActive && (
                           <div className="flex items-center gap-0.5">
-                            <Button
-                              variant="unstyled"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleSplit(cmd.id, 'row')}
-                              className={splitButtonClass}
-                              title="Split right"
-                            >
-                              <PanelRight className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="unstyled"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => handleSplit(cmd.id, 'column')}
-                              className={splitButtonClass}
-                              title="Split down"
-                            >
-                              <PanelBottom className="h-3 w-3" />
-                            </Button>
+                            <FloatingTooltip content="Split right" className="flex">
+                              <Button
+                                variant="unstyled"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => handleSplit(cmd.id, 'row')}
+                                className={splitButtonClass}
+                                aria-label="Split right"
+                              >
+                                <PanelRight className="h-3 w-3" />
+                              </Button>
+                            </FloatingTooltip>
+                            <FloatingTooltip content="Split down" className="flex">
+                              <Button
+                                variant="unstyled"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => handleSplit(cmd.id, 'column')}
+                                className={splitButtonClass}
+                                aria-label="Split down"
+                              >
+                                <PanelBottom className="h-3 w-3" />
+                              </Button>
+                            </FloatingTooltip>
                           </div>
                         )}
                       </div>

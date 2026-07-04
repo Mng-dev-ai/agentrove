@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/primitives/Button';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader';
 import { Spinner } from '@/components/ui/primitives/Spinner';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import type { ToolAggregate } from '@/types/tools.types';
 import { AgentToolsContext } from '@/contexts/AgentToolsContext';
 import { statusIndicator } from '@/components/chat/tools/common/statusIndicator';
@@ -64,19 +65,17 @@ function AgentToolExpandedModal({ agents, initialAgentId, onClose }: AgentToolEx
                 >
                   {statusIndicator[agent.status]}
                   <div className="min-w-0 flex-1">
-                    <div
-                      className="truncate text-xs text-text-primary dark:text-text-dark-primary"
-                      title={type}
-                    >
-                      {type}
-                    </div>
-                    {desc && (
-                      <div
-                        className="truncate text-2xs text-text-quaternary dark:text-text-dark-quaternary"
-                        title={desc}
-                      >
-                        {desc}
+                    <FloatingTooltip content={type} className="min-w-0">
+                      <div className="truncate text-xs text-text-primary dark:text-text-dark-primary">
+                        {type}
                       </div>
+                    </FloatingTooltip>
+                    {desc && (
+                      <FloatingTooltip content={desc} className="min-w-0">
+                        <div className="truncate text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                          {desc}
+                        </div>
+                      </FloatingTooltip>
                     )}
                   </div>
                 </Button>

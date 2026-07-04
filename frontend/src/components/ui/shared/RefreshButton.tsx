@@ -1,5 +1,6 @@
 import { RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { cn } from '@/utils/cn';
 
 export interface RefreshButtonProps {
@@ -22,23 +23,24 @@ export function RefreshButton({
   useLoader = false,
 }: RefreshButtonProps) {
   return (
-    <Button
-      onClick={onClick}
-      disabled={disabled || isRefreshing}
-      variant="unstyled"
-      className={cn(
-        'rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
-        (disabled || isRefreshing) && 'disabled:cursor-wait disabled:opacity-50',
-        className,
-      )}
-      title={title}
-      aria-label={ariaLabel}
-    >
-      {useLoader && isRefreshing ? (
-        <Loader2 className="h-3 w-3 animate-spin" />
-      ) : (
-        <RefreshCw className={cn('h-3 w-3', isRefreshing && 'animate-spin')} />
-      )}
-    </Button>
+    <FloatingTooltip content={title} className="flex">
+      <Button
+        onClick={onClick}
+        disabled={disabled || isRefreshing}
+        variant="unstyled"
+        className={cn(
+          'rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
+          (disabled || isRefreshing) && 'disabled:cursor-wait disabled:opacity-50',
+          className,
+        )}
+        aria-label={ariaLabel}
+      >
+        {useLoader && isRefreshing ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <RefreshCw className={cn('h-3 w-3', isRefreshing && 'animate-spin')} />
+        )}
+      </Button>
+    </FloatingTooltip>
   );
 }

@@ -1,6 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Dropdown } from '@/components/ui/primitives/Dropdown';
 import type { DropdownItemType } from '@/components/ui/primitives/Dropdown';
 import { useAuthStore } from '@/store/authStore';
@@ -130,17 +131,18 @@ export const ModelSelector = memo(function ModelSelector({
         const isFavorite = favoriteIdSet.has(model.model_id);
         return (
           <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                'min-w-0 flex-1 truncate text-2xs font-medium',
-                isSelected
-                  ? 'text-text-primary dark:text-text-dark-primary'
-                  : 'text-text-secondary dark:text-text-dark-secondary',
-              )}
-              title={model.name}
-            >
-              {model.name}
-            </span>
+            <FloatingTooltip content={model.name} className="min-w-0 flex-1">
+              <span
+                className={cn(
+                  'truncate text-2xs font-medium',
+                  isSelected
+                    ? 'text-text-primary dark:text-text-dark-primary'
+                    : 'text-text-secondary dark:text-text-dark-secondary',
+                )}
+              >
+                {model.name}
+              </span>
+            </FloatingTooltip>
             {model.context_window != null && model.context_window > 0 && (
               <span className="flex-shrink-0 rounded-md bg-surface-tertiary px-1.5 py-0.5 text-2xs font-medium text-text-quaternary dark:bg-surface-dark-tertiary dark:text-text-dark-quaternary">
                 {formatNumberCompact(model.context_window)}

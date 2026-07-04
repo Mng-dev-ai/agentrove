@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { FileStructure } from '@/types/file-system.types';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { SaveButton } from '@/components/ui/shared/SaveButton';
 import { FileIcon } from '@/components/ui/shared/FileIcon';
 import { isPreviewableFile } from '@/utils/fileTypes';
@@ -134,15 +135,16 @@ export const Header = memo(function Header({
         )}
 
         {showPreview && onToggleFullscreen && (
-          <Button
-            onClick={onToggleFullscreen}
-            variant="unstyled"
-            className="rounded-md p-1 text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
-            title="Enter fullscreen"
-            aria-label="Enter fullscreen"
-          >
-            <Maximize2 className="h-3 w-3" />
-          </Button>
+          <FloatingTooltip content="Enter fullscreen" className="flex">
+            <Button
+              onClick={onToggleFullscreen}
+              variant="unstyled"
+              className="rounded-md p-1 text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+              aria-label="Enter fullscreen"
+            >
+              <Maximize2 className="h-3 w-3" />
+            </Button>
+          </FloatingTooltip>
         )}
       </div>
     </div>

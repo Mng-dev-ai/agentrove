@@ -4,6 +4,7 @@ import { BaseModal } from './shared/BaseModal';
 import { ModalHeader } from './shared/ModalHeader';
 import { Button } from './primitives/Button';
 import { Input } from './primitives/Input';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { cancelButtonClass } from './shared/modalConstants';
 
 interface RenameModalProps {
@@ -95,17 +96,21 @@ export function RenameModal({
           aria-label="New name"
         />
         {onGenerateTitle && (
-          <Button
-            type="button"
-            variant="unstyled"
-            onClick={handleGenerate}
-            disabled={isLoading || isGenerating}
-            className="shrink-0 rounded-md p-2 text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
-            aria-label={isGenerating ? 'Generating title…' : 'Generate title with AI'}
-            title={isGenerating ? 'Generating title…' : 'Generate title with AI'}
+          <FloatingTooltip
+            content={isGenerating ? 'Generating title…' : 'Generate title with AI'}
+            className="flex"
           >
-            <Sparkles className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
-          </Button>
+            <Button
+              type="button"
+              variant="unstyled"
+              onClick={handleGenerate}
+              disabled={isLoading || isGenerating}
+              className="shrink-0 rounded-md p-2 text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+              aria-label={isGenerating ? 'Generating title…' : 'Generate title with AI'}
+            >
+              <Sparkles className={`h-3.5 w-3.5 ${isGenerating ? 'animate-spin' : ''}`} />
+            </Button>
+          </FloatingTooltip>
         )}
       </div>
 

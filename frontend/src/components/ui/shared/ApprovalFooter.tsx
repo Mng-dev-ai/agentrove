@@ -1,5 +1,6 @@
 import { AlertCircle, Check, CheckCircle, X, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { cn } from '@/utils/cn';
 import type { PermissionOption } from '@/types/chat.types';
 
@@ -123,54 +124,55 @@ function OptionRow({ option, isPrimary, onClick, disabled }: OptionRowProps) {
   const subtitle = KIND_SUBTITLES[option.kind];
 
   return (
-    <Button
-      variant="unstyled"
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      title={option.name}
-      className={cn(
-        'mb-0.5 flex w-full items-start gap-2.5 rounded-lg border p-2.5 text-left transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60',
-        isPrimary
-          ? 'border-text-primary bg-text-primary text-surface hover:bg-text-secondary dark:border-text-dark-primary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary'
-          : 'border-transparent hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
-      )}
-    >
-      <div
+    <FloatingTooltip content={option.name} className="w-full">
+      <Button
+        variant="unstyled"
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
         className={cn(
-          'mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md',
-          isPrimary ? 'bg-white/10 dark:bg-black/10' : 'bg-black/5 dark:bg-white/5',
+          'mb-0.5 flex w-full items-start gap-2.5 rounded-lg border p-2.5 text-left transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60',
+          isPrimary
+            ? 'border-text-primary bg-text-primary text-surface hover:bg-text-secondary dark:border-text-dark-primary dark:bg-text-dark-primary dark:text-surface-dark dark:hover:bg-text-dark-secondary'
+            : 'border-transparent hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
         )}
       >
-        <Icon
-          className={cn(
-            'h-3.5 w-3.5',
-            isPrimary
-              ? 'text-surface dark:text-surface-dark'
-              : 'text-text-tertiary dark:text-text-dark-tertiary',
-          )}
-        />
-      </div>
-      <div className="min-w-0 flex-1">
         <div
           className={cn(
-            'text-xs font-medium leading-snug',
-            !isPrimary && 'text-text-primary dark:text-text-dark-primary',
+            'mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md',
+            isPrimary ? 'bg-white/10 dark:bg-black/10' : 'bg-black/5 dark:bg-white/5',
           )}
         >
-          {option.name}
+          <Icon
+            className={cn(
+              'h-3.5 w-3.5',
+              isPrimary
+                ? 'text-surface dark:text-surface-dark'
+                : 'text-text-tertiary dark:text-text-dark-tertiary',
+            )}
+          />
         </div>
-        <div
-          className={cn(
-            'mt-0.5 text-2xs leading-snug',
-            isPrimary
-              ? 'text-surface/60 dark:text-surface-dark/60'
-              : 'text-text-tertiary dark:text-text-dark-tertiary',
-          )}
-        >
-          {subtitle}
+        <div className="min-w-0 flex-1">
+          <div
+            className={cn(
+              'text-xs font-medium leading-snug',
+              !isPrimary && 'text-text-primary dark:text-text-dark-primary',
+            )}
+          >
+            {option.name}
+          </div>
+          <div
+            className={cn(
+              'mt-0.5 text-2xs leading-snug',
+              isPrimary
+                ? 'text-surface/60 dark:text-surface-dark/60'
+                : 'text-text-tertiary dark:text-text-dark-tertiary',
+            )}
+          >
+            {subtitle}
+          </div>
         </div>
-      </div>
-    </Button>
+      </Button>
+    </FloatingTooltip>
   );
 }
