@@ -165,38 +165,52 @@ export const useMessageFileDiffQuery = (
   });
 };
 
+// Shared by the create-chat mutation and the chat_created SSE feed — both must
+// patch the same caches. The prepend dedups by id because both paths fire for a
+// chat created in this session (mutation onSuccess + its own broadcast event);
+// the second pass's redundant invalidations are the accepted cost of keeping
+// the backend broadcast unconditional — don't "fix" it by suppressing them.
+export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat): Promise<void> {
+  queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
+
+  if (newChat.parent_chat_id) {
+    // Workspaces too: creating a sub-thread bumps the parent's updated_at,
+    // which drives workspace ordering/last-activity.
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.subThreads(newChat.parent_chat_id) }),
+      queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces }),
+    ]);
+    return;
+  }
+
+  queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
+    { queryKey: [queryKeys.chats, 'infinite'], predicate: isGlobalChatsQuery },
+    (oldData) => {
+      if (!oldData) return oldData;
+      if (oldData.pages.some((page) => page.items.some((chat) => chat.id === newChat.id))) {
+        return oldData;
+      }
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page, index) =>
+          index === 0 ? { ...page, items: [newChat, ...page.items], total: page.total + 1 } : page,
+        ),
+      };
+    },
+  );
+
+  queryClient.invalidateQueries({
+    queryKey: [queryKeys.chats, 'infinite'],
+    predicate: (query) => !isGlobalChatsQuery(query),
+  });
+
+  queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+}
+
 export const useCreateChatMutation = createMutation<Chat, Error, CreateChatRequest>(
   (data) => chatService.createChat(data),
-  async (queryClient, newChat) => {
-    queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
-
-    if (newChat.parent_chat_id) {
-      await queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
-      return;
-    }
-
-    queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
-      { queryKey: [queryKeys.chats, 'infinite'], predicate: isGlobalChatsQuery },
-      (oldData) => {
-        if (!oldData) return oldData;
-        return {
-          ...oldData,
-          pages: oldData.pages.map((page, index) =>
-            index === 0
-              ? { ...page, items: [newChat, ...page.items], total: page.total + 1 }
-              : page,
-          ),
-        };
-      },
-    );
-
-    queryClient.invalidateQueries({
-      queryKey: [queryKeys.chats, 'infinite'],
-      predicate: (query) => !isGlobalChatsQuery(query),
-    });
-
-    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-  },
+  (queryClient, newChat) => applyCreatedChat(queryClient, newChat),
 );
 
 export const useUpdateChatMutation = createMutation<
