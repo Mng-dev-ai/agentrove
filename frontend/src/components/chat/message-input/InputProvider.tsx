@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useMemo, type ReactNode } from 'react';
+import toast from 'react-hot-toast';
 import { useDragAndDrop } from '@/hooks/useDragAndDrop';
 import { useFileHandling } from '@/hooks/useFileHandling';
 import { useInputFileOperations } from '@/hooks/useInputFileOperations';
@@ -240,6 +241,12 @@ export function InputProvider({
     if (disabled) return;
 
     if (isStreaming && hasContent && chatId) {
+      // Mirror the send path's model guard — queueMessage is fire-and-forget
+      // and the draft is cleared below, so a rejected queue call loses the message.
+      if (!selectedModelId) {
+        toast.error('Please select an AI model');
+        return;
+      }
       const settings = useChatSettingsStore.getState();
       const permissionMode = coercePermissionModeForAgent(
         settings.permissionModeByChat[chatId] ?? DEFAULT_PERMISSION_MODE,
