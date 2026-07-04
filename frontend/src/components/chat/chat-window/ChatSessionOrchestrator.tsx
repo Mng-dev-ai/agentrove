@@ -77,6 +77,7 @@ export function ChatSessionOrchestrator({
   const { selectedModelId, selectedModel, selectModel } = useModelSelection({
     chatId,
     initialModelId: lastAssistantModelId,
+    lockedAgentKind: currentChat?.session_agent_kind ?? null,
   });
 
   const {

@@ -33,9 +33,10 @@ export function InlineChatWidget({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [question, setQuestion] = useState('');
   const { selectedModelId } = useChatSessionState();
-  // Widget-local model choice seeded from the chat's composer selection —
-  // picking a model here shouldn't silently retarget the main chat.
-  const [modelId, setModelId] = useState(selectedModelId);
+  // Widget-local override falling back to the composer selection (which may
+  // resolve after mount) — picking here shouldn't retarget the main chat.
+  const [modelId, setModelId] = useState('');
+  const effectiveModelId = modelId || selectedModelId;
   const askMutation = useAskAboutCodeMutation();
 
   useLayoutEffect(() => {
@@ -77,8 +78,8 @@ export function InlineChatWidget({
 
   const handleSubmit = () => {
     const trimmed = question.trim();
-    if (!trimmed || askMutation.isPending) return;
-    askMutation.mutate({ chatId, selection, question: trimmed, modelId });
+    if (!trimmed || !effectiveModelId || askMutation.isPending) return;
+    askMutation.mutate({ chatId, selection, question: trimmed, modelId: effectiveModelId });
   };
 
   const lineRef =
@@ -103,7 +104,7 @@ export function InlineChatWidget({
           {selection.path}:{lineRef}
         </span>
         <ModelSelector
-          selectedModelId={modelId}
+          selectedModelId={effectiveModelId}
           onModelChange={setModelId}
           dropdownPosition="bottom"
           dropdownAlign="right"
@@ -145,7 +146,7 @@ export function InlineChatWidget({
         <Button
           type="submit"
           variant="unstyled"
-          disabled={!question.trim() || askMutation.isPending}
+          disabled={!question.trim() || !effectiveModelId || askMutation.isPending}
           aria-label="Ask question"
           className="rounded-md p-1.5 text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary disabled:opacity-50 dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
         >

@@ -36,7 +36,6 @@ export function InputControls() {
       <ModelSelector
         selectedModelId={state.selectedModelId}
         onModelChange={actions.onModelChange}
-        chatId={state.chatId}
         dropdownPosition={state.dropdownPosition}
         dropdownAlign="right"
         disabled={state.isLoading}

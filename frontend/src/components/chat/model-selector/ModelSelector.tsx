@@ -1,11 +1,11 @@
-import { memo, useEffect, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { Dropdown } from '@/components/ui/primitives/Dropdown';
 import type { DropdownItemType } from '@/components/ui/primitives/Dropdown';
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/store/modelStore';
-import { useModelSelection } from '@/hooks/queries/useModelQueries';
+import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { AGENT_ICONS } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';
@@ -25,7 +25,6 @@ const AGENT_LABELS: Record<AgentKind, string> = {
 export interface ModelSelectorProps {
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
-  chatId?: string;
   dropdownPosition?: 'top' | 'bottom';
   disabled?: boolean;
   compact?: boolean;
@@ -37,7 +36,6 @@ export interface ModelSelectorProps {
 export const ModelSelector = memo(function ModelSelector({
   selectedModelId,
   onModelChange,
-  chatId,
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
@@ -47,7 +45,9 @@ export const ModelSelector = memo(function ModelSelector({
 }: ModelSelectorProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isSplitMode = useIsSplitMode();
-  const { models, isLoading } = useModelSelection({ enabled: isAuthenticated, chatId });
+  // Read-only models query — useModelSelection would run the per-chat defaulting
+  // effect and persist models[0] before the owner derives the model from history.
+  const { data: models = [], isLoading } = useModelsQuery({ enabled: isAuthenticated });
   const favoriteModelIds = useModelStore((state) => state.favoriteModelIds);
 
   const filteredModels = useMemo(
@@ -87,12 +87,6 @@ export const ModelSelector = memo(function ModelSelector({
   }, [filteredModels, favoriteModelIds, favoriteIdSet]);
 
   const selectedModel = filteredModels.find((m) => m.model_id === selectedModelId);
-
-  useEffect(() => {
-    if (!selectedModel && filteredModels.length > 0) {
-      onModelChange(filteredModels[0].model_id);
-    }
-  }, [selectedModel, filteredModels, onModelChange]);
 
   if (isLoading) {
     return (

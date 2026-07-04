@@ -108,6 +108,8 @@
 - When a terminal/completion handler needs metadata about the completed entity, capture it at session/handle creation — don't resolve from the currently-viewed entity at completion time; off-screen completions land when the user has navigated elsewhere
 - For off-screen entities that need fresh state on next mount, patch the cache optimistically during the stream/mutation (`queryClient.setQueryData`) — `invalidateQueries` alone isn't enough since `useQuery` serves cached data on mount during the background refetch
 - Terminal-kind gating (cancelled vs complete) applies only to UI-side concerns (notifications, toasts). Cache invalidations for server-side state mutated during the turn must run regardless — cancelled runs still leave real side effects
+- When a change makes a previously-always-present value possibly empty, add the guard to every submission path (send, queue, retry/reconnect) — parallel paths don't share validation
+- Before removing or gating a shared component's implicit behavior (auto-select, auto-commit defaults), audit every caller for reliance on it and move that behavior into the callers that need it
 
 ## Naming Conventions
 
@@ -172,6 +174,10 @@
 - Don't add nullability guards (`value && doSomething()`) on context values guaranteed by the provider
 - Don't add `?? null` / `?? false` / `?? []` coercions unless the upstream genuinely returns `undefined`
 
+### State Ownership
+- Don't write computed defaults into persisted stores (Zustand `persist`/localStorage) while their inputs (queries, message history) are still resolving — a persisted guess permanently wins over the later-derived value
+- Shared presentational components must not write to stores or commit defaults — defaulting/validation belongs to the single state-owner hook or provider; components take `value`/`onChange` only
+
 ### Existing Context Hierarchy
 - `ChatProvider` (`contexts/ChatContext.tsx`) — static chat metadata: `chatId`, `sandboxId`, `fileStructure`, `customAgents`, `customSlashCommands`, `customPrompts`
 - `ChatSessionProvider` (`contexts/ChatSessionContext.tsx`) — dynamic chat session state: messages, streaming, loading, permissions, input message, model selection
@@ -198,6 +204,8 @@
 - Distinguish "derived state" from "form state init" — if local state is a copy of server data the user then edits independently (secrets/settings forms), syncing via `useEffect` on query data change is correct
 - `useEffect` cleanup closures must not rely on hook-scoped utilities that close over the current entity ID when cleanup may serve sessions from a different entity — use refs or the underlying API (e.g., `queryClient.setQueryData` with `session.chatId`)
 - When state is keyed by an input so render derives a `pending` flag as `stored.input !== currentInput`, the effect must update state for every input value — bailing on falsy inputs (`if (!x) return`) leaves `stored.input` stale and the pending flag locked on forever
+- Ref-based render checks may only set the same component's state — when the value is parent-owned (written via a callback prop), use `useEffect`; updating a parent during a child's render is illegal
+- When local state overrides an ambient value that resolves asynchronously, derive the effective value (`local || ambient`) instead of seeding state from the prop at mount and patching it later
 
 ### Component Variants
 - Create explicit variant components instead of one with many boolean modes (e.g., `ThreadComposer`, `EditComposer` instead of `<Composer isThread isEditing />`)

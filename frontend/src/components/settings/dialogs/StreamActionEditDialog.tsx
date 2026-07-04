@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { GitBranch, Brain, Shield } from 'lucide-react';
 import type { CustomSkill, Persona, StreamAction } from '@/types/user.types';
 import type { SlashCommand } from '@/types/ui.types';
@@ -58,6 +58,15 @@ export const StreamActionEditDialog: React.FC<StreamActionEditDialogProps> = ({
   const workspaces = useWorkspacesList();
   const { data: resources } = useWorkspaceResourcesQuery(workspaces[0]?.id);
   const builtinSlashCommands = resources?.builtin_slash_commands ?? EMPTY_BUILTIN_COMMANDS;
+
+  // Form-state init: seed new actions and actions whose saved model left the
+  // registry — ModelSelector no longer commits one, and save requires a model_id.
+  // Effect, not render-phase seeding: onActionChange writes parent-owned state.
+  useEffect(() => {
+    if (models.length > 0 && !models.some((m) => m.model_id === action.model_id)) {
+      onActionChange('model_id', models[0].model_id);
+    }
+  }, [models, action.model_id, onActionChange]);
 
   const selectedModel = models.find((m) => m.model_id === action.model_id);
   const agentKind = selectedModel?.agent_kind ?? 'claude';

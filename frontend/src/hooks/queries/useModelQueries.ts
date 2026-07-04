@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { UseQueryOptions } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo } from 'react';
 import { modelService } from '@/services/modelService';
-import type { Model } from '@/types/chat.types';
+import type { AgentKind, Model } from '@/types/chat.types';
 import { useModelStore } from '@/store/modelStore';
 import { queryKeys } from './queryKeys';
 
@@ -22,29 +22,45 @@ export const useModelSelection = (options?: {
   chatId?: string;
   // null = still loading (defer default), undefined = no initial model (use models[0])
   initialModelId?: string | null;
+  // Restricts valid selections to one provider (chats with an established session)
+  lockedAgentKind?: AgentKind | null;
 }) => {
   const chatId = options?.chatId ?? DEFAULT_MODEL_KEY;
   const initialModelId = options?.initialModelId;
-  const { data: models = [], isLoading } = useModelsQuery({
+  const lockedAgentKind = options?.lockedAgentKind;
+  const { data: models = [] } = useModelsQuery({
     enabled: options?.enabled,
   });
 
-  const selectedModelId = useModelStore((state) => state.modelByChat[chatId] ?? '');
+  const storedModelId = useModelStore((state) => state.modelByChat[chatId] ?? '');
+
+  // Models valid for this chat — restricted to the locked provider once the
+  // session kind is known; stale entries (retired ids, wrong-kind values
+  // persisted by old versions) count as invalid.
+  const candidates = useMemo(
+    () => (lockedAgentKind ? models.filter((m) => m.agent_kind === lockedAgentKind) : models),
+    [models, lockedAgentKind],
+  );
+
+  const storedIsValid = candidates.some((m) => m.model_id === storedModelId);
+
+  // Expose invalid stored values as empty so a stale cross-provider selection
+  // can't be submitted while the real model is still resolving from history;
+  // pass stored through until the registry loads (nothing to validate yet).
+  const selectedModelId = models.length === 0 || storedIsValid ? storedModelId : '';
 
   useEffect(() => {
-    if (models.length === 0) return;
-    const selectedExists = models.some((m) => m.model_id === selectedModelId);
-    if (selectedExists) return;
+    if (candidates.length === 0 || storedIsValid) return;
 
     // Still loading initial model from message history — wait before defaulting
     if (initialModelId === null) return;
 
     const fallback =
-      initialModelId && models.some((m) => m.model_id === initialModelId)
+      initialModelId && candidates.some((m) => m.model_id === initialModelId)
         ? initialModelId
-        : models[0].model_id;
+        : candidates[0].model_id;
     useModelStore.getState().selectModel(chatId, fallback);
-  }, [models, selectedModelId, chatId, initialModelId]);
+  }, [candidates, storedIsValid, chatId, initialModelId]);
 
   const selectedModel = useMemo(
     () => models.find((m) => m.model_id === selectedModelId) ?? null,
@@ -56,7 +72,7 @@ export const useModelSelection = (options?: {
     [chatId],
   );
 
-  return { models, selectedModelId, selectedModel, selectModel, isLoading };
+  return { selectedModelId, selectedModel, selectModel };
 };
 
 // `/models/` is auth-protected — public-route callers must gate; default-on
