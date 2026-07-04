@@ -9,6 +9,7 @@ import type {
   UpdateWorkspaceRequest,
 } from '@/types/workspace.types';
 import type { UserSettings } from '@/types/user.types';
+import type { ActiveStreamSnapshot } from '@/types/stream.types';
 
 const CLOUD_CHATS_PER_PAGE = 25;
 
@@ -82,6 +83,35 @@ export const useCloudSettingsQuery = (enabled: boolean) => {
   return useQuery<UserSettings>({
     queryKey: queryKeys.cloudSettings(cloudUrl, connectedEmail),
     queryFn: () => cloudChatService.getSettings(),
+    enabled: enabled && !!cloudUrl,
+    staleTime: 30_000,
+  });
+};
+
+// Chats currently running on the VPS — the settings tab shows the count in its
+// connection overview. Polled so the number stays live while the tab is open.
+export const useCloudActiveStreamsQuery = (enabled: boolean) => {
+  const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
+  const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
+  return useQuery<ActiveStreamSnapshot[]>({
+    queryKey: queryKeys.cloudActiveStreams(cloudUrl, connectedEmail),
+    queryFn: () => cloudChatService.getActiveStreams(),
+    enabled: enabled && !!cloudUrl,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
+  });
+};
+
+// Total chat count across all VPS workspaces for the settings connection
+// overview. per_page 1 keeps the payload minimal — only `total` is consumed.
+// Key extends queryKeys.cloudChats so existing invalidations prefix-match it.
+export const useCloudChatsTotalQuery = (enabled: boolean) => {
+  const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
+  const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
+  return useQuery({
+    queryKey: [...queryKeys.cloudChats(cloudUrl, connectedEmail), 'total'] as const,
+    queryFn: () => cloudChatService.listChats({ page: 1, per_page: 1 }),
+    select: (data) => data.total,
     enabled: enabled && !!cloudUrl,
     staleTime: 30_000,
   });
