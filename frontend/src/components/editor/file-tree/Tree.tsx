@@ -158,7 +158,18 @@ export const Tree = memo(function Tree({
   useEffect(() => {
     // useFileTree already consumed the initial paths; skip re-applying on mount.
     if (paths === initialPathsRef.current) return;
-    model.resetPaths(paths);
+    // resetPaths rebuilds the whole store from initialExpansion:'closed', so carry the
+    // currently-open folders across — otherwise any files refetch collapses the tree
+    // and drops the revealed selection.
+    const expanded = new Set<string>();
+    for (const path of paths) {
+      for (const ancestor of getAncestorFolderPaths(path)) {
+        if (!expanded.has(ancestor) && model.getItem(ancestor)?.isExpanded()) {
+          expanded.add(ancestor);
+        }
+      }
+    }
+    model.resetPaths(paths, { initialExpandedPaths: [...expanded] });
   }, [paths, model]);
 
   useEffect(() => {
