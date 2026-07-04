@@ -248,7 +248,10 @@ export const useUIStore = create<UIStoreState>()(
           },
           openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
         });
-        get().activateTab(tileId);
+        // Editor already on screen (possibly in a split) — keep the layout and just
+        // focus it; activateTab would collapse the split to a full-view editor.
+        if (state.visibleLayout.flat().includes(tileId)) get().focusTile(tileId);
+        else get().activateTab(tileId);
       },
       openInDiffView: (path, chatId) => {
         const state = get();
@@ -258,7 +261,9 @@ export const useUIStore = create<UIStoreState>()(
           pendingDiffFile: { path, chatId },
           openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
         });
-        get().activateTab(tileId);
+        // Same as openFileInEditor: a diff tile visible in a split keeps its layout.
+        if (state.visibleLayout.flat().includes(tileId)) get().focusTile(tileId);
+        else get().activateTab(tileId);
       },
 
       openTabs: ['agent:primary'],
