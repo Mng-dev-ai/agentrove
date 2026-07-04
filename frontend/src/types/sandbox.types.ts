@@ -40,6 +40,17 @@ export interface GitDiffData {
   error?: string;
 }
 
+export interface GitFileBaselineData {
+  path: string;
+  content: string;
+  is_git_repo: boolean;
+}
+
+export interface GitChangedPathsData {
+  paths: string[];
+  is_git_repo: boolean;
+}
+
 export interface GitBranchesData {
   branches: string[];
   current_branch: string;

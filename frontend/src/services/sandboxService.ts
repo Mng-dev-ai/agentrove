@@ -6,10 +6,12 @@ import type {
   FileContent,
   FileMetadata,
   GitBranchesData,
+  GitChangedPathsData,
   GitCheckoutData,
   GitCommitResult,
   GitCreateBranchResult,
   GitDiffData,
+  GitFileBaselineData,
   GitPushPullResult,
   GitRemoteUrlData,
   SearchParams,
@@ -149,6 +151,35 @@ async function getGitDiff(
       `/sandbox/${sandboxId}/git/diff${qs}`,
     );
     return ensureResponse(response, 'Failed to get git diff');
+  });
+}
+
+async function getGitChangedPaths(sandboxId: string, cwd?: string): Promise<GitChangedPathsData> {
+  validateRequired(sandboxId, 'Sandbox ID');
+
+  return serviceCall(async () => {
+    const qs = buildQueryString({ cwd });
+    const response = await resolveSandboxClient(sandboxId).get<GitChangedPathsData>(
+      `/sandbox/${sandboxId}/git/changed-paths${qs}`,
+    );
+    return ensureResponse(response, 'Failed to get changed paths');
+  });
+}
+
+async function getGitFileBaseline(
+  sandboxId: string,
+  path: string,
+  cwd?: string,
+): Promise<GitFileBaselineData> {
+  validateRequired(sandboxId, 'Sandbox ID');
+  validateRequired(path, 'File path');
+
+  return serviceCall(async () => {
+    const qs = buildQueryString({ path, cwd });
+    const response = await resolveSandboxClient(sandboxId).get<GitFileBaselineData>(
+      `/sandbox/${sandboxId}/git/file-baseline${qs}`,
+    );
+    return ensureResponse(response, 'Failed to get file baseline');
   });
 }
 
@@ -323,6 +354,8 @@ export const sandboxService = {
   deleteSecret,
   downloadZip,
   getGitDiff,
+  getGitChangedPaths,
+  getGitFileBaseline,
   getGitBranches,
   checkoutGitBranch,
   gitCommit,

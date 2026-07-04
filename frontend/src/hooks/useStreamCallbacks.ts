@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { StreamContentBuffer, type ContentRenderSnapshot } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import type { InfiniteData } from '@tanstack/react-query';
 import type {
@@ -651,6 +652,9 @@ export function useStreamCallbacks({
         queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.gitBranchesAll(targetSandboxId),
         });
+        // The turn's file edits change git state (and the agent may have
+        // committed mid-turn) — refresh diff, baselines, and change indicators.
+        void invalidateGitState(queryClient, targetSandboxId);
       }
 
       if (!isCurrentChat) return;

@@ -1,5 +1,13 @@
 import { memo } from 'react';
-import { AlertTriangle, Code, FileText, PanelLeft, PanelLeftClose, Maximize2 } from 'lucide-react';
+import {
+  AlertTriangle,
+  Code,
+  FileText,
+  GitCompareArrows,
+  PanelLeft,
+  PanelLeftClose,
+  Maximize2,
+} from 'lucide-react';
 import type { FileStructure } from '@/types/file-system.types';
 import { Button } from '@/components/ui/primitives/Button';
 import { SaveButton } from '@/components/ui/shared/SaveButton';
@@ -14,6 +22,11 @@ export interface HeaderProps {
   selectedFile?: FileStructure | null;
   showPreview?: boolean;
   onTogglePreview?: (showPreview: boolean) => void;
+  showDiff?: boolean;
+  onToggleDiff?: () => void;
+  // Whether the file has uncommitted or unsaved changes — shows the dot on the
+  // Changes toggle so users can tell the diff view has content before opening it.
+  hasChanges?: boolean;
   hasUnsavedChanges?: boolean;
   isSaving?: boolean;
   onSave?: () => void;
@@ -28,6 +41,9 @@ export const Header = memo(function Header({
   selectedFile,
   showPreview = false,
   onTogglePreview,
+  showDiff = false,
+  onToggleDiff,
+  hasChanges = false,
   hasUnsavedChanges = false,
   isSaving = false,
   onSave,
@@ -73,6 +89,25 @@ export const Header = memo(function Header({
         )}
 
         {onSave && hasUnsavedChanges && <SaveButton onClick={onSave} isSaving={isSaving} />}
+
+        {onToggleDiff && (
+          <Button
+            onClick={onToggleDiff}
+            variant="unstyled"
+            className={cn(
+              'flex items-center gap-1 rounded-md px-2 py-0.5 text-2xs font-medium transition-colors duration-200',
+              showDiff
+                ? 'bg-surface-active text-text-primary dark:bg-surface-dark-hover dark:text-text-dark-primary'
+                : 'text-text-tertiary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
+            )}
+          >
+            <GitCompareArrows className="h-3 w-3" />
+            Changes
+            {hasChanges && (
+              <span className="h-1 w-1 rounded-full bg-text-quaternary dark:bg-text-dark-quaternary" />
+            )}
+          </Button>
+        )}
 
         {isPreviewable && onTogglePreview && (
           <Button

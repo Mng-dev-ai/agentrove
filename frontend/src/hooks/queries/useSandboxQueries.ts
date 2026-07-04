@@ -8,6 +8,7 @@ import type {
   GitCommitResult,
   GitCreateBranchResult,
   GitDiffData,
+  GitFileBaselineData,
   GitPushPullResult,
   SearchParams,
   SearchResponse,
@@ -77,6 +78,7 @@ export const useUpdateFileMutation = createMutation<UpdateFileResult, Error, Upd
       queryClient.invalidateQueries({
         queryKey: queryKeys.sandbox.filesMetadataAll(sandboxId),
       }),
+      invalidateGitState(queryClient, sandboxId),
     ]);
   },
 );
@@ -102,6 +104,16 @@ export const useUpdateSecretMutation = createSecretMutation<SecretMutationVariab
 export const useDeleteSecretMutation = createSecretMutation<{ sandboxId: string; key: string }>(
   ({ sandboxId, key }) => sandboxService.deleteSecret(sandboxId, key),
 );
+
+// Every query derived from git state (diff content, per-file HEAD baselines,
+// change indicators) — git actions must refresh them together; one forgotten
+// key leaves the diff view or indicators stale.
+export const invalidateGitState = (queryClient: QueryClient, sandboxId: string) =>
+  Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitFileBaselineAll(sandboxId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitChangedPathsAll(sandboxId) }),
+  ]);
 
 export const useGitBranchesQuery = (
   sandboxId: string | undefined,
@@ -139,9 +151,7 @@ export const useCheckoutBranchMutation = () => {
         queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.filesMetadataAll(variables.sandboxId),
         }),
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.sandbox.gitDiffAll(variables.sandboxId),
-        }),
+        invalidateGitState(queryClient, variables.sandboxId),
       ]);
     },
   });
@@ -164,6 +174,39 @@ export const useGitDiffQuery = (
   });
 };
 
+// Repo-relative paths with uncommitted changes — powers change indicators
+// without fetching diff content.
+export const useGitChangedPathsQuery = (sandboxId: string | undefined, cwd?: string) => {
+  return useQuery({
+    queryKey: queryKeys.sandbox.gitChangedPaths(sandboxId, cwd),
+    queryFn: () => sandboxService.getGitChangedPaths(sandboxId!, cwd),
+    enabled: !!sandboxId,
+    // The working tree changes out-of-band (terminal commands, external tools),
+    // so refetch on window focus with a short stale window like branches do.
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+};
+
+// The committed (HEAD) version of a single file — the diff baseline the editor
+// compares the working buffer against.
+export const useGitFileBaselineQuery = (
+  sandboxId: string | undefined,
+  path: string | undefined,
+  cwd?: string,
+  options?: Partial<UseQueryOptions<GitFileBaselineData>>,
+) => {
+  return useQuery({
+    queryKey: queryKeys.sandbox.gitFileBaseline(sandboxId, path, cwd),
+    queryFn: () => sandboxService.getGitFileBaseline(sandboxId!, path!, cwd),
+    enabled: !!sandboxId && !!path,
+    // HEAD only moves on explicit git actions (which invalidate this key); the
+    // short stale window still picks up out-of-band terminal commits on re-toggle.
+    staleTime: 30_000,
+    ...options,
+  });
+};
+
 export const useGitRemoteUrlQuery = (sandboxId: string, enabled: boolean, cwd?: string) => {
   return useQuery({
     queryKey: queryKeys.sandbox.gitRemoteUrl(sandboxId, cwd),
@@ -180,9 +223,7 @@ export const useGitCommitMutation = createMutation<
 >(
   ({ sandboxId, message, cwd }) => sandboxService.gitCommit(sandboxId, message, cwd),
   async (queryClient, _data, variables) => {
-    await queryClient.invalidateQueries({
-      queryKey: queryKeys.sandbox.gitDiffAll(variables.sandboxId),
-    });
+    await invalidateGitState(queryClient, variables.sandboxId);
   },
 );
 
@@ -213,9 +254,7 @@ export const useGitPullMutation = createMutation<
       queryClient.invalidateQueries({
         queryKey: queryKeys.sandbox.filesMetadataAll(variables.sandboxId),
       }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.sandbox.gitDiffAll(variables.sandboxId),
-      }),
+      invalidateGitState(queryClient, variables.sandboxId),
     ]);
   },
 );
@@ -248,12 +287,14 @@ export const useSearchInFilesQuery = (
 // Diff paths are cwd-relative while the editor caches workspace-root-relative
 // paths (e.g. `.worktrees/<id>/src/App.tsx`), so targeting a specific
 // `fileContent` key would miss worktree entries. Invalidate the whole
-// file-content space under this sandbox instead.
+// file-content space under this sandbox instead. Restore doesn't move HEAD,
+// so gitFileBaselineAll is deliberately not refreshed here.
 export const invalidateAfterGitRestore = (queryClient: QueryClient, sandboxId: string) =>
   Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.filesMetadataAll(sandboxId) }),
     queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.fileContentAll(sandboxId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitChangedPathsAll(sandboxId) }),
   ]);
 
 export const useGitRestoreFileMutation = createMutation<
@@ -294,9 +335,7 @@ export const useGitCreateBranchMutation = createMutation<
       queryClient.invalidateQueries({
         queryKey: queryKeys.sandbox.filesMetadataAll(variables.sandboxId),
       }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.sandbox.gitDiffAll(variables.sandboxId),
-      }),
+      invalidateGitState(queryClient, variables.sandboxId),
     ]);
   },
 );

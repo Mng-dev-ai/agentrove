@@ -9,10 +9,12 @@ from app.models.schemas.sandbox import (
     ChangedFile,
     FileDiffResponse,
     GitBranchesResponse,
+    GitChangedPathsResponse,
     GitCheckoutResponse,
     GitCommandResponse,
     GitCreateBranchResponse,
     GitDiffResponse,
+    GitFileBaselineResponse,
     GitRemoteUrlResponse,
 )
 from app.services.exceptions import SandboxException
@@ -166,6 +168,25 @@ GIT_DIFF_BRANCH_TEMPLATE = Template(
     ' git diff$ctx "$$merge_base" HEAD 2>/dev/null'
 )
 
+# Exit 2 distinguishes "not a repo" from "path not in HEAD" — `git show`
+# alone fails identically for both, and the editor renders them differently.
+GIT_SHOW_HEAD_TEMPLATE = Template(
+    "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
+    "git show $spec 2>/dev/null"
+)
+
+# `--no-renames` keeps every record a plain `XY <path>` pair (renames split
+# into D + A), `-z` avoids quoting so paths with spaces parse cleanly, and
+# `--untracked-files=all` lists files inside untracked dirs (default collapses
+# them to `?? dir/`, which would never match a file path). Porcelain paths are
+# always repo-root-relative; `--show-prefix` (cwd relative to the repo root,
+# first line) lets the parser re-base them to cwd for the response contract.
+GIT_STATUS_PORCELAIN_CMD = (
+    "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
+    "git rev-parse --show-prefix; "
+    "git status --porcelain --no-renames --untracked-files=all -z 2>/dev/null"
+)
+
 # Diff pathspecs are repo-root-relative and `git clean -fd` only cleans below
 # the current directory, so restore commands hop to the repo root before
 # running to keep pathspecs resolving and clean sweeps workspace-wide.
@@ -271,6 +292,57 @@ class GitService:
             has_changes=bool(diff_output.strip()),
             is_git_repo=True,
         )
+
+    async def get_file_baseline(
+        self,
+        sandbox_id: str,
+        path: str,
+        cwd: str | None = None,
+    ) -> GitFileBaselineResponse:
+        # `HEAD:./<path>` resolves relative to the directory git runs in, so
+        # cwd-relative editor paths work even when the repo root sits above cwd.
+        self._validate_relative_path(path)
+        cd_prefix = git_cd_prefix(cwd)
+        cmd = GIT_SHOW_HEAD_TEMPLATE.substitute(spec=shlex.quote(f"HEAD:./{path}"))
+        result = await self.sandbox_service.execute_command(
+            sandbox_id, f"{cd_prefix}{cmd}"
+        )
+        if result.exit_code == 2:
+            return GitFileBaselineResponse(path=path, content="", is_git_repo=False)
+        # Any other failure means the path isn't in HEAD (new/untracked file or
+        # unborn branch) — an empty baseline renders the whole file as added.
+        content = result.stdout if result.exit_code == 0 else ""
+        return GitFileBaselineResponse(path=path, content=content, is_git_repo=True)
+
+    async def get_changed_paths(
+        self,
+        sandbox_id: str,
+        cwd: str | None = None,
+    ) -> GitChangedPathsResponse:
+        # Cheap existence check for change indicators — the diff endpoints stay
+        # the source of the actual content.
+        cd_prefix = git_cd_prefix(cwd)
+        result = await self.sandbox_service.execute_command(
+            sandbox_id, f"{cd_prefix}{GIT_STATUS_PORCELAIN_CMD}"
+        )
+        if result.exit_code == 2:
+            return GitChangedPathsResponse(paths=[], is_git_repo=False)
+        # First line is cwd's path inside the repo ("" at the repo root); the
+        # rest are -z records of `XY <path>` — strip the status chars + space,
+        # then re-base repo-root paths to cwd, dropping files outside it (the
+        # editor tree can't display them anyway).
+        prefix, _, status_out = result.stdout.partition("\n")
+        paths = []
+        for entry in status_out.split("\0"):
+            if len(entry) <= 3:
+                continue
+            path = entry[3:]
+            if prefix:
+                if not path.startswith(prefix):
+                    continue
+                path = path[len(prefix) :]
+            paths.append(path)
+        return GitChangedPathsResponse(paths=paths, is_git_repo=True)
 
     async def get_branches(
         self,

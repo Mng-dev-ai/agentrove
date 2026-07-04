@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/primitives/Button';
 import { useDropdown } from '@/hooks/useDropdown';
 import { Tree, type TreeHandle } from '../file-tree/Tree';
 import { SearchPanel } from '../file-search/SearchPanel';
+import { useGitChangedPathsQuery } from '@/hooks/queries/useSandboxQueries';
 import type { FileStructure } from '@/types/file-system.types';
 import { cn } from '@/utils/cn';
 
@@ -43,6 +44,14 @@ export const CodeSidebar = memo(function CodeSidebar({
   const handleSearchFiles = useCallback(() => setView('search'), []);
   const handleBackToFiles = useCallback(() => setView('files'), []);
 
+  // Git paths are cwd-relative while tree paths are workspace-root-relative —
+  // re-prefix cwd so the change indicators match the tree's paths.
+  const { data: changedPathsData } = useGitChangedPathsQuery(sandboxId, cwd);
+  const modifiedPaths = useMemo(
+    () => new Set((changedPathsData?.paths ?? []).map((p) => (cwd ? `${cwd}/${p}` : p))),
+    [changedPathsData, cwd],
+  );
+
   // Stable element preserves Tree's memo when unrelated sidebar props change.
   const treeHeader = useMemo(
     () => (
@@ -66,6 +75,7 @@ export const CodeSidebar = memo(function CodeSidebar({
           selectedFile={selectedFile}
           onFileSelect={onFileSelect}
           isSandboxSyncing={isSandboxSyncing}
+          modifiedPaths={modifiedPaths}
           header={treeHeader}
         />
       </div>
