@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, case, insert, or_, select, update
+from sqlalchemy import and_, case, delete, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -172,6 +172,18 @@ class MessageService(BaseDbService[Message]):
             result = await db.execute(stmt)
             if int(getattr(result, "rowcount", 0)) == 0:
                 return None
+
+            # Terminal snapshot supersedes the event log: history renders from
+            # content_render and event reads are seq-gated catch-up past
+            # last_seq, so a finished message's events are never read again —
+            # drop them so message_events doesn't grow unbounded.
+            if (
+                stream_status is not None
+                and stream_status != MessageStreamStatus.IN_PROGRESS
+            ):
+                await db.execute(
+                    delete(MessageEvent).where(MessageEvent.message_id == message_id)
+                )
 
             await db.commit()
 

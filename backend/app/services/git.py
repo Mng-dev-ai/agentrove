@@ -138,10 +138,14 @@ GIT_DIFF_ALL_TEMPLATE = Template(
     " || { git diff$ctx --cached 2>/dev/null; git diff$ctx 2>/dev/null; }; };"
     "$untracked"
 )
+# Default context (no -U flag): restore resets --hard to base_head before
+# applying, and changed-files builds its temp index from exactly base_head, so
+# the patch base is always byte-identical — full-file context would only bloat
+# every checkpoint row stored in the DB.
 GIT_CHECKPOINT_DIFF_ALL_TEMPLATE = Template(
-    "{ git diff --binary -U99999 HEAD 2>/dev/null"
-    " || { git diff --binary -U99999 --cached 2>/dev/null; "
-    "git diff --binary -U99999 2>/dev/null; }; };"
+    "{ git diff --binary HEAD 2>/dev/null"
+    " || { git diff --binary --cached 2>/dev/null; "
+    "git diff --binary 2>/dev/null; }; };"
     "$untracked"
 )
 GIT_UNTRACKED_DIFF_TEMPLATE = Template(
@@ -151,7 +155,7 @@ GIT_UNTRACKED_DIFF_TEMPLATE = Template(
 GIT_CHECKPOINT_UNTRACKED_DIFF_TEMPLATE = (
     " git ls-files --others --exclude-standard -z"
     " | xargs -0 -I{} "
-    "git diff --binary -U99999 --no-index -- /dev/null {} 2>/dev/null"
+    "git diff --binary --no-index -- /dev/null {} 2>/dev/null"
 )
 # Diff HEAD against the merge-base with the default branch. Default branch is
 # detected via the remote HEAD symref, falling back to main/master/develop/
