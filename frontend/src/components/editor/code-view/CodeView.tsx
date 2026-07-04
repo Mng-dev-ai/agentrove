@@ -131,9 +131,9 @@ export const CodeView = memo(function CodeView({
     const file = findFileByToolPath(filesRef.current, pendingFileOpen.path);
     const path = file?.path ?? pendingFileOpen.path;
     onFileSelect(file ?? { path, type: 'file', content: '' });
-    const panel = fileTreePanelRef.current;
-    if (panel && panel.isCollapsed()) panel.expand();
-    treeRef.current?.reveal(path);
+    // Respect a collapsed file tree — opening a file shouldn't reopen it;
+    // handleFileTreeExpand re-reveals the selection if the user expands later.
+    if (!fileTreePanelRef.current?.isCollapsed()) treeRef.current?.reveal(path);
     if (pendingFileOpen.line != null) {
       setTargetLine({ path, line: pendingFileOpen.line, nonce: pendingFileOpen.nonce });
     }
