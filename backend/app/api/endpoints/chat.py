@@ -285,6 +285,24 @@ async def get_active_streams(
     )
 
 
+@router.get("/chats/events")
+async def stream_user_chat_events(
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> EventSourceResponse:
+    # Global per-user feed of chat lifecycle events (chats created / turns started
+    # out-of-band, e.g. via MCP). Declared before /chats/{chat_id} so "events"
+    # isn't parsed as a UUID.
+    return EventSourceResponse(
+        chat_service.create_chat_events_stream(current_user.id),
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.get("/chats/{chat_id}/sub-threads", response_model=list[ChatSchema])
 async def get_sub_threads(
     chat_id: UUID,

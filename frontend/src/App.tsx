@@ -11,6 +11,7 @@ import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useGlobalStream } from '@/hooks/useGlobalStream';
 import { useLocalStreamRestoration } from '@/hooks/useLocalStreamRestoration';
+import { useChatEvents } from '@/hooks/useChatEvents';
 import { authService } from '@/services/authService';
 import { toasterConfig } from '@/config/toaster';
 import { AuthRoute } from '@/components/routes/AuthRoute';
@@ -66,6 +67,7 @@ function AppContent() {
   }, [user, hasToken, isAuthenticated]);
 
   useLocalStreamRestoration({ enabled: isSessionAuthenticated });
+  useChatEvents({ enabled: isSessionAuthenticated });
 
   const showLoading = hasToken && isLoading;
 

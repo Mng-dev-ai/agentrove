@@ -11,7 +11,11 @@ from sqlalchemy import exists, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased, selectinload
 
-from app.constants import MODELS, REDIS_KEY_CHAT_STREAM_LIVE
+from app.constants import (
+    MODELS,
+    REDIS_KEY_CHAT_STREAM_LIVE,
+    REDIS_KEY_USER_CHATS_LIVE,
+)
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus, StreamEventKind
 from app.models.db_models.user import User
@@ -51,7 +55,7 @@ from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChatStreamRequest, StreamEnvelope
 from app.services.user import UserService
-from app.utils.cache import CachePubSub, cache_connection, cache_pubsub
+from app.utils.cache import CacheError, CachePubSub, cache_connection, cache_pubsub
 
 logger = logging.getLogger(__name__)
 
@@ -355,7 +359,31 @@ class ChatService(BaseDbService[Chat]):
             result = await db.execute(query)
             loaded_chat: Chat = result.scalar_one()
 
-            return loaded_chat
+        # Announce so open browser sessions can show chats created out-of-band
+        # (e.g. via the MCP server) without a refresh.
+        await self._publish_user_chat_event(
+            user.id,
+            {
+                "kind": "chat_created",
+                "chat": ChatSchema.model_validate(loaded_chat).model_dump(mode="json"),
+            },
+        )
+
+        return loaded_chat
+
+    async def _publish_user_chat_event(
+        self, user_id: UUID, payload: dict[str, Any]
+    ) -> None:
+        # Best-effort broadcast on the user's live channel — a missed event only
+        # delays the sidebar/tab update until the next normal refetch.
+        try:
+            async with cache_connection() as cache:
+                await cache.publish(
+                    REDIS_KEY_USER_CHATS_LIVE.format(user_id=user_id),
+                    json.dumps(payload),
+                )
+        except CacheError:
+            logger.warning("Failed to publish %s user chat event", payload.get("kind"))
 
     async def get_sub_threads(self, chat_id: UUID, user: User) -> list[Chat]:
         # Returns ORM objects — sub_thread_count defaults to 0 in ChatSchema,
@@ -1081,6 +1109,28 @@ class ChatService(BaseDbService[Chat]):
                 error_message=str(exc),
             )
 
+    async def create_chat_events_stream(
+        self, user_id: UUID
+    ) -> AsyncIterator[dict[str, Any]]:
+        # Long-lived per-session feed of chat lifecycle events (chat_created,
+        # stream_started) for activity happening out-of-band, e.g. via the MCP
+        # server. Payloads pass through verbatim; the "kind" field inside them
+        # discriminates. No backlog/replay: an event missed while disconnected
+        # is recovered by the sidebar's next normal refetch.
+        async with cache_connection() as cache:
+            channel = REDIS_KEY_USER_CHATS_LIVE.format(user_id=user_id)
+            async with cache_pubsub(cache, channel) as pubsub:
+                while True:
+                    message = await pubsub.get_message(
+                        ignore_subscribe_messages=True, timeout=1.0
+                    )
+                    if not message or message.get("type") != "message":
+                        continue
+                    data = message.get("data")
+                    if not data:
+                        continue
+                    yield {"event": "chat_event", "data": data}
+
     async def initiate_chat_completion(
         self,
         request: ChatRequest,
@@ -1093,14 +1143,20 @@ class ChatService(BaseDbService[Chat]):
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(request.chat_id, current_user)
 
+        # Bump ordering timestamps at initiation rather than first stream-event
+        # persist — open sessions refetch the sidebar on the stream_started
+        # broadcast and must already see the new order. Sub-threads bump their
+        # parent too, since top-level ordering follows the parent.
+        bump_ids = [chat.id]
         if chat.parent_chat_id:
-            async with self.session_factory() as db:
-                await db.execute(
-                    update(Chat)
-                    .where(Chat.id == chat.parent_chat_id)
-                    .values(updated_at=datetime.now(timezone.utc))
-                )
-                await db.commit()
+            bump_ids.append(chat.parent_chat_id)
+        async with self.session_factory() as db:
+            await db.execute(
+                update(Chat)
+                .where(Chat.id.in_(bump_ids))
+                .values(updated_at=datetime.now(timezone.utc))
+            )
+            await db.commit()
 
         chat_id = chat.id
 
@@ -1173,6 +1229,17 @@ class ChatService(BaseDbService[Chat]):
             logger.error("Failed to enqueue chat task: %s", e)
             await self.message_service.soft_delete_message(assistant_message.id)
             raise
+
+        # Lets open sessions mark this chat "running" even when the turn was
+        # started out-of-band (e.g. via the MCP server) with no client stream.
+        await self._publish_user_chat_event(
+            current_user.id,
+            {
+                "kind": "stream_started",
+                "chat_id": str(chat_id),
+                "message_id": str(assistant_message.id),
+            },
+        )
 
         return {
             "message_id": str(assistant_message.id),

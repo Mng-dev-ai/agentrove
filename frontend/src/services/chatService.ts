@@ -298,6 +298,19 @@ function createEventSource(
   return eventSource;
 }
 
+function createChatEventsSource(): EventSource {
+  // Local backend only — cloud chats have their own sidebar list, and the MCP
+  // server this feed exists for always targets the local instance.
+  const token = apiClient.getToken();
+  if (!token) {
+    throw new Error('Authentication token required');
+  }
+
+  const params = new URLSearchParams();
+  params.append('token', token);
+  return new EventSource(`${apiClient.getBaseUrl()}/chat/chats/events?${params.toString()}`);
+}
+
 async function getSubThreads(chatId: string): Promise<Chat[]> {
   validateId(chatId, 'Chat ID');
   return serviceCall(async () => {
@@ -467,4 +480,5 @@ export const chatService = {
   pinChat,
   unpinChat,
   getSubThreads,
+  createChatEventsSource,
 };
