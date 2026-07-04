@@ -46,6 +46,17 @@ class GitDiffResponse(BaseModel):
     error: str | None = None
 
 
+class GitFileBaselineResponse(BaseModel):
+    path: str
+    content: str
+    is_git_repo: bool
+
+
+class GitChangedPathsResponse(BaseModel):
+    paths: list[str]
+    is_git_repo: bool
+
+
 class GitBranchesResponse(BaseModel):
     branches: list[str]
     current_branch: str

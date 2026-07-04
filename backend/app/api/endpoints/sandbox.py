@@ -21,10 +21,12 @@ from app.models.schemas.sandbox import (
     GitCheckoutRequest,
     GitCheckoutResponse,
     GitCommandResponse,
+    GitChangedPathsResponse,
     GitCommitRequest,
     GitCreateBranchRequest,
     GitCreateBranchResponse,
     GitDiffResponse,
+    GitFileBaselineResponse,
     GitRemoteUrlResponse,
     GitRestoreFileRequest,
     SandboxFilesMetadataResponse,
@@ -223,6 +225,37 @@ async def get_git_diff(
 ) -> GitDiffResponse:
     try:
         return await git_service.get_diff(sandbox_id, mode, full_context, cwd)
+    except (ValueError, SandboxException) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.get("/{sandbox_id}/git/changed-paths", response_model=GitChangedPathsResponse)
+async def get_git_changed_paths(
+    sandbox_id: str = Depends(validate_sandbox_ownership),
+    git_service: GitService = Depends(get_git_service),
+    cwd: str | None = Query(None),
+) -> GitChangedPathsResponse:
+    try:
+        return await git_service.get_changed_paths(sandbox_id, cwd)
+    except (ValueError, SandboxException) as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.get("/{sandbox_id}/git/file-baseline", response_model=GitFileBaselineResponse)
+async def get_git_file_baseline(
+    sandbox_id: str = Depends(validate_sandbox_ownership),
+    git_service: GitService = Depends(get_git_service),
+    path: str = Query(..., min_length=1, max_length=1024),
+    cwd: str | None = Query(None),
+) -> GitFileBaselineResponse:
+    try:
+        return await git_service.get_file_baseline(sandbox_id, path, cwd)
     except (ValueError, SandboxException) as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

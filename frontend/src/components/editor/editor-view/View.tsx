@@ -2,6 +2,7 @@ import { memo, useState, useRef, useCallback, useEffect } from 'react';
 import type * as monaco from 'monaco-editor';
 import { Header } from './Header';
 import { Content } from './Content';
+import { DiffContent } from './DiffContent';
 import { EmptyState } from './EmptyState';
 import { EditorTabs } from './EditorTabs';
 import { FilePreview } from '../file-preview/FilePreview';
@@ -16,9 +17,24 @@ import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useEditorDrafts } from '@/hooks/useEditorDrafts';
 import type { FileStructure } from '@/types/file-system.types';
 import { detectLanguage, findFileInStructure, getFileName } from '@/utils/file';
-import { useUpdateFileMutation, useFileContentQuery } from '@/hooks/queries/useSandboxQueries';
+import {
+  useUpdateFileMutation,
+  useFileContentQuery,
+  useGitChangedPathsQuery,
+  useGitFileBaselineQuery,
+} from '@/hooks/queries/useSandboxQueries';
 import { isPreviewableFile, isHtmlFile } from '@/utils/fileTypes';
 import toast from 'react-hot-toast';
+
+// The content area's mutually-exclusive modes — a single union so an illegal
+// combination (e.g. preview+diff) can't be represented.
+type ViewMode = 'code' | 'preview' | 'diff';
+
+// Previewable types open in preview; HTML opens raw (its preview is opt-in
+// via the toggle).
+function defaultViewMode(file: FileStructure | null): ViewMode {
+  return file && isPreviewableFile(file) && !isHtmlFile(file) ? 'preview' : 'code';
+}
 
 export interface ViewProps {
   selectedFile: FileStructure | null;
@@ -50,7 +66,7 @@ export const View = memo(function View({
   onCloseFile,
 }: ViewProps) {
   const theme = useResolvedTheme();
-  const [showPreview, setShowPreview] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => defaultViewMode(selectedFile));
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
   const selectedFilePath = selectedFile?.path ?? null;
@@ -113,9 +129,23 @@ export const View = memo(function View({
     commitSave,
   } = useEditorDrafts({ selectedFile, selectedFileContent, sandboxId, onCloseFile });
 
-  const shouldShowSelectedFilePreview = selectedFile
-    ? isPreviewableFile(selectedFile) && !isHtmlFile(selectedFile)
-    : false;
+  // Git paths are cwd-relative while editor paths are workspace-root-relative
+  // (see invalidateAfterGitRestore) — strip the cwd prefix before asking git.
+  const gitRelativePath =
+    selectedFilePath && cwd && selectedFilePath.startsWith(`${cwd}/`)
+      ? selectedFilePath.slice(cwd.length + 1)
+      : selectedFilePath;
+
+  const {
+    data: baselineData,
+    isLoading: isLoadingBaseline,
+    isError: isBaselineError,
+    refetch: refetchBaseline,
+  } = useGitFileBaselineQuery(sandboxId, gitRelativePath ?? undefined, cwd, {
+    enabled: viewMode === 'diff' && !!sandboxId && !!gitRelativePath,
+  });
+
+  const { data: changedPathsData } = useGitChangedPathsQuery(sandboxId, cwd);
 
   const error = fileContentError
     ? fileContentError instanceof Error
@@ -123,19 +153,13 @@ export const View = memo(function View({
       : 'Failed to load file content'
     : null;
 
-  useEffect(() => {
-    if (!selectedFilePath) {
-      setShowPreview(false);
-      return;
-    }
-
-    setShowPreview((current) =>
-      current === shouldShowSelectedFilePreview ? current : shouldShowSelectedFilePreview,
-    );
-  }, [selectedFilePath, shouldShowSelectedFilePreview]);
-
   const language = selectedFile ? detectLanguage(selectedFile.path) : 'javascript';
   const displayHasUnsavedChanges = hasLoadedSelectedFile && hasUnsavedChanges;
+
+  const fileChangedInGit = !!gitRelativePath && !!changedPathsData?.paths.includes(gitRelativePath);
+  // Whether the diff view has anything to show: uncommitted disk changes or an
+  // unsaved draft (the diff compares HEAD against the live buffer).
+  const fileHasChanges = displayHasUnsavedChanges || fileChangedInGit;
 
   const handleUpdateFile = useCallback(async () => {
     if (!selectedFile || !sandboxId || !hasUnsavedChanges || !hasLoadedSelectedFile) return;
@@ -197,15 +221,18 @@ export const View = memo(function View({
     // would still hold the old model and the line would be clamped wrong.
     if (!targetLine || !selectedFile) return;
     if (selectedFile.path !== targetLine.path) return;
-    if (selectedFileContent === undefined) return;
-    if (mountedEditorPath !== selectedFile.path) return;
-    const editor = editorRef.current;
-    if (!editor) return;
     // Dedupe by the requested target, not the resolved/clamped line — after a
     // jump to line 100, editing the file down to fewer lines shouldn't re-fire
     // the same target and yank focus back to the clamped position.
     const key = `${targetLine.path}:${targetLine.line}:${targetLine.nonce}`;
     if (lastAppliedTargetRef.current === key) return;
+    // Jumps land in the code editor — leave preview/diff so it can mount and
+    // apply. Idempotent, so re-runs while the target is pending are no-ops.
+    setViewMode('code');
+    if (selectedFileContent === undefined) return;
+    if (mountedEditorPath !== selectedFile.path) return;
+    const editor = editorRef.current;
+    if (!editor) return;
 
     const raf = requestAnimationFrame(() => {
       if (editorRef.current !== editor) return;
@@ -245,22 +272,31 @@ export const View = memo(function View({
   ]);
 
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
-  const prevShowPreviewRef = useRef(showPreview);
+  const prevViewModeRef = useRef(viewMode);
   const prevFilePathRef = useRef(selectedFile?.path);
 
-  // Reset fullscreen when preview is hidden or file changes
-  if (
-    prevShowPreviewRef.current !== showPreview ||
-    prevFilePathRef.current !== selectedFile?.path
-  ) {
-    prevShowPreviewRef.current = showPreview;
+  // Reset fullscreen when the mode or file changes
+  if (prevViewModeRef.current !== viewMode || prevFilePathRef.current !== selectedFile?.path) {
+    const fileChanged = prevFilePathRef.current !== selectedFile?.path;
+    const enteredDiff = prevViewModeRef.current !== 'diff' && viewMode === 'diff';
+    prevViewModeRef.current = viewMode;
     prevFilePathRef.current = selectedFile?.path;
     if (isPreviewFullscreen) {
       setIsPreviewFullscreen(false);
     }
-    // Sole inline-chat reset: preview toggles and file switches both remount
+    // Sole inline-chat reset: mode toggles and file switches all remount
     // Content, so the widget's captured editor would go stale either way.
     if (inlineChat !== null) setInlineChat(null);
+    // Each file opens in its own default mode (preview for previewable types).
+    if (fileChanged) {
+      setViewMode(defaultViewMode(selectedFile));
+    }
+    if (enteredDiff) {
+      // Content unmounts while the diff is shown; drop the disposed editor so
+      // the jump-to-line effect waits for the remount instead of touching it.
+      editorRef.current = null;
+      if (mountedEditorPath !== null) setMountedEditorPath(null);
+    }
   }
 
   const handleCloseInlineChat = useCallback(() => {
@@ -296,10 +332,19 @@ export const View = memo(function View({
     (isTreePending || findFileInStructure(fileStructure, selectedFile.path) !== undefined);
 
   const isPreviewable = selectedFile ? isPreviewableFile(selectedFile) : false;
+  const isPreviewActive = isPreviewable && viewMode === 'preview';
 
   const handlePreviewToggle = (showPreviewState: boolean) => {
-    setShowPreview(showPreviewState);
+    setViewMode(showPreviewState ? 'preview' : 'code');
   };
+
+  const handleToggleDiff = useCallback(() => {
+    setViewMode((prev) => (prev === 'diff' ? 'code' : 'diff'));
+  }, []);
+
+  const handleRetryBaseline = useCallback(() => {
+    void refetchBaseline().catch((err: unknown) => console.error(err));
+  }, [refetchBaseline]);
 
   const fileForPreview = selectedFile
     ? {
@@ -328,16 +373,17 @@ export const View = memo(function View({
             filePath={selectedFile.path}
             error={error}
             selectedFile={selectedFile}
-            showPreview={showPreview}
+            showPreview={isPreviewActive}
             onTogglePreview={handlePreviewToggle}
+            showDiff={viewMode === 'diff'}
+            onToggleDiff={handleToggleDiff}
+            hasChanges={fileHasChanges}
             hasUnsavedChanges={displayHasUnsavedChanges}
             isSaving={updateFileMutation.isPending}
             onSave={handleUpdateFile}
             onToggleFileTree={onToggleFileTree}
             isFileTreeCollapsed={isFileTreeCollapsed}
-            onToggleFullscreen={
-              isPreviewable && showPreview ? handleTogglePreviewFullscreen : undefined
-            }
+            onToggleFullscreen={isPreviewActive ? handleTogglePreviewFullscreen : undefined}
           />
 
           <div className="relative flex-1 overflow-hidden">
@@ -351,7 +397,7 @@ export const View = memo(function View({
 
             {/* Listed before Content so its cleanup removes the content widget
                 before @monaco-editor/react disposes the editor on unmount. */}
-            {!(isPreviewable && showPreview) &&
+            {viewMode === 'code' &&
               inlineChat &&
               chatId &&
               editorRef.current &&
@@ -366,7 +412,23 @@ export const View = memo(function View({
                 />
               )}
 
-            {!(isPreviewable && showPreview) && (
+            {viewMode === 'diff' && (
+              <DiffContent
+                key={selectedFile.path}
+                original={baselineData?.content}
+                modified={displayContent}
+                language={language}
+                theme={currentTheme}
+                isLoading={isLoadingBaseline}
+                isError={isBaselineError}
+                isGitRepo={baselineData?.is_git_repo ?? true}
+                hasGitChanges={fileChangedInGit}
+                onRetry={handleRetryBaseline}
+                onBeforeMount={setupEditorTheme}
+              />
+            )}
+
+            {viewMode !== 'diff' && !isPreviewActive && (
               <Content
                 key={selectedFile.path}
                 content={displayContent}
@@ -384,7 +446,7 @@ export const View = memo(function View({
               />
             )}
 
-            {isPreviewable && showPreview && fileForPreview && (
+            {isPreviewActive && fileForPreview && (
               <div className="h-full">
                 <FilePreview
                   file={fileForPreview}

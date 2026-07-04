@@ -34,6 +34,14 @@ export const queryKeys = {
       cwd?: string,
     ) => ['sandbox', sandboxId, 'git-diff', mode, fullContext, cwd] as const,
     gitDiffAll: (sandboxId?: string) => ['sandbox', sandboxId, 'git-diff'] as const,
+    gitFileBaseline: (sandboxId?: string, path?: string, cwd?: string) =>
+      ['sandbox', sandboxId, 'git-file-baseline', path, cwd] as const,
+    gitFileBaselineAll: (sandboxId?: string) =>
+      ['sandbox', sandboxId, 'git-file-baseline'] as const,
+    gitChangedPaths: (sandboxId?: string, cwd?: string) =>
+      ['sandbox', sandboxId, 'git-changed-paths', cwd] as const,
+    gitChangedPathsAll: (sandboxId?: string) =>
+      ['sandbox', sandboxId, 'git-changed-paths'] as const,
     gitBranches: (sandboxId?: string, cwd?: string) =>
       ['sandbox', sandboxId, 'git-branches', cwd] as const,
     gitBranchesAll: (sandboxId?: string) => ['sandbox', sandboxId, 'git-branches'] as const,

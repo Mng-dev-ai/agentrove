@@ -23,6 +23,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
 import { sandboxService } from '@/services/sandboxService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
 import { isSecondaryPaneActive } from '@/utils/tileHelpers';
 import { traverseFileStructure, getFileName } from '@/utils/file';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
@@ -301,7 +302,7 @@ export function executeCommand(
           queryClient.invalidateQueries({
             queryKey: queryKeys.sandbox.filesMetadataAll(sandboxId),
           }),
-          queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
+          invalidateGitState(queryClient, sandboxId),
         ]);
       }
     });
