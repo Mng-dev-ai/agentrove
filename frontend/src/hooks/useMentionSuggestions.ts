@@ -3,7 +3,7 @@ import type { FileStructure } from '@/types/file-system.types';
 import type { MentionItem } from '@/types/ui.types';
 import { useSuggestionBase } from './useSuggestionBase';
 import { traverseFileStructure, getFileName } from '@/utils/file';
-import { parseMentionQuery } from '@/utils/mentionParser';
+import { parseTokenQuery } from '@/utils/mentionParser';
 import { fuzzySearch } from '@/utils/fuzzySearch';
 
 interface UseMentionOptions {
@@ -34,10 +34,12 @@ export const useMentionSuggestions = ({
 }: UseMentionOptions) => {
   const allFiles = useMemo(() => convertFilesToMentions(fileStructure), [fileStructure]);
 
-  const { isActive, query, mentionStartPos, mentionEndPos } = parseMentionQuery(
-    message,
-    cursorPosition,
-  );
+  const {
+    isActive,
+    query,
+    tokenStartPos: mentionStartPos,
+    tokenEndPos: mentionEndPos,
+  } = parseTokenQuery(message, cursorPosition, '@');
 
   const deferredQuery = useDeferredValue(query);
 

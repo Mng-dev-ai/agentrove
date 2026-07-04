@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { GitBranch, Brain, Shield } from 'lucide-react';
 import type { CustomSkill, Persona, StreamAction } from '@/types/user.types';
 import type { SlashCommand } from '@/types/ui.types';
@@ -23,6 +23,7 @@ import {
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSlashCommandSuggestions } from '@/hooks/useSlashCommandSuggestions';
+import { insertToken } from '@/utils/mentionParser';
 import { EMPTY_BUILTIN_COMMANDS } from '@/config/constants';
 import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
 
@@ -71,20 +72,26 @@ export const StreamActionEditDialog: React.FC<StreamActionEditDialogProps> = ({
   );
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [cursorPosition, setCursorPosition] = useState(0);
+
+  const handleCursorChange = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    setCursorPosition(e.currentTarget.selectionStart);
+  }, []);
 
   const handleSlashCommandSelect = useCallback(
-    (command: SlashCommand) => {
-      const newCommand = `${command.value} `;
-      onActionChange('command', newCommand);
+    (command: SlashCommand, startPos: number, endPos: number) => {
+      const { text, cursor } = insertToken(action.command, command.value, startPos, endPos);
+      onActionChange('command', text);
       setTimeout(() => {
         const textarea = textareaRef.current;
         if (textarea) {
           textarea.focus();
-          textarea.setSelectionRange(newCommand.length, newCommand.length);
+          textarea.setSelectionRange(cursor, cursor);
         }
+        setCursorPosition(cursor);
       }, 0);
     },
-    [onActionChange],
+    [action.command, onActionChange],
   );
 
   const {
@@ -95,6 +102,7 @@ export const StreamActionEditDialog: React.FC<StreamActionEditDialogProps> = ({
     handleKeyDown: handleSlashKeyDown,
   } = useSlashCommandSuggestions({
     message: action.command,
+    cursorPosition,
     onSelect: handleSlashCommandSelect,
     customSkills: EMPTY_SKILLS,
     builtinSlashCommands,
@@ -196,8 +204,14 @@ export const StreamActionEditDialog: React.FC<StreamActionEditDialogProps> = ({
               <Textarea
                 ref={textareaRef}
                 value={action.command}
-                onChange={(e) => onActionChange('command', e.target.value)}
+                onChange={(e) => {
+                  onActionChange('command', e.target.value);
+                  setCursorPosition(e.target.selectionStart);
+                }}
                 onKeyDown={handleSlashKeyDown}
+                onKeyUp={handleCursorChange}
+                onClick={handleCursorChange}
+                onSelect={handleCursorChange}
                 placeholder="/quality-review"
                 className="min-h-[120px] font-mono text-xs"
                 rows={5}

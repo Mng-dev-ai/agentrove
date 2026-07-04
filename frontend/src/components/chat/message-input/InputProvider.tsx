@@ -22,7 +22,7 @@ import {
 } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
 import { useChatContext } from '@/hooks/useChatContext';
-import { getHighlightTokenRanges } from '@/utils/mentionParser';
+import { getHighlightTokenRanges, insertToken } from '@/utils/mentionParser';
 import {
   InputContext,
   InputStateContext,
@@ -160,13 +160,29 @@ export function InputProvider({
 
   const isEnhancing = enhancePromptMutation.isPending;
 
-  const handleSlashCommandSelect = useCallback(
-    (command: SlashCommand) => {
-      const newMessage = `${command.value} `;
-      setMessage(newMessage);
-      focusTextarea(newMessage);
+  const insertTokenAt = useCallback(
+    (tokenText: string, startPos: number, endPos: number) => {
+      const { text, cursor } = insertToken(messageRef.current, tokenText, startPos, endPos);
+
+      setMessage(text);
+
+      setTimeout(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+          textarea.focus();
+          textarea.setSelectionRange(cursor, cursor);
+          setCursorPosition(cursor);
+        }
+      }, 0);
     },
-    [setMessage, focusTextarea],
+    [setMessage],
+  );
+
+  const handleSlashCommandSelect = useCallback(
+    (command: SlashCommand, startPos: number, endPos: number) => {
+      insertTokenAt(command.value, startPos, endPos);
+    },
+    [insertTokenAt],
   );
 
   const {
@@ -176,6 +192,7 @@ export function InputProvider({
     handleKeyDown: handleSlashCommandKeyDown,
   } = useSlashCommandSuggestions({
     message,
+    cursorPosition,
     onSelect: handleSlashCommandSelect,
     customSkills,
     builtinSlashCommands,
@@ -184,25 +201,9 @@ export function InputProvider({
 
   const handleMentionSelect = useCallback(
     (item: MentionItem, mentionStartPos: number, mentionEndPos: number) => {
-      const msg = messageRef.current;
-      const beforeMention = msg.slice(0, mentionStartPos);
-      const afterMention = msg.slice(mentionEndPos);
-      const mentionText = `@${item.path}`;
-      const needsSeparator = !afterMention.startsWith(' ');
-      const separator = needsSeparator ? ' ' : '';
-      const newMessage = `${beforeMention}${mentionText}${separator}${afterMention}`;
-      const nextCursorPosition = beforeMention.length + mentionText.length + separator.length;
-
-      setMessage(newMessage);
-
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.setSelectionRange(nextCursorPosition, nextCursorPosition);
-          setCursorPosition(nextCursorPosition);
-        }
-      }, 0);
+      insertTokenAt(`@${item.path}`, mentionStartPos, mentionEndPos);
     },
-    [setMessage],
+    [insertTokenAt],
   );
 
   const {

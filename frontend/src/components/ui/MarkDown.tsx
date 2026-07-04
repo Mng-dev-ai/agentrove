@@ -148,9 +148,9 @@ function splitMarkdownBlocks(md: string): string[] {
   return blocks;
 }
 
-function buildMentionPillNodes(value: string, allowCommand: boolean): ElementContent[] | null {
+function buildMentionPillNodes(value: string): ElementContent[] | null {
   // Null when the text holds no tokens so the caller can keep the original node.
-  const segments = buildHighlightSegments(value, allowCommand);
+  const segments = buildHighlightSegments(value);
   if (!segments.some((segment) => segment.isToken)) return null;
   return segments.map((segment) =>
     segment.isToken
@@ -164,38 +164,28 @@ function buildMentionPillNodes(value: string, allowCommand: boolean): ElementCon
   );
 }
 
-function walkMentionPills(node: HastRoot | HastElement, allowCommand: boolean): boolean {
-  // Returns the updated allowCommand flag: only the document's first text node
-  // may host a leading /command pill, mirroring the input's first-line rule.
+function walkMentionPills(node: HastRoot | HastElement): void {
   const children = node.children;
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
     if (child.type === 'text') {
-      const replacement = buildMentionPillNodes(child.value, allowCommand);
-      allowCommand = false;
+      const replacement = buildMentionPillNodes(child.value);
       if (replacement) {
         children.splice(i, 1, ...replacement);
         i += replacement.length - 1;
       }
-    } else if (child.type === 'element') {
-      if (child.tagName === 'code' || child.tagName === 'pre') {
-        // Skip code content, but a code span before any text still means the
-        // message didn't start with a /command.
-        allowCommand = false;
-      } else {
-        allowCommand = walkMentionPills(child, allowCommand);
-      }
+    } else if (child.type === 'element' && child.tagName !== 'code' && child.tagName !== 'pre') {
+      walkMentionPills(child);
     }
   }
-  return allowCommand;
 }
 
-// Wraps @file mentions and the leading /command of user-authored messages in
-// pill spans, matching the input box's token highlighting. Code spans/blocks
-// are skipped so pasted snippets (e.g. Python decorators) aren't restyled.
+// Wraps @file mention and /command tokens of user-authored messages in pill
+// spans, matching the input box's token highlighting. Code spans/blocks are
+// skipped so pasted snippets (e.g. Python decorators) aren't restyled.
 const rehypeMentionPills: NonNullable<Options['rehypePlugins']>[number] = () => {
   return (tree: HastRoot) => {
-    walkMentionPills(tree, true);
+    walkMentionPills(tree);
   };
 };
 
