@@ -73,7 +73,7 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
 
           {planContent && (
             <div className="mt-3 overflow-auto rounded-md bg-black/5 px-2 py-1.5 text-xs dark:bg-white/5">
-              <div className="max-w-none text-text-primary dark:text-text-dark-primary">
+              <div className="prose prose-sm dark:prose-invert max-w-none text-text-primary dark:text-text-dark-primary">
                 <LazyMarkDown content={planContent} />
               </div>
             </div>
@@ -136,7 +136,7 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
         <div className="space-y-2">
           {planContent && (
             <div className="overflow-auto rounded-md bg-black/5 px-2 py-1.5 text-xs dark:bg-white/5">
-              <div className="max-w-none text-text-primary dark:text-text-dark-primary">
+              <div className="prose prose-sm dark:prose-invert max-w-none text-text-primary dark:text-text-dark-primary">
                 <LazyMarkDown content={planContent} />
               </div>
             </div>

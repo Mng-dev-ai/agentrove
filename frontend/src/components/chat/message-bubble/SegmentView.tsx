@@ -23,7 +23,7 @@ const TextSegment = ({ text, isActive }: { text: string; isActive: boolean }) =>
   // of jumping a flush-sized chunk at a time.
   const smoothText = useSmoothText(text, isActive);
   return (
-    <div className="max-w-none break-words">
+    <div className="prose prose-sm dark:prose-invert max-w-none break-words">
       <LazyMarkDown content={smoothText} streaming={isActive} />
     </div>
   );
