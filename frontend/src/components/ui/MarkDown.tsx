@@ -270,7 +270,7 @@ const MARKDOWN_COMPONENTS: Components = {
 
     return (
       <p
-        className="mb-3 whitespace-pre-wrap leading-5 text-text-secondary [overflow-wrap:anywhere] last:mb-0 dark:text-text-dark-secondary"
+        className="mb-3 whitespace-pre-wrap leading-relaxed text-text-secondary [overflow-wrap:anywhere] last:mb-0 dark:text-text-dark-secondary"
         {...props}
       >
         {children}
@@ -359,7 +359,10 @@ const MARKDOWN_COMPONENTS: Components = {
     </ol>
   ),
   li: ({ children, ...props }: CommonProps) => (
-    <li className="pl-1 text-text-secondary dark:text-text-dark-secondary" {...props}>
+    <li
+      className="pl-1 leading-relaxed text-text-secondary dark:text-text-dark-secondary"
+      {...props}
+    >
       {children}
     </li>
   ),
