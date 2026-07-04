@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/primitives/Input';
 import { Spinner } from '@/components/ui/primitives/Spinner';
 import { apiClient } from '@/lib/api';
 import { detectFileType } from '@/utils/fileTypes';
+import { HighlightedText } from '@/components/ui/shared/HighlightedText';
 import { fetchAttachmentBlob } from '@/utils/file';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import type {
@@ -264,7 +265,7 @@ export const QueueMessageCard = memo(function QueueMessageCard({
             />
           ) : (
             <span className="truncate text-xs text-text-secondary dark:text-text-dark-secondary">
-              {message.content}
+              <HighlightedText text={message.content} />
             </span>
           )}
         </div>

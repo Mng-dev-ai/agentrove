@@ -22,6 +22,7 @@ import {
 } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
 import { useChatContext } from '@/hooks/useChatContext';
+import { getHighlightTokenRanges } from '@/utils/mentionParser';
 import {
   InputContext,
   InputStateContext,
@@ -319,6 +320,31 @@ export function InputProvider({
     [chatId],
   );
 
+  const handleTokenDeleteKeyDown = useCallback((event: React.KeyboardEvent<Element>) => {
+    // First Backspace/Delete at a pill's boundary selects token + separator space;
+    // the next keystroke deletes it natively (undo intact). Backspace triggers only
+    // after the separator — at the bare token end the user is still composing.
+    if (event.key !== 'Backspace' && event.key !== 'Delete') return false;
+    const textarea = textareaRef.current;
+    if (!textarea) return false;
+    const { selectionStart, selectionEnd } = textarea;
+    if (selectionStart !== selectionEnd) return false;
+    const message = messageRef.current;
+    for (const [start, end] of getHighlightTokenRanges(message)) {
+      const hasSeparator = message[end] === ' ';
+      const atEdge =
+        event.key === 'Backspace'
+          ? hasSeparator && selectionStart === end + 1
+          : selectionStart === start;
+      if (atEdge) {
+        event.preventDefault();
+        textarea.setSelectionRange(start, hasSeparator ? end + 1 : end);
+        return true;
+      }
+    }
+    return false;
+  }, []);
+
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<Element>) => {
       const handledByMentions = handleMentionKeyDown(event);
@@ -327,12 +353,14 @@ export function InputProvider({
       const handledBySlashCommands = handleSlashCommandKeyDown(event);
       if (handledBySlashCommands) return;
 
+      if (handleTokenDeleteKeyDown(event)) return;
+
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault();
         submitOrStop();
       }
     },
-    [handleMentionKeyDown, handleSlashCommandKeyDown, submitOrStop],
+    [handleMentionKeyDown, handleSlashCommandKeyDown, handleTokenDeleteKeyDown, submitOrStop],
   );
 
   const handleSendClick = useCallback(

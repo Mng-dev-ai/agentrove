@@ -30,7 +30,12 @@ export const UserMessageContent = memo(function UserMessageContent({
         uploadingAttachmentIds={uploadingAttachmentIds}
         chatId={chatId}
       />
-      <MessageRenderer events={contentRender.events} isStreaming={isStreaming} chatId={chatId} />
+      <MessageRenderer
+        events={contentRender.events}
+        isStreaming={isStreaming}
+        chatId={chatId}
+        highlightMentions
+      />
     </div>
   );
 });

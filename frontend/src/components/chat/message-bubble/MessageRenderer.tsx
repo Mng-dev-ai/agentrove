@@ -15,6 +15,7 @@ interface MessageRendererProps {
   durationMs?: number | null;
   onSuggestionSelect?: (suggestion: string) => void;
   agentKind?: AgentKind;
+  highlightMentions?: boolean;
 }
 
 const MessageRendererInner: React.FC<MessageRendererProps> = ({
@@ -26,6 +27,7 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
   durationMs = null,
   onSuggestionSelect,
   agentKind,
+  highlightMentions = false,
 }) => {
   const prevSegmentsRef = React.useRef<Map<string, MessageSegment>>(new Map());
 
@@ -100,6 +102,7 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
     agentKind,
     isLastBotMessage,
     onSuggestionSelect,
+    highlightMentions,
   };
   // Per-segment booleans instead of the active ids: when the active segment
   // changes, only the segments whose flag flipped lose their memo bailout.

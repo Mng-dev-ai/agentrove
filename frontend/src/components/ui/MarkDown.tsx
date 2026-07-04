@@ -2,11 +2,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useMemo, useState, memo, useEffect, lazy, Suspense } from 'react';
 import type { Components, Options } from 'react-markdown';
+import type { Element as HastElement, ElementContent, Root as HastRoot } from 'hast';
 import type { AnchorHTMLAttributes, HTMLAttributes, ImgHTMLAttributes } from 'react';
 import { AttachmentViewer } from './AttachmentViewer';
 import { Button } from './primitives/Button';
 import { Link } from './primitives/Link';
 import type { MessageAttachment } from '@/types/chat.types';
+import { buildHighlightSegments } from '@/utils/mentionParser';
+import { MENTION_PILL_CLASSNAME } from './shared/HighlightedText';
 import { isImageUrl } from '@/utils/fileTypes';
 
 const Mermaid = lazy(() => import('./Mermaid').then((m) => ({ default: m.Mermaid })));
@@ -144,6 +147,57 @@ function splitMarkdownBlocks(md: string): string[] {
   if (current.length > 0) blocks.push(current.join('\n'));
   return blocks;
 }
+
+function buildMentionPillNodes(value: string, allowCommand: boolean): ElementContent[] | null {
+  // Null when the text holds no tokens so the caller can keep the original node.
+  const segments = buildHighlightSegments(value, allowCommand);
+  if (!segments.some((segment) => segment.isToken)) return null;
+  return segments.map((segment) =>
+    segment.isToken
+      ? {
+          type: 'element',
+          tagName: 'span',
+          properties: { className: MENTION_PILL_CLASSNAME },
+          children: [{ type: 'text', value: segment.text }],
+        }
+      : { type: 'text', value: segment.text },
+  );
+}
+
+function walkMentionPills(node: HastRoot | HastElement, allowCommand: boolean): boolean {
+  // Returns the updated allowCommand flag: only the document's first text node
+  // may host a leading /command pill, mirroring the input's first-line rule.
+  const children = node.children;
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    if (child.type === 'text') {
+      const replacement = buildMentionPillNodes(child.value, allowCommand);
+      allowCommand = false;
+      if (replacement) {
+        children.splice(i, 1, ...replacement);
+        i += replacement.length - 1;
+      }
+    } else if (child.type === 'element') {
+      if (child.tagName === 'code' || child.tagName === 'pre') {
+        // Skip code content, but a code span before any text still means the
+        // message didn't start with a /command.
+        allowCommand = false;
+      } else {
+        allowCommand = walkMentionPills(child, allowCommand);
+      }
+    }
+  }
+  return allowCommand;
+}
+
+// Wraps @file mentions and the leading /command of user-authored messages in
+// pill spans, matching the input box's token highlighting. Code spans/blocks
+// are skipped so pasted snippets (e.g. Python decorators) aren't restyled.
+const rehypeMentionPills: NonNullable<Options['rehypePlugins']>[number] = () => {
+  return (tree: HastRoot) => {
+    walkMentionPills(tree, true);
+  };
+};
 
 interface CodeBlockProps extends HTMLAttributes<HTMLElement> {
   language: string;
@@ -448,9 +502,16 @@ interface MarkDownProps {
   // splitting trades cross-block references for cheap incremental re-parses,
   // so static content parses as one document.
   streaming?: boolean;
+  // Render @mention and leading /command tokens as pills — user messages only.
+  highlightMentions?: boolean;
 }
 
-function MarkDownInner({ content, className = '', streaming = false }: MarkDownProps) {
+function MarkDownInner({
+  content,
+  className = '',
+  streaming = false,
+  highlightMentions = false,
+}: MarkDownProps) {
   const [remarkMathPlugin, setRemarkMathPlugin] = useState<unknown>(null);
   const [rehypeKatexPlugin, setRehypeKatexPlugin] = useState<unknown>(null);
 
@@ -498,8 +559,11 @@ function MarkDownInner({ content, className = '', streaming = false }: MarkDownP
     [remarkMathPlugin],
   );
   const rehypePlugins = useMemo(
-    () => (rehypeKatexPlugin ? ([rehypeKatexPlugin] as never[]) : []),
-    [rehypeKatexPlugin],
+    () => [
+      ...(highlightMentions ? [rehypeMentionPills] : []),
+      ...(rehypeKatexPlugin ? ([rehypeKatexPlugin] as never[]) : []),
+    ],
+    [rehypeKatexPlugin, highlightMentions],
   );
   const mdClassName = `text-sm text-text-secondary dark:text-text-dark-secondary ${className}`;
 
