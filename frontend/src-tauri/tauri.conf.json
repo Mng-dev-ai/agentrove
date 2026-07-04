@@ -13,8 +13,8 @@
     "windows": [
       {
         "title": "Agentrove",
-        "width": 1280,
-        "height": 800,
+        "width": 1050,
+        "height": 1100,
         "minWidth": 940,
         "minHeight": 560,
         "resizable": true,
