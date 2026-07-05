@@ -170,7 +170,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           </span>
         ) : isUnread ? (
           <span className="rounded-md bg-surface-tertiary px-1.5 py-0.5 font-medium text-text-primary dark:bg-surface-dark-tertiary/50 dark:text-text-dark-primary">
-            New
+            Unread
           </span>
         ) : (
           <span className="tabular-nums text-text-quaternary dark:text-text-dark-quaternary">
