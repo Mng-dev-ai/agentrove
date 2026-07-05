@@ -1,4 +1,4 @@
-import { ReactNode, useRef, useState } from 'react';
+import { ReactNode, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/utils/cn';
 
@@ -16,10 +16,14 @@ interface FloatingTooltipProps {
 // (e.g. the sidebar) don't clip the bubble or add phantom scroll space.
 export function FloatingTooltip({ content, children, className }: FloatingTooltipProps) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  // Tracks the whole hover interaction (show delay + visible) so the scroll
+  // listener can also cancel a pending show timer, not just an open tooltip
+  const [hovering, setHovering] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const showTimerRef = useRef<number | null>(null);
 
   const handleMouseEnter = () => {
+    setHovering(true);
     showTimerRef.current = window.setTimeout(() => {
       // Measure at show time, not mouse-enter — the list may scroll during the delay
       const rect = triggerRef.current?.getBoundingClientRect();
@@ -27,18 +31,29 @@ export function FloatingTooltip({ content, children, className }: FloatingToolti
     }, SHOW_DELAY_MS);
   };
 
-  const handleMouseLeave = () => {
+  const hide = () => {
     if (showTimerRef.current != null) window.clearTimeout(showTimerRef.current);
     showTimerRef.current = null;
+    setHovering(false);
     setPosition(null);
   };
+
+  // mouseleave never fires when the trigger scrolls out from under a stationary
+  // pointer — dismiss on any scroll, whether the bubble is shown or still pending
+  useEffect(() => {
+    if (!hovering) return;
+    window.addEventListener('scroll', hide, { capture: true, passive: true });
+    return () => window.removeEventListener('scroll', hide, { capture: true });
+  }, [hovering]);
 
   return (
     <div
       ref={triggerRef}
       className={className}
       onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+      onMouseLeave={hide}
+      // Clicks re-render/cover the trigger without a mouseleave (nav, menus, drag start)
+      onMouseDown={hide}
     >
       {children}
       {/* Portal to body: transformed ancestors (e.g. the sliding sidebar) re-anchor
