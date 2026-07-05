@@ -82,7 +82,7 @@ class AutomationService(BaseDbService[Automation]):
                 Automation.user_id == user_id,
             )
         )
-        automation = result.scalar_one_or_none()
+        automation: Automation | None = result.scalar_one_or_none()
         if not automation:
             raise AutomationException(
                 "Automation not found",
