@@ -5,6 +5,7 @@ import base64
 import logging
 import os
 import shlex
+import signal
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -272,13 +273,25 @@ class AcpSession:
 
         if self._process.returncode is None:
             try:
-                self._process.terminate()
+                # Signal the whole process group, not just the direct child —
+                # the codex-acp node shim doesn't forward SIGTERM to its native
+                # binary, which would otherwise orphan to PID 1 and never exit.
+                os.killpg(self._process.pid, signal.SIGTERM)
                 await asyncio.wait_for(self._process.wait(), timeout=5.0)
             except asyncio.TimeoutError:
-                self._process.kill()
-                await self._process.wait()
+                await self._force_kill_group(self._process)
             except Exception:
                 logger.debug("Error killing ACP agent process", exc_info=True)
+
+    @staticmethod
+    async def _force_kill_group(process: asyncio.subprocess.Process) -> None:
+        # Group already gone (the child watcher thread can reap between our
+        # returncode check and the signal) — nothing left to kill or wait on.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            return
+        await process.wait()
 
     @classmethod
     async def create(cls, config: AcpSessionConfig) -> AcpSession:
@@ -312,8 +325,7 @@ class AcpSession:
         process = await cls._spawn_process(spawn_config)
 
         if process.stdin is None or process.stdout is None:
-            process.kill()
-            await process.wait()
+            await cls._force_kill_group(process)
             raise RuntimeError("Failed to open stdio pipes to ACP agent process")
 
         conn = ClientSideConnection(
@@ -420,8 +432,7 @@ class AcpSession:
 
             await conn.close()
             if process.returncode is None:
-                process.kill()
-                await process.wait()
+                await cls._force_kill_group(process)
             raise
 
         return cls(
@@ -509,12 +520,16 @@ class AcpSession:
         agent_cmd = "exec " + shlex.join(agent_parts)
         cmd.extend([container_name, "bash", "-lc", agent_cmd])
 
+        # New process group so close() can killpg without hitting the backend's
+        # own group (the docker CLI has no host-side descendants, but teardown
+        # signals the group unconditionally).
         return await asyncio.create_subprocess_exec(
             *cmd,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             limit=STDIO_BUFFER_LIMIT,
+            start_new_session=True,
         )
 
     @staticmethod
@@ -541,6 +556,8 @@ class AcpSession:
         env.setdefault("TERM", TERMINAL_TYPE)
 
         try:
+            # New process group so close() can killpg the shim and its native
+            # child together (codex-acp's shim doesn't forward signals).
             return await asyncio.create_subprocess_exec(
                 launch.binary,
                 *launch.cli_args,
@@ -550,6 +567,7 @@ class AcpSession:
                 limit=STDIO_BUFFER_LIMIT,
                 env=env,
                 cwd=config.cwd,
+                start_new_session=True,
             )
         except FileNotFoundError as exc:
             raise AgentException(
