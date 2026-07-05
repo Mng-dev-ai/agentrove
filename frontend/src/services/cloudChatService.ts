@@ -51,11 +51,7 @@ function disconnect(): void {
 // List chats on the VPS and register their chat + sandbox IDs as cloud-owned so
 // chatService and sandboxService route their reads, status checks, SSE streams,
 // stops, files, git, and terminal back to the VPS.
-async function listChats(params?: {
-  page?: number;
-  per_page?: number;
-  workspace_id?: string;
-}): Promise<PaginatedChats> {
+async function listChats(params?: { page?: number; per_page?: number }): Promise<PaginatedChats> {
   return serviceCall(async () => {
     const queryString = buildQueryString(params);
     const response = await remoteApiClient.get<PaginatedChats>(`/chat/chats${queryString}`);

@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Check, ChevronRight, CornerDownRight, Loader2, MoreHorizontal } from 'lucide-react';
+import { Check, ChevronRight, Cloud, CornerDownRight, Loader2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -7,6 +7,7 @@ import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
 import type { Chat } from '@/types/chat.types';
+import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 
 interface SidebarChatItemProps {
   chat: Chat;
@@ -17,9 +18,11 @@ interface SidebarChatItemProps {
   isChatStreaming: boolean;
   isChatBlocked: boolean;
   isChatCompleted: boolean;
+  workspaceBadge?: WorkspaceBadge;
   onSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
+  onWorkspaceBadgeClick: (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => void;
   onMouseEnter: (chatId: string) => void;
   onMouseLeave: () => void;
   onToggleSubThreads?: (chatId: string) => void;
@@ -35,9 +38,11 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   isChatStreaming,
   isChatBlocked,
   isChatCompleted,
+  workspaceBadge,
   onSelect,
   onOpenInSplit,
   onDropdownClick,
+  onWorkspaceBadgeClick,
   onMouseEnter,
   onMouseLeave,
   onToggleSubThreads,
@@ -117,6 +122,31 @@ export const SidebarChatItem = memo(function SidebarChatItem({
             <CornerDownRight className="h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
           )}
         </Button>
+        {/* Clicking the badge opens the workspace context menu (new thread, rename,
+            delete) — the flat list has no group headers to hang those actions on. */}
+        {workspaceBadge && (
+          <>
+            {/* Rest state stays quiet on desktop: only cloud chats mark their origin;
+                the full badge reveals on row hover. Mobile has no hover, so the badge
+                is always visible there and this rest icon is redundant. */}
+            {workspaceBadge.isCloud && (
+              <Cloud className="hidden h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary sm:block sm:group-focus-within:hidden sm:group-hover:hidden" />
+            )}
+            <Button
+              variant="unstyled"
+              type="button"
+              data-ws-dropdown-trigger
+              onClick={(e) => onWorkspaceBadgeClick(e, chat.workspace_id)}
+              aria-label={`${workspaceBadge.name} workspace options`}
+              // group-focus-within keeps the workspace actions reachable for keyboard
+              // users — display:none would otherwise drop the badge from tab order.
+              className="flex max-w-[45%] flex-shrink-0 items-center gap-1 rounded-md bg-surface-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-tertiary transition-colors duration-200 hover:text-text-primary dark:bg-surface-dark-tertiary/50 dark:text-text-dark-tertiary dark:hover:text-text-dark-primary sm:hidden sm:group-focus-within:flex sm:group-hover:flex"
+            >
+              {workspaceBadge.isCloud && <Cloud className="h-2.5 w-2.5 flex-shrink-0" />}
+              <span className="truncate">{workspaceBadge.name}</span>
+            </Button>
+          </>
+        )}
       </FloatingTooltip>
 
       {/* One status badge by precedence: a pending request blocks the agent

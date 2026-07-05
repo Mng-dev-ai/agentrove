@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
 import { Button } from '@/components/ui/primitives/Button';
+import { Spinner } from '@/components/ui/primitives/Spinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { RenameModal } from '@/components/ui/RenameModal';
 import {
@@ -13,17 +14,16 @@ import {
   useGenerateChatTitleMutation,
   useUpdateChatMutation,
   usePinChatMutation,
-  useInfiniteChatsQuery,
 } from '@/hooks/queries/useChatQueries';
 import {
   useDeleteWorkspaceMutation,
   useUpdateWorkspaceMutation,
 } from '@/hooks/queries/useWorkspaceQueries';
 import {
-  useCloudWorkspacesQuery,
   useCloudUpdateWorkspaceMutation,
   useCloudDeleteWorkspaceMutation,
 } from '@/hooks/queries/useCloudQueries';
+import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useToggleSet } from '@/hooks/useToggleSet';
 import { cn } from '@/utils/cn';
 import { useUIStore } from '@/store/uiStore';
@@ -35,10 +35,8 @@ import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
 import { useLogout } from '@/hooks/useLogout';
 import { UserProfileMenu } from './UserProfileMenu';
-import { SidebarChatItem } from './SidebarChatItem';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
-import { SubThreadList } from './SubThreadList';
-import { SidebarWorkspaceGroup, SidebarCloudGroup } from './SidebarChatGroup';
+import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
 import { ChatDropdown } from './ChatDropdown';
 import { DROPDOWN_WIDTH, DROPDOWN_HEIGHT, DROPDOWN_MARGIN } from '@/config/constants';
 
@@ -131,9 +129,7 @@ export function Sidebar({
   // remaining key has an outstanding request.
   const pendingRequests = usePermissionStore((state) => state.pendingRequests);
   const blockedChatIdSet = useMemo(() => new Set(pendingRequests.keys()), [pendingRequests]);
-  const [collapsedWorkspaces, toggleWorkspaceCollapse, setCollapsedWorkspaces] =
-    useToggleSet<string>();
-  const [pinnedHoveredId, setPinnedHoveredId] = useState<string | null>(null);
+  const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [chatToRename, setChatToRename] = useState<Chat | null>(null);
   const [workspaceToDelete, setWorkspaceToDelete] = useState<{
@@ -168,49 +164,18 @@ export function Sidebar({
   const cloudUpdateWorkspace = useCloudUpdateWorkspaceMutation();
   const cloudDeleteWorkspace = useCloudDeleteWorkspaceMutation();
 
-  const { data: pinnedChatsData } = useInfiniteChatsQuery({ pinned: true });
-  const pinnedChats = useMemo(() => {
-    if (!pinnedChatsData?.pages) return [];
-    return pinnedChatsData.pages.flatMap((page) => page.items);
-  }, [pinnedChatsData?.pages]);
+  const {
+    pinnedChats,
+    recentChats,
+    workspaceBadgeById,
+    cloudWorkspaces,
+    isLoadingChats,
+    hasMore,
+    isFetchingMore,
+    loadMore,
+  } = useSidebarChatLists(workspaces);
 
-  // Cloud projects (workspaces on the connected VPS, desktop only). Each renders
-  // its own paginated group, mirroring the local per-workspace groups.
-  const { data: cloudWorkspaces } = useCloudWorkspacesQuery(true);
-  const orderedWorkspaces = useMemo(
-    () =>
-      [
-        ...workspaces.map((workspace) => ({ workspace, isCloud: false })),
-        ...(cloudWorkspaces ?? []).map((workspace) => ({ workspace, isCloud: true })),
-      ].sort((a, b) => {
-        // Local and cloud lists are fetched separately; merge by activity so a
-        // fresh cloud chat can move its project above stale local projects.
-        const aTime = Date.parse(a.workspace.last_chat_at ?? a.workspace.updated_at);
-        const bTime = Date.parse(b.workspace.last_chat_at ?? b.workspace.updated_at);
-        return bTime - aTime;
-      }),
-    [workspaces, cloudWorkspaces],
-  );
-
-  // Distinguishes cloud vs local when the context menu opens, so rename/delete
-  // route to the right backend. Workspace IDs are UUIDs from separate DBs — no collisions.
-  const cloudWorkspaceIdSet = useMemo(
-    () => new Set((cloudWorkspaces ?? []).map((ws) => ws.id)),
-    [cloudWorkspaces],
-  );
-
-  const hasAnyContent =
-    pinnedChats.length > 0 || workspaces.length > 0 || (cloudWorkspaces?.length ?? 0) > 0;
-
-  useEffect(() => {
-    if (!selectedChatWorkspaceId) return;
-    setCollapsedWorkspaces((prev) => {
-      if (!prev.has(selectedChatWorkspaceId)) return prev;
-      const next = new Set(prev);
-      next.delete(selectedChatWorkspaceId);
-      return next;
-    });
-  }, [selectedChatWorkspaceId, setCollapsedWorkspaces]);
+  const hasAnyContent = pinnedChats.length > 0 || recentChats.length > 0;
 
   // Opening a chat (or watching it finish while open) counts as seeing the
   // completion — clear its Done badge. Covers every open path since both ids
@@ -285,7 +250,7 @@ export function Sidebar({
   const handleChatSelect = useCallback(
     (chatId: string) => {
       onChatSelect(chatId);
-      setPinnedHoveredId(null);
+      setHoveredChatId(null);
       if (isMobile) {
         useUIStore.getState().setSidebarOpen(false);
       }
@@ -300,7 +265,7 @@ export function Sidebar({
         return;
       }
       useUIStore.getState().openChatInSplit(chatId);
-      setPinnedHoveredId(null);
+      setHoveredChatId(null);
     },
     [isMobile, onChatSelect, selectedChatId],
   );
@@ -320,12 +285,12 @@ export function Sidebar({
     setDropdown(null);
   }, []);
 
-  const handlePinnedMouseEnter = useCallback((chatId: string) => {
-    setPinnedHoveredId(chatId);
+  const handleChatMouseEnter = useCallback((chatId: string) => {
+    setHoveredChatId(chatId);
   }, []);
 
-  const handlePinnedMouseLeave = useCallback(() => {
-    setPinnedHoveredId(null);
+  const handleChatMouseLeave = useCallback(() => {
+    setHoveredChatId(null);
   }, []);
 
   const confirmDeleteChat = useCallback(async () => {
@@ -364,7 +329,7 @@ export function Sidebar({
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
 
-    setPinnedHoveredId(null);
+    setHoveredChatId(null);
 
     setDropdown((prev) => {
       if (prev?.chat.id === chat.id) {
@@ -454,14 +419,14 @@ export function Sidebar({
     (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
-      const isCloud = cloudWorkspaceIdSet.has(workspaceId);
+      const isCloud = workspaceBadgeById.get(workspaceId)?.isCloud ?? false;
       setWorkspaceDropdown((prev) => {
         if (prev?.workspaceId === workspaceId) return null;
         const position = calculateDropdownPosition(rect);
         return { workspaceId, isCloud, position };
       });
     },
-    [cloudWorkspaceIdSet],
+    [workspaceBadgeById],
   );
 
   const handleRenameWorkspace = useCallback((workspace: Workspace, isCloud: boolean) => {
@@ -521,19 +486,21 @@ export function Sidebar({
     navigate,
   ]);
 
-  // Props every workspace group needs identically — local and cloud differ only in
-  // the namespaced key and the local-only header actions (new thread, context menu).
-  const sharedGroupProps = {
+  const rowProps: ChatRowProps = {
     selectedChatId,
     secondaryChatId,
+    hoveredChatId,
     dropdownChatId: dropdown?.chat.id ?? null,
     streamingChatIdSet,
     blockedChatIdSet,
     completedChatIdSet: completedChatIds,
-    onToggleCollapse: toggleWorkspaceCollapse,
+    workspaceBadgeById,
     onChatSelect: handleChatSelect,
     onOpenInSplit: canOpenInSplit ? handleOpenInSplit : undefined,
     onDropdownClick: handleDropdownClick,
+    onWorkspaceBadgeClick: handleWorkspaceContextMenu,
+    onMouseEnter: handleChatMouseEnter,
+    onMouseLeave: handleChatMouseLeave,
     expandedSubThreads,
     onToggleSubThreads: handleToggleSubThreads,
   };
@@ -562,9 +529,11 @@ export function Sidebar({
 
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6">
           {!hasAnyContent ? (
-            <p className="py-8 text-center text-xs text-text-quaternary dark:text-text-dark-quaternary">
-              No chats yet
-            </p>
+            isLoadingChats ? null : (
+              <p className="py-8 text-center text-xs text-text-quaternary dark:text-text-dark-quaternary">
+                No chats yet
+              </p>
+            )
           ) : (
             <div>
               {pinnedChats.length > 0 && (
@@ -576,66 +545,45 @@ export function Sidebar({
                   </div>
                   <div>
                     {pinnedChats.map((chat) => (
-                      <div key={chat.id}>
-                        <SidebarChatItem
-                          chat={chat}
-                          isSelected={chat.id === selectedChatId}
-                          isActive={chat.id === selectedChatId || chat.id === secondaryChatId}
-                          isHovered={pinnedHoveredId === chat.id}
-                          isDropdownOpen={dropdown?.chat.id === chat.id}
-                          isChatStreaming={streamingChatIdSet.has(chat.id)}
-                          isChatBlocked={blockedChatIdSet.has(chat.id)}
-                          isChatCompleted={completedChatIds.has(chat.id)}
-                          onSelect={handleChatSelect}
-                          onOpenInSplit={canOpenInSplit ? handleOpenInSplit : undefined}
-                          onDropdownClick={handleDropdownClick}
-                          onMouseEnter={handlePinnedMouseEnter}
-                          onMouseLeave={handlePinnedMouseLeave}
-                          onToggleSubThreads={
-                            chat.sub_thread_count > 0 ? handleToggleSubThreads : undefined
-                          }
-                          isSubThreadsExpanded={
-                            chat.sub_thread_count > 0 ? expandedSubThreads.has(chat.id) : undefined
-                          }
-                        />
-                        {chat.sub_thread_count > 0 && expandedSubThreads.has(chat.id) && (
-                          <SubThreadList
-                            parentChatId={chat.id}
-                            selectedChatId={selectedChatId}
-                            secondaryChatId={secondaryChatId}
-                            onSelect={handleChatSelect}
-                            onDropdownClick={handleDropdownClick}
-                            streamingChatIdSet={streamingChatIdSet}
-                            blockedChatIdSet={blockedChatIdSet}
-                            completedChatIdSet={completedChatIds}
-                          />
-                        )}
-                      </div>
+                      <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
                     ))}
                   </div>
                 </div>
               )}
 
-              {orderedWorkspaces.map(({ workspace, isCloud }) =>
-                isCloud ? (
-                  <SidebarCloudGroup
-                    key={`cloud:${workspace.id}`}
-                    workspace={workspace}
-                    isCollapsed={collapsedWorkspaces.has(workspace.id)}
-                    onNewThread={handleNewCloudThread}
-                    onWorkspaceContextMenu={handleWorkspaceContextMenu}
-                    {...sharedGroupProps}
-                  />
-                ) : (
-                  <SidebarWorkspaceGroup
-                    key={`local:${workspace.id}`}
-                    workspace={workspace}
-                    isCollapsed={collapsedWorkspaces.has(workspace.id)}
-                    onNewThread={handleNewWorkspaceThread}
-                    onWorkspaceContextMenu={handleWorkspaceContextMenu}
-                    {...sharedGroupProps}
-                  />
-                ),
+              {recentChats.length > 0 && (
+                <div>
+                  <div className="pb-2 pt-2.5">
+                    <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                      Recents
+                    </span>
+                  </div>
+                  <div>
+                    {recentChats.map((chat) => (
+                      <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Outside the Recents block: when a loaded cloud page holds only pinned
+                  chats, Recents is empty but more pages may still exist. */}
+              {hasMore && (
+                <Button
+                  variant="unstyled"
+                  type="button"
+                  onClick={loadMore}
+                  disabled={isFetchingMore}
+                  className="flex items-center gap-1 py-1.5 text-2xs text-text-tertiary transition-colors duration-200 hover:text-text-primary disabled:opacity-50 dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+                >
+                  {isFetchingMore ? (
+                    <>
+                      <Spinner size="xs" />
+                      Loading…
+                    </>
+                  ) : (
+                    'Load more'
+                  )}
+                </Button>
               )}
             </div>
           )}
@@ -674,6 +622,18 @@ export function Sidebar({
             left: workspaceDropdown.position.left,
           }}
         >
+          <Button
+            variant="unstyled"
+            type="button"
+            onClick={(e) => {
+              const { workspaceId, isCloud } = workspaceDropdown;
+              setWorkspaceDropdown(null);
+              (isCloud ? handleNewCloudThread : handleNewWorkspaceThread)(e, workspaceId);
+            }}
+            className="w-full rounded-md px-2.5 py-1.5 text-left text-xs text-text-secondary transition-colors duration-200 hover:bg-surface-hover dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover"
+          >
+            New thread
+          </Button>
           <Button
             variant="unstyled"
             type="button"
