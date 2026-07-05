@@ -1137,11 +1137,22 @@ class ChatService(BaseDbService[Chat]):
         bump_ids = [chat.id]
         if chat.parent_chat_id:
             bump_ids.append(chat.parent_chat_id)
+        now = datetime.now(timezone.utc)
         async with self.session_factory() as db:
+            if chat.parent_chat_id:
+                # The parent bump is ordering-only, not new parent content —
+                # advance the read marker in lockstep so an already-read parent
+                # doesn't flip to unread (the sub-thread row flags its own turn).
+                await db.execute(
+                    update(Chat)
+                    .where(
+                        Chat.id == chat.parent_chat_id,
+                        Chat.last_viewed_at >= Chat.updated_at,
+                    )
+                    .values(last_viewed_at=now)
+                )
             await db.execute(
-                update(Chat)
-                .where(Chat.id.in_(bump_ids))
-                .values(updated_at=datetime.now(timezone.utc))
+                update(Chat).where(Chat.id.in_(bump_ids)).values(updated_at=now)
             )
             await db.commit()
 
