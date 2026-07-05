@@ -16,6 +16,11 @@ interface EmptyStateProps {
   message: string;
 }
 
+// Stable empty fallback so a loading/undefined `skills` doesn't yield a new `[]`
+// each render — a fresh reference retriggers useSkillsFilter's render-phase setState
+// (via availableSources' useMemo) into an infinite loop while the query is in flight.
+const EMPTY_SKILLS: CustomSkill[] = [];
+
 const EmptyState: React.FC<EmptyStateProps> = ({ icon: Icon, message }) => (
   <div className="flex flex-col items-center justify-center rounded-lg border border-border/50 py-10 dark:border-border-dark/50">
     <Icon className="mb-2 h-5 w-5 text-text-quaternary dark:text-text-dark-quaternary" />
@@ -31,7 +36,7 @@ export const SkillsSettingsTab: React.FC = () => {
   const workspaceId = selectedWorkspaceId ?? workspaces[0]?.id;
 
   const { data: skills, isLoading, refetch } = useSkillsQuery(workspaceId);
-  const items = skills ?? [];
+  const items = skills ?? EMPTY_SKILLS;
   const [editingSkill, setEditingSkill] = useState<CustomSkill | null>(null);
 
   const {
