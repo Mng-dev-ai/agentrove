@@ -89,6 +89,7 @@ class Chat(ChatBase):
     parent_chat_id: UUID | None = None
     sub_thread_count: int = 0
     session_agent_kind: str | None = None
+    unread: bool = False
 
 
 class ContextUsage(BaseModel):

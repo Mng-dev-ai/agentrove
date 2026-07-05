@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { StreamContentBuffer, type ContentRenderSnapshot } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { markChatViewed } from '@/hooks/queries/useChatQueries';
 import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import type { InfiniteData } from '@tanstack/react-query';
@@ -659,6 +660,13 @@ export function useStreamCallbacks({
 
       if (!isCurrentChat) return;
 
+      // The turn bumped updated_at at initiation and the user watched it finish —
+      // re-stamp the read marker so a later sidebar refetch doesn't flag it unread.
+      // Sub-thread completions routed through this pane weren't being viewed; skip.
+      if (targetChatId && targetChatId === chatId) {
+        void markChatViewed(queryClient, targetChatId);
+      }
+
       setPendingUserMessageId(null);
       setStreamState('idle');
       setCurrentMessageId(null);
@@ -713,13 +721,14 @@ export function useStreamCallbacks({
       }
       clearStreamSession(resolvedStreamId);
 
+      const targetChatId = sessionChatId ?? chatId;
+
       // Mark the assistant message as failed instead of removing it —
       // the user message and assistant message are already persisted in
       // the DB by the time the SSE error event arrives. Mirror the backend's
       // persisted snapshot update here so the live UI matches a refreshed chat.
       if (assistantMessageId) {
         const markFailed = buildFailedMessageUpdate(streamError);
-        const targetChatId = sessionChatId ?? chatId;
         if (targetChatId) {
           updateMessageInCacheForChat(queryClient, targetChatId, assistantMessageId, markFailed);
         }
@@ -731,6 +740,12 @@ export function useStreamCallbacks({
       }
 
       if (!isCurrentChat) return;
+
+      // Same read re-stamp as onComplete — a watched failure is still seen
+      // activity, and the initiation bump would otherwise flag the chat unread.
+      if (targetChatId && targetChatId === chatId) {
+        void markChatViewed(queryClient, targetChatId);
+      }
 
       if (!assistantMessageId) {
         toast.error(getStreamErrorMessage(streamError));

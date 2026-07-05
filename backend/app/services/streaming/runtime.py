@@ -463,12 +463,16 @@ class ChatStreamRuntime:
         try:
             async with self.session_factory() as db:
                 chat_uuid = UUID(self.chat_id)
+                # Pin updated_at — session bookkeeping isn't unseen activity and
+                # this task is fire-and-forget, so an onupdate bump could land
+                # after the read stamp and falsely re-flag the chat unread.
                 await db.execute(
                     update(Chat)
                     .where(Chat.id == chat_uuid)
                     .values(
                         session_id=new_session_id,
                         session_agent_kind=agent_kind.value,
+                        updated_at=Chat.updated_at,
                     )
                 )
                 await db.commit()
@@ -600,10 +604,16 @@ class ChatStreamRuntime:
 
         try:
             async with self.session_factory() as db:
+                # Pin updated_at — usage accounting isn't unseen activity, and on
+                # local cancel this write lands after the client's read stamp,
+                # so an onupdate bump would falsely re-flag the chat unread.
                 await db.execute(
                     update(Chat)
                     .where(Chat.id == self.chat.id)
-                    .values(context_token_usage=token_usage)
+                    .values(
+                        context_token_usage=token_usage,
+                        updated_at=Chat.updated_at,
+                    )
                 )
                 await db.commit()
 
@@ -638,8 +648,13 @@ class ChatStreamRuntime:
         title = title[:255]
 
         async with self.session_factory() as db:
+            # Pin updated_at — this task races past stream completion, and the
+            # onupdate bump would re-flag a just-watched chat unread; a backfilled
+            # title isn't unseen activity.
             await db.execute(
-                update(Chat).where(Chat.id == self.chat.id).values(title=title)
+                update(Chat)
+                .where(Chat.id == self.chat.id)
+                .values(title=title, updated_at=Chat.updated_at)
             )
             await db.commit()
 

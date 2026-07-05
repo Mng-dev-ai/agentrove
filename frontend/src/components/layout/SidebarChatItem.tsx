@@ -89,6 +89,11 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         {isChatStreaming && !isChatBlocked && (
           <div className="h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
         )}
+        {/* Unseen activity (e.g. an automation ran while away). The running pulse
+            takes precedence, and the open chat is being read — no dot for either. */}
+        {!isChatStreaming && !isActive && chat.unread && (
+          <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-text-primary dark:bg-text-dark-primary" />
+        )}
         <Button
           onClick={(e) => {
             if (e.shiftKey && onOpenInSplit && !isActive) {

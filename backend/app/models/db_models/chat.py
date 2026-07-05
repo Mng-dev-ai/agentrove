@@ -48,6 +48,9 @@ class Chat(Base):
     )
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     pinned_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    last_viewed_at: Mapped[datetime | None] = mapped_column(
+        UTCDateTime(), nullable=True
+    )
     parent_chat_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("chats.id", ondelete="SET NULL"), nullable=True
     )
@@ -75,6 +78,12 @@ class Chat(Base):
         Index("idx_chats_user_id_updated_at_desc", "user_id", "updated_at"),
         Index("idx_chats_parent_chat_id", "parent_chat_id"),
     )
+
+    @property
+    def unread(self) -> bool:
+        # Activity since the user last opened the chat — updated_at advances on
+        # turn initiation, so out-of-band turns (automations, MCP) flag unread.
+        return self.last_viewed_at is None or self.updated_at > self.last_viewed_at
 
     @property
     def sandbox_id(self) -> str:

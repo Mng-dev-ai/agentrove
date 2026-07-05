@@ -18,6 +18,7 @@ import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type EditorCodeSelection } from '@/store/uiStore';
 import type { Chat, ChatSearchResponse, ContextUsage, CreateChatRequest } from '@/types/chat.types';
 import type { PaginatedChats } from '@/types/api.types';
+import { logger } from '@/utils/logger';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
@@ -175,6 +176,41 @@ export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat):
   });
 
   queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+}
+
+// Optimistically clears the unread flag in every cache the chat appears in,
+// then stamps the server-side read marker. Best-effort fire-and-forget: it
+// never rejects — a failed stamp just resurfaces the dot on the next refetch.
+export async function markChatViewed(queryClient: QueryClient, chatId: string): Promise<void> {
+  queryClient.setQueryData<Chat>(queryKeys.chat(chatId), (prev) =>
+    prev ? { ...prev, unread: false } : prev,
+  );
+
+  queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
+    { queryKey: [queryKeys.chats, 'infinite'] },
+    (oldData) => {
+      if (!oldData) return oldData;
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page) => ({
+          ...page,
+          items: page.items.map((chat) =>
+            chat.id === chatId && chat.unread ? { ...chat, unread: false } : chat,
+          ),
+        })),
+      };
+    },
+  );
+
+  try {
+    await chatService.markChatViewed(chatId);
+  } catch (error) {
+    logger.error('Failed to mark chat viewed', 'markChatViewed', error);
+    return;
+  }
+  // Cloud rows live in a separate query the patch above can't reach — refetch
+  // them only after the VPS stamp landed, or the refetch would restore the dot.
+  invalidateCloudChats(queryClient, chatId);
 }
 
 export const useCreateChatMutation = createMutation<Chat, Error, CreateChatRequest>(

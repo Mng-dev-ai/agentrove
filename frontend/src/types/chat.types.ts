@@ -66,6 +66,7 @@ export interface Chat {
   parent_chat_id: string | null;
   sub_thread_count: number;
   session_agent_kind: AgentKind | null;
+  unread: boolean;
 }
 
 // Wire contract of the per-user chat lifecycle SSE feed (/chat/chats/events),
