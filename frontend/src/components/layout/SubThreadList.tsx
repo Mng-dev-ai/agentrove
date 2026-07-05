@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { AlertCircle, Check, Loader2, MoreHorizontal } from 'lucide-react';
 import { useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
@@ -17,6 +17,7 @@ interface SubThreadListProps {
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
   streamingChatIdSet: Set<string>;
   blockedChatIdSet: Set<string>;
+  completedChatIdSet: Set<string>;
 }
 
 export const SubThreadList = memo(function SubThreadList({
@@ -27,6 +28,7 @@ export const SubThreadList = memo(function SubThreadList({
   onDropdownClick,
   streamingChatIdSet,
   blockedChatIdSet,
+  completedChatIdSet,
 }: SubThreadListProps) {
   const { data: subThreads, isLoading, isError, refetch } = useSubThreadsQuery(parentChatId);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -63,6 +65,7 @@ export const SubThreadList = memo(function SubThreadList({
         const isActive = isSelected || thread.id === secondaryChatId;
         const isStreaming = streamingChatIdSet.has(thread.id);
         const isBlocked = blockedChatIdSet.has(thread.id);
+        const isCompleted = completedChatIdSet.has(thread.id);
         const isHovered = hoveredId === thread.id;
 
         return (
@@ -85,16 +88,12 @@ export const SubThreadList = memo(function SubThreadList({
                 type="button"
                 onClick={() => onSelect(thread.id)}
                 className={cn(
-                  'flex w-full min-w-0 items-center gap-2 px-2 py-1.5 transition-colors duration-200',
-                  isBlocked ? 'pr-[104px]' : 'pr-10',
+                  'flex w-full min-w-0 items-center gap-2 px-2 py-1.5 pr-10 transition-colors duration-200',
                   isActive
                     ? 'text-text-primary dark:text-text-dark-primary'
                     : 'text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary',
                 )}
               >
-                {isStreaming && !isBlocked && (
-                  <div className="h-[5px] w-[5px] flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
-                )}
                 {thread.session_agent_kind && (
                   <ProviderIcon
                     agentKind={thread.session_agent_kind}
@@ -107,16 +106,25 @@ export const SubThreadList = memo(function SubThreadList({
               </Button>
             </FloatingTooltip>
 
+            {/* Icon-only status — sub-thread rows are too tight for the labeled
+                badges top-level chats use. Same precedence: blocked > running > done. */}
             <span
               className={cn(
-                'absolute right-2 text-[10px] transition-opacity duration-200',
-                isBlocked
-                  ? 'rounded-md bg-text-primary px-1.5 py-0.5 font-medium text-surface dark:bg-text-dark-primary dark:text-surface-dark'
-                  : 'tabular-nums text-text-quaternary dark:text-text-dark-quaternary',
+                'absolute right-2 flex items-center transition-opacity duration-200',
                 isHovered || isActive ? 'opacity-0' : 'opacity-100',
               )}
             >
-              {isBlocked ? 'Awaiting approval' : getRelativeTime(thread.updated_at)}
+              {isBlocked ? (
+                <AlertCircle className="h-3 w-3 animate-pulse text-warning-500" />
+              ) : isStreaming ? (
+                <Loader2 className="h-3 w-3 animate-spin text-warning-500" />
+              ) : isCompleted ? (
+                <Check className="h-3 w-3 text-success-600 dark:text-success-400" />
+              ) : (
+                <span className="text-[10px] tabular-nums text-text-quaternary dark:text-text-dark-quaternary">
+                  {getRelativeTime(thread.updated_at)}
+                </span>
+              )}
             </span>
 
             <Button

@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { ChevronRight, CornerDownRight, MoreHorizontal } from 'lucide-react';
+import { Check, ChevronRight, CornerDownRight, Loader2, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -16,6 +16,7 @@ interface SidebarChatItemProps {
   isDropdownOpen: boolean;
   isChatStreaming: boolean;
   isChatBlocked: boolean;
+  isChatCompleted: boolean;
   onSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
@@ -33,6 +34,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   isDropdownOpen,
   isChatStreaming,
   isChatBlocked,
+  isChatCompleted,
   onSelect,
   onOpenInSplit,
   onDropdownClick,
@@ -43,6 +45,9 @@ export const SidebarChatItem = memo(function SidebarChatItem({
 }: SidebarChatItemProps) {
   // onToggleSubThreads is only set when sub_thread_count > 0
   const hasSubThreads = onToggleSubThreads != null;
+  // The open chat is being read — no unread signal for it
+  const isUnread = !isActive && chat.unread;
+  const hasStatusBadge = isChatBlocked || isChatStreaming || isChatCompleted || isUnread;
   return (
     <div
       className={cn(
@@ -54,25 +59,15 @@ export const SidebarChatItem = memo(function SidebarChatItem({
       onMouseEnter={() => onMouseEnter(chat.id)}
       onMouseLeave={onMouseLeave}
     >
-      {/* Wider right padding when blocked reserves room for the "Awaiting approval"
-          pill so long titles truncate before reaching it. */}
+      {/* Wider right padding when a status badge shows reserves room for it so
+          long titles truncate before reaching it. */}
       <FloatingTooltip
         content={onOpenInSplit ? `${chat.title} (Shift-click to open in split)` : chat.title}
         className={cn(
           'flex min-w-0 flex-1 items-center gap-1.5',
-          isChatBlocked ? 'pr-[104px]' : 'pr-10',
+          hasStatusBadge ? 'pr-[76px]' : 'pr-10',
         )}
       >
-        {/* A pending plan/question/permission request blocks the agent; show the
-            approval pill instead of the running pulse. */}
-        {isChatStreaming && !isChatBlocked && (
-          <div className="h-1.5 w-1.5 flex-shrink-0 animate-pulse rounded-full bg-warning-500" />
-        )}
-        {/* Unseen activity (e.g. an automation ran while away). The running pulse
-            takes precedence, and the open chat is being read — no dot for either. */}
-        {!isChatStreaming && !isActive && chat.unread && (
-          <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-text-primary dark:bg-text-dark-primary" />
-        )}
         {/* One leading slot keeps all rows flush with the workspace name: the
             disclosure caret swaps in for the provider icon on hover/expand. */}
         {hasSubThreads && (isHovered || isSubThreadsExpanded) ? (
@@ -114,7 +109,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           // flex-1 keeps the whole row width as the open-chat hit target, not just the text
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]"
         >
-          <span className={cn('min-w-0 truncate', isActive && 'font-medium')}>
+          <span className={cn('min-w-0 truncate', (isActive || isUnread) && 'font-medium')}>
             {stripMarkdownTitle(chat.title)}
           </span>
           {/* Resting hint that sub-threads exist; the caret conveys it on hover/expand */}
@@ -124,16 +119,39 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         </Button>
       </FloatingTooltip>
 
+      {/* One status badge by precedence: a pending request blocks the agent
+          (loudest, only pulsing element), then the live run, then done-since-
+          last-viewed, then unseen activity. Idle rows fall back to the timestamp. */}
       <span
         className={cn(
-          'absolute right-2 text-[10px] transition-opacity duration-200',
-          isChatBlocked
-            ? 'rounded-md bg-text-primary px-1.5 py-0.5 font-medium text-surface dark:bg-text-dark-primary dark:text-surface-dark'
-            : 'tabular-nums text-text-quaternary dark:text-text-dark-quaternary',
+          'absolute right-2 flex items-center text-[10px] transition-opacity duration-200',
           isHovered || isActive || isDropdownOpen ? 'opacity-0' : 'opacity-100',
         )}
       >
-        {isChatBlocked ? 'Awaiting approval' : getRelativeTime(chat.updated_at)}
+        {isChatBlocked ? (
+          <span className="animate-pulse rounded-md bg-warning-100 px-1.5 py-0.5 font-medium text-warning-600 dark:bg-warning-500/10 dark:text-warning-400">
+            Needs you
+          </span>
+        ) : isChatStreaming ? (
+          // Neutral fill keeps amber exclusive to "action required" — the spinner carries the signal
+          <span className="flex items-center gap-1 rounded-md bg-surface-tertiary px-1.5 py-0.5 font-medium text-text-tertiary dark:bg-surface-dark-tertiary/50 dark:text-text-dark-tertiary">
+            <Loader2 className="h-2.5 w-2.5 animate-spin text-warning-500" />
+            Running
+          </span>
+        ) : isChatCompleted ? (
+          <span className="flex items-center gap-1 rounded-md bg-success-100 px-1.5 py-0.5 font-medium text-success-600 dark:bg-success-500/10 dark:text-success-400">
+            <Check className="h-2.5 w-2.5" />
+            Done
+          </span>
+        ) : isUnread ? (
+          <span className="rounded-md bg-surface-tertiary px-1.5 py-0.5 font-medium text-text-primary dark:bg-surface-dark-tertiary/50 dark:text-text-dark-primary">
+            New
+          </span>
+        ) : (
+          <span className="tabular-nums text-text-quaternary dark:text-text-dark-quaternary">
+            {getRelativeTime(chat.updated_at)}
+          </span>
+        )}
       </span>
 
       <Button

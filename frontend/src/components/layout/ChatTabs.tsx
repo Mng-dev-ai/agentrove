@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
-import { Plus, X } from 'lucide-react';
+import { AlertCircle, Check, Loader2, Plus, X, type LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -13,20 +13,20 @@ import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';
 import { isSecondaryTile } from '@/utils/tileHelpers';
 
-type ChatTabStatus = 'blocked' | 'streaming' | 'finished';
+type ChatTabStatus = 'blocked' | 'streaming' | 'completed';
 
 const STATUS_LABELS: Record<ChatTabStatus, string> = {
-  blocked: 'Awaiting approval',
+  blocked: 'Needs you',
   streaming: 'Running',
-  finished: 'Finished',
+  completed: 'Done',
 };
 
-const STATUS_DOT_CLASS: Record<ChatTabStatus, string> = {
-  // Pulsing amber = running (same signal as the sidebar); steady amber = the
-  // agent is paused on an approval; green = a turn finished off-screen.
-  streaming: 'animate-pulse bg-warning-500',
-  blocked: 'bg-warning-500',
-  finished: 'bg-success-500',
+// Same status language as the sidebar, in its icon-only compact form (like
+// sub-thread rows): pulsing amber = needs you, spinner = running, check = done.
+const STATUS_ICON: Record<ChatTabStatus, { Icon: LucideIcon; className: string }> = {
+  blocked: { Icon: AlertCircle, className: 'animate-pulse text-warning-500' },
+  streaming: { Icon: Loader2, className: 'animate-spin text-warning-500' },
+  completed: { Icon: Check, className: 'text-success-600 dark:text-success-400' },
 };
 
 interface ChatTabProps {
@@ -49,6 +49,7 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   }, [isChatGone, chatId]);
 
   const title = chatQuery.data?.title ? stripMarkdownTitle(chatQuery.data.title) : '…';
+  const statusIcon = status ? STATUS_ICON[status] : null;
 
   return (
     <div
@@ -78,12 +79,10 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
           aria-current={isCurrent ? 'page' : undefined}
           className="flex w-full min-w-0 items-center gap-1.5 text-left text-2xs font-medium"
         >
-          {/* The status dot claims the icon slot while the turn is live; at rest
+          {/* The status icon claims the icon slot while a status is live; at rest
               the chat's provider glyph (Claude, Codex…) matches the sidebar. */}
-          {status ? (
-            <span
-              className={cn('h-1.5 w-1.5 flex-shrink-0 rounded-full', STATUS_DOT_CLASS[status])}
-            />
+          {statusIcon ? (
+            <statusIcon.Icon className={cn('h-3 w-3 flex-shrink-0', statusIcon.className)} />
           ) : (
             chatQuery.data?.session_agent_kind && (
               <ProviderIcon
@@ -124,7 +123,7 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
 
 // Title-bar chat tabs — the working set of open chats (the sidebar stays the
 // full archive). Each tab is also the chat's agent-view tab: clicking the
-// current chat's tab surfaces the agent pane. A live status dot fed by the
+// current chat's tab surfaces the agent pane. A live status icon fed by the
 // global stream and permission stores keeps background chats glanceable.
 export function ChatTabs() {
   const navigate = useNavigate();
@@ -136,12 +135,15 @@ export function ChatTabs() {
   const secondaryChatId = useUIStore((s) => s.secondaryChatId);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const activeStreamMetadata = useStreamStore((s) => s.activeStreamMetadata);
+  // Shared with the sidebar: marked by the stream service on successful
+  // completion, cleared by the sidebar when the chat is viewed.
+  const completedChatIds = useStreamStore((s) => s.completedChatIds);
   const pendingRequests = usePermissionStore((s) => s.pendingRequests);
 
   // Chats with a pane on screen: secondary tiles belong to the split chat, all
   // others to the routed chat. Derived from the layout, not secondaryChatId —
   // a split chat hidden behind a full-screen primary view is off screen, so its
-  // tab must drop the active highlight and still earn a finished dot.
+  // tab must drop the active highlight.
   const visibleChatIds = useMemo(() => {
     const ids = new Set<string>();
     for (const tileId of visibleLayout.flat()) {
@@ -156,36 +158,6 @@ export function ChatTabs() {
     [activeStreamMetadata],
   );
   const blockedChatIdSet = useMemo(() => new Set(pendingRequests.keys()), [pendingRequests]);
-
-  // Chats whose stream ended while they weren't on screen — drives the
-  // "finished" dot until the user views the chat again.
-  const [finishedChatIds, setFinishedChatIds] = useState<Set<string>>(new Set());
-  const prevStreamingRef = useRef<Set<string>>(new Set());
-
-  // Detecting the streaming→settled transition needs the previous streaming
-  // set, so it can't be derived inline. Covers every end-of-stream path
-  // (complete/cancelled/error envelopes and the orphan-metadata prune), since
-  // all of them remove the chat's entry from activeStreamMetadata. Chats that
-  // settle while on screen are skipped — the user watched them finish.
-  useEffect(() => {
-    const prev = prevStreamingRef.current;
-    prevStreamingRef.current = streamingChatIdSet;
-    const ended = [...prev].filter((id) => !streamingChatIdSet.has(id) && !visibleChatIds.has(id));
-    if (ended.length > 0) {
-      setFinishedChatIds((prevSet) => new Set([...prevSet, ...ended]));
-    }
-  }, [streamingChatIdSet, visibleChatIds]);
-
-  // Viewing a chat clears its finished dot — render-phase reset keyed on the
-  // on-screen chat ids, per the state-reset-on-prop-change pattern.
-  const seenFinished = [...visibleChatIds].filter((id) => finishedChatIds.has(id));
-  if (seenFinished.length > 0) {
-    setFinishedChatIds((prev) => {
-      const next = new Set(prev);
-      seenFinished.forEach((id) => next.delete(id));
-      return next;
-    });
-  }
 
   const handleSelect = useCallback(
     (chatId: string) => {
@@ -231,8 +203,8 @@ export function ChatTabs() {
           ? 'blocked'
           : streamingChatIdSet.has(chatId)
             ? 'streaming'
-            : finishedChatIds.has(chatId)
-              ? 'finished'
+            : completedChatIds.has(chatId)
+              ? 'completed'
               : null;
         return (
           <ChatTab

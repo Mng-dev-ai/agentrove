@@ -14,10 +14,15 @@ const STREAM_PRUNE_INTERVAL_MS = 5000;
 // attached (user opened/reconnected the sub-thread) while the status request was
 // in flight, and removeStreamMetadata would tear it down. Such streams self-clean
 // via removeStream on completion, so skip them.
-function pruneIfStillOrphan(chatId: string): void {
+function pruneIfStillOrphan(chatId: string, markDone: boolean): void {
   const store = useStreamStore.getState();
   if (!store.getStreamByChat(chatId)) {
     store.removeStreamMetadata(chatId);
+    // Orphan streams have no EventSource, so no complete envelope ever fires —
+    // the confirmed-settled prune is their only Done signal. A failed status
+    // probe is a cleanup guess, not evidence the turn completed, so it doesn't
+    // earn the badge.
+    if (markDone) store.markCompleted(chatId);
   }
 }
 
@@ -51,11 +56,11 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
           const status = await chatService.checkChatStatus(streamMeta.chatId);
 
           if (!status?.has_active_task) {
-            pruneIfStillOrphan(streamMeta.chatId);
+            pruneIfStillOrphan(streamMeta.chatId, true);
           }
         } catch (error) {
           logger.error('Stream prune check failed', 'useGlobalStream', error);
-          pruneIfStillOrphan(streamMeta.chatId);
+          pruneIfStillOrphan(streamMeta.chatId, false);
         }
       });
 
