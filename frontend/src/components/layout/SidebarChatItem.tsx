@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { ChevronRight, MoreHorizontal } from 'lucide-react';
+import { ChevronRight, CornerDownRight, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -54,27 +54,6 @@ export const SidebarChatItem = memo(function SidebarChatItem({
       onMouseEnter={() => onMouseEnter(chat.id)}
       onMouseLeave={onMouseLeave}
     >
-      {hasSubThreads ? (
-        <Button
-          onClick={() => onToggleSubThreads(chat.id)}
-          aria-expanded={isSubThreadsExpanded}
-          aria-label={`${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`}
-          variant="unstyled"
-          // Leading disclosure caret toggles sub-threads; -m-1/p-1 keeps a large thumb target without shifting the row
-          className="-m-1 flex-shrink-0 p-1 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
-        >
-          <ChevronRight
-            className={cn(
-              'h-3 w-3 transition-transform duration-200',
-              isSubThreadsExpanded && 'rotate-90',
-            )}
-          />
-        </Button>
-      ) : (
-        // Spacer aligns childless-chat titles with rows that show a caret
-        <div className="h-3 w-3 flex-shrink-0" />
-      )}
-
       {/* Wider right padding when blocked reserves room for the "Awaiting approval"
           pill so long titles truncate before reaching it. */}
       <FloatingTooltip
@@ -94,6 +73,33 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         {!isChatStreaming && !isActive && chat.unread && (
           <div className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-text-primary dark:bg-text-dark-primary" />
         )}
+        {/* One leading slot keeps all rows flush with the workspace name: the
+            disclosure caret swaps in for the provider icon on hover/expand. */}
+        {hasSubThreads && (isHovered || isSubThreadsExpanded) ? (
+          <Button
+            onClick={() => onToggleSubThreads(chat.id)}
+            aria-expanded={isSubThreadsExpanded}
+            aria-label={`${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`}
+            variant="unstyled"
+            // -m-1/p-1 keeps a large thumb target without shifting the row
+            className="-m-1 flex-shrink-0 p-1 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+          >
+            <ChevronRight
+              className={cn(
+                'h-3.5 w-3.5 transition-transform duration-200',
+                isSubThreadsExpanded && 'rotate-90',
+              )}
+            />
+          </Button>
+        ) : chat.session_agent_kind ? (
+          <ProviderIcon
+            agentKind={chat.session_agent_kind}
+            className="h-3.5 w-3.5 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
+          />
+        ) : hasSubThreads ? (
+          // Iconless chats still reserve the slot so the title doesn't shift when the caret swaps in
+          <div className="h-3.5 w-3.5 flex-shrink-0" />
+        ) : null}
         <Button
           onClick={(e) => {
             if (e.shiftKey && onOpenInSplit && !isActive) {
@@ -108,20 +114,12 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           // flex-1 keeps the whole row width as the open-chat hit target, not just the text
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]"
         >
-          {chat.session_agent_kind && (
-            <ProviderIcon
-              agentKind={chat.session_agent_kind}
-              className="h-3.5 w-3.5 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
-            />
-          )}
           <span className={cn('min-w-0 truncate', isActive && 'font-medium')}>
             {stripMarkdownTitle(chat.title)}
           </span>
-          {/* Quiet sub-thread count — the toggle itself lives in the leading caret */}
-          {hasSubThreads && !isSubThreadsExpanded && (
-            <span className="flex-shrink-0 text-2xs tabular-nums text-text-quaternary dark:text-text-dark-quaternary">
-              {chat.sub_thread_count}
-            </span>
+          {/* Resting hint that sub-threads exist; the caret conveys it on hover/expand */}
+          {hasSubThreads && !isHovered && !isSubThreadsExpanded && (
+            <CornerDownRight className="h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
           )}
         </Button>
       </FloatingTooltip>
