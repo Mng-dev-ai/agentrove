@@ -478,7 +478,13 @@ class ChatService(BaseDbService[Chat]):
                     datetime.now(timezone.utc) if chat_update.pinned else None
                 )
 
-            chat.updated_at = datetime.now(timezone.utc)
+            # Rename/pin isn't new content — carry read state across the
+            # updated_at bump so an already-read chat doesn't flip to unread.
+            was_read = not chat.unread
+            now = datetime.now(timezone.utc)
+            chat.updated_at = now
+            if was_read:
+                chat.last_viewed_at = now
             await db.commit()
 
             return chat
@@ -512,6 +518,20 @@ class ChatService(BaseDbService[Chat]):
                 )
 
             return chat
+
+    async def mark_chat_viewed(self, chat_id: UUID) -> None:
+        # Explicitly keep updated_at in place — the Base onupdate would otherwise
+        # bump it, reordering the sidebar and re-flagging the chat unread.
+        async with self.session_factory() as db:
+            await db.execute(
+                update(Chat)
+                .where(Chat.id == chat_id)
+                .values(
+                    last_viewed_at=datetime.now(timezone.utc),
+                    updated_at=Chat.updated_at,
+                )
+            )
+            await db.commit()
 
     async def count_sub_threads(self, chat_id: UUID, user: User) -> int:
         async with self.session_factory() as db:

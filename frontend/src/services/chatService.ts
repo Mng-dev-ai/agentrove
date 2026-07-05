@@ -322,6 +322,14 @@ async function getSubThreads(chatId: string): Promise<Chat[]> {
   });
 }
 
+async function markChatViewed(chatId: string): Promise<void> {
+  validateId(chatId, 'Chat ID');
+
+  await serviceCall(async () => {
+    await resolveChatClient(chatId).post(`/chat/chats/${chatId}/viewed`);
+  });
+}
+
 async function pinChat(chatId: string): Promise<Chat> {
   validateId(chatId, 'Chat ID');
 
@@ -438,6 +446,7 @@ export const chatService = {
   askAboutCode,
   generateChatTitle,
   restoreMessageCheckpoint,
+  markChatViewed,
   pinChat,
   unpinChat,
   getSubThreads,

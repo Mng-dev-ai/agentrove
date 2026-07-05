@@ -18,7 +18,8 @@ import { useChatData } from '@/hooks/useChatData';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useMountEffect } from '@/hooks/useMountEffect';
-import { useChatQuery } from '@/hooks/queries/useChatQueries';
+import { useQueryClient } from '@tanstack/react-query';
+import { useChatQuery, markChatViewed } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
@@ -112,6 +113,19 @@ export function ChatPage() {
       useUIStore.getState().openChatInSplit(secondaryChatId);
     }
   }, [chatId, isMobile, secondaryChatId]);
+
+  const queryClient = useQueryClient();
+  // Opening a chat in either pane marks it seen — stamps last_viewed_at
+  // server-side and drops the sidebar unread dot.
+  useEffect(() => {
+    if (chatId) void markChatViewed(queryClient, chatId);
+  }, [chatId, queryClient]);
+  useEffect(() => {
+    // On mobile the split isn't rebuilt, so the secondary chat is off-screen
+    // even though the store still holds its id — don't stamp it as seen.
+    // Returning to desktop re-runs this and stamps as the pane reappears.
+    if (secondaryChatId && !isMobile) void markChatViewed(queryClient, secondaryChatId);
+  }, [secondaryChatId, isMobile, queryClient]);
 
   const { fileStructure, refetchFilesMetadata } = useSandboxFiles(currentChat, chatId);
 

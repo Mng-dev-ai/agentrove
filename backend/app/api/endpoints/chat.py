@@ -401,6 +401,16 @@ async def update_chat(
         ) from e
 
 
+@router.post("/chats/{chat_id}/viewed", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_chat_viewed(
+    chat_id: UUID,
+    _chat: Chat = Depends(ensure_chat_access),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> None:
+    # Stamps the read marker the sidebar's unread indicator is computed from.
+    await chat_service.mark_chat_viewed(chat_id)
+
+
 @router.delete("/chats/all", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_all_chats(
     current_user: User = Depends(get_current_user),
