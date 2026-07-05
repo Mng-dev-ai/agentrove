@@ -21,6 +21,25 @@ PERMISSION_MODE_BY_AGENT = {
 }
 
 
+def _automation_summary(a: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": a["id"],
+        "name": a["name"],
+        "prompt": a["prompt"],
+        "cron_expression": a["cron_expression"],
+        "timezone": a["timezone"],
+        "enabled": a["enabled"],
+        "model_id": a["model_id"],
+        "workspace_id": a["workspace_id"],
+        "thinking_mode": a["thinking_mode"],
+        "worktree": a["worktree"],
+        "plan_mode": a["plan_mode"],
+        "persona": a["selected_persona_name"],
+        "next_run_at": a["next_run_at"],
+        "last_run_at": a["last_run_at"],
+    }
+
+
 def _build_client() -> AgentroveClient:
     email = os.environ.get("AGENTROVE_EMAIL")
     password = os.environ.get("AGENTROVE_PASSWORD")
@@ -204,6 +223,136 @@ async def get_messages(
         "next_cursor": page["next_cursor"],
         "has_more": page["has_more"],
     }
+
+
+@mcp.tool()
+async def list_automations() -> dict[str, Any]:
+    """List your scheduled automations.
+
+    Each automation runs its prompt on a cron schedule, starting a new unattended chat
+    every time it fires. Returns id, name, cron_expression, timezone, enabled, model_id,
+    workspace_id and the next_run_at / last_run_at timestamps. Use an id with
+    update_automation, delete_automation or run_automation.
+    """
+    automations = await client.list_automations()
+    return {"automations": [_automation_summary(a) for a in automations]}
+
+
+@mcp.tool()
+async def create_automation(
+    name: str,
+    prompt: str,
+    cron_expression: str,
+    timezone: str = "UTC",
+    workspace_id: str | None = None,
+    model_id: str | None = None,
+    thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None,
+    worktree: bool = False,
+    plan_mode: bool = False,
+    persona: str | None = None,
+    enabled: bool = True,
+) -> dict[str, Any]:
+    """Create a scheduled automation that runs a prompt on a cron schedule.
+
+    Each time the schedule fires, AgentRove starts a new unattended chat and sends the
+    prompt using the model's full-execution permission mode (e.g. bypassPermissions for
+    Claude, full-access for Codex). cron_expression is a standard 5-field cron string
+    evaluated in `timezone` (an IANA name like "America/New_York"). Omit model_id to use
+    a Claude model and workspace_id to use the most recently active workspace. Per-run
+    options (thinking_mode, worktree, plan_mode, persona) match send_message. Set
+    enabled=false to create it paused.
+
+    Returns the created automation, including its id and next_run_at.
+    """
+    resolved_model, agent_kind = await client.resolve_model(model_id)
+    resolved_workspace = await client.resolve_workspace_id(workspace_id)
+    body: dict[str, Any] = {
+        "name": name,
+        "prompt": prompt,
+        "cron_expression": cron_expression,
+        "timezone": timezone,
+        "workspace_id": resolved_workspace,
+        "model_id": resolved_model,
+        "permission_mode": PERMISSION_MODE_BY_AGENT[agent_kind],
+        "worktree": worktree,
+        "plan_mode": plan_mode,
+        "enabled": enabled,
+    }
+    if thinking_mode:
+        body["thinking_mode"] = thinking_mode
+    if persona:
+        body["selected_persona_name"] = persona
+    automation = await client.create_automation(body)
+    return {"automation": _automation_summary(automation)}
+
+
+@mcp.tool()
+async def update_automation(
+    automation_id: str,
+    name: str | None = None,
+    prompt: str | None = None,
+    cron_expression: str | None = None,
+    timezone: str | None = None,
+    workspace_id: str | None = None,
+    model_id: str | None = None,
+    thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None,
+    worktree: bool | None = None,
+    plan_mode: bool | None = None,
+    persona: str | None = None,
+    enabled: bool | None = None,
+) -> dict[str, Any]:
+    """Update an existing automation; only the arguments you pass are changed.
+
+    Pass model_id to switch models (its permission mode is updated to match), enabled to
+    pause/resume, or cron_expression/timezone to reschedule (next_run_at is recomputed).
+    Returns the updated automation.
+    """
+    body: dict[str, Any] = {}
+    if name is not None:
+        body["name"] = name
+    if prompt is not None:
+        body["prompt"] = prompt
+    if cron_expression is not None:
+        body["cron_expression"] = cron_expression
+    if timezone is not None:
+        body["timezone"] = timezone
+    if workspace_id is not None:
+        body["workspace_id"] = workspace_id
+    if model_id is not None:
+        resolved_model, agent_kind = await client.resolve_model(model_id)
+        body["model_id"] = resolved_model
+        body["permission_mode"] = PERMISSION_MODE_BY_AGENT[agent_kind]
+    if thinking_mode is not None:
+        body["thinking_mode"] = thinking_mode
+    if worktree is not None:
+        body["worktree"] = worktree
+    if plan_mode is not None:
+        body["plan_mode"] = plan_mode
+    if persona is not None:
+        body["selected_persona_name"] = persona
+    if enabled is not None:
+        body["enabled"] = enabled
+    automation = await client.update_automation(automation_id, body)
+    return {"automation": _automation_summary(automation)}
+
+
+@mcp.tool()
+async def delete_automation(automation_id: str) -> dict[str, Any]:
+    """Delete a scheduled automation permanently. Returns {"deleted": true}."""
+    await client.delete_automation(automation_id)
+    return {"deleted": True}
+
+
+@mcp.tool()
+async def run_automation(automation_id: str) -> dict[str, Any]:
+    """Trigger an automation immediately, without waiting for its schedule.
+
+    Starts a new unattended chat with the automation's prompt right now; the regular cron
+    schedule (next_run_at) is unaffected. Returns the chat_id of the new chat — poll
+    get_messages on it to read the reply.
+    """
+    result = await client.run_automation(automation_id)
+    return {"chat_id": result["chat_id"]}
 
 
 if __name__ == "__main__":

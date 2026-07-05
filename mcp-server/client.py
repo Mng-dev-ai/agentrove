@@ -171,3 +171,24 @@ class AgentroveClient:
             params["cursor"] = cursor
         resp = await self.request("GET", f"/chat/chats/{chat_id}/messages", params=params)
         return resp.json()
+
+    async def list_automations(self) -> list[dict[str, Any]]:
+        resp = await self.request("GET", "/automations")
+        return resp.json()
+
+    async def create_automation(self, body: dict[str, Any]) -> dict[str, Any]:
+        resp = await self.request("POST", "/automations", json=body, expected=(201,))
+        return resp.json()
+
+    async def update_automation(
+        self, automation_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
+        resp = await self.request("PATCH", f"/automations/{automation_id}", json=body)
+        return resp.json()
+
+    async def delete_automation(self, automation_id: str) -> None:
+        await self.request("DELETE", f"/automations/{automation_id}", expected=(204,))
+
+    async def run_automation(self, automation_id: str) -> dict[str, Any]:
+        resp = await self.request("POST", f"/automations/{automation_id}/run")
+        return resp.json()
