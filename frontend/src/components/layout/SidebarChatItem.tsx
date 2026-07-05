@@ -53,6 +53,8 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   // The open chat is being read — no unread signal for it
   const isUnread = !isActive && chat.unread;
   const hasStatusBadge = isChatBlocked || isChatStreaming || isChatCompleted || isUnread;
+  // Mirrors the leading-slot render below — the workspace line indents to stay flush with the title
+  const hasLeadingSlot = hasSubThreads || chat.session_agent_kind != null;
   return (
     <div
       className={cn(
@@ -68,84 +70,77 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           long titles truncate before reaching it. */}
       <FloatingTooltip
         content={onOpenInSplit ? `${chat.title} (Shift-click to open in split)` : chat.title}
-        className={cn(
-          'flex min-w-0 flex-1 items-center gap-1.5',
-          hasStatusBadge ? 'pr-[76px]' : 'pr-10',
-        )}
+        className={cn('flex min-w-0 flex-1 flex-col', hasStatusBadge ? 'pr-[76px]' : 'pr-10')}
       >
-        {/* One leading slot keeps all rows flush with the workspace name: the
-            disclosure caret swaps in for the provider icon on hover/expand. */}
-        {hasSubThreads && (isHovered || isSubThreadsExpanded) ? (
-          <Button
-            onClick={() => onToggleSubThreads(chat.id)}
-            aria-expanded={isSubThreadsExpanded}
-            aria-label={`${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`}
-            variant="unstyled"
-            // -m-1/p-1 keeps a large thumb target without shifting the row
-            className="-m-1 flex-shrink-0 p-1 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
-          >
-            <ChevronRight
-              className={cn(
-                'h-3.5 w-3.5 transition-transform duration-200',
-                isSubThreadsExpanded && 'rotate-90',
-              )}
+        <div className="flex min-w-0 items-center gap-1.5">
+          {/* One leading slot keeps all row titles flush: the disclosure caret
+              swaps in for the provider icon on hover/expand. */}
+          {hasSubThreads && (isHovered || isSubThreadsExpanded) ? (
+            <Button
+              onClick={() => onToggleSubThreads(chat.id)}
+              aria-expanded={isSubThreadsExpanded}
+              aria-label={`${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`}
+              variant="unstyled"
+              // -m-1/p-1 keeps a large thumb target without shifting the row
+              className="-m-1 flex-shrink-0 p-1 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+            >
+              <ChevronRight
+                className={cn(
+                  'h-3.5 w-3.5 transition-transform duration-200',
+                  isSubThreadsExpanded && 'rotate-90',
+                )}
+              />
+            </Button>
+          ) : chat.session_agent_kind ? (
+            <ProviderIcon
+              agentKind={chat.session_agent_kind}
+              className="h-3.5 w-3.5 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
             />
+          ) : hasSubThreads ? (
+            // Iconless chats still reserve the slot so the title doesn't shift when the caret swaps in
+            <div className="h-3.5 w-3.5 flex-shrink-0" />
+          ) : null}
+          <Button
+            onClick={(e) => {
+              if (e.shiftKey && onOpenInSplit && !isActive) {
+                e.preventDefault();
+                onOpenInSplit(chat.id);
+                return;
+              }
+              onSelect(chat.id);
+            }}
+            aria-current={isSelected ? 'page' : undefined}
+            variant="unstyled"
+            // flex-1 keeps the whole row width as the open-chat hit target, not just the text
+            className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]"
+          >
+            <span className={cn('min-w-0 truncate', (isActive || isUnread) && 'font-medium')}>
+              {stripMarkdownTitle(chat.title)}
+            </span>
+            {/* Resting hint that sub-threads exist; the caret conveys it on hover/expand */}
+            {hasSubThreads && !isHovered && !isSubThreadsExpanded && (
+              <CornerDownRight className="h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
+            )}
           </Button>
-        ) : chat.session_agent_kind ? (
-          <ProviderIcon
-            agentKind={chat.session_agent_kind}
-            className="h-3.5 w-3.5 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
-          />
-        ) : hasSubThreads ? (
-          // Iconless chats still reserve the slot so the title doesn't shift when the caret swaps in
-          <div className="h-3.5 w-3.5 flex-shrink-0" />
-        ) : null}
-        <Button
-          onClick={(e) => {
-            if (e.shiftKey && onOpenInSplit && !isActive) {
-              e.preventDefault();
-              onOpenInSplit(chat.id);
-              return;
-            }
-            onSelect(chat.id);
-          }}
-          aria-current={isSelected ? 'page' : undefined}
-          variant="unstyled"
-          // flex-1 keeps the whole row width as the open-chat hit target, not just the text
-          className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-[13px]"
-        >
-          <span className={cn('min-w-0 truncate', (isActive || isUnread) && 'font-medium')}>
-            {stripMarkdownTitle(chat.title)}
-          </span>
-          {/* Resting hint that sub-threads exist; the caret conveys it on hover/expand */}
-          {hasSubThreads && !isHovered && !isSubThreadsExpanded && (
-            <CornerDownRight className="h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
-          )}
-        </Button>
+        </div>
         {/* Clicking the badge opens the workspace context menu (new thread, rename,
             delete) — the flat list has no group headers to hang those actions on. */}
         {workspaceBadge && (
-          <>
-            {/* Rest state stays quiet on desktop: only cloud chats mark their origin;
-                the full badge reveals on row hover. Mobile has no hover, so the badge
-                is always visible there and this rest icon is redundant. */}
-            {workspaceBadge.isCloud && (
-              <Cloud className="hidden h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary sm:block sm:group-focus-within:hidden sm:group-hover:hidden" />
+          <Button
+            variant="unstyled"
+            type="button"
+            data-ws-dropdown-trigger
+            onClick={(e) => onWorkspaceBadgeClick(e, chat.workspace_id)}
+            aria-label={`${workspaceBadge.name} workspace options`}
+            // pl-5 (icon 14px + gap 6px) indents the name under the title, not the icon
+            className={cn(
+              'flex max-w-full items-center gap-1 self-start text-[10px] font-medium text-text-quaternary transition-colors duration-200 hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary',
+              hasLeadingSlot && 'pl-5',
             )}
-            <Button
-              variant="unstyled"
-              type="button"
-              data-ws-dropdown-trigger
-              onClick={(e) => onWorkspaceBadgeClick(e, chat.workspace_id)}
-              aria-label={`${workspaceBadge.name} workspace options`}
-              // group-focus-within keeps the workspace actions reachable for keyboard
-              // users — display:none would otherwise drop the badge from tab order.
-              className="flex max-w-[45%] flex-shrink-0 items-center gap-1 rounded-md bg-surface-tertiary px-1.5 py-0.5 text-[10px] font-medium text-text-tertiary transition-colors duration-200 hover:text-text-primary dark:bg-surface-dark-tertiary/50 dark:text-text-dark-tertiary dark:hover:text-text-dark-primary sm:hidden sm:group-focus-within:flex sm:group-hover:flex"
-            >
-              {workspaceBadge.isCloud && <Cloud className="h-2.5 w-2.5 flex-shrink-0" />}
-              <span className="truncate">{workspaceBadge.name}</span>
-            </Button>
-          </>
+          >
+            {workspaceBadge.isCloud && <Cloud className="h-2.5 w-2.5 flex-shrink-0" />}
+            <span className="truncate">{workspaceBadge.name}</span>
+          </Button>
         )}
       </FloatingTooltip>
 
