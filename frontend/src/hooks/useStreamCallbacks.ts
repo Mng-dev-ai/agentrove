@@ -359,12 +359,15 @@ export function useStreamCallbacks({
       }
 
       // Seed from the on-screen message (fast path) or the query cache (off-screen chat).
+      // Fall back to the cache when the on-screen lookup misses: right after a chat
+      // switch an envelope can arrive before the remounted view has populated
+      // messages state, and seeding empty would truncate the in-progress message.
       let seedEvents: AssistantStreamEvent[] = [];
       let seedText = '';
       const existingMessage =
-        streamChatId === chatIdRef.current
+        (streamChatId === chatIdRef.current
           ? messagesRef.current.find((msg) => msg.id === messageId)
-          : findMessageInCache(queryClient, streamChatId, messageId);
+          : undefined) ?? findMessageInCache(queryClient, streamChatId, messageId);
       if (existingMessage) {
         const maybeEvents = existingMessage.content_render?.events;
         seedEvents = Array.isArray(maybeEvents) ? maybeEvents : [];
