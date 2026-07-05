@@ -12,6 +12,7 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-is-maximized",
     "core:window:allow-start-dragging",
+    "core:webview:allow-set-webview-zoom",
     "store:default",
     "updater:default",
     "process:default",

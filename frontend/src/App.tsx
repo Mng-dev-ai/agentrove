@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect, useState, Suspense, lazy } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
+import { useDesktopZoom } from '@/hooks/useDesktopZoom';
 import { Layout } from '@/components/layout/Layout';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
@@ -248,6 +249,8 @@ export default function App() {
       console.error('Desktop updater check failed:', error);
     });
   });
+
+  useDesktopZoom();
 
   // Cmd+R / Ctrl+R reloads the webview — Tauri release builds disable this by default
   useMountEffect(() => {
