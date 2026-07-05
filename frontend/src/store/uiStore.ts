@@ -19,6 +19,7 @@ import {
 } from '@/utils/tileHelpers';
 import { clearTerminalStorage } from '@/utils/terminal';
 import type { MenuMode } from '@/components/ui/commandRegistry';
+import { EMPTY_SIDEBAR_FILTERS, type SidebarFilters } from '@/store/sidebarFilters';
 import { THEME_CYCLE } from '@/utils/theme';
 
 export const MIN_SIDEBAR_WIDTH = 220;
@@ -51,6 +52,9 @@ type UIStoreState = ThemeState &
   Pick<UIActions, 'setSidebarOpen' | 'setSidebarWidth'> &
   SplitViewState &
   SplitViewActions & {
+    // Sidebar chat-list filters — persisted so a reload keeps the narrowed view
+    sidebarFilters: SidebarFilters;
+    setSidebarFilters: (filters: SidebarFilters) => void;
     commandMenuOpen: boolean;
     setCommandMenuOpen: (open: boolean) => void;
     // Set by `executeCommand` when a mode-switching command (search, files, branches)
@@ -170,6 +174,8 @@ export const useUIStore = create<UIStoreState>()(
         if (next === get().sidebarWidth) return;
         set({ sidebarWidth: next });
       },
+      sidebarFilters: EMPTY_SIDEBAR_FILTERS,
+      setSidebarFilters: (filters) => set({ sidebarFilters: filters }),
 
       commandMenuOpen: false,
       setCommandMenuOpen: (open) => set({ commandMenuOpen: open }),
@@ -495,6 +501,10 @@ export const useUIStore = create<UIStoreState>()(
         theme: state.theme,
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,
+        // Status filters read session-only stream state that's empty at mount —
+        // persisting them would rehydrate a view that can't match anything.
+        // Only the durable dimensions (agent/source/workspace) survive reloads.
+        sidebarFilters: { ...state.sidebarFilters, statuses: [] },
         secondaryChatId: state.secondaryChatId,
         // Persist the live workspace so a refresh restores the active view/tabs.
         // currentWorkspaceChatId must rehydrate too: loadWorkspaceForChat

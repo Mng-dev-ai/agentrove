@@ -37,6 +37,9 @@ import { useLogout } from '@/hooks/useLogout';
 import { UserProfileMenu } from './UserProfileMenu';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
+import { SidebarFilterMenu } from './SidebarFilterMenu';
+import { EMPTY_SIDEBAR_FILTERS, countActiveSidebarFilters } from '@/store/sidebarFilters';
+import { isCloudChat } from '@/utils/chatOrigin';
 import { ChatDropdown } from './ChatDropdown';
 import { DROPDOWN_WIDTH, DROPDOWN_HEIGHT, DROPDOWN_MARGIN } from '@/config/constants';
 
@@ -151,6 +154,9 @@ export function Sidebar({
   } | null>(null);
   // Tracks which parent chats have their sub-threads expanded — collapsed by default to keep the sidebar compact
   const [expandedSubThreads, toggleSubThreadExpand, setExpandedSubThreads] = useToggleSet<string>();
+  // Chats merge from two backends, so filters apply client-side over loaded
+  // pages. Lives in the persisted uiStore so reloads keep the narrowed view.
+  const filters = useUIStore((state) => state.sidebarFilters);
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const workspaceDropdownRef = useRef<HTMLDivElement>(null);
@@ -176,6 +182,38 @@ export function Sidebar({
   } = useSidebarChatLists(workspaces);
 
   const hasAnyContent = pinnedChats.length > 0 || recentChats.length > 0;
+
+  const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
+  // Status filters OR together (any selected badge state matches); source and
+  // workspace AND with them. Cloud-ness comes from chatOrigin (marked at fetch
+  // time, hydrated at module load) — the workspace badge map lags behind the
+  // cloud workspaces query and would misclassify cloud chats as local meanwhile.
+  const chatMatchesFilters = useCallback(
+    (chat: Chat) => {
+      if (filters.workspaceId && chat.workspace_id !== filters.workspaceId) return false;
+      if (filters.agentKind && chat.session_agent_kind !== filters.agentKind) return false;
+      if (filters.source !== 'all' && isCloudChat(chat.id) !== (filters.source === 'cloud')) {
+        return false;
+      }
+      if (filters.statuses.length === 0) return true;
+      return (
+        (filters.statuses.includes('unread') && chat.unread) ||
+        (filters.statuses.includes('running') && streamingChatIdSet.has(chat.id)) ||
+        (filters.statuses.includes('done') && completedChatIds.has(chat.id)) ||
+        (filters.statuses.includes('needs-you') && blockedChatIdSet.has(chat.id))
+      );
+    },
+    [filters, streamingChatIdSet, completedChatIds, blockedChatIdSet],
+  );
+  const visiblePinnedChats = useMemo(
+    () => (hasActiveFilters ? pinnedChats.filter(chatMatchesFilters) : pinnedChats),
+    [hasActiveFilters, pinnedChats, chatMatchesFilters],
+  );
+  const visibleRecentChats = useMemo(
+    () => (hasActiveFilters ? recentChats.filter(chatMatchesFilters) : recentChats),
+    [hasActiveFilters, recentChats, chatMatchesFilters],
+  );
+  const hasVisibleContent = visiblePinnedChats.length > 0 || visibleRecentChats.length > 0;
 
   // Opening a chat (or watching it finish while open) counts as seeing the
   // completion — clear its Done badge. Covers every open path since both ids
@@ -536,7 +574,7 @@ export function Sidebar({
             )
           ) : (
             <div>
-              {pinnedChats.length > 0 && (
+              {visiblePinnedChats.length > 0 && (
                 <div className="mb-1">
                   <div className="pb-2 pt-2.5">
                     <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
@@ -544,27 +582,48 @@ export function Sidebar({
                     </span>
                   </div>
                   <div>
-                    {pinnedChats.map((chat) => (
+                    {visiblePinnedChats.map((chat) => (
                       <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
                     ))}
                   </div>
                 </div>
               )}
 
-              {recentChats.length > 0 && (
-                <div>
-                  <div className="pb-2 pt-2.5">
-                    <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-                      Recents
-                    </span>
-                  </div>
+              {/* Header always renders — it anchors the filter menu, which must stay
+                  reachable when active filters empty the list */}
+              <div>
+                <div className="flex items-center justify-between pb-2 pt-2.5">
+                  <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                    Recents
+                  </span>
+                  <SidebarFilterMenu
+                    filters={filters}
+                    onChange={(next) => useUIStore.getState().setSidebarFilters(next)}
+                    workspaceBadgeById={workspaceBadgeById}
+                  />
+                </div>
+                {visibleRecentChats.length > 0 ? (
                   <div>
-                    {recentChats.map((chat) => (
+                    {visibleRecentChats.map((chat) => (
                       <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
                     ))}
                   </div>
-                </div>
-              )}
+                ) : !hasVisibleContent ? (
+                  // Filters only narrow loaded pages — Load more below can still surface matches
+                  <div className="flex flex-col items-center gap-2 py-6">
+                    <p className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
+                      No chats match the current filters
+                    </p>
+                    <Button
+                      variant="unstyled"
+                      onClick={() => useUIStore.getState().setSidebarFilters(EMPTY_SIDEBAR_FILTERS)}
+                      className="text-2xs text-text-tertiary transition-colors duration-200 hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+                    >
+                      Clear filters
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
               {/* Outside the Recents block: when a loaded cloud page holds only pinned
                   chats, Recents is empty but more pages may still exist. */}
               {hasMore && (
