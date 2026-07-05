@@ -518,6 +518,16 @@ export const useUIStore = create<UIStoreState>()(
         editorByChat: state.editorByChat,
         chatTabs: state.chatTabs,
       }),
+      // Backfill filter fields added after a user first persisted state (e.g.
+      // groupBy) — the default shallow merge would rehydrate them as undefined.
+      merge: (persisted, current) => {
+        const stored = persisted as Partial<UIStoreState> | undefined;
+        return {
+          ...current,
+          ...stored,
+          sidebarFilters: { ...EMPTY_SIDEBAR_FILTERS, ...stored?.sidebarFilters },
+        };
+      },
     },
   ),
 );

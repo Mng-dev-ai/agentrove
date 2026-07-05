@@ -38,10 +38,24 @@ import { UserProfileMenu } from './UserProfileMenu';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
 import { SidebarFilterMenu } from './SidebarFilterMenu';
-import { EMPTY_SIDEBAR_FILTERS, countActiveSidebarFilters } from '@/store/sidebarFilters';
+import {
+  clearSidebarFilters,
+  countActiveSidebarFilters,
+  type SidebarStatusFilter,
+} from '@/store/sidebarFilters';
 import { isCloudChat } from '@/utils/chatOrigin';
 import { ChatDropdown } from './ChatDropdown';
 import { DROPDOWN_WIDTH, DROPDOWN_HEIGHT, DROPDOWN_MARGIN } from '@/config/constants';
+
+// Group order mirrors the row badge precedence in SidebarChatItem, so a chat
+// lands in the group matching its visible badge; most urgent groups first.
+const STATUS_GROUP_ORDER: { key: SidebarStatusFilter | 'other'; label: string }[] = [
+  { key: 'needs-you', label: 'Needs you' },
+  { key: 'running', label: 'Running' },
+  { key: 'done', label: 'Done' },
+  { key: 'unread', label: 'Unread' },
+  { key: 'other', label: 'Other' },
+];
 
 async function mutateWithToast<T>(
   mutateFn: () => Promise<T>,
@@ -214,6 +228,60 @@ export function Sidebar({
     [hasActiveFilters, recentChats, chatMatchesFilters],
   );
   const hasVisibleContent = visiblePinnedChats.length > 0 || visibleRecentChats.length > 0;
+
+  const groupBy = filters.groupBy;
+  // Always a sections list so the JSX renders one shape — ungrouped is a single
+  // headerless section. Groups keep the flat list's recency order: workspace
+  // groups appear in order of their most recent chat; status groups follow
+  // badge urgency. Pinned stays flat — it's a small, user-curated list.
+  const recentChatSections = useMemo(() => {
+    if (groupBy === 'workspace') {
+      const groups = new Map<string, { key: string; label: string | null; chats: Chat[] }>();
+      for (const chat of visibleRecentChats) {
+        let group = groups.get(chat.workspace_id);
+        if (!group) {
+          group = {
+            key: chat.workspace_id,
+            // Briefly unresolved while the cloud workspaces query loads
+            label: workspaceBadgeById.get(chat.workspace_id)?.name ?? 'Unknown workspace',
+            chats: [],
+          };
+          groups.set(chat.workspace_id, group);
+        }
+        group.chats.push(chat);
+      }
+      return Array.from(groups.values());
+    }
+    if (groupBy === 'status') {
+      const byStatus = new Map<SidebarStatusFilter | 'other', Chat[]>();
+      for (const chat of visibleRecentChats) {
+        const status = blockedChatIdSet.has(chat.id)
+          ? 'needs-you'
+          : streamingChatIdSet.has(chat.id)
+            ? 'running'
+            : completedChatIds.has(chat.id)
+              ? 'done'
+              : chat.unread
+                ? 'unread'
+                : 'other';
+        const list = byStatus.get(status);
+        if (list) list.push(chat);
+        else byStatus.set(status, [chat]);
+      }
+      return STATUS_GROUP_ORDER.flatMap(({ key, label }) => {
+        const chats = byStatus.get(key);
+        return chats ? [{ key, label, chats }] : [];
+      });
+    }
+    return [{ key: 'all', label: null, chats: visibleRecentChats }];
+  }, [
+    groupBy,
+    visibleRecentChats,
+    workspaceBadgeById,
+    blockedChatIdSet,
+    streamingChatIdSet,
+    completedChatIds,
+  ]);
 
   // Opening a chat (or watching it finish while open) counts as seeing the
   // completion — clear its Done badge. Covers every open path since both ids
@@ -604,8 +672,17 @@ export function Sidebar({
                 </div>
                 {visibleRecentChats.length > 0 ? (
                   <div>
-                    {visibleRecentChats.map((chat) => (
-                      <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
+                    {recentChatSections.map((section) => (
+                      <div key={section.key} className={section.label ? 'mb-1' : undefined}>
+                        {section.label && (
+                          <div className="truncate pb-1 pt-1.5 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                            {section.label}
+                          </div>
+                        )}
+                        {section.chats.map((chat) => (
+                          <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
+                        ))}
+                      </div>
                     ))}
                   </div>
                 ) : !hasVisibleContent ? (
@@ -616,7 +693,9 @@ export function Sidebar({
                     </p>
                     <Button
                       variant="unstyled"
-                      onClick={() => useUIStore.getState().setSidebarFilters(EMPTY_SIDEBAR_FILTERS)}
+                      onClick={() =>
+                        useUIStore.getState().setSidebarFilters(clearSidebarFilters(filters))
+                      }
                       className="text-2xs text-text-tertiary transition-colors duration-200 hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
                     >
                       Clear filters

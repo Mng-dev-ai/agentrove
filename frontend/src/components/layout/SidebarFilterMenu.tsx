@@ -5,9 +5,10 @@ import { Button } from '@/components/ui/primitives/Button';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';
 import {
-  EMPTY_SIDEBAR_FILTERS,
+  clearSidebarFilters,
   countActiveSidebarFilters,
   type SidebarFilters,
+  type SidebarGroupBy,
   type SidebarStatusFilter,
 } from '@/store/sidebarFilters';
 import type { AgentKind } from '@/types/chat.types';
@@ -29,6 +30,12 @@ const AGENT_OPTIONS: { value: AgentKind; label: string }[] = [
   { value: 'opencode', label: 'OpenCode' },
 ];
 
+const GROUP_BY_OPTIONS: { value: SidebarGroupBy; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'workspace', label: 'Workspace' },
+  { value: 'status', label: 'Status' },
+];
+
 const PANEL_WIDTH = 240;
 const SUBMENU_WIDTH = 200;
 // Grace delay lets the pointer cross the gap between a row and its flyout
@@ -37,7 +44,7 @@ const SUBMENU_GRACE_MS = 150;
 
 // Category flyouts: hovering (or clicking, for touch) a root row opens its
 // option list beside the panel.
-type FilterCategory = 'status' | 'agent' | 'source' | 'workspace';
+type FilterCategory = 'status' | 'agent' | 'source' | 'workspace' | 'groupBy';
 
 // Category row on the root panel: label left, current value + chevron right.
 // The value reads muted when the filter is off ("All") and emphasized when set.
@@ -268,6 +275,7 @@ export function SidebarFilterMenu({
   const workspaceSummary = filters.workspaceId
     ? (workspaceOptions.find((w) => w.id === filters.workspaceId)?.name ?? '1 selected')
     : 'All';
+  const groupBySummary = GROUP_BY_OPTIONS.find((o) => o.value === filters.groupBy)?.label ?? 'None';
 
   return (
     <div ref={triggerRef} className="flex items-center">
@@ -338,11 +346,23 @@ export function SidebarFilterMenu({
                 onOpen={(e) => openSubmenu('workspace', e)}
                 onLeave={scheduleSubmenuClose}
               />
+              {/* Divider sets grouping apart from the rows above — it changes
+                  presentation, not which chats show */}
+              <div className="mt-1.5 border-t border-border/50 pt-1.5 dark:border-border-dark/50">
+                <FilterCategoryRow
+                  label="Group by"
+                  summary={groupBySummary}
+                  active={filters.groupBy !== 'none'}
+                  expanded={submenu?.view === 'groupBy'}
+                  onOpen={(e) => openSubmenu('groupBy', e)}
+                  onLeave={scheduleSubmenuClose}
+                />
+              </div>
               {activeCount > 0 && (
                 <div className="mt-1.5 border-t border-border/50 pt-1.5 dark:border-border-dark/50">
                   <Button
                     variant="unstyled"
-                    onClick={() => onChange(EMPTY_SIDEBAR_FILTERS)}
+                    onClick={() => onChange(clearSidebarFilters(filters))}
                     className="w-full rounded-md px-2 py-1.5 text-left text-xs text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
                   >
                     Clear all filters
@@ -428,6 +448,17 @@ export function SidebarFilterMenu({
                     </FilterOptionRow>
                   </>
                 )}
+
+                {submenu.view === 'groupBy' &&
+                  GROUP_BY_OPTIONS.map(({ value, label }) => (
+                    <FilterOptionRow
+                      key={value}
+                      selected={filters.groupBy === value}
+                      onSelect={() => selectAndClose({ groupBy: value })}
+                    >
+                      {label}
+                    </FilterOptionRow>
+                  ))}
 
                 {submenu.view === 'workspace' && (
                   <>
