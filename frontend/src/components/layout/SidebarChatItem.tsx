@@ -3,6 +3,7 @@ import { Check, ChevronRight, Cloud, CornerDownRight, Loader2, MoreHorizontal } 
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
+import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
@@ -53,8 +54,9 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   // The open chat is being read — no unread signal for it
   const isUnread = !isActive && chat.unread;
   const hasStatusBadge = isChatBlocked || isChatStreaming || isChatCompleted || isUnread;
+  const agentKind = useChatAgentKind(chat.id, chat.session_agent_kind);
   // Mirrors the leading-slot render below — the workspace line indents to stay flush with the title
-  const hasLeadingSlot = hasSubThreads || chat.session_agent_kind != null;
+  const hasLeadingSlot = hasSubThreads || agentKind != null;
   return (
     <div
       className={cn(
@@ -91,9 +93,9 @@ export const SidebarChatItem = memo(function SidebarChatItem({
                 )}
               />
             </Button>
-          ) : chat.session_agent_kind ? (
+          ) : agentKind ? (
             <ProviderIcon
-              agentKind={chat.session_agent_kind}
+              agentKind={agentKind}
               className="h-3.5 w-3.5 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
             />
           ) : hasSubThreads ? (

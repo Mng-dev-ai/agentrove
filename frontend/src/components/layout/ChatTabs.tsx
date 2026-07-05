@@ -8,6 +8,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { usePermissionStore } from '@/store/permissionStore';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
+import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';
@@ -50,6 +51,7 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
 
   const title = chatQuery.data?.title ? stripMarkdownTitle(chatQuery.data.title) : '…';
   const statusIcon = status ? STATUS_ICON[status] : null;
+  const agentKind = useChatAgentKind(chatId, chatQuery.data?.session_agent_kind);
 
   return (
     <div
@@ -84,12 +86,7 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
           {statusIcon ? (
             <statusIcon.Icon className={cn('h-3 w-3 flex-shrink-0', statusIcon.className)} />
           ) : (
-            chatQuery.data?.session_agent_kind && (
-              <ProviderIcon
-                agentKind={chatQuery.data.session_agent_kind}
-                className="h-3 w-3 flex-shrink-0"
-              />
-            )
+            agentKind && <ProviderIcon agentKind={agentKind} className="h-3 w-3 flex-shrink-0" />
           )}
           <span className="min-w-0 truncate">{title}</span>
         </Button>
