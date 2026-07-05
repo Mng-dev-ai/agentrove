@@ -6,6 +6,9 @@ interface StreamState {
   activeStreams: Map<string, ActiveStream>;
   streamIdByChatMessage: Map<string, string>;
   activeStreamMetadata: StreamMetadata[];
+  completedChatIds: Set<string>;
+  markCompleted: (chatId: string) => void;
+  clearCompleted: (chatId: string) => void;
   addStream: (stream: ActiveStream) => void;
   removeStream: (streamId: string) => void;
   getStream: (streamId: string) => ActiveStream | undefined;
@@ -69,6 +72,26 @@ export const useStreamStore = create<StreamState>((set, get) => ({
   activeStreams: new Map<string, ActiveStream>(),
   streamIdByChatMessage: new Map<string, string>(),
   activeStreamMetadata: [],
+  // Chats whose stream finished successfully since the user last viewed them —
+  // drives the sidebar "Done" badge until the chat is opened.
+  completedChatIds: new Set<string>(),
+
+  markCompleted: (chatId: string) => {
+    set((state) => {
+      const next = new Set(state.completedChatIds);
+      next.add(chatId);
+      return { completedChatIds: next };
+    });
+  },
+
+  clearCompleted: (chatId: string) => {
+    set((state) => {
+      if (!state.completedChatIds.has(chatId)) return state;
+      const next = new Set(state.completedChatIds);
+      next.delete(chatId);
+      return { completedChatIds: next };
+    });
+  },
 
   addStream: (stream: ActiveStream) => {
     set((state) => {

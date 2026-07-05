@@ -119,6 +119,8 @@ export function Sidebar({
   const userDisplayName = currentUser?.username || currentUser?.email || '';
   const logoutMutation = useLogout();
   const activeStreamMetadata = useStreamStore((state) => state.activeStreamMetadata);
+  // Chats whose stream finished successfully since last viewed — drives the "Done" badge
+  const completedChatIds = useStreamStore((state) => state.completedChatIds);
   const secondaryChatId = useUIStore((state) => state.secondaryChatId);
   const streamingChatIdSet = useMemo(
     () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
@@ -209,6 +211,19 @@ export function Sidebar({
       return next;
     });
   }, [selectedChatWorkspaceId, setCollapsedWorkspaces]);
+
+  // Opening a chat (or watching it finish while open) counts as seeing the
+  // completion — clear its Done badge. Covers every open path since both ids
+  // are route/layout-derived, not sidebar-click-derived.
+  useEffect(() => {
+    const store = useStreamStore.getState();
+    if (selectedChatId && completedChatIds.has(selectedChatId)) {
+      store.clearCompleted(selectedChatId);
+    }
+    if (secondaryChatId && completedChatIds.has(secondaryChatId)) {
+      store.clearCompleted(secondaryChatId);
+    }
+  }, [selectedChatId, secondaryChatId, completedChatIds]);
 
   // Auto-expand parent when navigating to a sub-thread from outside the sidebar
   useEffect(() => {
@@ -514,6 +529,7 @@ export function Sidebar({
     dropdownChatId: dropdown?.chat.id ?? null,
     streamingChatIdSet,
     blockedChatIdSet,
+    completedChatIdSet: completedChatIds,
     onToggleCollapse: toggleWorkspaceCollapse,
     onChatSelect: handleChatSelect,
     onOpenInSplit: canOpenInSplit ? handleOpenInSplit : undefined,
@@ -569,6 +585,7 @@ export function Sidebar({
                           isDropdownOpen={dropdown?.chat.id === chat.id}
                           isChatStreaming={streamingChatIdSet.has(chat.id)}
                           isChatBlocked={blockedChatIdSet.has(chat.id)}
+                          isChatCompleted={completedChatIds.has(chat.id)}
                           onSelect={handleChatSelect}
                           onOpenInSplit={canOpenInSplit ? handleOpenInSplit : undefined}
                           onDropdownClick={handleDropdownClick}
@@ -590,6 +607,7 @@ export function Sidebar({
                             onDropdownClick={handleDropdownClick}
                             streamingChatIdSet={streamingChatIdSet}
                             blockedChatIdSet={blockedChatIdSet}
+                            completedChatIdSet={completedChatIds}
                           />
                         )}
                       </div>

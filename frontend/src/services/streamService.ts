@@ -189,6 +189,10 @@ class StreamService {
       const durationMs =
         typeof parsed.payload?.duration_ms === 'number' ? parsed.payload.duration_ms : null;
       useStreamStore.getState().removeStream(streamId);
+      // Cancelled turns skip the sidebar "Done" badge — only a successful finish earns it
+      if (parsed.kind === 'complete') {
+        useStreamStore.getState().markCompleted(chatId);
+      }
       callbacks?.onComplete?.(parsed.messageId, parsed.streamId, parsed.kind, durationMs);
       return;
     }
