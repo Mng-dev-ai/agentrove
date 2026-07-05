@@ -24,6 +24,7 @@ prometheus-fastapi-instrumentator
 slowapi
 sse-starlette
 wtforms
+croniter
 redis
 PyYAML>=6.0
 python-json-logger>=2.0.0

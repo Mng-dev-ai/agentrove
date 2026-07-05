@@ -7,7 +7,13 @@ from sqlalchemy.engine import Connection
 from alembic import context
 from app.db.base_class import Base
 from app.db.sqlite import enable_foreign_keys
-from app.models.db_models import chat, refresh_token, user, workspace  # noqa: F401
+from app.models.db_models import (  # noqa: F401
+    automation,
+    chat,
+    refresh_token,
+    user,
+    workspace,
+)
 from app.core.config import get_settings
 from app.db.types import GUID, EncryptedString, EncryptedJSON, UTCDateTime
 

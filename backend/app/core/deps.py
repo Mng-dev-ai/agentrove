@@ -14,6 +14,7 @@ from app.models.db_models.chat import Chat
 from app.models.db_models.workspace import Workspace
 from app.models.db_models.user import User
 from app.services.attachment import AttachmentService
+from app.services.automation import AutomationService
 from app.services.chat import ChatService
 from app.services.agent import AgentService
 from app.services.exceptions import ChatException, UserException
@@ -199,6 +200,15 @@ async def get_chat_service(
 ) -> AsyncIterator[ChatService]:
     yield ChatService(
         user_service,
+        session_factory=SessionLocal,
+    )
+
+
+async def get_automation_service(
+    user_service: UserService = Depends(get_user_service),
+) -> AutomationService:
+    return AutomationService(
+        ChatService(user_service, session_factory=SessionLocal),
         session_factory=SessionLocal,
     )
 

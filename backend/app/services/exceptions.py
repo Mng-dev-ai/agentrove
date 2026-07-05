@@ -14,6 +14,7 @@ class ErrorCode(str, Enum):
     AI_SERVICE_ERROR = "AI_SERVICE_ERROR"
     API_KEY_MISSING = "API_KEY_MISSING"
     WORKSPACE_NOT_FOUND = "WORKSPACE_NOT_FOUND"
+    AUTOMATION_NOT_FOUND = "AUTOMATION_NOT_FOUND"
     VALIDATION_ERROR = "VALIDATION_ERROR"
     RATE_LIMIT_EXCEEDED = "RATE_LIMIT_EXCEEDED"
     GITHUB_TOKEN_INVALID = "GITHUB_TOKEN_INVALID"
@@ -139,6 +140,17 @@ class WorkspaceException(ServiceException):
         self,
         message: str,
         error_code: ErrorCode = ErrorCode.WORKSPACE_NOT_FOUND,
+        details: dict[str, str] | None = None,
+        status_code: int = 400,
+    ):
+        super().__init__(message, error_code, details, status_code)
+
+
+class AutomationException(ServiceException):
+    def __init__(
+        self,
+        message: str,
+        error_code: ErrorCode = ErrorCode.AUTOMATION_NOT_FOUND,
         details: dict[str, str] | None = None,
         status_code: int = 400,
     ):

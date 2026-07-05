@@ -50,6 +50,8 @@ cffi==2.0.0
     #   cryptography
 click==8.3.1
     # via uvicorn
+croniter==6.2.3
+    # via -r backend/requirements.txt
 cryptography==46.0.4
     # via
     #   -r backend/requirements.txt
@@ -162,6 +164,8 @@ pydantic-settings==2.12.0
     #   mcp
 pyjwt==2.8.0
     # via fastapi-users
+python-dateutil==2.9.0.post0
+    # via croniter
 python-dotenv==1.2.1
     # via
     #   pydantic-settings
@@ -193,7 +197,9 @@ rpds-py==2026.5.1
 rsa==4.9.1
     # via python-jose
 six==1.17.0
-    # via ecdsa
+    # via
+    #   ecdsa
+    #   python-dateutil
 slowapi==0.1.9
     # via -r backend/requirements.txt
 sqladmin==0.23.0
