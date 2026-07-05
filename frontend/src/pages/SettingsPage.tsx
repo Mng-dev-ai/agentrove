@@ -6,6 +6,7 @@ import {
   Key,
   ScrollText,
   ChevronLeft,
+  Clock,
   Cloud,
   GitBranch,
 } from 'lucide-react';
@@ -39,6 +40,10 @@ const StreamActionsSettingsTab = lazyNamed(
   () => import('@/components/settings/tabs/StreamActionsSettingsTab'),
   'StreamActionsSettingsTab',
 );
+const AutomationsSettingsTab = lazyNamed(
+  () => import('@/components/settings/tabs/AutomationsSettingsTab'),
+  'AutomationsSettingsTab',
+);
 const EnvVarsSettingsTab = lazyNamed(
   () => import('@/components/settings/tabs/EnvVarsSettingsTab'),
   'EnvVarsSettingsTab',
@@ -53,6 +58,7 @@ type TabKey =
   | 'skills'
   | 'personas'
   | 'stream_actions'
+  | 'automations'
   | 'env_vars'
   | 'instructions'
   | 'cloud';
@@ -71,6 +77,7 @@ const SETTINGS_NAV: SettingsNavItem[] = [
   { id: 'skills', label: 'Skills', icon: Zap },
   { id: 'personas', label: 'Personas', icon: UserCircle },
   { id: 'stream_actions', label: 'Stream Actions', icon: GitBranch },
+  { id: 'automations', label: 'Automations', icon: Clock },
   { id: 'env_vars', label: 'Env Variables', icon: Key },
   { id: 'instructions', label: 'Instructions', icon: ScrollText },
   { id: 'cloud', label: 'Cloud', icon: Cloud },
@@ -429,6 +436,14 @@ const SettingsPage: React.FC = () => {
                     >
                       <Suspense fallback={tabLoadingFallback}>
                         <StreamActionsSettingsTab />
+                      </Suspense>
+                    </div>
+                  )}
+
+                  {activeTab === 'automations' && (
+                    <div role="tabpanel" id="automations-panel" aria-labelledby="automations-tab">
+                      <Suspense fallback={tabLoadingFallback}>
+                        <AutomationsSettingsTab />
                       </Suspense>
                     </div>
                   )}

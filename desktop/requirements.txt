@@ -22,6 +22,7 @@ aiosmtplib
 slowapi
 sse-starlette
 wtforms
+croniter
 PyYAML>=6.0
 python-json-logger>=2.0.0
 alembic

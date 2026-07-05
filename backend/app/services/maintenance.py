@@ -8,15 +8,22 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.core.config import get_settings
+from app.services.automation import AutomationService
+from app.services.chat import ChatService
 from app.services.session_registry import (
     IDLE_CHECK_INTERVAL_SECONDS,
     session_registry,
 )
 from app.services.refresh_token import RefreshTokenService
+from app.services.user import UserService
 
 settings = get_settings()
 
 logger = logging.getLogger(__name__)
+
+# Polling resolution for due automations — a fired run lands within a minute of
+# its cron slot, which is plenty for hourly/daily schedules.
+AUTOMATION_DISPATCH_INTERVAL_SECONDS = 60.0
 
 
 @dataclass(frozen=True)
@@ -30,11 +37,13 @@ class MaintenanceService:
     def __init__(self) -> None:
         self._stop_event = asyncio.Event()
         self._tasks: list[asyncio.Task[None]] = []
+        self._automation_service = AutomationService(ChatService(UserService()))
 
     async def start(self) -> None:
         self._tasks = [
             asyncio.create_task(self._run_job_loop(self._refresh_tokens_job())),
             asyncio.create_task(self._run_job_loop(self._idle_session_cleanup_job())),
+            asyncio.create_task(self._run_job_loop(self._automation_dispatch_job())),
         ]
 
     async def stop(self) -> None:
@@ -51,6 +60,13 @@ class MaintenanceService:
             name="refresh_token_cleanup",
             interval_seconds=86400.0,
             run=RefreshTokenService.cleanup_expired_tokens_job,
+        )
+
+    def _automation_dispatch_job(self) -> MaintenanceJob:
+        return MaintenanceJob(
+            name="automation_dispatch",
+            interval_seconds=AUTOMATION_DISPATCH_INTERVAL_SECONDS,
+            run=self._automation_service.run_due_automations,
         )
 
     def _idle_session_cleanup_job(self) -> MaintenanceJob:

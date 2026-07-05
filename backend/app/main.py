@@ -15,6 +15,7 @@ from app.api.endpoints import (
     ai_model,
     attachments,
     auth,
+    automations,
     chat,
     github,
     sandbox,
@@ -151,6 +152,11 @@ def create_application() -> FastAPI:
         github.router,
         prefix=f"{settings.API_V1_STR}/github",
         tags=["GitHub"],
+    )
+    application.include_router(
+        automations.router,
+        prefix=f"{settings.API_V1_STR}/automations",
+        tags=["Automations"],
     )
     application.openapi = partial(custom_openapi, application)
 
