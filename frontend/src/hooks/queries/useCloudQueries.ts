@@ -117,30 +117,28 @@ export const useCloudChatsTotalQuery = (enabled: boolean) => {
   });
 };
 
-// Cloud chats for one project, paginated like the local sidebar groups. The
+// Cloud chats across all VPS projects, paginated like the local sidebar list. The
 // queryFn registers returned IDs as cloud-owned (markCloudChats), so opening one
 // routes its messages/status/SSE to the VPS. New chats and runs arrive live via
 // the cloud events feed (useCloudChatEvents); the poll is a safety net for
 // changes the feed doesn't carry (titles, deletes, other-device edits). Key
-// extends queryKeys.cloudChats so the LandingPage invalidation prefix-matches
-// every project's query.
-export const useInfiniteCloudChatsQuery = (workspaceId: string, enabled: boolean) => {
+// extends queryKeys.cloudChats so the LandingPage invalidation prefix-matches it.
+export const useInfiniteCloudChatsQuery = () => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
   return useInfiniteQuery({
-    queryKey: [...queryKeys.cloudChats(cloudUrl, connectedEmail), 'infinite', workspaceId] as const,
+    queryKey: [...queryKeys.cloudChats(cloudUrl, connectedEmail), 'infinite'] as const,
     queryFn: ({ pageParam }) =>
       cloudChatService.listChats({
         page: pageParam as number,
         per_page: CLOUD_CHATS_PER_PAGE,
-        workspace_id: workspaceId,
       }),
     getNextPageParam: (lastPage) => {
       const nextPage = lastPage.page + 1;
       return nextPage <= lastPage.pages ? nextPage : undefined;
     },
     initialPageParam: 1,
-    enabled: enabled && !!cloudUrl,
+    enabled: !!cloudUrl,
     staleTime: 10_000,
     refetchInterval: 15_000,
   });
