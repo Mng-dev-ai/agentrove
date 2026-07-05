@@ -162,11 +162,16 @@ export function SidebarFilterMenu({
   const openSubmenu = (view: FilterCategory, e: React.MouseEvent<HTMLButtonElement>) => {
     cancelSubmenuClose();
     const rect = e.currentTarget.getBoundingClientRect();
-    // Flip to the panel's left when the flyout would overflow the viewport
+    // Flip to the panel's left when the flyout would overflow the viewport;
+    // on narrow (mobile) viewports neither side fits, so clamp on-screen —
+    // overlapping the root panel beats rendering off the left edge
     const left =
       rect.right + 10 + SUBMENU_WIDTH <= window.innerWidth
         ? rect.right + 10
-        : rect.left - SUBMENU_WIDTH - 10;
+        : Math.max(
+            8,
+            Math.min(rect.left - SUBMENU_WIDTH - 10, window.innerWidth - SUBMENU_WIDTH - 8),
+          );
     const top = Math.max(8, rect.top - 6);
     setSubmenu({ view, top, left, maxHeight: window.innerHeight - top - 8 });
   };
