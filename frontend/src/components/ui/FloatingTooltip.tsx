@@ -38,23 +38,30 @@ export function FloatingTooltip({ content, children, className }: FloatingToolti
     setPosition(null);
   };
 
-  // mouseleave never fires when the trigger scrolls out from under a stationary
-  // pointer — dismiss on any scroll, whether the bubble is shown or still pending
+  // mouseleave alone is unreliable: it never fires when the trigger scrolls out
+  // from under a stationary pointer, and WKWebView (Tauri) drops it on fast window
+  // exits, native drag regions, and focus changes — so back it up with dismissals
+  // that don't depend on it: any scroll, any mousedown, window blur, and a
+  // hit-test on every mouse move (first in-page move after a missed leave hides)
   useEffect(() => {
     if (!hovering) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!triggerRef.current?.contains(e.target as Node)) hide();
+    };
     window.addEventListener('scroll', hide, { capture: true, passive: true });
-    return () => window.removeEventListener('scroll', hide, { capture: true });
+    window.addEventListener('blur', hide);
+    document.addEventListener('mousemove', handleMouseMove, { passive: true });
+    document.addEventListener('mousedown', hide, { capture: true });
+    return () => {
+      window.removeEventListener('scroll', hide, { capture: true });
+      window.removeEventListener('blur', hide);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mousedown', hide, { capture: true });
+    };
   }, [hovering]);
 
   return (
-    <div
-      ref={triggerRef}
-      className={className}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={hide}
-      // Clicks re-render/cover the trigger without a mouseleave (nav, menus, drag start)
-      onMouseDown={hide}
-    >
+    <div ref={triggerRef} className={className} onMouseEnter={handleMouseEnter} onMouseLeave={hide}>
       {children}
       {/* Portal to body: transformed ancestors (e.g. the sliding sidebar) re-anchor
           position:fixed, which offset the bubble away from the hovered trigger */}
