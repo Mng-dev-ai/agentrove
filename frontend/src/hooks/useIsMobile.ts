@@ -13,6 +13,10 @@ export function useIsMobile(): boolean {
     };
 
     window.addEventListener('resize', handleResize, { passive: true });
+    // Re-check after attaching: a resize between the initial render and this
+    // effect (e.g. Tauri sizing the window during startup) is otherwise missed
+    // forever, leaving the sidebar stuck in mobile overlay mode on desktop.
+    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   });
 
