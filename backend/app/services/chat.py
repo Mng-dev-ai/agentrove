@@ -320,7 +320,13 @@ class ChatService(BaseDbService[Chat]):
                 # Sub-threads run in the parent's worktree so they see its
                 # uncommitted changes (e.g. /review-branch on the parent's diff).
                 worktree_cwd = parent.worktree_cwd
-                parent.updated_at = datetime.now(timezone.utc)
+                # Ordering-only bump, not new parent content — carry read state
+                # across it so an already-read parent doesn't flip to unread.
+                was_read = not parent.unread
+                now = datetime.now(timezone.utc)
+                parent.updated_at = now
+                if was_read:
+                    parent.last_viewed_at = now
 
             ws_result = await db.execute(
                 select(Workspace).filter(
@@ -1143,6 +1149,8 @@ class ChatService(BaseDbService[Chat]):
                 # The parent bump is ordering-only, not new parent content —
                 # advance the read marker in lockstep so an already-read parent
                 # doesn't flip to unread (the sub-thread row flags its own turn).
+                # The WHERE guard is the SQL mirror of "read" per Chat.unread —
+                # keep them in sync if that property's boundary ever changes.
                 await db.execute(
                     update(Chat)
                     .where(
