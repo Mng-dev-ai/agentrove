@@ -1,4 +1,11 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
 import { Button } from '@/components/ui/primitives/Button';
 import { Input } from '@/components/ui/primitives/Input';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
@@ -60,6 +67,9 @@ export function CommandMenu() {
   const filteredBranchesRef = useRef<string[]>([]);
   const filteredThemesRef = useRef<ThemeMeta[]>([]);
   const listLengthRef = useRef(0);
+  // Browsers replay hover events when rows render or scroll under a stationary cursor
+  // (dialog open, mode switch, arrow-key scrollIntoView) — only honor real pointer movement.
+  const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
   const listId = 'command-menu-list';
 
   const isOpen = useUIStore((state) => state.commandMenuOpen);
@@ -167,7 +177,17 @@ export function CommandMenu() {
           ? filteredThemes.length
           : filteredCommands.length;
 
+  const activateFromMouse = (index: number, e: ReactMouseEvent) => {
+    const last = lastMouseRef.current;
+    lastMouseRef.current = { x: e.clientX, y: e.clientY };
+    // First event after open/mode-switch or a same-coords replay is synthetic — skip it.
+    if (!last || (last.x === e.clientX && last.y === e.clientY)) return;
+    setActiveIndex(index);
+  };
+
   const switchMode = useCallback((next: MenuMode) => {
+    // Re-arm the synthetic-event guard — the new mode's list renders under the cursor.
+    lastMouseRef.current = null;
     setMode(next);
     setQuery('');
     setActiveIndex(0);
@@ -499,7 +519,7 @@ export function CommandMenu() {
                           ? 'bg-surface-active dark:bg-surface-dark-active'
                           : 'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
                       )}
-                      onMouseEnter={() => setActiveIndex(index)}
+                      onMouseMove={(e) => activateFromMouse(index, e)}
                     >
                       <Button
                         variant="unstyled"
@@ -544,7 +564,7 @@ export function CommandMenu() {
                             ? 'bg-surface-active dark:bg-surface-dark-active'
                             : 'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
                         )}
-                        onMouseEnter={() => setActiveIndex(index)}
+                        onMouseMove={(e) => activateFromMouse(index, e)}
                       >
                         <Button
                           variant="unstyled"
@@ -598,7 +618,7 @@ export function CommandMenu() {
                             ? 'bg-surface-active dark:bg-surface-dark-active'
                             : 'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
                         )}
-                        onMouseEnter={() => setActiveIndex(index)}
+                        onMouseMove={(e) => activateFromMouse(index, e)}
                       >
                         <Button
                           variant="unstyled"
@@ -650,7 +670,7 @@ export function CommandMenu() {
                             ? 'bg-surface-active dark:bg-surface-dark-active'
                             : 'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
                         )}
-                        onMouseEnter={() => setActiveIndex(index)}
+                        onMouseMove={(e) => activateFromMouse(index, e)}
                       >
                         <Button
                           variant="unstyled"
