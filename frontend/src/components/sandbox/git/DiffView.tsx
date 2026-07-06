@@ -48,6 +48,11 @@ const WORKER_POOL_OPTIONS: WorkerPoolOptions = {
 };
 const WORKER_HIGHLIGHTER_OPTIONS: WorkerInitializationRenderOptions = {};
 
+// Wider pre-render halo than the library's 1000px default — fast scrolling
+// through large files otherwise outruns rendering/highlighting (renders happen
+// on scroll + rAF) and flashes unstyled text or striped buffer regions.
+const VIRTUALIZER_CONFIG = { overscrollSize: 2500, intersectionObserverMargin: 10000 };
+
 const DIFF_MODE_OPTIONS = [
   { value: 'all', label: 'All' },
   { value: 'staged', label: 'Staged' },
@@ -454,9 +459,17 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
         if (!pane) return;
         const paneTop = pane.getBoundingClientRect().top;
         let current: string | null = null;
-        for (const wrapper of pane.querySelectorAll<HTMLElement>('[data-diff-file-path]')) {
+        const wrappers = pane.querySelectorAll<HTMLElement>('[data-diff-file-path]');
+        for (const wrapper of wrappers) {
           if (wrapper.getBoundingClientRect().top - paneTop > 32) break;
           current = wrapper.dataset.diffFilePath ?? null;
+        }
+        // Trailing files shorter than the pane never reach the top reference
+        // line — at the scroll end, highlight the last file instead.
+        const last = wrappers[wrappers.length - 1];
+        const scroller = last && findScroller(last, pane);
+        if (scroller && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) {
+          current = last.dataset.diffFilePath ?? current;
         }
         if (current) setActiveFile(current);
       });
@@ -637,6 +650,7 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
               // and native anchoring double-corrects into a visible jump.
               // CodeView disables it on its root; plain Virtualizer doesn't.
               <Virtualizer
+                config={VIRTUALIZER_CONFIG}
                 className="h-full w-full overflow-auto [overflow-anchor:none]"
                 contentClassName="divide-y divide-border/30 dark:divide-border-dark/30"
               >
