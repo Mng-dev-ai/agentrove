@@ -1,9 +1,16 @@
-import { ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/utils/cn';
 
 // Matches the native title-attribute hover delay so tooltips don't flash while scanning a list
 const SHOW_DELAY_MS = 500;
+const HOVER_CHECK_MS = 100;
 
 interface FloatingTooltipProps {
   content: string;
@@ -22,12 +29,15 @@ export function FloatingTooltip({ content, children, className }: FloatingToolti
   const triggerRef = useRef<HTMLDivElement>(null);
   const showTimerRef = useRef<number | null>(null);
 
-  const handleMouseEnter = () => {
+  const handlePointerEnter = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
     setHovering(true);
     showTimerRef.current = window.setTimeout(() => {
-      // Measure at show time, not mouse-enter — the list may scroll during the delay
+      // Measure at show time, not pointer-enter — the list may scroll during the delay
       const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) setPosition({ top: rect.bottom + 4, left: rect.left });
+      if (rect && triggerRef.current?.matches(':hover')) {
+        setPosition({ top: rect.bottom + 4, left: rect.left });
+      }
     }, SHOW_DELAY_MS);
   };
 
@@ -38,30 +48,37 @@ export function FloatingTooltip({ content, children, className }: FloatingToolti
     setPosition(null);
   };
 
-  // mouseleave alone is unreliable: it never fires when the trigger scrolls out
-  // from under a stationary pointer, and WKWebView (Tauri) drops it on fast window
-  // exits, native drag regions, and focus changes — so back it up with dismissals
-  // that don't depend on it: any scroll, any mousedown, window blur, and a
-  // hit-test on every mouse move (first in-page move after a missed leave hides)
+  // pointerleave alone is unreliable: WKWebView (Tauri) can drop it on fast
+  // window exits, native title-bar transitions, and focus changes.
   useEffect(() => {
     if (!hovering) return;
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!triggerRef.current?.contains(e.target as Node)) hide();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') hide();
     };
+    const hoverCheckTimer = window.setInterval(() => {
+      // CSS hover state still updates when WKWebView drops the JS leave event.
+      if (!triggerRef.current?.matches(':hover')) hide();
+    }, HOVER_CHECK_MS);
     window.addEventListener('scroll', hide, { capture: true, passive: true });
     window.addEventListener('blur', hide);
-    document.addEventListener('mousemove', handleMouseMove, { passive: true });
-    document.addEventListener('mousedown', hide, { capture: true });
+    document.addEventListener('pointerdown', hide, { capture: true });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
+      window.clearInterval(hoverCheckTimer);
       window.removeEventListener('scroll', hide, { capture: true });
       window.removeEventListener('blur', hide);
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mousedown', hide, { capture: true });
+      document.removeEventListener('pointerdown', hide, { capture: true });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [hovering]);
 
   return (
-    <div ref={triggerRef} className={className} onMouseEnter={handleMouseEnter} onMouseLeave={hide}>
+    <div
+      ref={triggerRef}
+      className={className}
+      onPointerEnter={handlePointerEnter}
+      onPointerLeave={hide}
+    >
       {children}
       {/* Portal to body: transformed ancestors (e.g. the sliding sidebar) re-anchor
           position:fixed, which offset the bubble away from the hovered trigger */}
