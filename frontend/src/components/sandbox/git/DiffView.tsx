@@ -1,4 +1,4 @@
-import { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { memo, useMemo, useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { useToggleSet } from '@/hooks/useToggleSet';
@@ -64,6 +64,8 @@ const DIFF_STYLE_OPTIONS = [
   { value: 'unified', label: 'Unified' },
   { value: 'split', label: 'Split' },
 ] satisfies { value: 'unified' | 'split'; label: string }[];
+
+const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
 
 const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
   all: 'No changes',
@@ -232,6 +234,12 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   const rootRef = useRef<HTMLDivElement>(null);
   // Diff pane wrapper — its top edge is the scrollspy's reference line.
   const paneRef = useRef<HTMLDivElement>(null);
+  // In-flight jump animation — a new click, scope change, or unmount cancels it.
+  const jumpRafRef = useRef(0);
+  const cancelJump = useCallback(() => {
+    cancelAnimationFrame(jumpRafRef.current);
+    jumpRafRef.current = 0;
+  }, []);
 
   // Callback ref instead of an effect — the root div appears only once a
   // sandbox is connected, so a mount-only effect could observe nothing.
@@ -359,9 +367,6 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     [theme, diffStyle],
   );
 
-  // In-flight jump animation — a new click cancels the previous one.
-  const jumpRafRef = useRef(0);
-
   const jumpToFile = useCallback(
     (name: string) => {
       setActiveFile(name);
@@ -371,7 +376,7 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
         next.delete(name);
         return next;
       });
-      cancelAnimationFrame(jumpRafRef.current);
+      cancelJump();
       // rAF: a just-expanded file needs a render before its body has height.
       jumpRafRef.current = requestAnimationFrame(() => {
         const el = rootRef.current?.querySelector<HTMLElement>(
@@ -401,7 +406,7 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
         step();
       });
     },
-    [setCollapsedFiles],
+    [cancelJump, setCollapsedFiles],
   );
 
   const selectFile = useCallback(
@@ -423,6 +428,9 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     wasVisibleRef.current = isVisible;
   }, [isVisible, refetch, sandboxId]);
 
+  // Scope changes must cancel before a stale frame can run against the new diff.
+  useLayoutEffect(() => cancelJump, [cancelJump, scopeKey]);
+
   const allCollapsed =
     parsedFiles.length > 0 && parsedFiles.every((f) => collapsedFiles.has(f.name));
 
@@ -443,6 +451,23 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   // Discard restores against HEAD — only coherent in `all` mode.
   // `!isPlaceholderData` blocks acting on rows from the previous mode's fetch.
   const canDiscard = ready && hasChanges && mode === 'all' && !isPlaceholderData;
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !showFiles) return;
+    const cancelKeyboardScroll = (event: KeyboardEvent) => {
+      if (SCROLL_KEYS.has(event.key)) cancelJump();
+    };
+    // A user gesture means the click-initiated jump should yield immediately.
+    root.addEventListener('pointerdown', cancelJump, { capture: true, passive: true });
+    root.addEventListener('wheel', cancelJump, { capture: true, passive: true });
+    root.addEventListener('keydown', cancelKeyboardScroll, { capture: true });
+    return () => {
+      root.removeEventListener('pointerdown', cancelJump, { capture: true });
+      root.removeEventListener('wheel', cancelJump, { capture: true });
+      root.removeEventListener('keydown', cancelKeyboardScroll, { capture: true });
+    };
+  }, [cancelJump, showFiles]);
 
   // Scrollspy — capture-phase because scroll doesn't bubble and the Virtualizer
   // owns the scroll container. The last header within 32px of the pane top wins,
