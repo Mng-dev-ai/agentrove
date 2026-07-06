@@ -106,6 +106,7 @@ class SandboxService:
         rows: int,
         cols: int,
         tmux_session: str,
+        cwd: str,
         on_data: PtyDataCallbackType,
     ) -> str:
         return await self.provider.create_pty(
@@ -113,6 +114,7 @@ class SandboxService:
             rows,
             cols,
             tmux_session,
+            cwd,
             on_data=on_data,
         )
 

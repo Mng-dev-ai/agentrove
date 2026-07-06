@@ -260,11 +260,11 @@ class StreamService {
 
   async startStream(
     options: StreamOptions,
-  ): Promise<Pick<ApiStreamResponse, 'messageId' | 'checkpointId'>> {
+  ): Promise<Pick<ApiStreamResponse, 'messageId' | 'checkpointId' | 'worktreeCwd'>> {
     const streamId = crypto.randomUUID();
 
     try {
-      const { source, messageId, checkpointId } = await chatService.createCompletion(
+      const { source, messageId, checkpointId, worktreeCwd } = await chatService.createCompletion(
         options.request,
         options.signal,
       );
@@ -288,7 +288,7 @@ class StreamService {
       useStreamStore.getState().addStream(activeStream);
       this.attachStreamHandlers(streamId, messageId);
 
-      return { messageId, checkpointId };
+      return { messageId, checkpointId, worktreeCwd };
     } catch (error) {
       useStreamStore.getState().removeStream(streamId);
       throw error;

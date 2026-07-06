@@ -61,6 +61,7 @@ async function createCompletion(
         message_id: string;
         last_seq?: number;
         checkpoint_id: string | null;
+        worktree_cwd: string | null;
       }>('/chat/chat', formData, signal);
 
       const payload = ensureResponse(taskResponse, 'Failed to start chat completion');
@@ -70,6 +71,7 @@ async function createCompletion(
         source: eventSource,
         messageId: payload.message_id,
         checkpointId: payload.checkpoint_id,
+        worktreeCwd: payload.worktree_cwd,
       };
     },
     { signal },

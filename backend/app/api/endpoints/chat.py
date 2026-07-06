@@ -151,6 +151,7 @@ async def send_message(
             "message_id": result["message_id"],
             "last_seq": result["last_seq"],
             "checkpoint_id": result["checkpoint_id"],
+            "worktree_cwd": result["worktree_cwd"],
         }
     except ChatException as e:
         raise HTTPException(

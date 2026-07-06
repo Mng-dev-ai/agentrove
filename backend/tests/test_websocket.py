@@ -9,6 +9,7 @@ from app.api.endpoints import websocket as websocket_endpoint
 from app.constants import (
     DEFAULT_TERMINAL_ID,
     WS_CLOSE_AUTH_FAILED,
+    WS_CLOSE_INVALID_CWD,
     WS_CLOSE_SANDBOX_NOT_FOUND,
     WS_MSG_AUTH,
     WS_MSG_DETACH,
@@ -94,6 +95,7 @@ class FakeTerminalRegistry:
         user_id: str,
         sandbox_id: str,
         terminal_id: str,
+        cwd: str,
         provider_type: SandboxProviderType,
         workspace_path: str | None,
     ) -> FakeTerminalSession:
@@ -102,6 +104,7 @@ class FakeTerminalRegistry:
                 "user_id": user_id,
                 "sandbox_id": sandbox_id,
                 "terminal_id": terminal_id,
+                "cwd": cwd,
                 "provider_type": provider_type,
                 "workspace_path": workspace_path,
             }
@@ -142,6 +145,30 @@ async def test_terminal_websocket_rejects_unowned_sandbox(
     assert websocket.close_reason == "Sandbox not found"
 
 
+async def test_terminal_websocket_rejects_escaping_cwd(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="ws-badcwd@example.com",
+        username="wsbadcwd",
+    )
+    token = headers["Authorization"].removeprefix("Bearer ")
+    websocket = FakeWebSocket(
+        [{"text": json.dumps({"type": WS_MSG_AUTH, "token": token})}],
+        query_params={"cwd": "../outside"},
+    )
+
+    await run_terminal_websocket(websocket, workspace.sandbox_id)
+
+    assert websocket.close_code == WS_CLOSE_INVALID_CWD
+    assert websocket.close_reason == "Invalid terminal cwd"
+
+
 async def test_terminal_websocket_handles_control_frames(
     db_session: AsyncSession,
     create_user: UserFactory,
@@ -168,7 +195,7 @@ async def test_terminal_websocket_handles_control_frames(
             {"text": json.dumps({"type": WS_MSG_RESIZE, "rows": 50, "cols": 140})},
             {"text": json.dumps({"type": WS_MSG_DETACH})},
         ],
-        query_params={"terminalId": "term-a"},
+        query_params={"terminalId": "term-a", "cwd": ".worktrees/abc12345"},
     )
 
     await run_terminal_websocket(websocket, workspace.sandbox_id)
@@ -178,6 +205,7 @@ async def test_terminal_websocket_handles_control_frames(
             "user_id": str(user.id),
             "sandbox_id": workspace.sandbox_id,
             "terminal_id": "term-a",
+            "cwd": ".worktrees/abc12345",
             "provider_type": SandboxProviderType.HOST,
             "workspace_path": workspace.workspace_path,
         }

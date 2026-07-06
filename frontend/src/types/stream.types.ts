@@ -40,6 +40,9 @@ export interface ApiStreamResponse {
   source: EventSource;
   messageId: string;
   checkpointId: string | null;
+  // Set when this turn bound the chat to a worktree — created server-side
+  // during the send request, before any stream event arrives.
+  worktreeCwd: string | null;
 }
 
 export interface ActiveStream {

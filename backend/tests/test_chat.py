@@ -80,7 +80,7 @@ class ChatCompletionServiceOverride:
 
     async def initiate_chat_completion(
         self, request: ChatRequest, user: User
-    ) -> dict[str, UUID | int | None]:
+    ) -> dict[str, UUID | int | str | None]:
         self.requests.append(request)
         self.users.append(user)
         if self.fail:
@@ -90,6 +90,7 @@ class ChatCompletionServiceOverride:
             "message_id": UUID("00000000-0000-0000-0000-000000000123"),
             "last_seq": 4,
             "checkpoint_id": None,
+            "worktree_cwd": None,
         }
 
 
@@ -299,6 +300,7 @@ async def test_send_message_endpoint_passes_form_fields_to_chat_service(
         "message_id": "00000000-0000-0000-0000-000000000123",
         "last_seq": 4,
         "checkpoint_id": None,
+        "worktree_cwd": None,
     }
     request = chat_service.requests[0]
     assert request.prompt == "Ship this"

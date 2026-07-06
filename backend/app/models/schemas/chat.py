@@ -103,6 +103,9 @@ class ChatCompletionResponse(BaseModel):
     message_id: UUID
     last_seq: int = 0
     checkpoint_id: UUID | None = None
+    # Set when this turn bound the chat to a worktree — lets the client update
+    # branch/terminal UI immediately instead of waiting for the stream config event.
+    worktree_cwd: str | None = None
 
 
 class EnhancePromptResponse(BaseModel):

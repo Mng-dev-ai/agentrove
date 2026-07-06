@@ -118,6 +118,7 @@ WS_MSG_DETACH: Final[str] = "detach"
 
 WS_CLOSE_AUTH_FAILED: Final[int] = 4001
 WS_CLOSE_SANDBOX_NOT_FOUND: Final[int] = 4004
+WS_CLOSE_INVALID_CWD: Final[int] = 4005
 
 TERMINAL_TYPE: Final[str] = "xterm-256color"
 DEFAULT_PTY_ROWS: Final[int] = 24

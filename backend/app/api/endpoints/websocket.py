@@ -11,6 +11,7 @@ from app.constants import (
     DEFAULT_PTY_ROWS,
     DEFAULT_TERMINAL_ID,
     WS_CLOSE_AUTH_FAILED,
+    WS_CLOSE_INVALID_CWD,
     WS_MSG_CLOSE,
     WS_MSG_DETACH,
     WS_MSG_INIT,
@@ -23,6 +24,7 @@ from app.core.security import (
 )
 from app.services.terminal import terminal_session_registry
 from app.utils.parsing import parse_pty_dimension
+from app.utils.sandbox import normalize_relative_path
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -50,11 +52,21 @@ async def terminal_websocket(
         return
     provider_type, workspace_path = access
 
+    # Workspace-relative start dir for the shell — a worktree-backed chat
+    # passes its worktree_cwd so the terminal lands in the worktree, not the
+    # shared workspace root.
+    try:
+        cwd = normalize_relative_path(websocket.query_params.get("cwd"))
+    except ValueError:
+        await websocket.close(code=WS_CLOSE_INVALID_CWD, reason="Invalid terminal cwd")
+        return
+
     terminal_id = websocket.query_params.get("terminalId") or DEFAULT_TERMINAL_ID
     session = await terminal_session_registry.get_or_create(
         user_id=str(user.id),
         sandbox_id=sandbox_id,
         terminal_id=terminal_id,
+        cwd=cwd,
         provider_type=provider_type,
         workspace_path=workspace_path,
     )

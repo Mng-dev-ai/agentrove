@@ -271,6 +271,11 @@ export function ChatPage() {
         ? (secondaryQuery.data?.sandbox_id ?? undefined)
         : currentChat?.sandbox_id;
       const terminalChatId = isSecondary ? (secondaryChatId ?? undefined) : currentChat?.id;
+      // Worktree chats get their shell spawned inside the worktree so the
+      // terminal matches what the agent/editor/diff views operate on.
+      const terminalWorktreeCwd = isSecondary
+        ? (secondaryQuery.data?.worktree_cwd ?? undefined)
+        : (currentChat?.worktree_cwd ?? undefined);
       return (
         <div
           className="relative flex h-full w-full"
@@ -283,6 +288,7 @@ export function ChatPage() {
               <TerminalContainer
                 sandboxId={terminalSandboxId}
                 chatId={terminalChatId}
+                worktreeCwd={terminalWorktreeCwd}
                 // Only fit/focus the terminal when its tile is actually on screen —
                 // a background tab is mounted but hidden (zero-size container).
                 isVisible={isTerminal && isVisible}
@@ -296,7 +302,13 @@ export function ChatPage() {
         </div>
       );
     },
-    [currentChat, renderNonTerminalView, secondaryChatId, secondaryQuery.data?.sandbox_id],
+    [
+      currentChat,
+      renderNonTerminalView,
+      secondaryChatId,
+      secondaryQuery.data?.sandbox_id,
+      secondaryQuery.data?.worktree_cwd,
+    ],
   );
 
   if (!chatId) return <Navigate to="/" />;

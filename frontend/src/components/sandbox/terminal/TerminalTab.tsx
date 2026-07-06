@@ -17,6 +17,8 @@ export interface TerminalTabProps {
   isVisible: boolean;
   sandboxId?: string;
   terminalId?: string;
+  // Workspace-relative shell start dir (the chat's worktree); root when unset.
+  cwd?: string;
   shouldClose?: boolean;
   onClosed?: () => void;
 }
@@ -28,11 +30,13 @@ const encoder = new TextEncoder();
 // Mirrors backend WS_CLOSE_* codes in app/constants.py
 const WS_CLOSE_AUTH_FAILED = 4001;
 const WS_CLOSE_SANDBOX_NOT_FOUND = 4004;
+const WS_CLOSE_INVALID_CWD = 4005;
 
 export const TerminalTab: FC<TerminalTabProps> = ({
   isVisible,
   sandboxId,
   terminalId,
+  cwd,
   shouldClose = false,
   onClosed,
 }) => {
@@ -103,8 +107,11 @@ export const TerminalTab: FC<TerminalTabProps> = ({
     const { baseUrl, token } = resolveSandboxWs(sandboxId);
     if (!token) return;
 
-    const terminalParam = terminalId ? `?terminalId=${encodeURIComponent(terminalId)}` : '';
-    const wsUrl = `${baseUrl}/${sandboxId}/terminal${terminalParam}`;
+    const params = new URLSearchParams();
+    if (terminalId) params.set('terminalId', terminalId);
+    if (cwd) params.set('cwd', cwd);
+    const query = params.toString();
+    const wsUrl = `${baseUrl}/${sandboxId}/terminal${query ? `?${query}` : ''}`;
 
     setSessionState('connecting');
     setCloseReason(null);
@@ -174,7 +181,11 @@ export const TerminalTab: FC<TerminalTabProps> = ({
       // The server closes with WS_CLOSE_AUTH_FAILED / WS_CLOSE_SANDBOX_NOT_FOUND
       // and a human-readable reason. Surface both so the overlay can tell the
       // user why the connection dropped instead of showing a generic message.
-      if (event.code === WS_CLOSE_AUTH_FAILED || event.code === WS_CLOSE_SANDBOX_NOT_FOUND) {
+      if (
+        event.code === WS_CLOSE_AUTH_FAILED ||
+        event.code === WS_CLOSE_SANDBOX_NOT_FOUND ||
+        event.code === WS_CLOSE_INVALID_CWD
+      ) {
         setCloseReason(event.reason || null);
         setSessionState('error');
         return;
@@ -211,7 +222,7 @@ export const TerminalTab: FC<TerminalTabProps> = ({
       resetWsRefs();
       setSessionState('idle');
     };
-  }, [sandboxId, terminalId, isReady, connectAttempt, fitTerminal, terminalRef, resetWsRefs]);
+  }, [sandboxId, terminalId, cwd, isReady, connectAttempt, fitTerminal, terminalRef, resetWsRefs]);
 
   useEffect(() => {
     if (!shouldClose || isClosingRef.current) {
