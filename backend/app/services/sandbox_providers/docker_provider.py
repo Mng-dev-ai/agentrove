@@ -395,7 +395,7 @@ class LocalDockerProvider(SandboxProvider):
         cmd = [
             "bash",
             "-c",
-            f"command -v tmux >/dev/null && tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off \\; set -g mouse on || exec bash",
+            f"command -v tmux >/dev/null && tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off \\; set -g mouse off || exec bash",
         ]
 
         exec_obj = await container.exec(
