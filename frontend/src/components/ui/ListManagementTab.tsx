@@ -1,8 +1,12 @@
-import { ReactNode, useState } from 'react';
+import { CSSProperties, ReactNode, useState } from 'react';
 import { Button } from '@/components/ui/primitives/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Plus, Loader2, LucideIcon, Edit2, Trash2 } from 'lucide-react';
 import { logger } from '@/utils/logger';
+
+// Explicit fill-mode: globals.css redefines .animate-fade-in without `forwards`,
+// which would snap the spinner back to opacity-0 when the animation ends
+const SPINNER_STYLE: CSSProperties = { animationDelay: '300ms', animationFillMode: 'forwards' };
 
 interface ListManagementTabProps<T> {
   title: string;
@@ -91,7 +95,16 @@ export const ListManagementTab = <T,>({
           </Button>
         </div>
 
-        {!items || items.length === 0 ? (
+        {items === null ? (
+          // null means the list is still loading — stay invisible for 300ms so
+          // fast loads render nothing instead of flashing a spinner
+          <div
+            className="flex animate-fade-in justify-center rounded-xl border border-dashed border-border py-10 opacity-0 dark:border-border-dark"
+            style={SPINNER_STYLE}
+          >
+            <Loader2 className="h-4 w-4 animate-spin text-text-quaternary dark:text-text-dark-quaternary" />
+          </div>
+        ) : items.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border py-10 text-center dark:border-border-dark">
             <EmptyIcon className="mx-auto mb-3 h-5 w-5 text-text-quaternary dark:text-text-dark-quaternary" />
             <p className="mb-3 text-xs text-text-tertiary dark:text-text-dark-tertiary">

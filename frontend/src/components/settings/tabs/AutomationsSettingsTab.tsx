@@ -100,7 +100,8 @@ export const AutomationsSettingsTab: React.FC = () => {
   const cloudConnected = !!cloudUrl;
 
   const { data: localAutomations } = useAutomationsQuery();
-  const { data: cloudAutomations } = useCloudAutomationsQuery(cloudConnected);
+  const { data: cloudAutomations, isLoading: cloudLoading } =
+    useCloudAutomationsQuery(cloudConnected);
   const { data: cloudSettings } = useCloudSettingsQuery(cloudConnected);
   const modelMap = useModelMap();
 
@@ -110,12 +111,14 @@ export const AutomationsSettingsTab: React.FC = () => {
   const runMutation = useRunAutomationMutation();
 
   const items = useMemo<AutomationListItem[] | null>(() => {
-    if (!localAutomations) return null;
+    // Stay in loading state until both backends answer — resolving with only
+    // the local list flashes the empty state when automations live on cloud.
+    if (!localAutomations || cloudLoading) return null;
     return [
       ...localAutomations.map((automation) => ({ automation, onCloud: false })),
       ...(cloudAutomations ?? []).map((automation) => ({ automation, onCloud: true })),
     ];
-  }, [localAutomations, cloudAutomations]);
+  }, [localAutomations, cloudAutomations, cloudLoading]);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<AutomationListItem | null>(null);

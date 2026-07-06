@@ -44,7 +44,7 @@ export const StreamActionsSettingsTab: React.FC = () => {
       <ListManagementTab<StreamAction>
         title="Stream actions"
         description="Buttons shown when a thread finishes streaming. Each runs its command on the selected model in a new sub-thread."
-        items={localSettings.stream_actions}
+        items={localSettings.stream_actions ?? []}
         emptyIcon={GitBranch}
         emptyText="No stream actions configured yet"
         emptyButtonText="Add your first action"
