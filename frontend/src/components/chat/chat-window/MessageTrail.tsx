@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useState, type RefObject } from 'react';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/primitives/Button';
+import { isAssistantMessage } from '@/utils/message';
 import type { Message } from '@/types/chat.types';
 
 // Cap preview text so a huge message doesn't dump megabytes into the DOM
@@ -29,8 +30,7 @@ export const MessageTrail = memo(function MessageTrail({
   const turns = useMemo(() => {
     const result: TrailTurn[] = [];
     for (const msg of messages) {
-      const isBotMessage = msg.is_bot ?? msg.role === 'assistant';
-      if (!isBotMessage) {
+      if (!isAssistantMessage(msg)) {
         result.push({
           id: msg.id,
           userText: msg.content_text.slice(0, PREVIEW_MAX_CHARS),

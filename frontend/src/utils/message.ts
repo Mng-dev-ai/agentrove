@@ -1,6 +1,8 @@
 import { detectFileType } from './fileTypes';
 import type { Message } from '@/types/chat.types';
 
+export const isAssistantMessage = (msg: Message) => msg.is_bot ?? msg.role === 'assistant';
+
 export function createInitialMessage(
   prompt: string,
   attachedFiles: File[] | null,

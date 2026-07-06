@@ -10,6 +10,7 @@ import React, {
 import { useQueryClient } from '@tanstack/react-query';
 import { useShallow } from 'zustand/react/shallow';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
+import { isAssistantMessage } from '@/utils/message';
 import { UserMessage, AssistantMessage } from '@/components/chat/message-bubble/Message';
 import { QueueMessageCard } from './QueueMessageCard';
 import { StreamActionsBar } from './StreamActionsBar';
@@ -172,6 +173,13 @@ export const Chat = memo(function Chat() {
 
   const [showScrollButton, setShowScrollButton] = useState(false);
 
+  const turnRef = useRef<HTMLDivElement | null>(null);
+  // Send id whose anchor scroll hasn't run yet, and whether the animation is in flight
+  const anchorTurnRef = useRef<string | null>(null);
+  const anchoringRef = useRef(false);
+  const anchorTargetRef = useRef(0);
+  const [turnMinHeight, setTurnMinHeight] = useState(0);
+
   if (prevChatIdForScrollRef.current !== chatId) {
     prevChatIdForScrollRef.current = chatId;
     hasInitializedToBottomRef.current = false;
@@ -179,6 +187,9 @@ export const Chat = memo(function Chat() {
     lastScrollTopRef.current = null;
     isAtBottomRef.current = true;
     prevScrollHeightRef.current = null;
+    anchorTurnRef.current = null;
+    anchoringRef.current = false;
+    setTurnMinHeight(0);
     setShowScrollButton(false);
   }
 
@@ -196,10 +207,18 @@ export const Chat = memo(function Chat() {
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     const atBottom = distanceFromBottom <= AT_BOTTOM_THRESHOLD_PX;
+    const isScrollingUp = lastScrollTopRef.current !== null && scrollTop < lastScrollTopRef.current;
+
+    // Settle the anchor on reaching its target or on user up-scroll — not on atBottom,
+    // which never arrives when the reply outgrows the spacer mid-flight.
+    if (anchoringRef.current && (scrollTop >= anchorTargetRef.current - 1 || isScrollingUp)) {
+      anchoringRef.current = false;
+      setShowScrollButton(!atBottom);
+    }
 
     if (isAtBottomRef.current !== atBottom) {
       isAtBottomRef.current = atBottom;
-      setShowScrollButton(!atBottom);
+      setShowScrollButton(!atBottom && !anchoringRef.current);
     }
 
     if (atBottom) {
@@ -211,7 +230,6 @@ export const Chat = memo(function Chat() {
       return;
     }
 
-    const isScrollingUp = lastScrollTopRef.current !== null && scrollTop < lastScrollTopRef.current;
     const isNearTop = scrollTop <= clientHeight * TOP_PAGINATION_ARM_VIEWPORT_MULTIPLIER;
 
     if (!topPaginationArmedRef.current && isScrollingUp && isNearTop) {
@@ -259,6 +277,42 @@ export const Chat = memo(function Chat() {
     prevScrollHeightRef.current = null;
   }, [messages]);
 
+  useLayoutEffect(() => {
+    // Send anchor, step 1 of a two-commit handshake: reserve a viewport of space under
+    // the new turn (the reply streams into it instead of growing the page); the state
+    // commit re-fires step 2, which scrolls once the spacer exists in the DOM.
+    if (!pendingUserMessageId || !scrollerRef.current) return;
+    anchorTurnRef.current = pendingUserMessageId;
+    setTurnMinHeight(scrollerRef.current.clientHeight);
+  }, [pendingUserMessageId]);
+
+  useLayoutEffect(() => {
+    // Send anchor, step 2: one smooth scroll pinning the sent message to the top.
+    if (!anchorTurnRef.current) return;
+    if (anchorTurnRef.current !== pendingUserMessageId) {
+      // Send rolled back (optimistic message removed) before the anchor ran
+      anchorTurnRef.current = null;
+      return;
+    }
+    const scroller = scrollerRef.current;
+    const turn = turnRef.current;
+    if (!scroller || !turn) return;
+    const top =
+      turn.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    // Spacer not committed yet — scrolling now would clamp short; the min-height
+    // state update from step 1 re-runs this effect in the next commit.
+    if (top + scroller.clientHeight > scroller.scrollHeight + 1) return;
+    anchorTurnRef.current = null;
+    // Already at the target (first message in a short chat): no scroll event would
+    // ever fire to settle the latch, so don't arm it — there's nothing to animate.
+    if (Math.abs(top - scroller.scrollTop) <= 1) return;
+    anchoringRef.current = true;
+    anchorTargetRef.current = top;
+    // Exact turn top == max scroll with the spacer, so later stick-to-bottom
+    // snaps land on the same pixel instead of correcting a decorative offset.
+    scroller.scrollTo({ top, behavior: 'smooth' });
+  }, [pendingUserMessageId, turnMinHeight]);
+
   const scrollToBottom = useCallback(() => {
     setShowScrollButton(false);
     scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
@@ -283,10 +337,11 @@ export const Chat = memo(function Chat() {
         // ticking between flushes, and late layout (images, KaTeX) — a
         // messages-keyed effect misses the latter two. ResizeObserver fires
         // after layout and before paint, so the scroll never lags the growth.
+        // Skipped mid-anchor: an instant snap would cancel the send's smooth scroll.
         const content = node.firstElementChild;
         if (content) {
           const observer = new ResizeObserver(() => {
-            if (isAtBottomRef.current) {
+            if (isAtBottomRef.current && !anchoringRef.current) {
               node.scrollTop = node.scrollHeight;
             } else {
               // Content shrinking (e.g. collapsing a rollup) may leave scrollTop
@@ -309,13 +364,13 @@ export const Chat = memo(function Chat() {
 
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
-      const isAssistantMessage = message.is_bot ?? message.role === 'assistant';
+      const isAssistant = isAssistantMessage(message);
 
-      if (!latestAssistantMessage && isAssistantMessage) {
+      if (!latestAssistantMessage && isAssistant) {
         latestAssistantMessage = message;
       }
 
-      if (latestUserId === null && !isAssistantMessage) {
+      if (latestUserId === null && !isAssistant) {
         latestUserId = message.id;
       }
 
@@ -331,6 +386,34 @@ export const Chat = memo(function Chat() {
   }, [messages]);
 
   const lastBotMessageId = lastBotMessage?.id ?? null;
+
+  const prevPendingUserMessageIdRef = useRef(pendingUserMessageId);
+  useLayoutEffect(() => {
+    // A failed send clears the pending id AND removes its optimistic message (normal
+    // clears keep the row) — drop the reserved space too, or the prior turn keeps a
+    // viewport-tall blank spacer until the next send.
+    const prevPending = prevPendingUserMessageIdRef.current;
+    prevPendingUserMessageIdRef.current = pendingUserMessageId;
+    if (prevPending === null || pendingUserMessageId !== null) return;
+    if (latestUserMessageId !== prevPending) {
+      anchoringRef.current = false;
+      setTurnMinHeight(0);
+    }
+  }, [pendingUserMessageId, latestUserMessageId]);
+
+  const turns = useMemo(() => {
+    // Group each user message with the assistant output that follows so the last
+    // turn can carry the send-anchor min-height without reparenting rows mid-stream.
+    const groups: (typeof messages)[] = [];
+    for (const msg of messages) {
+      if (isAssistantMessage(msg) && groups.length > 0) {
+        groups[groups.length - 1].push(msg);
+      } else {
+        groups.push([msg]);
+      }
+    }
+    return groups;
+  }, [messages]);
 
   const canShowPermissionInline =
     pendingPermissionRequest && pendingPermissionRequest.tool_name !== 'ExitPlanMode';
@@ -350,7 +433,7 @@ export const Chat = memo(function Chat() {
   const renderMessage = useCallback(
     (msg: (typeof messages)[number]) => {
       const messageIsStreaming = streamingMessageIdSet.has(msg.id);
-      const isBotMessage = msg.is_bot ?? msg.role === 'assistant';
+      const isBotMessage = isAssistantMessage(msg);
       const isLastBotMessage = isBotMessage && msg.id === lastBotMessageId;
       // A not-yet-populated bot row renders only its padding, pushing the thinking
       // indicator below it down a few pixels — hide it until content lands. Gate on the
@@ -384,7 +467,11 @@ export const Chat = memo(function Chat() {
               modelId={msg.model_id}
               durationMs={msg.duration_ms}
               checkpointId={msg.checkpoint_id}
-              isLastBotMessage={isLastBotMessage && !messageIsStreaming}
+              // Idle-gated so prompt suggestions unmount in the send commit itself —
+              // unmounting when the placeholder lands shifts the anchored turn late.
+              isLastBotMessage={
+                isLastBotMessage && !messageIsStreaming && !isLoading && !isStreaming
+              }
             />
           ) : (
             <UserMessage
@@ -466,13 +553,27 @@ export const Chat = memo(function Chat() {
               <div>
                 {listHeader}
 
-                {messages.map((msg) => (
-                  <div key={msg.id} data-message-id={msg.id}>
-                    {renderMessage(msg)}
-                  </div>
-                ))}
+                {turns.map((turn, turnIndex) => {
+                  const isLastTurn = turnIndex === turns.length - 1;
+                  return (
+                    <div
+                      key={turn[0].id}
+                      ref={isLastTurn ? turnRef : undefined}
+                      style={
+                        isLastTurn && turnMinHeight > 0 ? { minHeight: turnMinHeight } : undefined
+                      }
+                    >
+                      {turn.map((msg) => (
+                        <div key={msg.id} data-message-id={msg.id}>
+                          {renderMessage(msg)}
+                        </div>
+                      ))}
+                      {isLastTurn && listFooter}
+                    </div>
+                  );
+                })}
 
-                {listFooter}
+                {turns.length === 0 && listFooter}
               </div>
             </div>
             <MessageTrail messages={messages} scrollerRef={scrollerRef} />
