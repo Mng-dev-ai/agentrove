@@ -234,7 +234,7 @@ class LocalHostProvider(SandboxProvider):
         shell = env.get("SHELL", "/bin/bash")
         cmd = (
             "command -v tmux >/dev/null && "
-            f"tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off \\; set -g mouse on || exec {shlex.quote(shell)}"
+            f"tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off \\; set -g mouse off || exec {shlex.quote(shell)}"
         )
         process = await asyncio.to_thread(
             subprocess.Popen,
