@@ -152,6 +152,7 @@ class FakeSandboxProvider(SandboxProvider):
         rows: int,
         cols: int,
         tmux_session: str,
+        cwd: str,
         on_data: PtyDataCallbackType,
     ) -> str:
         return "pty-1"

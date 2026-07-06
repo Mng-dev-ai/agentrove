@@ -384,6 +384,7 @@ class LocalDockerProvider(SandboxProvider):
         rows: int,
         cols: int,
         tmux_session: str,
+        cwd: str,
         on_data: PtyDataCallbackType,
     ) -> str:
         # Spawn a PTY-attached shell inside the container via docker exec.
@@ -398,12 +399,15 @@ class LocalDockerProvider(SandboxProvider):
             f"command -v tmux >/dev/null && tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off \\; set -g mouse off || exec bash",
         ]
 
+        # Root terminals keep $HOME as the start dir (dotfiles, existing
+        # behavior); worktree terminals must start inside the worktree.
+        workdir = self.resolve_workspace_path(cwd) if cwd else self.config.user_home
         exec_obj = await container.exec(
             cmd=cmd,
             stdin=True,
             tty=True,
             environment={"TERM": TERMINAL_TYPE},
-            workdir=self.config.user_home,
+            workdir=workdir,
         )
         stream = exec_obj.start()
         # aiodocker creates the stream lazily — _init() opens the actual

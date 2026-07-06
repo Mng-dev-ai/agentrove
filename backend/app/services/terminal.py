@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 import shlex
 from asyncio import QueueEmpty, QueueFull
 from dataclasses import dataclass
@@ -17,6 +18,8 @@ from app.services.sandbox_providers.base import SandboxProvider
 
 logger = logging.getLogger(__name__)
 
+TMUX_NAME_UNSAFE_RE = re.compile(r"[^A-Za-z0-9]")
+
 _T = TypeVar("_T")
 
 
@@ -25,6 +28,8 @@ class TerminalSessionRecord:
     user_id: str
     sandbox_id: str
     terminal_id: str
+    # Workspace-relative shell start dir; "" means the workspace root.
+    cwd: str
     sandbox_service: SandboxService
     on_close: Callable[[], None]
     pty_id: str | None = None
@@ -44,6 +49,7 @@ class TerminalSessionRecord:
                 rows,
                 cols,
                 tmux_session,
+                self.cwd,
                 on_data=self._enqueue_output,
             )
             self.input_queue = asyncio.Queue(maxsize=PTY_INPUT_QUEUE_SIZE)
@@ -151,7 +157,12 @@ class TerminalSessionRecord:
         if self.tmux_session_name is None:
             safe_terminal = self.terminal_id.replace("-", "_")
             safe_sandbox = self.sandbox_id.replace("-", "_")
-            self.tmux_session_name = f"agentrove_{safe_sandbox}_{safe_terminal}"
+            name = f"agentrove_{safe_sandbox}_{safe_terminal}"
+            if self.cwd:
+                # Worktree terminals need their own tmux session — reattaching
+                # a root-cwd session would land the user outside the worktree.
+                name += "_" + TMUX_NAME_UNSAFE_RE.sub("_", self.cwd)
+            self.tmux_session_name = name
         return self.tmux_session_name
 
     async def _input_worker(self, session_id: str) -> None:
@@ -236,8 +247,13 @@ class TerminalSessionRegistry:
         self._lock = asyncio.Lock()
 
     @staticmethod
-    def build_session_key(user_id: str, sandbox_id: str, terminal_id: str) -> str:
-        return f"{user_id}:{sandbox_id}:{terminal_id}"
+    def build_session_key(
+        user_id: str, sandbox_id: str, terminal_id: str, cwd: str
+    ) -> str:
+        # cwd is part of the identity — chats in the same workspace share
+        # terminal ids, but a worktree chat must not reattach to a root-cwd
+        # session (or vice versa).
+        return f"{user_id}:{sandbox_id}:{terminal_id}:{cwd}"
 
     async def get_or_create(
         self,
@@ -245,10 +261,11 @@ class TerminalSessionRegistry:
         user_id: str,
         sandbox_id: str,
         terminal_id: str,
+        cwd: str,
         provider_type: SandboxProviderType,
         workspace_path: str | None,
     ) -> TerminalSessionRecord:
-        key = self.build_session_key(user_id, sandbox_id, terminal_id)
+        key = self.build_session_key(user_id, sandbox_id, terminal_id, cwd)
         async with self._lock:
             existing = self._sessions.get(key)
             if existing:
@@ -263,6 +280,7 @@ class TerminalSessionRegistry:
                 user_id=user_id,
                 sandbox_id=sandbox_id,
                 terminal_id=terminal_id,
+                cwd=cwd,
                 sandbox_service=service,
                 on_close=partial(self._remove, key),
             )

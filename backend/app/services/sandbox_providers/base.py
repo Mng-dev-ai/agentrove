@@ -126,9 +126,11 @@ class SandboxProvider:
         rows: int,
         cols: int,
         tmux_session: str,
+        cwd: str,
         on_data: PtyDataCallbackType,
     ) -> str:
-        # Returns the new PTY session id.
+        # Returns the new PTY session id. `cwd` is workspace-relative; ""
+        # means the provider's default start dir.
         raise NotImplementedError
 
     async def send_pty_input(

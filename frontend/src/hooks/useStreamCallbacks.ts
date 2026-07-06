@@ -5,10 +5,9 @@ import toast from 'react-hot-toast';
 import { StreamContentBuffer, type ContentRenderSnapshot } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-import { markChatViewed } from '@/hooks/queries/useChatQueries';
+import { markChatViewed, patchChatInCache } from '@/hooks/queries/useChatQueries';
 import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
-import type { InfiniteData } from '@tanstack/react-query';
 import type {
   AssistantStreamEvent,
   Chat,
@@ -16,7 +15,6 @@ import type {
   Message,
   PermissionRequest,
 } from '@/types/chat.types';
-import type { PaginatedChats } from '@/types/api.types';
 import type { ToolEventPayload } from '@/types/tools.types';
 import {
   StreamProcessingError,
@@ -59,6 +57,12 @@ function updateMessageInCacheForChat(
         })),
       };
     },
+  );
+}
+
+function patchChatWorktreeCwd(queryClient: QueryClient, chatId: string, worktreeCwd: string) {
+  patchChatInCache(queryClient, chatId, (chat) =>
+    chat.worktree_cwd !== worktreeCwd ? { ...chat, worktree_cwd: worktreeCwd } : chat,
   );
 }
 
@@ -498,25 +502,7 @@ export function useStreamCallbacks({
         const worktreeCwd =
           typeof nestedData?.worktree_cwd === 'string' ? nestedData.worktree_cwd : undefined;
         if (worktreeCwd && chatId) {
-          const patchChat = (chat: Chat) =>
-            chat.worktree_cwd !== worktreeCwd ? { ...chat, worktree_cwd: worktreeCwd } : chat;
-
-          queryClient.setQueryData<Chat>(queryKeys.chat(chatId), (prev) =>
-            prev ? patchChat(prev) : prev,
-          );
-          queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
-            { queryKey: [queryKeys.chats, 'infinite'] },
-            (oldData) => {
-              if (!oldData) return oldData;
-              return {
-                ...oldData,
-                pages: oldData.pages.map((page) => ({
-                  ...page,
-                  items: page.items.map((chat) => (chat.id === chatId ? patchChat(chat) : chat)),
-                })),
-              };
-            },
-          );
+          patchChatWorktreeCwd(queryClient, chatId, worktreeCwd);
         }
 
         return;
@@ -861,8 +847,8 @@ export function useStreamCallbacks({
   );
 
   // Stash the latest callbacks in a ref so startStream/replayStream — which are
-  // intentionally stable (empty deps) to avoid re-registering the EventSource —
-  // always dispatch through the freshest closures.
+  // intentionally stable (only the stable queryClient in deps) to avoid
+  // re-registering the EventSource — always dispatch through the freshest closures.
   useEffect(() => {
     optionsRef.current = chatId
       ? { chatId, onEnvelope, onComplete, onError, onQueueProcess }
@@ -873,7 +859,7 @@ export function useStreamCallbacks({
     async (
       request: StreamOptions['request'],
       signal?: AbortSignal,
-    ): Promise<{ messageId: string; checkpointId: string | null }> => {
+    ): Promise<{ messageId: string; checkpointId: string | null; worktreeCwd: string | null }> => {
       const currentOptions = optionsRef.current;
       if (!currentOptions) {
         throw new Error('Stream options not available');
@@ -889,9 +875,16 @@ export function useStreamCallbacks({
         onQueueProcess: currentOptions.onQueueProcess,
       };
 
-      return streamService.startStream(streamOptions);
+      const result = await streamService.startStream(streamOptions);
+      // A first worktree turn creates the worktree during the send request —
+      // patch the cache now so branch/terminal/editor UI switches immediately
+      // instead of waiting for the stream config event.
+      if (result.worktreeCwd) {
+        patchChatWorktreeCwd(queryClient, currentOptions.chatId, result.worktreeCwd);
+      }
+      return result;
     },
-    [],
+    [queryClient],
   );
 
   const replayStream = useCallback(

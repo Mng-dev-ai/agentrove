@@ -178,14 +178,15 @@ export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat):
   queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
 }
 
-// Optimistically clears the unread flag in every cache the chat appears in,
-// then stamps the server-side read marker. Best-effort fire-and-forget: it
-// never rejects — a failed stamp just resurfaces the dot on the next refetch.
-export async function markChatViewed(queryClient: QueryClient, chatId: string): Promise<void> {
-  queryClient.setQueryData<Chat>(queryKeys.chat(chatId), (prev) =>
-    prev ? { ...prev, unread: false } : prev,
-  );
-
+// Canonical "patch one chat everywhere" — applies the same updater to the
+// single-chat query and every infinite chats list, so callers can't update
+// one cache and silently miss the other.
+export function patchChatInCache(
+  queryClient: QueryClient,
+  chatId: string,
+  patch: (chat: Chat) => Chat,
+) {
+  queryClient.setQueryData<Chat>(queryKeys.chat(chatId), (prev) => (prev ? patch(prev) : prev));
   queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
     { queryKey: [queryKeys.chats, 'infinite'] },
     (oldData) => {
@@ -194,12 +195,19 @@ export async function markChatViewed(queryClient: QueryClient, chatId: string): 
         ...oldData,
         pages: oldData.pages.map((page) => ({
           ...page,
-          items: page.items.map((chat) =>
-            chat.id === chatId && chat.unread ? { ...chat, unread: false } : chat,
-          ),
+          items: page.items.map((chat) => (chat.id === chatId ? patch(chat) : chat)),
         })),
       };
     },
+  );
+}
+
+// Optimistically clears the unread flag in every cache the chat appears in,
+// then stamps the server-side read marker. Best-effort fire-and-forget: it
+// never rejects — a failed stamp just resurfaces the dot on the next refetch.
+export async function markChatViewed(queryClient: QueryClient, chatId: string): Promise<void> {
+  patchChatInCache(queryClient, chatId, (chat) =>
+    chat.unread ? { ...chat, unread: false } : chat,
   );
 
   try {

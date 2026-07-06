@@ -210,9 +210,11 @@ class LocalHostProvider(SandboxProvider):
         rows: int,
         cols: int,
         tmux_session: str,
+        cwd: str,
         on_data: PtyDataCallbackType,
     ) -> str:
-        # Spawn a PTY-attached shell in the workspace directory. Tries tmux
+        # Spawn a PTY-attached shell in the workspace directory (or a
+        # workspace-relative cwd, e.g. a chat's worktree). Tries tmux
         # for session persistence across WebSocket reconnections, falls back
         # to the user's default shell if tmux is not installed.
         session_id = str(uuid.uuid4())
@@ -239,7 +241,7 @@ class LocalHostProvider(SandboxProvider):
         process = await asyncio.to_thread(
             subprocess.Popen,
             ["bash", "-lc", cmd],
-            cwd=str(self._workspace),
+            cwd=self.resolve_workspace_path(cwd),
             env=env,
             stdin=slave_fd,
             stdout=slave_fd,

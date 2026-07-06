@@ -9,6 +9,7 @@ import { terminalStorageKey } from '@/utils/terminal';
 export interface ContainerProps {
   sandboxId?: string;
   chatId?: string;
+  worktreeCwd?: string;
   isVisible: boolean;
   panelKey: string;
 }
@@ -18,7 +19,13 @@ interface TerminalInstance {
   label: string;
 }
 
-export const Container: FC<ContainerProps> = ({ sandboxId, chatId, isVisible, panelKey }) => {
+export const Container: FC<ContainerProps> = ({
+  sandboxId,
+  chatId,
+  worktreeCwd,
+  isVisible,
+  panelKey,
+}) => {
   const defaultTerminalId = `terminal-${panelKey}-1`;
   const storageKey = chatId ? terminalStorageKey(chatId, panelKey) : null;
   const [terminals, setTerminals] = useState<TerminalInstance[]>([
@@ -182,6 +189,7 @@ export const Container: FC<ContainerProps> = ({ sandboxId, chatId, isVisible, pa
               isVisible={isVisible && activeTerminalId === terminal.id}
               sandboxId={sandboxId}
               terminalId={terminal.id}
+              cwd={worktreeCwd}
               shouldClose={closingTerminalIds.has(terminal.id)}
               onClosed={() => finalizeCloseTerminal(terminal.id)}
             />
