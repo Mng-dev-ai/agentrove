@@ -33,7 +33,7 @@ export const EnvVarsSettingsTab: React.FC = () => {
       <ListManagementTab<CustomEnvVar>
         title="Environment Variables"
         description="Configure environment variables that will be available in every sandbox. Perfect for API keys like OPENAI_API_KEY, GEMINI_API_KEY, etc."
-        items={localSettings.custom_env_vars}
+        items={localSettings.custom_env_vars ?? []}
         emptyIcon={Key}
         emptyText="No custom environment variables configured yet"
         emptyButtonText="Add Your First Environment Variable"
