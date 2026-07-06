@@ -45,17 +45,19 @@ Backend-specific rules (Python, FastAPI, SQLAlchemy, testing) live in `backend/C
 ## Code Style
 
 ### Comments
+
 - Never use docstrings (`"""..."""`) — always use inline `#` comments
-- Always comment non-obvious logic, implicit conventions, design decisions — comment the *why*, never the *what*
+- Always comment non-obvious logic, implicit conventions, design decisions — comment the _why_, never the _what_
 - Keep comments short — 1–2 lines max. If it needs more, simplify the code or move detail to the PR description
 - Don't delete existing comments without asking — they may capture context not obvious from the code
 - Prefer clear names over comments when code is self-explanatory
 - No decorative section comments (e.g., `# ── Section ──────`)
-- Place comments inside methods/classes, not above them — method comments are the first line in the body, explaining *why* and context (not restating the name)
+- Place comments inside methods/classes, not above them — method comments are the first line in the body, explaining _why_ and context (not restating the name)
 - Good: `# Read from the API host, not the sandbox — sandbox containers don't have the user's global git config`
 - Bad (restates name): `# Yield persisted events after a given seq`
 
 ### Cross-cutting gotchas
+
 - When two methods in the same class share a lifecycle (one always calls the other), don't duplicate work in the caller that the callee already performs
 - When refactoring `try/catch/finally`, preserve cleanup in `finally` — don't move cleanup after an `await` without wrapping in `try/finally`
 - When a caller passes a value to a function that already stores/registers it, don't call a second function to store/register it again
@@ -76,26 +78,31 @@ Backend-specific rules (Python, FastAPI, SQLAlchemy, testing) live in `backend/C
 ## Code Review Guidelines
 
 ### What to fix
+
 - Bugs that break user-visible behavior (wrong event ordering, dropped messages, stale UI state)
 - Correctness issues that silently continue into broken state (e.g., swallowed errors leaving client/server out of sync)
 - Missing TTL/expiry on Redis keys that can leak forever
 - Dead code left behind by the change (unused imports, unreachable branches, orphaned constants)
 
 ### What to skip
+
 - Orphaned DB rows from unlikely failure paths — a stray empty message row is harmless in a single-user app
 - Hypothetical compatibility mismatches when a natural fallback already handles the case
 - Anything the Project Context and Minimalism sections already exempt (concurrency edge cases, state-restoration rollback)
 
 ### Callback closure analysis
+
 - When reviewing React hooks, event handlers, or async stream callbacks, verify which render created the callback before concluding what props/state it closes over
 - Don't infer a closure bug from a helper being parameterized by the current prop/state value unless you've traced creation site, storage, and which instance is invoked later
 - Callbacks stored outside React render flow (refs, Zustand stores, event listeners, stream registries, service singletons) are snapshots of the render that created them — they don't track the currently visible screen or latest hook inputs
 - Before flagging cross-chat/cross-screen/cross-context state contamination, trace the full lifecycle: creation site, captured values, storage location, update path, invocation site
 
 ### Failure-path control flow
+
 - When reviewing error handling, trace the exact path an exception takes through `except`, `raise`, and `return` boundaries before concluding later code is affected
 - Don't flag success-path classification logic as buggy unless you've verified execution can still reach it after the failure
 - In async call chains, follow the failure across helper methods and outer handlers all the way to the final state write
 
 ### Complexity test
+
 Ask: "If this fails, does the user lose data or get stuck?" If no (orphaned row, briefly stale UI), skip. If yes (queued message silently dropped, stream appears frozen), fix.
