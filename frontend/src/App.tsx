@@ -296,7 +296,7 @@ export default function App() {
 
   if (desktopError) {
     return (
-      <div className="bg-surface-primary dark:bg-surface-dark-primary flex min-h-screen flex-col text-text-primary dark:text-text-dark-primary">
+      <div className="flex min-h-screen flex-col bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">
         <DesktopDragRegion />
         <div className="flex flex-1 items-center justify-center">
           <div className="rounded-lg border border-border/50 bg-surface-secondary px-4 py-3 text-xs dark:border-border-dark/50 dark:bg-surface-dark-secondary">

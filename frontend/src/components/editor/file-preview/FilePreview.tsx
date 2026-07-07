@@ -88,9 +88,7 @@ export const FilePreview = memo(function FilePreview({
     }
 
     return createPortal(
-      <div className="bg-surface-primary dark:bg-surface-dark-primary fixed inset-0 z-50">
-        {previewContent}
-      </div>,
+      <div className="fixed inset-0 z-50 bg-surface dark:bg-surface-dark">{previewContent}</div>,
       document.body,
     );
   }

@@ -149,7 +149,7 @@
 - Refer to `frontend/tailwind.config.js` for defined colors
 - Never hardcode hex or default Tailwind colors (`bg-gray-100`, `text-blue-600`, ...)
 - Every light color class must have a `dark:` counterpart, and every `dark:` class a light-mode one — never one without the other
-- Surface tokens: `surface-primary`, `surface-secondary` (most used), `surface-tertiary`, `surface-hover`, `surface-active` — dark variants `surface-dark-*`
+- Surface tokens: `surface` (base/default — there is no `surface-primary`), `surface-secondary` (most used), `surface-tertiary`, `surface-hover`, `surface-active` — dark variants `surface-dark`, `surface-dark-secondary`, etc.
 - Border tokens: `border-border` (default), `border-border-secondary`, `border-border-hover` — dark `border-border-dark-*`; prefer `border-border/50` + `dark:border-border-dark/50` for subtle borders
 - Text tokens: `text-text-primary`, `text-text-secondary`, `text-text-tertiary`, `text-text-quaternary` — dark `text-text-dark-*`
 - **Never use `brand-*` for buttons, switches, highlights, focus rings, or structural elements** — UI is fully monochrome
