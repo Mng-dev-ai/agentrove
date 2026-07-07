@@ -774,6 +774,21 @@ export function useStreamCallbacks({
         clearStreamSession(streamId);
       }
 
+      // The prior turn's complete event is suppressed during a handoff, so stamp
+      // its persisted duration here — otherwise the rollup shows plain "Worked".
+      if (data.priorDurationMs != null) {
+        const applyDuration = (message: Message): Message => ({
+          ...message,
+          duration_ms: data.priorDurationMs,
+        });
+        updateMessageInCacheForChat(queryClient, chatId, data.priorMessageId, applyDuration);
+        if (isCurrentChat) {
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === data.priorMessageId ? applyDuration(msg) : msg)),
+          );
+        }
+      }
+
       const userMessage: Message = {
         id: data.userMessageId,
         chat_id: chatId,
@@ -835,6 +850,9 @@ export function useStreamCallbacks({
 
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setCurrentMessageId(data.assistantMessageId);
+      // Anchor the queued turn to the top like a normal send — Chat's anchor
+      // handshake keys off the pending user message id.
+      setPendingUserMessageId(data.userMessageId);
     },
     [
       flushBufferedContent,
@@ -843,6 +861,7 @@ export function useStreamCallbacks({
       queryClient,
       setMessages,
       setCurrentMessageId,
+      setPendingUserMessageId,
     ],
   );
 
