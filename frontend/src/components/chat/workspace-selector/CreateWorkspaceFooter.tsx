@@ -243,7 +243,7 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
           }}
           placeholder="Workspace name"
           autoFocus
-          className="bg-surface-primary dark:bg-surface-dark-primary h-8 w-full rounded-lg border border-border/50 px-3 text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover dark:border-border-dark/50 dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
+          className="h-8 w-full rounded-lg border border-border/50 bg-surface-tertiary px-3 text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
         />
         <ProviderToggle value={sandboxProvider} onChange={setSandboxProvider} />
         <div className="flex items-center justify-end gap-2">
@@ -305,7 +305,7 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
                 onChange={(e) => setRepoSearchQuery(e.target.value)}
                 placeholder="Search repositories…"
                 autoFocus
-                className="bg-surface-primary dark:bg-surface-dark-primary h-8 w-full rounded-lg border border-border/50 pl-8 pr-3 text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover dark:border-border-dark/50 dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
+                className="h-8 w-full rounded-lg border border-border/50 bg-surface-tertiary pl-8 pr-3 text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
               />
             </div>
             <div className="max-h-[12rem] overflow-y-auto">
@@ -348,7 +348,7 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
               placeholder="https://github.com/org/repo.git"
               autoFocus
               disabled={createWorkspace.isPending}
-              className="bg-surface-primary dark:bg-surface-dark-primary h-8 w-full rounded-lg border border-border/50 px-3 font-mono text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover disabled:opacity-50 dark:border-border-dark/50 dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
+              className="h-8 w-full rounded-lg border border-border/50 bg-surface-tertiary px-3 font-mono text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover disabled:opacity-50 dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
             />
             {!hasGitHubToken && (
               <p className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">

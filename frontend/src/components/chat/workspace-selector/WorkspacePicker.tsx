@@ -88,7 +88,7 @@ export function WorkspacePicker({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search workspaces…"
                   autoFocus
-                  className="bg-surface-primary dark:bg-surface-dark-primary h-8 w-full rounded-lg border border-border/50 pl-8 pr-3 text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover dark:border-border-dark/50 dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
+                  className="h-8 w-full rounded-lg border border-border/50 bg-surface-tertiary pl-8 pr-3 text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
                 />
               </div>
             </div>
