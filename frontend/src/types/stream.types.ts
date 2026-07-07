@@ -34,6 +34,10 @@ export interface QueueProcessingData {
   content: string;
   modelId: string;
   attachments?: MessageAttachment[];
+  // The handoff suppresses the prior turn's complete event, so its persisted
+  // run duration rides along here for the "Worked for X" rollup label.
+  priorMessageId: string;
+  priorDurationMs: number | null;
 }
 
 export interface ApiStreamResponse {

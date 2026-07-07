@@ -411,7 +411,9 @@ class ChatStreamRuntime:
             # If there's a queued follow-up message, start it immediately in this
             # same background task chain — the "complete" event is deferred until
             # the entire queue is drained so the client stays in streaming mode.
-            queue_processed = await self._process_next_queued()
+            queue_processed = await self._process_next_queued(
+                prior_duration_ms=duration_ms
+            )
             if not queue_processed:
                 await self._emit_context_usage(stream_result)
                 await self.emit_event(
@@ -425,7 +427,9 @@ class ChatStreamRuntime:
             # cancelled (and its handler.finish() sentinel already fired)
             # before the new prompt begins on the same shared handler.
             await self._close_stream()
-            if await self._process_next_queued(send_now_only=True):
+            if await self._process_next_queued(
+                send_now_only=True, prior_duration_ms=duration_ms
+            ):
                 session_registry.consume_pending_cancel(self.chat_id)
                 return final_content
             await self._emit_context_usage(stream_result)
@@ -487,7 +491,9 @@ class ChatStreamRuntime:
         if exc:
             logger.error("Session update task failed: %s", exc)
 
-    async def _process_next_queued(self, *, send_now_only: bool = False) -> bool:
+    async def _process_next_queued(
+        self, *, send_now_only: bool = False, prior_duration_ms: int | None = None
+    ) -> bool:
         next_msg: dict[str, Any] | None = None
         try:
             async with cache_connection() as cache:
@@ -540,6 +546,9 @@ class ChatStreamRuntime:
                     "attachments": MessageService.serialize_attachments(
                         next_msg, user_message
                     ),
+                    # The prior turn's terminal event is suppressed during a queue
+                    # handoff, so ship its persisted duration here for the rollup.
+                    "prior_duration_ms": prior_duration_ms,
                 },
                 apply_snapshot=False,
             )

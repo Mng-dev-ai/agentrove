@@ -112,6 +112,7 @@ class StreamService {
       checkpoint_id?: string | null;
       content?: string;
       model_id: string;
+      prior_duration_ms?: number | null;
       attachments?: Array<{
         id: string;
         message_id: string;
@@ -144,6 +145,11 @@ class StreamService {
         content: payload.content,
         modelId: payload.model_id,
         attachments: payload.attachments,
+        // The handoff envelope is emitted by the finishing stream, so its
+        // messageId is the prior turn's assistant message.
+        priorMessageId: envelope.messageId,
+        priorDurationMs:
+          typeof payload.prior_duration_ms === 'number' ? payload.prior_duration_ms : null,
       });
     }
   }
@@ -171,10 +177,12 @@ class StreamService {
       chatStorage.setEventId(chatId, String(seq));
     }
 
-    // Queue handoff events carry the old assistant message ID but must be processed
-    // before the messageId filter — they update the stream's messageId for subsequent events.
+    // Queue handoff events are fully owned by maybeHandleQueueEvent — routing them
+    // on to onEnvelope would clear the pending id onQueueProcess just set for the
+    // queued turn's anchor, and nothing downstream consumes this kind anyway.
     if (parsed.kind === 'queue_processing') {
       this.maybeHandleQueueEvent(parsed, chatId);
+      return;
     }
 
     const isForActiveMessage = parsed.messageId === currentStream.messageId;
