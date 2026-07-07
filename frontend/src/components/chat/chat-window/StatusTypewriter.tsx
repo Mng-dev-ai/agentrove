@@ -8,6 +8,9 @@ const DELETE_MS = 30;
 const HOLD_MS = 1800;
 const GAP_MS = 300;
 
+// Count the in-progress second so the timer reads 1s the moment it appears, not 0s
+const secondsSince = (start: number) => Math.max(1, Math.ceil((Date.now() - start) / 1000));
+
 interface StatusTypewriterProps {
   streamStartTime?: number;
 }
@@ -15,27 +18,28 @@ interface StatusTypewriterProps {
 export const StatusTypewriter = memo(function StatusTypewriter({
   streamStartTime,
 }: StatusTypewriterProps) {
-  const [elapsed, setElapsed] = useState(0);
-  const [text, setText] = useState('');
-  const [deleting, setDeleting] = useState(false);
-  const [verbIndex, setVerbIndex] = useState(0);
   // Seed from the active stream's start so the timer survives chat switches —
   // the indicator sits inside the chat-keyed scroller and remounts on switch.
   // Fall back to mount time when loading begins before the stream exists yet.
   const startTime = useRef(streamStartTime ?? Date.now());
+  const [elapsed, setElapsed] = useState(() => secondsSince(startTime.current));
+  const [text, setText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [verbIndex, setVerbIndex] = useState(0);
   // Adopt the real stream start when it arrives after mount instead of remounting
   // via key — a remount would restart the typewriter and replay the fade-in.
+  // A cleared prop means a new turn is loading (queued message, stop-then-resend) —
+  // restart the clock instead of carrying the old stream's elapsed forward.
   const prevStreamStart = useRef(streamStartTime);
   if (prevStreamStart.current !== streamStartTime) {
     prevStreamStart.current = streamStartTime;
-    if (streamStartTime != null) {
-      startTime.current = streamStartTime;
-    }
+    startTime.current = streamStartTime ?? Date.now();
+    setElapsed(secondsSince(startTime.current));
   }
 
   useMountEffect(() => {
     const interval = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTime.current) / 1000));
+      setElapsed(secondsSince(startTime.current));
     }, 1000);
 
     return () => clearInterval(interval);
@@ -88,11 +92,9 @@ export const StatusTypewriter = memo(function StatusTypewriter({
           />
         </span>
 
-        {elapsed > 0 && (
-          <span className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
-            · {elapsed}s
-          </span>
-        )}
+        <span className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
+          · {elapsed}s
+        </span>
       </div>
     </div>
   );
