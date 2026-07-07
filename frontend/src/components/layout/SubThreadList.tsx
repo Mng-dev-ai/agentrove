@@ -1,7 +1,9 @@
-import { memo, useState, useCallback } from 'react';
-import { AlertCircle, Check, Loader2, MoreHorizontal } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { MoreHorizontal } from 'lucide-react';
 import { useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
+import { AsciiSpinner } from '@/components/ui/AsciiSpinner';
+import { ChatStatusDot, chatStatusTone, type ChatStatusTone } from '@/components/ui/ChatStatusDot';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -36,8 +38,24 @@ const SubThreadRow = memo(function SubThreadRow({
   onMouseLeave,
 }: SubThreadRowProps) {
   const agentKind = useChatAgentKind(thread.id, thread.session_agent_kind);
+  // Same status language as top-level rows: red dot = needs you, braille spinner =
+  // running, green dot = done. Persistent on the leading icon (visible on hover).
+  const status = chatStatusTone({
+    blocked: isBlocked,
+    streaming: isStreaming,
+    completed: isCompleted,
+  });
+  const showSpinner = status === 'running';
+  const statusTone: ChatStatusTone | null = showSpinner ? null : status;
+  const hasLeadingSlot = agentKind != null || status != null;
+  // Keep the active sub-thread visible when navigation lands on an off-screen row
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isActive) rowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [isActive]);
   return (
     <div
+      ref={rowRef}
       className={cn(
         'group relative flex items-center rounded-lg transition-colors duration-200',
         isActive
@@ -61,11 +79,24 @@ const SubThreadRow = memo(function SubThreadRow({
               : 'text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary',
           )}
         >
-          {agentKind && (
-            <ProviderIcon
-              agentKind={agentKind}
-              className="h-3 w-3 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary"
-            />
+          {hasLeadingSlot && (
+            <span className="relative flex h-3 w-3 flex-shrink-0 items-center justify-center">
+              {showSpinner ? (
+                <AsciiSpinner className="text-base leading-none" />
+              ) : agentKind ? (
+                <ProviderIcon
+                  agentKind={agentKind}
+                  className="h-3 w-3 text-text-tertiary dark:text-text-dark-tertiary"
+                />
+              ) : null}
+              {statusTone && (
+                <ChatStatusDot
+                  tone={statusTone}
+                  className={cn(agentKind && 'absolute -right-0.5 -top-0.5')}
+                  ringClassName="ring-1 ring-surface-secondary dark:ring-surface-dark-secondary"
+                />
+              )}
+            </span>
           )}
           <span className={cn('truncate text-xs', isActive && 'font-medium')}>
             {stripMarkdownTitle(thread.title)}
@@ -73,25 +104,15 @@ const SubThreadRow = memo(function SubThreadRow({
         </Button>
       </FloatingTooltip>
 
-      {/* Icon-only status — sub-thread rows are too tight for the labeled
-          badges top-level chats use. Same precedence: blocked > running > done. */}
+      {/* Status now lives on the leading icon; the right slot shows the timestamp
+          and hides on hover to reveal the dropdown. */}
       <span
         className={cn(
-          'absolute right-2 flex items-center transition-opacity duration-200',
+          'absolute right-2 flex items-center text-[10px] tabular-nums text-text-quaternary transition-opacity duration-200 dark:text-text-dark-quaternary',
           isHovered || isActive ? 'opacity-0' : 'opacity-100',
         )}
       >
-        {isBlocked ? (
-          <AlertCircle className="h-3 w-3 animate-pulse text-warning-500" />
-        ) : isStreaming ? (
-          <Loader2 className="h-3 w-3 animate-spin text-warning-500" />
-        ) : isCompleted ? (
-          <Check className="h-3 w-3 text-success-600 dark:text-success-400" />
-        ) : (
-          <span className="text-[10px] tabular-nums text-text-quaternary dark:text-text-dark-quaternary">
-            {getRelativeTime(thread.updated_at)}
-          </span>
-        )}
+        {getRelativeTime(thread.updated_at)}
       </span>
 
       <Button
