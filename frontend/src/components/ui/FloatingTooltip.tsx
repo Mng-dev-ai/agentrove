@@ -89,7 +89,7 @@ export function FloatingTooltip({ content, children, className }: FloatingToolti
             role="tooltip"
             style={{ top: position.top, left: position.left }}
             className={cn(
-              'pointer-events-none fixed z-50 max-w-[280px] whitespace-pre-line break-words rounded px-2 py-1',
+              'pointer-events-none fixed z-[210] max-w-[280px] whitespace-pre-line break-words rounded px-2 py-1',
               'animate-fade-in bg-surface-tertiary text-xs font-medium text-text-primary shadow-lg',
               'dark:bg-surface-dark-tertiary dark:text-text-dark-primary',
             )}
