@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
-import { AlertCircle, Check, Loader2, Plus, X, type LucideIcon } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
+import { AsciiSpinner } from '@/components/ui/AsciiSpinner';
+import { ChatStatusDot, type ChatStatusTone } from '@/components/ui/ChatStatusDot';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -20,14 +22,6 @@ const STATUS_LABELS: Record<ChatTabStatus, string> = {
   blocked: 'Needs you',
   streaming: 'Running',
   completed: 'Done',
-};
-
-// Same status language as the sidebar, in its icon-only compact form (like
-// sub-thread rows): pulsing amber = needs you, spinner = running, check = done.
-const STATUS_ICON: Record<ChatTabStatus, { Icon: LucideIcon; className: string }> = {
-  blocked: { Icon: AlertCircle, className: 'animate-pulse text-warning-500' },
-  streaming: { Icon: Loader2, className: 'animate-spin text-warning-500' },
-  completed: { Icon: Check, className: 'text-success-600 dark:text-success-400' },
 };
 
 interface ChatTabProps {
@@ -50,7 +44,9 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   }, [isChatGone, chatId]);
 
   const title = chatQuery.data?.title ? stripMarkdownTitle(chatQuery.data.title) : '…';
-  const statusIcon = status ? STATUS_ICON[status] : null;
+  // Streaming renders the braille spinner separately; blocked/completed are
+  // already ChatStatusTone values, so they map straight to a dot.
+  const statusDotTone: ChatStatusTone | null = status && status !== 'streaming' ? status : null;
   const agentKind = useChatAgentKind(chatId, chatQuery.data?.session_agent_kind);
 
   return (
@@ -81,10 +77,16 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
           aria-current={isCurrent ? 'page' : undefined}
           className="flex w-full min-w-0 items-center gap-1.5 text-left text-2xs font-medium"
         >
-          {/* The status icon claims the icon slot while a status is live; at rest
+          {/* The status glyph claims the icon slot while a status is live; at rest
               the chat's provider glyph (Claude, Codex…) matches the sidebar. */}
-          {statusIcon ? (
-            <statusIcon.Icon className={cn('h-3 w-3 flex-shrink-0', statusIcon.className)} />
+          {status === 'streaming' ? (
+            <AsciiSpinner className="w-3 flex-shrink-0 text-center text-sm leading-none" />
+          ) : statusDotTone ? (
+            // h-3 w-3 box centers the 8px dot in the provider icon's footprint
+            <ChatStatusDot
+              tone={statusDotTone}
+              className="h-3 w-3 flex-shrink-0 items-center justify-center"
+            />
           ) : (
             agentKind && <ProviderIcon agentKind={agentKind} className="h-3 w-3 flex-shrink-0" />
           )}
