@@ -1,5 +1,5 @@
 import { memo, useMemo, useCallback } from 'react';
-import { ChevronRight, ExternalLink, Undo2 } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Circle, ExternalLink, Undo2 } from 'lucide-react';
 import { FileIcon } from '@/components/ui/shared/FileIcon';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Button } from '@/components/ui/primitives/Button';
@@ -126,7 +126,7 @@ function FileStats({ stats }: { stats: FileChangeStats | undefined }) {
   if (!stats || (stats.additions === 0 && stats.deletions === 0)) return null;
 
   return (
-    <span className="flex shrink-0 items-center gap-1.5 pr-3 font-mono text-2xs">
+    <span className="flex shrink-0 items-center gap-1.5 pr-2 font-mono text-2xs">
       {stats.additions > 0 && (
         <span className="text-success-600 dark:text-success-400">+{stats.additions}</span>
       )}
@@ -155,6 +155,7 @@ function FileStatusBadge({ type }: { type?: string }) {
 export const DiffFileRow = memo(function DiffFileRow({
   file,
   isExpanded,
+  isReviewed,
   stats,
   canDiscard,
   discardPending,
@@ -164,6 +165,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   commentRange,
   isComposing,
   onToggle,
+  onToggleReviewed,
   onDiscard,
   onSelectionChange,
   onSelectionEnd,
@@ -172,6 +174,7 @@ export const DiffFileRow = memo(function DiffFileRow({
 }: {
   file: FileDiffMetadata;
   isExpanded: boolean;
+  isReviewed: boolean;
   stats: FileChangeStats | undefined;
   canDiscard: boolean;
   discardPending: boolean;
@@ -181,6 +184,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   commentRange: SelectedLineRange | null;
   isComposing: boolean;
   onToggle: (name: string) => void;
+  onToggleReviewed: (name: string) => void;
   onDiscard: (file: FileDiffMetadata) => void;
   onSelectionChange: (fileName: string, range: SelectedLineRange | null) => void;
   onSelectionEnd: (fileName: string, range: SelectedLineRange | null) => void;
@@ -260,6 +264,32 @@ export const DiffFileRow = memo(function DiffFileRow({
           </FloatingTooltip>
         )}
         <FileStats stats={stats} />
+        <FloatingTooltip
+          content={isReviewed ? 'Reviewed — click to unmark' : 'Mark as reviewed'}
+          className="mr-3 flex shrink-0"
+        >
+          <Button
+            variant="unstyled"
+            type="button"
+            onClick={() => onToggleReviewed(file.name)}
+            aria-pressed={isReviewed}
+            aria-label={
+              isReviewed ? `Mark ${file.name} as not reviewed` : `Mark ${file.name} as reviewed`
+            }
+            className={cn(
+              'rounded-md p-1 transition-colors duration-200',
+              isReviewed
+                ? 'text-success-600 dark:text-success-400'
+                : 'text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
+            )}
+          >
+            {isReviewed ? (
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            ) : (
+              <Circle className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        </FloatingTooltip>
       </div>
       {isExpanded && (
         <FileDiffRenderer

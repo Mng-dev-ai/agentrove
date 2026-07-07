@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { Undo2 } from 'lucide-react';
+import { CheckCircle2, Circle } from 'lucide-react';
 import type { FileDiffMetadata } from '@pierre/diffs';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
@@ -77,17 +77,13 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
   statsByFile,
   activeFile,
   onSelectFile,
-  canDiscard,
-  onDiscardAll,
-  discardPending,
+  reviewedFiles,
 }: {
   files: FileDiffMetadata[];
   statsByFile: Map<string, FileChangeStats>;
   activeFile: string | null;
   onSelectFile: (name: string) => void;
-  canDiscard: boolean;
-  onDiscardAll: () => void;
-  discardPending: boolean;
+  reviewedFiles: Set<string>;
 }) {
   // Git emits paths sorted, so same-directory files are contiguous — consecutive
   // grouping is enough, no tree build needed.
@@ -143,6 +139,7 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
             {group.dir && <DirLabel dir={group.dir} />}
             {group.files.map((file) => {
               const isActive = file.name === activeFile;
+              const isReviewed = reviewedFiles.has(file.name);
               const badge = file.type ? SIDEBAR_BADGES[file.type] : undefined;
               const stats = statsByFile.get(file.name);
               return (
@@ -167,6 +164,11 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
                         : 'border-transparent hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
                     )}
                   >
+                    {isReviewed ? (
+                      <CheckCircle2 className="h-3 w-3 shrink-0 text-success-600 dark:text-success-400" />
+                    ) : (
+                      <Circle className="h-3 w-3 shrink-0 text-text-quaternary/60 dark:text-text-dark-quaternary/60" />
+                    )}
                     <span
                       className={cn(
                         'min-w-0 flex-1 truncate font-mono text-2xs',
@@ -196,21 +198,6 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
           </div>
         ))}
       </div>
-
-      {canDiscard && (
-        <div className="shrink-0 border-t border-border/50 p-1.5 dark:border-border-dark/50">
-          <Button
-            variant="unstyled"
-            type="button"
-            disabled={discardPending}
-            onClick={onDiscardAll}
-            className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-2xs text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
-          >
-            <Undo2 className="h-3 w-3" />
-            Discard all changes
-          </Button>
-        </div>
-      )}
     </div>
   );
 });

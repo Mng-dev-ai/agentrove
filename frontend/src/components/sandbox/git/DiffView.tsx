@@ -3,12 +3,15 @@ import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { useToggleSet } from '@/hooks/useToggleSet';
 import { useAnchoredPanel } from '@/hooks/useAnchoredPanel';
+import { useDiffReviewStore } from '@/store/diffReviewStore';
 import {
   AlertCircle,
   ChevronDown,
   ChevronsUpDown,
   GitCompareArrows,
+  MoreHorizontal,
   RotateCcw,
+  Undo2,
   type LucideIcon,
 } from 'lucide-react';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
@@ -86,11 +89,22 @@ const DIFF_UNSAFE_CSS =
 const NARROW_BREAKPOINT = 600;
 
 const FILES_PANEL_WIDTH = 256;
+const OVERFLOW_PANEL_WIDTH = 220;
 
 // 6px below trigger, left-aligned, clamped so the panel stays on screen.
 const computeMenuPos = (rect: DOMRect) => ({
   top: rect.bottom + 6,
   left: Math.max(8, Math.min(rect.left, window.innerWidth - FILES_PANEL_WIDTH - 8)),
+});
+
+// 6px below trigger, right-aligned to the trigger (overflow lives at the
+// toolbar's right edge), clamped so the panel stays on screen.
+const computeOverflowMenuPos = (rect: DOMRect) => ({
+  top: rect.bottom + 6,
+  left: Math.max(
+    8,
+    Math.min(rect.right - OVERFLOW_PANEL_WIDTH, window.innerWidth - OVERFLOW_PANEL_WIDTH - 8),
+  ),
 });
 
 // Nearest scrollable ancestor, bounded to the diff pane — the Virtualizer owns
@@ -241,6 +255,15 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     jumpRafRef.current = 0;
   }, []);
 
+  // Files we collapsed because they were marked reviewed. Tracked so we can tell
+  // a review-collapse apart from a manual one and re-expand it if the ✓ later
+  // invalidates (content changed) — the changed diff must not stay hidden.
+  const reviewCollapsedRef = useRef<Set<string>>(new Set());
+  // Latest collapsedFiles for reads inside the stable toggleReviewed callback,
+  // so it can spot a pre-existing manual collapse without depending on the set.
+  const collapsedFilesRef = useRef(collapsedFiles);
+  collapsedFilesRef.current = collapsedFiles;
+
   // Callback ref instead of an effect — the root div appears only once a
   // sandbox is connected, so a mount-only effect could observe nothing.
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
@@ -265,15 +288,17 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   if (prevScopeRef.current !== scopeKey) {
     prevScopeRef.current = scopeKey;
     setCollapsedFiles(new Set());
+    reviewCollapsedRef.current = new Set();
     setDiscardTarget(null);
     setDiscardAllOpen(false);
     setActiveFile(null);
     resetComments();
   }
 
-  // Narrow-mode file dropdown — portaled to escape the toolbar's
-  // overflow-x-auto clip (CSS clips both axes).
+  // Narrow-mode file dropdown, and the secondary-actions overflow menu — both
+  // portaled to escape the toolbar's clip and stacking context.
   const filesMenu = useAnchoredPanel(computeMenuPos);
+  const overflowMenu = useAnchoredPanel(computeOverflowMenuPos);
 
   const handleDiscard = useCallback(async () => {
     if (!sandboxId || !discardTarget) return;
@@ -309,12 +334,13 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     }
   }, [sandboxId, cwd, restoreAll]);
 
-  // Closing the file dropdown is a no-op when it isn't open, so wide and narrow
-  // sidebars share these handlers.
+  // Closing a menu is a no-op when it isn't open, so every discard-all trigger
+  // (toolbar, overflow menu, empty state) shares this handler.
   const openDiscardAll = useCallback(() => {
     setDiscardAllOpen(true);
     filesMenu.close();
-  }, [filesMenu.close]);
+    overflowMenu.close();
+  }, [filesMenu.close, overflowMenu.close]);
 
   const diffContent = diffData?.diff ?? '';
   const diffCacheKey = useMemo(
@@ -350,6 +376,61 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     return map;
   }, [parsedFiles]);
 
+  const totals = useMemo(() => {
+    let additions = 0;
+    let deletions = 0;
+    for (const stats of statsByFile.values()) {
+      additions += stats.additions;
+      deletions += stats.deletions;
+    }
+    return { additions, deletions };
+  }, [statsByFile]);
+
+  // path -> `path\0contentHash`. The hash folds a file's changed lines in, so a
+  // key stored as "reviewed" stops matching once the file's content shifts.
+  const reviewKeyByFile = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const file of parsedFiles) {
+      const content = `${file.deletionLines.join('')}\0${file.additionLines.join('')}`;
+      map.set(file.name, `${file.name}\0${hashDiffContent(content)}`);
+    }
+    return map;
+  }, [parsedFiles]);
+
+  // Persisted reviewed keys for this scope (survives reloads). Undefined until
+  // the user marks anything, so default to empty.
+  const reviewedKeys = useDiffReviewStore((s) => s.reviewedByScope[scopeKey]);
+
+  // Names whose current key is marked reviewed — only ever holds live files, so
+  // stale keys left behind by edits don't inflate the count.
+  const reviewedNames = useMemo(() => {
+    const stored = new Set(reviewedKeys ?? []);
+    const names = new Set<string>();
+    reviewKeyByFile.forEach((key, name) => {
+      if (stored.has(key)) names.add(name);
+    });
+    return names;
+  }, [reviewKeyByFile, reviewedKeys]);
+
+  // Re-expand any review-collapsed file whose ✓ just invalidated (its content
+  // changed, so reviewedNames dropped it). Render-phase reconcile — cheaper than
+  // an effect, and self-terminating since each name is removed once reopened.
+  if (reviewCollapsedRef.current.size > 0) {
+    const reopen: string[] = [];
+    reviewCollapsedRef.current.forEach((name) => {
+      if (!reviewedNames.has(name)) reopen.push(name);
+    });
+    if (reopen.length > 0) {
+      for (const name of reopen) reviewCollapsedRef.current.delete(name);
+      setCollapsedFiles((prev) => {
+        const next = new Set(prev);
+        let changed = false;
+        for (const name of reopen) if (next.delete(name)) changed = true;
+        return changed ? next : prev;
+      });
+    }
+  }
+
   // Refetches can drop the tracked file (e.g. after a discard) — fall back to
   // the first file so the sidebar highlight never points at a missing row.
   const currentFile =
@@ -370,6 +451,8 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   const jumpToFile = useCallback(
     (name: string) => {
       setActiveFile(name);
+      // Expanding to show the file releases our review-collapse claim on it.
+      reviewCollapsedRef.current.delete(name);
       setCollapsedFiles((prev) => {
         if (!prev.has(name)) return prev;
         const next = new Set(prev);
@@ -435,12 +518,63 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     parsedFiles.length > 0 && parsedFiles.every((f) => collapsedFiles.has(f.name));
 
   const toggleAll = useCallback(() => {
+    // A bulk collapse/expand is a user override — drop all review-collapse
+    // ownership so a later un-review/invalidation won't fight the user's choice.
+    reviewCollapsedRef.current = new Set();
     setCollapsedFiles((prev) => {
       const allOff = parsedFiles.length > 0 && parsedFiles.every((f) => prev.has(f.name));
       if (allOff) return new Set();
       return new Set(parsedFiles.map((f) => f.name));
     });
   }, [parsedFiles, setCollapsedFiles]);
+
+  // Chevron/header toggle — manually changing a file's collapse hands ownership
+  // back to the user, so drop our review-collapse claim on it first.
+  const handleToggleCollapsed = useCallback(
+    (name: string) => {
+      reviewCollapsedRef.current.delete(name);
+      toggleCollapsed(name);
+    },
+    [toggleCollapsed],
+  );
+
+  const toggleAllFromMenu = useCallback(() => {
+    toggleAll();
+    overflowMenu.close();
+  }, [toggleAll, overflowMenu.close]);
+
+  const toggleReviewed = useCallback(
+    (name: string) => {
+      const key = reviewKeyByFile.get(name);
+      if (!key) return;
+      const store = useDiffReviewStore.getState();
+      const willReview = !(store.reviewedByScope[scopeKey]?.includes(key) ?? false);
+      store.toggleReviewed(scopeKey, key);
+      // Collapse on review / reopen on un-review, mirroring GitHub's "Viewed".
+      if (willReview) {
+        // Only auto-collapse (and claim it as ours) when the file isn't already
+        // collapsed — a manual collapse must outlive a later un-review/invalidate.
+        if (!collapsedFilesRef.current.has(name)) {
+          reviewCollapsedRef.current.add(name);
+          setCollapsedFiles((prev) => {
+            if (prev.has(name)) return prev;
+            const next = new Set(prev);
+            next.add(name);
+            return next;
+          });
+        }
+      } else if (reviewCollapsedRef.current.delete(name)) {
+        // Un-review reopens only the collapse we added, never a manual one.
+        setCollapsedFiles((prev) => {
+          if (!prev.has(name)) return prev;
+          const next = new Set(prev);
+          next.delete(name);
+          return next;
+        });
+      }
+    },
+    [reviewKeyByFile, scopeKey, setCollapsedFiles],
+  );
 
   const isLoading = isFetching && !diffData;
   const isGitRepo = diffData?.is_git_repo ?? false;
@@ -520,10 +654,17 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
       statsByFile={statsByFile}
       activeFile={currentFile}
       onSelectFile={selectFile}
-      canDiscard={canDiscard}
-      onDiscardAll={openDiscardAll}
-      discardPending={restoreAll.isPending}
+      reviewedFiles={reviewedNames}
     />
+  ) : null;
+
+  // Diffstat surfaced in the toolbar so change size stays visible when the
+  // sidebar is collapsed (narrow tiles) or scrolled away.
+  const diffstat = showFiles ? (
+    <div className="flex shrink-0 items-center gap-1.5 font-mono text-2xs">
+      <span className="text-success-600 dark:text-success-400">+{totals.additions}</span>
+      <span className="text-error-600 dark:text-error-400">&minus;{totals.deletions}</span>
+    </div>
   ) : null;
 
   return (
@@ -535,7 +676,8 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
         ref={rootRefCallback}
         className="flex h-full w-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary"
       >
-        <div className="flex h-9 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-border/50 px-3 [scrollbar-width:none] dark:border-border-dark/50 [&::-webkit-scrollbar]:hidden">
+        <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-border/50 px-3 dark:border-border-dark/50">
+          {/* Scope cluster — refresh + which changes to show. */}
           <FloatingTooltip content="Refresh diff" className="flex shrink-0">
             <Button
               onClick={() => refetch()}
@@ -557,6 +699,7 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
             className="shrink-0"
           />
 
+          {/* Narrow tiles collapse the sidebar into this file switcher. */}
           {isNarrow && showFiles && currentFile && (
             <>
               <Button
@@ -565,17 +708,17 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
                 variant="unstyled"
                 aria-haspopup="menu"
                 aria-expanded={filesMenu.isOpen}
-                className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 transition-colors duration-200 hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
+                className="flex min-w-0 items-center gap-1 rounded-md px-1.5 py-1 transition-colors duration-200 hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
               >
                 <span className="max-w-36 truncate font-mono text-2xs text-text-secondary dark:text-text-dark-secondary">
                   {currentFile.slice(currentFile.lastIndexOf('/') + 1)}
                 </span>
-                <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                <span className="shrink-0 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
                   {parsedFiles.findIndex((f) => f.name === currentFile) + 1}/{parsedFiles.length}
                 </span>
                 <ChevronDown
                   className={cn(
-                    'h-3 w-3 text-text-quaternary transition-transform duration-200 dark:text-text-dark-quaternary',
+                    'h-3 w-3 shrink-0 text-text-quaternary transition-transform duration-200 dark:text-text-dark-quaternary',
                     filesMenu.isOpen && 'rotate-180',
                   )}
                 />
@@ -598,34 +741,113 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
             </>
           )}
 
+          {/* Wide: diffstat sits beside the scope. Narrow: it's pushed right,
+              next to the overflow menu (rendered after the spacer below). */}
+          {!isNarrow && diffstat}
+
           <div className="min-w-0 flex-1" />
 
-          {showFiles && (
-            <>
-              <FloatingTooltip
-                content={allCollapsed ? 'Expand all files' : 'Collapse all files'}
-                className="flex shrink-0"
-              >
-                <Button
-                  onClick={toggleAll}
-                  variant="unstyled"
-                  className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
-                  aria-label={allCollapsed ? 'Expand all files' : 'Collapse all files'}
-                >
-                  <ChevronsUpDown className="h-3 w-3" />
-                </Button>
-              </FloatingTooltip>
-              <div className="h-3 w-px shrink-0 bg-border/50 dark:bg-border-dark/50" />
-            </>
+          {isNarrow && diffstat}
+
+          {/* Review progress — a glanceable "how far through this diff am I".
+              Hidden on narrow tiles where the toolbar is already tight. */}
+          {!isNarrow && showFiles && (
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="h-1 w-14 overflow-hidden rounded-full bg-surface-tertiary dark:bg-surface-dark-tertiary">
+                <div
+                  className="h-full rounded-full bg-text-primary transition-[width] duration-300 dark:bg-text-dark-primary"
+                  style={{
+                    width: `${parsedFiles.length > 0 ? (reviewedNames.size / parsedFiles.length) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+              <span className="whitespace-nowrap text-2xs tabular-nums text-text-tertiary dark:text-text-dark-tertiary">
+                {reviewedNames.size}/{parsedFiles.length} reviewed
+              </span>
+            </div>
           )}
 
-          <SegmentedControl
-            options={DIFF_STYLE_OPTIONS}
-            value={diffStyle}
-            onChange={setDiffStyle}
-            size="sm"
-            className="shrink-0"
-          />
+          {/* Diff style stays inline on wide (the primary always-on preference);
+              narrow tucks it into the overflow menu to save room. */}
+          {!isNarrow && (
+            <SegmentedControl
+              options={DIFF_STYLE_OPTIONS}
+              value={diffStyle}
+              onChange={setDiffStyle}
+              size="sm"
+              className="shrink-0"
+            />
+          )}
+
+          {/* Secondary actions (collapse/discard, plus diff style on narrow)
+              live in one overflow menu instead of cryptic toolbar icons. On
+              wide it only exists when there are files to act on. */}
+          {(isNarrow || showFiles) && (
+            <>
+              <Button
+                ref={overflowMenu.triggerRef}
+                onClick={overflowMenu.toggle}
+                variant="unstyled"
+                aria-haspopup="menu"
+                aria-expanded={overflowMenu.isOpen}
+                aria-label="More diff options"
+                className="shrink-0 rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+              {overflowMenu.isOpen &&
+                createPortal(
+                  <div
+                    ref={overflowMenu.panelRef}
+                    style={{
+                      top: overflowMenu.pos.top,
+                      left: overflowMenu.pos.left,
+                      width: OVERFLOW_PANEL_WIDTH,
+                    }}
+                    className="fixed z-50 flex animate-fade-in flex-col gap-0.5 overflow-hidden rounded-xl border border-border bg-surface-secondary/95 p-1 shadow-medium backdrop-blur-xl backdrop-saturate-150 dark:border-border-dark dark:bg-surface-dark-secondary/95"
+                  >
+                    {showFiles && (
+                      <Button
+                        variant="unstyled"
+                        onClick={toggleAllFromMenu}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-2xs text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+                      >
+                        <ChevronsUpDown className="h-3 w-3" />
+                        {allCollapsed ? 'Expand all files' : 'Collapse all files'}
+                      </Button>
+                    )}
+                    {showFiles && canDiscard && (
+                      <Button
+                        variant="unstyled"
+                        disabled={restoreAll.isPending}
+                        onClick={openDiscardAll}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-2xs text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+                      >
+                        <Undo2 className="h-3 w-3" />
+                        Discard all changes
+                      </Button>
+                    )}
+                    {isNarrow && showFiles && (
+                      <div className="mx-1 my-0.5 h-px bg-border/50 dark:bg-border-dark/50" />
+                    )}
+                    {isNarrow && (
+                      <div className="flex items-center justify-between px-2 py-1">
+                        <span className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">
+                          Diff style
+                        </span>
+                        <SegmentedControl
+                          options={DIFF_STYLE_OPTIONS}
+                          value={diffStyle}
+                          onChange={setDiffStyle}
+                          size="sm"
+                        />
+                      </div>
+                    )}
+                  </div>,
+                  document.body,
+                )}
+            </>
+          )}
         </div>
 
         <div className="flex min-h-0 flex-1">
@@ -684,6 +906,7 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
                     key={file.name}
                     file={file}
                     isExpanded={!collapsedFiles.has(file.name)}
+                    isReviewed={reviewedNames.has(file.name)}
                     stats={statsByFile.get(file.name)}
                     canDiscard={canDiscard}
                     discardPending={restoreFile.isPending}
@@ -694,7 +917,8 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
                       pendingComment?.fileName === file.name ? pendingComment.range : null
                     }
                     isComposing={pendingComment?.fileName === file.name && pendingComment.composing}
-                    onToggle={toggleCollapsed}
+                    onToggle={handleToggleCollapsed}
+                    onToggleReviewed={toggleReviewed}
                     onDiscard={setDiscardTarget}
                     onSelectionChange={handleSelectionChange}
                     onSelectionEnd={handleSelectionEnd}
