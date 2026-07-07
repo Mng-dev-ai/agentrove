@@ -176,7 +176,9 @@ export const useStreamStore = create<StreamState>((set, get) => ({
       const stream = state.activeStreams.get(streamId);
       if (!stream) return state;
 
-      const updatedStream = { ...stream, messageId: newMessageId };
+      // A message-id swap only happens on queue handoff — the stream is reused for a
+      // new assistant turn, so restart the clock (thinking timer, cancel duration).
+      const updatedStream = { ...stream, messageId: newMessageId, startTime: Date.now() };
       const nextStreams = new Map(state.activeStreams);
       nextStreams.set(streamId, updatedStream);
 
@@ -190,7 +192,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
         activeStreamMetadata: upsertStreamMetadata(state.activeStreamMetadata, {
           chatId: stream.chatId,
           messageId: newMessageId,
-          startTime: stream.startTime,
+          startTime: updatedStream.startTime,
         }),
       };
     });
