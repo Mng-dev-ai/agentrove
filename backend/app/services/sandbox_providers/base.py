@@ -4,7 +4,7 @@ import posixpath
 from pathlib import Path
 from typing import Any
 
-from app.constants import SANDBOX_BINARY_EXTENSIONS
+from app.constants import SANDBOX_BINARY_EXTENSIONS, SANDBOX_GIT_ASKPASS_PATH
 from app.core.config import get_settings
 from app.services.sandbox_providers.types import (
     CommandResult,
@@ -40,6 +40,21 @@ class SandboxProvider:
         # to runtime that needs grounding in the provider's workspace root.
         rel = normalize_relative_path(rel_path)
         return posixpath.join(self.workspace_root, rel) if rel else self.workspace_root
+
+    @staticmethod
+    def git_askpass_path(provider_type: "SandboxProviderType | str") -> str:
+        # Docker bakes the script into the sandbox image; host mode runs git in
+        # the API process's filesystem, where /home/user doesn't exist — so
+        # provision a shared script under the storage dir on first use (the
+        # content is static, one file serves every sandbox).
+        if SandboxProviderType(provider_type) == SandboxProviderType.DOCKER:
+            return SANDBOX_GIT_ASKPASS_PATH
+        script = Path(settings.get_host_sandbox_base_dir()) / "git-askpass.sh"
+        if not script.exists():
+            script.parent.mkdir(parents=True, exist_ok=True)
+            script.write_text('#!/bin/sh\necho "$GITHUB_TOKEN"\n')
+            script.chmod(0o700)
+        return str(script)
 
     @staticmethod
     def create_provider(

@@ -542,8 +542,9 @@ class AcpSession:
         if config.sandbox_id:
             host_base = settings.get_host_sandbox_base_dir()
             host_home = f"{host_base}/{config.sandbox_id}"
-            # Rewrite virtual sandbox paths (/home/user/...) to the real
-            # host sandbox directory so helpers like GIT_ASKPASS resolve.
+            # Rewrite virtual sandbox paths (/home/user/...) in env values to
+            # the real host sandbox directory. GIT_ASKPASS is exempt by design:
+            # in host mode it already points at a real API-filesystem path.
             for key, val in config.env.items():
                 env[key] = val.replace(SANDBOX_HOME_DIR, host_home)
             # Web mode: override HOME so the agent uses the sandbox dir.
