@@ -22,7 +22,7 @@ const PYTHON_VERSION = '3.12.12';
 const NODE_VERSION = '22.12.0';
 const RELEASE_TAG = '20260211';
 const RIPGREP_VERSION = '14.1.1';
-const CLAUDE_AGENT_ACP_VERSION = '0.54.1';
+const CLAUDE_AGENT_ACP_VERSION = '0.57.0';
 const CODEX_ACP_VERSION = '0.15.0';
 const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
 
