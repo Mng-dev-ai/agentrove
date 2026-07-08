@@ -905,6 +905,7 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
                   <DiffFileRow
                     key={file.name}
                     file={file}
+                    contentKey={reviewKeyByFile.get(file.name)}
                     isExpanded={!collapsedFiles.has(file.name)}
                     isReviewed={reviewedNames.has(file.name)}
                     stats={statsByFile.get(file.name)}
