@@ -40,6 +40,7 @@ GIT_CHECKPOINT_PROBE_CMD = (
 GIT_PUSH_CMD = "git push -u origin HEAD"
 GIT_PULL_CMD = "git pull"
 GIT_REMOTE_URL_CMD = "git remote get-url origin 2>/dev/null"
+GIT_DISCOVERY_ENV = "export GIT_DISCOVERY_ACROSS_FILESYSTEM=1 && "
 # Detached HEAD (e.g. checking out a tag/SHA) — revert to the previous branch
 # so the UI always has a named branch to display.
 GIT_CHECKOUT_PREV_CMD = "git checkout - 2>/dev/null"
@@ -198,6 +199,10 @@ class GitService:
     def __init__(self, sandbox_service: SandboxService) -> None:
         self.sandbox_service = sandbox_service
 
+    @staticmethod
+    def git_command_prefix(cwd: str | None = None) -> str:
+        return f"{git_cd_prefix(cwd)}{GIT_DISCOVERY_ENV}"
+
     async def get_diff(
         self,
         sandbox_id: str,
@@ -205,10 +210,10 @@ class GitService:
         full_context: bool = False,
         cwd: str | None = None,
     ) -> GitDiffResponse:
-        cd_prefix = git_cd_prefix(cwd)
+        git_prefix = self.git_command_prefix(cwd)
         check = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{cd_prefix}{GIT_IS_REPO_CMD}",
+            f"{git_prefix}{GIT_IS_REPO_CMD}",
         )
         if check.exit_code != 0:
             return GitDiffResponse(diff="", has_changes=False, is_git_repo=False)
@@ -230,7 +235,7 @@ class GitService:
             cmd = GIT_DIFF_ALL_TEMPLATE.substitute(ctx=ctx, untracked=untracked_diff)
 
         result = await self.sandbox_service.execute_command(
-            sandbox_id, f"{cd_prefix}{cmd}"
+            sandbox_id, f"{git_prefix}{cmd}"
         )
         if mode == "branch" and result.exit_code == 2:
             return GitDiffResponse(
@@ -255,10 +260,10 @@ class GitService:
         # `HEAD:./<path>` resolves relative to the directory git runs in, so
         # cwd-relative editor paths work even when the repo root sits above cwd.
         self._validate_relative_path(path)
-        cd_prefix = git_cd_prefix(cwd)
+        git_prefix = self.git_command_prefix(cwd)
         cmd = GIT_SHOW_HEAD_TEMPLATE.substitute(spec=shlex.quote(f"HEAD:./{path}"))
         result = await self.sandbox_service.execute_command(
-            sandbox_id, f"{cd_prefix}{cmd}"
+            sandbox_id, f"{git_prefix}{cmd}"
         )
         if result.exit_code == 2:
             return GitFileBaselineResponse(path=path, content="", is_git_repo=False)
@@ -274,9 +279,9 @@ class GitService:
     ) -> GitChangedPathsResponse:
         # Cheap existence check for change indicators — the diff endpoints stay
         # the source of the actual content.
-        cd_prefix = git_cd_prefix(cwd)
+        git_prefix = self.git_command_prefix(cwd)
         result = await self.sandbox_service.execute_command(
-            sandbox_id, f"{cd_prefix}{GIT_STATUS_PORCELAIN_CMD}"
+            sandbox_id, f"{git_prefix}{GIT_STATUS_PORCELAIN_CMD}"
         )
         if result.exit_code == 2:
             return GitChangedPathsResponse(paths=[], is_git_repo=False)
@@ -305,10 +310,10 @@ class GitService:
         # Branch selectors call this frequently while the user moves around the
         # workspace, so keep the request to one sandbox exec and avoid secret
         # injection, which is only needed for auth-sensitive git commands.
-        cd_prefix = git_cd_prefix(cwd)
+        git_prefix = self.git_command_prefix(cwd)
         result = await self.sandbox_service.provider.execute_command(
             sandbox_id,
-            f"{cd_prefix}{GIT_LIST_BRANCHES_CMD}",
+            f"{git_prefix}{GIT_LIST_BRANCHES_CMD}",
         )
         if result.exit_code != 0:
             return GitBranchesResponse(
@@ -354,17 +359,17 @@ class GitService:
         cwd: str | None = None,
     ) -> GitCheckoutResponse:
         self._validate_branch_name(branch)
-        cd_prefix = git_cd_prefix(cwd)
+        git_prefix = self.git_command_prefix(cwd)
 
         result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{cd_prefix}{GIT_CHECKOUT_TEMPLATE.substitute(branch=branch)}",
+            f"{git_prefix}{GIT_CHECKOUT_TEMPLATE.substitute(branch=branch)}",
         )
         if result.exit_code != 0:
             # Branch might only exist as a remote tracking branch
             result = await self.sandbox_service.execute_command(
                 sandbox_id,
-                f"{cd_prefix}{GIT_CHECKOUT_FROM_REMOTE_TEMPLATE.substitute(branch=branch)}",
+                f"{git_prefix}{GIT_CHECKOUT_FROM_REMOTE_TEMPLATE.substitute(branch=branch)}",
             )
 
         if result.exit_code != 0:
@@ -376,13 +381,13 @@ class GitService:
 
         head_result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{cd_prefix}{GIT_CURRENT_BRANCH_CMD}",
+            f"{git_prefix}{GIT_CURRENT_BRANCH_CMD}",
         )
         current = head_result.stdout.strip()
         if current == "HEAD":
             await self.sandbox_service.execute_command(
                 sandbox_id,
-                f"{cd_prefix}{GIT_CHECKOUT_PREV_CMD}",
+                f"{git_prefix}{GIT_CHECKOUT_PREV_CMD}",
             )
             return GitCheckoutResponse(
                 success=False,
@@ -397,10 +402,10 @@ class GitService:
         command: str,
         cwd: str | None = None,
     ) -> GitCommandResponse:
-        cd_prefix = git_cd_prefix(cwd)
+        git_prefix = self.git_command_prefix(cwd)
         result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{cd_prefix}{command} 2>&1",
+            f"{git_prefix}{command} 2>&1",
         )
         if result.exit_code != 0:
             return GitCommandResponse(
@@ -454,10 +459,10 @@ class GitService:
     ) -> Checkpoint | None:
         # Single probe avoids a separate diff round-trip when the tree is clean
         # — the common case for the first turn of a fresh chat.
-        cd_prefix = git_cd_prefix(cwd)
+        git_prefix = self.git_command_prefix(cwd)
         probe = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{cd_prefix}{GIT_CHECKPOINT_PROBE_CMD}",
+            f"{git_prefix}{GIT_CHECKPOINT_PROBE_CMD}",
         )
         if probe.exit_code != 0:
             return None
@@ -474,7 +479,7 @@ class GitService:
         )
         result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{cd_prefix}{cmd}",
+            f"{git_prefix}{cmd}",
         )
         return Checkpoint(base_head=head, pre_run_diff=result.stdout)
 
@@ -525,12 +530,12 @@ class GitService:
         self._validate_branch_name(name)
         if base_branch:
             self._validate_branch_name(base_branch, label="base branch")
-        cd_prefix = git_cd_prefix(cwd)
+        git_prefix = self.git_command_prefix(cwd)
 
         base = f" '{base_branch}'" if base_branch else ""
         result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{cd_prefix}{GIT_CREATE_BRANCH_TEMPLATE.substitute(name=name, base=base)}",
+            f"{git_prefix}{GIT_CREATE_BRANCH_TEMPLATE.substitute(name=name, base=base)}",
         )
         if result.exit_code != 0 and base_branch:
             # Base branch might only exist as a remote tracking branch
@@ -539,7 +544,7 @@ class GitService:
             )
             result = await self.sandbox_service.execute_command(
                 sandbox_id,
-                f"{cd_prefix}{remote_cmd}",
+                f"{git_prefix}{remote_cmd}",
             )
         if result.exit_code != 0:
             return GitCreateBranchResponse(
@@ -550,7 +555,7 @@ class GitService:
 
         head_result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{cd_prefix}{GIT_CURRENT_BRANCH_CMD}",
+            f"{git_prefix}{GIT_CURRENT_BRANCH_CMD}",
         )
         return GitCreateBranchResponse(
             success=True,
@@ -562,10 +567,10 @@ class GitService:
         sandbox_id: str,
         cwd: str | None = None,
     ) -> GitRemoteUrlResponse:
-        cd_prefix = git_cd_prefix(cwd)
+        git_prefix = self.git_command_prefix(cwd)
         result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{cd_prefix}{GIT_REMOTE_URL_CMD}",
+            f"{git_prefix}{GIT_REMOTE_URL_CMD}",
         )
         if result.exit_code != 0:
             raise SandboxException("No git remote origin found", status_code=404)
@@ -598,8 +603,8 @@ class GitService:
         rel_base_worktrees = posixpath.join(base_cwd, ".worktrees")
         rel_worktree = posixpath.join(rel_base_worktrees, short_id)
         branch_name = f"worktree-{short_id}"
-        cd_prefix = git_cd_prefix(base_cwd)
-        cmd = cd_prefix + GIT_WORKTREE_ADD_TEMPLATE.substitute(
+        git_prefix = self.git_command_prefix(base_cwd)
+        cmd = git_prefix + GIT_WORKTREE_ADD_TEMPLATE.substitute(
             worktree_dir=rel_worktree,
             base_worktrees_dir=rel_base_worktrees,
             branch_name=branch_name,
