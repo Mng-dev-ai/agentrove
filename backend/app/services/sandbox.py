@@ -50,21 +50,25 @@ class SandboxService:
             envs["GIT_ASKPASS"] = str(SANDBOX_GIT_ASKPASS_PATH)
         return envs
 
-    async def ensure_git_askpass_script(self, sandbox_id: str) -> None:
-        # Lazy + idempotent: git calls GIT_ASKPASS for HTTPS credentials and the
-        # script just echoes GITHUB_TOKEN. env_vars carries GIT_ASKPASS only when
-        # a token is set outside desktop mode, so its presence is the signal to
-        # (re)provision. Re-running before remote ops self-heals the case where
-        # the sandbox was created before the token existed or its container was
-        # recreated and lost the file.
-        if "GIT_ASKPASS" not in self.env_vars:
-            return
+    async def _setup_git_askpass_script(self, sandbox_id: str) -> None:
+        # GIT_ASKPASS is a script git calls for credentials — it just echoes the
+        # GITHUB_TOKEN env var, avoiding interactive prompts for HTTPS git operations.
         script_content = '#!/bin/sh\\necho "$GITHUB_TOKEN"'
         setup_cmd = (
             f"echo -e '{script_content}' > {SANDBOX_GIT_ASKPASS_PATH} && "
             f"chmod +x {SANDBOX_GIT_ASKPASS_PATH}"
         )
         await self.execute_command(sandbox_id, setup_cmd)
+
+    async def initialize_sandbox(
+        self,
+        sandbox_id: str,
+        has_github_token: bool = False,
+    ) -> None:
+        # One-time setup when a sandbox is first created — provisions
+        # credentials and scripts the container needs before first use.
+        if has_github_token and not settings.DESKTOP_MODE:
+            await self._setup_git_askpass_script(sandbox_id)
 
     async def cleanup(self) -> None:
         await self.provider.cleanup()

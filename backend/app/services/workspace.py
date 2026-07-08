@@ -118,7 +118,10 @@ class WorkspaceService(BaseDbService[Workspace]):
             workspace_path=workspace_path,
         )
 
-        await sandbox_service.ensure_git_askpass_script(sandbox_id)
+        await sandbox_service.initialize_sandbox(
+            sandbox_id=sandbox_id,
+            has_github_token=bool(github_token),
+        )
 
         try:
             async with self._session_factory() as db:
