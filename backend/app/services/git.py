@@ -416,9 +416,13 @@ class GitService:
         return GitCommandResponse(success=True, output=result.stdout.strip())
 
     async def push(self, sandbox_id: str, cwd: str | None = None) -> GitCommandResponse:
+        # Provision the askpass script on demand — the sandbox may predate the
+        # GitHub token or have been recreated since creation-time setup.
+        await self.sandbox_service.ensure_git_askpass_script(sandbox_id)
         return await self.run_command(sandbox_id, GIT_PUSH_CMD, cwd)
 
     async def pull(self, sandbox_id: str, cwd: str | None = None) -> GitCommandResponse:
+        await self.sandbox_service.ensure_git_askpass_script(sandbox_id)
         return await self.run_command(sandbox_id, GIT_PULL_CMD, cwd)
 
     async def commit(
