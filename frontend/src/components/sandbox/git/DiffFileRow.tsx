@@ -154,6 +154,7 @@ function FileStatusBadge({ type }: { type?: string }) {
 
 export const DiffFileRow = memo(function DiffFileRow({
   file,
+  contentKey,
   isExpanded,
   isReviewed,
   stats,
@@ -173,6 +174,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   onCancelComment,
 }: {
   file: FileDiffMetadata;
+  contentKey: string | undefined;
   isExpanded: boolean;
   isReviewed: boolean;
   stats: FileChangeStats | undefined;
@@ -292,7 +294,11 @@ export const DiffFileRow = memo(function DiffFileRow({
         </FloatingTooltip>
       </div>
       {isExpanded && (
+        // Keyed by content hash — the library's VirtualizedFileDiff ignores a
+        // new fileDiff after hydration (`this.fileDiff ??= fileDiff`), so a
+        // refetch with changed content must remount to render fresh lines.
         <FileDiffRenderer
+          key={contentKey}
           file={file}
           options={options}
           canComment={!!chatId}
