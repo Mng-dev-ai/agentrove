@@ -107,6 +107,7 @@ class WorkspaceService(BaseDbService[Workspace]):
         env_vars = SandboxService.build_env_vars(
             user_settings.custom_env_vars,
             github_token,
+            data.sandbox_provider,
         )
         provider = SandboxProvider.create_provider(
             data.sandbox_provider,
@@ -116,11 +117,6 @@ class WorkspaceService(BaseDbService[Workspace]):
 
         sandbox_id = await sandbox_service.provider.create_sandbox(
             workspace_path=workspace_path,
-        )
-
-        await sandbox_service.initialize_sandbox(
-            sandbox_id=sandbox_id,
-            has_github_token=bool(github_token),
         )
 
         try:

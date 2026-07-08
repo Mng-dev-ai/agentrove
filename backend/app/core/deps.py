@@ -151,6 +151,7 @@ async def get_sandbox_service(
     env_vars = SandboxService.build_env_vars(
         user_settings.custom_env_vars,
         user_settings.github_personal_access_token,
+        row.sandbox_provider,
     )
 
     return SandboxService(provider, env_vars=env_vars)

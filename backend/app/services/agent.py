@@ -9,7 +9,6 @@ from uuid import UUID
 from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.constants import SANDBOX_GIT_ASKPASS_PATH
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat
@@ -492,7 +491,7 @@ class AgentService:
         # Skip in desktop mode — host git credentials handle auth natively
         if user_settings.github_personal_access_token and not settings.DESKTOP_MODE:
             env["GITHUB_TOKEN"] = user_settings.github_personal_access_token
-            env["GIT_ASKPASS"] = SANDBOX_GIT_ASKPASS_PATH
+            env["GIT_ASKPASS"] = SandboxProvider.git_askpass_path(sandbox_provider)
         if settings.GIT_AUTHOR_NAME and settings.GIT_AUTHOR_EMAIL:
             env["GIT_AUTHOR_NAME"] = settings.GIT_AUTHOR_NAME
             env["GIT_AUTHOR_EMAIL"] = settings.GIT_AUTHOR_EMAIL
