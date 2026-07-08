@@ -289,7 +289,12 @@ async def test_git_endpoints_propagate_cwd_and_request_fields(
     assert create_branch_response.status_code == 200
     assert remote_response.status_code == 200
     commands = [command for _sandbox_id, command, _envs in fake_provider.commands]
-    assert all(command.startswith("cd 'packages/api' && ") for command in commands)
+    assert all(
+        command.startswith(
+            "cd 'packages/api' && export GIT_DISCOVERY_ACROSS_FILESYSTEM=1 && "
+        )
+        for command in commands
+    )
     assert any("git diff -U99999 --cached" in command for command in commands)
     assert any("git for-each-ref" in command for command in commands)
     assert any("git checkout 'feature'" in command for command in commands)
@@ -325,6 +330,7 @@ async def test_git_remote_url_returns_owned_sandbox_remote(
     }
     assert fake_provider.commands[-1] == (
         workspace.sandbox_id,
+        "export GIT_DISCOVERY_ACROSS_FILESYSTEM=1 && "
         "git remote get-url origin 2>/dev/null",
         {},
     )
