@@ -1,13 +1,12 @@
 import { memo } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
-import { NumberedContent } from '../common/NumberedContent';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { NumberedContent } from '../common/NumberedContent/NumberedContent';
 import type { CursorReadOutput } from './cursorPayload';
+import styles from './ReadTool.module.scss';
 
-const ICON = (
-  <FileSearch className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />
-);
+const ICON = <FileSearch className={styles.icon} />;
 
 const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const result = tool.result as CursorReadOutput | undefined;

@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import clsx from 'clsx';
 import { Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -9,9 +10,9 @@ import { useModelStore } from '@/store/modelStore';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { AGENT_ICONS } from '@/components/ui/icons/ProviderIcon';
-import { cn } from '@/utils/cn';
 import { formatNumberCompact } from '@/utils/format';
 import type { AgentKind, Model } from '@/types/chat.types';
+import styles from './ModelSelector.module.scss';
 
 const FAVORITES_LABEL = 'Favorites';
 
@@ -91,16 +92,16 @@ export const ModelSelector = memo(function ModelSelector({
 
   if (isLoading) {
     return (
-      <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1">
-        <div className="h-3.5 w-16 animate-pulse rounded-full bg-text-quaternary/20" />
+      <div className={styles.status}>
+        <div className={styles['status-pill']} />
       </div>
     );
   }
 
   if (filteredModels.length === 0) {
     return (
-      <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1">
-        <span className="text-xs text-text-quaternary">No models</span>
+      <div className={styles.status}>
+        <span className={styles['status-text']}>No models</span>
       </div>
     );
   }
@@ -130,21 +131,16 @@ export const ModelSelector = memo(function ModelSelector({
       renderItem={(model, isSelected) => {
         const isFavorite = favoriteIdSet.has(model.model_id);
         return (
-          <div className="flex items-center gap-2">
-            <FloatingTooltip content={model.name} className="min-w-0 flex-1">
+          <div className={styles.item}>
+            <FloatingTooltip content={model.name} className={styles['item-tooltip']}>
               <span
-                className={cn(
-                  'truncate text-2xs font-medium',
-                  isSelected
-                    ? 'text-text-primary dark:text-text-dark-primary'
-                    : 'text-text-secondary dark:text-text-dark-secondary',
-                )}
+                className={clsx(styles['item-label'], isSelected && styles['item-label--selected'])}
               >
                 {model.name}
               </span>
             </FloatingTooltip>
             {model.context_window != null && model.context_window > 0 && (
-              <span className="flex-shrink-0 rounded-md bg-surface-tertiary px-1.5 py-0.5 text-2xs font-medium text-text-quaternary dark:bg-surface-dark-tertiary dark:text-text-dark-quaternary">
+              <span className={styles['item-context']}>
                 {formatNumberCompact(model.context_window)}
               </span>
             )}
@@ -164,14 +160,17 @@ export const ModelSelector = memo(function ModelSelector({
                   event.stopPropagation();
                 }
               }}
-              className={cn(
-                'flex flex-shrink-0 items-center justify-center rounded-md p-0.5 transition-colors duration-150',
-                isFavorite
-                  ? 'text-text-primary dark:text-text-dark-primary'
-                  : 'text-text-quaternary hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary',
+              className={clsx(
+                styles['favorite-button'],
+                isFavorite && styles['favorite-button--active'],
               )}
             >
-              <Star className={cn('h-3 w-3', isFavorite && 'fill-current')} />
+              <Star
+                className={clsx(
+                  styles['favorite-icon'],
+                  isFavorite && styles['favorite-icon--active'],
+                )}
+              />
             </Button>
           </div>
         );

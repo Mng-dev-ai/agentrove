@@ -1,0 +1,26 @@
+@use '@/styles/globals/typography' as type;
+
+.dots {
+    margin-top: var(--space-0-5);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1-5);
+}
+
+.track {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.dot {
+    height: var(--space-1);
+    width: var(--space-1);
+    border-radius: var(--radius-full);
+    background-color: var(--theme-text-tertiary);
+    animation: bounce 1s infinite;
+}
+
+.label {
+    @include type.type-meta;
+    color: var(--theme-text-tertiary);
+}

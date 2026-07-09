@@ -98,7 +98,7 @@ export const useInfiniteMessagesQuery = (chatId: string | undefined, limit: numb
   return useInfiniteQuery({
     queryKey: queryKeys.messages(chatId),
     queryFn: async ({ pageParam }) => {
-      return chatService.getMessages(chatId, {
+      return chatService.getMessages(chatId!, {
         cursor: pageParam as string | undefined,
         limit,
       });
@@ -116,7 +116,7 @@ export const useChatQuery = (
 ) => {
   return useQuery({
     queryKey: queryKeys.chat(chatId),
-    queryFn: () => chatService.getChat(chatId),
+    queryFn: () => chatService.getChat(chatId!),
     enabled: !!chatId,
     ...options,
   });
@@ -128,7 +128,7 @@ export const useContextUsageQuery = (
 ) => {
   return useQuery({
     queryKey: queryKeys.contextUsage(chatId),
-    queryFn: () => chatService.getContextUsage(chatId),
+    queryFn: () => chatService.getContextUsage(chatId!),
     enabled: !!chatId,
     staleTime: 0,
     ...options,

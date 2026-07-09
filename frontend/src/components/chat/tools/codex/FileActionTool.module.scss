@@ -1,0 +1,27 @@
+@use '@/styles/globals/typography' as type;
+
+.icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-secondary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-tertiary);
+    }
+}
+
+.path {
+    @include type.type-mono-meta;
+    @include type.type-overflow;
+    color: var(--theme-text-tertiary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-quaternary);
+    }
+}
+
+.paths {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}

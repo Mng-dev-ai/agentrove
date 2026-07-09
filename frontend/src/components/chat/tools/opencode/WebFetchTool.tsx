@@ -2,11 +2,13 @@ import { memo } from 'react';
 import { Globe } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractDomain } from '@/utils/format';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
 import type { OpencodeWebFetchInput, OpencodeOutput } from './opencodePayload';
+import styles from './WebFetchTool.module.scss';
 
-const ICON = <Globe className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />;
+const ICON = <Globe className={toolIcon.icon} />;
 
 const WebFetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as OpencodeWebFetchInput | undefined;
@@ -34,13 +36,9 @@ const WebFetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(url || output) && (
-        <div className="space-y-1.5">
-          {url && (
-            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-              {url}
-            </div>
-          )}
-          {output && <pre className={TOOL_OUTPUT_PRE_CLASS}>{output}</pre>}
+        <div className={styles.body}>
+          {url && <div className={styles.url}>{url}</div>}
+          {output && <pre className={toolText['output-pre']}>{output}</pre>}
         </div>
       )}
     </ToolCard>

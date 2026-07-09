@@ -1,0 +1,175 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+// Subtle inset surface — black overlay on light, white overlay on dark (bg-black/5 dark:bg-white/5)
+@mixin inset-surface {
+    background-color: rgb(0 0 0 / 0.05);
+
+    :global([data-theme='dark']) & {
+        background-color: rgb(255 255 255 / 0.05);
+    }
+}
+
+.permission {
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    border: 1px solid colors.theme-color('border', 0.5);
+    background-color: var(--theme-surface-tertiary);
+}
+
+.header {
+    display: flex;
+    height: var(--space-9);
+    align-items: center;
+    gap: var(--space-2);
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    padding-inline: var(--space-3);
+}
+
+.header-icon {
+    @include inset-surface;
+    border-radius: var(--radius-md);
+    padding: var(--space-1);
+}
+
+.shield {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-tertiary);
+}
+
+.header-title {
+    @include type.type-default(500);
+    color: var(--theme-text-primary);
+}
+
+.tool-name {
+    @include inset-surface;
+    @include type.type-mono-meta;
+    margin-left: auto;
+    // TODO(refactor): old `rounded` (0.25rem) has no radius token (sm 0.125 / md 0.375)
+    border-radius: var(--radius-sm);
+    padding: var(--space-0-5) var(--space-1-5);
+    color: var(--theme-text-secondary);
+}
+
+.body {
+    // TODO(refactor): no spacing token for viewport-relative max-height
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: var(--space-3);
+}
+
+.headline {
+    @include type.type(0.75rem, 1.625);
+    margin-bottom: var(--space-3);
+    color: var(--theme-text-primary);
+}
+
+.command {
+    @include inset-surface;
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    padding: var(--space-2) var(--space-2-5);
+}
+
+.command-code {
+    @include type.type-mono;
+    white-space: pre;
+    color: var(--theme-text-primary);
+}
+
+.command-prompt {
+    margin-right: var(--space-2);
+    user-select: none;
+    color: var(--theme-text-quaternary);
+}
+
+.cwd {
+    @include type.type-mono-meta;
+    margin-top: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1-5);
+    color: var(--theme-text-tertiary);
+}
+
+.cwd-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+}
+
+.cwd-path {
+    @include type.type-overflow;
+}
+
+.meta-spaced {
+    margin-top: var(--space-3);
+}
+
+.details-toggle {
+    @include anim.transition-colors($duration: var(--duration-fast));
+    @include type.type-meta;
+    margin-top: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    border-radius: var(--radius-md);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        color: var(--theme-text-primary);
+    }
+}
+
+.chevron {
+    height: var(--space-3);
+    width: var(--space-3);
+    transition: transform var(--duration-fast);
+}
+
+.chevron--open {
+    transform: rotate(90deg);
+}
+
+.details-panel {
+    margin-top: var(--space-2);
+}
+
+.empty {
+    @include type.type-default;
+    text-align: center;
+    font-style: italic;
+    color: var(--theme-text-tertiary);
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.list-item {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+}
+
+.list-label {
+    @include type.type-meta(500);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--theme-text-tertiary);
+}
+
+.list-value {
+    @include inset-surface;
+    @include type.type-default;
+    overflow: auto;
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-2);
+    color: var(--theme-text-primary);
+}

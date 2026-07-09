@@ -2,8 +2,10 @@ import { memo } from 'react';
 import { Wrench } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { formatResult, formatValue } from '@/utils/format';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
+import styles from './MCPTool.module.scss';
 
 interface MCPToolProps {
   tool: ToolAggregate;
@@ -55,28 +57,24 @@ const MCPToolInner: React.FC<MCPToolProps> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<Wrench className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Wrench className={toolIcon.icon} />}
       status={toolStatus}
       title={title}
       loadingContent="Processing..."
       error={errorMessage}
     >
       {hasDetails ? (
-        <div className="space-y-1.5">
+        <div className={styles.details}>
           {hasInput
             ? inputEntries.map(([key, value]) => (
                 <div key={key}>
-                  <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-                    {key}:{' '}
-                  </span>
-                  <span className="whitespace-pre-wrap break-all font-mono text-2xs text-text-tertiary dark:text-text-dark-tertiary">
-                    {formatValue(value)}
-                  </span>
+                  <span className={styles.key}>{key}: </span>
+                  <span className={styles.value}>{formatValue(value)}</span>
                 </div>
               ))
             : null}
           {hasResult ? (
-            <pre className={TOOL_OUTPUT_PRE_CLASS}>{formatResult(tool.result)}</pre>
+            <pre className={toolText['output-pre']}>{formatResult(tool.result)}</pre>
           ) : null}
         </div>
       ) : null}

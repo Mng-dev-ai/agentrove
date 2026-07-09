@@ -2,7 +2,9 @@ import { memo } from 'react';
 import { SquareTerminal } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { formatResult } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolIcon from './toolIcon.module.scss';
+import styles from './AgentOutputTool.module.scss';
 
 interface AgentOutputInput {
   task_id?: string;
@@ -25,9 +27,7 @@ const OutputToolInner: React.FC<{
 
   return (
     <ToolCard
-      icon={
-        <SquareTerminal className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />
-      }
+      icon={<SquareTerminal className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {
@@ -43,8 +43,8 @@ const OutputToolInner: React.FC<{
       error={tool.error}
     >
       {output && (
-        <div className="max-h-48 overflow-auto rounded bg-black/5 px-2 py-1.5 font-mono text-xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-          <pre className="whitespace-pre-wrap break-all">{output}</pre>
+        <div className={styles.output}>
+          <pre className={styles.pre}>{output}</pre>
         </div>
       )}
     </ToolCard>

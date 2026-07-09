@@ -5,6 +5,7 @@ import { Dropdown, DropdownItemType } from '@/components/ui/primitives/Dropdown/
 import { useChatContext } from '@/hooks/useChatContext';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
+import styles from './BranchSelector.module.scss';
 
 export interface BranchSelectorProps {
   dropdownPosition?: 'top' | 'bottom';
@@ -80,7 +81,7 @@ export const BranchSelector = memo(function BranchSelector({
       searchable={branchesData.branches.length >= 6}
       searchPlaceholder="Search branches..."
       searchVariant="underline"
-      itemClassName="font-mono"
+      itemClassName={styles['item-mono']}
     />
   );
 });

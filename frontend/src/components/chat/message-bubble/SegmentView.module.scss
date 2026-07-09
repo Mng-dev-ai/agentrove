@@ -1,0 +1,35 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.text-segment {
+    max-width: none;
+    overflow-wrap: break-word;
+}
+
+.thinking-segment {
+    margin-top: var(--space-0-5);
+    margin-bottom: var(--space-2);
+}
+
+.tool-segment {
+    margin-top: var(--space-1);
+    margin-bottom: var(--space-2);
+}
+
+.tool-fallback {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2) var(--space-3);
+}
+
+.tool-fallback-spinner {
+    color: var(--theme-text-quaternary);
+}
+
+.tool-fallback-text {
+    @include type.type-default;
+    color: var(--theme-text-tertiary);
+}

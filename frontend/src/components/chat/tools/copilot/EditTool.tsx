@@ -2,11 +2,12 @@ import { memo, useMemo } from 'react';
 import { FileEdit, FilePlus, FileMinus } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { DiffView } from '../common/DiffView';
-import { NumberedContent } from '../common/NumberedContent';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { DiffView } from '../common/DiffView/DiffView';
+import { NumberedContent } from '../common/NumberedContent/NumberedContent';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import { buildUnifiedDiff } from '../common/buildUnifiedDiff';
+import toolIcon from './toolIcon.module.scss';
 import type { CopilotEditInput, CopilotToolOutput } from './copilotPayload';
 
 type EditOp = 'add' | 'update' | 'delete';
@@ -42,9 +43,9 @@ const identifyEdit = (input: CopilotEditInput | undefined): ParsedEdit => {
 };
 
 const ICON_BY_OP: Record<EditOp, React.ReactNode> = {
-  add: <FilePlus className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />,
-  delete: <FileMinus className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />,
-  update: <FileEdit className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />,
+  add: <FilePlus className={toolIcon.icon} />,
+  delete: <FileMinus className={toolIcon.icon} />,
+  update: <FileEdit className={toolIcon.icon} />,
 };
 
 const PendingPreview: React.FC<{ input: CopilotEditInput; op: EditOp }> = ({ input, op }) => {

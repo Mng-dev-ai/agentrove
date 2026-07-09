@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/primitives/Input/Input';
 import { Select } from '@/components/ui/primitives/Select/Select';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useGitBranchesQuery, useGitCreateBranchMutation } from '@/hooks/queries/useSandboxQueries';
+import styles from './CreateBranchDialog.module.scss';
 
 interface CreateBranchDialogProps {
   onClose: () => void;
@@ -53,27 +54,23 @@ export function CreateBranchDialog({ onClose }: CreateBranchDialogProps) {
 
   return (
     <BaseModal isOpen={true} onClose={onClose} size="sm" zIndex="modalHighest">
-      <div className="p-5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-tertiary dark:bg-surface-dark-tertiary">
-            <GitBranch className="h-4 w-4 text-text-tertiary dark:text-text-dark-tertiary" />
+      <div className={styles.body}>
+        <div className={styles.header}>
+          <div className={styles['icon-box']}>
+            <GitBranch className={styles['header-icon']} />
           </div>
-          <h2 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
-            Create branch
-          </h2>
+          <h2 className={styles.title}>Create branch</h2>
         </div>
 
-        <div className="mt-4 space-y-3">
+        <div className={styles.fields}>
           <div>
-            <label className="mb-1.5 block text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
-              Branch name
-            </label>
+            <label className={styles.label}>Branch name</label>
             <Input
               variant="unstyled"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="feature/my-branch"
-              className="w-full rounded-lg border border-border/50 bg-surface-secondary px-3 py-1.5 text-xs text-text-primary outline-none transition-colors duration-200 focus:border-border-hover dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:focus:border-border-dark-hover"
+              className={styles['name-input']}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
                   e.preventDefault();
@@ -85,13 +82,11 @@ export function CreateBranchDialog({ onClose }: CreateBranchDialogProps) {
           </div>
 
           <div>
-            <label className="mb-1.5 block text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
-              From
-            </label>
+            <label className={styles.label}>From</label>
             <Select
               value={baseBranch}
               onChange={(e) => setBaseBranch(e.target.value)}
-              className="h-8 bg-surface-secondary px-3 py-1.5 text-xs text-text-primary dark:bg-surface-dark-secondary dark:text-text-dark-primary"
+              className={styles['base-select']}
             >
               <option value="">
                 Current branch
@@ -107,7 +102,7 @@ export function CreateBranchDialog({ onClose }: CreateBranchDialogProps) {
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 border-t border-border/50 px-5 py-3.5 dark:border-border-dark/50">
+      <div className={styles.footer}>
         <Button
           type="button"
           variant="ghost"

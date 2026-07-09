@@ -1,6 +1,7 @@
 import { memo, useEffect, useRef, useState } from 'react';
+import clsx from 'clsx';
 import { useMountEffect } from '@/hooks/useMountEffect';
-import { cn } from '@/utils/cn';
+import styles from './StatusTypewriter.module.scss';
 
 const VERBS = ['Pondering', 'Connecting dots', 'Drafting', 'Refining'];
 const TYPE_MS = 55;
@@ -78,23 +79,16 @@ export const StatusTypewriter = memo(function StatusTypewriter({
   }, [text, deleting, verb]);
 
   return (
-    // Padding mirrors the assistant message row (Message.tsx) so the swap from
-    // indicator to content doesn't shift the text down.
-    <div className="animate-fade-in px-4 py-1.5 sm:px-6 sm:py-2">
-      <div className="flex items-center gap-2">
-        <span className="flex items-center text-xs text-text-tertiary dark:text-text-dark-tertiary">
+    <div className={styles['status-typewriter']}>
+      <div className={styles['status-row']}>
+        <span className={styles['status-verb']}>
           {text}
           <span
-            className={cn(
-              'ml-px inline-block h-3 w-px bg-text-tertiary dark:bg-text-dark-tertiary',
-              holding && 'animate-caret-blink',
-            )}
+            className={clsx(styles['status-caret'], holding && styles['status-caret--blinking'])}
           />
         </span>
 
-        <span className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
-          · {elapsed}s
-        </span>
+        <span className={styles['status-elapsed']}>· {elapsed}s</span>
       </div>
     </div>
   );

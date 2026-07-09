@@ -1,65 +1,27 @@
-import React, {
-  useRef,
-  useState,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  memo,
-  useMemo,
-} from 'react';
+import { useCallback, useEffect, memo, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useShallow } from 'zustand/react/shallow';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import { isAssistantMessage } from '@/utils/message';
 import { UserMessage, AssistantMessage } from '@/components/chat/message-bubble/Message';
-import { QueueMessageCard } from './QueueMessageCard';
+import { ChatQueueBanner } from './ChatQueueBanner';
+import { ChatInlinePermission } from './ChatInlinePermission';
 import { StreamActionsBar } from './StreamActionsBar';
 import { Input } from '@/components/chat/message-input/Input';
 import { ChatSkeleton } from './ChatSkeleton';
 import { ScrollButton } from './ScrollButton';
 import { MessageTrail } from './MessageTrail';
 import { StatusTypewriter } from './StatusTypewriter';
+import { useChatScroll } from './useChatScroll';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { useStreamStore } from '@/store/streamStore';
 import { useMessageQueueStore, EMPTY_QUEUE } from '@/store/messageQueueStore';
-import { ToolPermissionInline } from '@/components/chat/tools/ToolPermissionInline';
 import { useChatContext } from '@/hooks/useChatContext';
-import {
-  useChatSessionContext,
-  useChatSessionState,
-  useChatSessionActions,
-} from '@/hooks/useChatSessionContext';
+import { useChatSessionContext } from '@/hooks/useChatSessionContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useUIStore } from '@/store/uiStore';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-
-const AT_BOTTOM_THRESHOLD_PX = 200;
-const TOP_PAGINATION_TRIGGER_PX = 50;
-const TOP_PAGINATION_ARM_VIEWPORT_MULTIPLIER = 1.5;
-
-const MessageInlinePermission = memo(function MessageInlinePermission() {
-  const state = useChatSessionState();
-  const actions = useChatSessionActions();
-
-  if (
-    !state.pendingPermissionRequest ||
-    state.pendingPermissionRequest.tool_name === 'ExitPlanMode'
-  ) {
-    return null;
-  }
-
-  return (
-    <div className="mb-3 mt-1 px-4 sm:px-6">
-      <ToolPermissionInline
-        request={state.pendingPermissionRequest}
-        onApprove={actions.onPermissionApprove}
-        onReject={actions.onPermissionReject}
-        isLoading={state.isPermissionLoading}
-        error={state.permissionError}
-      />
-    </div>
-  );
-});
+import styles from './Chat.module.scss';
 
 export const Chat = memo(function Chat() {
   const { chatId } = useChatContext();
@@ -163,201 +125,6 @@ export const Chat = memo(function Chat() {
     [chatId, isStreaming, queryClient],
   );
 
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const hasInitializedToBottomRef = useRef(false);
-  const topPaginationArmedRef = useRef(false);
-  const lastScrollTopRef = useRef<number | null>(null);
-  const isAtBottomRef = useRef(true);
-  const prevScrollHeightRef = useRef<number | null>(null);
-  const prevChatIdForScrollRef = useRef(chatId);
-
-  const [showScrollButton, setShowScrollButton] = useState(false);
-
-  const turnRef = useRef<HTMLDivElement | null>(null);
-  // Send id whose anchor scroll hasn't run yet, and whether the animation is in flight
-  const anchorTurnRef = useRef<string | null>(null);
-  const anchoringRef = useRef(false);
-  const anchorTargetRef = useRef(0);
-  const [turnMinHeight, setTurnMinHeight] = useState(0);
-
-  if (prevChatIdForScrollRef.current !== chatId) {
-    prevChatIdForScrollRef.current = chatId;
-    hasInitializedToBottomRef.current = false;
-    topPaginationArmedRef.current = false;
-    lastScrollTopRef.current = null;
-    isAtBottomRef.current = true;
-    prevScrollHeightRef.current = null;
-    anchorTurnRef.current = null;
-    anchoringRef.current = false;
-    setTurnMinHeight(0);
-    setShowScrollButton(false);
-  }
-
-  const fetchNextPageRef = useRef(fetchNextPage);
-  const hasNextPageRef = useRef(hasNextPage);
-  const isFetchingNextPageRef = useRef(isFetchingNextPage);
-  fetchNextPageRef.current = fetchNextPage;
-  hasNextPageRef.current = hasNextPage;
-  isFetchingNextPageRef.current = isFetchingNextPage;
-
-  const handleScroll = useCallback(() => {
-    const container = scrollerRef.current;
-    if (!container) return;
-
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const atBottom = distanceFromBottom <= AT_BOTTOM_THRESHOLD_PX;
-    const isScrollingUp = lastScrollTopRef.current !== null && scrollTop < lastScrollTopRef.current;
-
-    // Settle the anchor on reaching its target or on user up-scroll — not on atBottom,
-    // which never arrives when the reply outgrows the spacer mid-flight.
-    if (anchoringRef.current && (scrollTop >= anchorTargetRef.current - 1 || isScrollingUp)) {
-      anchoringRef.current = false;
-      setShowScrollButton(!atBottom);
-    }
-
-    if (isAtBottomRef.current !== atBottom) {
-      isAtBottomRef.current = atBottom;
-      setShowScrollButton(!atBottom && !anchoringRef.current);
-    }
-
-    if (atBottom) {
-      hasInitializedToBottomRef.current = true;
-    }
-
-    if (!hasInitializedToBottomRef.current) {
-      lastScrollTopRef.current = scrollTop;
-      return;
-    }
-
-    const isNearTop = scrollTop <= clientHeight * TOP_PAGINATION_ARM_VIEWPORT_MULTIPLIER;
-
-    if (!topPaginationArmedRef.current && isScrollingUp && isNearTop) {
-      topPaginationArmedRef.current = true;
-    }
-
-    if (
-      topPaginationArmedRef.current &&
-      scrollTop < TOP_PAGINATION_TRIGGER_PX &&
-      hasNextPageRef.current &&
-      !isFetchingNextPageRef.current &&
-      fetchNextPageRef.current
-    ) {
-      topPaginationArmedRef.current = false;
-      prevScrollHeightRef.current = container.scrollHeight;
-      void fetchNextPageRef.current();
-    }
-
-    lastScrollTopRef.current = scrollTop;
-  }, []);
-
-  // Initial scroll to bottom when messages first load
-  useEffect(() => {
-    if (hasInitializedToBottomRef.current || messages.length === 0) return;
-
-    const container = scrollerRef.current;
-    if (!container) return;
-
-    // Use requestAnimationFrame to ensure DOM has rendered
-    requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
-      hasInitializedToBottomRef.current = true;
-    });
-  }, [messages]);
-
-  // Prepend anchoring: restore scroll position after older messages are prepended
-  useLayoutEffect(() => {
-    const prevHeight = prevScrollHeightRef.current;
-    if (prevHeight === null) return;
-
-    const container = scrollerRef.current;
-    if (!container) return;
-
-    container.scrollTop = container.scrollHeight - prevHeight;
-    prevScrollHeightRef.current = null;
-  }, [messages]);
-
-  useLayoutEffect(() => {
-    // Send anchor, step 1 of a two-commit handshake: reserve a viewport of space under
-    // the new turn (the reply streams into it instead of growing the page); the state
-    // commit re-fires step 2, which scrolls once the spacer exists in the DOM.
-    if (!pendingUserMessageId || !scrollerRef.current) return;
-    anchorTurnRef.current = pendingUserMessageId;
-    setTurnMinHeight(scrollerRef.current.clientHeight);
-  }, [pendingUserMessageId]);
-
-  useLayoutEffect(() => {
-    // Send anchor, step 2: one smooth scroll pinning the sent message to the top.
-    if (!anchorTurnRef.current) return;
-    if (anchorTurnRef.current !== pendingUserMessageId) {
-      // Send rolled back (optimistic message removed) before the anchor ran
-      anchorTurnRef.current = null;
-      return;
-    }
-    const scroller = scrollerRef.current;
-    const turn = turnRef.current;
-    if (!scroller || !turn) return;
-    const top =
-      turn.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
-    // Spacer not committed yet — scrolling now would clamp short; the min-height
-    // state update from step 1 re-runs this effect in the next commit.
-    if (top + scroller.clientHeight > scroller.scrollHeight + 1) return;
-    anchorTurnRef.current = null;
-    // Already at the target (first message in a short chat): no scroll event would
-    // ever fire to settle the latch, so don't arm it — there's nothing to animate.
-    if (Math.abs(top - scroller.scrollTop) <= 1) return;
-    anchoringRef.current = true;
-    anchorTargetRef.current = top;
-    // Exact turn top == max scroll with the spacer, so later stick-to-bottom
-    // snaps land on the same pixel instead of correcting a decorative offset.
-    scroller.scrollTo({ top, behavior: 'smooth' });
-  }, [pendingUserMessageId, turnMinHeight]);
-
-  const scrollToBottom = useCallback(() => {
-    setShowScrollButton(false);
-    scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: 'smooth' });
-  }, []);
-
-  const contentResizeObserverRef = useRef<ResizeObserver | null>(null);
-
-  const containerRefCallback = useCallback(
-    (node: HTMLDivElement | null) => {
-      const prev = scrollerRef.current;
-      if (prev) {
-        prev.removeEventListener('scroll', handleScroll);
-      }
-      contentResizeObserverRef.current?.disconnect();
-      contentResizeObserverRef.current = null;
-      scrollerRef.current = node;
-      if (node) {
-        lastScrollTopRef.current = node.scrollTop;
-        node.addEventListener('scroll', handleScroll, { passive: true });
-        // Stick to bottom whenever the content grows while the user is anchored
-        // there. Growth comes from stream flushes, the word-reveal animation
-        // ticking between flushes, and late layout (images, KaTeX) — a
-        // messages-keyed effect misses the latter two. ResizeObserver fires
-        // after layout and before paint, so the scroll never lags the growth.
-        // Skipped mid-anchor: an instant snap would cancel the send's smooth scroll.
-        const content = node.firstElementChild;
-        if (content) {
-          const observer = new ResizeObserver(() => {
-            if (isAtBottomRef.current && !anchoringRef.current) {
-              node.scrollTop = node.scrollHeight;
-            } else {
-              // Content shrinking (e.g. collapsing a rollup) may leave scrollTop
-              // unchanged so no scroll event fires — re-check at-bottom state or
-              // the scroll button stays visible with nothing left to scroll.
-              handleScroll();
-            }
-          });
-          observer.observe(content);
-          contentResizeObserverRef.current = observer;
-        }
-      }
-    },
-    [handleScroll],
-  );
-
   const { lastBotMessage, latestUserMessageId } = useMemo(() => {
     let latestAssistantMessage: (typeof messages)[number] | undefined;
     let latestUserId: string | null = null;
@@ -387,19 +154,22 @@ export const Chat = memo(function Chat() {
 
   const lastBotMessageId = lastBotMessage?.id ?? null;
 
-  const prevPendingUserMessageIdRef = useRef(pendingUserMessageId);
-  useLayoutEffect(() => {
-    // A failed send clears the pending id AND removes its optimistic message (normal
-    // clears keep the row) — drop the reserved space too, or the prior turn keeps a
-    // viewport-tall blank spacer until the next send.
-    const prevPending = prevPendingUserMessageIdRef.current;
-    prevPendingUserMessageIdRef.current = pendingUserMessageId;
-    if (prevPending === null || pendingUserMessageId !== null) return;
-    if (latestUserMessageId !== prevPending) {
-      anchoringRef.current = false;
-      setTurnMinHeight(0);
-    }
-  }, [pendingUserMessageId, latestUserMessageId]);
+  const {
+    scrollerRef,
+    turnRef,
+    turnMinHeight,
+    showScrollButton,
+    containerRefCallback,
+    scrollToBottom,
+  } = useChatScroll({
+    chatId,
+    messages,
+    pendingUserMessageId,
+    latestUserMessageId,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
 
   const turns = useMemo(() => {
     // Group each user message with the assistant output that follows so the last
@@ -455,7 +225,7 @@ export const Chat = memo(function Chat() {
       const uploadingAttachmentIds = shouldShowUploadingOverlay ? localAttachmentIds : undefined;
 
       return (
-        <div className="w-full lg:mx-auto lg:max-w-4xl">
+        <div className={styles.column}>
           {isBotMessage ? (
             <AssistantMessage
               id={msg.id}
@@ -464,7 +234,7 @@ export const Chat = memo(function Chat() {
               attachments={attachments}
               isStreaming={messageIsStreaming}
               createdAt={msg.created_at}
-              modelId={msg.model_id}
+              modelId={msg.model_id ?? undefined}
               durationMs={msg.duration_ms}
               checkpointId={msg.checkpoint_id}
               // Idle-gated so prompt suggestions unmount in the send commit itself —
@@ -483,7 +253,7 @@ export const Chat = memo(function Chat() {
               isStreaming={messageIsStreaming}
             />
           )}
-          {isLastBotMessage && !messageIsStreaming && <MessageInlinePermission />}
+          {isLastBotMessage && !messageIsStreaming && <ChatInlinePermission />}
         </div>
       );
     },
@@ -504,10 +274,10 @@ export const Chat = memo(function Chat() {
     }
 
     return (
-      <div className="w-full lg:mx-auto lg:max-w-4xl">
-        <div className="flex h-4 items-center justify-center p-4">
+      <div className={styles.column}>
+        <div className={styles['list-header-row']}>
           {isFetchingNextPage && (
-            <div className="flex items-center gap-2 text-sm text-text-secondary dark:text-text-dark-secondary">
+            <div className={styles['loading-more']}>
               <Spinner size="xs" />
               Loading older messages...
             </div>
@@ -529,26 +299,22 @@ export const Chat = memo(function Chat() {
     }
 
     return (
-      <div className="w-full lg:mx-auto lg:max-w-4xl">
+      <div className={styles.column}>
         {showThinking && <StatusTypewriter streamStartTime={streamStartTime} />}
-        {showPermissionAtEnd && <MessageInlinePermission />}
+        {showPermissionAtEnd && <ChatInlinePermission />}
         {showStreamActions && chatId && <StreamActionsBar chatId={chatId} />}
       </div>
     );
   }, [chatId, showPermissionAtEnd, showStreamActions, showThinking, streamStartTime]);
 
   return (
-    <div className="relative flex min-w-0 flex-1 flex-col">
-      <div className="relative flex-1 overflow-hidden">
+    <div className={styles.chat}>
+      <div className={styles.viewport}>
         {isInitialLoading && messages.length === 0 ? (
-          <ChatSkeleton messageCount={3} className="py-4" />
+          <ChatSkeleton messageCount={3} className={styles['skeleton-pad']} />
         ) : (
           <>
-            <div
-              key={chatId ?? 'chat'}
-              ref={containerRefCallback}
-              className="scrollbar-thin scrollbar-thumb-border-secondary dark:scrollbar-thumb-border-dark hover:scrollbar-thumb-text-quaternary dark:hover:scrollbar-thumb-border-dark-hover scrollbar-track-transparent h-full overflow-y-auto overflow-x-hidden"
-            >
+            <div key={chatId ?? 'chat'} ref={containerRefCallback} className={styles.scroller}>
               {/* Single wrapper so the stick-to-bottom ResizeObserver tracks all content */}
               <div>
                 {listHeader}
@@ -580,27 +346,18 @@ export const Chat = memo(function Chat() {
           </>
         )}
       </div>
-      <div className="relative">
+      <div className={styles.composer}>
         {showScrollButton && <ScrollButton onClick={scrollToBottom} />}
 
-        <div className="relative bg-surface pb-safe dark:bg-surface-dark">
-          <div className="relative w-full py-2 lg:mx-auto lg:max-w-4xl">
-            {pendingMessages.length > 0 && (
-              <div className="relative z-0 -mb-4 px-10 sm:px-14">
-                <div className="flex flex-col overflow-hidden rounded-t-2xl border border-b-0 border-border/50 bg-surface-secondary pb-4 dark:border-border-dark/50 dark:bg-surface-dark-secondary">
-                  {pendingMessages.map((pending) => (
-                    <QueueMessageCard
-                      key={pending.id}
-                      message={pending}
-                      onCancel={handleCancelMessage}
-                      onEdit={handleEditMessage}
-                      onSendNow={handleSendNow}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            <div className="relative z-10">
+        <div className={styles['composer-surface']}>
+          <div className={styles['composer-inner']}>
+            <ChatQueueBanner
+              messages={pendingMessages}
+              onCancel={handleCancelMessage}
+              onEdit={handleEditMessage}
+              onSendNow={handleSendNow}
+            />
+            <div className={styles['input-slot']}>
               <Input
                 message={inputMessage}
                 setMessage={setInputMessage}

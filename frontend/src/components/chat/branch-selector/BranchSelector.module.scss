@@ -1,0 +1,6 @@
+@use '@/styles/globals/typography' as type;
+
+// Passed to Dropdown's itemClassName — branch names render in monospace.
+.item-mono {
+    @include type.type-mono-meta;
+}

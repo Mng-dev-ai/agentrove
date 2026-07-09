@@ -1,7 +1,10 @@
 import React from 'react';
+import clsx from 'clsx';
 import { ListTodo, CheckCircle2, Circle, Clock } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolIcon from './toolIcon.module.scss';
+import styles from './TodoWrite.module.scss';
 
 interface Todo {
   content: string;
@@ -24,17 +27,13 @@ export const TodoWrite: React.FC<TodoWriteProps> = ({ tool }) => {
     completedCount > 0 || inProgressCount > 0 || pendingCount > 0 ? (
       <>
         {completedCount > 0 && (
-          <span className="text-success-600 dark:text-success-400">{completedCount} done</span>
+          <span className={styles['summary-done']}>{completedCount} done</span>
         )}
         {inProgressCount > 0 && (
-          <span className="text-text-secondary dark:text-text-dark-secondary">
-            {inProgressCount} active
-          </span>
+          <span className={styles['summary-active']}>{inProgressCount} active</span>
         )}
         {pendingCount > 0 && (
-          <span className="text-text-tertiary dark:text-text-dark-tertiary">
-            {pendingCount} pending
-          </span>
+          <span className={styles['summary-pending']}>{pendingCount} pending</span>
         )}
       </>
     ) : null;
@@ -45,18 +44,22 @@ export const TodoWrite: React.FC<TodoWriteProps> = ({ tool }) => {
   const getTodoStatusIcon = (status: Todo['status']) => {
     switch (status) {
       case 'completed':
-        return <CheckCircle2 className="h-4 w-4 text-success-600 dark:text-success-400" />;
+        return (
+          <CheckCircle2 className={clsx(styles['status-icon'], styles['status-icon--completed'])} />
+        );
       case 'in_progress':
-        return <Clock className="h-4 w-4 text-text-secondary dark:text-text-dark-secondary" />;
+        return (
+          <Clock className={clsx(styles['status-icon'], styles['status-icon--in-progress'])} />
+        );
       case 'pending':
       default:
-        return <Circle className="h-4 w-4 text-text-quaternary dark:text-text-dark-quaternary" />;
+        return <Circle className={clsx(styles['status-icon'], styles['status-icon--pending'])} />;
     }
   };
 
   return (
     <ToolCard
-      icon={<ListTodo className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<ListTodo className={toolIcon.icon} />}
       status={toolStatus}
       title={(status) => {
         switch (status) {
@@ -73,21 +76,17 @@ export const TodoWrite: React.FC<TodoWriteProps> = ({ tool }) => {
     >
       {todoCount > 0 && (
         <div>
-          <div className="mb-2 flex gap-3 text-2xs">{summaryMeta}</div>
-          <div className="space-y-1">
+          <div className={styles.summary}>{summaryMeta}</div>
+          <div className={styles.list}>
             {todos.map((todo, index) => (
-              <div
-                key={`${index}-${todo.content}`}
-                className="flex items-center gap-2 rounded-md py-1 transition-colors hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
-              >
-                <div className="flex-shrink-0">{getTodoStatusIcon(todo.status)}</div>
-                <div className="min-w-0 flex-1">
+              <div key={`${index}-${todo.content}`} className={styles.row}>
+                <div className={styles['status-icon-wrap']}>{getTodoStatusIcon(todo.status)}</div>
+                <div className={styles.content}>
                   <p
-                    className={`text-xs ${
-                      todo.status === 'completed'
-                        ? 'text-text-tertiary line-through dark:text-text-dark-tertiary'
-                        : 'text-text-primary dark:text-text-dark-primary'
-                    }`}
+                    className={clsx(
+                      styles.label,
+                      todo.status === 'completed' && styles['label--completed'],
+                    )}
                   >
                     {todo.status === 'in_progress' ? todo.activeForm : todo.content}
                   </p>

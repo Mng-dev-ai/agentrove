@@ -1,0 +1,38 @@
+@use '@/styles/globals/typography' as type;
+
+.context-usage {
+    @include type.type-meta;
+    @include type.type-noselect;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--theme-text-secondary);
+}
+
+.value {
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+}
+
+.ring {
+    height: var(--space-5);
+    width: var(--space-5);
+}
+
+.ring-track {
+    color: var(--theme-border);
+}
+
+.ring-progress {
+    &--normal {
+        color: var(--theme-text-primary);
+    }
+
+    &--warning {
+        color: var(--theme-warning-text);
+    }
+
+    &--danger {
+        color: var(--theme-error-text);
+    }
+}

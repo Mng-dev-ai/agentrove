@@ -1,11 +1,12 @@
 import { memo } from 'react';
 import { FileSearch, FolderSearch, Globe } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
-import { SearchLoadingDots } from '../common/SearchLoadingDots';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { SearchLoadingDots } from '../common/SearchLoadingDots/SearchLoadingDots';
 import type { CursorSearchOutput } from './cursorPayload';
+import styles from './SearchTool.module.scss';
 
-const ICON_CLASS = 'h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary';
+const ICON_CLASS = styles.icon;
 
 const SearchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const result = tool.result as CursorSearchOutput | undefined;

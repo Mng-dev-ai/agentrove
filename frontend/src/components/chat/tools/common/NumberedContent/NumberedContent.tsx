@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import styles from './NumberedContent.module.scss';
 
 interface NumberedContentProps {
   content: string;
@@ -28,15 +29,11 @@ const NumberedContentInner: React.FC<NumberedContentProps> = ({ content, prefixP
   );
 
   return (
-    <div className="max-h-48 overflow-auto font-mono text-2xs leading-relaxed">
+    <div className={styles.numbered}>
       {lines.map((line, idx) => (
-        <div key={idx} className="flex">
-          <span className="w-8 flex-shrink-0 select-none pr-2 text-right text-text-quaternary dark:text-text-dark-quaternary">
-            {line.lineNum}
-          </span>
-          <span className="whitespace-pre text-text-tertiary dark:text-text-dark-tertiary">
-            {line.text || '\u00A0'}
-          </span>
+        <div key={idx} className={styles.line}>
+          <span className={styles.gutter}>{line.lineNum}</span>
+          <span className={styles.text}>{line.text || ' '}</span>
         </div>
       ))}
     </div>

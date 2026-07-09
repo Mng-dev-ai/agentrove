@@ -1,7 +1,8 @@
 import { memo } from 'react';
 import { XCircle } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolIcon from './toolIcon.module.scss';
 
 interface KillShellInput {
   shell_id: string;
@@ -14,7 +15,7 @@ const KillShellToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<XCircle className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<XCircle className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {

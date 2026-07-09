@@ -2,14 +2,13 @@ import { memo } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { NumberedContent } from '../common/NumberedContent';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { NumberedContent } from '../common/NumberedContent/NumberedContent';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
+import toolIcon from './toolIcon.module.scss';
 import type { OpencodeReadInput, OpencodeOutput } from './opencodePayload';
 
-const ICON = (
-  <FileSearch className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />
-);
+const ICON = <FileSearch className={toolIcon.icon} />;
 
 const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as OpencodeReadInput | undefined;

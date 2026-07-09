@@ -12,6 +12,7 @@ import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { SelectorDot } from '@/components/ui/primitives/SelectorDot/SelectorDot';
+import styles from './InputControls.module.scss';
 
 export function InputControls() {
   const state = useInputState();
@@ -32,7 +33,7 @@ export function InputControls() {
   const showThinking = agentKind ? THINKING_MODES_BY_AGENT[agentKind].length > 0 : true;
 
   return (
-    <div className="flex min-w-0 items-center gap-1" onMouseDown={(e) => e.preventDefault()}>
+    <div className={styles['input-controls']} onMouseDown={(e) => e.preventDefault()}>
       <ModelSelector
         selectedModelId={state.selectedModelId}
         onModelChange={actions.onModelChange}

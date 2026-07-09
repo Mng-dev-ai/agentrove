@@ -1,0 +1,16 @@
+@use '@/styles/globals/typography' as type;
+
+.files {
+    max-height: var(--space-48);
+    overflow: auto;
+    @include type.type-mono(0.625rem, 1.625);
+    color: var(--theme-text-tertiary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-quaternary);
+    }
+}
+
+.file {
+    @include type.type-overflow;
+}

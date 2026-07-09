@@ -1,0 +1,38 @@
+@use '@/styles/globals/typography' as type;
+
+.icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-secondary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-tertiary);
+    }
+}
+
+.sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+}
+
+.fallback {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1-5);
+}
+
+.url {
+    @include type.type-mono-meta;
+    @include type.type-overflow;
+    color: var(--theme-text-tertiary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-quaternary);
+    }
+}
+
+.pattern {
+    @include type.type-meta;
+    color: var(--theme-text-tertiary);
+}

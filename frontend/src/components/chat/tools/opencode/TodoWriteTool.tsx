@@ -1,20 +1,24 @@
 import { memo } from 'react';
+import clsx from 'clsx';
 import { ListTodo, CheckCircle2, Circle, Clock, XCircle } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolIcon from './toolIcon.module.scss';
 import type { OpencodeTodoInfo, OpencodeTodoWriteInput } from './opencodePayload';
+import styles from './TodoWriteTool.module.scss';
 
-const ICON = <ListTodo className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />;
+const ICON = <ListTodo className={toolIcon.icon} />;
 
 const STATUS_ICON: Record<NonNullable<OpencodeTodoInfo['status']>, React.ReactNode> = {
-  completed: <CheckCircle2 className="h-4 w-4 text-success-600 dark:text-success-400" />,
-  in_progress: <Clock className="h-4 w-4 text-text-secondary dark:text-text-dark-secondary" />,
-  pending: <Circle className="h-4 w-4 text-text-quaternary dark:text-text-dark-quaternary" />,
-  cancelled: <XCircle className="h-4 w-4 text-text-quaternary dark:text-text-dark-quaternary" />,
+  completed: (
+    <CheckCircle2 className={clsx(styles['status-icon'], styles['status-icon--completed'])} />
+  ),
+  in_progress: (
+    <Clock className={clsx(styles['status-icon'], styles['status-icon--in-progress'])} />
+  ),
+  pending: <Circle className={clsx(styles['status-icon'], styles['status-icon--pending'])} />,
+  cancelled: <XCircle className={clsx(styles['status-icon'], styles['status-icon--cancelled'])} />,
 };
-
-const TODO_TEXT_DONE = 'text-xs text-text-tertiary line-through dark:text-text-dark-tertiary';
-const TODO_TEXT_ACTIVE = 'text-xs text-text-primary dark:text-text-dark-primary';
 
 const TodoWriteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as OpencodeTodoWriteInput | undefined;
@@ -50,39 +54,29 @@ const TodoWriteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
     >
       {total > 0 && (
         <div>
-          <div className="mb-2 flex gap-3 text-2xs">
+          <div className={styles.summary}>
             {counts.completed > 0 && (
-              <span className="text-success-600 dark:text-success-400">
-                {counts.completed} done
-              </span>
+              <span className={styles['summary-done']}>{counts.completed} done</span>
             )}
             {counts.inProgress > 0 && (
-              <span className="text-text-secondary dark:text-text-dark-secondary">
-                {counts.inProgress} active
-              </span>
+              <span className={styles['summary-active']}>{counts.inProgress} active</span>
             )}
             {counts.pending > 0 && (
-              <span className="text-text-tertiary dark:text-text-dark-tertiary">
-                {counts.pending} pending
-              </span>
+              <span className={styles['summary-pending']}>{counts.pending} pending</span>
             )}
           </div>
-          <div className="space-y-1">
+          <div className={styles.list}>
             {todos.map((todo, idx) => {
               const status = todo.status ?? 'pending';
               return (
-                <div
-                  key={todo.id ?? `${idx}-${todo.content}`}
-                  className="flex items-center gap-2 rounded-md py-1 transition-colors hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
-                >
-                  <div className="flex-shrink-0">{STATUS_ICON[status]}</div>
-                  <div className="min-w-0 flex-1">
+                <div key={todo.id ?? `${idx}-${todo.content}`} className={styles.row}>
+                  <div className={styles['status-icon-wrap']}>{STATUS_ICON[status]}</div>
+                  <div className={styles.content}>
                     <p
-                      className={
-                        status === 'completed' || status === 'cancelled'
-                          ? TODO_TEXT_DONE
-                          : TODO_TEXT_ACTIVE
-                      }
+                      className={clsx(
+                        styles.label,
+                        (status === 'completed' || status === 'cancelled') && styles['label--done'],
+                      )}
                     >
                       {todo.content}
                     </p>

@@ -107,7 +107,10 @@ async function checkChatStatus(chatId: string): Promise<{
 async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
   // Local backend only — its runtime registry covers every local chat and
   // sub-thread, so startup restoration needs a single request.
-  return serviceCall(() => apiClient.get('/chat/chats/active-streams'));
+  return serviceCall(async () => {
+    const streams = await apiClient.get<ActiveStreamSnapshot[]>('/chat/chats/active-streams');
+    return streams ?? [];
+  });
 }
 
 async function reconnectToStream(

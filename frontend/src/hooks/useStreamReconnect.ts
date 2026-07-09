@@ -132,6 +132,7 @@ export function useStreamReconnect({
             model_id: selectedModelIdRef.current || '',
             is_bot: true,
             duration_ms: null,
+            attachments: [],
             checkpoint_id: null,
           };
           addMessageToCache(placeholderMessage);

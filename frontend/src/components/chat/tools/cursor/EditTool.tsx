@@ -2,19 +2,20 @@ import { memo } from 'react';
 import { FileEdit, FilePlus, FileMinus } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { DiffView } from '../common/DiffView';
-import { NumberedContent } from '../common/NumberedContent';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { DiffView } from '../common/DiffView/DiffView';
+import { NumberedContent } from '../common/NumberedContent/NumberedContent';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import { buildUnifiedDiff } from '../common/buildUnifiedDiff';
 import type { CursorDiffBlock, CursorEditOutput } from './cursorPayload';
+import styles from './EditTool.module.scss';
 
 type EditOp = 'add' | 'update' | 'delete';
 
 const ICON_BY_OP: Record<EditOp, React.ReactNode> = {
-  add: <FilePlus className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />,
-  delete: <FileMinus className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />,
-  update: <FileEdit className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />,
+  add: <FilePlus className={styles.icon} />,
+  delete: <FileMinus className={styles.icon} />,
+  update: <FileEdit className={styles.icon} />,
 };
 
 const classifyOp = (block: CursorDiffBlock): EditOp => {
@@ -77,13 +78,11 @@ const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       actions={filePath ? <OpenInEditorButton filePath={filePath} /> : null}
     >
       {diffs.length > 0 && (
-        <div className="space-y-2">
+        <div className={styles.list}>
           {diffs.map((block, idx) => (
             <div key={block.path ?? idx}>
               {diffs.length > 1 && block.path && (
-                <div className="mb-1 truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-                  {extractFilename(block.path)}
-                </div>
+                <div className={styles['file-label']}>{extractFilename(block.path)}</div>
               )}
               <DiffEntry block={block} />
             </div>

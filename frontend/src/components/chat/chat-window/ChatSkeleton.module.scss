@@ -1,0 +1,90 @@
+@use '@/styles/globals/responsive' as responsive;
+
+.chat-skeleton {
+    margin-left: auto;
+    margin-right: auto;
+    // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token — kept as a raw rem value
+    max-width: 56rem;
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
+}
+
+.message-skeleton {
+    padding: var(--space-6) var(--space-4) 0;
+
+    @include responsive.media('sm-up') {
+        padding-left: var(--space-6);
+        padding-right: var(--space-6);
+    }
+
+    &--first {
+        margin-top: var(--space-4);
+    }
+}
+
+.skeleton-row {
+    display: flex;
+    gap: var(--space-3);
+
+    @include responsive.media('sm-up') {
+        gap: var(--space-4);
+    }
+}
+
+.avatar-slot {
+    margin-top: var(--space-1);
+    flex-shrink: 0;
+}
+
+// Shared pulsing placeholder fill — light surface-hover, dark surface-tertiary
+.pulse-block {
+    animation: pulse 2s var(--easing-in-out) infinite;
+    background-color: var(--theme-surface-hover);
+
+    :global([data-theme='dark']) & {
+        background-color: var(--theme-surface-tertiary);
+    }
+}
+
+.avatar-circle {
+    height: var(--space-7);
+    width: var(--space-7);
+    border-radius: var(--radius-full);
+}
+
+.skeleton-body {
+    min-width: 0;
+    flex: 1;
+}
+
+.name-bar {
+    margin-bottom: var(--space-2);
+    height: var(--space-3);
+    width: var(--space-24);
+    // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
+    border-radius: var(--radius-sm);
+}
+
+.lines {
+    > * + * {
+        margin-top: var(--space-2-5);
+    }
+}
+
+.line {
+    height: var(--space-3-5);
+    // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
+    border-radius: var(--radius-sm);
+
+    &--full {
+        width: 100%;
+    }
+
+    &--four-fifths {
+        width: 80%;
+    }
+
+    &--three-fifths {
+        width: 60%;
+    }
+}

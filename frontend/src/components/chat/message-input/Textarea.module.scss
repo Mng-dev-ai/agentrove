@@ -1,0 +1,58 @@
+@use '@/styles/globals/typography' as type;
+
+.textarea {
+    position: relative;
+}
+
+.backdrop {
+    @include type.type-default;
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    // Fixed viewport cap shared with the textarea (no spacing-scale token for 180px)
+    max-height: 180px;
+    overflow-y: auto;
+    padding-block: var(--space-1-5);
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    color: transparent;
+
+    &--dimmed {
+        opacity: 0.5;
+    }
+}
+
+// Backdrop pill behind @mention / command tokens — mirrors the textarea glyphs
+.backdrop-token {
+    // TODO(refactor): bare `rounded` (4px) has no exact token — using sm (matches sibling modules)
+    margin-inline: calc(var(--space-0-5) * -1);
+    border-radius: var(--radius-sm);
+    padding: var(--space-0-5);
+    background-color: var(--theme-surface-active);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+}
+
+.textarea-field {
+    @include type.type-default;
+    position: relative;
+    // Fixed viewport cap shared with the backdrop (no spacing-scale token for 180px)
+    max-height: 180px;
+    width: 100%;
+    min-height: var(--space-9);
+    overflow-y: auto;
+    padding-block: var(--space-1-5);
+    line-height: 1.5;
+    background: transparent;
+    color: var(--theme-text-primary);
+    transition: all var(--duration-base);
+
+    &::placeholder {
+        color: var(--theme-text-quaternary);
+    }
+
+    &--compact {
+        min-height: var(--space-7);
+    }
+}

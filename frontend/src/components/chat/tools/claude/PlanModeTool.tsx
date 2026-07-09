@@ -1,12 +1,15 @@
 import { memo } from 'react';
+import clsx from 'clsx';
 import { Map, Terminal } from 'lucide-react';
 import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
 import type { ToolAggregate } from '@/types/tools.types';
 import { MessageActions } from '../../message-bubble/MessageActions';
 import { PermissionApprovalButtons } from '@/components/ui/shared/ApprovalFooter/ApprovalFooter';
 import { filterOptions } from '@/utils/permissionStorage';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
 import { useExitPlanMode } from '@/hooks/useExitPlanMode';
+import toolIcon from './toolIcon.module.scss';
+import styles from './PlanModeTool.module.scss';
 
 interface PlanModeToolProps {
   tool: ToolAggregate;
@@ -20,7 +23,7 @@ interface AllowedPrompt {
 
 const EnterPlanModeInner: React.FC<PlanModeToolProps> = ({ tool }) => (
   <ToolCard
-    icon={<Map className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+    icon={<Map className={toolIcon.icon} />}
     status={tool.status}
     title={(status) => {
       switch (status) {
@@ -32,7 +35,7 @@ const EnterPlanModeInner: React.FC<PlanModeToolProps> = ({ tool }) => (
           return 'Entering plan mode';
       }
     }}
-    loadingContent="Entering plan mode\u2026"
+    loadingContent="Entering plan mode…"
     error={tool.error}
   />
 );
@@ -46,15 +49,13 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
 
   if (pendingRequest) {
     return (
-      <div className="overflow-hidden rounded-lg border border-border bg-surface-tertiary dark:border-border-dark dark:bg-surface-dark-tertiary">
-        <div className="flex items-center justify-between border-b border-border px-3 py-2 dark:border-border-dark">
-          <div className="flex items-center gap-2">
-            <div className="rounded-md bg-black/5 p-1 dark:bg-white/5">
-              <Map className="h-3.5 w-3.5 text-text-tertiary dark:text-text-dark-tertiary" />
+      <div className={styles.card}>
+        <div className={styles['card-header']}>
+          <div className={styles['header-left']}>
+            <div className={styles['icon-wrap']}>
+              <Map className={styles['plan-icon']} />
             </div>
-            <span className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
-              Plan Approval
-            </span>
+            <span className={styles.title}>Plan Approval</span>
           </div>
           {planContent && (
             <MessageActions
@@ -66,34 +67,32 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
           )}
         </div>
 
-        <div className="max-h-[50vh] overflow-y-auto p-3">
-          <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
+        <div className={styles['card-body']}>
+          <p className={styles.description}>
             The assistant has finished planning and is ready to begin implementation.
           </p>
 
           {planContent && (
-            <div className="mt-3 overflow-auto rounded-md bg-black/5 px-2 py-1.5 text-xs dark:bg-white/5">
-              <div className="prose prose-sm dark:prose-invert max-w-none text-text-primary dark:text-text-dark-primary">
+            <div className={clsx(styles['plan-box'], styles['plan-box--spaced'])}>
+              <div
+                className={clsx(
+                  styles['plan-prose'],
+                  'prose prose-sm dark:prose-invert max-w-none',
+                )}
+              >
                 <LazyMarkDown content={planContent} />
               </div>
             </div>
           )}
 
           {allowedPrompts.length > 0 && (
-            <div className="mt-3">
-              <p className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                Requested Permissions
-              </p>
-              <div className="mt-1.5 space-y-1">
+            <div className={styles['plan-box--spaced']}>
+              <p className={styles['permissions-label']}>Requested Permissions</p>
+              <div className={styles['permissions-list']}>
                 {allowedPrompts.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-md bg-black/5 px-2 py-1.5 dark:bg-white/5"
-                  >
-                    <Terminal className="h-3 w-3 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary" />
-                    <span className="text-xs text-text-secondary dark:text-text-dark-secondary">
-                      {item.prompt}
-                    </span>
+                  <div key={index} className={styles['permission-item']}>
+                    <Terminal className={styles['permission-icon']} />
+                    <span className={styles['permission-text']}>{item.prompt}</span>
                   </div>
                 ))}
               </div>
@@ -117,7 +116,7 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
 
   return (
     <ToolCard
-      icon={<Map className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Map className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {
@@ -126,36 +125,34 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
           case 'failed':
             return 'Plan rejected';
           default:
-            return 'Waiting for plan approval\u2026';
+            return 'Waiting for plan approval…';
         }
       }}
-      loadingContent="Waiting for plan approval\u2026"
+      loadingContent="Waiting for plan approval…"
       error={tool.error}
     >
       {hasContent && (
-        <div className="space-y-2">
+        <div className={styles.stack}>
           {planContent && (
-            <div className="overflow-auto rounded-md bg-black/5 px-2 py-1.5 text-xs dark:bg-white/5">
-              <div className="prose prose-sm dark:prose-invert max-w-none text-text-primary dark:text-text-dark-primary">
+            <div className={styles['plan-box']}>
+              <div
+                className={clsx(
+                  styles['plan-prose'],
+                  'prose prose-sm dark:prose-invert max-w-none',
+                )}
+              >
                 <LazyMarkDown content={planContent} />
               </div>
             </div>
           )}
           {allowedPrompts.length > 0 && (
             <div>
-              <p className="text-2xs font-medium uppercase tracking-wide text-text-tertiary dark:text-text-dark-tertiary">
-                Requested Permissions
-              </p>
-              <div className="mt-1.5 space-y-1">
+              <p className={styles['permissions-label']}>Requested Permissions</p>
+              <div className={styles['permissions-list']}>
                 {allowedPrompts.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center gap-2 rounded-md bg-black/5 px-2 py-1.5 dark:bg-white/5"
-                  >
-                    <Terminal className="h-3 w-3 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary" />
-                    <span className="text-xs text-text-secondary dark:text-text-dark-secondary">
-                      {item.prompt}
-                    </span>
+                  <div key={index} className={styles['permission-item']}>
+                    <Terminal className={styles['permission-icon']} />
+                    <span className={styles['permission-text']}>{item.prompt}</span>
                   </div>
                 ))}
               </div>

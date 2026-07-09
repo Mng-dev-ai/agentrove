@@ -2,9 +2,10 @@ import { memo, useMemo } from 'react';
 import { Globe } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractDomain, formatResult } from '@/utils/format';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
-import { SourceChip } from '../common/SourceChip';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { SourceChip } from '../common/SourceChip/SourceChip';
+import toolText from '../common/toolText.module.scss';
+import styles from './FetchTool.module.scss';
 
 interface FetchAction {
   type: 'open_page' | 'find_in_page';
@@ -43,7 +44,7 @@ const FetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<Globe className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Globe className={styles.icon} />}
       status={tool.status}
       title={(status) => {
         const fetchLabel = pattern || domain;
@@ -60,24 +61,16 @@ const FetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(sources.length > 0 || url || pattern || result) && (
-        <div className={sources.length > 0 ? 'flex flex-wrap gap-1' : 'space-y-1.5'}>
+        <div className={sources.length > 0 ? styles.sources : styles.fallback}>
           {sources.length > 0 ? (
             sources.map((source, index) => (
               <SourceChip key={`${index}-${source.url}`} source={source} index={index} />
             ))
           ) : (
             <>
-              {url && (
-                <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-                  {url}
-                </div>
-              )}
-              {pattern && (
-                <p className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">
-                  {pattern}
-                </p>
-              )}
-              {result && <pre className={TOOL_OUTPUT_PRE_CLASS}>{result}</pre>}
+              {url && <div className={styles.url}>{url}</div>}
+              {pattern && <p className={styles.pattern}>{pattern}</p>}
+              {result && <pre className={toolText['output-pre']}>{result}</pre>}
             </>
           )}
         </div>

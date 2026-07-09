@@ -1,12 +1,14 @@
 import { memo, useMemo, useState, useRef } from 'react';
 import { Bot } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
 import { AgentToolsContext } from '@/contexts/AgentToolsContext';
-import { ToolCard } from '../common/ToolCard';
-import { CollapsibleButton } from '../common/CollapsibleButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { CollapsibleButton } from '../common/CollapsibleButton/CollapsibleButton';
 import { getToolComponent } from '../registry';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
 import type { OpencodeTaskInput, OpencodeOutput } from './opencodePayload';
+import styles from './TaskTool.module.scss';
 
 const TaskToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const [promptExpanded, setPromptExpanded] = useState(false);
@@ -38,7 +40,7 @@ const TaskToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<Bot className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Bot className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         const label = description || agentType || 'agent task';
@@ -55,44 +57,40 @@ const TaskToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(agentType || prompt || output || tool.children.length > 0) && (
-        <div className="space-y-2">
+        <div className={styles.stack}>
           {agentType && (
-            <div className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">
-              <span className="text-text-quaternary dark:text-text-dark-quaternary">type: </span>
-              <span className="font-mono">{agentType}</span>
+            <div className={styles['type-row']}>
+              <span className={styles['type-label']}>type: </span>
+              <span className={styles['type-value']}>{agentType}</span>
             </div>
           )}
 
           {prompt && (
-            <div className="space-y-2">
+            <div className={styles.stack}>
               <CollapsibleButton
                 label="Prompt"
                 isExpanded={promptExpanded}
                 onToggle={() => setPromptExpanded((v) => !v)}
                 fullWidth
               />
-              {promptExpanded && (
-                <div className="whitespace-pre-wrap break-words rounded bg-black/5 p-2 font-mono text-2xs text-text-secondary dark:bg-white/5 dark:text-text-dark-tertiary">
-                  {prompt}
-                </div>
-              )}
+              {promptExpanded && <div className={toolText['agent-box']}>{prompt}</div>}
             </div>
           )}
 
           {output && (
-            <div className="space-y-2">
+            <div className={styles.stack}>
               <CollapsibleButton
                 label="Result"
                 isExpanded={resultExpanded}
                 onToggle={() => setResultExpanded((v) => !v)}
                 fullWidth
               />
-              {resultExpanded && <pre className={TOOL_OUTPUT_PRE_CLASS}>{output}</pre>}
+              {resultExpanded && <pre className={toolText['output-pre']}>{output}</pre>}
             </div>
           )}
 
           {tool.children.length > 0 && (
-            <div className="space-y-2">
+            <div className={styles.stack}>
               <CollapsibleButton
                 label="Tools Used"
                 isExpanded={toolsExpanded}
@@ -102,14 +100,11 @@ const TaskToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
               />
               {toolsExpanded && (
                 <AgentToolsContext value={childTaskTools}>
-                  <div className="space-y-2">
+                  <div className={styles.stack}>
                     {tool.children.map((childTool) => {
                       const Component = getToolComponent(childTool.name, 'opencode');
                       return (
-                        <div
-                          key={childTool.id}
-                          className="border-l border-border pl-2 dark:border-border-dark"
-                        >
+                        <div key={childTool.id} className={styles['child-tool']}>
                           <Component tool={childTool} />
                         </div>
                       );

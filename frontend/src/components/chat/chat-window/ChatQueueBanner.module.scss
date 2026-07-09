@@ -1,0 +1,30 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/responsive' as responsive;
+
+.queue-banner {
+    position: relative;
+    // TODO(refactor): local 0-baseline stacking context (keeps the banner under the
+    // composer's raised input); no semantic z-layer token maps to 0
+    z-index: 0;
+    // Tucks the banner's bottom edge under the composer above it
+    margin-bottom: calc(-1 * var(--space-4));
+    padding-left: var(--space-10);
+    padding-right: var(--space-10);
+
+    @include responsive.media('sm-up') {
+        padding-left: var(--space-14);
+        padding-right: var(--space-14);
+    }
+}
+
+.queue-card-list {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-bottom: 0;
+    border-top-left-radius: var(--radius-2xl);
+    border-top-right-radius: var(--radius-2xl);
+    background-color: var(--theme-surface-secondary);
+    padding-bottom: var(--space-4);
+}

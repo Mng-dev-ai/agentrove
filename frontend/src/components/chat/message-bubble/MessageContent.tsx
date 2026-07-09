@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { MessageRenderer } from './MessageRenderer';
 import type { AgentKind, AssistantStreamEvent, MessageAttachment } from '@/types/chat.types';
 import { MessageAttachments } from './MessageAttachments';
+import styles from './MessageContent.module.scss';
 
 interface SharedContentProps {
   contentRender: {
@@ -24,7 +25,7 @@ export const UserMessageContent = memo(function UserMessageContent({
   chatId,
 }: UserMessageContentProps) {
   return (
-    <div className="space-y-1">
+    <div className={styles['user-content']}>
       <MessageAttachments
         attachments={attachments}
         uploadingAttachmentIds={uploadingAttachmentIds}
@@ -58,7 +59,7 @@ export const AssistantMessageContent = memo(function AssistantMessageContent({
   agentKind,
 }: AssistantMessageContentProps) {
   return (
-    <div className="space-y-4">
+    <div className={styles['assistant-content']}>
       <MessageRenderer
         events={contentRender.events}
         isStreaming={isStreaming}
@@ -69,7 +70,11 @@ export const AssistantMessageContent = memo(function AssistantMessageContent({
         agentKind={agentKind}
       />
 
-      <MessageAttachments attachments={attachments} className="mt-3" chatId={chatId} />
+      <MessageAttachments
+        attachments={attachments}
+        className={styles.attachments}
+        chatId={chatId}
+      />
     </div>
   );
 });

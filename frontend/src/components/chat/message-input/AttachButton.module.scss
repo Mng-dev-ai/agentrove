@@ -1,0 +1,28 @@
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.attach-button {
+    @include anim.transition-colors;
+    padding: var(--space-1-5);
+    border-radius: var(--radius-full);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+        color: var(--theme-text-primary);
+    }
+
+    &:active {
+        transform: scale(0.95);
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+}
+
+.icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+}

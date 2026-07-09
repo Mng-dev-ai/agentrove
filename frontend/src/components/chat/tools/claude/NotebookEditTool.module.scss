@@ -1,0 +1,29 @@
+@use '@/styles/globals/typography' as type;
+
+.details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1-5);
+}
+
+.path {
+    @include type.type-overflow;
+    @include type.type-mono-meta;
+    color: var(--theme-text-tertiary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-quaternary);
+    }
+}
+
+.meta-row {
+    display: flex;
+    gap: var(--space-3);
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+}
+
+.mono {
+    font-family: var(--font-mono);
+    color: var(--theme-text-tertiary);
+}

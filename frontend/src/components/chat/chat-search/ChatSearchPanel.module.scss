@@ -1,0 +1,152 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.chat-search-panel {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+}
+
+.header {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    gap: var(--space-2);
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    padding: var(--space-2) var(--space-3);
+}
+
+.search-box {
+    position: relative;
+    display: flex;
+    align-items: center;
+    border-radius: var(--radius-md);
+    border: 1px solid colors.theme-color('border', 0.5);
+    background-color: var(--theme-surface);
+}
+
+.search-icon {
+    pointer-events: none;
+    position: absolute;
+    left: var(--space-2);
+    height: var(--space-3);
+    width: var(--space-3);
+    color: var(--theme-text-quaternary);
+}
+
+.search-input {
+    @include type.type-default;
+    height: var(--space-7);
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: var(--space-1) var(--space-2) var(--space-1) var(--space-7);
+    color: var(--theme-text-primary);
+
+    &::placeholder {
+        color: var(--theme-text-quaternary);
+    }
+
+    &:focus {
+        outline: none;
+    }
+}
+
+// FloatingTooltip wraps the trigger in an unstyled div — layout comes from us
+.tooltip-trigger {
+    display: flex;
+}
+
+.search-clear {
+    @include anim.transition-colors;
+    margin-right: var(--space-1);
+    display: flex;
+    height: var(--space-5);
+    width: var(--space-5);
+    align-items: center;
+    justify-content: center;
+    // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
+    border-radius: var(--radius-sm);
+    color: var(--theme-text-quaternary);
+
+    @include responsive.hover {
+        color: var(--theme-text-primary);
+    }
+}
+
+.clear-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+}
+
+.results {
+    flex: 1 1 0%;
+    overflow-y: auto;
+    padding: var(--space-1) var(--space-2) var(--space-6);
+}
+
+.empty-message {
+    @include type.type-default;
+    padding: var(--space-6) var(--space-2);
+    text-align: center;
+    color: var(--theme-text-quaternary);
+}
+
+.loading-message {
+    @include type.type-default;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-6) 0;
+    color: var(--theme-text-quaternary);
+}
+
+.spin-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    animation: spin 1s linear infinite;
+}
+
+.error-message {
+    @include type.type-default;
+    padding: var(--space-4) var(--space-2);
+    color: var(--theme-error-text);
+}
+
+.summary {
+    @include type.type-meta;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2) var(--space-2);
+    color: var(--theme-text-quaternary);
+}
+
+.result-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+    transition: opacity var(--duration-fast);
+
+    // keepPreviousData renders stale results while a new query is in flight
+    &[aria-busy='true'] {
+        pointer-events: none;
+        opacity: 0.5;
+    }
+}
+
+.workspace-group {
+    margin-top: var(--space-2);
+
+    &:first-child {
+        margin-top: 0;
+    }
+}
+
+.workspace-name {
+    @include type.type-section-header;
+    padding: var(--space-1) var(--space-1-5);
+}

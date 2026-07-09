@@ -463,7 +463,7 @@ export const useUIStore = create<UIStoreState>()(
           set({ secondaryChatId: chatId, ...resetForNewSecondary });
           return;
         }
-        const openTabs = state.openTabs.includes('agent:secondary')
+        const openTabs: TileId[] = state.openTabs.includes('agent:secondary')
           ? state.openTabs
           : [...state.openTabs, 'agent:secondary'];
         set({

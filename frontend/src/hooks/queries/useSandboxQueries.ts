@@ -25,7 +25,7 @@ export const useFileContentQuery = (
 ) => {
   return useQuery({
     queryKey: queryKeys.sandbox.fileContent(sandboxId, filePath),
-    queryFn: () => sandboxService.getFileContent(sandboxId, filePath),
+    queryFn: () => sandboxService.getFileContent(sandboxId!, filePath!),
     enabled: !!sandboxId && !!filePath,
     // The editor unmounts on every chat switch; outlive the default 2-minute gc
     // so returning to a chat reopens its files from cache instead of refetching.
@@ -41,7 +41,7 @@ export const useFilesMetadataQuery = (
 ) => {
   return useQuery({
     queryKey: queryKeys.sandbox.filesMetadata(sandboxId, cwd),
-    queryFn: () => sandboxService.getSandboxFilesMetadata(sandboxId, cwd),
+    queryFn: () => sandboxService.getSandboxFilesMetadata(sandboxId!, cwd),
     enabled: !!sandboxId,
     // The listing is the slow sandbox call in the editor's reopen path; keep it
     // cached across chat switches (ChatPage refetches it when the editor re-activates).
@@ -56,7 +56,7 @@ export const useSecretsQuery = (
 ) => {
   return useQuery({
     queryKey: queryKeys.sandbox.secrets(sandboxId),
-    queryFn: () => sandboxService.getSecrets(sandboxId),
+    queryFn: () => sandboxService.getSecrets(sandboxId!),
     enabled: !!sandboxId,
     ...options,
   });
@@ -122,7 +122,7 @@ export const useGitBranchesQuery = (
 ) => {
   return useQuery({
     queryKey: queryKeys.sandbox.gitBranches(sandboxId, cwd),
-    queryFn: () => sandboxService.getGitBranches(sandboxId, cwd),
+    queryFn: () => sandboxService.getGitBranches(sandboxId!, cwd),
     enabled: !!sandboxId && enabled,
     // Branches can change out-of-band (terminal `git checkout`, external tools), so refetch on
     // window focus with a short stale window to pick those up without aggressive polling.
@@ -166,7 +166,7 @@ export const useGitDiffQuery = (
 ) => {
   return useQuery({
     queryKey: queryKeys.sandbox.gitDiff(sandboxId, mode, fullContext, cwd),
-    queryFn: () => sandboxService.getGitDiff(sandboxId, mode, fullContext, cwd),
+    queryFn: () => sandboxService.getGitDiff(sandboxId!, mode, fullContext, cwd),
     enabled: !!sandboxId,
     staleTime: 30_000,
     placeholderData: keepPreviousData,

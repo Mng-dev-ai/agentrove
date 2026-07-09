@@ -1,0 +1,77 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.summary {
+    margin-bottom: var(--space-2);
+    display: flex;
+    gap: var(--space-3);
+    @include type.type-meta;
+}
+
+.summary-done {
+    color: var(--theme-success-text);
+}
+
+.summary-active {
+    color: var(--theme-text-secondary);
+}
+
+.summary-pending {
+    color: var(--theme-text-tertiary);
+}
+
+.list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.row {
+    @include anim.transition-colors;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border-radius: var(--radius-md);
+    padding-block: var(--space-1);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+.status-icon-wrap {
+    flex-shrink: 0;
+}
+
+.status-icon {
+    height: var(--space-4);
+    width: var(--space-4);
+}
+
+.status-icon--completed {
+    color: var(--theme-success-text);
+}
+
+.status-icon--in-progress {
+    color: var(--theme-text-secondary);
+}
+
+.status-icon--pending {
+    color: var(--theme-text-quaternary);
+}
+
+.content {
+    min-width: 0;
+    flex: 1;
+}
+
+.label {
+    @include type.type-default;
+    color: var(--theme-text-primary);
+}
+
+.label--completed {
+    color: var(--theme-text-tertiary);
+    text-decoration: line-through;
+}

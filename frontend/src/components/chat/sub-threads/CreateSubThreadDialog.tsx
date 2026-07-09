@@ -36,6 +36,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import type { Chat } from '@/types/chat.types';
 import type { SlashCommand } from '@/types/ui.types';
+import styles from './CreateSubThreadDialog.module.scss';
 
 interface CreateSubThreadDialogProps {
   parentChat: Chat;
@@ -161,30 +162,23 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
       onClose={onClose}
       size="sm"
       zIndex="modalHighest"
-      className="overflow-visible"
+      className={styles.dialog}
     >
-      <div className="p-5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-surface-tertiary dark:bg-surface-dark-tertiary">
-            <GitBranch className="h-4 w-4 text-text-tertiary dark:text-text-dark-tertiary" />
+      <div className={styles['create-sub-thread-dialog']}>
+        <div className={styles.header}>
+          <div className={styles['icon-box']}>
+            <GitBranch className={styles['header-icon']} />
           </div>
-          <h2 className="text-sm font-medium text-text-primary dark:text-text-dark-primary">
-            New sub-thread
-          </h2>
+          <h2 className={styles.title}>New sub-thread</h2>
         </div>
 
-        <p className="mt-3 text-2xs text-text-tertiary dark:text-text-dark-tertiary">
-          From:{' '}
-          <span className="font-medium text-text-secondary dark:text-text-dark-secondary">
-            {parentChat.title}
-          </span>
+        <p className={styles['parent-info']}>
+          From: <span className={styles['parent-title']}>{parentChat.title}</span>
         </p>
 
-        <div className="mt-4 space-y-3">
+        <div className={styles.fields}>
           <div>
-            <label className="mb-1.5 block text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
-              Model
-            </label>
+            <label className={styles['field-label']}>Model</label>
             <ModelSelector
               selectedModelId={selectedModelId}
               onModelChange={setSelectedModelId}
@@ -194,13 +188,11 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
           </div>
 
           <div>
-            <label className="mb-1.5 block text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
-              Persona
-            </label>
+            <label className={styles['field-label']}>Persona</label>
             <Select
               value={personaName}
               onChange={(e) => setPersonaName(e.target.value)}
-              className="h-8 bg-surface-secondary px-3 py-1.5 text-xs text-text-primary dark:bg-surface-dark-secondary dark:text-text-dark-primary"
+              className={styles['persona-select']}
             >
               <option value={DEFAULT_PERSONA}>Default</option>
               {personas.map((p) => (
@@ -211,7 +203,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
             </Select>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className={styles['mode-row']}>
             {selectedThinkingOption && (
               <Dropdown
                 value={selectedThinkingOption}
@@ -235,10 +227,8 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
           </div>
 
           <div>
-            <label className="mb-1.5 block text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
-              Initial message
-            </label>
-            <div className="relative">
+            <label className={styles['field-label']}>Initial message</label>
+            <div className={styles['message-input-wrap']}>
               {hasSuggestions && (
                 <SlashCommandsPanel
                   suggestions={filteredCommands}
@@ -260,14 +250,14 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
                 onSelect={handleCursorChange}
                 placeholder="Message Agentrove... (/ for commands)"
                 rows={3}
-                className="w-full resize-none rounded-lg border border-border/50 bg-surface-secondary px-3 py-2 text-xs text-text-primary outline-none transition-colors duration-200 placeholder:text-text-quaternary focus:border-border-hover dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus:border-border-dark-hover"
+                className={styles['message-textarea']}
               />
             </div>
           </div>
         </div>
       </div>
 
-      <div className="flex justify-end gap-2 border-t border-border/50 px-5 py-3.5 dark:border-border-dark/50">
+      <div className={styles.footer}>
         <Button
           type="button"
           variant="ghost"

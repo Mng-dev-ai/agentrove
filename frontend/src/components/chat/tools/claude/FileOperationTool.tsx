@@ -1,12 +1,15 @@
 import { memo, useMemo } from 'react';
+import clsx from 'clsx';
 import { diffLines } from 'diff';
 import { FileSearch, FileEdit as FileEditIcon, FilePlus } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import type { ToolComponent } from '@/types/ui.types';
-import { ToolCard } from '../common/ToolCard';
-import { NumberedContent } from '../common/NumberedContent';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { NumberedContent } from '../common/NumberedContent/NumberedContent';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
+import toolIcon from './toolIcon.module.scss';
+import styles from './FileOperationTool.module.scss';
 
 // Claude's Read output embeds real line numbers before each line. The
 // separator has shifted between agent versions: older builds used "→"
@@ -91,36 +94,28 @@ const InlineDiff: React.FC<{ oldContent: string; newContent: string }> = ({
   const lines = useMemo(() => computeDiffLines(oldContent, newContent), [oldContent, newContent]);
 
   if (lines.length === 0) {
-    return (
-      <p className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-        No changes detected
-      </p>
-    );
+    return <p className={styles.empty}>No changes detected</p>;
   }
 
   return (
-    <div className="max-h-48 overflow-auto font-mono text-2xs leading-relaxed">
+    <div className={styles.diff}>
       {lines.map((line, idx) => (
-        <div key={idx} className="flex">
+        <div key={idx} className={styles.line}>
           <span
-            className={`w-4 flex-shrink-0 select-none text-center ${
-              line.type === 'removed'
-                ? 'text-error-600/40 dark:text-error-400/40'
-                : line.type === 'added'
-                  ? 'text-success-600/40 dark:text-success-400/40'
-                  : 'text-transparent'
-            }`}
+            className={clsx(
+              styles.gutter,
+              line.type === 'removed' && styles['gutter--removed'],
+              line.type === 'added' && styles['gutter--added'],
+            )}
           >
             {line.type === 'removed' ? '−' : line.type === 'added' ? '+' : ' '}
           </span>
           <span
-            className={`whitespace-pre ${
-              line.type === 'removed'
-                ? 'text-text-quaternary line-through dark:text-text-dark-quaternary'
-                : line.type === 'added'
-                  ? 'text-text-secondary dark:text-text-dark-secondary'
-                  : 'text-text-tertiary dark:text-text-dark-tertiary'
-            }`}
+            className={clsx(
+              styles.content,
+              line.type === 'removed' && styles['content--removed'],
+              line.type === 'added' && styles['content--added'],
+            )}
           >
             {line.content || '\u00A0'}
           </span>
@@ -163,7 +158,7 @@ const FileOperationToolInner: React.FC<FileOperationToolProps> = ({ tool, varian
 
   return (
     <ToolCard
-      icon={<Icon className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Icon className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {

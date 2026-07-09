@@ -7,18 +7,19 @@ import {
   type CSSProperties,
   type Ref,
 } from 'react';
+import clsx from 'clsx';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { getHighlightTokenRanges } from '@/utils/mentionParser';
 import { HighlightedText } from '@/components/ui/shared/HighlightedText/HighlightedText';
 import { Textarea as PrimitiveTextarea } from '@/components/ui/primitives/Textarea/Textarea';
+import styles from './Textarea.module.scss';
 
 const THIN_SCROLLBAR_STYLE: CSSProperties = { scrollbarWidth: 'thin' };
 
 // Backdrop variant of the pill: no text colors (the textarea's own glyphs render
 // on top) and negative margins so the painted background doesn't shift the flow.
-const BACKDROP_TOKEN_CLASSNAME =
-  '-mx-0.5 rounded box-decoration-clone bg-surface-active p-0.5 dark:bg-surface-dark-active';
+const BACKDROP_TOKEN_CLASSNAME = styles['backdrop-token'];
 
 // Invisible scrollbar that still reserves the same thin gutter as the textarea's,
 // so both layers wrap long lines at the same width when content overflows.
@@ -141,7 +142,7 @@ export function Textarea({
   );
 
   return (
-    <div className="relative">
+    <div className={styles.textarea}>
       {hasTokens && (
         // Paints pill backgrounds behind @mention and /command tokens; the textarea's own
         // glyphs render on top, so this layer's text is transparent and must mirror the
@@ -149,7 +150,7 @@ export function Textarea({
         <div
           ref={backdropRef}
           aria-hidden
-          className={`pointer-events-none absolute inset-0 max-h-[180px] overflow-y-auto whitespace-pre-wrap break-words py-1.5 text-xs leading-normal text-transparent ${isLoading || disabled ? 'opacity-50' : ''}`}
+          className={clsx(styles.backdrop, (isLoading || disabled) && styles['backdrop--dimmed'])}
           style={BACKDROP_SCROLLBAR_STYLE}
         >
           <HighlightedText text={message} tokenClassName={BACKDROP_TOKEN_CLASSNAME} />
@@ -173,7 +174,10 @@ export function Textarea({
         placeholder={placeholder}
         disabled={isLoading || disabled}
         rows={1}
-        className={`relative max-h-[180px] w-full resize-none overflow-y-auto bg-transparent py-1.5 text-xs leading-normal text-text-primary outline-none transition-all duration-200 placeholder:text-text-quaternary focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary ${isMobile && compact ? 'min-h-[28px]' : 'min-h-[36px]'}`}
+        className={clsx(
+          styles['textarea-field'],
+          isMobile && compact && styles['textarea-field--compact'],
+        )}
         style={THIN_SCROLLBAR_STYLE}
         aria-label="Message input"
       />

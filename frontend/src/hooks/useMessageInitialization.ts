@@ -35,7 +35,7 @@ export function useMessageInitialization({
   setMessages,
   setInitialPrompt,
 }: UseMessageInitializationParams) {
-  const initializedChatRef = useRef<string | undefined>();
+  const initializedChatRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!fetchedMessages || !chatId || isLoading || wasAborted) return;

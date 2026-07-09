@@ -1,10 +1,12 @@
 import React, { memo, useState } from 'react';
+import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ChevronRight } from 'lucide-react';
 import type { ToolEventStatus } from '@/types/tools.types';
-import { TOOL_ERROR_PRE_CLASS } from '@/utils/toolStyles';
-import { statusIndicator } from './statusIndicator';
+import { statusIndicator } from '../statusIndicator';
+import toolText from '../toolText.module.scss';
+import styles from './ToolCard.module.scss';
 
 type ToolCardTitle = string | ((status: ToolEventStatus) => string);
 
@@ -43,33 +45,27 @@ const ToolCardInner: React.FC<ToolCardProps> = ({
   const showChildren = !hasExpandableContent || expanded;
   const details =
     children || hasDetailsError ? (
-      <div className="mt-1.5 space-y-1.5">
+      <div className={styles.details}>
         {children}
         {hasDetailsError &&
           (React.isValidElement(error) ? (
             error
           ) : (
             // Multiline error output belongs inside the collapsible body alongside normal results
-            <pre className={TOOL_ERROR_PRE_CLASS}>{error}</pre>
+            <pre className={toolText['error-pre']}>{error}</pre>
           ))}
       </div>
     ) : null;
 
   const header = (
-    <div className="flex items-center gap-1.5">
-      <div className="flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary">
-        {icon}
-      </div>
-      <FloatingTooltip content={resolvedTitle} className="min-w-0">
-        <span className="block max-w-md truncate text-2xs text-text-tertiary dark:text-text-dark-tertiary">
-          {resolvedTitle}
-        </span>
+    <div className={styles.header}>
+      <div className={styles['icon-wrap']}>{icon}</div>
+      <FloatingTooltip content={resolvedTitle} className={styles['tooltip-wrap']}>
+        <span className={styles.title}>{resolvedTitle}</span>
       </FloatingTooltip>
       {statusIndicator[status]}
       {hasExpandableContent && (
-        <ChevronRight
-          className={`h-3 w-3 text-text-quaternary transition-transform duration-200 dark:text-text-dark-quaternary ${expanded ? 'rotate-90' : ''}`}
-        />
+        <ChevronRight className={clsx(styles.chevron, expanded && styles['chevron--expanded'])} />
       )}
     </div>
   );
@@ -81,36 +77,34 @@ const ToolCardInner: React.FC<ToolCardProps> = ({
         (React.isValidElement(loadingContent) ? (
           loadingContent
         ) : (
-          <p className="mt-0.5 pl-5 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-            {loadingContent}
-          </p>
+          <p className={styles.meta}>{loadingContent}</p>
         ))}
       {statusDetail &&
         (React.isValidElement(statusDetail) ? (
           statusDetail
         ) : (
-          <p className="mt-0.5 pl-5 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-            {statusDetail}
-          </p>
+          <p className={styles.meta}>{statusDetail}</p>
         ))}
     </>
   );
 
   return (
-    <div className={`group/tool ${className}`}>
-      <div className="flex items-center gap-1">
+    // literal `tool-card` is a stable global hook so child actions (OpenInEditorButton,
+    // AgentTool's open button) can reveal on card hover across module boundaries.
+    <div className={clsx('tool-card', className)}>
+      <div className={styles.row}>
         {hasExpandableContent ? (
           <Button
             variant="unstyled"
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
-            className="-ml-1 rounded-md px-1 py-0.5 text-left transition-colors duration-150 hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
+            className={styles.trigger}
             aria-expanded={expanded}
           >
             {header}
           </Button>
         ) : (
-          <div className="-ml-1 px-1 py-0.5">{header}</div>
+          <div className={styles.static}>{header}</div>
         )}
         {actions}
       </div>

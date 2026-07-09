@@ -1,0 +1,115 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/colors' as colors;
+
+.icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-secondary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-tertiary);
+    }
+}
+
+.body {
+    @include type.type-mono(0.625rem, 1.625);
+    max-height: var(--space-48);
+    overflow: auto;
+}
+
+.file-block {
+    margin-bottom: var(--space-2);
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+}
+
+.file-block-header {
+    margin-bottom: var(--space-1);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1-5);
+}
+
+.file-badge {
+    @include type.type-meta(500);
+    color: var(--theme-text-tertiary);
+}
+
+.file-badge--add {
+    color: var(--theme-success-text);
+}
+
+.file-badge--delete {
+    color: var(--theme-error-text);
+}
+
+.file-name {
+    @include type.type-overflow;
+    color: var(--theme-text-secondary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-tertiary);
+    }
+}
+
+.row {
+    display: flex;
+}
+
+.diff-header {
+    color: var(--theme-text-quaternary);
+}
+
+.diff-gutter {
+    width: var(--space-4);
+    flex-shrink: 0;
+    user-select: none;
+    text-align: center;
+    color: transparent;
+}
+
+.diff-gutter--removed {
+    color: colors.status-color('error', 600, 0.4);
+
+    :global([data-theme='dark']) & {
+        color: colors.status-color('error', 400, 0.4);
+    }
+}
+
+.diff-gutter--added {
+    color: colors.status-color('success', 600, 0.4);
+
+    :global([data-theme='dark']) & {
+        color: colors.status-color('success', 400, 0.4);
+    }
+}
+
+.diff-content {
+    white-space: pre;
+    color: var(--theme-text-tertiary);
+}
+
+.diff-content--removed {
+    color: var(--theme-text-quaternary);
+    text-decoration: line-through;
+}
+
+.diff-content--added {
+    color: var(--theme-text-secondary);
+}
+
+.numbered-gutter {
+    width: var(--space-8);
+    flex-shrink: 0;
+    user-select: none;
+    padding-right: var(--space-2);
+    text-align: right;
+    color: var(--theme-text-quaternary);
+}
+
+.numbered-text {
+    white-space: pre;
+    color: var(--theme-text-tertiary);
+}

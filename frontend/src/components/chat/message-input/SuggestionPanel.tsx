@@ -1,5 +1,7 @@
 import { type ReactNode, memo, useEffect, useMemo, useRef } from 'react';
+import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import styles from './SuggestionPanel.module.scss';
 
 interface SuggestionSection<T> {
   label?: string;
@@ -27,7 +29,7 @@ function SuggestionPanelInner<T>({
 
   const sectionOffsets = useMemo(
     () =>
-      sections.reduce<number[]>((acc, s, i) => {
+      sections.reduce<number[]>((acc, _section, i) => {
         acc.push(i === 0 ? 0 : acc[i - 1] + sections[i - 1].items.length);
         return acc;
       }, []),
@@ -45,19 +47,15 @@ function SuggestionPanelInner<T>({
   if (totalItems === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 z-40 mb-2">
-      <div className="max-h-64 overflow-y-auto rounded-lg border border-border bg-surface shadow-sm dark:border-border-dark dark:bg-surface-dark">
-        <div className="py-1" role="listbox">
+    <div className={styles['suggestion-panel']}>
+      <div className={styles['panel-scroll']}>
+        <div className={styles.list} role="listbox">
           {sections.map((section, sectionIdx) => {
             if (section.items.length === 0) return null;
             const offset = sectionOffsets[sectionIdx];
             return (
               <div key={section.label ?? sectionIdx}>
-                {section.label && (
-                  <div className="px-3 py-1 text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
-                    {section.label}
-                  </div>
-                )}
+                {section.label && <div className={styles['section-label']}>{section.label}</div>}
                 {section.items.map((item, itemIdx) => {
                   const globalIdx = offset + itemIdx;
                   const isActive = globalIdx === highlightedIndex;
@@ -71,11 +69,11 @@ function SuggestionPanelInner<T>({
                       variant="unstyled"
                       role="option"
                       aria-selected={isActive}
-                      className={`flex w-full items-center text-left ${section.itemClassName ?? 'gap-2 px-3 py-1.5'} ${
-                        isActive
-                          ? 'bg-surface-active dark:bg-surface-dark-active'
-                          : 'hover:bg-surface-hover dark:hover:bg-surface-dark-hover'
-                      }`}
+                      className={clsx(
+                        styles.item,
+                        section.itemClassName ?? styles['item--default'],
+                        isActive && styles['item--active'],
+                      )}
                       onMouseDown={(event) => {
                         event.preventDefault();
                         onSelect(item);

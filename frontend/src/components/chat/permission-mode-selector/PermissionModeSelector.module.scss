@@ -1,0 +1,107 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+// Passed to Dropdown's itemClassName — mode label + description stacked.
+.item-column {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+}
+
+.mode-label {
+    @include type.type-meta(500);
+    color: var(--theme-text-primary);
+
+    // Original Tailwind kept light-mode at text-primary regardless of selection and only
+    // varied dark mode by selection — preserved as-is (styling-only refactor).
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-secondary);
+    }
+
+    &--selected {
+        :global([data-theme='dark']) & {
+            color: var(--theme-text-primary);
+        }
+    }
+}
+
+.mode-description {
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+}
+
+.footer {
+    border-top: 1px solid colors.theme-color('border', 0.5);
+    padding: var(--space-1);
+}
+
+.plan-toggle {
+    @include anim.transition-colors(var(--duration-fast));
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: var(--space-2);
+    border-radius: var(--radius-lg);
+    padding: var(--space-1-5) var(--space-2);
+
+    @include responsive.hover {
+        background-color: colors.theme-color('surface-hover', 0.5);
+    }
+}
+
+.plan-toggle-spacer {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+}
+
+.plan-toggle-text {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--space-0-5);
+    text-align: left;
+}
+
+.plan-toggle-label {
+    @include type.type-meta(500);
+    color: var(--theme-text-secondary);
+
+    &--active {
+        color: var(--theme-text-primary);
+    }
+}
+
+.mode-toggle {
+    // px geometry — never-rescaling switch art (was h-3.5 w-6 in Tailwind)
+    height: 14px;
+    width: 24px;
+    border-radius: var(--radius-full);
+    background-color: colors.theme-color('text-quaternary', 0.4);
+    transition: background-color var(--duration-base);
+
+    &--on {
+        background-color: var(--theme-text-primary);
+    }
+}
+
+.mode-toggle-thumb {
+    height: 10px;
+    width: 10px;
+    border-radius: var(--radius-full);
+    // TODO(refactor): unchecked thumb was bg-white (light) / text-dark-tertiary (dark) in the
+    // original — not a clean semantic pair; approximated with text-quaternary.
+    background-color: var(--theme-text-quaternary);
+    transform: translate(2px, 2px);
+    transition:
+        transform var(--duration-base),
+        background-color var(--duration-base);
+
+    &--on {
+        transform: translate(12px, 2px);
+        background-color: var(--theme-surface);
+    }
+}

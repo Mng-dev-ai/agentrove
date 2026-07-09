@@ -1,0 +1,71 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+
+.chat-search-result-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.header-button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1-5);
+    // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
+    border-radius: var(--radius-sm);
+    padding: var(--space-1) var(--space-1-5);
+    text-align: left;
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+.chevron {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+    color: var(--theme-text-quaternary);
+    transition: transform var(--duration-fast);
+
+    &--expanded {
+        transform: rotate(90deg);
+    }
+}
+
+.chat-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+    color: var(--theme-text-quaternary);
+}
+
+.chat-title {
+    @include type.type-default(500);
+    @include type.type-overflow;
+    min-width: 0;
+    flex: 1;
+    color: var(--theme-text-primary);
+}
+
+.match-count {
+    @include type.type-meta;
+    margin-left: auto;
+    border-radius: var(--radius-full);
+    padding-inline: var(--space-1-5);
+    font-variant-numeric: tabular-nums;
+    // same highlight pair as the search-match background (bg-surface-active / dark:bg-surface-dark-hover)
+    background-color: var(--theme-surface-active);
+    color: var(--theme-text-secondary);
+}
+
+.lines {
+    display: flex;
+    flex-direction: column;
+    padding-left: var(--space-2);
+}
+
+.more {
+    @include type.type-meta;
+    padding: var(--space-0-5) var(--space-1-5);
+    color: var(--theme-text-quaternary);
+}

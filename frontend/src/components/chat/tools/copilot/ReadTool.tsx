@@ -2,9 +2,11 @@ import { memo } from 'react';
 import { FileSearch, FolderSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { NumberedContent } from '../common/NumberedContent';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { NumberedContent } from '../common/NumberedContent/NumberedContent';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
+import toolIcon from './toolIcon.module.scss';
+import styles from './ReadTool.module.scss';
 import type { CopilotReadInput, CopilotToolOutput } from './copilotPayload';
 
 // Copilot-via-Claude models prefix each line with "N. "; GPT models return raw
@@ -24,9 +26,9 @@ const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const fileLabel = path ? extractFilename(path) : 'file';
 
   const icon = isGlob ? (
-    <FolderSearch className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />
+    <FolderSearch className={toolIcon.icon} />
   ) : (
-    <FileSearch className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />
+    <FileSearch className={toolIcon.icon} />
   );
 
   return (
@@ -59,12 +61,8 @@ const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       actions={!isGlob && path ? <OpenInEditorButton filePath={path} /> : null}
     >
       {(path || pattern || content) && (
-        <div className="space-y-1.5">
-          {path && !isGlob && (
-            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-              {path}
-            </div>
-          )}
+        <div className={styles.details}>
+          {path && !isGlob && <div className={styles.path}>{path}</div>}
           {content && <NumberedContent content={content} prefixPattern={LINE_NUMBER_PREFIX} />}
         </div>
       )}

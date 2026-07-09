@@ -1,0 +1,75 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.details {
+    margin-top: var(--space-1-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1-5);
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.trigger {
+    margin-left: calc(-1 * var(--space-1));
+    border-radius: var(--radius-md);
+    padding: var(--space-0-5) var(--space-1);
+    text-align: left;
+    transition: background-color var(--duration-fast);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+.static {
+    margin-left: calc(-1 * var(--space-1));
+    padding: var(--space-0-5) var(--space-1);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1-5);
+}
+
+.icon-wrap {
+    flex-shrink: 0;
+    color: var(--theme-text-quaternary);
+}
+
+.tooltip-wrap {
+    min-width: 0;
+}
+
+.title {
+    display: block;
+    // TODO(refactor): no spacing token for 28rem (old max-w-md); scale skips 24rem→32rem
+    max-width: 28rem;
+    @include type.type-meta;
+    @include type.type-overflow;
+    color: var(--theme-text-tertiary);
+}
+
+.chevron {
+    height: var(--space-3);
+    width: var(--space-3);
+    color: var(--theme-text-quaternary);
+    transition: transform var(--duration-base);
+}
+
+.chevron--expanded {
+    transform: rotate(90deg);
+}
+
+.meta {
+    margin-top: var(--space-0-5);
+    padding-left: var(--space-5);
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+}

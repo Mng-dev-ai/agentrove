@@ -2,12 +2,13 @@ import { memo } from 'react';
 import { FilePlus } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { NumberedContent } from '../common/NumberedContent';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { NumberedContent } from '../common/NumberedContent/NumberedContent';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
+import toolIcon from './toolIcon.module.scss';
 import type { OpencodeWriteInput } from './opencodePayload';
 
-const ICON = <FilePlus className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />;
+const ICON = <FilePlus className={toolIcon.icon} />;
 
 const WriteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as OpencodeWriteInput | undefined;

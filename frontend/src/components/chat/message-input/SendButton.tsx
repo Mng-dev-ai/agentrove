@@ -1,5 +1,7 @@
 import { ArrowUp, LoaderCircle, Pause } from 'lucide-react';
+import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import styles from './SendButton.module.scss';
 
 export type SendButtonStatus = 'idle' | 'ready' | 'loading' | 'streaming';
 
@@ -12,25 +14,12 @@ export interface SendButtonProps {
   showLoadingSpinner?: boolean;
 }
 
-const BASE_CLASSES =
-  'p-1.5 rounded-full transition-colors duration-200 transform disabled:opacity-50 disabled:cursor-not-allowed active:scale-95';
-
-const PRIMARY_BG =
-  'bg-text-primary dark:bg-text-dark-primary hover:bg-text-secondary dark:hover:bg-text-dark-secondary';
-
-const VISUAL_COLORS: Record<'spinner' | 'stop' | 'ready' | 'idle', string> = {
-  spinner: PRIMARY_BG,
-  stop: PRIMARY_BG,
-  ready: PRIMARY_BG,
-  idle: 'bg-surface-tertiary dark:bg-surface-dark-tertiary',
-};
-
 export function SendButton({
   status,
   disabled,
   onClick,
   type = 'button',
-  className = '',
+  className,
   showLoadingSpinner = false,
 }: SendButtonProps) {
   const isActive = status === 'loading' || status === 'streaming';
@@ -39,33 +28,21 @@ export function SendButton({
   const showSpinnerIcon = showLoadingSpinner && status === 'loading';
   const showStopIcon = !showSpinnerIcon && isActive;
 
-  const scaleClass = hasMessage && !disabled ? 'scale-100' : 'scale-90';
-  const colorClasses = showSpinnerIcon
-    ? VISUAL_COLORS.spinner
-    : showStopIcon
-      ? VISUAL_COLORS.stop
-      : hasMessage
-        ? VISUAL_COLORS.ready
-        : VISUAL_COLORS.idle;
+  // Spinner, stop and ready share the inverted "filled" look; idle stays a muted pill.
+  const isPrimary = showSpinnerIcon || showStopIcon || hasMessage;
   let ariaLabel: string;
   let icon: React.ReactNode;
 
   if (showSpinnerIcon) {
     ariaLabel = 'Starting chat';
-    icon = (
-      <LoaderCircle className="h-3.5 w-3.5 animate-spin text-text-dark-primary motion-reduce:animate-none dark:text-text-primary" />
-    );
+    icon = <LoaderCircle className={styles['icon-spinner']} />;
   } else if (showStopIcon) {
     ariaLabel = 'Stop generating';
-    icon = (
-      <Pause className="h-3 w-3 animate-pulse text-surface motion-reduce:animate-none dark:text-surface-dark" />
-    );
+    icon = <Pause className={styles['icon-stop']} />;
   } else {
     ariaLabel = 'Send message';
     icon = (
-      <ArrowUp
-        className={`h-3.5 w-3.5 transition-transform ${hasMessage ? 'text-text-dark-primary dark:text-text-primary' : 'text-text-quaternary'}`}
-      />
+      <ArrowUp className={clsx(styles['icon-send'], hasMessage && styles['icon-send--active'])} />
     );
   }
 
@@ -75,7 +52,12 @@ export function SendButton({
       onClick={onClick}
       disabled={disabled}
       variant="unstyled"
-      className={`${BASE_CLASSES} ${scaleClass} ${colorClasses} ${className}`}
+      className={clsx(
+        styles['send-button'],
+        isPrimary ? styles['send-button--primary'] : styles['send-button--idle'],
+        hasMessage && !disabled && styles['send-button--ready'],
+        className,
+      )}
       aria-label={ariaLabel}
     >
       {icon}

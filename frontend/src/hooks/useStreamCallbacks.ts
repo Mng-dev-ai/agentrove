@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { QueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { StreamContentBuffer, type ContentRenderSnapshot } from '@/utils/stream';
+import { StreamContentBuffer } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { markChatViewed, patchChatInCache } from '@/hooks/queries/useChatQueries';
@@ -25,7 +25,7 @@ import {
 import { useMessageCache } from '@/hooks/useMessageCache';
 import { streamService } from '@/services/streamService';
 import type { StreamOptions } from '@/services/streamService';
-import { useChatSettingsStore } from '@/store/chatSettingsStore';
+import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
 import type { PaginatedMessages } from '@/types/api.types';
 
 // Batching window for streaming content updates. Envelopes arrive at token-level
@@ -80,7 +80,7 @@ function findMessageInCache(
   return undefined;
 }
 
-function createEmptyRenderSnapshot(): ContentRenderSnapshot {
+function createEmptyRenderSnapshot(): Message['content_render'] {
   return { events: [] };
 }
 
@@ -99,7 +99,7 @@ function buildFailedMessageUpdate(streamError: Error): (msg: Message) => Message
     const existingEvents = Array.isArray(msg.content_render?.events)
       ? msg.content_render.events
       : [];
-    const nextEvents = [
+    const nextEvents: AssistantStreamEvent[] = [
       ...existingEvents,
       { type: 'assistant_text', text: '\n\nError: ' + errorMessage },
     ];
@@ -125,7 +125,7 @@ function buildContentFlushUpdate(
   return (msg: Message): Message => ({
     ...msg,
     content_text: nextText,
-    content_render: nextRender,
+    content_render: { events: nextRender.events ?? [] },
     last_seq: nextSeq,
     active_stream_id: streamId,
   });
@@ -515,7 +515,11 @@ export function useStreamCallbacks({
           useChatSettingsStore.getState().setPlanMode(chatId, true);
         } else if (tool?.name === 'ExitPlanMode' && chatId) {
           if (tool.permission_mode) {
-            useChatSettingsStore.getState().setPermissionMode(chatId, tool.permission_mode);
+            // The backend's ExitPlanMode tool emits one of the known PermissionMode
+            // values; the payload types it as a plain string.
+            useChatSettingsStore
+              .getState()
+              .setPermissionMode(chatId, tool.permission_mode as PermissionMode);
           }
           useChatSettingsStore.getState().setPlanMode(chatId, false);
         }
@@ -803,6 +807,7 @@ export function useStreamCallbacks({
         created_at: new Date().toISOString(),
         attachments: data.attachments || [],
         is_bot: false,
+        model_id: null,
         duration_ms: null,
         checkpoint_id: null,
       };

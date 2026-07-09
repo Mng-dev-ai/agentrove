@@ -1,6 +1,8 @@
 import React from 'react';
+import clsx from 'clsx';
 import { ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import styles from './CollapsibleButton.module.scss';
 
 interface CollapsibleButtonProps {
   label: string;
@@ -27,12 +29,10 @@ export const CollapsibleButton: React.FC<CollapsibleButtonProps> = ({
       type="button"
       onClick={onToggle}
       variant="unstyled"
-      className={`flex items-center ${fullWidth ? 'w-full justify-between gap-2' : 'gap-1'} group/button px-0 py-0.5 text-xs font-medium text-text-tertiary transition-colors duration-200 hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary`}
+      className={clsx(styles.button, fullWidth && styles['button--full'])}
     >
       <span>{displayLabel}</span>
-      <ChevronDown
-        className={`h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/button:text-text-primary dark:group-hover/button:text-text-dark-primary ${isExpanded ? 'rotate-180' : ''}`}
-      />
+      <ChevronDown className={clsx(styles.chevron, isExpanded && styles['chevron--expanded'])} />
     </Button>
   );
 };

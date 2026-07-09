@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import styles from './PromptSuggestions.module.scss';
 
 interface PromptSuggestionsProps {
   suggestions: string[];
@@ -12,14 +13,14 @@ const PromptSuggestionsInner: React.FC<PromptSuggestionsProps> = ({ suggestions,
   }
 
   return (
-    <div className="mt-3 flex flex-wrap gap-1.5">
+    <div className={styles['prompt-suggestions']}>
       {suggestions.map((suggestion, index) => (
         <Button
           variant="unstyled"
           key={`${index}-${suggestion}`}
           type="button"
           onClick={() => onSelect(suggestion)}
-          className="rounded-md bg-surface-tertiary/60 px-2.5 py-1 text-2xs text-text-tertiary transition-colors duration-150 hover:bg-surface-hover hover:text-text-primary dark:bg-surface-dark-tertiary/60 dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+          className={styles.suggestion}
         >
           {suggestion}
         </Button>

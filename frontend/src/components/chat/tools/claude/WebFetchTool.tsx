@@ -2,8 +2,10 @@ import { memo } from 'react';
 import { Globe } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractDomain, formatResult } from '@/utils/format';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
+import styles from './WebFetchTool.module.scss';
 
 interface WebFetchInput {
   url: string;
@@ -20,7 +22,7 @@ const WebFetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<Globe className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Globe className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {
@@ -36,16 +38,10 @@ const WebFetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(url || prompt || result) && (
-        <div className="space-y-1.5">
-          {url && (
-            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-              {url}
-            </div>
-          )}
-          {prompt && (
-            <p className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">{prompt}</p>
-          )}
-          {result && <pre className={TOOL_OUTPUT_PRE_CLASS}>{result}</pre>}
+        <div className={styles.details}>
+          {url && <div className={styles.url}>{url}</div>}
+          {prompt && <p className={styles.prompt}>{prompt}</p>}
+          {result && <pre className={toolText['output-pre']}>{result}</pre>}
         </div>
       )}
     </ToolCard>
