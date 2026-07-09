@@ -16,22 +16,22 @@ export interface WorkspaceBadge {
 // Sidebar chat data: local and cloud chats live on separate backends, so three
 // queries (local pinned, local unpinned, cloud) are merged client-side into the
 // Pinned and Recents lists, with one loadMore advancing both paginated sources.
-export function useSidebarChatLists(workspaces: Workspace[]) {
-  const { data: pinnedChatsData } = useInfiniteChatsQuery({ pinned: true });
+export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = true) {
+  const { data: pinnedChatsData } = useInfiniteChatsQuery({ pinned: true, enabled });
   const {
     data: localChatsData,
     hasNextPage: hasMoreLocal,
     fetchNextPage: fetchMoreLocal,
     isFetchingNextPage: isFetchingMoreLocal,
     isLoading: isLoadingLocal,
-  } = useInfiniteChatsQuery({ pinned: false });
+  } = useInfiniteChatsQuery({ pinned: false, enabled });
   const {
     data: cloudChatsData,
     hasNextPage: hasMoreCloud,
     fetchNextPage: fetchMoreCloud,
     isFetchingNextPage: isFetchingMoreCloud,
     isLoading: isLoadingCloud,
-  } = useInfiniteCloudChatsQuery();
+  } = useInfiniteCloudChatsQuery(enabled);
 
   const cloudChats = useMemo(
     () => cloudChatsData?.pages.flatMap((page) => page.items) ?? [],
@@ -72,7 +72,7 @@ export function useSidebarChatLists(workspaces: Workspace[]) {
 
   // Resolves each row's workspace badge; cloud workspaces carry the cloud icon and
   // route rename/delete to the VPS. Workspace IDs are UUIDs from separate DBs — no collisions.
-  const { data: cloudWorkspaces } = useCloudWorkspacesQuery(true);
+  const { data: cloudWorkspaces } = useCloudWorkspacesQuery(enabled);
   const workspaceBadgeById = useMemo(() => {
     const map = new Map<string, WorkspaceBadge>();
     for (const workspace of workspaces) {

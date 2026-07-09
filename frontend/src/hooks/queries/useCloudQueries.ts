@@ -123,7 +123,7 @@ export const useCloudChatsTotalQuery = (enabled: boolean) => {
 // the cloud events feed (useCloudChatEvents); the poll is a safety net for
 // changes the feed doesn't carry (titles, deletes, other-device edits). Key
 // extends queryKeys.cloudChats so the LandingPage invalidation prefix-matches it.
-export const useInfiniteCloudChatsQuery = () => {
+export const useInfiniteCloudChatsQuery = (enabled: boolean = true) => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
   return useInfiniteQuery({
@@ -138,7 +138,7 @@ export const useInfiniteCloudChatsQuery = () => {
       return nextPage <= lastPage.pages ? nextPage : undefined;
     },
     initialPageParam: 1,
-    enabled: !!cloudUrl,
+    enabled: enabled && !!cloudUrl,
     staleTime: 10_000,
     refetchInterval: 15_000,
   });

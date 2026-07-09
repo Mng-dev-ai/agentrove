@@ -1,10 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { CaseSensitive, Loader2, Regex, Search, WholeWord, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input';
 import { useMountEffect } from '@/hooks/useMountEffect';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearchInFilesQuery } from '@/hooks/queries/useSandboxQueries';
 import type { SearchParams } from '@/types/sandbox.types';
 import { cn } from '@/utils/cn';
@@ -32,7 +33,7 @@ export const SearchPanel = memo(function SearchPanel({
   inputRef,
 }: SearchPanelProps) {
   const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const debouncedQuery = useDebouncedValue(query, 250);
   const [toggles, setToggles] = useState<Record<ToggleKey, boolean>>({
     caseSensitive: false,
     wholeWord: false,
@@ -53,11 +54,6 @@ export const SearchPanel = memo(function SearchPanel({
     },
     [onOpenResult],
   );
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 250);
-    return () => clearTimeout(timer);
-  }, [query]);
 
   const params: SearchParams = useMemo(
     () => ({
@@ -83,7 +79,6 @@ export const SearchPanel = memo(function SearchPanel({
 
   const handleClear = useCallback(() => {
     setQuery('');
-    setDebouncedQuery('');
     activeInputRef.current?.focus();
   }, [activeInputRef]);
 
