@@ -57,7 +57,13 @@ export interface ActionCommandItem {
 
 export type CommandItem = ViewCommandItem | ActionCommandItem;
 
-export type MenuMode = 'commands' | 'files' | 'branches' | 'search' | 'chat-search' | 'themes';
+// Main-mode filter tabs share one unified list; ⌘[/⌘] cycle through them in this order.
+export type MainFilter = 'all' | 'chats' | 'files' | 'actions';
+export const MAIN_FILTERS: MainFilter[] = ['all', 'chats', 'files', 'actions'];
+
+// Sub-modes (branch picker, theme picker, embedded search panels) replace the whole
+// menu surface; main filters only narrow the unified list.
+export type MenuMode = MainFilter | 'branches' | 'search' | 'chat-search' | 'themes';
 
 export interface FlatFileItem {
   path: string;

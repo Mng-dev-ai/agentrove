@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -431,6 +431,14 @@ export function Sidebar({
     }
   }, [navigate, isMobile]);
 
+  const handleOpenSearch = useCallback(() => {
+    useUIStore.getState().setCommandMenuOpen(true);
+    // Close the drawer on mobile so the destination isn't hidden behind it after picking a result
+    if (isMobile) {
+      useUIStore.getState().setSidebarOpen(false);
+    }
+  }, [isMobile]);
+
   const handleDropdownClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
@@ -622,14 +630,22 @@ export function Sidebar({
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="px-4 pt-2">
+        <div className="flex flex-col gap-1 px-4 pt-2">
           <Button
             onClick={handleNewChat}
             variant="unstyled"
-            className="flex w-full items-center justify-center gap-2.5 rounded-lg bg-surface-tertiary px-2 py-2 text-[13px] font-medium text-text-secondary transition-colors duration-200 hover:bg-surface-tertiary hover:text-text-primary dark:bg-surface-dark-tertiary/50 dark:text-text-dark-secondary dark:hover:bg-surface-dark-tertiary dark:hover:text-text-dark-primary"
+            className="flex w-full items-center gap-2.5 rounded-lg bg-surface-tertiary px-3 py-2 text-[13px] font-medium text-text-primary transition-colors duration-200 hover:bg-surface-tertiary dark:bg-surface-dark-tertiary/50 dark:text-text-dark-primary dark:hover:bg-surface-dark-tertiary"
           >
             <Plus className="h-3.5 w-3.5" />
             New thread
+          </Button>
+          <Button
+            onClick={handleOpenSearch}
+            variant="unstyled"
+            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] text-text-secondary transition-colors duration-200 hover:bg-surface-tertiary hover:text-text-primary dark:text-text-dark-secondary dark:hover:bg-surface-dark-tertiary/50 dark:hover:text-text-dark-primary"
+          >
+            <Search className="h-3.5 w-3.5" />
+            Search
           </Button>
         </div>
 

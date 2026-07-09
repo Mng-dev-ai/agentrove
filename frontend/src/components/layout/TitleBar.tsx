@@ -1,5 +1,4 @@
 import { useCallback } from 'react';
-import { Command } from 'lucide-react';
 import { useMatch } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -174,29 +173,13 @@ export function TitleBar() {
         {IS_MACOS_DESKTOP && <TrafficLights />}
 
         {isAuthenticated && showSidebar && (
-          <div className="ml-3 flex items-center gap-0.5">
+          <div className="ml-3 flex items-center">
             <ToggleButton
               isOpen={sidebarOpen}
               onClick={() => useUIStore.getState().setSidebarOpen(!sidebarOpen)}
               position="left"
               ariaLabel="Toggle sidebar"
             />
-            {isChatPage && (
-              <Button
-                onClick={() => useUIStore.getState().setCommandMenuOpen(true)}
-                variant="unstyled"
-                className={cn(
-                  'rounded-full p-1.5',
-                  'text-text-tertiary hover:text-text-primary',
-                  'dark:text-text-dark-quaternary dark:hover:text-text-dark-primary',
-                  'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
-                  'transition-colors duration-200',
-                )}
-                aria-label="Open command menu"
-              >
-                <Command className="h-3.5 w-3.5" />
-              </Button>
-            )}
           </div>
         )}
 

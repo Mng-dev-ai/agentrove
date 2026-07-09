@@ -1,9 +1,10 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input';
 import { useMountEffect } from '@/hooks/useMountEffect';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearchChatsQuery } from '@/hooks/queries/useChatQueries';
 import type { ChatSearchResult } from '@/types/chat.types';
 import { cn } from '@/utils/cn';
@@ -42,7 +43,7 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
   inputRef,
 }: ChatSearchPanelProps) {
   const [query, setQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const debouncedQuery = useDebouncedValue(query, 250);
   const localInputRef = useRef<HTMLInputElement>(null);
   const activeInputRef = inputRef ?? localInputRef;
 
@@ -50,16 +51,10 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
     activeInputRef.current?.focus();
   });
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 250);
-    return () => clearTimeout(timer);
-  }, [query]);
-
   const { data, isFetching, error } = useSearchChatsQuery(debouncedQuery);
 
   const handleClear = useCallback(() => {
     setQuery('');
-    setDebouncedQuery('');
     activeInputRef.current?.focus();
   }, [activeInputRef]);
 
