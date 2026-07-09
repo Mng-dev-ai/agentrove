@@ -102,11 +102,10 @@
 
     // Kill the UA's grey ButtonFace — buttons are styled entirely by their modules
     // (this replaced Tailwind preflight's button reset; without it every
-    // variant="unstyled" button paints the WebKit default grey)
-    button,
-    [type='button'],
-    [type='reset'],
-    [type='submit'] {
+    // variant="unstyled" button paints the WebKit default grey).
+    // Element selector only — attribute selectors like [type='button'] have
+    // class-level specificity and would override module classes in cascade ties.
+    button {
         appearance: button;
         background-color: transparent;
         background-image: none;

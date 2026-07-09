@@ -5,30 +5,29 @@
  * boundary via inheritance, so setting them on the host element themes the
  * internal UI without needing `unsafeCSS` injection.
  *
- * Palette maps to the structural token CSS vars (globals.css) so the tree
- * follows every theme — including data-palette overrides (dim/sepia) — for free.
- * var() resolves on the host, which inherits the tokens from :root.
+ * Palette maps to the semantic --theme-* token vars (styles/globals/_colors.scss),
+ * which already resolve per data-theme/data-palette — so one block covers light,
+ * dark, dim and sepia with no mode-specific overrides.
  */
 
 file-tree-container {
-  /* Light base (light + sepia) */
-  --trees-fg-override: rgb(var(--text-secondary) / 1);
-  --trees-fg-muted-override: rgb(var(--text-quaternary) / 1);
+  --trees-fg-override: var(--theme-text-secondary);
+  --trees-fg-muted-override: var(--theme-text-quaternary);
   --trees-bg-override: transparent;
-  --trees-bg-muted-override: rgb(var(--surface-hover) / 1);
-  --trees-accent-override: rgb(var(--text-primary) / 1);
-  --trees-border-color-override: rgb(var(--border) / 1);
+  --trees-bg-muted-override: var(--theme-surface-hover);
+  --trees-accent-override: var(--theme-text-primary);
+  --trees-border-color-override: var(--theme-border);
 
-  --trees-selected-bg-override: rgb(var(--surface-active) / 1);
-  --trees-selected-fg-override: rgb(var(--text-primary) / 1);
+  --trees-selected-bg-override: var(--theme-surface-active);
+  --trees-selected-fg-override: var(--theme-text-primary);
   --trees-selected-focused-border-color-override: transparent;
 
-  --trees-focus-ring-color-override: rgb(var(--text-quaternary) / 0.3);
+  --trees-focus-ring-color-override: rgb(var(--theme-text-quaternary-rgb) / 0.3);
   --trees-focus-ring-width-override: 1px;
   --trees-focus-ring-offset-override: 0;
 
   --trees-search-bg-override: transparent;
-  --trees-search-fg-override: rgb(var(--text-primary) / 1);
+  --trees-search-fg-override: var(--theme-text-primary);
   --trees-search-font-weight-override: 500;
 
   --trees-input-bg-override: transparent;
@@ -36,61 +35,24 @@ file-tree-container {
   --trees-item-padding-x-override: 6px;
   /* Tighter than the 8px default so deep paths stay readable in the narrow panel. */
   --trees-level-gap-override: 6px;
-  --trees-indent-guide-bg-override: rgb(var(--border) / 0.5);
-  --trees-scrollbar-thumb-override: rgb(var(--text-quaternary) / 1);
+  --trees-indent-guide-bg-override: rgb(var(--theme-border-rgb) / 0.5);
+  --trees-scrollbar-thumb-override: var(--theme-text-quaternary);
 
   /* Monochrome git status — all modified/renamed/added collapse to the same
      muted tone; "ignored" is dimmer via opacity so it tracks the palette too. */
-  --trees-status-modified-override: rgb(var(--text-quaternary) / 1);
-  --trees-status-added-override: rgb(var(--text-quaternary) / 1);
-  --trees-status-renamed-override: rgb(var(--text-quaternary) / 1);
-  --trees-status-untracked-override: rgb(var(--text-quaternary) / 1);
-  --trees-status-ignored-override: rgb(var(--text-quaternary) / 0.6);
-  --trees-status-deleted-override: rgb(var(--text-quaternary) / 1);
+  --trees-status-modified-override: var(--theme-text-quaternary);
+  --trees-status-added-override: var(--theme-text-quaternary);
+  --trees-status-renamed-override: var(--theme-text-quaternary);
+  --trees-status-untracked-override: var(--theme-text-quaternary);
+  --trees-status-ignored-override: rgb(var(--theme-text-quaternary-rgb) / 0.6);
+  --trees-status-deleted-override: var(--theme-text-quaternary);
 
-  --trees-git-modified-color-override: rgb(var(--text-quaternary) / 1);
-  --trees-git-added-color-override: rgb(var(--text-quaternary) / 1);
-  --trees-git-renamed-color-override: rgb(var(--text-quaternary) / 1);
-  --trees-git-untracked-color-override: rgb(var(--text-quaternary) / 1);
-  --trees-git-ignored-color-override: rgb(var(--text-quaternary) / 0.6);
-  --trees-git-deleted-color-override: rgb(var(--text-quaternary) / 1);
+  --trees-git-modified-color-override: var(--theme-text-quaternary);
+  --trees-git-added-color-override: var(--theme-text-quaternary);
+  --trees-git-renamed-color-override: var(--theme-text-quaternary);
+  --trees-git-untracked-color-override: var(--theme-text-quaternary);
+  --trees-git-ignored-color-override: rgb(var(--theme-text-quaternary-rgb) / 0.6);
+  --trees-git-deleted-color-override: var(--theme-text-quaternary);
 
   --trees-font-size-override: 12px;
-}
-
-.dark file-tree-container {
-  /* Dark base (dark + dim) */
-  --trees-fg-override: rgb(var(--text-dark-secondary) / 1);
-  --trees-fg-muted-override: rgb(var(--text-dark-quaternary) / 1);
-  --trees-bg-override: transparent;
-  --trees-bg-muted-override: rgb(var(--surface-dark-hover) / 1);
-  --trees-accent-override: rgb(var(--text-dark-primary) / 1);
-  --trees-border-color-override: rgb(var(--border-dark) / 1);
-
-  --trees-selected-bg-override: rgb(var(--surface-dark-active) / 1);
-  --trees-selected-fg-override: rgb(var(--text-dark-primary) / 1);
-  --trees-selected-focused-border-color-override: transparent;
-
-  --trees-focus-ring-color-override: rgb(var(--text-dark-quaternary) / 0.3);
-
-  --trees-search-bg-override: transparent;
-  --trees-search-fg-override: rgb(var(--text-dark-primary) / 1);
-
-  --trees-input-bg-override: transparent;
-  --trees-indent-guide-bg-override: rgb(var(--border-dark) / 0.5);
-  --trees-scrollbar-thumb-override: rgb(var(--text-dark-quaternary) / 1);
-
-  --trees-status-modified-override: rgb(var(--text-dark-quaternary) / 1);
-  --trees-status-added-override: rgb(var(--text-dark-quaternary) / 1);
-  --trees-status-renamed-override: rgb(var(--text-dark-quaternary) / 1);
-  --trees-status-untracked-override: rgb(var(--text-dark-quaternary) / 1);
-  --trees-status-ignored-override: rgb(var(--text-dark-quaternary) / 0.6);
-  --trees-status-deleted-override: rgb(var(--text-dark-quaternary) / 1);
-
-  --trees-git-modified-color-override: rgb(var(--text-dark-quaternary) / 1);
-  --trees-git-added-color-override: rgb(var(--text-dark-quaternary) / 1);
-  --trees-git-renamed-color-override: rgb(var(--text-dark-quaternary) / 1);
-  --trees-git-untracked-color-override: rgb(var(--text-dark-quaternary) / 1);
-  --trees-git-ignored-color-override: rgb(var(--text-dark-quaternary) / 0.6);
-  --trees-git-deleted-color-override: rgb(var(--text-dark-quaternary) / 1);
 }
