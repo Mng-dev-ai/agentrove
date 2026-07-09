@@ -2,9 +2,6 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import App from './App.tsx';
-import './styles/globals.css';
-// SCSS design-token layer (colors/spacing/type/elevation/motion) — coexists with
-// globals.css/Tailwind until the migration completes.
 import './styles/app.scss';
 // Build-time-generated `data-palette` override blocks (see vite.config.ts).
 import 'virtual:palette-overrides.css';

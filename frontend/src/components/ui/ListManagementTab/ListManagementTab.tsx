@@ -6,8 +6,8 @@ import { Plus, Loader2, LucideIcon, Edit2, Trash2 } from 'lucide-react';
 import { logger } from '@/utils/logger';
 import styles from './ListManagementTab.module.scss';
 
-// Explicit fill-mode: globals.css redefines .animate-fade-in without `forwards`,
-// which would snap the spinner back to opacity-0 when the animation ends
+// Delay-reveal spinner: starts at opacity 0, fades in after 300ms; forwards keeps
+// it visible when the animation ends
 const SPINNER_STYLE: CSSProperties = { animationDelay: '300ms', animationFillMode: 'forwards' };
 
 interface ListManagementTabProps<T> {

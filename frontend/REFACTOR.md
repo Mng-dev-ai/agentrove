@@ -130,14 +130,10 @@ Layout utilities (`flex`, `grid`, `absolute`, `inset-0`, `min-w-0`, `flex-1`, `s
    same folder, domain-prefixed names — but do not change behavior.
 6. Verify: `npx tsc --noEmit -p tsconfig.app.json` and `npx vite build` from `frontend/` (the plain `npm run typecheck` is a no-op — the root tsconfig checks nothing). Pre-existing errors in OTHER areas may appear; your area must be clean.
 
-## Hard boundaries for parallel work
+## Hard boundaries
 
-- Touch ONLY files inside your assigned area, plus import-path updates in outside files
-  when you move something (keep those edits to the import lines only).
-- Do NOT edit: `src/styles/globals/*`, `tailwind.config.js`, `src/styles/globals.css`,
-  `postcss.config.js`, `vite.config.ts`, `src/main.tsx`, `package.json`. Tailwind removal
-  happens in a final cleanup pass after all areas are migrated — the two systems coexist
-  until then.
+- The migration is COMPLETE — Tailwind is removed. These conventions now govern all new
+  frontend work.
 - If a token/mixin you need is genuinely missing, approximate with the closest existing
   token and leave a `// TODO(refactor):` comment — do not invent new global tokens.
 - Don't rename exported symbols or change component APIs.

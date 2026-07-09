@@ -154,7 +154,7 @@ export function CommandMenuList({
               )}
               {cmd.type === 'view' && !isMobile && !isViewActive && (
                 <div className={styles['split-group']}>
-                  <FloatingTooltip content="Split right" className="flex">
+                  <FloatingTooltip content="Split right" className={styles['tooltip-wrap']}>
                     <Button
                       variant="unstyled"
                       onMouseDown={(e) => e.preventDefault()}
@@ -165,7 +165,7 @@ export function CommandMenuList({
                       <PanelRight className={styles['split-icon']} />
                     </Button>
                   </FloatingTooltip>
-                  <FloatingTooltip content="Split down" className="flex">
+                  <FloatingTooltip content="Split down" className={styles['tooltip-wrap']}>
                     <Button
                       variant="unstyled"
                       onMouseDown={(e) => e.preventDefault()}

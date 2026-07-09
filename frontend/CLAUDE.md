@@ -138,75 +138,54 @@
 
 ## UI/UX Guidelines
 
+Styling is SCSS Modules + a global design-token layer (`src/styles/globals/`) — see
+`frontend/REFACTOR.md` for the full conventions and the Tailwind→token mapping table.
+Tailwind has been removed.
+
 ### Design Philosophy
 
 - Fully monochrome — no brand/blue accent colors in structural UI
 - Clean, minimal, refined — subtle over visually heavy
 - When multiple visual approaches are viable (connector styles, layout, color), present visual mockups for selection before implementation
 
-### Color Palette
+### Styling System
 
-- Refer to `frontend/tailwind.config.js` for defined colors
-- Never hardcode hex or default Tailwind colors (`bg-gray-100`, `text-blue-600`, ...)
-- Every light color class must have a `dark:` counterpart, and every `dark:` class a light-mode one — never one without the other
-- Surface tokens: `surface` (base/default — there is no `surface-primary`), `surface-secondary` (most used), `surface-tertiary`, `surface-hover`, `surface-active` — dark variants `surface-dark`, `surface-dark-secondary`, etc.
-- Border tokens: `border-border` (default), `border-border-secondary`, `border-border-hover` — dark `border-border-dark-*`; prefer `border-border/50` + `dark:border-border-dark/50` for subtle borders
-- Text tokens: `text-text-primary`, `text-text-secondary`, `text-text-tertiary`, `text-text-quaternary` — dark `text-text-dark-*`
-- **Never use `brand-*` for buttons, switches, highlights, focus rings, or structural elements** — UI is fully monochrome
-- Primary buttons: `bg-text-primary text-surface` / `dark:bg-text-dark-primary dark:text-surface-dark` (inverted text/surface)
-- Switches/toggles: `bg-text-primary` checked, `bg-surface-tertiary` unchecked
-- Focus rings: `ring-text-quaternary/30` — never `ring-brand-*`
-- Search highlights: `bg-surface-active` / `dark:bg-surface-dark-hover`
-- Selected/active states: `bg-surface-active` / `dark:bg-surface-dark-active`
-- Semantic colors (`success`, `error`, `warning`, `info`) are for status indicators only, not layout or interactive button backgrounds
-- Use opacity sparingly for glassmorphism (`/50`, `/30`); white/black only as opacity overlays (`bg-white/5`, `bg-black/50`), never solid
-- Don't use opacity below `/30` for structural lines (connectors, tree branches, dividers) — use `/50` minimum
-
-### Typography
-
-- `text-xs` default, `text-sm` for primary inputs, `text-2xs` for meta/section headers, `text-lg` for dialog titles only — avoid `text-base`+ in dense UI
-- `font-medium` for standard emphasis; `font-semibold` only for page titles (`text-xl`) and section headers; avoid `font-bold` except special display (auth codes)
-- Form labels: `text-xs text-text-secondary` — no icons next to labels
-- Panel section headers: `text-2xs font-medium uppercase tracking-wider text-text-quaternary`
-- `font-mono` for code, URIs, package names, env vars, file paths, technical IDs — pair with `text-xs` or `text-2xs`
-
-### Borders & Radius
-
-- Standard border: `border border-border/50 dark:border-border-dark/50`; full opacity only for prominent dividers
-- Radius: `rounded-md` small (buttons, inputs), `rounded-lg` standard containers/cards, `rounded-xl` prominent cards/dropdowns, `rounded-2xl` overlays; button sizes follow `sm: rounded-md`, `md: rounded-lg`, `lg: rounded-xl`
-- Shadows: `shadow-sm` interactive, `shadow-medium` dropdowns/panels, `shadow-strong` modals; use `backdrop-blur-xl` + `bg-*/95` for frosted dropdowns
-- No custom shadow tokens (`shadow-soft`, `shadow-harsh`) — only `shadow-sm` / `shadow-medium` / `shadow-strong`
+- Co-located `.module.scss` per component (folder-per-component); kebab-case classes; variants as BEM-ish `&--modifier` composed with `clsx`
+- Colors: only `var(--theme-*)` semantic vars / `theme-color()` / `status-color()` from `_colors.scss` — they flip automatically with `data-theme`, so never write light/dark styles twice; rare divergences use `:global([data-theme='dark']) &`
+- Semantic colors (`--color-success/error/warning/info-*`, `--theme-<status>-text`) are for status indication only, never structural/interactive elements
+- Spacing: `var(--space-N)` only; typography: `type-*` mixins only (`type-default` 12px is the app default, `type-meta` 10px for meta/section headers, `type-body` 14px for primary inputs, `type-title` 18px for dialog titles only)
+- Section headers: `@include type.type-section-header;` (10px uppercase wide-tracked quaternary)
+- `type-mono*` mixins for code, URIs, package names, env vars, file paths, technical IDs
+- Radius/shadows: `var(--radius-md/lg/xl/2xl)` and `var(--shadow-sm/medium/strong)` only — md for small controls, lg for standard containers, xl for prominent cards/dropdowns, 2xl for overlays
+- z-index: only `@include z.z('layer')` from `_zlayer.scss` — never bare values
+- Breakpoints/hover: only `media()` / `hover()` / `active()` mixins from `_responsive.scss` — never raw `@media` or bare `&:hover`
+- JS-driven states: `stateClasses` from `@/constants/stateClasses` + `&:global(.#{state.$state-*})`; prefer styling semantic hooks (`aria-selected`, `data-state`, `:disabled`) when the DOM already has them
+- Focus rings: `@include controls.focus-ring;` — monochrome, never brand-colored
 
 ### Icons
 
-- Default `h-3.5 w-3.5` for toolbars/action buttons/small controls
-- `h-4 w-4` for message actions and form controls
-- `h-3 w-3` for text-adjacent icons, badges, close buttons
-- `h-5 w-5` or `h-6 w-6` for empty states/status indicators — never `h-16 w-16`+
-- Color: `text-text-tertiary` / `dark:text-text-dark-tertiary` default, `text-text-primary` on hover/active
-- Toolbar dropdown selectors (model, thinking, permission): text-only labels with chevrons, no left icons
-- Loading spinners: `text-text-quaternary` / `dark:text-text-dark-quaternary` — never brand colors
+- Default `height/width: var(--space-3-5)` for toolbars/action buttons/small controls
+- `var(--space-4)` for message actions and form controls; `var(--space-3)` for text-adjacent icons, badges, close buttons
+- `var(--space-5)`/`var(--space-6)` for empty states/status indicators — never larger
+- Color: `var(--theme-text-tertiary)` default, `var(--theme-text-primary)` on hover/active
+- Loading spinners: `var(--theme-text-quaternary)` — never brand colors
 - Don't generate SVG path data from memory — fetch official brand icon SVGs from authoritative sources (Simple Icons, brand asset pages)
 
 ### Panel Headers
 
-- `h-9` height with `px-3` padding
-- File paths / technical labels: `font-mono text-2xs`
-- Section labels: `text-2xs font-medium uppercase tracking-wider text-text-quaternary`
-- Icon buttons: `h-3 w-3`, no background, hover `text-text-primary`
+- `height: var(--space-9)` with `padding-inline: var(--space-3)`
+- File paths / technical labels: `@include type.type-mono-meta;`
+- Section labels: `@include type.type-section-header;`
 
 ### Animations & Transitions
 
-- Use CSS keyframe animations via Tailwind (`animate-fade-in`, `animate-fade-in-up`, `animate-dot-pulse`) — no `framer-motion` or other JS animation libs
-- `transition-colors duration-200` for hover/focus; `transition-all duration-300` for complex state changes (drag-and-drop)
-- `transition-[padding] duration-500 ease-in-out` for sidebar/layout animations
-- Loading: `animate-spin` for circular spinners only (`Loader2`); `animate-pulse` for non-circular loading icons and skeletons; `animate-bounce` with staggered `animationDelay` for dot loaders
-- Expandable content: `transition-all duration-200` with `max-h-*` + `opacity` toggling
-- Dropdowns: `animate-fadeIn` — no scale transforms on buttons
-- Delay-reveal loading indicators for data that usually resolves fast (`opacity-0` + `animationDelay` ~300ms + explicit `animationFillMode: 'forwards'`) so fast loads render nothing — an immediate spinner trades one flash for another (see `ListManagementTab`)
+- Global keyframes live in `_animations.scss` (`fade-in`, `fade-in-up`, `spin`, `pulse`, `shimmer`, ...) — no framer-motion or other JS animation libs
+- `@include anim.transition-colors;` for hover/focus; durations/easings only via `--duration-*` / `--easing-*` vars
+- Loading: `spin` for circular spinners only; `pulse` for non-circular loading icons and skeletons
+- Delay-reveal loading indicators for data that usually resolves fast (opacity 0 + `animationDelay` ~300ms + explicit `animationFillMode: 'forwards'`) so fast loads render nothing (see `ListManagementTab`)
 
 ### Layout
 
-- Don't use absolute positioning for sibling layout — use flexbox (`flex`, `justify-between`, `gap-*`); reserve `absolute` for overlays, tooltips, dropdowns, decorative elements
-- When action buttons have variable-length or long labels, stack vertically (`flex-col`) at full width
-- When nesting child items under parents (e.g., sub-threads), always maintain visible indentation — connector lines supplement but indentation is the primary hierarchy signal
+- Don't use absolute positioning for sibling layout — use flexbox; reserve `absolute` for overlays, tooltips, dropdowns, decorative elements
+- When action buttons have variable-length or long labels, stack vertically at full width
+- When nesting child items under parents (e.g. sub-threads), always maintain visible indentation — connector lines supplement but indentation is the primary hierarchy signal

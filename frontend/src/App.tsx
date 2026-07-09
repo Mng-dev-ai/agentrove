@@ -209,8 +209,6 @@ export default function App() {
   });
 
   useEffect(() => {
-    document.body.classList.remove('light', 'dark');
-    document.body.classList.add(resolvedTheme);
     document.documentElement.setAttribute('data-theme', resolvedTheme);
     // data-palette drives the per-theme CSS-var overrides (dim/sepia); base modes have no override block
     document.documentElement.setAttribute('data-palette', theme);

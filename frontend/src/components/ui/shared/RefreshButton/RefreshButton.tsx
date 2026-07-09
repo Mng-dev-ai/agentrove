@@ -24,7 +24,7 @@ export function RefreshButton({
   useLoader = false,
 }: RefreshButtonProps) {
   return (
-    <FloatingTooltip content={title} className="flex">
+    <FloatingTooltip content={title} className={styles['tooltip-wrap']}>
       <Button
         onClick={onClick}
         disabled={disabled || isRefreshing}
