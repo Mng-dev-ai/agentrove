@@ -1,0 +1,76 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/animations' as anim;
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+.item-title {
+    @include type.type-default(500);
+    @include type.type-overflow;
+    color: var(--theme-text-primary);
+}
+
+.cloud-badge {
+    @include type.type-meta;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-md);
+    padding: var(--space-0-5) var(--space-1-5);
+    color: var(--theme-text-tertiary);
+}
+
+.cloud-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+}
+
+.item-meta {
+    @include type.type-mono-meta;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--theme-text-secondary);
+}
+
+.chip {
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-md);
+    padding: var(--space-0-5) var(--space-1-5);
+}
+
+.next-run {
+    color: var(--theme-text-quaternary);
+}
+
+.run-button {
+    @include anim.transition-colors;
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5);
+    color: var(--theme-text-quaternary);
+
+    @include responsive.hover {
+        color: var(--theme-text-primary);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+    }
+}
+
+.run-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+}
+
+.toggle {
+    margin-right: var(--space-1-5);
+}

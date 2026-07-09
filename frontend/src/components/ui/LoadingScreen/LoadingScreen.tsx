@@ -1,5 +1,5 @@
 import { Loader2 } from 'lucide-react';
-import { DesktopDragRegion } from '@/components/layout/TitleBar';
+import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
 import styles from './LoadingScreen.module.scss';
 
 export function LoadingScreen() {

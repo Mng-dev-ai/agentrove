@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import type { ReactElement } from 'react';
-import { Layout } from '@/components/layout/Layout';
+import { Layout } from '@/components/layout/Layout/Layout';
 import { LoadingScreen } from '@/components/ui/LoadingScreen/LoadingScreen';
 
 interface AuthRouteProps {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useCallback, useRef, ReactNode, lazy, Suspense } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { useLayoutSidebar } from '@/components/layout/layoutState';
+import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
+import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
 import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
 import { SplitViewContainer } from '@/components/ui/SplitViewContainer/SplitViewContainer';
@@ -30,13 +30,17 @@ const EditorPane = lazy(() =>
   import('@/components/editor/editor-core/EditorPane').then((m) => ({ default: m.EditorPane })),
 );
 const SecretsView = lazy(() =>
-  import('@/components/sandbox/secrets/SecretsView').then((m) => ({ default: m.SecretsView })),
+  import('@/components/sandbox/secrets/SecretsView/SecretsView').then((m) => ({
+    default: m.SecretsView,
+  })),
 );
 const DiffView = lazy(() =>
-  import('@/components/sandbox/git/DiffView').then((m) => ({ default: m.DiffView })),
+  import('@/components/sandbox/git/DiffView/DiffView').then((m) => ({ default: m.DiffView })),
 );
 const TerminalContainer = lazy(() =>
-  import('@/components/sandbox/terminal/Container').then((m) => ({ default: m.Container })),
+  import('@/components/sandbox/terminal/Container/Container').then((m) => ({
+    default: m.Container,
+  })),
 );
 const CreateBranchDialog = lazy(() =>
   import('@/components/chat/github/CreateBranchDialog').then((m) => ({

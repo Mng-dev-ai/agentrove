@@ -11,8 +11,8 @@ import {
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { useLayoutSidebar } from '@/components/layout/layoutState';
+import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
+import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
 import { Input as ChatInput } from '@/components/chat/message-input/Input';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
@@ -62,7 +62,9 @@ const Editor = lazy(() =>
   import('@/components/editor/editor-core/Editor').then((m) => ({ default: m.Editor })),
 );
 const SecretsView = lazy(() =>
-  import('@/components/sandbox/secrets/SecretsView').then((m) => ({ default: m.SecretsView })),
+  import('@/components/sandbox/secrets/SecretsView/SecretsView').then((m) => ({
+    default: m.SecretsView,
+  })),
 );
 
 const EXAMPLE_PROMPTS = [

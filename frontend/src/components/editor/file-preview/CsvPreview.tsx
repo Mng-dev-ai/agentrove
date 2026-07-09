@@ -1,14 +1,11 @@
 import { memo, useMemo } from 'react';
+import clsx from 'clsx';
 import type { FileStructure } from '@/types/file-system.types';
 import { PreviewContainer } from './PreviewContainer';
 import { PreviewEmptyState } from './PreviewEmptyState';
-import {
-  previewBackgroundClass,
-  tableBorderClass,
-  tableHeaderClass,
-  tableCellClass,
-} from './previewConstants';
+import { previewBackgroundClass, tableBorderClass } from './previewConstants';
 import { getDisplayFileName } from './previewUtils';
+import styles from './CsvPreview.module.scss';
 
 export interface CsvPreviewProps {
   file: FileStructure;
@@ -53,17 +50,14 @@ export const CsvPreview = memo(function CsvPreview({
       fileName={getDisplayFileName(file)}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
-      contentClassName="overflow-auto p-4"
+      contentClassName={styles.content}
     >
-      <div className="overflow-x-auto">
-        <table className={`min-w-full border-collapse ${tableBorderClass}`}>
+      <div className={styles['csv-preview']}>
+        <table className={clsx(styles.table, tableBorderClass)}>
           <thead>
-            <tr className="bg-surface-secondary dark:bg-surface-dark-secondary">
+            <tr className={styles['header-row']}>
               {headers.map((header, index) => (
-                <th
-                  key={index}
-                  className={`${tableBorderClass} ${tableHeaderClass} text-left font-medium`}
-                >
+                <th key={index} className={clsx(tableBorderClass, styles['header-cell'])}>
                   {header}
                 </th>
               ))}
@@ -73,14 +67,10 @@ export const CsvPreview = memo(function CsvPreview({
             {rows.map((row, rowIndex) => (
               <tr
                 key={rowIndex}
-                className={
-                  rowIndex % 2 === 0
-                    ? previewBackgroundClass
-                    : 'bg-surface-secondary dark:bg-surface-dark-secondary'
-                }
+                className={rowIndex % 2 === 0 ? previewBackgroundClass : styles['alt-row']}
               >
                 {row.map((cell, cellIndex) => (
-                  <td key={cellIndex} className={`${tableBorderClass} ${tableCellClass}`}>
+                  <td key={cellIndex} className={clsx(tableBorderClass, styles.cell)}>
                     {cell}
                   </td>
                 ))}

@@ -1,0 +1,182 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/state-classes' as state;
+
+.subthread-row {
+    @include anim.transition-colors;
+    position: relative;
+    display: flex;
+    align-items: center;
+    border-radius: var(--radius-lg);
+
+    @include responsive.hover {
+        background-color: colors.theme-color('surface-hover', 0.5);
+    }
+
+    &:global(.#{state.$state-active}) {
+        background-color: colors.theme-color('surface-hover', 0.5);
+
+        .subthread-select {
+            color: var(--theme-text-primary);
+        }
+
+        .title {
+            font-weight: 500;
+        }
+    }
+}
+
+// Positioning slot for the title FloatingTooltip wrapper
+.thread-tooltip {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+}
+
+// Horizontal elbow connecting the row to the parent's vertical spine
+.connector {
+    position: absolute;
+    left: -22px;
+    top: 50%;
+    height: 1px;
+    width: 18px;
+    background-color: var(--theme-border-secondary);
+}
+
+.subthread-select {
+    @include anim.transition-colors;
+    display: flex;
+    width: 100%;
+    min-width: 0;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1-5) var(--space-2);
+    padding-right: var(--space-10);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        color: var(--theme-text-secondary);
+    }
+}
+
+.leading-slot {
+    position: relative;
+    display: flex;
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+}
+
+.subthread-spinner {
+    @include type.type-large;
+    line-height: 1;
+}
+
+.provider-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    color: var(--theme-text-tertiary);
+}
+
+// Corner overlay when the dot sits on top of a provider icon
+.status-corner {
+    position: absolute;
+    right: calc(var(--space-0-5) * -1);
+    top: calc(var(--space-0-5) * -1);
+}
+
+// 1px halo punching the dot out from the icon/surface behind it
+.status-ring {
+    box-shadow: 0 0 0 1px var(--theme-surface-secondary);
+}
+
+.title {
+    @include type.type-default;
+    @include type.type-overflow;
+}
+
+.timestamp {
+    @include type.type-meta;
+    position: absolute;
+    right: var(--space-2);
+    display: flex;
+    align-items: center;
+    font-variant-numeric: tabular-nums;
+    color: var(--theme-text-quaternary);
+    opacity: 1;
+    transition: opacity var(--duration-base);
+
+    &--hidden {
+        opacity: 0;
+    }
+}
+
+.dropdown-btn {
+    @include anim.transition-colors;
+    position: absolute;
+    right: var(--space-2);
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    padding: var(--space-0-5);
+    color: var(--theme-text-quaternary);
+    opacity: 0;
+    transition: all var(--duration-base);
+
+    @include responsive.hover {
+        color: var(--theme-text-primary);
+    }
+
+    // Group-hover reveal: hovering anywhere on the row surfaces the button
+    .subthread-row:hover & {
+        opacity: 1;
+    }
+
+    &--visible {
+        opacity: 1;
+    }
+}
+
+.dropdown-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+}
+
+// Shared branch wrapper for the error + list states (indented under the parent)
+.branch {
+    position: relative;
+    margin-left: 11px;
+    margin-top: var(--space-0-5);
+    padding-left: 22px;
+}
+
+.error-line {
+    position: absolute;
+    bottom: var(--space-2);
+    left: 0;
+    top: 0;
+    width: 1px;
+    background-color: var(--theme-border-secondary);
+}
+
+.list-line {
+    position: absolute;
+    bottom: 14px;
+    left: 0;
+    top: 0;
+    width: 1px;
+    background-color: var(--theme-border-secondary);
+}
+
+.retry {
+    @include type.type-meta;
+    @include anim.transition-colors;
+    color: var(--theme-text-quaternary);
+
+    @include responsive.hover {
+        color: var(--theme-text-tertiary);
+    }
+}

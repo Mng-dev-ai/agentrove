@@ -1,0 +1,73 @@
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/zlayer' as z;
+
+.layout {
+    display: flex;
+    flex-direction: column;
+    // Full viewport height (old .h-viewport utility) — dvh keeps it correct under mobile browser chrome
+    height: 100vh;
+    height: 100dvh;
+}
+
+// Keyboard skip link — visually hidden until focused, then pinned top-left above all chrome
+.skip-link {
+    // Undo the global .sr-only clipping when focused (old focus:not-sr-only)
+    &:focus {
+        // TODO(refactor): no z-layer above 'toast' exists for the skip link (was z-[300]); toast is the highest semantic tier
+        @include z.z('toast');
+        @include type.type-body;
+        position: fixed;
+        left: var(--space-4);
+        top: var(--space-4);
+        width: auto;
+        height: auto;
+        margin: 0;
+        overflow: visible;
+        clip: auto;
+        white-space: normal;
+        border-radius: var(--radius-md);
+        background-color: var(--theme-surface);
+        padding: var(--space-2) var(--space-4);
+        color: var(--theme-text-primary);
+        box-shadow: var(--shadow-strong);
+    }
+}
+
+.body {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+}
+
+// Dim scrim behind the mobile sidebar drawer — desktop hides it
+.overlay {
+    @include z.z('sidebar');
+    position: fixed;
+    inset: 0;
+    background-color: rgb(0 0 0 / 0.5);
+
+    @include responsive.hide('md-up');
+}
+
+.sidebar-slot {
+    position: relative;
+    height: 100%;
+    flex-shrink: 0;
+}
+
+.main {
+    position: relative;
+    min-width: 0;
+    flex: 1;
+    overflow-x: hidden;
+    overflow-y: auto;
+    background-color: var(--theme-surface);
+    padding-left: 0;
+    transition: padding var(--sidebar-transition-duration, var(--duration-slower)) var(--easing-in-out);
+
+    // Sidebar pushes the main content in from the left when docked open on desktop
+    &--pushed {
+        padding-left: var(--sidebar-width);
+    }
+}

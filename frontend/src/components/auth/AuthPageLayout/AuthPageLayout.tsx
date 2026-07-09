@@ -1,5 +1,5 @@
 import { memo, type ReactNode } from 'react';
-import { Layout } from '@/components/layout/Layout';
+import { Layout } from '@/components/layout/Layout/Layout';
 import styles from './AuthPageLayout.module.scss';
 
 interface AuthPageLayoutProps {

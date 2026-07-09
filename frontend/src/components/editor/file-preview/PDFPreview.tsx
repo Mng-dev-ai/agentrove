@@ -5,6 +5,7 @@ import type { FileStructure } from '@/types/file-system.types';
 import { PreviewContainer } from './PreviewContainer';
 import { PreviewEmptyState } from './PreviewEmptyState';
 import { getDisplayFileName, isValidBase64 } from './previewUtils';
+import styles from './PDFPreview.module.scss';
 
 export interface PDFPreviewProps {
   file: FileStructure;
@@ -61,11 +62,11 @@ export const PDFPreview = memo(function PDFPreview({
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
-      contentClassName="overflow-hidden bg-surface dark:bg-surface-dark"
+      contentClassName={styles.content}
     >
       <iframe
         src={pdfUrl}
-        className="h-full w-full border-0"
+        className={styles.iframe}
         title={fileName}
         onError={() => setIframeError(true)}
       />

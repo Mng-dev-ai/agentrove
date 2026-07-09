@@ -22,34 +22,34 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import toast from 'react-hot-toast';
-import { GeneralSettingsTab } from '@/components/settings/tabs/GeneralSettingsTab';
-import { SkillsSettingsTab } from '@/components/settings/tabs/SkillsSettingsTab';
-import { CloudSettingsTab } from '@/components/settings/tabs/CloudSettingsTab';
+import { GeneralSettingsTab } from '@/components/settings/tabs/GeneralSettingsTab/GeneralSettingsTab';
+import { SkillsSettingsTab } from '@/components/settings/tabs/SkillsSettingsTab/SkillsSettingsTab';
+import { CloudSettingsTab } from '@/components/settings/tabs/CloudSettingsTab/CloudSettingsTab';
 import { SettingsProvider } from '@/contexts/SettingsContext';
-import { UserProfileMenu } from '@/components/layout/UserProfileMenu';
+import { UserProfileMenu } from '@/components/layout/UserProfileMenu/UserProfileMenu';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
 import { useLogout } from '@/hooks/useLogout';
 import { getGeneralSecretFields } from '@/utils/settings';
 import { lazyNamed } from '@/utils/lazyNamed';
 const PersonasSettingsTab = lazyNamed(
-  () => import('@/components/settings/tabs/PersonasSettingsTab'),
+  () => import('@/components/settings/tabs/PersonasSettingsTab/PersonasSettingsTab'),
   'PersonasSettingsTab',
 );
 const StreamActionsSettingsTab = lazyNamed(
-  () => import('@/components/settings/tabs/StreamActionsSettingsTab'),
+  () => import('@/components/settings/tabs/StreamActionsSettingsTab/StreamActionsSettingsTab'),
   'StreamActionsSettingsTab',
 );
 const AutomationsSettingsTab = lazyNamed(
-  () => import('@/components/settings/tabs/AutomationsSettingsTab'),
+  () => import('@/components/settings/tabs/AutomationsSettingsTab/AutomationsSettingsTab'),
   'AutomationsSettingsTab',
 );
 const EnvVarsSettingsTab = lazyNamed(
-  () => import('@/components/settings/tabs/EnvVarsSettingsTab'),
+  () => import('@/components/settings/tabs/EnvVarsSettingsTab/EnvVarsSettingsTab'),
   'EnvVarsSettingsTab',
 );
 const InstructionsSettingsTab = lazyNamed(
-  () => import('@/components/settings/tabs/InstructionsSettingsTab'),
+  () => import('@/components/settings/tabs/InstructionsSettingsTab/InstructionsSettingsTab'),
   'InstructionsSettingsTab',
 );
 

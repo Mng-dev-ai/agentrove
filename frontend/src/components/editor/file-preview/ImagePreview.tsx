@@ -6,6 +6,7 @@ const IMAGE_STYLE: CSSProperties = { imageRendering: 'auto' };
 import { PreviewContainer } from './PreviewContainer';
 import { PreviewEmptyState } from './PreviewEmptyState';
 import { getDisplayFileName, isValidBase64 } from './previewUtils';
+import styles from './ImagePreview.module.scss';
 
 export interface ImagePreviewProps {
   file: FileStructure;
@@ -67,12 +68,12 @@ export const ImagePreview = memo(function ImagePreview({
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
-      contentClassName="min-h-0 overflow-auto p-4 flex items-center justify-center"
+      contentClassName={styles.content}
     >
       <img
         src={imageUrl}
         alt={fileName}
-        className="max-h-full max-w-full object-contain"
+        className={styles.image}
         loading="lazy"
         style={IMAGE_STYLE}
       />

@@ -1,0 +1,34 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.item-title {
+    @include type.type-default(500);
+    @include type.type-overflow;
+    margin-bottom: var(--space-2);
+    color: var(--theme-text-primary);
+}
+
+.item-meta {
+    @include type.type-mono-meta;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--theme-text-secondary);
+}
+
+.chip {
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-md);
+    padding: var(--space-0-5) var(--space-1-5);
+}
+
+.item-command {
+    @include type.type-overflow;
+    color: var(--theme-text-quaternary);
+}
+
+// Toggle pill is flush to its box while edit/delete glyphs sit inside ~7px button padding;
+// match that with a right margin so the toggle→edit gap reads the same as edit→delete
+.toggle {
+    margin-right: var(--space-1-5);
+}

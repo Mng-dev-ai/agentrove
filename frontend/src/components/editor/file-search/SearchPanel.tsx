@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import clsx from 'clsx';
 import { CaseSensitive, Loader2, Regex, Search, WholeWord, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -8,8 +9,8 @@ import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearchInFilesQuery } from '@/hooks/queries/useSandboxQueries';
 import type { SearchParams } from '@/types/sandbox.types';
-import { cn } from '@/utils/cn';
 import { SearchResultGroup } from './SearchResultGroup';
+import styles from './SearchPanel.module.scss';
 
 export interface SearchPanelProps {
   sandboxId: string | undefined;
@@ -96,13 +97,10 @@ export const SearchPanel = memo(function SearchPanel({
   const hasResults = !!data && data.results.length > 0;
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-none flex-col gap-2 border-b border-border/50 px-3 py-2 dark:border-border-dark/50">
-        <div
-          role="search"
-          className="relative flex items-center rounded-md border border-border/50 bg-surface dark:border-border-dark/50 dark:bg-surface-dark"
-        >
-          <Search className="pointer-events-none absolute left-2 h-3 w-3 text-text-quaternary dark:text-text-dark-quaternary" />
+    <div className={styles['search-panel']}>
+      <div className={styles.header}>
+        <div role="search" className={styles['search-box']}>
+          <Search className={styles['search-icon']} />
           <Input
             ref={activeInputRef}
             variant="unstyled"
@@ -113,41 +111,34 @@ export const SearchPanel = memo(function SearchPanel({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className={cn(
-              'h-7 w-full border-none bg-transparent py-1 pl-7 pr-2 text-xs',
-              'text-text-primary dark:text-text-dark-primary',
-              'placeholder:text-text-quaternary dark:placeholder:text-text-dark-quaternary',
-              'focus:outline-none',
-            )}
+            className={styles['search-input']}
           />
-          <div className="flex items-center gap-0.5 pr-1">
+          <div className={styles.toggles}>
             {TOGGLES.map(({ key, icon: Icon, label }) => (
-              <FloatingTooltip key={key} content={label} className="flex">
+              <FloatingTooltip key={key} content={label} className={styles['tooltip-trigger']}>
                 <Button
                   onClick={() => toggle(key)}
                   variant="unstyled"
                   aria-label={label}
                   aria-pressed={toggles[key]}
-                  className={cn(
-                    'flex h-5 w-5 items-center justify-center rounded transition-colors',
-                    toggles[key]
-                      ? 'bg-surface-active text-text-primary dark:bg-surface-dark-active dark:text-text-dark-primary'
-                      : 'text-text-quaternary hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary',
+                  className={clsx(
+                    styles['toggle-button'],
+                    toggles[key] && styles['toggle-button--active'],
                   )}
                 >
-                  <Icon className="h-3 w-3" />
+                  <Icon className={styles['toggle-icon']} />
                 </Button>
               </FloatingTooltip>
             ))}
             {query && (
-              <FloatingTooltip content="Clear search" className="flex">
+              <FloatingTooltip content="Clear search" className={styles['tooltip-trigger']}>
                 <Button
                   onClick={handleClear}
                   variant="unstyled"
                   aria-label="Clear search"
-                  className="flex h-5 w-5 items-center justify-center rounded text-text-quaternary transition-colors hover:text-text-primary dark:text-text-dark-quaternary dark:hover:text-text-dark-primary"
+                  className={styles['toggle-button']}
                 >
-                  <X className="h-3 w-3" />
+                  <X className={styles['toggle-icon']} />
                 </Button>
               </FloatingTooltip>
             )}
@@ -155,36 +146,32 @@ export const SearchPanel = memo(function SearchPanel({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pb-6 pt-1">
+      <div className={styles.results}>
         {!hasQuery && (
-          <p className="px-2 py-6 text-center text-xs text-text-quaternary dark:text-text-dark-quaternary">
-            Type at least 2 characters to search.
-          </p>
+          <p className={styles['empty-message']}>Type at least 2 characters to search.</p>
         )}
 
         {hasQuery && isFetching && !data && (
-          <div className="flex items-center justify-center gap-2 py-6 text-xs text-text-quaternary dark:text-text-dark-quaternary">
-            <Loader2 className="h-3 w-3 animate-spin" />
+          <div className={styles['loading-message']}>
+            <Loader2 className={styles['spin-icon']} />
             Searching...
           </div>
         )}
 
         {hasQuery && error && (
-          <p className="px-2 py-4 text-xs text-error-500 dark:text-error-400">
+          <p className={styles['error-message']}>
             {error instanceof Error ? error.message : 'Search failed'}
           </p>
         )}
 
         {hasQuery && data && !hasResults && !isFetching && (
-          <p className="px-2 py-6 text-center text-xs text-text-quaternary dark:text-text-dark-quaternary">
-            No results for &ldquo;{debouncedQuery}&rdquo;
-          </p>
+          <p className={styles['empty-message']}>No results for &ldquo;{debouncedQuery}&rdquo;</p>
         )}
 
         {hasResults && (
           <>
-            <p className="flex items-center gap-2 px-2 pb-2 pt-1 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-              {isFetching && <Loader2 className="h-3 w-3 animate-spin" />}
+            <p className={styles.summary}>
+              {isFetching && <Loader2 className={styles['spin-icon']} />}
               <span>
                 {totalMatches} {totalMatches === 1 ? 'result' : 'results'} in {data.results.length}{' '}
                 {data.results.length === 1 ? 'file' : 'files'}
@@ -195,13 +182,7 @@ export const SearchPanel = memo(function SearchPanel({
                 flight — keepPreviousData keeps the old results rendered, and
                 without this the user could click a stale row and jump to the
                 wrong file/line under the updated query. */}
-            <div
-              aria-busy={isFetching}
-              className={cn(
-                'flex flex-col gap-0.5 transition-opacity duration-150',
-                isFetching && 'pointer-events-none opacity-50',
-              )}
-            >
+            <div aria-busy={isFetching} className={styles['result-list']}>
               {data.results.map((result) => (
                 <SearchResultGroup
                   key={result.path}

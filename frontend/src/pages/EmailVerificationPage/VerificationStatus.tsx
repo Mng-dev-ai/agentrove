@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
 import clsx from 'clsx';
-import { Layout } from '@/components/layout/Layout';
+import { Layout } from '@/components/layout/Layout/Layout';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './VerificationStatus.module.scss';
 

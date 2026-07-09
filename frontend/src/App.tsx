@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect, useState, Suspense, lazy } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDesktopZoom } from '@/hooks/useDesktopZoom';
-import { Layout } from '@/components/layout/Layout';
+import { Layout } from '@/components/layout/Layout/Layout';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
@@ -25,7 +25,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { clearCloudOrigins } from '@/utils/chatOrigin';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
-import { DesktopDragRegion } from '@/components/layout/TitleBar';
+import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
 
 const LandingPage = lazy(() =>
   import('@/pages/LandingPage').then((m) => ({ default: m.LandingPage })),

@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useState, type Ref } from 'react';
+import clsx from 'clsx';
 import {
   ArrowLeft,
   Download,
@@ -14,7 +15,7 @@ import { Tree, type TreeHandle } from '../file-tree/Tree';
 import { SearchPanel } from '../file-search/SearchPanel';
 import { useGitChangedPathsQuery } from '@/hooks/queries/useSandboxQueries';
 import type { FileStructure } from '@/types/file-system.types';
-import { cn } from '@/utils/cn';
+import styles from './CodeSidebar.module.scss';
 
 export interface CodeSidebarProps {
   files: FileStructure[];
@@ -79,8 +80,13 @@ export const CodeSidebar = memo(function CodeSidebar({
   );
 
   return (
-    <div className="flex h-full flex-col bg-surface-secondary dark:bg-surface-dark-secondary">
-      <div className={cn('min-h-0 flex-1', view !== 'files' && 'hidden')}>
+    <div className={styles['code-sidebar']}>
+      <div
+        className={clsx(
+          styles['code-sidebar__tree'],
+          view !== 'files' && styles['code-sidebar__tree--hidden'],
+        )}
+      >
         <Tree
           ref={treeRef}
           files={files}
@@ -92,9 +98,9 @@ export const CodeSidebar = memo(function CodeSidebar({
         />
       </div>
       {view === 'search' && (
-        <div className="flex min-h-0 flex-1 flex-col">
+        <div className={styles['code-sidebar__search']}>
           <SearchHeader onBack={handleBackToFiles} />
-          <div className="min-h-0 flex-1">
+          <div className={styles['code-sidebar__search-body']}>
             <SearchPanel sandboxId={sandboxId} cwd={cwd} onOpenResult={onOpenResult} />
           </div>
         </div>
@@ -131,26 +137,21 @@ function TreeHeader({
   );
 
   return (
-    <div className="flex h-7 items-center justify-between px-3">
-      <span className="text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
-        Files
-      </span>
-      <div className="flex items-center gap-0.5">
-        <div ref={dropdownRef} className="relative">
+    <div className={styles['tree-header']}>
+      <span className={styles['section-label']}>Files</span>
+      <div className={styles['tree-header__actions']}>
+        <div ref={dropdownRef} className={styles['tree-header__menu']}>
           <Button
             variant="unstyled"
             onClick={() => setIsOpen((prev) => !prev)}
             aria-label="File tree options"
             aria-expanded={isOpen}
-            className="rounded-md p-1 text-text-quaternary transition-colors duration-150 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+            className={styles['icon-button']}
           >
-            <MoreHorizontal className="h-3 w-3" />
+            <MoreHorizontal className={styles.icon} />
           </Button>
           {isOpen && (
-            <div
-              role="menu"
-              className="absolute right-0 top-full z-20 mt-1 min-w-[160px] animate-fadeIn overflow-hidden rounded-lg border border-border/50 bg-surface-secondary/95 shadow-medium backdrop-blur-xl dark:border-border-dark/50 dark:bg-surface-dark-secondary/95"
-            >
+            <div role="menu" className={styles['tree-header__menu-panel']}>
               <MenuItem
                 icon={Search}
                 label="Search in files"
@@ -181,9 +182,9 @@ function TreeHeader({
             variant="unstyled"
             onClick={onCollapse}
             aria-label="Close file tree"
-            className="rounded-md p-1 text-text-quaternary transition-colors duration-150 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+            className={styles['icon-button']}
           >
-            <PanelLeftClose className="h-3 w-3" />
+            <PanelLeftClose className={styles.icon} />
           </Button>
         )}
       </div>
@@ -206,14 +207,9 @@ function MenuItem({ icon: Icon, iconSpinning, label, onClick, disabled }: MenuIt
       role="menuitem"
       onClick={onClick}
       disabled={disabled}
-      className={cn(
-        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition-colors duration-150',
-        'text-text-secondary hover:bg-surface-hover hover:text-text-primary',
-        'dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary',
-        'disabled:cursor-wait disabled:opacity-50',
-      )}
+      className={styles['menu-item']}
     >
-      <Icon className={cn('h-3 w-3 shrink-0', iconSpinning && 'animate-spin')} />
+      <Icon className={clsx(styles.icon, iconSpinning && styles['icon--spinning'])} />
       {label}
     </Button>
   );
@@ -225,18 +221,16 @@ interface SearchHeaderProps {
 
 function SearchHeader({ onBack }: SearchHeaderProps) {
   return (
-    <div className="flex h-9 flex-none items-center gap-2 border-b border-border/50 px-3 dark:border-border-dark/50">
+    <div className={styles['search-header']}>
       <Button
         variant="unstyled"
         onClick={onBack}
         aria-label="Back to files"
-        className="rounded-md p-1 text-text-quaternary transition-colors duration-150 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+        className={styles['icon-button']}
       >
-        <ArrowLeft className="h-3 w-3" />
+        <ArrowLeft className={styles.icon} />
       </Button>
-      <span className="text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
-        Search
-      </span>
+      <span className={styles['section-label']}>Search</span>
     </div>
   );
 }

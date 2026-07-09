@@ -11,6 +11,7 @@ import {
   isPowerPointFile,
   isPdfFile,
 } from '@/utils/fileTypes';
+import styles from './FilePreview.module.scss';
 
 type PreviewComponentProps = {
   file: FileStructure;
@@ -88,7 +89,7 @@ export const FilePreview = memo(function FilePreview({
     }
 
     return createPortal(
-      <div className="fixed inset-0 z-50 bg-surface dark:bg-surface-dark">{previewContent}</div>,
+      <div className={styles['fullscreen-overlay']}>{previewContent}</div>,
       document.body,
     );
   }

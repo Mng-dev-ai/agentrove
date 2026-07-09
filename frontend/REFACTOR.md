@@ -128,7 +128,7 @@ Layout utilities (`flex`, `grid`, `absolute`, `inset-0`, `min-w-0`, `flex-1`, `s
    imports repo-wide (no barrels).
 5. Split god components (>400 lines) into co-located subcomponents while you're there —
    same folder, domain-prefixed names — but do not change behavior.
-6. Verify: `npx tsc --noEmit` and `npx vite build` must pass from `frontend/`.
+6. Verify: `npx tsc --noEmit -p tsconfig.app.json` and `npx vite build` from `frontend/` (the plain `npm run typecheck` is a no-op — the root tsconfig checks nothing). Pre-existing errors in OTHER areas may appear; your area must be clean.
 
 ## Hard boundaries for parallel work
 

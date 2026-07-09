@@ -1,17 +1,14 @@
 import { memo, useState, useRef, useCallback, useEffect } from 'react';
 import type * as monaco from 'monaco-editor';
 import { Header } from './Header';
-import { Content } from './Content';
-import { DiffContent } from './DiffContent';
 import { EmptyState } from './EmptyState';
 import { EditorTabs } from './EditorTabs';
-import { FilePreview } from '../file-preview/FilePreview';
+import { ViewContentArea } from './ViewContentArea';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { useEditorTheme } from '@/hooks/useEditorTheme';
 import { attachEditorNavigationContext, setupEditorNavigation } from '@/lib/editorNavigation';
 import type { EditorNavigationContext } from '@/lib/editorNavigation';
 import { attachAddSelectionToChat, attachAskAboutSelection } from '@/lib/editorChatActions';
-import { InlineChatWidget } from './InlineChatWidget';
 import type { EditorCodeSelection } from '@/store/uiStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useEditorDrafts } from '@/hooks/useEditorDrafts';
@@ -25,6 +22,7 @@ import {
 } from '@/hooks/queries/useSandboxQueries';
 import { isPreviewableFile, isHtmlFile } from '@/utils/fileTypes';
 import toast from 'react-hot-toast';
+import styles from './View.module.scss';
 
 // The content area's mutually-exclusive modes — a single union so an illegal
 // combination (e.g. preview+diff) can't be represented.
@@ -356,7 +354,7 @@ export const View = memo(function View({
   // Tabs stay mounted above the content even when the active file is invalid
   // (e.g. deleted from the tree), so the user can still switch to a sibling tab.
   return (
-    <div className="relative flex h-full flex-col">
+    <div className={styles.view}>
       <EditorTabs
         openFiles={openFiles}
         selectedPath={selectedFile?.path ?? null}
@@ -390,76 +388,34 @@ export const View = memo(function View({
             onToggleFullscreen={isPreviewActive ? handleTogglePreviewFullscreen : undefined}
           />
 
-          <div className="relative flex-1 overflow-hidden">
-            {isLoadingContent && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-surface-secondary bg-opacity-75 dark:bg-surface-dark-secondary">
-                <div className="text-sm text-text-secondary dark:text-text-dark-secondary">
-                  Loading file content...
-                </div>
-              </div>
-            )}
-
-            {/* Listed before Content so its cleanup removes the content widget
-                before @monaco-editor/react disposes the editor on unmount. */}
-            {viewMode === 'code' &&
-              inlineChat &&
-              chatId &&
-              editorRef.current &&
-              monacoRef.current && (
-                <InlineChatWidget
-                  key={inlineChat.nonce}
-                  monaco={monacoRef.current}
-                  editor={editorRef.current}
-                  chatId={chatId}
-                  selection={inlineChat.selection}
-                  onClose={handleCloseInlineChat}
-                />
-              )}
-
-            {viewMode === 'diff' && (
-              <DiffContent
-                key={selectedFile.path}
-                original={baselineData?.content}
-                modified={displayContent}
-                language={language}
-                theme={currentTheme}
-                isLoading={isLoadingBaseline}
-                isError={isBaselineError}
-                isGitRepo={baselineData?.is_git_repo ?? true}
-                hasGitChanges={fileChangedInGit}
-                onRetry={handleRetryBaseline}
-                onBeforeMount={setupEditorTheme}
-              />
-            )}
-
-            {viewMode !== 'diff' && !isPreviewActive && (
-              <Content
-                key={selectedFile.path}
-                content={displayContent}
-                language={language}
-                // The sandbox rides in the URI authority so uri.path stays the clean
-                // workspace path — peek widgets label results straight from uri.path.
-                modelPath={`sandbox://${sandboxId ?? 'workspace'}/${selectedFile.path}`}
-                // Lock edits while a save is in flight so the in-flight buffer can't
-                // diverge from what was submitted — the success handler then clears the
-                // draft unconditionally without risking newer keystrokes.
-                isReadOnly={updateFileMutation.isPending}
-                onChange={handleEditorChange}
-                onMount={handleEditorMount}
-                theme={currentTheme}
-              />
-            )}
-
-            {isPreviewActive && fileForPreview && (
-              <div className="h-full">
-                <FilePreview
-                  file={fileForPreview}
-                  isFullscreen={isPreviewFullscreen}
-                  onToggleFullscreen={handleTogglePreviewFullscreen}
-                />
-              </div>
-            )}
-          </div>
+          <ViewContentArea
+            isLoadingContent={isLoadingContent}
+            viewMode={viewMode}
+            inlineChat={inlineChat}
+            chatId={chatId}
+            editorRef={editorRef}
+            monacoRef={monacoRef}
+            onCloseInlineChat={handleCloseInlineChat}
+            selectedFile={selectedFile}
+            sandboxId={sandboxId}
+            diffOriginal={baselineData?.content}
+            isGitRepo={baselineData?.is_git_repo ?? true}
+            isLoadingBaseline={isLoadingBaseline}
+            isBaselineError={isBaselineError}
+            fileChangedInGit={fileChangedInGit}
+            onRetryBaseline={handleRetryBaseline}
+            displayContent={displayContent}
+            language={language}
+            currentTheme={currentTheme}
+            setupEditorTheme={setupEditorTheme}
+            isReadOnly={updateFileMutation.isPending}
+            onEditorChange={handleEditorChange}
+            onEditorMount={handleEditorMount}
+            isPreviewActive={isPreviewActive}
+            fileForPreview={fileForPreview}
+            isPreviewFullscreen={isPreviewFullscreen}
+            onTogglePreviewFullscreen={handleTogglePreviewFullscreen}
+          />
         </>
       )}
 

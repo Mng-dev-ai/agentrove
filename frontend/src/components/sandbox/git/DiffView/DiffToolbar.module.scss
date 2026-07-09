@@ -1,0 +1,216 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/zlayer' as z;
+
+.toolbar {
+    display: flex;
+    height: var(--space-9);
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-1-5);
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    padding-inline: var(--space-3);
+}
+
+.tooltip-inline {
+    display: flex;
+    flex-shrink: 0;
+}
+
+.segmented {
+    flex-shrink: 0;
+}
+
+.icon-button {
+    @include anim.transition-colors;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    padding: var(--space-1);
+    color: var(--theme-text-quaternary);
+
+    @include responsive.hover {
+        color: var(--theme-text-secondary);
+    }
+}
+
+.refresh-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+
+    &--spinning {
+        animation: spin 1s linear infinite;
+    }
+}
+
+.overflow-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+}
+
+.file-switch {
+    @include anim.transition-colors;
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--space-1);
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-1-5);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+.file-switch-name {
+    @include type.type-mono-meta;
+    @include type.type-overflow;
+    max-width: var(--space-36);
+    color: var(--theme-text-secondary);
+}
+
+.file-switch-count {
+    @include type.type-meta;
+    flex-shrink: 0;
+    color: var(--theme-text-quaternary);
+}
+
+.file-switch-chevron {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+    color: var(--theme-text-quaternary);
+    transition: transform var(--duration-base);
+
+    &--open {
+        transform: rotate(180deg);
+    }
+}
+
+// Portaled, fixed-position panels — escape the toolbar's clip + stacking context.
+.files-panel {
+    @include z.z('dropdown');
+    @include anim.fade-in;
+    position: fixed;
+    display: flex;
+    max-height: var(--space-96);
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-xl);
+    background-color: colors.theme-color('surface-secondary', 0.95);
+    box-shadow: var(--shadow-medium);
+    backdrop-filter: blur(24px) saturate(1.5);
+}
+
+.diffstat {
+    @include type.type-mono-meta;
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-1-5);
+}
+
+.stat-add {
+    color: var(--theme-success-text);
+}
+
+.stat-del {
+    color: var(--theme-error-text);
+}
+
+.spacer {
+    min-width: 0;
+    flex: 1;
+}
+
+.progress {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.progress-track {
+    height: var(--space-1);
+    width: var(--space-14);
+    overflow: hidden;
+    border-radius: var(--radius-full);
+    background-color: var(--theme-surface-tertiary);
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: var(--radius-full);
+    background-color: var(--theme-text-primary);
+    transition: width var(--duration-slow);
+}
+
+.progress-label {
+    @include type.type-meta;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    color: var(--theme-text-tertiary);
+}
+
+.overflow-panel {
+    @include z.z('dropdown');
+    @include anim.fade-in;
+    position: fixed;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+    overflow: hidden;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-1);
+    background-color: colors.theme-color('surface-secondary', 0.95);
+    box-shadow: var(--shadow-medium);
+    backdrop-filter: blur(24px) saturate(1.5);
+}
+
+.menu-item {
+    @include anim.transition-colors;
+    @include type.type-meta;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: var(--space-2);
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-2);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+        color: var(--theme-text-primary);
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+}
+
+.menu-item-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+}
+
+.menu-divider {
+    height: 1px;
+    margin: var(--space-0-5) var(--space-1);
+    background-color: colors.theme-color('border', 0.5);
+}
+
+.style-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-1) var(--space-2);
+}
+
+.style-row-label {
+    @include type.type-meta;
+    color: var(--theme-text-tertiary);
+}

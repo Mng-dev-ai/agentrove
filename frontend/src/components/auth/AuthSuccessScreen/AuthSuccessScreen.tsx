@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { CheckCircle } from 'lucide-react';
-import { Layout } from '@/components/layout/Layout';
+import { Layout } from '@/components/layout/Layout/Layout';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './AuthSuccessScreen.module.scss';
 

@@ -1,0 +1,124 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/zlayer' as z;
+
+.traffic-lights {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding-left: var(--space-3);
+}
+
+.traffic-light {
+    display: flex;
+    height: var(--space-3);
+    width: var(--space-3);
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    transition: opacity var(--duration-fast);
+
+    @include responsive.hover {
+        opacity: 0.9;
+
+        .traffic-glyph {
+            opacity: 1;
+        }
+    }
+
+    &--close {
+        background-color: var(--color-traffic-close);
+    }
+
+    &--minimize {
+        background-color: var(--color-traffic-minimize);
+    }
+
+    &--maximize {
+        background-color: var(--color-traffic-maximize);
+    }
+}
+
+.traffic-glyph {
+    // Dark glyph shows only on hover, over the bright traffic-light fill
+    color: rgb(0 0 0 / 0.6);
+    opacity: 0;
+}
+
+.drag-region {
+    @include z.z('titlebar');
+    @include type.type-noselect;
+    display: flex;
+    height: var(--space-10);
+    flex-shrink: 0;
+    align-items: center;
+}
+
+.drag-spacer {
+    flex: 1;
+}
+
+.title-bar {
+    @include z.z('titlebar');
+    @include type.type-noselect;
+    display: flex;
+    // 2.5rem bar + the iOS top inset (0 on desktop/web)
+    height: calc(var(--space-10) + var(--safe-area-top));
+    flex-shrink: 0;
+}
+
+.left {
+    display: flex;
+    height: 100%;
+    width: auto;
+    align-items: center;
+    gap: var(--space-1);
+    background-color: var(--theme-surface-secondary);
+    padding-top: var(--safe-area-top);
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    transition-property: width, padding;
+    transition-duration: var(--sidebar-transition-duration, var(--duration-slower));
+    transition-timing-function: var(--easing-in-out);
+
+    // While the sidebar is open the left section becomes its header strip:
+    // full sidebar width, right border merging into the sidebar, no hairline below.
+    &--docked {
+        width: var(--sidebar-width);
+        border-bottom: none;
+        border-right: 1px solid colors.theme-color('border', 0.5);
+    }
+}
+
+.toggle-wrap {
+    margin-left: var(--space-3);
+    display: flex;
+    align-items: center;
+}
+
+.spacer {
+    width: var(--space-1);
+}
+
+.band {
+    display: flex;
+    height: 100%;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    background-color: var(--theme-surface-secondary);
+    padding-inline: var(--space-3);
+    padding-top: var(--safe-area-top);
+}
+
+.tabs-area {
+    display: flex;
+    height: 100%;
+    min-width: 0;
+    flex: 1;
+    align-items: flex-end;
+    gap: var(--space-1);
+}

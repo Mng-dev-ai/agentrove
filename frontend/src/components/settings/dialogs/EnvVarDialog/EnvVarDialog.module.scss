@@ -1,0 +1,51 @@
+@use '@/styles/globals/typography' as type;
+
+.dialog {
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.body {
+    padding: var(--space-5);
+}
+
+.title {
+    @include type.type-body(500);
+    margin-bottom: var(--space-5);
+    color: var(--theme-text-primary);
+}
+
+.error {
+    margin-bottom: var(--space-4);
+}
+
+.fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.label {
+    @include type.type-default;
+    margin-bottom: var(--space-1-5);
+    color: var(--theme-text-secondary);
+}
+
+.key-input {
+    @include type.type-mono;
+}
+
+.hint {
+    @include type.type-meta;
+    margin-top: var(--space-1);
+    color: var(--theme-text-quaternary);
+}
+
+// Passed down to SecretInput to size + monospace the secret value field.
+.secret-value {
+    width: 100%;
+}
+
+.secret-mono {
+    @include type.type-mono;
+}

@@ -1,0 +1,8 @@
+@use '@/styles/globals/zlayer' as z;
+
+.fullscreen-overlay {
+    @include z.z('modal');
+    position: fixed;
+    inset: 0;
+    background-color: var(--theme-surface);
+}

@@ -1,0 +1,179 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+
+.cloud {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.card {
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-5);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.instance-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-1);
+}
+
+.url {
+    @include type.type-mono(0.75rem, 1rem, 500);
+    @include type.type-overflow;
+    min-width: 0;
+    color: var(--theme-text-primary);
+}
+
+.signed-in {
+    @include type.type-meta;
+    margin-top: var(--space-1);
+    color: var(--theme-text-quaternary);
+}
+
+.email {
+    font-weight: 500;
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-2);
+    margin-top: var(--space-4);
+}
+
+.stat-tile {
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2) var(--space-3);
+}
+
+.stat-value {
+    @include type.type-body(500);
+    color: var(--theme-text-primary);
+}
+
+.stat-label {
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--space-4);
+}
+
+.status-pill {
+    @include type.type-meta;
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-1-5);
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-full);
+    padding: var(--space-0-5) var(--space-2);
+    color: var(--theme-text-tertiary);
+}
+
+.dot {
+    height: var(--space-1-5);
+    width: var(--space-1-5);
+    border-radius: var(--radius-full);
+}
+
+.dot--connected {
+    background-color: colors.status-color('success', 500);
+
+    // Dark mode reads the lighter success step for contrast (was dark:bg-success-400)
+    :global([data-theme='dark']) & {
+        background-color: colors.status-color('success', 400);
+    }
+}
+
+.dot--offline {
+    background-color: var(--theme-text-quaternary);
+}
+
+.instance-title {
+    @include type.type-default(500);
+    color: var(--theme-text-tertiary);
+}
+
+.instance-desc {
+    @include type.type-meta;
+    margin-bottom: var(--space-4);
+    color: var(--theme-text-quaternary);
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.label {
+    @include type.type-default;
+    margin-bottom: var(--space-1);
+    color: var(--theme-text-secondary);
+}
+
+.grid {
+    display: grid;
+    gap: var(--space-3);
+
+    @include responsive.media('sm-up') {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.before-title {
+    @include type.type-default(500);
+    margin-bottom: var(--space-3);
+    color: var(--theme-text-tertiary);
+}
+
+.steps {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2-5);
+}
+
+.step-num {
+    @include type.type-meta;
+    display: flex;
+    height: var(--space-4);
+    width: var(--space-4);
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-full);
+    color: var(--theme-text-tertiary);
+}
+
+.step-text {
+    @include type.type-default;
+    color: var(--theme-text-tertiary);
+}
+
+.mono {
+    @include type.type-mono;
+}
