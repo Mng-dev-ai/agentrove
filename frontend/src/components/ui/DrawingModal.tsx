@@ -3,8 +3,8 @@ import { logger } from '@/utils/logger';
 import { Check, Pencil, RotateCcw } from 'lucide-react';
 import { BaseModal } from './shared/BaseModal';
 import { ModalHeader } from './shared/ModalHeader';
-import { Button } from './primitives/Button';
-import { Input } from './primitives/Input';
+import { Button } from './primitives/Button/Button';
+import { Input } from './primitives/Input/Input';
 
 interface CanvasCoordinates {
   x: number;

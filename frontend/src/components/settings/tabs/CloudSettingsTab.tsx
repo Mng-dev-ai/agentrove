@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
-import { Label } from '@/components/ui/primitives/Label';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Label } from '@/components/ui/primitives/Label/Label';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { cloudChatService } from '@/services/cloudChatService';
 import {

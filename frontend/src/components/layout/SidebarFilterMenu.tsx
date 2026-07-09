@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronRight, Cloud, SlidersVertical } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';
 import {

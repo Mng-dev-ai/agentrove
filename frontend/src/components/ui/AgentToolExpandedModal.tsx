@@ -1,8 +1,8 @@
 import { useMemo, useState, Suspense } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import type { ToolAggregate } from '@/types/tools.types';
 import { AgentToolsContext } from '@/contexts/AgentToolsContext';

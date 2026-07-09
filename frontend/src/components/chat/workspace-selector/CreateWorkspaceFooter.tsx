@@ -1,8 +1,8 @@
 import { useState, useCallback, memo } from 'react';
 import toast from 'react-hot-toast';
 import { Search, GitBranch, Plus, Box, HardDrive, Lock, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
 import { useCreateWorkspaceMutation } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { useGitHubReposQuery } from '@/hooks/queries/useGitHubQueries';

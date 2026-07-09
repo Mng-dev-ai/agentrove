@@ -1,6 +1,6 @@
 import type { CustomEnvVar } from '@/types/user.types';
-import { Input } from '@/components/ui/primitives/Input';
-import { Label } from '@/components/ui/primitives/Label';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Label } from '@/components/ui/primitives/Label/Label';
 import { SecretInput } from '../inputs/SecretInput';
 import { useState } from 'react';
 import { BaseModal } from '@/components/ui/shared/BaseModal';

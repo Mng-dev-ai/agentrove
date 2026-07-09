@@ -1,6 +1,6 @@
 import React, { useState, useMemo, memo, type CSSProperties } from 'react';
 import { ChevronRight, Brain } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 
 const DELAY_0: CSSProperties = { animationDelay: '0ms' };
 const DELAY_150: CSSProperties = { animationDelay: '150ms' };

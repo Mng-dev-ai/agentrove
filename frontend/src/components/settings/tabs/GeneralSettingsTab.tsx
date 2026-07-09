@@ -1,7 +1,7 @@
 import { useDraftField } from '@/hooks/useDraftField';
-import { Button } from '@/components/ui/primitives/Button';
-import { Select } from '@/components/ui/primitives/Select';
-import { Switch } from '@/components/ui/primitives/Switch';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Select } from '@/components/ui/primitives/Select/Select';
+import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import type { ApiFieldKey, GeneralSecretFieldConfig } from '@/types/settings.types';
 import type { UserSettings } from '@/types/user.types';
 import type { Theme } from '@/types/ui.types';

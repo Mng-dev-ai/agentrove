@@ -9,7 +9,7 @@ import {
   type MessageAttachment,
 } from '@/types/chat.types';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { formatRelativeTime, formatFullTimestamp } from '@/utils/date';
 import { useChatContext } from '@/hooks/useChatContext';

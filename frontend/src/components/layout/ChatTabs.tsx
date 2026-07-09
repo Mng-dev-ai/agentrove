@@ -3,7 +3,7 @@ import { useMatch, useNavigate } from 'react-router-dom';
 import { Plus, X } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner';
 import { ChatStatusDot, type ChatStatusTone } from '@/components/ui/ChatStatusDot';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { useUIStore } from '@/store/uiStore';

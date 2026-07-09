@@ -1,8 +1,8 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { X, Pencil, CornerDownRight, FileText, FileSpreadsheet, Send } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { apiClient } from '@/lib/api';
 import { detectFileType } from '@/utils/fileTypes';
 import { HighlightedText } from '@/components/ui/shared/HighlightedText';

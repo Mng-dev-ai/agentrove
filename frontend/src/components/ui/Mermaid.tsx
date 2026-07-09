@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Eye, EyeOff, AlertCircle, RefreshCw } from 'lucide-react';
-import { Button } from './primitives/Button';
+import { Button } from './primitives/Button/Button';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 
 interface MermaidProps {

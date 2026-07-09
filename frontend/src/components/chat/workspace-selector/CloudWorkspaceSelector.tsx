@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Cloud } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { useCloudWorkspacesQuery } from '@/hooks/queries/useCloudQueries';
 import { WorkspacePicker } from './WorkspacePicker';

@@ -1,9 +1,9 @@
 import { memo, useMemo } from 'react';
 import { Star } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
-import { Dropdown } from '@/components/ui/primitives/Dropdown';
-import type { DropdownItemType } from '@/components/ui/primitives/Dropdown';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import type { DropdownItemType } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/store/modelStore';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
@@ -116,7 +116,7 @@ export const ModelSelector = memo(function ModelSelector({
       getItemLabel={(model) => model.name}
       onSelect={(model) => onModelChange(model.model_id)}
       leftIcon={activeIcon}
-      width="w-64"
+      width="16rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compactOnMobile={compact ?? true}

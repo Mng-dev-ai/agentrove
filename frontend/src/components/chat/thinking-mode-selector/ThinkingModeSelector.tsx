@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { Brain } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -51,7 +51,7 @@ export const ThinkingModeSelector = memo(function ThinkingModeSelector({
       getItemLabel={(mode) => mode.label}
       onSelect={(mode) => useChatSettingsStore.getState().setThinkingMode(key, mode.value)}
       leftIcon={Brain}
-      width="w-32"
+      width="8rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compactOnMobile

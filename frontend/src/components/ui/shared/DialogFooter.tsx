@@ -1,4 +1,4 @@
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 
 interface DialogFooterProps {
   onCancel: () => void;

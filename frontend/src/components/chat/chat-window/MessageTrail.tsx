@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState, type RefObject } from 'react';
 import { cn } from '@/utils/cn';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { isAssistantMessage } from '@/utils/message';
 import type { Message } from '@/types/chat.types';
 

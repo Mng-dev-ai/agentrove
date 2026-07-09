@@ -1,6 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 import { BaseModal } from './shared/BaseModal';
-import { Button } from './primitives/Button';
+import { Button } from './primitives/Button/Button';
 
 interface ConfirmDialogProps {
   isOpen: boolean;

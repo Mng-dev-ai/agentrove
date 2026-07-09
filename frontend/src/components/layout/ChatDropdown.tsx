@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, type Ref } from 'react';
 import { Edit2, Trash2, Pin, PinOff, SplitSquareHorizontal } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { cn } from '@/utils/cn';
 import type { Chat } from '@/types/chat.types';
 

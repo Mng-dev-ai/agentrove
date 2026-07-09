@@ -2,7 +2,7 @@ import { memo, useState } from 'react';
 import { logger } from '@/utils/logger';
 import { base64ToUint8Array } from '@/utils/base64';
 import type { FileStructure } from '@/types/file-system.types';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { PreviewContainer } from './PreviewContainer';

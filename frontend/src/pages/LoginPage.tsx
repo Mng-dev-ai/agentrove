@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
-import { FieldMessage } from '@/components/ui/primitives/FieldMessage';
-import { Input } from '@/components/ui/primitives/Input';
-import { Label } from '@/components/ui/primitives/Label';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { FieldMessage } from '@/components/ui/primitives/FieldMessage/FieldMessage';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Label } from '@/components/ui/primitives/Label/Label';
 import { useAuthStore } from '@/store/authStore';
 import { useLoginMutation } from '@/hooks/queries/useAuthQueries';
 import { useAuthForm } from '@/hooks/useAuthForm';

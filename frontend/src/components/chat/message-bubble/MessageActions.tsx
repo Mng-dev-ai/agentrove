@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { CheckCircle2, Copy } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useChatSessionActions } from '@/hooks/useChatSessionContext';
 import { useChatCopiedMessageContext } from '@/hooks/useChatCopiedMessageContext';

@@ -1,10 +1,10 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Lock, ArrowRight, Eye, EyeOff } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
-import { FieldMessage } from '@/components/ui/primitives/FieldMessage';
-import { Input } from '@/components/ui/primitives/Input';
-import { Label } from '@/components/ui/primitives/Label';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { FieldMessage } from '@/components/ui/primitives/FieldMessage/FieldMessage';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Label } from '@/components/ui/primitives/Label/Label';
 import { useResetPasswordMutation } from '@/hooks/queries/useAuthQueries';
 import { useAuthForm } from '@/hooks/useAuthForm';
 import { isValidPassword } from '@/utils/validation';

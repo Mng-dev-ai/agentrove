@@ -1,9 +1,9 @@
 import type { CustomSkill } from '@/types/user.types';
 import { Zap, Search, Filter, type LucideIcon } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
-import { Select } from '@/components/ui/primitives/Select';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Select } from '@/components/ui/primitives/Select/Select';
 import { SkillEditDialog } from '@/components/settings/dialogs/SkillEditDialog';
 import { SkillListItem } from '@/components/settings/SkillListItem';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';

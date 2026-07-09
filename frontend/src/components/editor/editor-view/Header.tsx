@@ -8,7 +8,7 @@ import {
   Maximize2,
 } from 'lucide-react';
 import type { FileStructure } from '@/types/file-system.types';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { SaveButton } from '@/components/ui/shared/SaveButton';
 import { FileIcon } from '@/components/ui/shared/FileIcon';

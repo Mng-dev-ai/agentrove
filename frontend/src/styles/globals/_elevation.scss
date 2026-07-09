@@ -1,0 +1,25 @@
+// Radius + shadow tokens.
+// Radius: sm = small controls, md = buttons/inputs, lg = standard containers/cards,
+// xl = prominent cards/dropdowns, 2xl = overlays.
+// Shadows: sm = interactive elements, medium = dropdowns/panels, strong = modals.
+
+@mixin elevation-tokens {
+    :root {
+        --radius-sm: 0.125rem;
+        --radius-md: 0.375rem;
+        --radius-lg: 0.5rem;
+        --radius-xl: 0.75rem;
+        --radius-2xl: 1rem;
+        --radius-full: 9999px;
+
+        --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+        --shadow-medium: 0 4px 25px -5px rgb(0 0 0 / 0.1), 0 10px 10px -5px rgb(0 0 0 / 0.04);
+        --shadow-strong: 0 10px 40px -10px rgb(0 0 0 / 0.15), 0 4px 25px -5px rgb(0 0 0 / 0.1);
+        // Inset depth for text inputs (old inputStyles inset shadows)
+        --shadow-inset: inset 0 1px 2px rgb(0 0 0 / 0.04);
+    }
+
+    :root[data-theme='dark'] {
+        --shadow-inset: inset 0 1px 3px rgb(0 0 0 / 0.3);
+    }
+}

@@ -1,0 +1,24 @@
+// Stacking system — never write a bare z-index; always z($layer).
+// Values sit in the same numeric range the old Tailwind z-* utilities used, so SCSS-
+// migrated overlays stack correctly against not-yet-migrated Tailwind ones.
+
+@use 'sass:map';
+
+$layers: (
+    'raised': 10,        // sticky headers-within-panels, floating chips
+    'sticky': 20,        // sticky panel chrome
+    'sidebar': 30,
+    'titlebar': 40,      // desktop drag region — above content, below overlays
+    'dropdown': 60,      // dropdowns, popovers, anchored panels (matches legacy z-[60])
+    'modal': 70,         // dialog backdrops + dialogs
+    'command-menu': 80,
+    'tooltip': 90,
+    'toast': 100,
+);
+
+@mixin z($layer) {
+    @if not map.has-key($layers, $layer) {
+        @error 'Unknown z-layer: #{$layer}';
+    }
+    z-index: map.get($layers, $layer);
+}

@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { FC } from 'react';
 import { Plus, X } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { TerminalTab } from './TerminalTab';
 import { cn } from '@/utils/cn';
 import { terminalStorageKey } from '@/utils/terminal';

@@ -3,7 +3,7 @@ import { logger } from '@/utils/logger';
 import type { FC } from 'react';
 import 'xterm/css/xterm.css';
 
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useUIStore } from '@/store/uiStore';
 import { resolveSandboxWs } from '@/lib/api';

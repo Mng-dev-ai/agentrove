@@ -6,8 +6,8 @@ import { FilePreviewList } from './FilePreviewList';
 import { BaseModal } from './shared/BaseModal';
 import { ModalHeader } from './shared/ModalHeader';
 import { cancelButtonClass } from './shared/modalConstants';
-import { Button } from './primitives/Button';
-import { Input } from './primitives/Input';
+import { Button } from './primitives/Button/Button';
+import { Input } from './primitives/Input/Input';
 
 interface FileUploadDialogProps {
   isOpen: boolean;

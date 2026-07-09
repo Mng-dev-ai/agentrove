@@ -1,7 +1,7 @@
 import React from 'react';
 import { Globe } from 'lucide-react';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
-import { Link } from '@/components/ui/primitives/Link';
+import { Link } from '@/components/ui/primitives/Link/Link';
 
 interface SourceChipProps {
   source: { title: string; url: string };

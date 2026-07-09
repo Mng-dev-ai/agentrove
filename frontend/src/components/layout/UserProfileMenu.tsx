@@ -1,6 +1,6 @@
 import { Download, Loader2, AlertCircle, Settings, LogOut } from 'lucide-react';
 import { UserAvatarCircle } from '@/components/chat/message-bubble/MessageAvatars';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useDesktopUpdateStore } from '@/store/updateStore';
 import { useUIStore } from '@/store/uiStore';
 import { useDropdown } from '@/hooks/useDropdown';

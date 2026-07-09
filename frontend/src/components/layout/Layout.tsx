@@ -1,7 +1,7 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { Header, type HeaderProps } from './Header';
 import { TitleBar } from './TitleBar';
-import { Link } from '@/components/ui/primitives/Link';
+import { Link } from '@/components/ui/primitives/Link/Link';
 import { cn } from '@/utils/cn';
 import { LayoutContext, type LayoutContextValue } from './layoutState';
 import { useUIStore } from '@/store/uiStore';

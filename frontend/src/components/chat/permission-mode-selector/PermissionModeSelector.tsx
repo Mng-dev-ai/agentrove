@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Shield } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown';
-import { Button } from '@/components/ui/primitives/Button';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import {
   useChatSettingsStore,
@@ -76,7 +76,7 @@ export const PermissionModeSelector = memo(function PermissionModeSelector({
       getItemShortLabel={shortLabelFn}
       onSelect={(mode) => useChatSettingsStore.getState().setPermissionMode(key, mode.value)}
       leftIcon={Shield}
-      width="w-52"
+      width="13rem"
       itemClassName="flex flex-col gap-0.5"
       dropdownPosition={dropdownPosition}
       disabled={disabled}

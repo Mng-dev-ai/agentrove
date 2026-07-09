@@ -1,5 +1,5 @@
 import { AlertCircle, Check, CheckCircle, X, XCircle } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { cn } from '@/utils/cn';
 import type { PermissionOption } from '@/types/chat.types';

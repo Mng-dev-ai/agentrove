@@ -15,9 +15,9 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
-import { Button } from '@/components/ui/primitives/Button';
-import { SegmentedControl } from '@/components/ui/primitives/SegmentedControl';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { SegmentedControl } from '@/components/ui/primitives/SegmentedControl/SegmentedControl';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   useGitDiffQuery,

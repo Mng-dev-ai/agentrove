@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { X, FileText, FileSpreadsheet, Edit } from 'lucide-react';
-import { Button } from './primitives/Button';
+import { Button } from './primitives/Button/Button';
 import { isUploadedImageFile, isUploadedPdfFile, isUploadedXlsxFile } from '@/utils/fileTypes';
 
 interface FilePreviewItemProps {

@@ -6,7 +6,7 @@ import { PromptSuggestions } from './PromptSuggestions';
 import { getToolComponent } from '@/components/chat/tools/registry';
 import type { MessageSegment } from './segmentBuilder';
 import type { AgentKind } from '@/types/chat.types';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 
 interface SegmentViewProps {
   segment: MessageSegment;

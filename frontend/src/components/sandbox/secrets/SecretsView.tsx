@@ -7,9 +7,9 @@ import {
   useUpdateSecretMutation,
   useDeleteSecretMutation,
 } from '@/hooks/queries/useSandboxQueries';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { RefreshButton } from '@/components/ui/shared/RefreshButton';
 import { SaveButton } from '@/components/ui/shared/SaveButton';
 import type { Secret } from '@/types/sandbox.types';

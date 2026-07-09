@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import { ChevronRight, MessageSquare } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import type { ChatSearchResult } from '@/types/chat.types';
 import { cn } from '@/utils/cn';
 import { ChatSearchResultLine } from './ChatSearchResultLine';

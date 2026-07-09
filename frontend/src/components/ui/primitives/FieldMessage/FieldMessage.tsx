@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { cn } from '@/utils/cn';
+import clsx from 'clsx';
+import styles from './FieldMessage.module.scss';
 
 interface FieldMessageProps {
   children: ReactNode;
@@ -14,11 +15,9 @@ export function FieldMessage({ children, variant = 'default', className }: Field
 
   return (
     <p
-      className={cn(
-        'mt-1 text-xs',
-        variant === 'error' && 'text-error-600 dark:text-error-400',
-        variant === 'success' && 'text-success-600 dark:text-success-400',
-        variant === 'default' && 'text-text-tertiary dark:text-text-dark-tertiary',
+      className={clsx(
+        styles['field-message'],
+        variant !== 'default' && styles[`field-message--${variant}`],
         className,
       )}
     >

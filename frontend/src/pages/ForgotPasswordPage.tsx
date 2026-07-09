@@ -1,11 +1,11 @@
 import { useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, ArrowLeft, Mail, ArrowRight } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
-import { FieldMessage } from '@/components/ui/primitives/FieldMessage';
-import { Input } from '@/components/ui/primitives/Input';
-import { Label } from '@/components/ui/primitives/Label';
-import { Link } from '@/components/ui/primitives/Link';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { FieldMessage } from '@/components/ui/primitives/FieldMessage/FieldMessage';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Label } from '@/components/ui/primitives/Label/Label';
+import { Link } from '@/components/ui/primitives/Link/Link';
 import { useForgotPasswordMutation } from '@/hooks/queries/useAuthQueries';
 import { useAuthForm } from '@/hooks/useAuthForm';
 import { isValidEmail } from '@/utils/validation';

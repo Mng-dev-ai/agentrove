@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { X } from 'lucide-react';
-import { Button } from '../primitives/Button';
+import { Button } from '../primitives/Button/Button';
 import { closeButtonClass } from './modalConstants';
 
 export interface ModalHeaderProps {

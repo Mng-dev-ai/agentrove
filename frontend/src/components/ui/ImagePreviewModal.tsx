@@ -2,8 +2,8 @@ import { memo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Download, X } from 'lucide-react';
 import type { MessageAttachment } from '@/types/chat.types';
 import { BaseModal } from './shared/BaseModal';
-import { Button } from './primitives/Button';
-import { Spinner } from './primitives/Spinner';
+import { Button } from './primitives/Button/Button';
+import { Spinner } from './primitives/Spinner/Spinner';
 
 interface ImageState {
   isLoading: boolean;

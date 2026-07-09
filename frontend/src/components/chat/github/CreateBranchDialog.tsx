@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
-import { Select } from '@/components/ui/primitives/Select';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Select } from '@/components/ui/primitives/Select/Select';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useGitBranchesQuery, useGitCreateBranchMutation } from '@/hooks/queries/useSandboxQueries';
 

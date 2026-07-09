@@ -4,7 +4,7 @@ import { useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner';
 import { ChatStatusDot, chatStatusTone, type ChatStatusTone } from '@/components/ui/ChatStatusDot';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';

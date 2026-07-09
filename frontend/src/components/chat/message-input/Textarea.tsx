@@ -11,7 +11,7 @@ import { useMountEffect } from '@/hooks/useMountEffect';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { getHighlightTokenRanges } from '@/utils/mentionParser';
 import { HighlightedText } from '@/components/ui/shared/HighlightedText';
-import { Textarea as PrimitiveTextarea } from '@/components/ui/primitives/Textarea';
+import { Textarea as PrimitiveTextarea } from '@/components/ui/primitives/Textarea/Textarea';
 
 const THIN_SCROLLBAR_STYLE: CSSProperties = { scrollbarWidth: 'thin' };
 

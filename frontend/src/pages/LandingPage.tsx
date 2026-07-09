@@ -48,7 +48,7 @@ import { useModelSelection, useModelMap } from '@/hooks/queries/useModelQueries'
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import { ChatProvider } from '@/contexts/ChatContext';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { buildFileStructureFromSandboxFiles } from '@/utils/file';
 import { SplitViewContainer } from '@/components/ui/SplitViewContainer';
 import { CommandMenu } from '@/components/ui/CommandMenu';

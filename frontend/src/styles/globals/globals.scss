@@ -1,0 +1,17 @@
+// Single global entry — emits all design tokens + element rules exactly once
+// (imported by src/styles/app.scss). Modules never import this file; they @use the
+// individual partials for mixins/functions, which emit no CSS by themselves.
+
+@use 'colors';
+@use 'spacing';
+@use 'typography';
+@use 'elevation';
+@use 'animations';
+@use 'rules';
+
+@include colors.color-tokens;
+@include spacing.spacing-tokens;
+@include typography.typography-tokens;
+@include elevation.elevation-tokens;
+@include animations.animation-tokens;
+@include rules.global-rules;

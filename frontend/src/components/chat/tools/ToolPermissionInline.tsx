@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { ChevronRight, Folder, ShieldAlert } from 'lucide-react';
 import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import type { PermissionRequest } from '@/types/chat.types';
 import { PermissionApprovalButtons } from '@/components/ui/shared/ApprovalFooter';
 import { filterOptions } from '@/utils/permissionStorage';

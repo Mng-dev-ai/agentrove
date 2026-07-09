@@ -9,8 +9,8 @@ import {
   type Ref,
   type MouseEvent as ReactMouseEvent,
 } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { createPortal } from 'react-dom';
 import { GitBranch, Search, PanelRight, PanelBottom, File, MessageSquare } from 'lucide-react';

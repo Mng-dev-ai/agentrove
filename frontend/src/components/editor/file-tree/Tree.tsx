@@ -12,7 +12,7 @@ import { flushSync } from 'react-dom';
 import { FolderOpen } from 'lucide-react';
 import { FileTree as PierreFileTree, useFileTree } from '@pierre/trees/react';
 import type { FileTree } from '@pierre/trees';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import type { FileStructure } from '@/types/file-system.types';
 import {

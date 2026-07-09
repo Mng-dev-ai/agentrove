@@ -1,0 +1,23 @@
+// Shared state class names, mirrored 1:1 in TS at src/constants/stateClasses.ts.
+// SCSS usage:  &:global(.#{state.$state-active}) { ... }
+// TSX usage:   clsx(styles['x'], isActive && stateClasses.ACTIVE)
+// Never hardcode 'is-*' strings on either side.
+
+$state-hover: 'is-hover';
+$state-active: 'is-active';
+$state-selected: 'is-selected';
+$state-open: 'is-open';
+$state-closed: 'is-closed';
+$state-hidden: 'is-hidden';
+$state-visible: 'is-visible';
+$state-disabled: 'is-disabled';
+$state-loading: 'is-loading';
+$state-streaming: 'is-streaming';
+$state-error: 'is-error';
+$state-focused: 'is-focused';
+$state-dragging: 'is-dragging';
+$state-drag-over: 'is-drag-over';
+$state-collapsed: 'is-collapsed';
+$state-expanded: 'is-expanded';
+$state-pending: 'is-pending';
+$state-current: 'is-current';

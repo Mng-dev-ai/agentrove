@@ -1,6 +1,6 @@
 import type { CustomSkill } from '@/types/user.types';
 import { Edit2 } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { formatBytes } from '@/utils/format';
 
 interface SkillListItemProps {

@@ -1,7 +1,7 @@
 import type { Persona } from '@/types/user.types';
-import { Input } from '@/components/ui/primitives/Input';
-import { Label } from '@/components/ui/primitives/Label';
-import { Textarea } from '@/components/ui/primitives/Textarea';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Label } from '@/components/ui/primitives/Label/Label';
+import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError';

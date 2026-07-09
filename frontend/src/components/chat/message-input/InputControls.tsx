@@ -11,7 +11,7 @@ import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
-import { SelectorDot } from '@/components/ui/primitives/SelectorDot';
+import { SelectorDot } from '@/components/ui/primitives/SelectorDot/SelectorDot';
 
 export function InputControls() {
   const state = useInputState();

@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { PanelLeft, FileCode2 } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { cn } from '@/utils/cn';
 
 export interface EmptyStateProps {

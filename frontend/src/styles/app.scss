@@ -1,0 +1,6 @@
+// App-level global stylesheet — the only place global CSS is emitted.
+// During the Tailwind→SCSS migration this coexists with globals.css; once migration
+// completes, the remaining globals.css content (fonts, mermaid/monaco overrides) moves
+// here and globals.css + Tailwind are deleted.
+
+@use './globals/globals';

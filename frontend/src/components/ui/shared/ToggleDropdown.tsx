@@ -1,6 +1,6 @@
 import { memo, type ComponentType, type SVGProps } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useDropdown } from '@/hooks/useDropdown';
 
 export interface ToggleDropdownOption {

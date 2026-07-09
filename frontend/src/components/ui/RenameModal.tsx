@@ -2,8 +2,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Sparkles } from 'lucide-react';
 import { BaseModal } from './shared/BaseModal';
 import { ModalHeader } from './shared/ModalHeader';
-import { Button } from './primitives/Button';
-import { Input } from './primitives/Input';
+import { Button } from './primitives/Button/Button';
+import { Input } from './primitives/Input/Input';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { cancelButtonClass } from './shared/modalConstants';
 

@@ -1,0 +1,68 @@
+@use '@/styles/globals/controls' as controls;
+@use '@/styles/globals/responsive' as responsive;
+
+.button {
+    @include controls.button-base;
+    @include controls.focus-ring($offset: 2px);
+
+    &--sm {
+        @include controls.button-size('sm');
+    }
+
+    &--md {
+        @include controls.button-size('md');
+    }
+
+    &--lg {
+        @include controls.button-size('lg');
+    }
+
+    &--icon {
+        @include controls.button-size('icon');
+    }
+
+    &--primary {
+        @include controls.button-variant('primary');
+    }
+
+    &--secondary {
+        @include controls.button-variant('secondary');
+    }
+
+    &--outline {
+        @include controls.button-variant('outline');
+    }
+
+    &--ghost {
+        @include controls.button-variant('ghost');
+    }
+
+    &--destructive {
+        @include controls.button-variant('destructive');
+    }
+
+    &--link {
+        @include controls.button-variant('link');
+    }
+
+    &--gradient {
+        position: relative;
+        overflow: hidden;
+        background-image: linear-gradient(to right, var(--theme-text-primary), var(--theme-text-secondary));
+        color: var(--theme-surface);
+        box-shadow: var(--shadow-medium);
+
+        @include responsive.hover {
+            background-image: linear-gradient(to right, var(--theme-text-secondary), var(--theme-text-tertiary));
+        }
+    }
+}
+
+// variant="unstyled" — caller owns the look; only accessibility affordances remain
+.button-unstyled {
+    @include controls.focus-ring;
+
+    &:disabled {
+        pointer-events: none;
+    }
+}

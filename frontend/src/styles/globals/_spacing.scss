@@ -1,0 +1,38 @@
+// Spacing scale. Unit matches the old Tailwind scale (1 step = 0.25rem) so migration is
+// mechanical: p-3 → padding: space(3); gap-1.5 → gap: space(1.5).
+// Always use space() for margin/padding/gap/inset — never raw rem/px (px allowed only for
+// things that must never rescale, e.g. 1px borders).
+
+@use 'sass:math';
+@use 'sass:list';
+
+$space-base: 0.25rem;
+$space-steps: (0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 128);
+
+// Fractional steps get hyphenated var names: space(1.5) → var(--space-1-5)
+@function space($step) {
+    @if not list.index($space-steps, $step) {
+        @error 'space(#{$step}): not in the spacing scale';
+    }
+    $name: $step;
+    @if $step % 1 != 0 {
+        $name: '#{math.floor($step)}-5';
+    }
+    @return var(--space-#{$name});
+}
+
+@mixin spacing-tokens {
+    :root {
+        @each $step in $space-steps {
+            $name: $step;
+            @if $step % 1 != 0 {
+                $name: '#{math.floor($step)}-5';
+            }
+            --space-#{$name}: #{$step * $space-base};
+        }
+
+        // iOS safe areas — used by edge-touching surfaces (title bar, chat composer)
+        --safe-area-top: env(safe-area-inset-top, 0px);
+        --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    }
+}

@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { PanelLeft, PanelLeftClose } from 'lucide-react';
-import { Button } from './primitives/Button';
+import { Button } from './primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 
 export interface ToggleButtonProps {

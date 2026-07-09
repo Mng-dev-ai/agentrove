@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 
 interface ScrollButtonProps {
   onClick: () => void;

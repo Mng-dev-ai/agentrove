@@ -1,5 +1,6 @@
 import { type LabelHTMLAttributes, type Ref } from 'react';
-import { cn } from '@/utils/cn';
+import clsx from 'clsx';
+import styles from './Label.module.scss';
 
 export interface LabelProps extends LabelHTMLAttributes<HTMLLabelElement> {
   ref?: Ref<HTMLLabelElement>;
@@ -14,16 +15,9 @@ export function Label({
   ...props
 }: LabelProps) {
   return (
-    <label
-      ref={ref}
-      className={cn(
-        'flex items-center gap-2 text-sm font-medium text-text-primary dark:text-text-dark-primary',
-        className,
-      )}
-      {...props}
-    >
+    <label ref={ref} className={clsx(styles.label, className)} {...props}>
       {children}
-      {requiredIndicator ? <span className="text-error-500">*</span> : null}
+      {requiredIndicator ? <span className={styles['required-indicator']}>*</span> : null}
     </label>
   );
 }

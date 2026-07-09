@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { X } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { FileIcon } from '@/components/ui/shared/FileIcon';
 import { getFileName } from '@/utils/file';

@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Search,
 } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useDropdown } from '@/hooks/useDropdown';
 import { Tree, type TreeHandle } from '../file-tree/Tree';
 import { SearchPanel } from '../file-search/SearchPanel';

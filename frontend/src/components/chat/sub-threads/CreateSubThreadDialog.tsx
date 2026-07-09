@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { GitBranch, Brain, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
-import { Button } from '@/components/ui/primitives/Button';
-import { Dropdown } from '@/components/ui/primitives/Dropdown';
-import { Select } from '@/components/ui/primitives/Select';
-import { Textarea } from '@/components/ui/primitives/Textarea';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Select } from '@/components/ui/primitives/Select/Select';
+import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { SlashCommandsPanel } from '@/components/chat/message-input/SlashCommandsPanel';
 import {

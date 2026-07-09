@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import type { ChatSearchMatch } from '@/types/chat.types';
 
 export interface ChatSearchResultLineProps {

@@ -1,0 +1,18 @@
+@use '@/styles/globals/controls' as controls;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.link {
+    @include controls.focus-ring(1px);
+    @include anim.transition-colors;
+    color: var(--theme-text-primary);
+    text-decoration: underline;
+
+    @include responsive.hover {
+        color: var(--theme-text-secondary);
+    }
+}
+
+.link-unstyled {
+    @include controls.focus-ring(1px);
+}

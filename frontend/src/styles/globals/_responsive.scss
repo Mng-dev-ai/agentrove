@@ -1,0 +1,75 @@
+// Breakpoints + interaction-media mixins. Never write raw @media queries or bare
+// :hover/:active in modules — always these mixins.
+// Breakpoint edges match the old Tailwind scale so responsive behavior is unchanged.
+
+@use 'sass:map';
+
+$breakpoint-sm: 640px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 1024px;
+$breakpoint-xl: 1280px;
+$breakpoint-xxl: 1536px;
+
+$queries: (
+    // mobile/desktop split — matches useIsMobile()'s 768px edge
+    'mobile': '(max-width: #{$breakpoint-md - 1px})',
+    'desktop': '(min-width: #{$breakpoint-md})',
+    'sm-up': '(min-width: #{$breakpoint-sm})',
+    'md-up': '(min-width: #{$breakpoint-md})',
+    'lg-up': '(min-width: #{$breakpoint-lg})',
+    'xl-up': '(min-width: #{$breakpoint-xl})',
+    'xxl-up': '(min-width: #{$breakpoint-xxl})',
+    'sm-down': '(max-width: #{$breakpoint-sm - 1px})',
+    'md-down': '(max-width: #{$breakpoint-md - 1px})',
+    'lg-down': '(max-width: #{$breakpoint-lg - 1px})',
+    'xl-down': '(max-width: #{$breakpoint-xl - 1px})',
+    'touch': '(hover: none)',
+    'not-touch': '(hover: hover)',
+    'reduced-motion': '(prefers-reduced-motion: reduce)',
+);
+
+@mixin media($query) {
+    @if not map.has-key($queries, $query) {
+        @error 'Unknown media query: #{$query}';
+    }
+    @media #{map.get($queries, $query)} {
+        @content;
+    }
+}
+
+// Hover that never sticks on touch devices
+@mixin hover {
+    @media (hover: hover) {
+        &:hover {
+            @content;
+        }
+    }
+}
+
+// Apply a block across interactive states in one go
+@mixin active($states: (active, focus-visible, hover)) {
+    @each $state in $states {
+        @if $state == hover {
+            @include hover {
+                @content;
+            }
+        } @else {
+            &:#{$state} {
+                @content;
+            }
+        }
+    }
+}
+
+@mixin hide($query: 'mobile') {
+    @include media($query) {
+        display: none;
+    }
+}
+
+@mixin show($query: 'desktop', $display: block) {
+    display: none;
+    @include media($query) {
+        display: $display;
+    }
+}

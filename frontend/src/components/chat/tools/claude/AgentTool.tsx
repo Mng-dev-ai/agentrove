@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, lazy, Suspense } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { Bot, Maximize2 } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';

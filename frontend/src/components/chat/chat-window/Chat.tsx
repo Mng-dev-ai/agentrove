@@ -19,7 +19,7 @@ import { ChatSkeleton } from './ChatSkeleton';
 import { ScrollButton } from './ScrollButton';
 import { MessageTrail } from './MessageTrail';
 import { StatusTypewriter } from './StatusTypewriter';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { useStreamStore } from '@/store/streamStore';
 import { useMessageQueueStore, EMPTY_QUEUE } from '@/store/messageQueueStore';
 import { ToolPermissionInline } from '@/components/chat/tools/ToolPermissionInline';

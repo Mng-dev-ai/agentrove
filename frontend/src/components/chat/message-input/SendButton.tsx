@@ -1,5 +1,5 @@
 import { ArrowUp, LoaderCircle, Pause } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 
 export type SendButtonStatus = 'idle' | 'ready' | 'loading' | 'streaming';
 

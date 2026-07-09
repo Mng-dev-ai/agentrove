@@ -1,7 +1,7 @@
 import { memo, lazy, Suspense } from 'react';
 import { GitCompareArrows } from 'lucide-react';
 import { MONACO_FONT_FAMILY } from '@/config/constants';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { cn } from '@/utils/cn';
 
 const DiffEditor = lazy(() =>

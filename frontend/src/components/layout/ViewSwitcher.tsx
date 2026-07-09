@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ALL_COMMANDS, formatShortcut } from '@/components/ui/commandRegistry';
 import { useUIStore } from '@/store/uiStore';

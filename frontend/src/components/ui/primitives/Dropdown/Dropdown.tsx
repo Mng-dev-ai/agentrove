@@ -1,12 +1,14 @@
 import { memo, ReactNode, useState, useRef, KeyboardEvent, ComponentType, SVGProps } from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
+import clsx from 'clsx';
 import { useDropdown } from '@/hooks/useDropdown';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { Button } from '@/components/ui/primitives/Button';
-import { SelectItem } from '@/components/ui/primitives/SelectItem';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { SelectItem } from '@/components/ui/primitives/SelectItem/SelectItem';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
 import { fuzzySearch } from '@/utils/fuzzySearch';
-import { cn } from '@/utils/cn';
+import { stateClasses } from '@/constants/stateClasses';
+import styles from './Dropdown.module.scss';
 
 export type DropdownItemType<T> = { type: 'item'; data: T } | { type: 'header'; label: string };
 
@@ -19,6 +21,7 @@ export interface DropdownProps<T> {
   onSelect: (item: T) => void;
   renderItem?: (item: T, isSelected: boolean) => ReactNode;
   leftIcon?: ComponentType<SVGProps<SVGSVGElement>>;
+  // CSS width for the panel (e.g. '10rem'), not a class name
   width?: string;
   itemClassName?: string;
   dropdownPosition?: 'top' | 'bottom';
@@ -109,7 +112,7 @@ function DropdownInner<T>({
   onSelect,
   renderItem,
   leftIcon: LeftIcon,
-  width = 'w-40',
+  width = '10rem',
   itemClassName,
   dropdownPosition = 'bottom',
   disabled = false,
@@ -151,19 +154,15 @@ function DropdownInner<T>({
   const showIconOnly = (compactOnMobile || forceCompact) && LeftIcon;
   // Visibility lives on the tooltip wrapper (the flex item) so a hidden label doesn't
   // leave a zero-width slot that still consumes the trigger's gap in compact mode.
-  const labelVisibility = showIconOnly ? (forceCompact ? 'hidden' : 'hidden sm:block') : '';
-  const labelClasses =
-    'truncate text-2xs font-medium text-text-secondary dark:text-text-dark-secondary';
-  const chevronClasses = showIconOnly
-    ? forceCompact
-      ? 'hidden'
-      : 'hidden sm:block h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary transition-transform duration-200'
-    : 'h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary transition-transform duration-200';
+  const labelSlotClass = clsx(
+    styles['label-slot'],
+    showIconOnly && (forceCompact ? styles['label-slot--hidden'] : styles['label-slot--compact']),
+  );
 
   const triggerLabel = getItemShortLabel ? getItemShortLabel(value) : getItemLabel(value);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className={styles.dropdown} ref={dropdownRef}>
       <Button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
@@ -171,58 +170,47 @@ function DropdownInner<T>({
         variant="unstyled"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        className={
-          triggerVariant === 'text'
-            ? `flex min-w-0 items-center gap-1 p-0 text-2xs leading-normal transition-colors duration-200 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:text-text-primary dark:hover:text-text-dark-primary'} ${isOpen ? 'text-text-primary dark:text-text-dark-primary' : 'text-text-secondary dark:text-text-dark-secondary'}`
-            : `flex min-w-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-colors duration-200 ${isOpen && !disabled ? 'bg-surface-hover dark:bg-surface-dark-hover' : 'hover:bg-surface-hover/60 dark:hover:bg-surface-dark-hover/60'} ${disabled ? 'cursor-not-allowed opacity-50' : ''}`
-        }
+        className={clsx(
+          triggerVariant === 'text' ? styles['trigger-text'] : styles.trigger,
+          isOpen && !disabled && stateClasses.OPEN,
+        )}
       >
-        {triggerVariant === 'text' ? (
-          <>
-            {/* Keep the text trigger responsive so the composer row still collapses in split/mobile layouts. */}
-            {showIconOnly && LeftIcon && (
-              <LeftIcon
-                className={cn(
-                  'h-3 w-3 flex-shrink-0 text-current',
-                  forceCompact ? '' : 'sm:hidden',
-                )}
-              />
+        {LeftIcon && (triggerVariant === 'text' ? showIconOnly : true) && (
+          <LeftIcon
+            className={clsx(
+              styles['trigger-icon'],
+              !forceCompact && styles['trigger-icon--responsive'],
             )}
-            <FloatingTooltip content={triggerLabel} className={cn('min-w-0', labelVisibility)}>
-              <span className={cn(labelClasses, 'text-inherit dark:text-inherit')}>
-                {triggerLabel}
-              </span>
-            </FloatingTooltip>
-          </>
-        ) : (
-          <>
-            {LeftIcon && (
-              <LeftIcon
-                className={cn(
-                  'h-3 w-3 flex-shrink-0 text-text-tertiary dark:text-text-dark-tertiary',
-                  !forceCompact && 'sm:hidden',
-                )}
-              />
+          />
+        )}
+        <FloatingTooltip content={triggerLabel} className={labelSlotClass}>
+          <span className={styles['trigger-label']}>{triggerLabel}</span>
+        </FloatingTooltip>
+        {triggerVariant !== 'text' && !disabled && (
+          <ChevronDown
+            className={clsx(
+              styles.chevron,
+              showIconOnly && !forceCompact && styles['chevron--responsive'],
+              isOpen && stateClasses.OPEN,
             )}
-            <FloatingTooltip content={triggerLabel} className={cn('min-w-0', labelVisibility)}>
-              <span className={labelClasses}>{triggerLabel}</span>
-            </FloatingTooltip>
-            {!disabled && (
-              <ChevronDown className={`${chevronClasses} ${isOpen ? 'rotate-180' : ''}`} />
-            )}
-          </>
+          />
         )}
       </Button>
 
       {isOpen && !disabled && (
         <div
           role="listbox"
-          className={`absolute ${dropdownAlign === 'right' ? 'right-0' : 'left-0'} ${width} z-[60] rounded-xl border border-border bg-surface-secondary/95 shadow-medium backdrop-blur-xl backdrop-saturate-150 dark:border-border-dark dark:bg-surface-dark-secondary/95 dark:shadow-black/40 ${dropdownPosition === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}`}
+          style={{ width }}
+          className={clsx(
+            styles.panel,
+            styles[`panel--${dropdownPosition}`],
+            styles[`panel--${dropdownAlign}`],
+          )}
         >
           {searchable && searchVariant === 'boxed' && (
-            <div className="border-b border-border p-1.5 dark:border-border-dark">
-              <div className="relative flex items-center">
-                <Search className="pointer-events-none absolute left-2 h-3 w-3 text-text-quaternary dark:text-text-dark-quaternary" />
+            <div className={styles['search-box']}>
+              <div className={styles['search-box-field']}>
+                <Search className={styles['search-icon']} />
                 <input
                   type="text"
                   value={searchQuery}
@@ -230,24 +218,24 @@ function DropdownInner<T>({
                   onKeyDown={handleSearchKeyDown}
                   placeholder={searchPlaceholder}
                   autoFocus={!isMobile}
-                  className="h-7 w-full rounded-lg border border-border bg-surface-tertiary py-1 pl-7 pr-7 text-2xs text-text-primary transition-colors duration-200 placeholder:text-text-quaternary focus:border-border-hover focus:outline-none dark:border-border-dark dark:bg-surface-dark-tertiary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus:border-border-dark-hover"
+                  className={styles['search-input']}
                 />
                 {searchQuery && (
                   <Button
                     onClick={() => setSearchQuery('')}
                     variant="unstyled"
                     aria-label="Clear search"
-                    className="absolute right-1 rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:bg-surface-hover hover:text-text-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-secondary"
+                    className={styles['search-clear']}
                   >
-                    <X className="h-3 w-3" />
+                    <X />
                   </Button>
                 )}
               </div>
             </div>
           )}
           {searchable && searchVariant === 'underline' && (
-            <div className="flex items-center gap-1.5 border-b border-border/50 px-2.5 py-1.5 dark:border-border-dark/50">
-              <Search className="h-3 w-3 flex-shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
+            <div className={styles['search-underline']}>
+              <Search className={styles['search-icon']} />
               <input
                 type="text"
                 value={searchQuery}
@@ -255,27 +243,30 @@ function DropdownInner<T>({
                 onKeyDown={handleSearchKeyDown}
                 placeholder={searchPlaceholder}
                 autoFocus={!isMobile}
-                className="h-6 w-full bg-transparent text-2xs text-text-primary placeholder:text-text-quaternary focus:outline-none dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary"
+                className={styles['search-underline-input']}
               />
               {searchQuery && (
                 <Button
                   onClick={() => setSearchQuery('')}
                   variant="unstyled"
                   aria-label="Clear search"
-                  className="rounded-md p-0.5 text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:hover:text-text-dark-secondary"
+                  className={styles['search-underline-clear']}
                 >
-                  <X className="h-3 w-3" />
+                  <X />
                 </Button>
               )}
             </div>
           )}
-          <div className="max-h-64 space-y-px overflow-y-auto p-1">
+          <div className={styles.items}>
             {displayItems.map((entry, index) => {
               if (entry.type === 'header') {
                 return (
                   <div
                     key={`header-${entry.label}`}
-                    className={`px-2 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary ${index === 0 ? '' : 'mt-1 border-t border-border dark:border-border-dark'}`}
+                    className={clsx(
+                      styles['group-header'],
+                      index !== 0 && styles['group-header--divided'],
+                    )}
                   >
                     {entry.label}
                   </div>
@@ -293,30 +284,35 @@ function DropdownInner<T>({
                     onSelect(item);
                     setIsOpen(false);
                   }}
-                  className={cn(
-                    'relative flex items-center gap-2',
-                    selectionStyle === 'accent' && 'pl-2.5',
+                  className={clsx(
+                    styles['item-row'],
+                    selectionStyle === 'accent' && styles['item-row--accent'],
                   )}
                 >
                   {selectionStyle === 'check' && (
                     <Check
-                      className={`h-3 w-3 flex-shrink-0 transition-opacity duration-150 ${isSelected ? 'text-text-primary opacity-100 dark:text-text-dark-primary' : 'opacity-0'}`}
+                      className={clsx(
+                        styles['item-check'],
+                        isSelected && styles['item-check--selected'],
+                      )}
                     />
                   )}
                   {selectionStyle === 'accent' && isSelected && (
-                    <div className="absolute bottom-1.5 left-0 top-1.5 w-0.5 rounded-full bg-text-primary dark:bg-text-dark-primary" />
+                    <div className={styles['item-accent']} />
                   )}
-                  <div className={`min-w-0 flex-1${itemClassName ? ` ${itemClassName}` : ''}`}>
+                  <div className={clsx(styles['item-content'], itemClassName)}>
                     {renderItem ? (
                       renderItem(item, isSelected)
                     ) : (
-                      <FloatingTooltip content={getItemLabel(item)} className="min-w-0">
+                      <FloatingTooltip
+                        content={getItemLabel(item)}
+                        className={styles['item-content']}
+                      >
                         <span
-                          className={`block truncate text-2xs font-medium ${
-                            isSelected
-                              ? 'text-text-primary dark:text-text-dark-primary'
-                              : 'text-text-secondary dark:text-text-dark-secondary'
-                          }`}
+                          className={clsx(
+                            styles['item-label'],
+                            isSelected && styles['item-label--selected'],
+                          )}
                         >
                           {getItemLabel(item)}
                         </span>

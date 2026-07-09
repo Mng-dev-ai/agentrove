@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import type { SearchFileResult } from '@/types/sandbox.types';
 import { cn } from '@/utils/cn';
 import { getFileName } from '@/utils/file';

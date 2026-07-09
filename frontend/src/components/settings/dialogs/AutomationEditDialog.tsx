@@ -2,12 +2,12 @@ import { useEffect } from 'react';
 import { Clock, Brain, Shield, Cloud, GitFork, Monitor } from 'lucide-react';
 import type { Persona } from '@/types/user.types';
 import type { AutomationForm } from '@/types/automation.types';
-import { Input } from '@/components/ui/primitives/Input';
-import { Label } from '@/components/ui/primitives/Label';
-import { Select } from '@/components/ui/primitives/Select';
-import { Switch } from '@/components/ui/primitives/Switch';
-import { Textarea } from '@/components/ui/primitives/Textarea';
-import { Dropdown } from '@/components/ui/primitives/Dropdown';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Label } from '@/components/ui/primitives/Label/Label';
+import { Select } from '@/components/ui/primitives/Select/Select';
+import { Switch } from '@/components/ui/primitives/Switch/Switch';
+import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { BaseModal } from '@/components/ui/shared/BaseModal';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError';
@@ -160,7 +160,7 @@ export const AutomationEditDialog: React.FC<AutomationEditDialogProps> = ({
                   options={RUN_LOCATION_OPTIONS}
                   value={form.onCloud}
                   onSelect={(enabled) => onChange('onCloud', enabled)}
-                  width="w-32"
+                  width="8rem"
                   // An automation is stored on the backend that runs it, so the
                   // location can't move after creation.
                   disabled={isEditing}
@@ -241,7 +241,7 @@ export const AutomationEditDialog: React.FC<AutomationEditDialogProps> = ({
               value={form.worktree}
               onSelect={(enabled) => onChange('worktree', enabled)}
               icon={GitFork}
-              width="w-36"
+              width="9rem"
             />
             {agentKind === 'codex' && (
               <label className="flex items-center gap-1.5 text-2xs text-text-tertiary dark:text-text-dark-tertiary">

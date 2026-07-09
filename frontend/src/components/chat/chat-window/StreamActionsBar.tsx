@@ -1,5 +1,5 @@
 import { GitBranch } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { useRunStreamAction } from '@/hooks/useRunStreamAction';

@@ -1,5 +1,5 @@
-import { Label } from '@/components/ui/primitives/Label';
-import { Textarea } from '@/components/ui/primitives/Textarea';
+import { Label } from '@/components/ui/primitives/Label/Label';
+import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { useDraftField } from '@/hooks/useDraftField';
 
 interface InstructionsSettingsTabProps {

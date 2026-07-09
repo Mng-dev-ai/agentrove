@@ -1,5 +1,5 @@
 import { type ReactNode, memo, useEffect, useMemo, useRef } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 
 interface SuggestionSection<T> {
   label?: string;

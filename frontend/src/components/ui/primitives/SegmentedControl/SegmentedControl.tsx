@@ -1,21 +1,8 @@
 import { useRef, useLayoutEffect, useCallback, useMemo, useState, type ReactNode } from 'react';
-import { cn } from '@/utils/cn';
+import clsx from 'clsx';
+import styles from './SegmentedControl.module.scss';
 
 type SegmentSize = 'sm' | 'md';
-
-const SIZE_CLASSES: Record<SegmentSize, { container: string; indicator: string; button: string }> =
-  {
-    sm: {
-      container: 'rounded-md',
-      indicator: 'rounded-[5px]',
-      button: 'rounded-[5px] px-2.5 py-1 text-2xs',
-    },
-    md: {
-      container: 'rounded-lg',
-      indicator: 'rounded-[7px]',
-      button: 'rounded-[7px] px-3.5 py-1.5 text-xs',
-    },
-  };
 
 export interface SegmentOption<T extends string = string> {
   value: T;
@@ -124,18 +111,11 @@ export function SegmentedControl<T extends string = string>({
   return (
     <div
       ref={containerRef}
-      className={cn(
-        'relative inline-flex border border-border bg-surface-tertiary dark:border-border-dark dark:bg-surface-dark-secondary',
-        SIZE_CLASSES[size].container,
-        className,
-      )}
+      className={clsx(styles['segmented-control'], styles[`segmented-control--${size}`], className)}
       role="radiogroup"
     >
       <span
-        className={cn(
-          'absolute left-0 top-0 bg-surface-secondary shadow-sm transition-[transform,width,height] duration-300 ease-out dark:bg-surface-dark-hover',
-          SIZE_CLASSES[size].indicator,
-        )}
+        className={clsx(styles.indicator, styles[`indicator--${size}`])}
         style={indicatorStyle}
       />
       {options.map((option, index) => {
@@ -150,16 +130,9 @@ export function SegmentedControl<T extends string = string>({
             disabled={option.disabled}
             onClick={() => !option.disabled && onChange(option.value)}
             onKeyDown={(e) => handleKeyDown(e, index)}
-            className={cn(
-              'relative z-10 font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-quaternary/30',
-              SIZE_CLASSES[size].button,
-              isActive
-                ? 'text-text-primary dark:text-text-dark-primary'
-                : 'text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
-              option.disabled && 'cursor-not-allowed opacity-35',
-            )}
+            className={clsx(styles.segment, styles[`segment--${size}`])}
           >
-            <span className="relative z-10">{option.label}</span>
+            <span>{option.label}</span>
           </button>
         );
       })}

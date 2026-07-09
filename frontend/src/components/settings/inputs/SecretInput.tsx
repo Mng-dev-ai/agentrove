@@ -1,7 +1,7 @@
 import { Eye, EyeOff } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
-import { Link } from '@/components/ui/primitives/Link';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Link } from '@/components/ui/primitives/Link/Link';
 import { cn } from '@/utils/cn';
 import type { HelperTextLink, HelperTextCode } from '@/types/settings.types';
 
