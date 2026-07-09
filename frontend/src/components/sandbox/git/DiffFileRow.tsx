@@ -1,9 +1,9 @@
 import { memo, useMemo, useCallback } from 'react';
 import { CheckCircle2, ChevronRight, Circle, ExternalLink, Undo2 } from 'lucide-react';
-import { FileIcon } from '@/components/ui/shared/FileIcon';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import { useUIStore } from '@/store/uiStore';
 import type { FileDiffMetadata, SelectedLineRange, DiffLineAnnotation } from '@pierre/diffs';
 import { DiffCommentComposer } from '@/components/sandbox/git/DiffCommentComposer';

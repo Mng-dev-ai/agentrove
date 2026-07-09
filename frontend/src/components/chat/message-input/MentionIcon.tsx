@@ -1,4 +1,4 @@
-import { FileIcon } from '@/components/ui/shared/FileIcon';
+import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
 import type { MentionItem } from '@/types/ui.types';
 
 export function MentionIcon({

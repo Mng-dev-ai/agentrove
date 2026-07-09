@@ -1,9 +1,9 @@
 import { useState, useMemo, useRef } from 'react';
 import { ExternalLink, GitPullRequest, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { BaseModal } from '@/components/ui/shared/BaseModal';
+import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Link } from '@/components/ui/primitives/Link/Link';
 import { Select } from '@/components/ui/primitives/Select/Select';

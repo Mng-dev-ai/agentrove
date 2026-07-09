@@ -1,0 +1,116 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.list-body {
+    max-height: 24rem;
+    overflow-y: auto;
+    padding: var(--space-1) 0;
+}
+
+.section-header {
+    @include type.type-section-header;
+    padding: var(--space-2) var(--space-3) var(--space-1);
+}
+
+.row-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    flex-shrink: 0;
+    color: var(--theme-text-tertiary);
+}
+
+.chat-title {
+    flex: 1;
+    text-align: left;
+    font-weight: 500;
+}
+
+.meta {
+    flex-shrink: 0;
+    color: var(--theme-text-quaternary);
+}
+
+.file-line {
+    @include type.type-overflow;
+}
+
+.file-name {
+    font-weight: 500;
+}
+
+.file-path {
+    margin-left: var(--space-2);
+    color: var(--theme-text-quaternary);
+}
+
+.command-label {
+    flex: 1;
+    text-align: left;
+}
+
+.kbd {
+    @include type.type-mono-meta;
+    margin-left: auto;
+    flex-shrink: 0;
+    color: var(--theme-text-quaternary);
+}
+
+.split-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-0-5);
+}
+
+.split-button {
+    @include anim.transition-colors;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    padding: var(--space-1);
+    color: var(--theme-text-quaternary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+        color: var(--theme-text-primary);
+    }
+}
+
+.split-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+}
+
+.active-dot {
+    height: var(--space-1-5);
+    width: var(--space-1-5);
+    flex-shrink: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--theme-text-primary);
+}
+
+.branch-label {
+    @include type.type-mono;
+    flex: 1;
+    text-align: left;
+}
+
+.theme-label {
+    flex: 1;
+    text-align: left;
+}
+
+.empty {
+    @include type.type-default;
+    padding: var(--space-4) var(--space-3);
+    text-align: center;
+    color: var(--theme-text-quaternary);
+}
+
+.pending {
+    @include type.type-meta;
+    padding: var(--space-2) var(--space-3);
+    text-align: center;
+    color: var(--theme-text-quaternary);
+}

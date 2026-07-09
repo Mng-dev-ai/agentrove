@@ -2,7 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GitBranch, Brain, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { BaseModal } from '@/components/ui/shared/BaseModal';
+import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { Select } from '@/components/ui/primitives/Select/Select';

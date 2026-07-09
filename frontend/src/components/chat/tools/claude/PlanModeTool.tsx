@@ -1,9 +1,9 @@
 import { memo } from 'react';
 import { Map, Terminal } from 'lucide-react';
-import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
+import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
 import type { ToolAggregate } from '@/types/tools.types';
 import { MessageActions } from '../../message-bubble/MessageActions';
-import { PermissionApprovalButtons } from '@/components/ui/shared/ApprovalFooter';
+import { PermissionApprovalButtons } from '@/components/ui/shared/ApprovalFooter/ApprovalFooter';
 import { filterOptions } from '@/utils/permissionStorage';
 import { ToolCard } from '../common/ToolCard';
 import { useExitPlanMode } from '@/hooks/useExitPlanMode';

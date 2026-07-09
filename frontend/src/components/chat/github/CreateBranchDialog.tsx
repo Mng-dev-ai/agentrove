@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { BaseModal } from '@/components/ui/shared/BaseModal';
+import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Select } from '@/components/ui/primitives/Select/Select';

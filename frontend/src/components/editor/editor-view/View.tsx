@@ -6,7 +6,7 @@ import { DiffContent } from './DiffContent';
 import { EmptyState } from './EmptyState';
 import { EditorTabs } from './EditorTabs';
 import { FilePreview } from '../file-preview/FilePreview';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { useEditorTheme } from '@/hooks/useEditorTheme';
 import { attachEditorNavigationContext, setupEditorNavigation } from '@/lib/editorNavigation';
 import type { EditorNavigationContext } from '@/lib/editorNavigation';

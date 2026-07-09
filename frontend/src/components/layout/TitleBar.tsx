@@ -3,7 +3,7 @@ import { useMatch } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { ToggleButton } from '@/components/ui/ToggleButton';
+import { ToggleButton } from '@/components/ui/ToggleButton/ToggleButton';
 import { ViewSwitcher, type SwitchableView } from './ViewSwitcher';
 import { ChatTabs } from './ChatTabs';
 import { cn } from '@/utils/cn';

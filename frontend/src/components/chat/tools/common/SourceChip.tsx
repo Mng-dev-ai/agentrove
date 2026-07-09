@@ -1,6 +1,6 @@
 import React from 'react';
 import { Globe } from 'lucide-react';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Link } from '@/components/ui/primitives/Link/Link';
 
 interface SourceChipProps {

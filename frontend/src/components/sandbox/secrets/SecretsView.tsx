@@ -10,8 +10,8 @@ import {
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
-import { RefreshButton } from '@/components/ui/shared/RefreshButton';
-import { SaveButton } from '@/components/ui/shared/SaveButton';
+import { RefreshButton } from '@/components/ui/shared/RefreshButton/RefreshButton';
+import { SaveButton } from '@/components/ui/shared/SaveButton/SaveButton';
 import type { Secret } from '@/types/sandbox.types';
 import toast from 'react-hot-toast';
 import { cn } from '@/utils/cn';

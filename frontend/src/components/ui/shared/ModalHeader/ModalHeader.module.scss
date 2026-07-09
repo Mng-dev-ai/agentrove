@@ -1,0 +1,38 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--theme-border);
+    padding: var(--space-4);
+}
+
+.title {
+    @include type.type-title(600);
+    color: var(--theme-text-primary);
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.close-button {
+    @include anim.transition-colors;
+    padding: var(--space-1);
+    border-radius: var(--radius-lg);
+    color: var(--theme-text-quaternary);
+
+    @include responsive.hover {
+        color: var(--theme-text-secondary);
+    }
+}
+
+.close-icon {
+    height: var(--space-4);
+    width: var(--space-4);
+}

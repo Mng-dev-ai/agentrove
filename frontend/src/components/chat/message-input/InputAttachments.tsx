@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { FilePreviewList } from '@/components/ui/FilePreviewList';
+import { FilePreviewList } from '@/components/ui/FilePreviewList/FilePreviewList';
 
 interface InputAttachmentsProps {
   files: File[];

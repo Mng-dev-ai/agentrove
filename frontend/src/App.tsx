@@ -9,7 +9,7 @@ import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useUIStore } from '@/store/uiStore';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
-import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { LoadingScreen } from '@/components/ui/LoadingScreen/LoadingScreen';
 import { useGlobalStream } from '@/hooks/useGlobalStream';
 import { useLocalStreamRestoration } from '@/hooks/useLocalStreamRestoration';
 import { useCloudStreamRestoration } from '@/hooks/useCloudStreamRestoration';
@@ -17,7 +17,7 @@ import { useChatEvents } from '@/hooks/useChatEvents';
 import { useCloudChatEvents } from '@/hooks/useCloudChatEvents';
 import { authService } from '@/services/authService';
 import { toasterConfig } from '@/config/toaster';
-import { AuthRoute } from '@/components/routes/AuthRoute';
+import { AuthRoute } from '@/components/routes/AuthRoute/AuthRoute';
 import { setApiPort } from '@/lib/api';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { isDesktopApp, isMobileApp } from '@/utils/platform';
@@ -31,18 +31,26 @@ const LandingPage = lazy(() =>
   import('@/pages/LandingPage').then((m) => ({ default: m.LandingPage })),
 );
 const ChatPage = lazy(() => import('@/pages/ChatPage').then((m) => ({ default: m.ChatPage })));
-const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const LoginPage = lazy(() =>
+  import('@/pages/LoginPage/LoginPage').then((m) => ({ default: m.LoginPage })),
+);
 const SignupPage = lazy(() =>
-  import('@/pages/SignupPage').then((m) => ({ default: m.SignupPage })),
+  import('@/pages/SignupPage/SignupPage').then((m) => ({ default: m.SignupPage })),
 );
 const EmailVerificationPage = lazy(() =>
-  import('@/pages/EmailVerificationPage').then((m) => ({ default: m.EmailVerificationPage })),
+  import('@/pages/EmailVerificationPage/EmailVerificationPage').then((m) => ({
+    default: m.EmailVerificationPage,
+  })),
 );
 const ForgotPasswordPage = lazy(() =>
-  import('@/pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })),
+  import('@/pages/ForgotPasswordPage/ForgotPasswordPage').then((m) => ({
+    default: m.ForgotPasswordPage,
+  })),
 );
 const ResetPasswordPage = lazy(() =>
-  import('@/pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })),
+  import('@/pages/ResetPasswordPage/ResetPasswordPage').then((m) => ({
+    default: m.ResetPasswordPage,
+  })),
 );
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 

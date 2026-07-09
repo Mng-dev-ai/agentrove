@@ -2,7 +2,7 @@ import { memo, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { FileStructure } from '@/types/file-system.types';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FileIcon } from '@/components/ui/shared/FileIcon';
+import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
 import { getFileName } from '@/utils/file';
 import { cn } from '@/utils/cn';
 

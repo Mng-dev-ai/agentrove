@@ -7,8 +7,8 @@ import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { RenameModal } from '@/components/ui/RenameModal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
+import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
 import {
   useDeleteChatMutation,
   useGenerateChatTitleMutation,

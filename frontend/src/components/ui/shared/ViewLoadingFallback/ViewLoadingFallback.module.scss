@@ -1,0 +1,12 @@
+.view-loading-fallback {
+    display: flex;
+    height: 100%;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--theme-surface-secondary);
+}
+
+.spinner {
+    color: var(--theme-text-quaternary);
+}

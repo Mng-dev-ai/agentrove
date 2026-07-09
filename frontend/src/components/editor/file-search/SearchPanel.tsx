@@ -2,7 +2,7 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { CaseSensitive, Loader2, Regex, Search, WholeWord, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';

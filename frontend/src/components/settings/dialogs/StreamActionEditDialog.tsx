@@ -7,9 +7,9 @@ import { Label } from '@/components/ui/primitives/Label/Label';
 import { Select } from '@/components/ui/primitives/Select/Select';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
-import { BaseModal } from '@/components/ui/shared/BaseModal';
-import { DialogFooter } from '@/components/ui/shared/DialogFooter';
-import { DialogError } from '@/components/ui/shared/DialogError';
+import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
+import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { SlashCommandsPanel } from '@/components/chat/message-input/SlashCommandsPanel';
 import {

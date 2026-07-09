@@ -14,11 +14,11 @@ import {
   Undo2,
   type LucideIcon,
 } from 'lucide-react';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { SegmentedControl } from '@/components/ui/primitives/SegmentedControl/SegmentedControl';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import {
   useGitDiffQuery,
   useGitRestoreAllMutation,
@@ -26,7 +26,7 @@ import {
 } from '@/hooks/queries/useSandboxQueries';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useFirstPaint } from '@/hooks/useFirstPaint';
-import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
+import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { parsePatchFiles, parseDiffFromFile } from '@pierre/diffs';
 import type { FileDiffMetadata, FileContents } from '@pierre/diffs';

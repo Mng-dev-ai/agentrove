@@ -1,7 +1,7 @@
 import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { useUIStore } from '@/store/uiStore';
 import { useChatContext } from '@/hooks/useChatContext';
 

@@ -9,9 +9,9 @@ import {
 } from 'lucide-react';
 import type { FileStructure } from '@/types/file-system.types';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
-import { SaveButton } from '@/components/ui/shared/SaveButton';
-import { FileIcon } from '@/components/ui/shared/FileIcon';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
+import { SaveButton } from '@/components/ui/shared/SaveButton/SaveButton';
+import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
 import { isPreviewableFile } from '@/utils/fileTypes';
 import { getFileName } from '@/utils/file';
 import { cn } from '@/utils/cn';

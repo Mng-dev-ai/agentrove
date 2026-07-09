@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { UserCircle } from 'lucide-react';
-import { ListManagementTab } from '@/components/ui/ListManagementTab';
+import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
 import { useCrudForm } from '@/hooks/useCrudForm';
 import { createDefaultPersonaForm, validatePersonaForm } from '@/utils/settings';

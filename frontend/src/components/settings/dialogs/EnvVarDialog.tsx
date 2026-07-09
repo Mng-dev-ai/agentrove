@@ -3,9 +3,9 @@ import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
 import { SecretInput } from '../inputs/SecretInput';
 import { useState } from 'react';
-import { BaseModal } from '@/components/ui/shared/BaseModal';
-import { DialogFooter } from '@/components/ui/shared/DialogFooter';
-import { DialogError } from '@/components/ui/shared/DialogError';
+import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
+import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 
 interface EnvVarDialogProps {
   isOpen: boolean;

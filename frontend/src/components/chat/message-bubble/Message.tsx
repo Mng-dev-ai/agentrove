@@ -8,9 +8,9 @@ import {
   type AssistantStreamEvent,
   type MessageAttachment,
 } from '@/types/chat.types';
-import { Tooltip } from '@/components/ui/Tooltip';
+import { Tooltip } from '@/components/ui/Tooltip/Tooltip';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { formatRelativeTime, formatFullTimestamp } from '@/utils/date';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';

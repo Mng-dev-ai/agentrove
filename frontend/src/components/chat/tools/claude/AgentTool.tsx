@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useRef, lazy, Suspense } from 'react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Bot, Maximize2 } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { ToolCard } from '../common/ToolCard';
@@ -10,7 +10,9 @@ import { AgentToolsContext } from '@/contexts/AgentToolsContext';
 import { extractResultText } from '@/utils/agentTool';
 import { useAgentToolsContext } from '@/hooks/useAgentToolsContext';
 
-const LazyExpandedModal = lazy(() => import('@/components/ui/AgentToolExpandedModal'));
+const LazyExpandedModal = lazy(
+  () => import('@/components/ui/AgentToolExpandedModal/AgentToolExpandedModal'),
+);
 
 interface AgentToolProps {
   tool: ToolAggregate;

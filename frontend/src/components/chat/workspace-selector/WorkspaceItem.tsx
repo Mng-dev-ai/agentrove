@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { GitBranch, Box, HardDrive, Loader2, ChevronDown, ChevronRight, Check } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
 import type { Workspace } from '@/types/workspace.types';

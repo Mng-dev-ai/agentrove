@@ -1,0 +1,17 @@
+@use '@/styles/globals/typography' as type;
+
+.highlight-match {
+    @include type.type-overflow;
+}
+
+.mark {
+    border-radius: var(--radius-sm);
+    padding: 0 var(--space-0-5);
+    font-weight: 500;
+    color: var(--theme-text-primary);
+    background-color: var(--theme-surface-active);
+
+    :global([data-theme='dark']) & {
+        background-color: var(--theme-surface-hover);
+    }
+}

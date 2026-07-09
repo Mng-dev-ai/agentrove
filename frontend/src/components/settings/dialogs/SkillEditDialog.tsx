@@ -1,8 +1,8 @@
 import { useState, useEffect, lazy, Suspense, useMemo, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { BaseModal } from '@/components/ui/shared/BaseModal';
-import { DialogFooter } from '@/components/ui/shared/DialogFooter';
-import { DialogError } from '@/components/ui/shared/DialogError';
+import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
+import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import { Tree } from '@/components/editor/file-tree/Tree';
 import { useEditorTheme } from '@/hooks/useEditorTheme';
 import type { CustomSkill } from '@/types/user.types';

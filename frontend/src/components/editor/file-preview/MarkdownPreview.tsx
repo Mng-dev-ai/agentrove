@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
+import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
 import type { FileStructure } from '@/types/file-system.types';
 import { PreviewContainer } from './PreviewContainer';
 import { getDisplayFileName } from './previewUtils';

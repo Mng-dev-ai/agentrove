@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { CornerDownLeft, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 
 interface DiffCommentComposerProps {
   lineLabel: string;

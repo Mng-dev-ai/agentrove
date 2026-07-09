@@ -1,0 +1,91 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/zlayer' as z;
+
+.overlay {
+    @include z.z('command-menu');
+    position: fixed;
+    inset: 0;
+    display: flex;
+    justify-content: center;
+}
+
+.dialog {
+    margin-top: var(--space-20);
+    height: fit-content;
+    width: 100%;
+    max-width: 42rem;
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-xl);
+    background-color: colors.theme-color('surface', 0.95);
+    box-shadow: var(--shadow-strong);
+    backdrop-filter: blur(24px);
+    @include anim.fade-in;
+}
+
+.submode-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    padding: var(--space-2) var(--space-3);
+}
+
+.submode-back {
+    @include type.type-meta(500);
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    padding: var(--space-0-5) var(--space-1-5);
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-secondary);
+}
+
+.submode-hint {
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+}
+
+.submode-panel {
+    height: 28rem;
+}
+
+.filters {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    padding: var(--space-2) var(--space-3);
+}
+
+.filter {
+    @include type.type-default(500);
+    @include anim.transition-colors;
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-2-5);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+        color: var(--theme-text-primary);
+    }
+
+    &--active {
+        background-color: var(--theme-surface-active);
+        color: var(--theme-text-primary);
+    }
+}
+
+.footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid colors.theme-color('border', 0.5);
+    padding: var(--space-2) var(--space-3);
+}
+
+.footer-hint {
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+}

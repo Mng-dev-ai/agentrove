@@ -1,7 +1,7 @@
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { Clock, Cloud, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { ListManagementTab } from '@/components/ui/ListManagementTab';
+import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';

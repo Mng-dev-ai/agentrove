@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import type { DropdownItemType } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { useAuthStore } from '@/store/authStore';

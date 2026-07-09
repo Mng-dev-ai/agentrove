@@ -1,4 +1,4 @@
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { formatNumberCompact } from '@/utils/format';
 
 export interface ContextUsageInfo {

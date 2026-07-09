@@ -1,0 +1,148 @@
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import { useMemo, useState, memo, useEffect, lazy, Suspense } from 'react';
+import type { Options } from 'react-markdown';
+import clsx from 'clsx';
+import { MARKDOWN_COMPONENTS } from './markdownComponents';
+import {
+  MATH_PATTERN,
+  rehypeMentionPills,
+  splitMarkdownBlocks,
+  splitVisualizerBlocks,
+} from './markdownParsing';
+import styles from './MarkDown.module.scss';
+
+const VisualWidget = lazy(() =>
+  import('../VisualWidget/VisualWidget').then((m) => ({ default: m.VisualWidget })),
+);
+
+interface MarkdownBlockProps {
+  content: string;
+  remarkPlugins: Options['remarkPlugins'];
+  rehypePlugins: Options['rehypePlugins'];
+}
+
+const MarkdownBlock = memo(function MarkdownBlock({
+  content,
+  remarkPlugins,
+  rehypePlugins,
+}: MarkdownBlockProps) {
+  // Memoized per block so a streaming message only re-parses its growing tail
+  // block each flush; completed blocks keep identical props and bail out.
+  return (
+    <ReactMarkdown
+      remarkPlugins={remarkPlugins}
+      rehypePlugins={rehypePlugins}
+      components={MARKDOWN_COMPONENTS}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+});
+
+interface MarkDownProps {
+  content: string;
+  className?: string;
+  // True only while this content is actively receiving stream output — block
+  // splitting trades cross-block references for cheap incremental re-parses,
+  // so static content parses as one document.
+  streaming?: boolean;
+  // Render @mention and leading /command tokens as pills — user messages only.
+  highlightMentions?: boolean;
+}
+
+function MarkDownInner({
+  content,
+  className,
+  streaming = false,
+  highlightMentions = false,
+}: MarkDownProps) {
+  const [remarkMathPlugin, setRemarkMathPlugin] = useState<unknown>(null);
+  const [rehypeKatexPlugin, setRehypeKatexPlugin] = useState<unknown>(null);
+
+  const blocks = useMemo(
+    () =>
+      splitVisualizerBlocks(content).flatMap((seg) =>
+        seg.type === 'md' && streaming
+          ? splitMarkdownBlocks(seg.content).map((chunk) => ({
+              type: 'md' as const,
+              content: chunk,
+            }))
+          : [seg],
+      ),
+    [content, streaming],
+  );
+
+  const needsMath = useMemo(() => MATH_PATTERN.test(content), [content]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!needsMath || (remarkMathPlugin && rehypeKatexPlugin)) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void Promise.all([
+      import('remark-math'),
+      import('rehype-katex'),
+      import('katex/dist/katex.min.css'),
+    ]).then(([remarkMathModule, rehypeKatexModule]) => {
+      if (cancelled) return;
+      setRemarkMathPlugin(() => remarkMathModule.default);
+      setRehypeKatexPlugin(() => rehypeKatexModule.default);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [needsMath, remarkMathPlugin, rehypeKatexPlugin]);
+
+  const remarkPlugins = useMemo(
+    () => [remarkGfm, ...(remarkMathPlugin ? [remarkMathPlugin as never] : [])],
+    [remarkMathPlugin],
+  );
+  const rehypePlugins = useMemo(
+    () => [
+      ...(highlightMentions ? [rehypeMentionPills] : []),
+      ...(rehypeKatexPlugin ? ([rehypeKatexPlugin] as never[]) : []),
+    ],
+    [rehypeKatexPlugin, highlightMentions],
+  );
+
+  const mathPluginsLoading = needsMath && (!remarkMathPlugin || !rehypeKatexPlugin);
+
+  if (mathPluginsLoading) {
+    return <div className={clsx(styles['math-loading'], className)}>{content}</div>;
+  }
+
+  return (
+    <div className={clsx(styles.markdown, className)}>
+      {blocks.map((seg, i) =>
+        seg.type === 'visualizer' ? (
+          <Suspense
+            key={`viz-${i}`}
+            fallback={
+              <div className={styles['viz-fallback']}>
+                <span className={styles['viz-fallback-text']}>Loading visualization...</span>
+              </div>
+            }
+          >
+            <VisualWidget code={seg.content} />
+          </Suspense>
+        ) : (
+          <MarkdownBlock
+            key={`md-${i}`}
+            content={seg.content}
+            remarkPlugins={remarkPlugins}
+            rehypePlugins={rehypePlugins}
+          />
+        ),
+      )}
+    </div>
+  );
+}
+
+const MarkDown = memo(MarkDownInner);
+export default MarkDown;

@@ -1,0 +1,30 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.markdown {
+    @include type.type-body;
+    color: var(--theme-text-secondary);
+}
+
+.math-loading {
+    @include type.type-body;
+    white-space: pre-wrap;
+    color: var(--theme-text-secondary);
+}
+
+.viz-fallback {
+    display: flex;
+    // Fixed placeholder height while the visualizer bundle loads.
+    height: 200px;
+    align-items: center;
+    justify-content: center;
+    margin: var(--space-4) 0;
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-lg);
+    background-color: var(--theme-surface-secondary);
+}
+
+.viz-fallback-text {
+    @include type.type-default;
+    color: var(--theme-text-tertiary);
+}

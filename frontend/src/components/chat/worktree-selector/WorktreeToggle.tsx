@@ -1,6 +1,9 @@
 import { memo } from 'react';
 import { GitFork } from 'lucide-react';
-import { ToggleDropdown, type ToggleDropdownOption } from '@/components/ui/shared/ToggleDropdown';
+import {
+  ToggleDropdown,
+  type ToggleDropdownOption,
+} from '@/components/ui/shared/ToggleDropdown/ToggleDropdown';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,

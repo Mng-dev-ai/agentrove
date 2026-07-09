@@ -1,0 +1,6 @@
+@use '@/styles/globals/typography' as type;
+
+.fallback {
+    @include type.type-body;
+    white-space: pre-wrap;
+}

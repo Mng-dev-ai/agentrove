@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CornerDownLeft, Loader2, X } from 'lucide-react';
 import type * as monacoNs from 'monaco-editor';
-import MarkDown from '@/components/ui/MarkDown';
+import MarkDown from '@/components/ui/markdown/MarkDown';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';

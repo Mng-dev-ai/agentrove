@@ -1,5 +1,5 @@
 import { memo, Suspense } from 'react';
-import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
+import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
 import { useSmoothText } from '@/hooks/useSmoothText';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';

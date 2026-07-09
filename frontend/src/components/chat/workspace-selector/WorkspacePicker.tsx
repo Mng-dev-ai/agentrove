@@ -2,8 +2,8 @@ import { useState, useCallback, useMemo, type ReactNode } from 'react';
 import { FolderOpen, Search, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
-import { BaseModal } from '@/components/ui/shared/BaseModal';
-import { ModalHeader } from '@/components/ui/shared/ModalHeader';
+import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import type { Workspace } from '@/types/workspace.types';
 import { WorkspaceItem } from './WorkspaceItem';
 

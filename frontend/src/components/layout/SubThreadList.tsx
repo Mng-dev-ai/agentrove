@@ -2,10 +2,14 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import { useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
-import { AsciiSpinner } from '@/components/ui/AsciiSpinner';
-import { ChatStatusDot, chatStatusTone, type ChatStatusTone } from '@/components/ui/ChatStatusDot';
+import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
+import {
+  ChatStatusDot,
+  chatStatusTone,
+  type ChatStatusTone,
+} from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { cn } from '@/utils/cn';
 import { stripMarkdownTitle } from '@/utils/format';

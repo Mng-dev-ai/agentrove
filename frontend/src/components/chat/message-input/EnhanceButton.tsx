@@ -1,6 +1,6 @@
 import { Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 
 export interface EnhanceButtonProps {
   onEnhance?: () => void;

@@ -8,10 +8,13 @@ import { Select } from '@/components/ui/primitives/Select/Select';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
-import { BaseModal } from '@/components/ui/shared/BaseModal';
-import { DialogFooter } from '@/components/ui/shared/DialogFooter';
-import { DialogError } from '@/components/ui/shared/DialogError';
-import { ToggleDropdown, type ToggleDropdownOption } from '@/components/ui/shared/ToggleDropdown';
+import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
+import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
+import {
+  ToggleDropdown,
+  type ToggleDropdownOption,
+} from '@/components/ui/shared/ToggleDropdown/ToggleDropdown';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import {
   getThinkingModesForAgent,

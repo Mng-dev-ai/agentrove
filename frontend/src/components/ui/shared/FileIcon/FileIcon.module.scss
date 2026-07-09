@@ -1,0 +1,11 @@
+@use '@/styles/globals/animations' as anim;
+
+.folder-icon {
+    @include anim.transition-colors;
+    color: var(--theme-text-quaternary);
+}
+
+.file-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+}

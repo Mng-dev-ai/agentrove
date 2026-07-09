@@ -1,6 +1,6 @@
 import { Suspense, useCallback } from 'react';
 import { GitBranch } from 'lucide-react';
-import { ListManagementTab } from '@/components/ui/ListManagementTab';
+import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
 import { useCrudForm } from '@/hooks/useCrudForm';

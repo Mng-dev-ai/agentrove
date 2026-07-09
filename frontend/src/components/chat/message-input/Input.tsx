@@ -1,6 +1,6 @@
 import { memo } from 'react';
-import { FileUploadDialog } from '@/components/ui/FileUploadDialog';
-import { DrawingModal } from '@/components/ui/DrawingModal';
+import { FileUploadDialog } from '@/components/ui/FileUploadDialog/FileUploadDialog';
+import { DrawingModal } from '@/components/ui/drawing-modal/DrawingModal';
 import { DropIndicator } from './DropIndicator';
 import { SendButton } from './SendButton';
 import type { SendButtonStatus } from './SendButton';

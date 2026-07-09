@@ -50,11 +50,11 @@ import { buildAgentChatFields } from '@/utils/chatRequest';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { buildFileStructureFromSandboxFiles } from '@/utils/file';
-import { SplitViewContainer } from '@/components/ui/SplitViewContainer';
-import { CommandMenu } from '@/components/ui/CommandMenu';
+import { SplitViewContainer } from '@/components/ui/SplitViewContainer/SplitViewContainer';
+import { CommandMenu } from '@/components/ui/command-menu/CommandMenu';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useEditorState } from '@/hooks/useEditorState';
-import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
+import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
 import { PENDING_NEW_CHAT_KEY, type TileId } from '@/types/ui.types';
 import { tileIdToViewType } from '@/utils/tileHelpers';
 

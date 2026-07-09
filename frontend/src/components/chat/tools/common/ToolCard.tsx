@@ -1,6 +1,6 @@
 import React, { memo, useState } from 'react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ChevronRight } from 'lucide-react';
 import type { ToolEventStatus } from '@/types/tools.types';
 import { TOOL_ERROR_PRE_CLASS } from '@/utils/toolStyles';

@@ -1,8 +1,8 @@
 import { memo } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
-import { FileIcon } from '@/components/ui/shared/FileIcon';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
+import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
 import { getFileName } from '@/utils/file';
 import type { EditorCodeSelection } from '@/store/uiStore';
 

@@ -1,0 +1,28 @@
+@use '@/styles/globals/colors' as colors;
+
+.workspace-split {
+    display: grid;
+    height: 100%;
+    width: 100%;
+    flex: 1;
+    overflow: hidden;
+}
+
+.tile {
+    display: flex;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+
+    &--top-border {
+        border-top: 1px solid colors.theme-color('border', 0.5);
+    }
+
+    &--left-border {
+        border-left: 1px solid colors.theme-color('border', 0.5);
+    }
+}
+
+.tile-hidden {
+    display: none;
+}

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/primitives/Input/Input';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { apiClient } from '@/lib/api';
 import { detectFileType } from '@/utils/fileTypes';
-import { HighlightedText } from '@/components/ui/shared/HighlightedText';
+import { HighlightedText } from '@/components/ui/shared/HighlightedText/HighlightedText';
 import { fetchAttachmentBlob } from '@/utils/file';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import type {

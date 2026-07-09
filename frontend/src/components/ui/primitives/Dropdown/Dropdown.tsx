@@ -1,11 +1,20 @@
-import { memo, ReactNode, useState, useRef, KeyboardEvent, ComponentType, SVGProps } from 'react';
+import {
+  memo,
+  ReactElement,
+  ReactNode,
+  useState,
+  useRef,
+  KeyboardEvent,
+  ComponentType,
+  SVGProps,
+} from 'react';
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useDropdown } from '@/hooks/useDropdown';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { SelectItem } from '@/components/ui/primitives/SelectItem/SelectItem';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { fuzzySearch } from '@/utils/fuzzySearch';
 import { stateClasses } from '@/constants/stateClasses';
 import styles from './Dropdown.module.scss';
@@ -330,4 +339,4 @@ function DropdownInner<T>({
   );
 }
 
-export const Dropdown = memo(DropdownInner) as <T>(props: DropdownProps<T>) => JSX.Element;
+export const Dropdown = memo(DropdownInner) as <T>(props: DropdownProps<T>) => ReactElement;
