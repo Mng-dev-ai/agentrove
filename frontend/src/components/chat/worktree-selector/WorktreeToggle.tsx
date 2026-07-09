@@ -36,7 +36,7 @@ export const WorktreeToggle = memo(function WorktreeToggle({
         useChatSettingsStore.getState().setWorktree(DEFAULT_CHAT_SETTINGS_KEY, enabled)
       }
       icon={GitFork}
-      width="w-36"
+      width="9rem"
       disabled={disabled}
     />
   );

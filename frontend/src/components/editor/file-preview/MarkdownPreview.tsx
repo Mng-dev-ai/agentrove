@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import clsx from 'clsx';
 import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
 import type { FileStructure } from '@/types/file-system.types';
 import { PreviewContainer } from './PreviewContainer';
@@ -22,10 +21,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
       fileName={getDisplayFileName(file)}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
-      // 'prose'/'max-w-none'/'dark:prose-invert' come from the Tailwind Typography plugin
-      // (tailwind.config.js) — no SCSS token exists for its nested markdown ruleset, and
-      // config edits are out of scope for this migration, so these stay literal Tailwind.
-      contentClassName={clsx(styles.content, 'prose max-w-none dark:prose-invert')}
+      contentClassName={styles.content}
     >
       <LazyMarkDown content={file.content} />
     </PreviewContainer>

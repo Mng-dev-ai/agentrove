@@ -15,7 +15,6 @@ import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
 import { useChatData } from '@/hooks/useChatData';
-import { useActiveChat } from '@/hooks/useActiveChat';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useQueryClient } from '@tanstack/react-query';
@@ -24,7 +23,8 @@ import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
-import { CreateSubThreadDialog } from '@/components/chat/sub-threads/CreateSubThreadDialog';
+import { SubThreadDialog } from './SubThreadDialog';
+import styles from './ChatPage.module.scss';
 
 const EditorPane = lazy(() =>
   import('@/components/editor/editor-core/EditorPane').then((m) => ({ default: m.EditorPane })),
@@ -55,21 +55,6 @@ const CreateCommitDialog = lazy(() =>
 const CreatePRDialog = lazy(() =>
   import('@/components/chat/github/CreatePRDialog').then((m) => ({ default: m.CreatePRDialog })),
 );
-
-// Mount-gated wrapper (matches the git dialogs' pattern) so useActiveChat's
-// pane subscriptions don't re-render the whole page on every pane switch.
-function SubThreadDialog() {
-  // Sub-threads branch off the pane the user is in — in split view that's the
-  // secondary chat when it's the active pane.
-  const parentChat = useActiveChat();
-  if (!parentChat || parentChat.parent_chat_id) return null;
-  return (
-    <CreateSubThreadDialog
-      parentChat={parentChat}
-      onClose={() => useUIStore.getState().setSubThreadDialogOpen(false)}
-    />
-  );
-}
 
 export function ChatPage() {
   const { chatId } = useParams();
@@ -282,12 +267,12 @@ export function ChatPage() {
         : (currentChat?.worktree_cwd ?? undefined);
       return (
         <div
-          className="relative flex h-full w-full"
+          className={styles.tile}
           // Record focus on any interaction so shortcuts and the active tab both
           // track the pane in use (focusTile derives the chat from the tile).
           onPointerDownCapture={() => useUIStore.getState().focusTile(tileId)}
         >
-          <div className={isTerminal ? 'flex h-full w-full' : 'hidden'}>
+          <div className={isTerminal ? styles.fill : styles.hidden}>
             <Suspense fallback={viewLoadingFallback}>
               <TerminalContainer
                 sandboxId={terminalSandboxId}
@@ -300,7 +285,7 @@ export function ChatPage() {
               />
             </Suspense>
           </div>
-          <div className={isTerminal ? 'hidden' : 'flex h-full w-full'}>
+          <div className={isTerminal ? styles.hidden : styles.fill}>
             {renderNonTerminalView(tileId, isVisible)}
           </div>
         </div>
@@ -336,8 +321,8 @@ export function ChatPage() {
         hasFetchedMessages={hasFetchedMessages}
         messagesQuery={messagesQuery}
       >
-        <div className="relative flex h-full">
-          <div className="flex h-full flex-1 overflow-hidden bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">
+        <div className={styles['chat-root']}>
+          <div className={styles.surface}>
             <SplitViewContainer renderView={renderView} />
           </div>
           <CommandMenu />

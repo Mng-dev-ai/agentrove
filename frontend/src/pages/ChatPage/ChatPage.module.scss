@@ -1,0 +1,31 @@
+.surface {
+    display: flex;
+    height: 100%;
+    flex: 1;
+    overflow: hidden;
+    background-color: var(--theme-surface);
+    color: var(--theme-text-primary);
+}
+
+.chat-root {
+    position: relative;
+    display: flex;
+    height: 100%;
+}
+
+.tile {
+    position: relative;
+    display: flex;
+    height: 100%;
+    width: 100%;
+}
+
+.fill {
+    display: flex;
+    height: 100%;
+    width: 100%;
+}
+
+.hidden {
+    display: none;
+}

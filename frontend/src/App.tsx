@@ -26,11 +26,14 @@ import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { clearCloudOrigins } from '@/utils/chatOrigin';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
 import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
+import styles from './App.module.scss';
 
 const LandingPage = lazy(() =>
-  import('@/pages/LandingPage').then((m) => ({ default: m.LandingPage })),
+  import('@/pages/LandingPage/LandingPage').then((m) => ({ default: m.LandingPage })),
 );
-const ChatPage = lazy(() => import('@/pages/ChatPage').then((m) => ({ default: m.ChatPage })));
+const ChatPage = lazy(() =>
+  import('@/pages/ChatPage/ChatPage').then((m) => ({ default: m.ChatPage })),
+);
 const LoginPage = lazy(() =>
   import('@/pages/LoginPage/LoginPage').then((m) => ({ default: m.LoginPage })),
 );
@@ -52,7 +55,7 @@ const ResetPasswordPage = lazy(() =>
     default: m.ResetPasswordPage,
   })),
 );
-const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
+const SettingsPage = lazy(() => import('@/pages/SettingsPage/SettingsPage'));
 
 function AppContent() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -304,12 +307,10 @@ export default function App() {
 
   if (desktopError) {
     return (
-      <div className="flex min-h-screen flex-col bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">
+      <div className={styles['error-shell']}>
         <DesktopDragRegion />
-        <div className="flex flex-1 items-center justify-center">
-          <div className="rounded-lg border border-border/50 bg-surface-secondary px-4 py-3 text-xs dark:border-border-dark/50 dark:bg-surface-dark-secondary">
-            {desktopError}
-          </div>
+        <div className={styles['error-body']}>
+          <div className={styles['error-card']}>{desktopError}</div>
         </div>
       </div>
     );

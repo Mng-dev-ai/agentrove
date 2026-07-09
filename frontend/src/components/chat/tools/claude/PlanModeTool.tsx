@@ -74,12 +74,7 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
 
           {planContent && (
             <div className={clsx(styles['plan-box'], styles['plan-box--spaced'])}>
-              <div
-                className={clsx(
-                  styles['plan-prose'],
-                  'prose prose-sm dark:prose-invert max-w-none',
-                )}
-              >
+              <div className={styles['plan-prose']}>
                 <LazyMarkDown content={planContent} />
               </div>
             </div>
@@ -135,12 +130,7 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
         <div className={styles.stack}>
           {planContent && (
             <div className={styles['plan-box']}>
-              <div
-                className={clsx(
-                  styles['plan-prose'],
-                  'prose prose-sm dark:prose-invert max-w-none',
-                )}
-              >
+              <div className={styles['plan-prose']}>
                 <LazyMarkDown content={planContent} />
               </div>
             </div>

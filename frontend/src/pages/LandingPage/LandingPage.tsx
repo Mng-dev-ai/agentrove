@@ -57,6 +57,7 @@ import { useEditorState } from '@/hooks/useEditorState';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
 import { PENDING_NEW_CHAT_KEY, type TileId } from '@/types/ui.types';
 import { tileIdToViewType } from '@/utils/tileHelpers';
+import styles from './LandingPage.module.scss';
 
 const Editor = lazy(() =>
   import('@/components/editor/editor-core/Editor').then((m) => ({ default: m.Editor })),
@@ -365,9 +366,9 @@ export function LandingPage() {
       switch (tileIdToViewType(tileId)) {
         case 'agent':
           return (
-            <div className="flex h-full w-full items-center justify-center px-4 pb-10">
-              <div className="w-full max-w-2xl">
-                <div className="relative z-30 mb-2 flex items-center gap-1 px-4 sm:px-6">
+            <div className={styles['agent-view']}>
+              <div className={styles['agent-panel']}>
+                <div className={styles['selector-row']}>
                   {isCloud ? (
                     <CloudWorkspaceSelector
                       selectedWorkspaceId={selectedCloudWorkspaceId}
@@ -399,14 +400,14 @@ export function LandingPage() {
                   placeholder="Message Agentrove... (@ to mention, / for commands)"
                 />
 
-                <div className="mt-4 flex flex-wrap justify-center gap-2 px-4 sm:px-6">
+                <div className={styles['example-prompts']}>
                   {EXAMPLE_PROMPTS.map((prompt) => (
                     <Button
                       key={prompt}
                       type="button"
                       variant="unstyled"
                       onClick={() => setMessage(prompt)}
-                      className="rounded-lg border border-border/50 px-3 py-2 text-2xs text-text-tertiary transition-colors duration-200 hover:border-border-hover hover:bg-surface-hover hover:text-text-primary dark:border-border-dark/50 dark:text-text-dark-tertiary dark:hover:border-border-dark-hover dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+                      className={styles['example-prompt']}
                     >
                       {prompt}
                     </Button>
@@ -473,7 +474,7 @@ export function LandingPage() {
       builtinSlashCommands={resolvedWorkspaceResources?.builtin_slash_commands}
       personas={resolvedPersonas}
     >
-      <div className="flex h-full flex-1 overflow-hidden bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">
+      <div className={styles.surface}>
         <SplitViewContainer renderView={renderView} />
       </div>
       <CommandMenu />

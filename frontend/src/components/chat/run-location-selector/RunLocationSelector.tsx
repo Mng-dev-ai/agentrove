@@ -27,7 +27,7 @@ export const RunLocationSelector = memo(function RunLocationSelector({
       options={OPTIONS}
       value={runOnCloud}
       onSelect={(enabled) => useChatSettingsStore.getState().setRunOnCloud(enabled)}
-      width="w-32"
+      width="8rem"
       disabled={disabled}
     />
   );

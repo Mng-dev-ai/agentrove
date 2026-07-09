@@ -29,9 +29,6 @@ export const buildTerminalTheme = (palette: Palette): ITerminalOptions['theme'] 
   };
 };
 
-export const getTerminalBackgroundClass = (palette: Palette): string =>
-  DARK_PALETTES.has(palette) ? 'bg-surface-dark-secondary' : 'bg-surface-secondary';
-
 // Terminal tab layouts live in their own localStorage entries outside the zustand
 // persist blob. The key scheme is owned here so the Container's writes and the
 // uiStore's delete-time sweeps can't silently drift apart.

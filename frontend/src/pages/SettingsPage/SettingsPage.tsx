@@ -1,24 +1,10 @@
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
-import {
-  Settings2,
-  Zap,
-  UserCircle,
-  Key,
-  ScrollText,
-  ChevronLeft,
-  Clock,
-  Cloud,
-  GitBranch,
-} from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
-import { cn } from '@/utils/cn';
 import { useNavigate, useLocation } from 'react-router-dom';
 import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ApiFieldKey } from '@/types/settings.types';
 import { useDeleteAllChatsMutation } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
-import { Button } from '@/components/ui/primitives/Button/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import toast from 'react-hot-toast';
@@ -26,12 +12,15 @@ import { GeneralSettingsTab } from '@/components/settings/tabs/GeneralSettingsTa
 import { SkillsSettingsTab } from '@/components/settings/tabs/SkillsSettingsTab/SkillsSettingsTab';
 import { CloudSettingsTab } from '@/components/settings/tabs/CloudSettingsTab/CloudSettingsTab';
 import { SettingsProvider } from '@/contexts/SettingsContext';
-import { UserProfileMenu } from '@/components/layout/UserProfileMenu/UserProfileMenu';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
 import { useLogout } from '@/hooks/useLogout';
 import { getGeneralSecretFields } from '@/utils/settings';
 import { lazyNamed } from '@/utils/lazyNamed';
+import { SettingsSidebarNav } from './SettingsSidebarNav';
+import { SettingsMobileNav } from './SettingsMobileNav';
+import { TAB_LABELS, type TabKey } from './settingsNavItems';
+import styles from './SettingsPage.module.scss';
 const PersonasSettingsTab = lazyNamed(
   () => import('@/components/settings/tabs/PersonasSettingsTab/PersonasSettingsTab'),
   'PersonasSettingsTab',
@@ -53,43 +42,12 @@ const InstructionsSettingsTab = lazyNamed(
   'InstructionsSettingsTab',
 );
 
-type TabKey =
-  | 'general'
-  | 'skills'
-  | 'personas'
-  | 'stream_actions'
-  | 'automations'
-  | 'env_vars'
-  | 'instructions'
-  | 'cloud';
-
 const getErrorMessage = (error: unknown): string | undefined =>
   error instanceof Error ? error.message : undefined;
 
-interface SettingsNavItem {
-  id: TabKey;
-  label: string;
-  icon: LucideIcon;
-}
-
-const SETTINGS_NAV: SettingsNavItem[] = [
-  { id: 'general', label: 'General', icon: Settings2 },
-  { id: 'skills', label: 'Skills', icon: Zap },
-  { id: 'personas', label: 'Personas', icon: UserCircle },
-  { id: 'stream_actions', label: 'Stream Actions', icon: GitBranch },
-  { id: 'automations', label: 'Automations', icon: Clock },
-  { id: 'env_vars', label: 'Env Variables', icon: Key },
-  { id: 'instructions', label: 'Instructions', icon: ScrollText },
-  { id: 'cloud', label: 'Cloud', icon: Cloud },
-];
-
-const TAB_LABELS: Record<TabKey, string> = Object.fromEntries(
-  SETTINGS_NAV.map((item) => [item.id, item.label]),
-) as Record<TabKey, string>;
-
 const tabLoadingFallback = (
-  <div className="flex items-center justify-center py-12">
-    <Spinner size="md" className="text-text-quaternary dark:text-text-dark-quaternary" />
+  <div className={styles['tab-loading']}>
+    <Spinner size="md" className={styles.spinner} />
   </div>
 );
 
@@ -136,7 +94,9 @@ const SettingsPage: React.FC = () => {
 
       for (const field of fields) {
         if (JSON.stringify(current[field]) !== JSON.stringify(previous[field])) {
-          payload[field] = (current[field] ?? null) as UserSettingsUpdate[typeof field];
+          // Indexing UserSettingsUpdate by a union key collapses the assignment target
+          // to the intersection of the value types (undefined); cast past it.
+          payload[field] = (current[field] ?? null) as never;
         }
       }
       return payload;
@@ -233,8 +193,8 @@ const SettingsPage: React.FC = () => {
 
   if (fetchError && !settings) {
     return (
-      <div className="min-h-viewport flex items-center justify-center bg-surface dark:bg-surface-dark">
-        <div className="text-text-primary dark:text-text-dark-primary">Failed to load settings</div>
+      <div className={styles['status-screen']}>
+        <div className={styles['status-text']}>Failed to load settings</div>
       </div>
     );
   }
@@ -243,163 +203,51 @@ const SettingsPage: React.FC = () => {
   // syncing effect hasn't populated localSettings yet.
   if (!settings || !localSettings) {
     return (
-      <div className="min-h-viewport flex items-center justify-center bg-surface dark:bg-surface-dark">
-        <Spinner size="lg" className="text-text-quaternary dark:text-text-dark-quaternary" />
+      <div className={styles['status-screen']}>
+        <Spinner size="lg" className={styles.spinner} />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full overflow-hidden bg-surface dark:bg-surface-dark">
-      {/* Vertical settings navigation — desktop */}
-      <nav
-        className="hidden w-72 shrink-0 flex-col border-r border-border bg-surface-secondary dark:border-border-dark dark:bg-surface-dark-secondary md:flex"
-        aria-label="Settings sections"
-      >
-        <div className="border-b border-border px-5 py-4 dark:border-border-dark">
-          <Button
-            onClick={() => navigate('/')}
-            variant="unstyled"
-            className="group flex items-center gap-1.5 text-xs text-text-tertiary transition-colors duration-200 hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
-          >
-            <ChevronLeft className="h-3 w-3 transition-transform duration-200 group-hover:-translate-x-0.5" />
-            Back
-          </Button>
-          <h1 className="mt-3 text-sm font-semibold text-text-primary dark:text-text-dark-primary">
-            Settings
-          </h1>
-        </div>
+    <div className={styles.settings}>
+      <SettingsSidebarNav
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onBack={() => navigate('/')}
+        userDisplayName={userDisplayName}
+        onOpenSettings={() => navigate('/settings')}
+        onSignOut={() => logoutMutation.mutate()}
+      />
 
-        <div className="flex-1 space-y-px overflow-y-auto px-3 py-3">
-          {SETTINGS_NAV.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id;
-            return (
-              <Button
-                key={item.id}
-                onClick={() => handleTabChange(item.id)}
-                variant="unstyled"
-                className={cn(
-                  'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-xs transition-colors duration-200',
-                  isActive
-                    ? 'bg-surface-hover font-medium text-text-primary dark:bg-surface-dark-hover dark:text-text-dark-primary'
-                    : 'text-text-tertiary hover:bg-surface-hover/50 hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover/50 dark:hover:text-text-dark-secondary',
-                )}
-                role="tab"
-                aria-selected={isActive}
-                aria-controls={`${item.id}-panel`}
-                id={`${item.id}-tab`}
-              >
-                <Icon
-                  className={cn(
-                    'h-3.5 w-3.5 shrink-0 transition-colors duration-200',
-                    isActive
-                      ? 'text-text-secondary dark:text-text-dark-secondary'
-                      : 'text-text-quaternary dark:text-text-dark-quaternary',
-                  )}
-                />
-                {item.label}
-              </Button>
-            );
-          })}
-        </div>
-
-        <div className="flex-shrink-0 border-t border-border/50 px-4 py-2.5 dark:border-border-dark/50">
-          <UserProfileMenu
-            displayName={userDisplayName}
-            onOpenSettings={() => navigate('/settings')}
-            onSignOut={() => logoutMutation.mutate()}
-          />
-        </div>
-      </nav>
-
-      {/* Mobile top bar for settings nav */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* pt folds in the iOS top inset (no TitleBar on settings) — env() is 0 on web, so pt stays 0.625rem there */}
-        <div className="flex items-center gap-2 border-b border-border px-4 pb-2.5 pt-[calc(0.625rem+env(safe-area-inset-top))] dark:border-border-dark md:hidden">
-          <Button
-            onClick={() => navigate('/')}
-            variant="unstyled"
-            className="p-1 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
-            aria-label="Go back"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <Button
-            onClick={() => setMobileNavOpen(!mobileNavOpen)}
-            variant="unstyled"
-            className="flex items-center gap-2 text-xs font-medium text-text-primary dark:text-text-dark-primary"
-            aria-label="Toggle navigation menu"
-            aria-expanded={mobileNavOpen}
-          >
-            {TAB_LABELS[activeTab]}
-            <svg
-              className={cn(
-                'h-3 w-3 text-text-quaternary transition-transform duration-200 dark:text-text-dark-quaternary',
-                mobileNavOpen && 'rotate-180',
-              )}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-            </svg>
-          </Button>
-        </div>
-
-        {/* Mobile dropdown nav */}
-        {mobileNavOpen && (
-          <div className="animate-in fade-in space-y-px border-b border-border bg-surface px-3 py-2 duration-150 dark:border-border-dark dark:bg-surface-dark md:hidden">
-            {SETTINGS_NAV.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <Button
-                  key={item.id}
-                  onClick={() => handleTabChange(item.id)}
-                  variant="unstyled"
-                  className={cn(
-                    'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs transition-colors duration-200',
-                    isActive
-                      ? 'bg-surface-hover font-medium text-text-primary dark:bg-surface-dark-hover dark:text-text-dark-primary'
-                      : 'text-text-tertiary hover:bg-surface-hover/50 dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover/50',
-                  )}
-                >
-                  <Icon
-                    className={cn(
-                      'h-3.5 w-3.5 shrink-0',
-                      isActive
-                        ? 'text-text-secondary dark:text-text-dark-secondary'
-                        : 'text-text-quaternary dark:text-text-dark-quaternary',
-                    )}
-                  />
-                  {item.label}
-                </Button>
-              );
-            })}
-          </div>
-        )}
+      <div className={styles.main}>
+        <SettingsMobileNav
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          onBack={() => navigate('/')}
+          mobileNavOpen={mobileNavOpen}
+          onToggleNav={() => setMobileNavOpen(!mobileNavOpen)}
+        />
 
         {/* Main content area */}
-        <div className="relative flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className={styles.content}>
+          <div className={styles['content-inner']}>
             {errorMessage && (
-              <div className="mb-5 rounded-xl border border-border p-3 dark:border-border-dark">
-                <p className="text-xs text-text-secondary dark:text-text-dark-secondary">
-                  {errorMessage}
-                </p>
+              <div className={styles['error-box']}>
+                <p className={styles['error-box-text']}>{errorMessage}</p>
               </div>
             )}
 
             <SettingsProvider
               localSettings={localSettings}
-              setLocalSettings={setLocalSettings}
+              setLocalSettings={
+                setLocalSettings as React.Dispatch<React.SetStateAction<UserSettings>>
+              }
               persistSettings={persistSettings}
               settings={settings}
             >
               <ErrorBoundary>
-                <div className="min-w-0 space-y-6">
+                <div className={styles.panels}>
                   {activeTab === 'general' && (
                     <div role="tabpanel" id="general-panel" aria-labelledby="general-tab">
                       <GeneralSettingsTab

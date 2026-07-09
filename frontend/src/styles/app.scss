@@ -4,3 +4,16 @@
 // here and globals.css + Tailwind are deleted.
 
 @use './globals/globals';
+
+// Cross-boundary utility classes — real class names consumed outside JSX class
+// composition (rehype hast transforms), so they can't be CSS modules.
+
+// @mention / /command pill (see HighlightedText.MENTION_PILL_CLASSNAME)
+.mention-pill {
+    border-radius: var(--radius-sm);
+    background-color: var(--theme-surface-active);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    padding: var(--space-0-5) var(--space-1);
+    color: var(--theme-text-primary);
+}

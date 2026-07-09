@@ -1,0 +1,103 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border-bottom: 1px solid var(--theme-border);
+    padding-left: var(--space-4);
+    padding-right: var(--space-4);
+    padding-bottom: var(--space-2-5);
+    // Folds the iOS top inset into the top pad (env() is 0 on web)
+    padding-top: calc(var(--space-2-5) + var(--safe-area-top));
+
+    @include responsive.media('md-up') {
+        display: none;
+    }
+}
+
+.bar-back {
+    padding: var(--space-1);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        color: var(--theme-text-primary);
+    }
+}
+
+.bar-back-icon {
+    height: var(--space-4);
+    width: var(--space-4);
+}
+
+.bar-toggle {
+    @include type.type-default(500);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--theme-text-primary);
+}
+
+.bar-chevron {
+    height: var(--space-3);
+    width: var(--space-3);
+    color: var(--theme-text-quaternary);
+    transition: transform var(--duration-base);
+
+    &--open {
+        transform: rotate(180deg);
+    }
+}
+
+.dropdown {
+    @include anim.fade-in(var(--duration-fast));
+    border-bottom: 1px solid var(--theme-border);
+    background-color: var(--theme-surface);
+    padding: var(--space-2) var(--space-3);
+
+    > * + * {
+        margin-top: 1px;
+    }
+
+    @include responsive.media('md-up') {
+        display: none;
+    }
+}
+
+.item {
+    @include type.type-default;
+    @include anim.transition-colors;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: var(--space-2-5);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2) var(--space-2-5);
+    color: var(--theme-text-tertiary);
+
+    &:not(&--active) {
+        @include responsive.hover {
+            background-color: colors.theme-color('surface-hover', 0.5);
+        }
+    }
+
+    &--active {
+        background-color: var(--theme-surface-hover);
+        color: var(--theme-text-primary);
+        font-weight: 500;
+    }
+}
+
+.item-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    flex-shrink: 0;
+    color: var(--theme-text-quaternary);
+
+    .item--active & {
+        color: var(--theme-text-secondary);
+    }
+}

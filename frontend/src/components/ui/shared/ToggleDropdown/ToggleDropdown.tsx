@@ -17,6 +17,7 @@ interface ToggleDropdownProps {
   onSelect: (value: boolean) => void;
   // Fixed trigger icon; a per-option icon takes precedence when provided.
   icon?: ComponentType<SVGProps<SVGSVGElement>>;
+  // CSS width for the panel (e.g. '8rem'), not a class name
   width: string;
   disabled?: boolean;
 }
@@ -50,9 +51,7 @@ export const ToggleDropdown = memo(function ToggleDropdown({
       </Button>
 
       {isOpen && (
-        // `width` is a caller-provided Tailwind width class (e.g. 'w-40') forwarded
-        // during Tailwind/SCSS coexistence — the module only owns the panel look.
-        <div className={clsx(styles.panel, width)}>
+        <div className={styles.panel} style={{ width }}>
           {options.map((opt, index) => {
             const optValue = index === 1;
             const isSelected = value === optValue;
