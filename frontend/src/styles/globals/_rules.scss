@@ -17,9 +17,26 @@
     }
 
     html {
+        // Base metrics match the old Tailwind preflight so unmixed text keeps its size
+        line-height: 1.5;
+        tab-size: 4;
         -webkit-text-size-adjust: 100%;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+    }
+
+    code,
+    kbd,
+    samp,
+    pre {
+        font-family: var(--font-mono);
+        font-size: 1em;
+    }
+
+    table {
+        text-indent: 0;
+        border-color: inherit;
+        border-collapse: collapse;
     }
 
     body {
@@ -53,12 +70,55 @@
         max-width: 100%;
     }
 
+    img,
+    video {
+        height: auto;
+    }
+
+    // Headings size via type-* mixins, never UA defaults
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        font-size: inherit;
+        font-weight: inherit;
+    }
+
     button,
     input,
     select,
     textarea {
         font: inherit;
+        letter-spacing: inherit;
         color: inherit;
+    }
+
+    button,
+    select {
+        text-transform: none;
+    }
+
+    // Kill the UA's grey ButtonFace — buttons are styled entirely by their modules
+    // (this replaced Tailwind preflight's button reset; without it every
+    // variant="unstyled" button paints the WebKit default grey)
+    button,
+    [type='button'],
+    [type='reset'],
+    [type='submit'] {
+        appearance: button;
+        background-color: transparent;
+        background-image: none;
+    }
+
+    button,
+    [role='button'] {
+        cursor: pointer;
+    }
+
+    :disabled {
+        cursor: default;
     }
 
     ul,
