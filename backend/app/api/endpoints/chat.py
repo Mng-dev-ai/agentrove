@@ -16,6 +16,7 @@ from fastapi import (
     status,
 )
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
 from app.constants import (
@@ -31,6 +32,7 @@ from app.core.deps import (
     get_queue_service,
 )
 from app.core.security import get_current_user
+from app.db.session import get_db
 from app.models.db_models.chat import Chat
 from app.models.db_models.user import User
 from app.models.types import MessageAttachmentDict, PermissionMode
@@ -286,10 +288,15 @@ async def get_active_streams(
 async def stream_user_chat_events(
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
+    db: AsyncSession = Depends(get_db),
 ) -> EventSourceResponse:
     # Global per-user feed of chat lifecycle events (chats created / turns started
     # out-of-band, e.g. via MCP). Declared before /chats/{chat_id} so "events"
     # isn't parsed as a UUID.
+    # `db` is the same cached session the auth chain used; FastAPI keeps yield
+    # deps open until the response finishes, so a long-lived SSE connection would
+    # pin its pooled DB connection until disconnect. Auth is done — release it.
+    await db.close()
     return EventSourceResponse(
         chat_service.create_chat_events_stream(current_user.id),
         headers={
@@ -447,6 +454,7 @@ async def stream_events(
     request: Request,
     _chat: Chat = Depends(ensure_chat_access),
     chat_service: ChatService = Depends(get_chat_service),
+    db: AsyncSession = Depends(get_db),
 ) -> EventSourceResponse:
     # Browser EventSource reconnects send the current cursor via Last-Event-ID.
     # Keep query-param baseline support and use whichever is more advanced.
@@ -455,6 +463,10 @@ async def stream_events(
         parse_non_negative_seq(request.headers.get("Last-Event-ID")),
     )
 
+    # Access checks are done; release the request session (shared with the auth
+    # chain via the dependency cache) so this SSE stream doesn't pin a pooled DB
+    # connection for its whole lifetime — the generator opens its own sessions.
+    await db.close()
     return EventSourceResponse(
         chat_service.create_event_stream(chat_id, after_seq),
         headers={

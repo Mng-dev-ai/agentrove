@@ -18,12 +18,18 @@ router = APIRouter()
 async def preview_temp_attachment(
     path: str,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
     attachment_service: AttachmentService = Depends(get_attachment_service),
 ) -> FileResponse:
     try:
-        return await attachment_service.get_temp_preview(path, current_user.id)
+        response = await attachment_service.get_temp_preview(path, current_user.id)
     except AttachmentException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    # The file body streams after the handler returns while yield deps stay
+    # open — release the auth chain's session so a slow download doesn't pin
+    # a pooled DB connection.
+    await db.close()
+    return response
 
 
 @router.get("/attachments/{attachment_id}/preview")
@@ -34,9 +40,14 @@ async def preview_attachment(
     attachment_service: AttachmentService = Depends(get_attachment_service),
 ) -> FileResponse:
     try:
-        return await attachment_service.get_preview(attachment_id, current_user.id, db)
+        response = await attachment_service.get_preview(
+            attachment_id, current_user.id, db
+        )
     except AttachmentException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    # Release before the body streams — see preview_temp_attachment.
+    await db.close()
+    return response
 
 
 @router.get("/attachments/{attachment_id}/download")
@@ -47,6 +58,11 @@ async def download_attachment(
     attachment_service: AttachmentService = Depends(get_attachment_service),
 ) -> FileResponse:
     try:
-        return await attachment_service.get_download(attachment_id, current_user.id, db)
+        response = await attachment_service.get_download(
+            attachment_id, current_user.id, db
+        )
     except AttachmentException as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    # Release before the body streams — see preview_temp_attachment.
+    await db.close()
+    return response
