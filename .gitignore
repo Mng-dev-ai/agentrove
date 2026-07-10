@@ -17,7 +17,6 @@ storage/
 .git/
 .claude/
 !.claude/plans/
-.github/
 .docker/
 .ruff_cache/
 .pytest_cache/

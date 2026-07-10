@@ -66,16 +66,18 @@ class SkillService:
 
         # Claude plugins can also bundle skills.
         result[AgentKind.CLAUDE.value].extend(
-            SkillService._get_claude_plugin_skill_paths()
+            SkillService._get_claude_plugin_skill_paths(base)
         )
 
         return result, readonly_paths
 
     @staticmethod
-    def _get_claude_plugin_skill_paths() -> list[Path]:
-        # Claude-specific: cross-reference ~/.claude/settings.json (enabled flags)
-        # with installed_plugins.json (install paths) to discover plugin-bundled skills.
-        claude_dir = Path.home() / ".claude"
+    def _get_claude_plugin_skill_paths(base: Path) -> list[Path]:
+        # Claude-specific: cross-reference .claude/settings.json (enabled flags)
+        # with installed_plugins.json (install paths) to discover plugin-bundled
+        # skills. Uses the mode-dependent base — reading the server's own home
+        # dir in server mode would leak its plugin config into every user.
+        claude_dir = base / ".claude"
         settings_path = claude_dir / "settings.json"
         installed_path = claude_dir / "plugins" / "installed_plugins.json"
         if not settings_path.is_file() or not installed_path.is_file():

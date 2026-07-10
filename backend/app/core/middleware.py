@@ -1,14 +1,14 @@
 import logging
 import time
 import uuid
-from collections.abc import Callable
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse
+from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import get_settings
 from app.services.exceptions import ServiceException
@@ -17,61 +17,87 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
-class RequestIdMiddleware(BaseHTTPMiddleware):
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
-    ) -> Response:
-        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
-        request.state.request_id = request_id
+class _RequestIdSend:
+    def __init__(self, send: Send, scope: Scope, request_id: str) -> None:
+        self.send = send
+        self.scope = scope
+        self.request_id = request_id
+        self.start_time = time.perf_counter()
 
-        start_time = time.perf_counter()
+    async def __call__(self, message: Message) -> None:
+        # Stamp headers and log at response start — SSE responses never
+        # complete, so waiting for the response end would never log them.
+        if message["type"] == "http.response.start":
+            process_time = time.perf_counter() - self.start_time
+            headers = MutableHeaders(scope=message)
+            headers["X-Request-ID"] = self.request_id
+            headers["X-Process-Time"] = f"{process_time:.4f}"
+            client = self.scope.get("client")
+            logger.info(
+                "request_completed",
+                extra={
+                    "request_id": self.request_id,
+                    "method": self.scope["method"],
+                    "path": self.scope["path"],
+                    "status_code": message["status"],
+                    "process_time_ms": round(process_time * 1000, 2),
+                    "client_ip": client[0] if client else None,
+                },
+            )
+        await self.send(message)
 
-        response = await call_next(request)
 
-        process_time = time.perf_counter() - start_time
+class RequestIdMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
 
-        response.headers["X-Request-ID"] = request_id
-        response.headers["X-Process-Time"] = f"{process_time:.4f}"
-
-        logger.info(
-            "request_completed",
-            extra={
-                "request_id": request_id,
-                "method": request.method,
-                "path": request.url.path,
-                "status_code": response.status_code,
-                "process_time_ms": round(process_time * 1000, 2),
-                "client_ip": request.client.host if request.client else None,
-            },
-        )
-
-        return response
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Pure ASGI on purpose: BaseHTTPMiddleware buffers streaming responses
+        # and deadlocks never-ending EventSourceResponse (SSE) bodies.
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        request_id = Headers(scope=scope).get("X-Request-ID") or str(uuid.uuid4())
+        # Request.state is backed by scope["state"], so handlers and exception
+        # handlers keep reading request.state.request_id unchanged.
+        scope.setdefault("state", {})["request_id"] = request_id
+        await self.app(scope, receive, _RequestIdSend(send, scope, request_id))
 
 
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Response]
-    ) -> Response:
-        response = await call_next(request)
+class _SecurityHeadersSend:
+    def __init__(self, send: Send) -> None:
+        self.send = send
 
-        if not settings.ENABLE_SECURITY_HEADERS:
-            return response
+    async def __call__(self, message: Message) -> None:
+        if message["type"] == "http.response.start":
+            headers = MutableHeaders(scope=message)
+            headers["X-Content-Type-Options"] = settings.CONTENT_TYPE_OPTIONS
+            headers["X-Frame-Options"] = settings.FRAME_OPTIONS
+            headers["X-XSS-Protection"] = settings.XSS_PROTECTION
+            headers["Referrer-Policy"] = settings.REFERRER_POLICY
+            headers["Permissions-Policy"] = settings.PERMISSIONS_POLICY
 
-        response.headers["X-Content-Type-Options"] = settings.CONTENT_TYPE_OPTIONS
-        response.headers["X-Frame-Options"] = settings.FRAME_OPTIONS
-        response.headers["X-XSS-Protection"] = settings.XSS_PROTECTION
-        response.headers["Referrer-Policy"] = settings.REFERRER_POLICY
-        response.headers["Permissions-Policy"] = settings.PERMISSIONS_POLICY
+            if settings.ENVIRONMENT == "production":
+                hsts_value = f"max-age={settings.HSTS_MAX_AGE}"
+                if settings.HSTS_INCLUDE_SUBDOMAINS:
+                    hsts_value += "; includeSubDomains"
+                if settings.HSTS_PRELOAD:
+                    hsts_value += "; preload"
+                headers["Strict-Transport-Security"] = hsts_value
+        await self.send(message)
 
-        if settings.ENVIRONMENT == "production":
-            hsts_value = f"max-age={settings.HSTS_MAX_AGE}"
-            if settings.HSTS_INCLUDE_SUBDOMAINS:
-                hsts_value += "; includeSubDomains"
-            if settings.HSTS_PRELOAD:
-                hsts_value += "; preload"
-            response.headers["Strict-Transport-Security"] = hsts_value
 
-        return response
+class SecurityHeadersMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Pure ASGI on purpose: BaseHTTPMiddleware buffers streaming responses
+        # and deadlocks never-ending EventSourceResponse (SSE) bodies.
+        if scope["type"] != "http" or not settings.ENABLE_SECURITY_HEADERS:
+            await self.app(scope, receive, send)
+            return
+        await self.app(scope, receive, _SecurityHeadersSend(send))
 
 
 async def _service_exception_handler(

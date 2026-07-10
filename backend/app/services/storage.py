@@ -29,7 +29,6 @@ class StorageService:
         file: UploadFile,
         agent_kind: AgentKind,
         sandbox_id: str | None = None,
-        attachment_id: str | None = None,
         user_id: str | None = None,
     ) -> MessageAttachmentDict:
         if file.content_type not in settings.ALLOWED_FILE_TYPES:
@@ -66,23 +65,16 @@ class StorageService:
 
         unique_filename = f"{uuid4()}{ext}"
 
-        if attachment_id:
-            relative_file_path = f"{folder}/{unique_filename}"
-            physical_file_path = self.storage_path / relative_file_path
-        else:
-            if not user_id:
-                raise StorageException("user_id is required for temp attachments")
+        if not user_id:
+            raise StorageException("user_id is required for temp attachments")
 
-            relative_file_path = f"temp/{user_id}/{folder}/{unique_filename}"
-            physical_file_path = self.storage_path / relative_file_path
-            physical_file_path.parent.mkdir(parents=True, exist_ok=True)
+        relative_file_path = f"temp/{user_id}/{folder}/{unique_filename}"
+        physical_file_path = self.storage_path / relative_file_path
+        physical_file_path.parent.mkdir(parents=True, exist_ok=True)
 
         physical_file_path.write_bytes(contents)
 
-        if attachment_id:
-            file_url = AttachmentURL.build_preview_url(attachment_id)
-        else:
-            file_url = AttachmentURL.build_temp_preview_url(relative_file_path)
+        file_url = AttachmentURL.build_temp_preview_url(relative_file_path)
 
         if sandbox_id and file_type not in NATIVE_FILE_TYPES[agent_kind]:
             # Attachments are advertised to the agent as readable from the
