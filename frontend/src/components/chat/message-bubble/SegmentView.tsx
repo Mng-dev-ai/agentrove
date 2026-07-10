@@ -3,6 +3,7 @@ import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
 import { useSmoothText } from '@/hooks/useSmoothText';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';
+import { PlanCard } from './PlanCard';
 import { getToolComponent } from '@/components/chat/tools/registry';
 import type { MessageSegment } from './segmentBuilder';
 import type { AgentKind } from '@/types/chat.types';
@@ -90,6 +91,12 @@ export const SegmentView = memo(function SegmentView({
     case 'suggestions':
       if (!isLastBotMessage || !onSuggestionSelect) return null;
       return <PromptSuggestions suggestions={segment.suggestions} onSelect={onSuggestionSelect} />;
+    case 'plan':
+      return (
+        <div className={styles['tool-segment']}>
+          <PlanCard entries={segment.entries} />
+        </div>
+      );
     default:
       return null;
   }

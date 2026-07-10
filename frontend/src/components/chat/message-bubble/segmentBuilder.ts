@@ -1,4 +1,4 @@
-import type { AssistantStreamEvent } from '@/types/chat.types';
+import type { AssistantStreamEvent, PlanEntry } from '@/types/chat.types';
 import type { ToolAggregate, ToolEventStatus } from '@/types/tools.types';
 import { PROMPT_SUGGESTIONS_RE } from '@/utils/stream';
 
@@ -28,7 +28,18 @@ export interface SuggestionsSegment {
   suggestions: string[];
 }
 
-export type MessageSegment = TextSegment | ThinkingSegment | ToolSegment | SuggestionsSegment;
+export interface PlanSegment {
+  kind: 'plan';
+  id: string;
+  entries: PlanEntry[];
+}
+
+export type MessageSegment =
+  | TextSegment
+  | ThinkingSegment
+  | ToolSegment
+  | SuggestionsSegment
+  | PlanSegment;
 
 const toolsEqual = (a: ToolAggregate, b: ToolAggregate): boolean => {
   // Aggregates are rebuilt from scratch on every stream flush, but input/result/
@@ -58,6 +69,7 @@ export const segmentsEqual = (a: MessageSegment, b: MessageSegment): boolean => 
   if (a.kind === 'thinking' && b.kind === 'thinking') return a.text === b.text;
   if (a.kind === 'tool' && b.kind === 'tool') return toolsEqual(a.tool, b.tool);
   if (a.kind === 'suggestions' && b.kind === 'suggestions') return a.suggestions === b.suggestions;
+  if (a.kind === 'plan' && b.kind === 'plan') return a.entries === b.entries;
   return false;
 };
 
@@ -418,6 +430,22 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
         flushThinking();
         processToolEvent(event, context);
         break;
+      case 'plan': {
+        const entries = event.data?.entries;
+        if (!Array.isArray(entries) || entries.length === 0) break;
+        // Each plan event is a full snapshot — update the existing segment in
+        // place so the checklist stays at the position planning started.
+        // Scan instead of caching an index: tool reparenting can splice segments.
+        const planIndex = segments.findIndex((segment) => segment.kind === 'plan');
+        if (planIndex === -1) {
+          flushText();
+          flushThinking();
+          segments.push({ kind: 'plan', id: 'plan', entries });
+        } else {
+          segments[planIndex] = { kind: 'plan', id: 'plan', entries };
+        }
+        break;
+      }
       case 'user_text':
         flushThinking();
         pendingText += event.text;

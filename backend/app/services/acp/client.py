@@ -7,6 +7,7 @@ from typing import Any, Literal, cast
 
 from acp.schema import (
     AgentMessageChunk,
+    AgentPlanUpdate,
     AgentThoughtChunk,
     AllowedOutcome,
     CreateTerminalResponse,
@@ -327,6 +328,8 @@ class AcpClientHandler:
             return self._map_user_message(update)
         if isinstance(update, SessionInfoUpdate):
             return self._map_session_info(update)
+        if isinstance(update, AgentPlanUpdate):
+            return self._map_plan(update)
         logger.debug("Unhandled ACP update type: %s", type(update).__name__)
         return None
 
@@ -425,6 +428,24 @@ class AcpClientHandler:
         # session_id comes from the outer SessionNotification and is injected
         # by session_update(). Always emit so the caller can attach the session_id.
         return StreamEvent(type="system", data={})
+
+    def _map_plan(self, plan: AgentPlanUpdate) -> StreamEvent | None:
+        # Claude/OpenCode todos already arrive as TodoWrite/todowrite tool
+        # events with dedicated renderers — mapping their plan updates too
+        # would show the same checklist twice.
+        if self.agent_kind in (AgentKind.CLAUDE, AgentKind.OPENCODE):
+            return None
+        # Each ACP plan update carries the complete entry list; the frontend
+        # replaces the whole plan rather than appending.
+        return StreamEvent(
+            type="plan",
+            data={
+                "entries": [
+                    {"content": e.content, "status": e.status, "priority": e.priority}
+                    for e in plan.entries
+                ]
+            },
+        )
 
     @staticmethod
     def _extract_parent_tool_id(tc: Any) -> str | None:

@@ -10,13 +10,12 @@ interface RawChatSettings {
   permissionMode: PermissionMode;
   thinkingMode: string;
   worktree: boolean;
-  planMode: boolean;
   persona: string;
 }
 
 type AgentChatFields = Pick<
   ChatRequest,
-  'permission_mode' | 'thinking_mode' | 'worktree' | 'plan_mode' | 'selected_persona_name'
+  'permission_mode' | 'thinking_mode' | 'worktree' | 'selected_persona_name'
 >;
 
 // Coerce raw toolbar settings into the agent-specific ChatRequest fields. Shared
@@ -34,7 +33,6 @@ export function buildAgentChatFields(
     permission_mode: coercePermissionModeForAgent(raw.permissionMode, agentKind),
     thinking_mode: coerceThinkingModeForAgent(raw.thinkingMode, agentKind, selectedModelId),
     worktree: raw.worktree ? true : undefined,
-    plan_mode: agentKind === 'codex' && raw.planMode ? true : undefined,
     selected_persona_name: resolvePersona(raw.persona, personas),
   };
 }

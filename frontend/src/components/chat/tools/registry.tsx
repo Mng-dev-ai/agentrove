@@ -9,6 +9,15 @@ const toLazy = (loader: ToolModuleLoader): ToolComponent =>
 const codexShellLoader: ToolModuleLoader = () =>
   import('./codex/ShellTool').then((m) => ({ default: m.ShellTool }));
 
+// Codex kinds that need shape-specific renderers beyond the shared lowercase
+// table below: Guardian auto-approval reviews arrive as kind "think", and kind
+// "other" covers both image generation and collab-agent tool calls.
+const codexToolLoaders: Record<string, ToolModuleLoader> = {
+  think: () =>
+    import('./codex/GuardianReviewTool').then((m) => ({ default: m.GuardianReviewTool })),
+  other: () => import('./codex/OtherTool').then((m) => ({ default: m.OtherTool })),
+};
+
 const copilotToolLoaders: Record<string, ToolModuleLoader> = {
   execute: () => import('./copilot/ExecuteTool').then((m) => ({ default: m.ExecuteTool })),
   read: () => import('./copilot/ReadTool').then((m) => ({ default: m.ReadTool })),
@@ -99,6 +108,10 @@ export const getToolComponent = (toolName: string, agentKind?: AgentKind): ToolC
   // fetch) that Codex uses, but emit different rawInput/rawOutput shapes.
   // Route each agent's tools to its own renderers before falling through to
   // the Codex/Claude table.
+  if (agentKind === 'codex' && codexToolLoaders[toolName]) {
+    return getOrCreateLazy(`codex:${toolName}`, codexToolLoaders[toolName]);
+  }
+
   if (agentKind === 'copilot' && copilotToolLoaders[toolName]) {
     return getOrCreateLazy(`copilot:${toolName}`, copilotToolLoaders[toolName]);
   }

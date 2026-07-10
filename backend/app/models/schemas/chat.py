@@ -34,7 +34,6 @@ class ChatRequest(BaseModel):
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = Field(None, max_length=50)
     worktree: bool = False
-    plan_mode: bool = False
     selected_persona_name: str = Field(DEFAULT_PERSONA_NAME, max_length=100)
 
 

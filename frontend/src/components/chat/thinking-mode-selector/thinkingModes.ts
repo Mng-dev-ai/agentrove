@@ -34,6 +34,13 @@ const CODEX_MAX_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'max', label: 'Max' },
 ];
 const CODEX_MAX_MODEL_IDS = new Set(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']);
+// Per Codex's model registry, `ultra` (max reasoning + automatic task
+// delegation) is supported by Sol/Terra but not Luna.
+const CODEX_ULTRA_THINKING_MODES: ThinkingModeOption[] = [
+  ...CODEX_MAX_THINKING_MODES,
+  { value: 'ultra', label: 'Ultra' },
+];
+const CODEX_ULTRA_MODEL_IDS = new Set(['gpt-5.6-sol', 'gpt-5.6-terra']);
 
 // Cursor bakes reasoning effort into the model ID; OpenCode delegates to the
 // per-model provider. Neither exposes a uniform thinking-mode dial via ACP,
@@ -63,6 +70,9 @@ export function getThinkingModesForAgent(
   // Claude only exposes `xhigh` on selected high-capability models.
   if (agentKind === 'claude' && modelId && CLAUDE_XHIGH_MODEL_IDS.has(modelId)) {
     return CLAUDE_XHIGH_THINKING_MODES;
+  }
+  if (agentKind === 'codex' && modelId && CODEX_ULTRA_MODEL_IDS.has(modelId)) {
+    return CODEX_ULTRA_THINKING_MODES;
   }
   if (agentKind === 'codex' && modelId && CODEX_MAX_MODEL_IDS.has(modelId)) {
     return CODEX_MAX_THINKING_MODES;

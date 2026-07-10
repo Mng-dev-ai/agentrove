@@ -134,6 +134,9 @@ MODELS: dict[str, ModelInfo] = {
     "opus": ModelInfo("Opus", AgentKind.CLAUDE, 1_000_000),
     "haiku": ModelInfo("Haiku", AgentKind.CLAUDE, 200_000),
     "claude-fable-5": ModelInfo("Fable 5", AgentKind.CLAUDE, 1_000_000),
+    # GPT-5.6 supports 1M context via the model_context_window override in
+    # ~/.codex/config.toml (Codex's registry defaults to 372k without it).
+    # Codex's live-reported window takes precedence over these fallbacks anyway.
     "gpt-5.6-sol": ModelInfo("GPT 5.6 Sol", AgentKind.CODEX, 1_050_000),
     "gpt-5.6-terra": ModelInfo("GPT 5.6 Terra", AgentKind.CODEX, 1_050_000),
     "gpt-5.6-luna": ModelInfo("GPT 5.6 Luna", AgentKind.CODEX, 1_050_000),
@@ -1519,7 +1522,8 @@ MODELS: dict[str, ModelInfo] = {
 # filtered by what claude-agent-acp exposes via ACP (excludes cost,
 # login, logout, release-notes, todos, and local-only commands like
 # context, heapdump, extra-usage).
-# Codex commands sourced from the codex-acp README.
+# Codex commands sourced from codex-acp's built-in command list (excludes
+# logout — signing out of Codex from a chat autocomplete is too easy to hit).
 BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
     AgentKind.CLAUDE: [
         {
@@ -1575,11 +1579,15 @@ BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
         },
     ],
     AgentKind.CODEX: [
-        {"value": "/review", "label": "Review", "description": "Review a pull request"},
+        {
+            "value": "/review",
+            "label": "Review",
+            "description": "Review uncommitted changes, or review with custom instructions",
+        },
         {
             "value": "/review-branch",
             "label": "Review Branch",
-            "description": "Review changes on the current branch",
+            "description": "Review changes relative to a base branch",
         },
         {
             "value": "/review-commit",
@@ -1587,14 +1595,29 @@ BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
             "description": "Review a specific commit",
         },
         {
-            "value": "/init",
-            "label": "Init",
-            "description": "Initialize project configuration",
-        },
-        {
             "value": "/compact",
             "label": "Compact",
-            "description": "Clear conversation history but keep a summary in context",
+            "description": "Summarize conversation to avoid hitting the context limit",
+        },
+        {
+            "value": "/status",
+            "label": "Status",
+            "description": "Display session configuration and token usage",
+        },
+        {
+            "value": "/goal",
+            "label": "Goal",
+            "description": "Set, pause, resume, or clear a task goal",
+        },
+        {
+            "value": "/mcp",
+            "label": "MCP",
+            "description": "List configured Model Context Protocol (MCP) tools",
+        },
+        {
+            "value": "/skills",
+            "label": "Skills",
+            "description": "List available skills",
         },
     ],
     AgentKind.COPILOT: [

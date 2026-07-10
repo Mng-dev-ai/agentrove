@@ -14,7 +14,6 @@ class QueuedMessageBase(BaseModel):
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = None
     worktree: bool = False
-    plan_mode: bool = False
     selected_persona_name: str = DEFAULT_PERSONA_NAME
 
 

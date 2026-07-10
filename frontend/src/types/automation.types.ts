@@ -13,7 +13,6 @@ export interface Automation {
   permission_mode: PermissionMode;
   thinking_mode: string | null;
   worktree: boolean;
-  plan_mode: boolean;
   selected_persona_name: string;
   enabled: boolean;
   next_run_at: string;
@@ -32,7 +31,6 @@ export interface AutomationCreateRequest {
   permission_mode: PermissionMode;
   thinking_mode: string | null;
   worktree: boolean;
-  plan_mode: boolean;
   selected_persona_name: string;
   enabled: boolean;
 }
@@ -51,7 +49,6 @@ export interface AutomationForm {
   permission_mode: PermissionMode;
   thinking_mode: string;
   worktree: boolean;
-  plan_mode: boolean;
   persona_name: string;
   onCloud: boolean;
 }

@@ -15,7 +15,6 @@ interface MessageQueueState {
     permissionMode?: PermissionMode,
     thinkingMode?: string | null,
     worktree?: boolean,
-    planMode?: boolean,
     selectedPersonaName?: string,
     files?: File[],
   ) => Promise<string>;
@@ -43,7 +42,6 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
     permissionMode: PermissionMode = DEFAULT_PERMISSION_MODE,
     thinkingMode: string | null = null,
     worktree: boolean = false,
-    planMode: boolean = false,
     selectedPersonaName: string = DEFAULT_PERSONA,
     files?: File[],
   ): Promise<string> => {
@@ -57,7 +55,6 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
       permissionMode,
       thinkingMode,
       worktree,
-      planMode,
       selectedPersonaName,
       queuedAt: Date.now(),
       synced: false,
@@ -78,7 +75,6 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
         permissionMode,
         thinkingMode,
         worktree,
-        planMode,
         selectedPersonaName,
         files,
       );
@@ -266,7 +262,6 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
           permissionMode: msg.permission_mode,
           thinkingMode: msg.thinking_mode ?? null,
           worktree: msg.worktree,
-          planMode: msg.plan_mode,
           selectedPersonaName: msg.selected_persona_name,
           queuedAt: new Date(msg.queued_at).getTime(),
           synced: true,

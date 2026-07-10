@@ -12,7 +12,6 @@ async function queueMessage(
   permissionMode: PermissionMode = DEFAULT_PERMISSION_MODE,
   thinkingMode: string | null = null,
   worktree: boolean = false,
-  planMode: boolean = false,
   selectedPersonaName: string = DEFAULT_PERSONA,
   files?: File[],
 ): Promise<QueueAddResponse> {
@@ -30,9 +29,6 @@ async function queueMessage(
     }
     if (worktree) {
       formData.append('worktree', 'true');
-    }
-    if (planMode) {
-      formData.append('plan_mode', 'true');
     }
     formData.append('selected_persona_name', selectedPersonaName);
 

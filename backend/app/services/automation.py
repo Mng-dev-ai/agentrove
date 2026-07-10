@@ -207,7 +207,6 @@ class AutomationService(BaseDbService[Automation]):
                 permission_mode=cast(PermissionMode, automation.permission_mode),
                 thinking_mode=automation.thinking_mode,
                 worktree=automation.worktree,
-                plan_mode=automation.plan_mode,
                 selected_persona_name=automation.selected_persona_name,
             ),
             user,

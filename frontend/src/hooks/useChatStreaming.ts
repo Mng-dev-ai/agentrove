@@ -30,7 +30,6 @@ interface UseChatStreamingParams {
   permissionMode: PermissionMode;
   thinkingMode: string | null | undefined;
   worktree: boolean;
-  planMode: boolean;
   onPermissionRequest?: (request: PermissionRequest) => void;
 }
 
@@ -77,7 +76,6 @@ export function useChatStreaming({
   permissionMode,
   thinkingMode,
   worktree,
-  planMode,
   onPermissionRequest,
 }: UseChatStreamingParams): UseChatStreamingResult {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -219,7 +217,6 @@ export function useChatStreaming({
     permissionMode,
     thinkingMode,
     worktree,
-    planMode,
     setStreamState,
     setCurrentMessageId,
     setWasAborted,

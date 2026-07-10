@@ -32,7 +32,6 @@ class AutomationBase(BaseModel):
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = Field(None, max_length=50)
     worktree: bool = False
-    plan_mode: bool = False
     selected_persona_name: str = Field(DEFAULT_PERSONA_NAME, max_length=100)
     enabled: bool = True
 
@@ -61,7 +60,6 @@ class AutomationUpdate(BaseModel):
     permission_mode: PermissionMode | None = None
     thinking_mode: str | None = Field(None, max_length=50)
     worktree: bool | None = None
-    plan_mode: bool | None = None
     selected_persona_name: str | None = Field(None, min_length=1, max_length=100)
     enabled: bool | None = None
 
@@ -93,7 +91,6 @@ class Automation(BaseModel):
     permission_mode: str
     thinking_mode: str | None = None
     worktree: bool
-    plan_mode: bool
     selected_persona_name: str
     enabled: bool
     next_run_at: datetime

@@ -10,7 +10,6 @@ import {
   DEFAULT_PERMISSION_MODE,
   DEFAULT_THINKING_MODE,
   DEFAULT_WORKTREE,
-  DEFAULT_PLAN_MODE,
   DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
@@ -103,8 +102,6 @@ export function useInputSubmit({
         selectedModelId,
       );
       const worktree = settings.worktreeByChat[chatId] ?? DEFAULT_WORKTREE;
-      const planMode =
-        agentKind === 'codex' && (settings.planModeByChat[chatId] ?? DEFAULT_PLAN_MODE);
       const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
       const validPersona = resolvePersona(storedPersona, personas);
       // Queued messages are stored as plain text, so serialize chips here.
@@ -118,7 +115,6 @@ export function useInputSubmit({
           permissionMode,
           thinkingMode,
           worktree,
-          planMode,
           validPersona,
           attachedFiles ?? undefined,
         );

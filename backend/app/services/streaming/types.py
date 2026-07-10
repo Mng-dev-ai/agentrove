@@ -22,6 +22,7 @@ StreamEventType = Literal[
     "permission_request",
     "prompt_suggestions",
     "usage",
+    "plan",
 ]
 MAX_AUDIT_STRING_LENGTH = 4096
 # The agent embeds prompt suggestions as an XML tag at the end of its response.
@@ -53,7 +54,6 @@ class ChatStreamRequest:
     assistant_message_id: str | None
     thinking_mode: str | None
     worktree: bool = False
-    plan_mode: bool = False
     attachments: list[dict[str, Any]] | None
     context_window: int | None = None
     selected_persona_name: str = DEFAULT_PERSONA_NAME
