@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { UserCircle } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -55,7 +55,7 @@ export const PersonaSelector = memo(function PersonaSelector({
       getItemLabel={(item) => item.label}
       onSelect={(item) => useChatSettingsStore.getState().setPersona(key, item.value)}
       leftIcon={UserCircle}
-      width="w-40"
+      width="10rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compactOnMobile

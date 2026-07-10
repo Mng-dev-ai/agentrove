@@ -1,9 +1,11 @@
 import { memo } from 'react';
+import clsx from 'clsx';
 import { FileEdit, FilePlus } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
+import styles from './EditTool.module.scss';
 
 interface FileChange {
   type: 'add' | 'update' | 'delete';
@@ -28,30 +30,26 @@ const DiffLine: React.FC<{ line: string }> = ({ line }) => {
   const isHeader = line.startsWith('@@');
 
   if (isHeader) {
-    return <div className="text-text-quaternary dark:text-text-dark-quaternary">{line}</div>;
+    return <div className={styles['diff-header']}>{line}</div>;
   }
 
   return (
-    <div className="flex">
+    <div className={styles.row}>
       <span
-        className={`w-4 flex-shrink-0 select-none text-center ${
-          isRemoved
-            ? 'text-error-600/40 dark:text-error-400/40'
-            : isAdded
-              ? 'text-success-600/40 dark:text-success-400/40'
-              : 'text-transparent'
-        }`}
+        className={clsx(
+          styles['diff-gutter'],
+          isRemoved && styles['diff-gutter--removed'],
+          isAdded && styles['diff-gutter--added'],
+        )}
       >
         {isRemoved ? '−' : isAdded ? '+' : ' '}
       </span>
       <span
-        className={`whitespace-pre ${
-          isRemoved
-            ? 'text-text-quaternary line-through dark:text-text-dark-quaternary'
-            : isAdded
-              ? 'text-text-secondary dark:text-text-dark-secondary'
-              : 'text-text-tertiary dark:text-text-dark-tertiary'
-        }`}
+        className={clsx(
+          styles['diff-content'],
+          isRemoved && styles['diff-content--removed'],
+          isAdded && styles['diff-content--added'],
+        )}
       >
         {line.slice(1) || '\u00A0'}
       </span>
@@ -75,13 +73,9 @@ const FileContent: React.FC<{ change: FileChange }> = ({ change }) => {
     return (
       <div>
         {change.content.split('\n').map((line, idx) => (
-          <div key={idx} className="flex">
-            <span className="w-8 flex-shrink-0 select-none pr-2 text-right text-text-quaternary dark:text-text-dark-quaternary">
-              {idx + 1}
-            </span>
-            <span className="whitespace-pre text-text-tertiary dark:text-text-dark-tertiary">
-              {line || '\u00A0'}
-            </span>
+          <div key={idx} className={styles.row}>
+            <span className={styles['numbered-gutter']}>{idx + 1}</span>
+            <span className={styles['numbered-text']}>{line || '\u00A0'}</span>
           </div>
         ))}
       </div>
@@ -108,7 +102,7 @@ const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<Icon className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Icon className={styles.icon} />}
       status={tool.status}
       title={(status) => {
         const label = isNewFile ? 'Created' : 'Edited';
@@ -127,25 +121,21 @@ const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       actions={firstFilePath ? <OpenInEditorButton filePath={firstFilePath} /> : null}
     >
       {changedFiles.length > 0 && (
-        <div className="max-h-48 overflow-auto font-mono text-2xs leading-relaxed">
+        <div className={styles.body}>
           {changedFiles.map(([filePath, change]) => (
-            <div key={filePath} className="mb-2 last:mb-0">
+            <div key={filePath} className={styles['file-block']}>
               {fileCount > 1 && (
-                <div className="mb-1 flex items-center gap-1.5">
+                <div className={styles['file-block-header']}>
                   <span
-                    className={`text-2xs font-medium ${
-                      change.type === 'add'
-                        ? 'text-success-600 dark:text-success-400'
-                        : change.type === 'delete'
-                          ? 'text-error-600 dark:text-error-400'
-                          : 'text-text-tertiary dark:text-text-dark-tertiary'
-                    }`}
+                    className={clsx(
+                      styles['file-badge'],
+                      change.type === 'add' && styles['file-badge--add'],
+                      change.type === 'delete' && styles['file-badge--delete'],
+                    )}
                   >
                     {change.type === 'add' ? 'A' : change.type === 'delete' ? 'D' : 'M'}
                   </span>
-                  <span className="truncate text-text-secondary dark:text-text-dark-tertiary">
-                    {extractFilename(filePath)}
-                  </span>
+                  <span className={styles['file-name']}>{extractFilename(filePath)}</span>
                 </div>
               )}
               <FileContent change={change} />

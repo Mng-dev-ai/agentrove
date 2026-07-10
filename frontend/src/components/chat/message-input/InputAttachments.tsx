@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { FilePreviewList } from '@/components/ui/FilePreviewList';
+import { FilePreviewList } from '@/components/ui/FilePreviewList/FilePreviewList';
+import styles from './InputAttachments.module.scss';
 
 interface InputAttachmentsProps {
   files: File[];
@@ -17,7 +18,7 @@ export const InputAttachments = memo(function InputAttachments({
   if (files.length === 0) return null;
 
   return (
-    <div className="px-3 pb-1 pt-2">
+    <div className={styles['input-attachments']}>
       <FilePreviewList
         files={files}
         previewUrls={previewUrls}

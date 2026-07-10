@@ -1,0 +1,163 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.container {
+    display: flex;
+    max-height: 90vh;
+    flex-direction: column;
+}
+
+.content {
+    flex: 1;
+    overflow: auto;
+    padding: var(--space-4);
+
+    > * + * {
+        margin-top: var(--space-4);
+    }
+}
+
+.dropzone {
+    position: relative;
+    border: 2px dashed var(--theme-border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-4);
+    text-align: center;
+    transition: border-color var(--duration-base), background-color var(--duration-base);
+
+    &--dragging {
+        background-color: var(--theme-surface-secondary);
+    }
+}
+
+.stack {
+    > * + * {
+        margin-top: var(--space-3);
+    }
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.add-more {
+    display: flex;
+    height: var(--space-24);
+    cursor: pointer;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--theme-border);
+    border-radius: var(--radius-xl);
+    transition: border-color var(--duration-base), background-color var(--duration-base);
+
+    @include responsive.hover {
+        border-color: var(--theme-border-hover);
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+.add-more-icon {
+    margin-bottom: var(--space-1);
+    height: var(--space-6);
+    width: var(--space-6);
+    color: var(--theme-text-tertiary);
+}
+
+.add-more-label {
+    @include type.type-default;
+    color: var(--theme-text-secondary);
+}
+
+.empty-icons {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-3);
+}
+
+.empty-icon-circle {
+    display: flex;
+    height: var(--space-10);
+    width: var(--space-10);
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    background-color: var(--theme-surface-secondary);
+}
+
+.empty-icon {
+    height: var(--space-5);
+    width: var(--space-5);
+    color: var(--theme-text-tertiary);
+}
+
+.empty-hint {
+    @include type.type-default;
+    color: var(--theme-text-secondary);
+}
+
+.browse {
+    @include anim.transition-colors;
+    cursor: pointer;
+    color: var(--theme-text-primary);
+    text-underline-offset: 2px;
+
+    @include responsive.hover {
+        text-decoration: underline;
+    }
+}
+
+.empty-formats {
+    @include type.type-default;
+    margin-top: var(--space-2);
+    color: var(--theme-text-tertiary);
+}
+
+.hidden-input {
+    display: none;
+}
+
+.footer {
+    border-top: 1px solid var(--theme-border);
+    padding: var(--space-3);
+}
+
+.footer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+// Cancel button — dense modal footer look overriding the ghost primitive padding
+.cancel-button {
+    @include anim.transition-colors;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-lg);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+// Inverted-primary upload button
+.upload-button {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border: 1px solid var(--theme-text-primary);
+    background-color: var(--theme-text-primary);
+    color: var(--theme-surface);
+
+    @include responsive.hover {
+        background-color: var(--theme-text-secondary);
+    }
+}
+
+.upload-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+}

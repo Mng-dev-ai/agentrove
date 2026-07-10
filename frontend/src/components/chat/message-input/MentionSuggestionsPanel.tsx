@@ -1,7 +1,9 @@
 import { memo, useMemo } from 'react';
+import clsx from 'clsx';
 import { SuggestionPanel } from './SuggestionPanel';
 import { MentionIcon } from './MentionIcon';
 import type { MentionItem } from '@/types/ui.types';
+import styles from './MentionSuggestionsPanel.module.scss';
 
 interface MentionSuggestionsPanelProps {
   files: MentionItem[];
@@ -12,20 +14,12 @@ interface MentionSuggestionsPanelProps {
 function renderFile(file: MentionItem, isActive: boolean) {
   return (
     <>
-      <MentionIcon name={file.name} className="h-4 w-4" />
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span
-          className={`font-mono text-xs leading-tight ${
-            isActive
-              ? 'text-text-primary dark:text-text-dark-primary'
-              : 'text-text-secondary dark:text-text-dark-secondary'
-          }`}
-        >
+      <MentionIcon name={file.name} className={styles['file-icon']} />
+      <div className={styles['file-row']}>
+        <span className={clsx(styles['file-name'], isActive && styles['file-name--active'])}>
           {file.name}
         </span>
-        <span className="truncate text-2xs leading-tight text-text-tertiary dark:text-text-dark-tertiary">
-          {file.path}
-        </span>
+        <span className={styles['file-path']}>{file.path}</span>
       </div>
     </>
   );

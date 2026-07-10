@@ -1,8 +1,8 @@
 import { memo, lazy, Suspense } from 'react';
 import { GitCompareArrows } from 'lucide-react';
 import { MONACO_FONT_FAMILY } from '@/config/constants';
-import { Button } from '@/components/ui/primitives/Button';
-import { cn } from '@/utils/cn';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import styles from './DiffContent.module.scss';
 
 const DiffEditor = lazy(() =>
   import('@monaco-editor/react').then((m) => ({ default: m.DiffEditor })),
@@ -66,32 +66,19 @@ export const DiffContent = memo(function DiffContent({
   onRetry,
   onBeforeMount,
 }: DiffContentProps) {
-  const stateClassName = cn(
-    'flex h-full w-full flex-col items-center justify-center gap-2',
-    'bg-surface-secondary dark:bg-surface-dark-secondary',
-  );
-
   if (isLoading || (!isError && original === undefined)) {
     return (
-      <div className={stateClassName}>
-        <div className="animate-pulse text-xs text-text-quaternary dark:text-text-dark-quaternary">
-          Loading changes...
-        </div>
+      <div className={styles['diff-state']}>
+        <div className={styles['diff-loading-text']}>Loading changes...</div>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className={stateClassName}>
-        <span className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
-          Failed to load changes
-        </span>
-        <Button
-          onClick={onRetry}
-          variant="unstyled"
-          className="text-2xs text-text-tertiary underline transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary"
-        >
+      <div className={styles['diff-state']}>
+        <span className={styles['diff-message']}>Failed to load changes</span>
+        <Button onClick={onRetry} variant="unstyled" className={styles['diff-retry']}>
           Retry
         </Button>
       </div>
@@ -100,20 +87,18 @@ export const DiffContent = memo(function DiffContent({
 
   if (!isGitRepo) {
     return (
-      <div className={stateClassName}>
-        <GitCompareArrows className="h-5 w-5 text-text-quaternary dark:text-text-dark-quaternary" />
-        <span className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
-          Not a git repository
-        </span>
+      <div className={styles['diff-state']}>
+        <GitCompareArrows className={styles['diff-icon']} />
+        <span className={styles['diff-message']}>Not a git repository</span>
       </div>
     );
   }
 
   if (original === modified) {
     return (
-      <div className={stateClassName}>
-        <GitCompareArrows className="h-5 w-5 text-text-quaternary dark:text-text-dark-quaternary" />
-        <span className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
+      <div className={styles['diff-state']}>
+        <GitCompareArrows className={styles['diff-icon']} />
+        <span className={styles['diff-message']}>
           {hasGitChanges ? 'No content changes to show' : 'No changes since last commit'}
         </span>
       </div>
@@ -121,13 +106,11 @@ export const DiffContent = memo(function DiffContent({
   }
 
   return (
-    <div className="h-full">
+    <div className={styles['diff-content']}>
       <Suspense
         fallback={
-          <div className={stateClassName}>
-            <div className="animate-pulse text-xs text-text-quaternary dark:text-text-dark-quaternary">
-              Loading editor...
-            </div>
+          <div className={styles['diff-state']}>
+            <div className={styles['diff-loading-text']}>Loading editor...</div>
           </div>
         }
       >
@@ -140,13 +123,11 @@ export const DiffContent = memo(function DiffContent({
           options={DIFF_OPTIONS}
           beforeMount={onBeforeMount}
           loading={
-            <div className={stateClassName}>
-              <div className="animate-pulse text-xs text-text-quaternary dark:text-text-dark-quaternary">
-                Loading editor...
-              </div>
+            <div className={styles['diff-state']}>
+              <div className={styles['diff-loading-text']}>Loading editor...</div>
             </div>
           }
-          className="bg-surface-secondary dark:bg-surface-dark-secondary"
+          className={styles['diff-editor']}
         />
       </Suspense>
     </div>

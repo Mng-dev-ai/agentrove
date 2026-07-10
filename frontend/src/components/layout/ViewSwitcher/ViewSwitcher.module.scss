@@ -1,0 +1,36 @@
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.view-switcher {
+    display: flex;
+    align-items: center;
+    gap: var(--space-0-5);
+}
+
+.view-button {
+    @include anim.transition-colors;
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5);
+    color: var(--theme-text-tertiary);
+
+    // Dark mode rests one step dimmer than light
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-quaternary);
+    }
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+        color: var(--theme-text-primary);
+    }
+
+    // aria-pressed already marks the on-screen view — style it directly
+    &[aria-pressed='true'] {
+        background-color: var(--theme-surface-active);
+        color: var(--theme-text-primary);
+    }
+}
+
+.icon {
+    height: var(--space-4);
+    width: var(--space-4);
+}

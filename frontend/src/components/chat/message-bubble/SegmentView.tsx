@@ -1,12 +1,13 @@
 import { memo, Suspense } from 'react';
-import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
+import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
 import { useSmoothText } from '@/hooks/useSmoothText';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';
 import { getToolComponent } from '@/components/chat/tools/registry';
 import type { MessageSegment } from './segmentBuilder';
 import type { AgentKind } from '@/types/chat.types';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
+import styles from './SegmentView.module.scss';
 
 interface SegmentViewProps {
   segment: MessageSegment;
@@ -32,7 +33,7 @@ const TextSegment = ({
   // of jumping a flush-sized chunk at a time.
   const smoothText = useSmoothText(text, isActive);
   return (
-    <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+    <div className={styles['text-segment']}>
       <LazyMarkDown
         content={smoothText}
         streaming={isActive}
@@ -65,24 +66,19 @@ export const SegmentView = memo(function SegmentView({
       );
     case 'thinking':
       return (
-        <div className="mb-2 mt-0.5">
+        <div className={styles['thinking-segment']}>
           <ThinkingBlock content={segment.text} isActiveThinking={isActiveThinking} />
         </div>
       );
     case 'tool': {
       const Component = getToolComponent(segment.tool.name, agentKind);
       return (
-        <div className="mb-2 mt-1">
+        <div className={styles['tool-segment']}>
           <Suspense
             fallback={
-              <div className="flex items-center gap-2 rounded-lg border border-border/50 px-3 py-2 dark:border-border-dark/50">
-                <Spinner
-                  size="sm"
-                  className="text-text-quaternary dark:text-text-dark-quaternary"
-                />
-                <span className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
-                  Loading tool output...
-                </span>
+              <div className={styles['tool-fallback']}>
+                <Spinner size="sm" className={styles['tool-fallback-spinner']} />
+                <span className={styles['tool-fallback-text']}>Loading tool output...</span>
               </div>
             }
           >

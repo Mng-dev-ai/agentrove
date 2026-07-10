@@ -1,0 +1,39 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.input-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    padding: 0 var(--space-3);
+}
+
+.input-back {
+    @include type.type-meta(500);
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    padding: var(--space-0-5) var(--space-1-5);
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-secondary);
+}
+
+.input-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    flex-shrink: 0;
+    color: var(--theme-text-tertiary);
+}
+
+.input-field {
+    @include type.type-body;
+    height: var(--space-10);
+    width: 100%;
+    background: transparent;
+    color: var(--theme-text-primary);
+    outline: none;
+
+    &::placeholder {
+        color: var(--theme-text-quaternary);
+    }
+}

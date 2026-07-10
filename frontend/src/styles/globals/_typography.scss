@@ -1,0 +1,85 @@
+// Typography system. Components never set font-size/weight/line-height directly —
+// always via a type-* mixin. Semantic names map to the app's dense-UI scale:
+//   type-meta      10px — metadata, badges, section headers (old text-2xs)
+//   type-default   12px — the app-wide default (old text-xs)
+//   type-body      14px — primary inputs, prose (old text-sm)
+//   type-title     18px — dialog titles only (old text-lg)
+//   type-page-title 20px — page headings (old text-xl font-semibold)
+
+@mixin typography-tokens {
+    :root {
+        --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+        // Nerd Font with PUA icon glyphs — the in-app terminal only
+        --font-terminal: 'JetBrainsMono Nerd Font', var(--font-mono);
+    }
+}
+
+@mixin type($size, $line-height, $weight: 400, $family: var(--font-sans), $letter-spacing: normal) {
+    font-family: $family;
+    font-size: $size;
+    line-height: $line-height;
+    font-weight: $weight;
+    letter-spacing: $letter-spacing;
+}
+
+@mixin type-meta($weight: 400) {
+    @include type(0.625rem, 0.875rem, $weight);
+}
+
+@mixin type-default($weight: 400) {
+    @include type(0.75rem, 1rem, $weight);
+}
+
+@mixin type-body($weight: 400) {
+    @include type(0.875rem, 1.25rem, $weight);
+}
+
+@mixin type-large($weight: 400) {
+    @include type(1rem, 1.5rem, $weight);
+}
+
+@mixin type-title($weight: 500) {
+    @include type(1.125rem, 1.75rem, $weight);
+}
+
+@mixin type-page-title($weight: 600) {
+    @include type(1.25rem, 1.75rem, $weight);
+}
+
+// Panel/sidebar section headers: 10px uppercase wide-tracked quaternary
+@mixin type-section-header {
+    @include type(0.625rem, 0.875rem, 500, $letter-spacing: 0.05em);
+    text-transform: uppercase;
+    color: var(--theme-text-quaternary);
+}
+
+// Code, file paths, env vars, technical IDs
+@mixin type-mono($size: 0.75rem, $line-height: 1rem, $weight: 400) {
+    @include type($size, $line-height, $weight, var(--font-mono));
+}
+
+@mixin type-mono-meta {
+    @include type-mono(0.625rem, 0.875rem);
+}
+
+// ---- utilities ----
+
+@mixin type-overflow {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+@mixin type-lineclamp($lines) {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: $lines;
+    line-clamp: $lines;
+    overflow: hidden;
+}
+
+@mixin type-noselect {
+    user-select: none;
+    -webkit-user-select: none;
+}

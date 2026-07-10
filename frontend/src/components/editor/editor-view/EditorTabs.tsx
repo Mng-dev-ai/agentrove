@@ -1,10 +1,11 @@
 import { memo, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import type { FileStructure } from '@/types/file-system.types';
-import { Button } from '@/components/ui/primitives/Button';
-import { FileIcon } from '@/components/ui/shared/FileIcon';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
 import { getFileName } from '@/utils/file';
-import { cn } from '@/utils/cn';
+import clsx from 'clsx';
+import styles from './EditorTabs.module.scss';
 
 export interface EditorTabsProps {
   openFiles: FileStructure[];
@@ -32,23 +33,14 @@ export const EditorTabs = memo(function EditorTabs({
   if (openFiles.length === 0) return null;
 
   return (
-    <div
-      role="tablist"
-      className="flex h-9 shrink-0 items-stretch overflow-x-auto border-b border-border/50 dark:border-border-dark/50"
-    >
+    <div role="tablist" className={styles['editor-tabs']}>
       {openFiles.map((file) => {
         const isActive = file.path === selectedPath;
         const name = getFileName(file.path);
         // A dirty tab shows the unsaved dot at rest, swapped for the close button on hover.
         const showDot = dirtyPaths.has(file.path);
         return (
-          <div
-            key={file.path}
-            className={cn(
-              'group relative flex shrink-0 items-stretch border-r border-border/30 transition-colors duration-200 dark:border-border-dark/30',
-              !isActive && 'hover:bg-surface-hover dark:hover:bg-surface-dark-hover',
-            )}
-          >
+          <div key={file.path} className={clsx(styles.tab, isActive && styles['tab--active'])}>
             {/* Select and close are sibling buttons (not nested) so both are keyboard-operable. */}
             <Button
               ref={isActive ? activeTabRef : undefined}
@@ -56,35 +48,26 @@ export const EditorTabs = memo(function EditorTabs({
               role="tab"
               aria-selected={isActive}
               onClick={() => onSelect(file)}
-              className={cn(
-                'flex items-center gap-1.5 py-0 pl-3 pr-1 font-mono text-2xs transition-colors duration-200 focus-visible:relative focus-visible:z-10',
-                isActive
-                  ? 'text-text-primary dark:text-text-dark-primary'
-                  : 'text-text-tertiary hover:text-text-secondary dark:text-text-dark-tertiary dark:hover:text-text-dark-secondary',
-              )}
+              className={styles['tab-button']}
             >
-              <FileIcon name={name} className="h-3.5 w-3.5 shrink-0" />
-              <span className="max-w-[12rem] truncate">{name}</span>
+              <FileIcon name={name} className={styles['tab-file-icon']} />
+              <span className={styles['tab-name']}>{name}</span>
             </Button>
-            <span className="relative flex w-6 items-center justify-center">
-              {showDot && (
-                <span className="absolute h-1.5 w-1.5 rounded-full bg-text-quaternary group-hover:hidden dark:bg-text-dark-quaternary" />
-              )}
+            <span className={styles['tab-close-slot']}>
+              {showDot && <span className={styles['tab-dot']} />}
               <Button
                 variant="unstyled"
                 onClick={() => onClose(file.path)}
                 aria-label={`Close ${name}`}
-                className={cn(
-                  'rounded p-0.5 text-text-quaternary transition-colors duration-150 hover:text-text-primary focus-visible:opacity-100 group-hover:opacity-100 dark:text-text-dark-quaternary dark:hover:text-text-dark-primary',
-                  isActive && !showDot ? 'opacity-100' : 'opacity-0',
+                className={clsx(
+                  styles['tab-close'],
+                  isActive && !showDot && styles['tab-close--visible'],
                 )}
               >
-                <X className="h-3 w-3" />
+                <X className={styles['tab-close-icon']} />
               </Button>
             </span>
-            {isActive && (
-              <span className="pointer-events-none absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-text-primary dark:bg-text-dark-primary" />
-            )}
+            {isActive && <span className={styles['tab-underline']} />}
           </div>
         );
       })}

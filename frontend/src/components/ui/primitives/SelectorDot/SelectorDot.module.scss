@@ -1,0 +1,8 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/colors' as colors;
+
+.selector-dot {
+    @include type.type-meta;
+    @include type.type-noselect;
+    color: colors.theme-color('text-quaternary', 0.4);
+}

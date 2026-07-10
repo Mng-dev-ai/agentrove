@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react';
+import clsx from 'clsx';
 import { ChevronRight, Folder, ShieldAlert } from 'lucide-react';
-import { LazyMarkDown } from '@/components/ui/LazyMarkDown';
-import { Button } from '@/components/ui/primitives/Button';
+import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import type { PermissionRequest } from '@/types/chat.types';
-import { PermissionApprovalButtons } from '@/components/ui/shared/ApprovalFooter';
+import { PermissionApprovalButtons } from '@/components/ui/shared/ApprovalFooter/ApprovalFooter';
 import { filterOptions } from '@/utils/permissionStorage';
-import { cn } from '@/utils/cn';
 import { formatResult } from '@/utils/format';
+import styles from './ToolPermissionInline.module.scss';
 
 const HEADLINE_KEYS = new Set(['reason', 'description']);
 const COMMAND_KEYS = new Set(['command', 'cmd']);
@@ -96,13 +97,11 @@ interface DetailsListProps {
 
 function DetailsList({ details }: DetailsListProps) {
   return (
-    <div className="space-y-2">
+    <div className={styles.list}>
       {details.map(([key, value]) => (
-        <div key={key} className="space-y-0.5">
-          <div className="text-2xs font-medium uppercase tracking-wider text-text-tertiary dark:text-text-dark-tertiary">
-            {key}
-          </div>
-          <div className="overflow-auto rounded-md bg-black/5 px-2 py-1.5 text-xs text-text-primary dark:bg-white/5 dark:text-text-dark-primary">
+        <div key={key} className={styles['list-item']}>
+          <div className={styles['list-label']}>{key}</div>
+          <div className={styles['list-value']}>
             <LazyMarkDown content={formatResult(value)} />
           </div>
         </div>
@@ -150,43 +149,33 @@ export function ToolPermissionInline({
   const needsMetaTopMargin = hasStructured || fields.cwd !== null;
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border/50 bg-surface-tertiary dark:border-border-dark/50 dark:bg-surface-dark-tertiary">
-      <div className="flex h-9 items-center gap-2 border-b border-border/50 px-3 dark:border-border-dark/50">
-        <div className="rounded-md bg-black/5 p-1 dark:bg-white/5">
-          <ShieldAlert className="h-3.5 w-3.5 text-text-tertiary dark:text-text-dark-tertiary" />
+    <div className={styles.permission}>
+      <div className={styles.header}>
+        <div className={styles['header-icon']}>
+          <ShieldAlert className={styles.shield} />
         </div>
-        <span className="text-xs font-medium text-text-primary dark:text-text-dark-primary">
-          Permission required
-        </span>
-        <code className="ml-auto rounded bg-black/5 px-1.5 py-0.5 font-mono text-2xs text-text-secondary dark:bg-white/5 dark:text-text-dark-secondary">
-          {request.tool_name}
-        </code>
+        <span className={styles['header-title']}>Permission required</span>
+        <code className={styles['tool-name']}>{request.tool_name}</code>
       </div>
 
-      <div className="max-h-[50vh] overflow-y-auto p-3">
-        {fields.headline && (
-          <div className="mb-3 text-xs leading-relaxed text-text-primary dark:text-text-dark-primary">
-            {fields.headline}
-          </div>
-        )}
+      <div className={styles.body}>
+        {fields.headline && <div className={styles.headline}>{fields.headline}</div>}
         {fields.command && (
-          <div className="overflow-x-auto rounded-md bg-black/5 px-2.5 py-2 dark:bg-white/5">
-            <code className="whitespace-pre font-mono text-xs text-text-primary dark:text-text-dark-primary">
-              <span className="mr-2 select-none text-text-quaternary dark:text-text-dark-quaternary">
-                $
-              </span>
+          <div className={styles.command}>
+            <code className={styles['command-code']}>
+              <span className={styles['command-prompt']}>$</span>
               {fields.command}
             </code>
           </div>
         )}
         {fields.cwd && (
-          <div className="mt-2 flex items-center gap-1.5 font-mono text-2xs text-text-tertiary dark:text-text-dark-tertiary">
-            <Folder className="h-3 w-3 flex-shrink-0" />
-            <span className="truncate">{fields.cwd}</span>
+          <div className={styles.cwd}>
+            <Folder className={styles['cwd-icon']} />
+            <span className={styles['cwd-path']}>{fields.cwd}</span>
           </div>
         )}
         {fields.meta.length > 0 && (
-          <div className={cn(needsMetaTopMargin && 'mt-3')}>
+          <div className={clsx(needsMetaTopMargin && styles['meta-spaced'])}>
             <DetailsList details={fields.meta} />
           </div>
         )}
@@ -196,28 +185,21 @@ export function ToolPermissionInline({
               variant="unstyled"
               type="button"
               onClick={() => setShowDetails((v) => !v)}
-              className="mt-3 flex items-center gap-1 rounded-md text-2xs text-text-tertiary transition-colors hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+              className={styles['details-toggle']}
             >
               <ChevronRight
-                className={cn(
-                  'h-3 w-3 transition-transform duration-150',
-                  showDetails && 'rotate-90',
-                )}
+                className={clsx(styles.chevron, showDetails && styles['chevron--open'])}
               />
               {showDetails ? 'Hide details' : 'Show details'}
             </Button>
             {showDetails && (
-              <div className="mt-2">
+              <div className={styles['details-panel']}>
                 <DetailsList details={fields.diagnostics} />
               </div>
             )}
           </>
         )}
-        {!hasAnyContent && (
-          <p className="text-center text-xs italic text-text-tertiary dark:text-text-dark-tertiary">
-            No parameters
-          </p>
-        )}
+        {!hasAnyContent && <p className={styles.empty}>No parameters</p>}
       </div>
 
       <PermissionApprovalButtons

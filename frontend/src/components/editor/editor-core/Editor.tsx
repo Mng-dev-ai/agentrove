@@ -4,6 +4,7 @@ import { CodeView } from '../code-view/CodeView';
 import type { FileStructure } from '@/types/file-system.types';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { sandboxService } from '@/services/sandboxService';
+import styles from './Editor.module.scss';
 
 export interface EditorProps {
   files: FileStructure[];
@@ -65,7 +66,7 @@ export const Editor = memo(function Editor({
   }, [sandboxId]);
 
   return (
-    <div className="flex h-full w-full flex-col overflow-hidden bg-surface-secondary dark:bg-surface-dark-secondary">
+    <div className={styles.editor}>
       <CodeView
         files={files}
         selectedFile={selectedFile}

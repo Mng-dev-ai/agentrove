@@ -1,0 +1,28 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/controls' as controls;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.select-item {
+    @include anim.transition-colors(var(--duration-fast));
+    @include controls.focus-ring;
+    width: 100%;
+    cursor: pointer;
+    border-radius: var(--radius-lg);
+    padding: var(--space-1-5) var(--space-2);
+    text-align: left;
+
+    &[aria-selected='true'] {
+        background-color: colors.theme-color('surface-hover', 0.8);
+    }
+
+    &[aria-selected='false'] {
+        @include responsive.hover {
+            background-color: colors.theme-color('surface-hover', 0.5);
+        }
+
+        &:active {
+            background-color: colors.theme-color('surface-hover', 0.7);
+        }
+    }
+}

@@ -1,0 +1,32 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.connect-button {
+    @include anim.transition-colors;
+    @include type.type-meta;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1-5);
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-1-5);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+        color: var(--theme-text-primary);
+    }
+}
+
+.connect-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+    color: var(--theme-text-quaternary);
+}
+
+.error-message {
+    @include type.type-meta;
+    padding: var(--space-1) var(--space-1-5);
+    color: var(--theme-error-text);
+}

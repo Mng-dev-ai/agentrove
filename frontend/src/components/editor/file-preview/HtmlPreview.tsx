@@ -4,6 +4,7 @@ import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { PreviewContainer } from './PreviewContainer';
 import { PreviewEmptyState } from './PreviewEmptyState';
 import { getDisplayFileName } from './previewUtils';
+import styles from './HtmlPreview.module.scss';
 
 interface HtmlPreviewProps {
   file: FileStructure;
@@ -58,7 +59,7 @@ export const HtmlPreview = memo(function HtmlPreview({
     >
       <iframe
         srcDoc={sanitizedContent}
-        className="h-full w-full border-0"
+        className={styles.iframe}
         title={`HTML Preview: ${file.path}`}
         sandbox="allow-scripts allow-same-origin"
       />

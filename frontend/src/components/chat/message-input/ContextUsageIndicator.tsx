@@ -1,5 +1,6 @@
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { formatNumberCompact } from '@/utils/format';
+import styles from './ContextUsageIndicator.module.scss';
 
 export interface ContextUsageInfo {
   tokensUsed: number;
@@ -25,27 +26,24 @@ export const ContextUsageIndicator = ({ usage }: { usage: ContextUsageInfo }) =>
 
   const progressClass =
     percentage >= 95
-      ? 'text-error-500 dark:text-error-400'
+      ? styles['ring-progress--danger']
       : percentage >= 75
-        ? 'text-warning-500 dark:text-warning-400'
-        : 'text-text-primary dark:text-text-dark-primary';
+        ? styles['ring-progress--warning']
+        : styles['ring-progress--normal'];
 
   const tooltip = `${formatNumberCompact(usage.tokensUsed)}/${formatNumberCompact(usage.contextWindow)}`;
 
   return (
-    <FloatingTooltip
-      content={tooltip}
-      className="flex select-none items-center gap-1 text-2xs text-text-secondary dark:text-text-dark-secondary"
-    >
-      <span className="font-medium tabular-nums">{formattedPercentage}%</span>
-      <svg viewBox="0 0 24 24" className="h-5 w-5" role="presentation" aria-hidden="true">
+    <FloatingTooltip content={tooltip} className={styles['context-usage']}>
+      <span className={styles.value}>{formattedPercentage}%</span>
+      <svg viewBox="0 0 24 24" className={styles.ring} role="presentation" aria-hidden="true">
         <circle
           cx="12"
           cy="12"
           r={RADIUS}
           strokeWidth="2"
           stroke="currentColor"
-          className="text-border dark:text-border-dark"
+          className={styles['ring-track']}
           fill="none"
         />
         <circle

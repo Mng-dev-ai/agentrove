@@ -1,6 +1,8 @@
 import { memo } from 'react';
-import { FileUploadDialog } from '@/components/ui/FileUploadDialog';
-import { DrawingModal } from '@/components/ui/DrawingModal';
+import clsx from 'clsx';
+import { stateClasses } from '@/constants/stateClasses';
+import { FileUploadDialog } from '@/components/ui/FileUploadDialog/FileUploadDialog';
+import { DrawingModal } from '@/components/ui/drawing-modal/DrawingModal';
 import { DropIndicator } from './DropIndicator';
 import { SendButton } from './SendButton';
 import type { SendButtonStatus } from './SendButton';
@@ -15,6 +17,7 @@ import { ContextUsageIndicator } from './ContextUsageIndicator';
 import { InputProvider } from './InputProvider';
 import { useInputContext } from '@/hooks/useInputContext';
 import type { ContextUsageInfo } from './ContextUsageIndicator';
+import styles from './Input.module.scss';
 
 export interface InputProps {
   message: string;
@@ -66,14 +69,10 @@ function InputLayout() {
         : 'idle';
 
   return (
-    <form ref={meta.formRef} onSubmit={actions.handleSubmit} className="relative px-4 sm:px-6">
+    <form ref={meta.formRef} onSubmit={actions.handleSubmit} className={styles.input}>
       <div
         {...meta.dragHandlers}
-        className={`relative rounded-2xl border bg-surface-secondary transition-[border-color] duration-300 dark:bg-surface-dark-secondary ${
-          state.isDragging
-            ? 'scale-[1.01] border-border-hover dark:border-border-dark-hover'
-            : 'border-border dark:border-border-dark'
-        }`}
+        className={clsx(styles.field, state.isDragging && stateClasses.DRAGGING)}
       >
         <DropIndicator visible={state.isDragging} fileType="any" message="Drop your files here" />
 
@@ -91,7 +90,7 @@ function InputLayout() {
           onRemove={actions.handleRemoveSelection}
         />
 
-        <div className="relative px-4 pt-2.5">
+        <div className={styles['textarea-wrap']}>
           <Textarea
             ref={meta.textareaRef}
             message={state.message}
@@ -107,7 +106,7 @@ function InputLayout() {
           <InputSuggestionsPanel />
         </div>
 
-        <div className="flex items-center justify-end gap-0.5 px-2 pb-2 pt-0.5">
+        <div className={styles.actions}>
           <EnhanceButton
             onEnhance={actions.handleEnhancePrompt}
             isEnhancing={state.isEnhancing}
@@ -130,8 +129,8 @@ function InputLayout() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between px-2 pb-safe pt-1.5">
-        <div className="flex-shrink-0">
+      <div className={styles['footer-row']}>
+        <div className={styles['context-slot']}>
           {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
         </div>
         <InputControls />
@@ -155,9 +154,10 @@ function InputLayout() {
         )}
 
       {state.showTip && !state.hasAttachments && (
-        <div className="mt-1 animate-fade-in text-center text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-          <span className="font-medium">Tip:</span> Drag and drop or paste images, pdfs and xlsx
-          files into the input area, type `/` for slash commands, or `@` to mention files and agents
+        <div className={styles.tip}>
+          <span className={styles['tip-label']}>Tip:</span> Drag and drop or paste images, pdfs and
+          xlsx files into the input area, type `/` for slash commands, or `@` to mention files and
+          agents
         </div>
       )}
     </form>

@@ -3,6 +3,10 @@
 // ripgrep (Rust regex — no lookarounds), so alternatives anchor with \b instead.
 
 const SYMBOL = '__SYMBOL__';
+// Global matcher for SYMBOL so we can swap in the escaped identifier without
+// relying on String.prototype.replaceAll (target lib is below es2021). Using
+// .replace with a /g regex preserves replaceAll's replacement-string ($) semantics.
+const SYMBOL_RE = /__SYMBOL__/g;
 
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
 
@@ -70,7 +74,7 @@ export function buildDefinitionSearch(languageId: string, symbol: string): Defin
   const query = LANGUAGE_QUERIES[languageId] ?? DEFAULT_QUERY;
   const escaped = escapeSymbolForRegex(symbol);
   return {
-    pattern: query.patterns.map((p) => p.replaceAll(SYMBOL, escaped)).join('|'),
+    pattern: query.patterns.map((p) => p.replace(SYMBOL_RE, escaped)).join('|'),
     include: query.include,
   };
 }

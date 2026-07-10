@@ -1,12 +1,12 @@
 import { memo } from 'react';
 import { HelpCircle } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolIcon from './toolIcon.module.scss';
 import type { OpencodeQuestionInput, OpencodeQuestionOutput } from './opencodePayload';
+import styles from './QuestionTool.module.scss';
 
-const ICON = (
-  <HelpCircle className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />
-);
+const ICON = <HelpCircle className={toolIcon.icon} />;
 
 const QuestionToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as OpencodeQuestionInput | undefined;
@@ -35,19 +35,15 @@ const QuestionToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {count > 0 && (
-        <div className="space-y-2">
+        <div className={styles.list}>
           {questions.map((q, idx) => {
             const answer = answers[idx];
             const answerText = answer && answer.length > 0 ? answer.join(', ') : 'Unanswered';
             return (
-              <div key={idx} className="space-y-0.5">
-                <div className="text-xs text-text-primary dark:text-text-dark-primary">
-                  {q.question ?? q.header ?? ''}
-                </div>
-                <div className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">
-                  <span className="text-text-quaternary dark:text-text-dark-quaternary">
-                    answer:{' '}
-                  </span>
+              <div key={idx} className={styles.item}>
+                <div className={styles.question}>{q.question ?? q.header ?? ''}</div>
+                <div className={styles.answer}>
+                  <span className={styles['answer-label']}>answer: </span>
                   {answerText}
                 </div>
               </div>

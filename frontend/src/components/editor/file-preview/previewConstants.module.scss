@@ -1,0 +1,11 @@
+// Shared background/border classes reused by CsvPreview, XlsxPreview, PreviewContainer,
+// and PreviewEmptyState — kept here (rather than duplicated per module) since
+// previewConstants.ts already served as their single source of truth pre-migration.
+
+.preview-background {
+    background-color: var(--theme-surface);
+}
+
+.table-border {
+    border: 1px solid var(--theme-border);
+}

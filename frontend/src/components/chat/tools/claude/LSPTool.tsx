@@ -2,8 +2,10 @@ import { memo } from 'react';
 import { Code } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename, formatResult } from '@/utils/format';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
+import styles from './LSPTool.module.scss';
 
 type LSPOperation =
   | 'goToDefinition'
@@ -39,7 +41,7 @@ const LSPToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<Code className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Code className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {
@@ -55,14 +57,14 @@ const LSPToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(filePath || result) && (
-        <div className="space-y-1.5">
+        <div className={styles.details}>
           {filePath && (
-            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
+            <div className={styles.path}>
               {filePath}
               {location}
             </div>
           )}
-          {result && <pre className={TOOL_OUTPUT_PRE_CLASS}>{result}</pre>}
+          {result && <pre className={toolText['output-pre']}>{result}</pre>}
         </div>
       )}
     </ToolCard>

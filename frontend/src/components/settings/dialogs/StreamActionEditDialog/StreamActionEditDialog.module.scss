@@ -1,0 +1,88 @@
+@use '@/styles/globals/typography' as type;
+
+.dialog {
+    overflow: visible;
+}
+
+.body {
+    padding: var(--space-5);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2-5);
+    margin-bottom: var(--space-5);
+}
+
+.icon-box {
+    display: flex;
+    height: var(--space-8);
+    width: var(--space-8);
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-lg);
+    background-color: var(--theme-surface-tertiary);
+}
+
+.header-icon {
+    height: var(--space-4);
+    width: var(--space-4);
+    color: var(--theme-text-tertiary);
+}
+
+.title {
+    @include type.type-body(500);
+    color: var(--theme-text-primary);
+}
+
+.error {
+    margin-bottom: var(--space-4);
+}
+
+.fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.label {
+    @include type.type-default;
+    margin-bottom: var(--space-1-5);
+    color: var(--theme-text-secondary);
+}
+
+.input {
+    @include type.type-default;
+}
+
+.select {
+    @include type.type-default;
+    height: var(--space-8);
+    padding: var(--space-1-5) var(--space-3);
+    background-color: var(--theme-surface-secondary);
+    color: var(--theme-text-primary);
+}
+
+.control-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.command-wrap {
+    position: relative;
+}
+
+.command-textarea {
+    @include type.type-mono;
+    // TODO(refactor): off-scale fixed min-height (was min-h-[120px]) — no space token matches
+    min-height: 120px;
+}
+
+.hint {
+    @include type.type-meta;
+    margin-top: var(--space-1);
+    color: var(--theme-text-quaternary);
+}

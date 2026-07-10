@@ -1,8 +1,10 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+// Global token/reset layer must load before the component tree so module CSS
+// always comes later in the cascade and wins specificity ties against resets
+import './styles/app.scss';
 import App from './App.tsx';
-import './styles/globals.css';
 // Build-time-generated `data-palette` override blocks (see vite.config.ts).
 import 'virtual:palette-overrides.css';
 import { queryClient, persistOptions } from './lib/queryClient';

@@ -21,6 +21,14 @@ function paletteCssPlugin(): Plugin {
 
 export default defineConfig({
   plugins: [react(), paletteCssPlugin()],
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // sass-embedded via the modern API — the legacy JS API is deprecated
+        api: 'modern-compiler',
+      },
+    },
+  },
   worker: {
     // @pierre/diffs ships an imported worker entry, so desktop builds need
     // module workers instead of Vite's default IIFE output.

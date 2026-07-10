@@ -1,0 +1,25 @@
+@use '@/styles/globals/typography' as type;
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.type-row {
+    @include type.type-meta;
+    color: var(--theme-text-tertiary);
+}
+
+.type-label {
+    color: var(--theme-text-quaternary);
+}
+
+.type-value {
+    font-family: var(--font-mono);
+}
+
+.child-tool {
+    border-left: 1px solid var(--theme-border);
+    padding-left: var(--space-2);
+}

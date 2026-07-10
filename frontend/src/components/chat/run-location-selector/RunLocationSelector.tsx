@@ -1,6 +1,9 @@
 import { memo } from 'react';
 import { Cloud, Monitor } from 'lucide-react';
-import { ToggleDropdown, type ToggleDropdownOption } from '@/components/ui/shared/ToggleDropdown';
+import {
+  ToggleDropdown,
+  type ToggleDropdownOption,
+} from '@/components/ui/shared/ToggleDropdown/ToggleDropdown';
 import { useChatSettingsStore } from '@/store/chatSettingsStore';
 
 const OPTIONS: readonly [ToggleDropdownOption, ToggleDropdownOption] = [
@@ -24,7 +27,7 @@ export const RunLocationSelector = memo(function RunLocationSelector({
       options={OPTIONS}
       value={runOnCloud}
       onSelect={(enabled) => useChatSettingsStore.getState().setRunOnCloud(enabled)}
-      width="w-32"
+      width="8rem"
       disabled={disabled}
     />
   );

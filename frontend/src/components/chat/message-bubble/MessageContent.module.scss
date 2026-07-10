@@ -1,0 +1,15 @@
+.user-content {
+    > * + * {
+        margin-top: var(--space-1);
+    }
+}
+
+.assistant-content {
+    > * + * {
+        margin-top: var(--space-4);
+    }
+}
+
+.attachments {
+    margin-top: var(--space-3);
+}

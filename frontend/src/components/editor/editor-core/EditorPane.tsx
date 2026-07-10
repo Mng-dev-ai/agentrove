@@ -4,7 +4,7 @@ import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useEditorState } from '@/hooks/useEditorState';
 import { useFirstPaint } from '@/hooks/useFirstPaint';
-import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback';
+import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
 
 // Self-contained editor for a chat, rendered once per pane in split view. It
 // owns its file data and selection so each pane tracks its own chat (mirrors

@@ -1,11 +1,12 @@
 import { memo } from 'react';
 import { Sparkles } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
 import type { OpencodeSkillInput, OpencodeOutput } from './opencodePayload';
 
-const ICON = <Sparkles className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />;
+const ICON = <Sparkles className={toolIcon.icon} />;
 
 const SkillToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as OpencodeSkillInput | undefined;
@@ -31,7 +32,7 @@ const SkillToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       loadingContent="Loading skill..."
       error={tool.error}
     >
-      {output && <pre className={TOOL_OUTPUT_PRE_CLASS}>{output}</pre>}
+      {output && <pre className={toolText['output-pre']}>{output}</pre>}
     </ToolCard>
   );
 };

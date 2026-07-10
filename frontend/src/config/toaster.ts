@@ -1,14 +1,8 @@
 import type { ToasterProps } from 'react-hot-toast';
 
-const baseStyle = {
-  boxShadow: '0 4px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-};
-
-// Colors via token classes (not inline style) so every palette re-themes them;
-// `!` overrides react-hot-toast's default inline background/color
-const toastSurfaceClass =
-  '!border !bg-surface-secondary !text-text-primary !border-border ' +
-  'dark:!bg-surface-dark-secondary dark:!text-text-dark-primary dark:!border-border-dark';
+// Surface via the global .app-toast class (styles/app.scss) so every palette
+// re-themes toasts; react-hot-toast owns the DOM, so no CSS module can reach it.
+const toastSurfaceClass = 'app-toast';
 
 export const toasterConfig: ToasterProps = {
   position: 'top-right',
@@ -28,7 +22,6 @@ export const toasterConfig: ToasterProps = {
     },
     duration: 4000,
     success: {
-      style: baseStyle,
       iconTheme: {
         primary: '#22c55e',
         secondary: '#f0fdf4',
@@ -36,7 +29,6 @@ export const toasterConfig: ToasterProps = {
       className: toastSurfaceClass,
     },
     error: {
-      style: baseStyle,
       iconTheme: {
         primary: '#ef4444',
         secondary: '#fef2f2',
@@ -44,7 +36,6 @@ export const toasterConfig: ToasterProps = {
       className: toastSurfaceClass,
     },
     loading: {
-      style: baseStyle,
       iconTheme: {
         primary: '#3b82f6',
         secondary: '#eff6ff',
@@ -52,7 +43,6 @@ export const toasterConfig: ToasterProps = {
       className: toastSurfaceClass,
     },
     blank: {
-      style: baseStyle,
       className: toastSurfaceClass,
     },
   },

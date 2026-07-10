@@ -1,0 +1,165 @@
+// Shared control mixins — the single source for button/input looks. Primitive modules
+// (components/ui/primitives/*) compose these; feature modules should reach for the
+// primitives, not these mixins, unless building a genuinely new control.
+
+@use 'colors' as colors;
+@use 'typography' as type;
+@use 'animations' as anim;
+@use 'responsive' as responsive;
+
+// Monochrome focus ring (never brand-colored); $offset emulates a ring gap by
+// painting the surface color underneath.
+@mixin focus-ring($width: 2px, $offset: 0px) {
+    outline: none;
+
+    &:focus-visible {
+        outline: none;
+        @if $offset == 0px {
+            box-shadow: 0 0 0 $width colors.theme-color('text-quaternary', 0.3);
+        } @else {
+            box-shadow:
+                0 0 0 $offset var(--theme-surface),
+                0 0 0 calc(#{$offset} + #{$width}) colors.theme-color('text-quaternary', 0.3);
+        }
+    }
+}
+
+@mixin button-base {
+    @include type.type-default(500);
+    @include anim.transition-colors;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1-5);
+    border: none;
+    background: none;
+    cursor: pointer;
+
+    &:disabled {
+        pointer-events: none;
+        opacity: 0.6;
+    }
+}
+
+@mixin button-size($size: 'md') {
+    @if $size == 'sm' {
+        @include type.type-default(500);
+        height: var(--space-8);
+        padding-inline: var(--space-3);
+        border-radius: var(--radius-md);
+    } @else if $size == 'md' {
+        @include type.type-body(500);
+        height: var(--space-10);
+        padding-inline: var(--space-4);
+        border-radius: var(--radius-lg);
+    } @else if $size == 'lg' {
+        @include type.type-large(500);
+        height: var(--space-12);
+        padding-inline: var(--space-6);
+        border-radius: var(--radius-xl);
+    } @else if $size == 'icon' {
+        height: var(--space-9);
+        width: var(--space-9);
+        padding: 0;
+        gap: 0;
+        border-radius: var(--radius-md);
+    } @else {
+        @error 'Unknown button size: #{$size}';
+    }
+}
+
+@mixin button-variant($variant: 'primary') {
+    @if $variant == 'primary' {
+        // Inverted text/surface — the monochrome "filled" look
+        background-color: var(--theme-text-primary);
+        color: var(--theme-surface);
+        box-shadow: var(--shadow-sm);
+
+        @include responsive.hover {
+            background-color: var(--theme-text-secondary);
+        }
+    } @else if $variant == 'secondary' {
+        background-color: var(--theme-surface-secondary);
+        color: var(--theme-text-primary);
+
+        @include responsive.hover {
+            background-color: var(--theme-surface-hover);
+        }
+    } @else if $variant == 'outline' {
+        border: 1px solid var(--theme-border);
+        color: var(--theme-text-primary);
+
+        @include responsive.hover {
+            background-color: var(--theme-surface-hover);
+        }
+    } @else if $variant == 'ghost' {
+        color: var(--theme-text-secondary);
+
+        @include responsive.hover {
+            background-color: var(--theme-surface-hover);
+        }
+    } @else if $variant == 'destructive' {
+        background-color: colors.status-color('error', 500);
+        color: white;
+
+        @include responsive.hover {
+            background-color: colors.status-color('error', 600);
+        }
+
+        &:focus-visible {
+            box-shadow: 0 0 0 2px colors.status-color('error', 500, 0.6);
+        }
+    } @else if $variant == 'link' {
+        padding-inline: 0;
+        color: var(--theme-text-secondary);
+        text-decoration: underline;
+        text-underline-offset: 4px;
+
+        @include responsive.hover {
+            color: var(--theme-text-primary);
+        }
+
+        &:focus-visible {
+            box-shadow: none;
+        }
+    } @else {
+        @error 'Unknown button variant: #{$variant}';
+    }
+}
+
+@mixin input-base {
+    @include type.type-body;
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-lg);
+    background-color: var(--theme-surface-tertiary);
+    color: var(--theme-text-primary);
+    box-shadow: var(--shadow-inset);
+    transition: color var(--duration-base), border-color var(--duration-base), box-shadow var(--duration-base);
+
+    &::placeholder {
+        color: var(--theme-text-quaternary);
+    }
+
+    &:focus-visible {
+        outline: none;
+        border-color: var(--theme-border-hover);
+        box-shadow: var(--shadow-inset), 0 0 0 3px colors.theme-color('text-quaternary', 0.15);
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+}
+
+@mixin input-error {
+    border-color: colors.status-color('error', 500, 0.6);
+    color: colors.status-color('error', 700);
+
+    &:focus-visible {
+        border-color: colors.status-color('error', 500);
+        box-shadow: var(--shadow-inset), 0 0 0 3px colors.status-color('error', 500, 0.1);
+    }
+}

@@ -2,8 +2,9 @@ import { memo } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { formatResult } from '@/utils/format';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
 
 type OutputMode = 'content' | 'files_with_matches' | 'count';
 
@@ -31,7 +32,7 @@ const GrepToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<FileSearch className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<FileSearch className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {
@@ -46,7 +47,7 @@ const GrepToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       loadingContent="Searching..."
       error={tool.error}
     >
-      {result && <pre className={TOOL_OUTPUT_PRE_CLASS}>{result}</pre>}
+      {result && <pre className={toolText['output-pre']}>{result}</pre>}
     </ToolCard>
   );
 };

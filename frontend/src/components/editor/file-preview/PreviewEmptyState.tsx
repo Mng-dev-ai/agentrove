@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { PreviewContainer } from './PreviewContainer';
-import { previewBackgroundClass } from './previewConstants';
+import styles from './PreviewEmptyState.module.scss';
 
 interface PreviewEmptyStateProps {
   fileName: string;
@@ -20,9 +20,9 @@ export const PreviewEmptyState = memo(function PreviewEmptyState({
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
-      contentClassName={`flex items-center justify-center ${previewBackgroundClass}`}
+      contentClassName={styles.content}
     >
-      <p className="text-text-tertiary dark:text-text-dark-tertiary">{message}</p>
+      <p className={styles.message}>{message}</p>
     </PreviewContainer>
   );
 });

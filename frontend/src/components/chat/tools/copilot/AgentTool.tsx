@@ -1,10 +1,12 @@
 import { memo, useState, useRef } from 'react';
 import { Bot } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
 import { extractResultText } from '@/utils/agentTool';
-import { ToolCard } from '../common/ToolCard';
-import { CollapsibleButton } from '../common/CollapsibleButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { CollapsibleButton } from '../common/CollapsibleButton/CollapsibleButton';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
+import styles from './AgentTool.module.scss';
 import type { CopilotToolOutput } from './copilotPayload';
 
 interface CopilotAgentInput {
@@ -37,7 +39,7 @@ const AgentToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<Bot className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Bot className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         const label = description || agentName || agentType || 'agent task';
@@ -54,53 +56,45 @@ const AgentToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(agentType || agentName || prompt || result) && (
-        <div className="space-y-2">
+        <div className={styles.stack}>
           {(agentType || agentName) && (
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-2xs text-text-tertiary dark:text-text-dark-tertiary">
+            <div className={styles['meta-row']}>
               {agentType && (
                 <span>
-                  <span className="text-text-quaternary dark:text-text-dark-quaternary">
-                    type:{' '}
-                  </span>
-                  <span className="font-mono">{agentType}</span>
+                  <span className={styles['meta-label']}>type: </span>
+                  <span className={styles['meta-value']}>{agentType}</span>
                 </span>
               )}
               {agentName && (
                 <span>
-                  <span className="text-text-quaternary dark:text-text-dark-quaternary">
-                    name:{' '}
-                  </span>
-                  <span className="font-mono">{agentName}</span>
+                  <span className={styles['meta-label']}>name: </span>
+                  <span className={styles['meta-value']}>{agentName}</span>
                 </span>
               )}
             </div>
           )}
 
           {prompt && (
-            <div className="space-y-2">
+            <div className={styles.stack}>
               <CollapsibleButton
                 label="Prompt"
                 isExpanded={promptExpanded}
                 onToggle={() => setPromptExpanded((v) => !v)}
                 fullWidth
               />
-              {promptExpanded && (
-                <div className="whitespace-pre-wrap break-words rounded bg-black/5 p-2 font-mono text-2xs text-text-secondary dark:bg-white/5 dark:text-text-dark-tertiary">
-                  {prompt}
-                </div>
-              )}
+              {promptExpanded && <div className={toolText['agent-box']}>{prompt}</div>}
             </div>
           )}
 
           {result && (
-            <div className="space-y-2">
+            <div className={styles.stack}>
               <CollapsibleButton
                 label="Result"
                 isExpanded={resultExpanded}
                 onToggle={() => setResultExpanded((v) => !v)}
                 fullWidth
               />
-              {resultExpanded && <pre className={TOOL_OUTPUT_PRE_CLASS}>{result}</pre>}
+              {resultExpanded && <pre className={toolText['output-pre']}>{result}</pre>}
             </div>
           )}
         </div>

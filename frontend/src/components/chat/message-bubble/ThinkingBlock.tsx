@@ -1,6 +1,8 @@
 import React, { useState, useMemo, memo, type CSSProperties } from 'react';
+import clsx from 'clsx';
 import { ChevronRight, Brain } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import styles from './ThinkingBlock.module.scss';
 
 const DELAY_0: CSSProperties = { animationDelay: '0ms' };
 const DELAY_150: CSSProperties = { animationDelay: '150ms' };
@@ -28,53 +30,44 @@ const ThinkingBlockInner: React.FC<ThinkingBlockProps> = ({ content, isActiveThi
   }, [content]);
 
   return (
-    <div className="group/thinking">
+    <div>
       <Button
         type="button"
         variant="unstyled"
         onClick={() => setIsExpanded((prev) => !prev)}
-        className="-ml-1 flex items-center gap-1.5 rounded-md px-1 py-0.5 transition-colors duration-150 hover:bg-surface-hover dark:hover:bg-surface-dark-hover"
+        className={styles['thinking-toggle']}
       >
-        <Brain className="h-3 w-3 text-text-quaternary dark:text-text-dark-quaternary" />
-        <span className="text-2xs font-medium text-text-tertiary dark:text-text-dark-tertiary">
+        <Brain className={styles['thinking-icon']} />
+        <span className={styles['thinking-label']}>
           {isActiveThinking ? 'Thinking' : 'Thought process'}
         </span>
         {isActiveThinking && (
-          <div className="flex gap-0.5">
-            <div
-              className="h-0.5 w-0.5 animate-bounce rounded-full bg-text-quaternary dark:bg-text-dark-quaternary"
-              style={DELAY_0}
-            />
-            <div
-              className="h-0.5 w-0.5 animate-bounce rounded-full bg-text-quaternary dark:bg-text-dark-quaternary"
-              style={DELAY_150}
-            />
-            <div
-              className="h-0.5 w-0.5 animate-bounce rounded-full bg-text-quaternary dark:bg-text-dark-quaternary"
-              style={DELAY_300}
-            />
+          <div className={styles['thinking-dots']}>
+            <div className={styles['thinking-dot']} style={DELAY_0} />
+            <div className={styles['thinking-dot']} style={DELAY_150} />
+            <div className={styles['thinking-dot']} style={DELAY_300} />
           </div>
         )}
         {!isExpanded && content && (
-          <span className="max-w-48 truncate text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-            {previewText}
-          </span>
+          <span className={styles['thinking-preview']}>{previewText}</span>
         )}
         <ChevronRight
-          className={`h-3 w-3 text-text-quaternary transition-transform duration-200 dark:text-text-dark-quaternary ${isExpanded ? 'rotate-90' : ''}`}
+          className={clsx(
+            styles['thinking-chevron'],
+            isExpanded && styles['thinking-chevron--expanded'],
+          )}
         />
       </Button>
 
       <div
-        className={`overflow-hidden transition-[max-height,opacity] duration-200 ease-in-out ${
-          isExpanded ? 'mt-1.5 max-h-96 opacity-100' : 'max-h-0 opacity-0'
-        }`}
+        className={clsx(
+          styles['thinking-body'],
+          isExpanded ? styles['thinking-body--expanded'] : styles['thinking-body--collapsed'],
+        )}
       >
         {content && (
-          <div className="border-l border-border pl-3 dark:border-border-dark">
-            <div className="max-h-80 overflow-y-auto whitespace-pre-wrap text-2xs leading-relaxed text-text-tertiary dark:text-text-dark-tertiary">
-              {content}
-            </div>
+          <div className={styles['thinking-content']}>
+            <div className={styles['thinking-text']}>{content}</div>
           </div>
         )}
       </div>

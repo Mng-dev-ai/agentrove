@@ -1,0 +1,35 @@
+.loading-screen {
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--theme-surface);
+}
+
+.content {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+}
+
+.status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.spinner {
+    height: var(--space-8);
+    width: var(--space-8);
+    color: var(--theme-text-quaternary);
+    animation: spin 1s linear infinite;
+}
+
+.label {
+    // TODO(refactor): source used text-text-dark-quaternary with no light-mode
+    // class (always the dark-mode shade, in both themes) — preserving that exact
+    // color rather than switching to the theme-aware --theme-text-quaternary token
+    color: rgb(var(--text-dark-quaternary));
+}

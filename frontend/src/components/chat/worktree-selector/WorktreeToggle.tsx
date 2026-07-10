@@ -1,6 +1,9 @@
 import { memo } from 'react';
 import { GitFork } from 'lucide-react';
-import { ToggleDropdown, type ToggleDropdownOption } from '@/components/ui/shared/ToggleDropdown';
+import {
+  ToggleDropdown,
+  type ToggleDropdownOption,
+} from '@/components/ui/shared/ToggleDropdown/ToggleDropdown';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -33,7 +36,7 @@ export const WorktreeToggle = memo(function WorktreeToggle({
         useChatSettingsStore.getState().setWorktree(DEFAULT_CHAT_SETTINGS_KEY, enabled)
       }
       icon={GitFork}
-      width="w-36"
+      width="9rem"
       disabled={disabled}
     />
   );

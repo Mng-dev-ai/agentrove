@@ -2,8 +2,8 @@ import { memo } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { SearchLoadingDots } from '../common/SearchLoadingDots';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { SearchLoadingDots } from '../common/SearchLoadingDots/SearchLoadingDots';
 import {
   type ShellLikeInput,
   type ShellLikeOutput,
@@ -12,6 +12,7 @@ import {
   renderCommand,
   renderOutput,
 } from './codexShellPayload';
+import styles from './SearchTool.module.scss';
 
 const buildSearchLabel = (input: ShellLikeInput | undefined): string => {
   const parsed = input?.parsed_cmd?.[0];
@@ -43,7 +44,7 @@ const SearchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<FileSearch className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<FileSearch className={styles.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {
@@ -62,12 +63,8 @@ const SearchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(filePath || command || output) && (
-        <div className="space-y-1.5">
-          {filePath && (
-            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-              {filePath}
-            </div>
-          )}
+        <div className={styles.body}>
+          {filePath && <div className={styles.path}>{filePath}</div>}
           {renderCommand(command)}
           {renderOutput(output)}
         </div>

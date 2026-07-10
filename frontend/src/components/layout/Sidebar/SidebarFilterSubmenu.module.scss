@@ -1,0 +1,64 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/zlayer' as z;
+
+// Frosted flyout panel — mirrors the root filter panel chrome
+.panel {
+    @include z.z('dropdown');
+    position: fixed;
+    overflow-y: auto;
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-xl);
+    background-color: colors.theme-color('surface-secondary', 0.95);
+    padding: var(--space-1-5);
+    box-shadow: var(--shadow-medium);
+    backdrop-filter: blur(24px);
+}
+
+.option-row {
+    @include type.type-default;
+    @include anim.transition-colors;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-2);
+    text-align: left;
+    color: var(--theme-text-secondary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+
+    &--selected {
+        font-weight: 500;
+        color: var(--theme-text-primary);
+    }
+}
+
+.option-label {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: var(--space-1-5);
+}
+
+.option-check {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+}
+
+.option-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+}
+
+.option-name {
+    @include type.type-overflow;
+}

@@ -1,14 +1,13 @@
 import { memo } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
-import { SearchLoadingDots } from '../common/SearchLoadingDots';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { SearchLoadingDots } from '../common/SearchLoadingDots/SearchLoadingDots';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
 import type { OpencodeGrepInput, OpencodeGrepMetadata, OpencodeOutput } from './opencodePayload';
 
-const ICON = (
-  <FileSearch className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />
-);
+const ICON = <FileSearch className={toolIcon.icon} />;
 
 const GrepToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as OpencodeGrepInput | undefined;
@@ -41,7 +40,7 @@ const GrepToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {output && typeof matches === 'number' && matches > 0 && (
-        <pre className={TOOL_OUTPUT_PRE_CLASS}>{output}</pre>
+        <pre className={toolText['output-pre']}>{output}</pre>
       )}
     </ToolCard>
   );

@@ -1,6 +1,7 @@
 import { memo, ReactNode } from 'react';
+import clsx from 'clsx';
 import { PreviewHeader, PreviewHeaderProps } from './PreviewHeader';
-import { previewBackgroundClass } from './previewConstants';
+import styles from './PreviewContainer.module.scss';
 
 interface PreviewContainerProps extends PreviewHeaderProps {
   children: ReactNode;
@@ -19,7 +20,7 @@ export const PreviewContainer = memo(function PreviewContainer({
   disableContentWrapper = false,
 }: PreviewContainerProps) {
   return (
-    <div className={`flex flex-col ${previewBackgroundClass} h-full ${className}`}>
+    <div className={clsx(styles['preview-container'], className)}>
       {isFullscreen && (
         <PreviewHeader
           fileName={fileName}
@@ -31,7 +32,7 @@ export const PreviewContainer = memo(function PreviewContainer({
       {disableContentWrapper ? (
         children
       ) : (
-        <div className={`min-h-0 flex-1 ${contentClassName}`}>{children}</div>
+        <div className={clsx(styles.content, contentClassName)}>{children}</div>
       )}
     </div>
   );

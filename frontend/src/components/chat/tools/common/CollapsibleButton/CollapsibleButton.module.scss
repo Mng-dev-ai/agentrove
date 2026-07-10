@@ -1,0 +1,46 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.button {
+    @include anim.transition-colors;
+    @include type.type-default(500);
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding-block: var(--space-0-5);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        color: var(--theme-text-primary);
+
+        .chevron {
+            color: var(--theme-text-primary);
+        }
+    }
+
+    // light text-tertiary→primary, dark text-quaternary→secondary (asymmetric)
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-quaternary);
+
+        @include responsive.hover {
+            color: var(--theme-text-secondary);
+        }
+    }
+}
+
+.button--full {
+    width: 100%;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.chevron {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    transition: transform var(--duration-slow) var(--easing-out);
+}
+
+.chevron--expanded {
+    transform: rotate(180deg);
+}

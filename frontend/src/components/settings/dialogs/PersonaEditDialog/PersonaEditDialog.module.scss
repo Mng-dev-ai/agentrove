@@ -1,0 +1,48 @@
+@use '@/styles/globals/typography' as type;
+
+.dialog {
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.body {
+    padding: var(--space-5);
+}
+
+.title {
+    @include type.type-body(500);
+    margin-bottom: var(--space-5);
+    color: var(--theme-text-primary);
+}
+
+.error {
+    margin-bottom: var(--space-4);
+}
+
+.fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.label {
+    @include type.type-default;
+    margin-bottom: var(--space-1-5);
+    color: var(--theme-text-secondary);
+}
+
+.input {
+    @include type.type-default;
+}
+
+.content-textarea {
+    @include type.type-mono;
+    // TODO(refactor): off-scale fixed min-height (was min-h-[300px]) — no space token matches
+    min-height: 300px;
+}
+
+.hint {
+    @include type.type-meta;
+    margin-top: var(--space-1);
+    color: var(--theme-text-quaternary);
+}

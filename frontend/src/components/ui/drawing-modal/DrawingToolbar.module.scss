@@ -1,0 +1,93 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--theme-border);
+    padding: var(--space-4);
+}
+
+.group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.swatches {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+}
+
+.swatch {
+    height: var(--space-6);
+    width: var(--space-6);
+    border-radius: var(--radius-full);
+    // 1px ring in the border color; selected swaps to a 2px primary ring.
+    box-shadow: 0 0 0 1px var(--theme-border);
+
+    &--selected {
+        box-shadow: 0 0 0 2px var(--theme-text-primary);
+    }
+}
+
+.brush {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.brush-icon {
+    height: var(--space-4);
+    width: var(--space-4);
+}
+
+.brush-range {
+    width: var(--space-24);
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.icon-button {
+    @include anim.transition-colors;
+    border-radius: var(--radius-lg);
+    padding: var(--space-2);
+    color: var(--theme-text-secondary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+.icon-button-icon {
+    height: var(--space-5);
+    width: var(--space-5);
+}
+
+.save-button {
+    @include type.type-default(500);
+    @include anim.transition-colors;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2) var(--space-3);
+    background-color: var(--theme-text-primary);
+    color: var(--theme-surface);
+
+    @include responsive.hover {
+        background-color: var(--theme-text-secondary);
+    }
+}
+
+.save-icon {
+    height: var(--space-4);
+    width: var(--space-4);
+}

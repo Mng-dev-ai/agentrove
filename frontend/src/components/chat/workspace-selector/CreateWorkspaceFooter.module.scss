@@ -1,0 +1,173 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.option-button {
+    @include anim.transition-colors;
+    @include type.type-default;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: var(--space-2);
+    border-radius: var(--radius-lg);
+    padding: var(--space-2) var(--space-2-5);
+    color: var(--theme-text-secondary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+        color: var(--theme-text-primary);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+    }
+}
+
+.option-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-quaternary);
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.form-label {
+    @include type.type-default;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--theme-text-secondary);
+}
+
+.form-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.toggle-mode-button {
+    @include anim.transition-colors;
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+
+    @include responsive.hover {
+        color: var(--theme-text-secondary);
+    }
+}
+
+.actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+.text-input {
+    @include type.type-default;
+    height: var(--space-8);
+    width: 100%;
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-lg);
+    background-color: var(--theme-surface-tertiary);
+    padding: var(--space-2) var(--space-3);
+    color: var(--theme-text-primary);
+    outline: none;
+
+    &::placeholder {
+        color: var(--theme-text-quaternary);
+    }
+
+    &:focus-visible {
+        border-color: var(--theme-border-hover);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+    }
+
+    // Light reads surface-tertiary, dark reads one step lighter — asymmetric pairing
+    // from the original Tailwind classes, not a plain light/dark token resolution.
+    :global([data-theme='dark']) & {
+        background-color: var(--theme-surface-secondary);
+    }
+
+    &--search {
+        padding-left: var(--space-8);
+    }
+
+    &--mono {
+        font-family: var(--font-mono);
+    }
+}
+
+.search-field {
+    position: relative;
+}
+
+.search-icon {
+    position: absolute;
+    left: var(--space-2-5);
+    top: 50%;
+    transform: translateY(-50%);
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-quaternary);
+}
+
+.repo-list {
+    max-height: var(--space-48);
+    overflow-y: auto;
+}
+
+.repo-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: var(--space-6) var(--space-2-5);
+}
+
+.repo-loading-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-quaternary);
+    animation: spin 1s linear infinite;
+}
+
+.repo-loading-label {
+    @include type.type-default;
+    color: var(--theme-text-tertiary);
+}
+
+.repo-empty {
+    @include type.type-meta;
+    padding: var(--space-4) var(--space-2-5);
+    text-align: center;
+    color: var(--theme-text-quaternary);
+}
+
+.repo-items {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+}
+
+.helper-text {
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+}
+
+.menu {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-0-5);
+}
+
+.menu-provider {
+    padding: var(--space-1-5) var(--space-2-5);
+}

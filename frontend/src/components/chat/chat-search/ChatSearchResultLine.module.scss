@@ -1,0 +1,44 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+
+.chat-search-result-line {
+    @include type.type-meta;
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    gap: var(--space-1-5);
+    // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
+    border-radius: var(--radius-sm);
+    padding: var(--space-0-5) var(--space-1-5);
+    text-align: left;
+    // TODO(refactor): leading-5 (1.25rem) overrides type-meta's default line-height; no token for a standalone leading value
+    line-height: 1.25rem;
+    color: var(--theme-text-secondary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+.role {
+    min-width: var(--space-7);
+    flex-shrink: 0;
+    text-align: right;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+    color: var(--theme-text-quaternary);
+}
+
+.snippet {
+    @include type.type-overflow;
+    min-width: 0;
+    flex: 1;
+}
+
+.highlight {
+    border-radius: var(--radius-sm);
+    padding-inline: var(--space-0-5);
+    // same highlight pair as elsewhere (bg-surface-active / dark:bg-surface-dark-hover)
+    background-color: var(--theme-surface-active);
+    color: var(--theme-text-primary);
+}

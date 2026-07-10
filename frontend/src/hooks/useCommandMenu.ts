@@ -7,7 +7,7 @@ import {
   SHORTCUT_MAP,
   executeCommand,
   resolveActiveGitTarget,
-} from '@/components/ui/commandRegistry';
+} from '@/components/ui/command-menu/commandRegistry';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 
 function isEmbeddedEditor(target: EventTarget | null): boolean {

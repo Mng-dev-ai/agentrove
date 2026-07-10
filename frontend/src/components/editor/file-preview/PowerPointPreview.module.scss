@@ -1,0 +1,114 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.powerpoint-preview {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.slide-area {
+    flex: 1;
+    overflow: auto;
+    padding: var(--space-8);
+}
+
+.slide-card {
+    margin-inline: auto;
+    // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token — kept as a raw rem value
+    max-width: 56rem;
+    min-height: var(--space-96);
+    border-radius: var(--radius-lg);
+    background-color: var(--theme-surface);
+    padding: var(--space-12);
+    // TODO(refactor): shadow-lg has no direct token — approximated with shadow-strong
+    box-shadow: var(--shadow-strong);
+
+    &--fullscreen {
+        min-height: 100%;
+    }
+}
+
+.slide-content {
+    > * + * {
+        margin-top: var(--space-4);
+    }
+}
+
+.slide-title {
+    // TODO(refactor): Tailwind's text-3xl (1.875rem) has no exact type token — approximated with type-page-title
+    @include type.type-page-title(700);
+    margin-bottom: var(--space-6);
+    color: var(--theme-text-primary);
+}
+
+.slide-paragraph {
+    @include type.type-title(400);
+    color: var(--theme-text-secondary);
+}
+
+.slide-note {
+    @include type.type-body;
+    margin-top: var(--space-8);
+    font-style: italic;
+    color: var(--theme-text-tertiary);
+}
+
+.footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid var(--theme-border);
+    background-color: var(--theme-surface-secondary);
+    padding: var(--space-4);
+}
+
+.nav-button {
+    @include type.type-body;
+    @include anim.transition-colors;
+    // TODO(refactor): Tailwind's bare `rounded` (0.25rem) has no exact token — approximated with radius-md
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-3);
+    background-color: var(--theme-text-primary);
+    color: var(--theme-surface);
+
+    @include responsive.hover {
+        background-color: var(--theme-text-secondary);
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        background-color: var(--theme-surface-tertiary);
+        color: var(--theme-text-quaternary);
+    }
+}
+
+.slide-status {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.slide-counter {
+    @include type.type-body;
+    color: var(--theme-text-secondary);
+}
+
+.dots {
+    display: flex;
+    gap: var(--space-1);
+}
+
+.dot {
+    @include anim.transition-colors;
+    height: var(--space-2);
+    width: var(--space-2);
+    border-radius: var(--radius-full);
+    background-color: var(--theme-text-quaternary);
+
+    &--active {
+        background-color: var(--theme-text-primary);
+    }
+}

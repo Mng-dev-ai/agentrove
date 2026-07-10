@@ -1,0 +1,11 @@
+// Shared ToolCard header-icon style — reused by every OpenCode tool card
+// (asymmetric: light reads text-secondary, dark drops to text-tertiary).
+.icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-secondary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-tertiary);
+    }
+}

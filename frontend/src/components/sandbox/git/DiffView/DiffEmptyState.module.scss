@@ -1,0 +1,26 @@
+@use '@/styles/globals/typography' as type;
+
+.empty-state {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.empty-icon {
+    height: var(--space-5);
+    width: var(--space-5);
+    color: var(--theme-text-quaternary);
+}
+
+.empty-label {
+    @include type.type-default;
+    color: var(--theme-text-tertiary);
+}
+
+.empty-sublabel {
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+}

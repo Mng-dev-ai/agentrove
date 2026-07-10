@@ -1,0 +1,58 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/zlayer' as z;
+
+.page {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    background-color: var(--theme-surface-secondary);
+}
+
+.container {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+}
+
+.content {
+    @include z.z('raised');
+    position: relative;
+    width: 100%;
+    max-width: var(--space-96);
+
+    > * + * {
+        margin-top: var(--space-5);
+    }
+}
+
+.header {
+    text-align: center;
+
+    > * + * {
+        margin-top: var(--space-1-5);
+    }
+}
+
+.title {
+    @include type.type-page-title;
+    @include anim.fade-in;
+    color: var(--theme-text-primary);
+}
+
+.subtitle {
+    @include type.type-body;
+    color: var(--theme-text-tertiary);
+}
+
+.card {
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-xl);
+    background-color: var(--theme-surface-tertiary);
+    padding: var(--space-6);
+    box-shadow: var(--shadow-medium);
+}

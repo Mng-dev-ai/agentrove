@@ -2,9 +2,9 @@ import { memo } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { NumberedContent } from '../common/NumberedContent';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { NumberedContent } from '../common/NumberedContent/NumberedContent';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import {
   type ShellLikeInput,
   type ShellLikeOutput,
@@ -12,6 +12,7 @@ import {
   extractOutput,
   renderCommand,
 } from './codexShellPayload';
+import styles from './ReadTool.module.scss';
 
 const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as ShellLikeInput | undefined;
@@ -23,7 +24,7 @@ const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<FileSearch className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<FileSearch className={styles.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {
@@ -40,12 +41,8 @@ const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       actions={filePath ? <OpenInEditorButton filePath={filePath} /> : null}
     >
       {(filePath || command || content) && (
-        <div className="space-y-1.5">
-          {filePath && (
-            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-              {filePath}
-            </div>
-          )}
+        <div className={styles.body}>
+          {filePath && <div className={styles.path}>{filePath}</div>}
           {renderCommand(command)}
           {content && <NumberedContent content={content} />}
         </div>

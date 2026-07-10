@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { Terminal, FolderSearch, FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
 import {
   ParsedCmdType,
   type ShellLikeInput,
@@ -11,8 +11,9 @@ import {
   renderCommand,
   renderOutput,
 } from './codexShellPayload';
+import styles from './ShellTool.module.scss';
 
-const ICON_CLASS = 'h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary';
+const ICON_CLASS = styles.icon;
 
 const ICON_BY_TYPE: Record<ParsedCmdType, React.ReactNode> = {
   list_files: <FolderSearch className={ICON_CLASS} />,
@@ -61,7 +62,7 @@ const ShellToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(command || output) && (
-        <div className="space-y-1">
+        <div className={styles.body}>
           {renderCommand(command)}
           {renderOutput(output)}
         </div>

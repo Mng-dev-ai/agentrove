@@ -46,7 +46,9 @@ export function useContextUsageState(
     }
 
     if (hasMatchingChatUsage) {
-      setTokensUsed(currentChat.context_token_usage);
+      // hasMatchingChatUsage already gates on context_token_usage !== undefined;
+      // the ?? 0 only satisfies the type narrowing and never actually triggers.
+      setTokensUsed(currentChat.context_token_usage ?? 0);
     }
   }, [chatId, currentChat?.context_token_usage, currentChat?.id]);
 

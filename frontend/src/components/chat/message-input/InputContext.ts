@@ -61,7 +61,7 @@ export interface InputActions {
 export interface InputMeta {
   formRef: RefObject<HTMLFormElement | null>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
-  dragHandlers: Record<string, (e: React.DragEvent) => void>;
+  dragHandlers: Record<string, (e: React.DragEvent<HTMLElement>) => void>;
 }
 
 export interface InputContextValue {

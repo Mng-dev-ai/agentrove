@@ -1,17 +1,19 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
+import clsx from 'clsx';
 import { X, Pencil, CornerDownRight, FileText, FileSpreadsheet, Send } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { apiClient } from '@/lib/api';
 import { detectFileType } from '@/utils/fileTypes';
-import { HighlightedText } from '@/components/ui/shared/HighlightedText';
+import { HighlightedText } from '@/components/ui/shared/HighlightedText/HighlightedText';
 import { fetchAttachmentBlob } from '@/utils/file';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import type {
   LocalQueuedMessage,
   QueueMessageAttachment as QueueAttachment,
 } from '@/types/queue.types';
+import styles from './QueueMessageCard.module.scss';
 
 interface QueueMessageCardProps {
   message: LocalQueuedMessage;
@@ -22,9 +24,9 @@ interface QueueMessageCardProps {
 
 function UploadingOverlay() {
   return (
-    <div className="pointer-events-none absolute inset-0 rounded-md bg-black/35">
-      <div className="absolute inset-0 flex items-center justify-center">
-        <Spinner size="xs" className="text-white" />
+    <div className={styles['uploading-overlay']}>
+      <div className={styles['uploading-overlay-inner']}>
+        <Spinner size="xs" className={styles['uploading-spinner']} />
       </div>
     </div>
   );
@@ -58,11 +60,11 @@ function LocalFilePreview({ file, uploading }: { file: File; uploading: boolean 
 
   if (fileType === 'image' && imageSrc) {
     return (
-      <div className="relative h-8 w-8 rounded-md">
+      <div className={styles['file-thumb']}>
         <img
           src={imageSrc}
           alt={file.name || 'Attachment'}
-          className="h-8 w-8 rounded-md object-cover"
+          className={styles['file-thumb-image']}
         />
         {uploading && <UploadingOverlay />}
       </div>
@@ -71,8 +73,8 @@ function LocalFilePreview({ file, uploading }: { file: File; uploading: boolean 
 
   if (fileType === 'xlsx') {
     return (
-      <div className="relative flex h-8 w-8 items-center justify-center rounded-md bg-surface-tertiary dark:bg-surface-dark-tertiary">
-        <FileSpreadsheet className="h-4 w-4 text-success-600 dark:text-success-400" />
+      <div className={clsx(styles['file-thumb-icon'], styles['file-thumb-icon--overlay'])}>
+        <FileSpreadsheet className={clsx(styles['thumb-icon'], styles['thumb-icon--success'])} />
         {uploading && <UploadingOverlay />}
       </div>
     );
@@ -80,16 +82,16 @@ function LocalFilePreview({ file, uploading }: { file: File; uploading: boolean 
 
   if (fileType === 'pdf') {
     return (
-      <div className="relative flex h-8 w-8 items-center justify-center rounded-md bg-surface-tertiary dark:bg-surface-dark-tertiary">
-        <FileText className="h-4 w-4 text-error-500 dark:text-error-400" />
+      <div className={clsx(styles['file-thumb-icon'], styles['file-thumb-icon--overlay'])}>
+        <FileText className={clsx(styles['thumb-icon'], styles['thumb-icon--error'])} />
         {uploading && <UploadingOverlay />}
       </div>
     );
   }
 
   return (
-    <div className="relative flex h-8 w-8 items-center justify-center rounded-md bg-surface-tertiary dark:bg-surface-dark-tertiary">
-      <FileText className="h-4 w-4 text-text-tertiary dark:text-text-dark-tertiary" />
+    <div className={clsx(styles['file-thumb-icon'], styles['file-thumb-icon--overlay'])}>
+      <FileText className={clsx(styles['thumb-icon'], styles['thumb-icon--muted'])} />
       {uploading && <UploadingOverlay />}
     </div>
   );
@@ -139,32 +141,32 @@ function AuthenticatedPreview({ attachment }: { attachment: QueueAttachment }) {
 
   if (attachment.file_type === 'pdf') {
     return (
-      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface-tertiary dark:bg-surface-dark-tertiary">
-        <FileText className="h-4 w-4 text-error-500 dark:text-error-400" />
+      <div className={styles['file-thumb-icon']}>
+        <FileText className={clsx(styles['thumb-icon'], styles['thumb-icon--error'])} />
       </div>
     );
   }
 
   if (attachment.file_type === 'xlsx') {
     return (
-      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface-tertiary dark:bg-surface-dark-tertiary">
-        <FileSpreadsheet className="h-4 w-4 text-success-600 dark:text-success-400" />
+      <div className={styles['file-thumb-icon']}>
+        <FileSpreadsheet className={clsx(styles['thumb-icon'], styles['thumb-icon--success'])} />
       </div>
     );
   }
 
   if (isLoading) {
     return (
-      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface-tertiary dark:bg-surface-dark-tertiary">
-        <div className="h-3 w-3 animate-pulse rounded-full bg-text-quaternary dark:bg-text-dark-quaternary" />
+      <div className={styles['file-thumb-icon']}>
+        <div className={styles['thumb-loading']} />
       </div>
     );
   }
 
   if (error || !imageSrc) {
     return (
-      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-surface-tertiary dark:bg-surface-dark-tertiary">
-        <span className="text-2xs text-text-tertiary dark:text-text-dark-tertiary">Error</span>
+      <div className={styles['file-thumb-icon']}>
+        <span className={styles['thumb-error']}>Error</span>
       </div>
     );
   }
@@ -173,7 +175,7 @@ function AuthenticatedPreview({ attachment }: { attachment: QueueAttachment }) {
     <img
       src={imageSrc}
       alt={attachment.filename || 'Attachment'}
-      className="h-8 w-8 rounded-md object-cover"
+      className={styles['file-thumb-image']}
     />
   );
 }
@@ -230,12 +232,12 @@ export const QueueMessageCard = memo(function QueueMessageCard({
   );
 
   return (
-    <div className="flex w-full flex-col px-3 py-1.5">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <CornerDownRight className="h-3 w-3 shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
+    <div className={styles.card}>
+      <div className={styles['card-row']}>
+        <div className={styles['card-main']}>
+          <CornerDownRight className={styles['reply-icon']} />
           {hasLocalFiles && !hasServerAttachments && (
-            <div className="flex flex-wrap gap-1">
+            <div className={styles.thumbs}>
               {message.files!.map((file, idx) => (
                 <LocalFilePreview
                   key={`${file.name}-${file.lastModified}-${idx}`}
@@ -246,7 +248,7 @@ export const QueueMessageCard = memo(function QueueMessageCard({
             </div>
           )}
           {hasServerAttachments && message.attachments && (
-            <div className="flex flex-wrap gap-1">
+            <div className={styles.thumbs}>
               {message.attachments.map((att, idx) => (
                 <AuthenticatedPreview key={att.file_url || idx} attachment={att} />
               ))}
@@ -261,17 +263,17 @@ export const QueueMessageCard = memo(function QueueMessageCard({
               onChange={(e) => setEditContent(e.target.value)}
               onKeyDown={handleKeyDown}
               aria-label="Edit message"
-              className="min-w-0 flex-1 bg-transparent text-xs text-text-primary placeholder:text-text-quaternary focus:outline-none dark:text-text-dark-primary"
+              className={styles['edit-input']}
             />
           ) : (
-            <span className="truncate text-xs text-text-secondary dark:text-text-dark-secondary">
+            <span className={styles['message-preview']}>
               <HighlightedText text={message.content} />
             </span>
           )}
         </div>
-        <div className="flex flex-shrink-0 items-center gap-1">
+        <div className={styles['card-actions']}>
           {message.sendingNow ? (
-            <span className="flex items-center gap-1.5 px-1 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+            <span className={styles.sending}>
               <Spinner size="xs" />
               Sending...
             </span>
@@ -279,15 +281,15 @@ export const QueueMessageCard = memo(function QueueMessageCard({
             <>
               <Button
                 onClick={handleSaveEdit}
-                variant="ghost"
-                className="h-5 rounded-md px-1.5 py-0 text-2xs font-medium text-text-primary dark:text-text-dark-primary"
+                variant="unstyled"
+                className={clsx(styles['action-btn'], styles['action-btn--save'])}
               >
                 Save
               </Button>
               <Button
                 onClick={handleCancelEdit}
-                variant="ghost"
-                className="h-5 rounded-md px-1.5 py-0 text-2xs font-medium text-text-tertiary dark:text-text-dark-tertiary"
+                variant="unstyled"
+                className={clsx(styles['action-btn'], styles['action-btn--cancel-edit'])}
               >
                 Cancel
               </Button>
@@ -297,28 +299,28 @@ export const QueueMessageCard = memo(function QueueMessageCard({
               {message.synced && (
                 <Button
                   onClick={() => onSendNow(message.id)}
-                  variant="ghost"
-                  className="h-5 rounded-md px-1.5 py-0 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+                  variant="unstyled"
+                  className={clsx(styles['action-btn'], styles['action-btn--icon'])}
                   aria-label="Send now"
                 >
-                  <Send className="h-3 w-3" />
+                  <Send className={styles['action-glyph']} />
                 </Button>
               )}
               <Button
                 onClick={handleStartEdit}
-                variant="ghost"
-                className="h-5 rounded-md px-1.5 py-0 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary"
+                variant="unstyled"
+                className={clsx(styles['action-btn'], styles['action-btn--icon'])}
                 aria-label="Edit message"
               >
-                <Pencil className="h-3 w-3" />
+                <Pencil className={styles['action-glyph']} />
               </Button>
               <Button
                 onClick={() => onCancel(message.id)}
-                variant="ghost"
-                className="h-5 rounded-md px-1.5 py-0 text-text-tertiary hover:bg-error-50 hover:text-error-600 dark:hover:bg-error-500/10 dark:hover:text-error-400"
+                variant="unstyled"
+                className={clsx(styles['action-btn'], styles['action-btn--delete'])}
                 aria-label="Cancel message"
               >
-                <X className="h-3 w-3" />
+                <X className={styles['action-glyph']} />
               </Button>
             </>
           )}

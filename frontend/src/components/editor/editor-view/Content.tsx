@@ -1,7 +1,7 @@
 import { memo, lazy, Suspense } from 'react';
 import type * as monaco from 'monaco-editor';
 import { MONACO_FONT_FAMILY } from '@/config/constants';
-import { cn } from '@/utils/cn';
+import styles from './Content.module.scss';
 
 const Editor = lazy(() => import('@monaco-editor/react'));
 
@@ -68,19 +68,14 @@ export const Content = memo(function Content({
 }: ContentProps) {
   // Surface tokens track the active palette's CSS vars, matching Monaco's
   // editor.background for every palette — not just the default light/dark.
-  const loadingClassName = cn(
-    'flex h-full w-full items-center justify-center text-xs',
-    'text-text-quaternary dark:text-text-dark-quaternary',
-    'bg-surface-secondary dark:bg-surface-dark-secondary',
-  );
   const loadingFallback = (
-    <div className={loadingClassName}>
-      <div className="animate-pulse">Loading editor...</div>
+    <div className={styles['content-loading']}>
+      <div className={styles['content-loading-pulse']}>Loading editor...</div>
     </div>
   );
 
   return (
-    <div className="h-full">
+    <div className={styles.content}>
       <Suspense fallback={loadingFallback}>
         <Editor
           height="100%"
@@ -95,11 +90,11 @@ export const Content = memo(function Content({
           }}
           onMount={onMount}
           loading={
-            <div className={loadingClassName}>
-              <div className="animate-pulse">Loading editor...</div>
+            <div className={styles['content-loading']}>
+              <div className={styles['content-loading-pulse']}>Loading editor...</div>
             </div>
           }
-          className="bg-surface-secondary dark:bg-surface-dark-secondary"
+          className={styles['content-editor']}
         />
       </Suspense>
     </div>

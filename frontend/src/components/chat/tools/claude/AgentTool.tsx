@@ -1,16 +1,21 @@
 import React, { useMemo, useState, useRef, lazy, Suspense } from 'react';
-import { Button } from '@/components/ui/primitives/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Bot, Maximize2 } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
-import { CollapsibleButton } from '../common/CollapsibleButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { CollapsibleButton } from '../common/CollapsibleButton/CollapsibleButton';
 import { getToolComponent } from '../registry';
 import { AgentToolsContext } from '@/contexts/AgentToolsContext';
 import { extractResultText } from '@/utils/agentTool';
 import { useAgentToolsContext } from '@/hooks/useAgentToolsContext';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
+import styles from './AgentTool.module.scss';
 
-const LazyExpandedModal = lazy(() => import('@/components/ui/AgentToolExpandedModal'));
+const LazyExpandedModal = lazy(
+  () => import('@/components/ui/AgentToolExpandedModal/AgentToolExpandedModal'),
+);
 
 interface AgentToolProps {
   tool: ToolAggregate;
@@ -45,7 +50,7 @@ export const AgentTool: React.FC<AgentToolProps> = ({ tool }) => {
   );
 
   const expandAction = (
-    <FloatingTooltip content="Expand agent view" className="flex">
+    <FloatingTooltip content="Expand agent view" className={styles.tooltip}>
       <Button
         variant="unstyled"
         type="button"
@@ -53,10 +58,10 @@ export const AgentTool: React.FC<AgentToolProps> = ({ tool }) => {
           e.stopPropagation();
           setModalOpen(true);
         }}
-        className="rounded-sm opacity-0 transition-opacity duration-150 focus-visible:opacity-100 group-hover/tool:opacity-100"
+        className={styles['expand-button']}
         aria-label="Expand agent view"
       >
-        <Maximize2 className="h-3 w-3 text-text-tertiary hover:text-text-primary dark:text-text-dark-tertiary dark:hover:text-text-dark-primary" />
+        <Maximize2 className={styles['expand-icon']} />
       </Button>
     </FloatingTooltip>
   );
@@ -64,7 +69,7 @@ export const AgentTool: React.FC<AgentToolProps> = ({ tool }) => {
   return (
     <>
       <ToolCard
-        icon={<Bot className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+        icon={<Bot className={toolIcon.icon} />}
         status={tool.status}
         title={(status) => {
           const type = subagentType || 'general-purpose';
@@ -80,51 +85,37 @@ export const AgentTool: React.FC<AgentToolProps> = ({ tool }) => {
           }
         }}
         error={tool.error}
-        statusDetail={
-          description ? (
-            <p className="mt-1 text-xs text-text-tertiary dark:text-text-dark-tertiary">
-              {description}
-            </p>
-          ) : undefined
-        }
+        statusDetail={description ? <p className={styles.description}>{description}</p> : undefined}
         actions={expandAction}
       >
         {(prompt || result || tool.children.length > 0) && (
-          <div className="space-y-2">
+          <div className={styles.stack}>
             {prompt && (
-              <div className="space-y-2">
+              <div className={styles.stack}>
                 <CollapsibleButton
                   label="Prompt"
                   isExpanded={promptExpanded}
                   onToggle={() => setPromptExpanded((value) => !value)}
                   fullWidth
                 />
-                {promptExpanded && (
-                  <div className="whitespace-pre-wrap break-words rounded bg-black/5 p-2 font-mono text-2xs text-text-secondary dark:bg-white/5 dark:text-text-dark-tertiary">
-                    {prompt}
-                  </div>
-                )}
+                {promptExpanded && <div className={toolText['agent-box']}>{prompt}</div>}
               </div>
             )}
 
             {result && (
-              <div className="space-y-2">
+              <div className={styles.stack}>
                 <CollapsibleButton
                   label="Result"
                   isExpanded={resultExpanded}
                   onToggle={() => setResultExpanded((value) => !value)}
                   fullWidth
                 />
-                {resultExpanded && (
-                  <div className="whitespace-pre-wrap break-words rounded bg-black/5 p-2 font-mono text-2xs text-text-secondary dark:bg-white/5 dark:text-text-dark-tertiary">
-                    {result}
-                  </div>
-                )}
+                {resultExpanded && <div className={toolText['agent-box']}>{result}</div>}
               </div>
             )}
 
             {tool.children.length > 0 && (
-              <div className="space-y-2">
+              <div className={styles.stack}>
                 <CollapsibleButton
                   label="Tools Used"
                   isExpanded={toolsExpanded}
@@ -134,14 +125,11 @@ export const AgentTool: React.FC<AgentToolProps> = ({ tool }) => {
                 />
                 {toolsExpanded && (
                   <AgentToolsContext value={childAgentTools}>
-                    <div className="space-y-2">
+                    <div className={styles.stack}>
                       {tool.children.map((childTool) => {
                         const Component = getToolComponent(childTool.name);
                         return (
-                          <div
-                            key={childTool.id}
-                            className="border-l border-border pl-2 dark:border-border-dark"
-                          >
+                          <div key={childTool.id} className={styles['child-tool']}>
                             <Component tool={childTool} />
                           </div>
                         );

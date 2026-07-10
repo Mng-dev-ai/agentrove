@@ -1,11 +1,13 @@
 import { memo } from 'react';
 import { Terminal } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
+import styles from './ExecuteTool.module.scss';
 import type { CopilotExecuteInput, CopilotToolOutput } from './copilotPayload';
 
-const ICON = <Terminal className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />;
+const ICON = <Terminal className={toolIcon.icon} />;
 
 const ExecuteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as CopilotExecuteInput | undefined;
@@ -34,16 +36,14 @@ const ExecuteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(command || output) && (
-        <div className="space-y-1">
+        <div className={styles.content}>
           {command && (
-            <pre className="whitespace-pre-wrap break-all font-mono text-2xs leading-relaxed text-text-secondary dark:text-text-dark-tertiary">
-              <span className="select-none text-text-quaternary dark:text-text-dark-quaternary">
-                ${' '}
-              </span>
+            <pre className={styles.command}>
+              <span className={styles.prompt}>$ </span>
               {command}
             </pre>
           )}
-          {output && <pre className={TOOL_OUTPUT_PRE_CLASS}>{output}</pre>}
+          {output && <pre className={toolText['output-pre']}>{output}</pre>}
         </div>
       )}
     </ToolCard>

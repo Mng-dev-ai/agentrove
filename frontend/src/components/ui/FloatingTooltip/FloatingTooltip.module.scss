@@ -1,0 +1,26 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/zlayer' as z;
+
+.floating-tooltip {
+    // trigger wrapper — all layout comes from the caller-provided className
+}
+
+.bubble {
+    @include type.type-default(500);
+    @include anim.fade-in();
+    @include z.z('tooltip');
+    pointer-events: none;
+    position: fixed;
+    // arbitrary Tailwind value (280px), not in the spacing scale
+    max-width: 280px;
+    white-space: pre-line;
+    overflow-wrap: break-word;
+    // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
+    border-radius: var(--radius-sm);
+    background-color: var(--theme-surface-tertiary);
+    padding: var(--space-1) var(--space-2);
+    color: var(--theme-text-primary);
+    // TODO(refactor): shadow-lg had no token, using medium
+    box-shadow: var(--shadow-medium);
+}

@@ -1,10 +1,11 @@
 import { memo, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { GitBranch } from 'lucide-react';
-import { Dropdown, DropdownItemType } from '@/components/ui/primitives/Dropdown';
+import { Dropdown, DropdownItemType } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
+import styles from './BranchSelector.module.scss';
 
 export interface BranchSelectorProps {
   dropdownPosition?: 'top' | 'bottom';
@@ -70,7 +71,7 @@ export const BranchSelector = memo(function BranchSelector({
       }}
       leftIcon={GitBranch}
       getItemShortLabel={(branch) => (branch.length > 16 ? branch.slice(0, 16) + '…' : branch)}
-      width="w-64"
+      width="16rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled || checkoutBranch.isPending}
       compactOnMobile
@@ -80,7 +81,7 @@ export const BranchSelector = memo(function BranchSelector({
       searchable={branchesData.branches.length >= 6}
       searchPlaceholder="Search branches..."
       searchVariant="underline"
-      itemClassName="font-mono"
+      itemClassName={styles['item-mono']}
     />
   );
 });

@@ -1,0 +1,194 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/zlayer' as z;
+
+.user-profile-menu {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2-5);
+}
+
+.trigger {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+    gap: var(--space-2-5);
+    border-radius: var(--radius-md);
+    text-align: left;
+}
+
+.avatar-wrap {
+    position: relative;
+    flex-shrink: 0;
+}
+
+// Pending-update indicator on the avatar corner
+.update-dot {
+    position: absolute;
+    right: calc(var(--space-0-5) * -1);
+    top: calc(var(--space-0-5) * -1);
+    height: var(--space-2);
+    width: var(--space-2);
+    border-radius: var(--radius-full);
+    background-color: var(--theme-text-primary);
+    box-shadow: 0 0 0 2px var(--theme-surface-secondary);
+}
+
+.name {
+    @include type.type-default(500);
+    @include type.type-overflow;
+    min-width: 0;
+    flex: 1;
+    color: var(--theme-text-primary);
+}
+
+.panel {
+    @include z.z('dropdown');
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: var(--space-2);
+    width: var(--space-64);
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-xl);
+    background-color: var(--theme-surface-secondary);
+    box-shadow: var(--shadow-medium);
+    animation: fade-in var(--duration-base) var(--easing-out) forwards;
+}
+
+.update-section {
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    padding: var(--space-2);
+}
+
+.update-downloading {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2-5);
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-2);
+    color: var(--theme-text-secondary);
+}
+
+.update-installing {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2-5);
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-2);
+    color: var(--theme-text-secondary);
+}
+
+.update-action {
+    @include anim.transition-colors;
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    gap: var(--space-2-5);
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-2);
+    text-align: left;
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+.update-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    flex-shrink: 0;
+
+    &--top {
+        margin-top: var(--space-0-5);
+    }
+
+    &--spin {
+        animation: spin 1s linear infinite;
+    }
+
+    &--primary {
+        color: var(--theme-text-primary);
+    }
+
+    &--error {
+        color: var(--theme-error-text);
+    }
+}
+
+.update-text {
+    min-width: 0;
+    flex: 1;
+}
+
+.update-title {
+    @include type.type-default(500);
+    color: var(--theme-text-primary);
+}
+
+.update-subtitle {
+    @include type.type-meta;
+    margin-top: var(--space-0-5);
+    color: var(--theme-text-quaternary);
+}
+
+.update-notes {
+    @include type.type-meta;
+    @include type.type-lineclamp(3);
+    margin-top: var(--space-1-5);
+    line-height: 1.625;
+    white-space: pre-wrap;
+    color: var(--theme-text-tertiary);
+}
+
+.update-error-msg {
+    @include type.type-meta;
+    @include type.type-overflow;
+    margin-top: var(--space-0-5);
+    color: var(--theme-text-quaternary);
+}
+
+.menu-list {
+    padding: var(--space-1-5);
+}
+
+.menu-item {
+    @include anim.transition-colors;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: var(--space-2-5);
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-2);
+    text-align: left;
+    color: var(--theme-text-secondary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+        color: var(--theme-text-primary);
+    }
+}
+
+.item-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    flex-shrink: 0;
+}
+
+.item-label {
+    @include type.type-default;
+    flex: 1;
+}
+
+.item-text {
+    @include type.type-default;
+}
+
+.item-value {
+    @include type.type-meta;
+    color: var(--theme-text-quaternary);
+}

@@ -28,7 +28,6 @@
           } else if (window.matchMedia?.('(prefers-color-scheme: dark)')) {
             theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
           }
-          document.body.classList.add(theme);
           document.documentElement.setAttribute('data-theme', theme);
           const meta = document.querySelector('meta[name="theme-color"]');
           if (meta) {

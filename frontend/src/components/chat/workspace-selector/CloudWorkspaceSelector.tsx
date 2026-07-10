@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Cloud } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { useCloudWorkspacesQuery } from '@/hooks/queries/useCloudQueries';
 import { WorkspacePicker } from './WorkspacePicker';
+import styles from './CloudWorkspaceSelector.module.scss';
 
 interface CloudWorkspaceSelectorProps {
   selectedWorkspaceId: string | null;
@@ -37,20 +38,16 @@ export function CloudWorkspaceSelector({
         type="button"
         variant="unstyled"
         onClick={() => navigate('/settings', { state: { tab: 'cloud' } })}
-        className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 text-2xs text-text-tertiary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-tertiary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+        className={styles['connect-button']}
       >
-        <Cloud className="h-3 w-3 shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
+        <Cloud className={styles['connect-icon']} />
         Connect a cloud instance
       </Button>
     );
   }
 
   if (error) {
-    return (
-      <span className="px-1.5 py-1 text-2xs text-error-600 dark:text-error-400">
-        Couldn&apos;t reach cloud instance
-      </span>
-    );
+    return <span className={styles['error-message']}>Couldn&apos;t reach cloud instance</span>;
   }
 
   return (

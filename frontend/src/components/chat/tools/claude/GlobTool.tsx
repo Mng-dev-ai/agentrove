@@ -1,7 +1,9 @@
 import { memo } from 'react';
 import { FolderSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolIcon from './toolIcon.module.scss';
+import styles from './GlobTool.module.scss';
 
 interface GlobInput {
   pattern: string;
@@ -24,9 +26,7 @@ const GlobToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={
-        <FolderSearch className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />
-      }
+      icon={<FolderSearch className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         switch (status) {
@@ -42,9 +42,9 @@ const GlobToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {files.length > 0 && (
-        <div className="max-h-48 overflow-auto font-mono text-2xs leading-relaxed text-text-tertiary dark:text-text-dark-quaternary">
+        <div className={styles.files}>
           {files.map((file) => (
-            <div key={file} className="truncate">
+            <div key={file} className={styles.file}>
               {file}
             </div>
           ))}

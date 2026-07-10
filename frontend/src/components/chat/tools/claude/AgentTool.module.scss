@@ -1,0 +1,49 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+
+.tooltip {
+    display: flex;
+}
+
+.expand-button {
+    border-radius: var(--radius-sm);
+    opacity: 0;
+    transition: opacity var(--duration-fast);
+
+    &:focus-visible {
+        opacity: 1;
+    }
+
+    @include responsive.media('not-touch') {
+        :global(.tool-card):hover & {
+            opacity: 1;
+        }
+    }
+}
+
+.expand-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        color: var(--theme-text-primary);
+    }
+}
+
+.description {
+    margin-top: var(--space-1);
+    @include type.type-default;
+    color: var(--theme-text-tertiary);
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.child-tool {
+    border-left: 1px solid var(--theme-border);
+    padding-left: var(--space-2);
+}

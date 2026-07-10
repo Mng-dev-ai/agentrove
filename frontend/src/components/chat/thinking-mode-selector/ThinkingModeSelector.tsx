@@ -1,6 +1,7 @@
 import { memo } from 'react';
+import clsx from 'clsx';
 import { Brain } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -9,6 +10,7 @@ import {
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import type { AgentKind } from '@/types/chat.types';
 import { getThinkingModesForAgent, getThinkingModeOption } from './thinkingModes';
+import styles from './ThinkingModeSelector.module.scss';
 
 export interface ThinkingModeSelectorProps {
   chatId?: string;
@@ -51,7 +53,7 @@ export const ThinkingModeSelector = memo(function ThinkingModeSelector({
       getItemLabel={(mode) => mode.label}
       onSelect={(mode) => useChatSettingsStore.getState().setThinkingMode(key, mode.value)}
       leftIcon={Brain}
-      width="w-32"
+      width="8rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compactOnMobile
@@ -59,9 +61,7 @@ export const ThinkingModeSelector = memo(function ThinkingModeSelector({
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
       renderItem={(mode, isSelected) => (
-        <span
-          className={`text-2xs font-medium ${isSelected ? 'text-text-primary dark:text-text-dark-primary' : 'text-text-secondary dark:text-text-dark-secondary'}`}
-        >
+        <span className={clsx(styles['mode-label'], isSelected && styles['mode-label--selected'])}>
           {mode.label}
         </span>
       )}

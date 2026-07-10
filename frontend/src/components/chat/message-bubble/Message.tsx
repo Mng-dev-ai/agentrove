@@ -8,13 +8,14 @@ import {
   type AssistantStreamEvent,
   type MessageAttachment,
 } from '@/types/chat.types';
-import { Tooltip } from '@/components/ui/Tooltip';
-import { Button } from '@/components/ui/primitives/Button';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Tooltip } from '@/components/ui/Tooltip/Tooltip';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { formatRelativeTime, formatFullTimestamp } from '@/utils/date';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useCheckpointRestore } from '@/hooks/useCheckpointRestore';
+import styles from './Message.module.scss';
 
 interface SharedContentProps {
   contentRender: {
@@ -41,11 +42,11 @@ export const UserMessage = memo(function UserMessage({
   const { chatId } = useChatContext();
 
   return (
-    <div className="group px-4 py-1.5 sm:px-6 sm:py-2">
-      <div className="flex items-start">
-        <div className="min-w-0 flex-1">
-          <div className="inline-block max-w-full overflow-hidden rounded-xl bg-surface-hover/60 px-3 py-1.5 dark:bg-surface-dark-tertiary/80">
-            <div className="max-w-none break-words text-sm text-text-primary dark:text-text-dark-primary">
+    <div className={styles.message}>
+      <div className={styles['message-row']}>
+        <div className={styles['message-body']}>
+          <div className={styles['user-bubble']}>
+            <div className={styles['message-text']}>
               <UserMessageContent
                 contentRender={contentRender}
                 attachments={attachments}
@@ -57,7 +58,7 @@ export const UserMessage = memo(function UserMessage({
           </div>
 
           {contentText.trim() && !isStreaming && (
-            <div className="mt-1">
+            <div className={styles['actions-slot']}>
               <MessageActions messageId={id} contentText={contentText} />
             </div>
           )}
@@ -118,10 +119,10 @@ export const AssistantMessage = memo(function AssistantMessage({
   const showFooter = (hasContentText || checkpointId != null) && !isStreaming;
 
   return (
-    <div className="group px-4 py-1.5 sm:px-6 sm:py-2">
-      <div className="flex items-start">
-        <div className="min-w-0 flex-1">
-          <div className="max-w-none break-words text-sm text-text-primary dark:text-text-dark-primary">
+    <div className={styles.message}>
+      <div className={styles['message-row']}>
+        <div className={styles['message-body']}>
+          <div className={styles['message-text']}>
             <AssistantMessageContent
               contentRender={contentRender}
               attachments={attachments}
@@ -135,8 +136,8 @@ export const AssistantMessage = memo(function AssistantMessage({
           </div>
 
           {showFooter && (
-            <div className="mt-2 flex items-center justify-between">
-              <div className="flex items-center gap-0.5">
+            <div className={styles.footer}>
+              <div className={styles['footer-actions']}>
                 {hasContentText && <MessageActions messageId={id} contentText={contentText} />}
                 {checkpointId && (
                   <Tooltip content="Restore to before this run" position="bottom">
@@ -145,20 +146,20 @@ export const AssistantMessage = memo(function AssistantMessage({
                       variant="unstyled"
                       disabled={isRestoring}
                       aria-label="Restore to before this run"
-                      className="rounded-md p-1 text-text-quaternary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50 dark:text-text-dark-quaternary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+                      className={styles['restore-button']}
                     >
-                      <Undo2 className="h-3.5 w-3.5" />
+                      <Undo2 className={styles['restore-icon']} />
                     </Button>
                   </Tooltip>
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+              <div className={styles['footer-meta']}>
                 {modelName && <span>{modelName}</span>}
                 {modelName && relativeTime && <span>·</span>}
                 {relativeTime && (
                   <Tooltip content={fullTimestamp} position="bottom">
-                    <span className="cursor-default">{relativeTime}</span>
+                    <span className={styles['footer-time']}>{relativeTime}</span>
                   </Tooltip>
                 )}
               </div>

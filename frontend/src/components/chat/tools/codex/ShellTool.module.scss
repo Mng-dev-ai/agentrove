@@ -1,0 +1,15 @@
+.icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-secondary);
+
+    :global([data-theme='dark']) & {
+        color: var(--theme-text-tertiary);
+    }
+}
+
+.body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}

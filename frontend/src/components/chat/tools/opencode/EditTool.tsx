@@ -2,13 +2,14 @@ import { memo } from 'react';
 import { FileEdit } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { DiffView } from '../common/DiffView';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { DiffView } from '../common/DiffView/DiffView';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import { buildUnifiedDiff } from '../common/buildUnifiedDiff';
+import toolIcon from './toolIcon.module.scss';
 import type { OpencodeEditInput } from './opencodePayload';
 
-const ICON = <FileEdit className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />;
+const ICON = <FileEdit className={toolIcon.icon} />;
 
 const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const input = tool.input as OpencodeEditInput | undefined;

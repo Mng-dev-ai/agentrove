@@ -1,11 +1,13 @@
 import { memo } from 'react';
+import clsx from 'clsx';
 import { Terminal } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
 import type { CursorExecuteOutput } from './cursorPayload';
+import styles from './ExecuteTool.module.scss';
 
-const ICON = <Terminal className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />;
+const ICON = <Terminal className={styles.icon} />;
 
 const ExecuteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
   const result = tool.result as CursorExecuteOutput | undefined;
@@ -36,10 +38,10 @@ const ExecuteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(stdout || stderr) && (
-        <div className="space-y-1">
-          {stdout && <pre className={TOOL_OUTPUT_PRE_CLASS}>{stdout}</pre>}
+        <div className={styles.body}>
+          {stdout && <pre className={toolText['output-pre']}>{stdout}</pre>}
           {stderr && (
-            <pre className={`${TOOL_OUTPUT_PRE_CLASS} text-error-600 dark:text-error-400`}>
+            <pre className={clsx(toolText['output-pre'], toolText['output-pre--error'])}>
               {stderr}
             </pre>
           )}

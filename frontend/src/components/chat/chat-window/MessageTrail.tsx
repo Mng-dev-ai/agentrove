@@ -1,8 +1,9 @@
 import { memo, useCallback, useEffect, useMemo, useState, type RefObject } from 'react';
-import { cn } from '@/utils/cn';
-import { Button } from '@/components/ui/primitives/Button';
+import clsx from 'clsx';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { isAssistantMessage } from '@/utils/message';
 import type { Message } from '@/types/chat.types';
+import styles from './MessageTrail.module.scss';
 
 // Cap preview text so a huge message doesn't dump megabytes into the DOM
 const PREVIEW_MAX_CHARS = 200;
@@ -111,49 +112,48 @@ export const MessageTrail = memo(function MessageTrail({
   if (turns.length < 2) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-y-6 left-0 z-10 hidden flex-col justify-center lg:flex">
+    <div className={styles.trail}>
       {/* Rail height caps at preferred spacing so short chats stay a compact cluster,
           while long chats distribute ticks proportionally without clipping */}
       <div
-        className="relative"
+        className={styles['trail-rail']}
         style={{ height: `min(100%, ${turns.length * TICK_SPACING_PX}px)` }}
       >
-        {turns.map((turn, index) => (
-          <div
-            key={turn.id}
-            style={{ top: `${(index / (turns.length - 1)) * 100}%` }}
-            className="group pointer-events-auto absolute left-0 flex -translate-y-1/2 items-center"
-          >
-            <Button
-              variant="unstyled"
-              onClick={() => scrollToTurn(turn.id)}
-              aria-label={`Jump to message: ${turn.userText.slice(0, 60)}`}
-              className={cn('flex h-2.5 items-center', isCompact ? 'px-1' : 'px-2')}
+        {turns.map((turn, index) => {
+          const isActive = turn.id === activeId;
+          const tickModifier = isActive
+            ? isCompact
+              ? 'tick--active-compact'
+              : 'tick--active'
+            : isCompact
+              ? 'tick--inactive-compact'
+              : 'tick--inactive';
+          return (
+            <div
+              key={turn.id}
+              style={{ top: `${(index / (turns.length - 1)) * 100}%` }}
+              className={styles['trail-item']}
             >
-              <span
-                className={cn(
-                  'h-0.5 rounded-full transition-all duration-200',
-                  turn.id === activeId
-                    ? cn('bg-text-primary dark:bg-text-dark-primary', isCompact ? 'w-2.5' : 'w-4')
-                    : cn(
-                        'bg-text-quaternary/50 group-hover:bg-text-tertiary dark:bg-text-dark-quaternary/50 dark:group-hover:bg-text-dark-tertiary',
-                        isCompact ? 'w-1.5 group-hover:w-2' : 'w-2.5 group-hover:w-3.5',
-                      ),
+              <Button
+                variant="unstyled"
+                onClick={() => scrollToTurn(turn.id)}
+                aria-label={`Jump to message: ${turn.userText.slice(0, 60)}`}
+                className={clsx(
+                  styles['trail-button'],
+                  isCompact ? styles['trail-button--compact'] : styles['trail-button--regular'],
                 )}
-              />
-            </Button>
-            <div className="pointer-events-none invisible absolute left-full top-1/2 z-20 w-72 -translate-y-1/2 rounded-xl border border-border/50 bg-surface/95 px-3 py-2 opacity-0 shadow-medium backdrop-blur-xl transition-opacity duration-200 group-hover:visible group-hover:opacity-100 dark:border-border-dark/50 dark:bg-surface-dark/95">
-              <p className="line-clamp-1 text-xs font-medium text-text-primary dark:text-text-dark-primary">
-                {turn.userText}
-              </p>
-              {turn.assistantText && (
-                <p className="mt-1 line-clamp-3 text-xs text-text-secondary dark:text-text-dark-secondary">
-                  {turn.assistantText}
-                </p>
-              )}
+              >
+                <span className={clsx(styles.tick, styles[tickModifier])} />
+              </Button>
+              <div className={styles.tooltip}>
+                <p className={styles['tooltip-title']}>{turn.userText}</p>
+                {turn.assistantText && (
+                  <p className={styles['tooltip-body']}>{turn.assistantText}</p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

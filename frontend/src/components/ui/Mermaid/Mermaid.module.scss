@@ -1,0 +1,163 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.mermaid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    margin-block: var(--space-4);
+}
+
+.toolbar {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.toggle-btn {
+    @include type.type-default;
+    @include anim.transition-colors;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1-5);
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-md);
+    background-color: var(--theme-surface-secondary);
+    padding: var(--space-1) var(--space-2);
+    color: var(--theme-text-secondary);
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+}
+
+.toggle-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+}
+
+.code-block {
+    overflow-x: auto;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-xl);
+    background-color: var(--theme-surface-secondary);
+    padding: var(--space-4);
+}
+
+.code {
+    @include type.type-mono(0.75rem, 1rem);
+    color: var(--theme-text-primary);
+}
+
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-8);
+}
+
+.loading-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--theme-text-tertiary);
+}
+
+.loading-icon {
+    height: var(--space-5);
+    width: var(--space-5);
+    animation: spin 1s linear infinite;
+}
+
+.loading-text {
+    @include type.type-body;
+}
+
+.error-block {
+    border: 1px solid colors.status-color('error', 200);
+    border-radius: var(--radius-lg);
+    background-color: colors.status-color('error', 50);
+    padding: var(--space-4);
+
+    :global([data-theme='dark']) & {
+        border-color: colors.status-color('error', 500, 0.2);
+        background-color: colors.status-color('error', 500, 0.05);
+    }
+}
+
+.error-inner {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
+.error-icon {
+    margin-top: var(--space-0-5);
+    height: var(--space-5);
+    width: var(--space-5);
+    flex-shrink: 0;
+    color: colors.status-color('error', 500);
+}
+
+.error-content {
+    flex: 1;
+}
+
+.error-title {
+    @include type.type-default(500);
+    color: colors.status-color('error', 700);
+
+    :global([data-theme='dark']) & {
+        color: colors.status-color('error', 400);
+    }
+}
+
+.error-message {
+    @include type.type-body;
+    margin-top: var(--space-1);
+    color: colors.status-color('error', 600);
+
+    :global([data-theme='dark']) & {
+        color: colors.status-color('error', 300);
+    }
+}
+
+.error-details {
+    margin-top: var(--space-3);
+}
+
+.error-summary {
+    @include type.type-body;
+    cursor: pointer;
+    color: var(--theme-error-text);
+
+    @include responsive.hover {
+        text-decoration: underline;
+    }
+}
+
+.error-code {
+    margin-top: var(--space-2);
+    overflow-x: auto;
+    border-radius: var(--radius-lg);
+    background-color: colors.status-color('error', 100);
+    padding: var(--space-3);
+
+    :global([data-theme='dark']) & {
+        background-color: colors.status-color('error', 900, 0.2);
+    }
+}
+
+.error-code-text {
+    @include type.type-default;
+    color: colors.status-color('error', 800);
+
+    :global([data-theme='dark']) & {
+        color: colors.status-color('error', 200);
+    }
+}
+
+.diagram {
+    overflow-x: auto;
+}

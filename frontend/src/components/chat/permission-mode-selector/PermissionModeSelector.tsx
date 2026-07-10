@@ -1,7 +1,8 @@
 import { memo } from 'react';
+import clsx from 'clsx';
 import { Shield } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown';
-import { Button } from '@/components/ui/primitives/Button';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import {
   useChatSettingsStore,
@@ -15,18 +16,15 @@ import {
   getPermissionModeOption,
   type PermissionModeOption,
 } from './permissionModes';
+import styles from './PermissionModeSelector.module.scss';
 
 function renderPermissionItem(mode: PermissionModeOption, isSelected: boolean) {
   return (
     <>
-      <span
-        className={`text-2xs font-medium text-text-primary ${isSelected ? 'dark:text-text-dark-primary' : 'dark:text-text-dark-secondary'}`}
-      >
+      <span className={clsx(styles['mode-label'], isSelected && styles['mode-label--selected'])}>
         {mode.label}
       </span>
-      <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-        {mode.description}
-      </span>
+      <span className={styles['mode-description']}>{mode.description}</span>
     </>
   );
 }
@@ -76,8 +74,8 @@ export const PermissionModeSelector = memo(function PermissionModeSelector({
       getItemShortLabel={shortLabelFn}
       onSelect={(mode) => useChatSettingsStore.getState().setPermissionMode(key, mode.value)}
       leftIcon={Shield}
-      width="w-52"
-      itemClassName="flex flex-col gap-0.5"
+      width="13rem"
+      itemClassName={styles['item-column']}
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compactOnMobile
@@ -88,31 +86,37 @@ export const PermissionModeSelector = memo(function PermissionModeSelector({
       renderFooter={
         showPlanMode
           ? () => (
-              <div className="border-t border-border/50 px-1 py-1 dark:border-border-dark/50">
+              <div className={styles.footer}>
                 <Button
                   type="button"
                   variant="unstyled"
                   onClick={() => {
                     useChatSettingsStore.getState().setPlanMode(key, !planMode);
                   }}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 transition-colors duration-150 hover:bg-surface-hover/50 dark:hover:bg-surface-dark-hover/50"
+                  className={styles['plan-toggle']}
                 >
-                  <div className="h-3 w-3 flex-shrink-0" />
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+                  <div className={styles['plan-toggle-spacer']} />
+                  <div className={styles['plan-toggle-text']}>
                     <span
-                      className={`text-2xs font-medium ${planMode ? 'text-text-primary dark:text-text-dark-primary' : 'text-text-secondary dark:text-text-dark-secondary'}`}
+                      className={clsx(
+                        styles['plan-toggle-label'],
+                        planMode && styles['plan-toggle-label--active'],
+                      )}
                     >
                       Plan Mode
                     </span>
-                    <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                    <span className={styles['mode-description']}>
                       Review steps before executing
                     </span>
                   </div>
                   <div
-                    className={`h-3.5 w-6 rounded-full transition-colors duration-200 ${planMode ? 'bg-text-primary dark:bg-text-dark-primary' : 'bg-text-quaternary/40 dark:bg-text-dark-quaternary/40'}`}
+                    className={clsx(styles['mode-toggle'], planMode && styles['mode-toggle--on'])}
                   >
                     <div
-                      className={`h-2.5 w-2.5 translate-y-0.5 rounded-full transition-transform duration-200 ${planMode ? 'translate-x-3 bg-surface dark:bg-surface-dark' : 'translate-x-0.5 bg-white dark:bg-text-dark-tertiary'}`}
+                      className={clsx(
+                        styles['mode-toggle-thumb'],
+                        planMode && styles['mode-toggle-thumb--on'],
+                      )}
                     />
                   </div>
                 </Button>

@@ -3,7 +3,7 @@ import { ValidationError } from '@/services/base/ServiceError';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
 
-const checkDuplicate = <T extends Record<string, unknown>>(
+const checkDuplicate = <T extends object>(
   field: keyof T,
   value: string,
   items: T[],
@@ -51,7 +51,7 @@ export function validateRequired(value: unknown, fieldName: string): void {
   }
 }
 
-export function validateUnique<T extends Record<string, unknown>>(
+export function validateUnique<T extends object>(
   field: keyof T,
   value: string,
   items: T[],

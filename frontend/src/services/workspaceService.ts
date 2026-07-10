@@ -12,7 +12,7 @@ async function listWorkspaces(
   pagination?: PaginationParams,
 ): Promise<PaginatedResponse<Workspace>> {
   return serviceCall(async () => {
-    const queryString = buildQueryString(pagination as Record<string, number>);
+    const queryString = buildQueryString(pagination ? { ...pagination } : undefined);
     const response = await apiClient.get<PaginatedResponse<Workspace>>(`/workspaces${queryString}`);
     return ensureResponse(response, 'Failed to fetch workspaces');
   });

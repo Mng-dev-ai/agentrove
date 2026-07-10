@@ -1,0 +1,80 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+
+.body {
+    padding: var(--space-5);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2-5);
+}
+
+.icon-box {
+    display: flex;
+    height: var(--space-8);
+    width: var(--space-8);
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-lg);
+    background-color: var(--theme-surface-tertiary);
+}
+
+.header-icon {
+    height: var(--space-4);
+    width: var(--space-4);
+    color: var(--theme-text-tertiary);
+}
+
+.title {
+    @include type.type-body(500);
+    color: var(--theme-text-primary);
+}
+
+.fields {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.label {
+    @include type.type-section-header;
+    display: block;
+    margin-bottom: var(--space-1-5);
+}
+
+.name-input {
+    @include anim.transition-colors;
+    width: 100%;
+    border: 1px solid colors.theme-color('border', 0.5);
+    border-radius: var(--radius-lg);
+    background-color: var(--theme-surface-secondary);
+    padding: var(--space-1-5) var(--space-3);
+    @include type.type-default;
+    color: var(--theme-text-primary);
+    outline: none;
+
+    &:focus {
+        border-color: var(--theme-border-hover);
+    }
+}
+
+.base-select {
+    height: var(--space-8);
+    background-color: var(--theme-surface-secondary);
+    padding: var(--space-1-5) var(--space-3);
+    @include type.type-default;
+    color: var(--theme-text-primary);
+}
+
+.footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    border-top: 1px solid colors.theme-color('border', 0.5);
+    padding: var(--space-3-5) var(--space-5);
+}

@@ -1,0 +1,52 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.empty-state {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    // Surface token is theme-aware, so the light/dark split collapses to one var.
+    background-color: var(--theme-surface-secondary);
+}
+
+.empty-state-header {
+    display: flex;
+    height: var(--space-9);
+    align-items: center;
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    padding-inline: var(--space-3);
+}
+
+.toggle-tree {
+    @include anim.transition-colors(var(--duration-fast));
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+    padding: var(--space-1);
+    color: var(--theme-text-quaternary);
+
+    @include responsive.hover {
+        color: var(--theme-text-secondary);
+    }
+}
+
+.empty-state-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+}
+
+.empty-state-icon {
+    height: var(--space-8);
+    width: var(--space-8);
+    color: var(--theme-text-quaternary);
+}
+
+.empty-state-text {
+    @include type.type-default;
+    color: var(--theme-text-quaternary);
+}

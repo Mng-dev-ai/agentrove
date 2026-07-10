@@ -1,0 +1,193 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.sidebar {
+    display: flex;
+    min-height: 0;
+    flex: 1;
+    flex-direction: column;
+}
+
+.sidebar-header {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-2);
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    padding: var(--space-2) var(--space-3);
+}
+
+.file-count {
+    @include type.type-meta(500);
+    color: var(--theme-text-secondary);
+}
+
+.spacer {
+    min-width: 0;
+    flex: 1;
+}
+
+.stat-add {
+    @include type.type-mono-meta;
+    color: var(--theme-success-text);
+}
+
+.stat-del {
+    @include type.type-mono-meta;
+    color: var(--theme-error-text);
+}
+
+.list {
+    min-height: 0;
+    flex: 1;
+    overflow-y: auto;
+    padding-block: var(--space-1);
+}
+
+// FloatingTooltip anchor — full-width block so the row fills the sidebar.
+.block-full {
+    display: block;
+    width: 100%;
+}
+
+.dir-label {
+    @include type.type-mono-meta;
+    display: flex;
+    overflow: hidden;
+    padding: var(--space-1-5) var(--space-3) var(--space-0-5);
+    color: var(--theme-text-quaternary);
+}
+
+.dir-head {
+    @include type.type-overflow;
+    min-width: 0;
+}
+
+.dir-tail {
+    flex-shrink: 0;
+}
+
+.file-row {
+    @include anim.transition-colors;
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: var(--space-1-5);
+    border-left: 2px solid transparent;
+    padding: var(--space-1) var(--space-3) var(--space-1) var(--space-4);
+    text-align: left;
+
+    @include responsive.hover {
+        background-color: var(--theme-surface-hover);
+    }
+
+    &--active {
+        border-left-color: var(--theme-text-primary);
+        background-color: var(--theme-surface-active);
+
+        @include responsive.hover {
+            background-color: var(--theme-surface-active);
+        }
+    }
+}
+
+.review-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+
+    &--reviewed {
+        color: var(--theme-success-text);
+    }
+
+    &--unreviewed {
+        color: colors.theme-color('text-quaternary', 0.6);
+    }
+}
+
+.file-name {
+    @include type.type-mono-meta;
+    @include type.type-overflow;
+    min-width: 0;
+    flex: 1;
+    color: var(--theme-text-secondary);
+
+    &--active {
+        color: var(--theme-text-primary);
+    }
+
+    &--deleted {
+        text-decoration: line-through;
+        opacity: 0.7;
+    }
+}
+
+.badge {
+    @include type.type-noselect;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    padding: var(--space-0-5) var(--space-1);
+    // No 9px type token exists — micro-badge sizing kept literal.
+    // TODO(refactor): add a type-micro mixin if 9px badges proliferate.
+    font-size: 9px;
+    font-weight: 500;
+    line-height: 1;
+
+    &--new {
+        color: var(--theme-success-text);
+        background-color: colors.status-color('success', 600, 0.15);
+
+        :global([data-theme='dark']) & {
+            background-color: colors.status-color('success', 400, 0.15);
+        }
+    }
+
+    &--deleted {
+        color: var(--theme-error-text);
+        background-color: colors.status-color('error', 600, 0.15);
+
+        :global([data-theme='dark']) & {
+            background-color: colors.status-color('error', 400, 0.15);
+        }
+    }
+
+    &--renamed {
+        color: var(--theme-warning-text);
+        background-color: colors.status-color('warning', 600, 0.15);
+
+        :global([data-theme='dark']) & {
+            background-color: colors.status-color('warning', 400, 0.15);
+        }
+    }
+}
+
+.ticks {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 1px;
+}
+
+.tick {
+    height: var(--space-2);
+    width: var(--space-1);
+    border-radius: 1px;
+
+    &--add {
+        background-color: colors.status-color('success', 600, 0.75);
+
+        :global([data-theme='dark']) & {
+            background-color: colors.status-color('success', 400, 0.75);
+        }
+    }
+
+    &--del {
+        background-color: colors.status-color('error', 600, 0.75);
+
+        :global([data-theme='dark']) & {
+            background-color: colors.status-color('error', 400, 0.75);
+        }
+    }
+}

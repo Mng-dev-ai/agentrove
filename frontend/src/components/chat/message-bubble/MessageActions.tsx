@@ -1,9 +1,11 @@
 import { memo } from 'react';
+import clsx from 'clsx';
 import { CheckCircle2, Copy } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
-import { Tooltip } from '@/components/ui/Tooltip';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Tooltip } from '@/components/ui/Tooltip/Tooltip';
 import { useChatSessionActions } from '@/hooks/useChatSessionContext';
 import { useChatCopiedMessageContext } from '@/hooks/useChatCopiedMessageContext';
+import styles from './MessageActions.module.scss';
 
 interface MessageActionsProps {
   messageId: string;
@@ -28,22 +30,23 @@ export const MessageActions = memo(function MessageActions({
     <Button
       onClick={() => onCopy(contentText, messageId)}
       variant="unstyled"
-      className={`relative overflow-hidden rounded-md p-1 transition-colors duration-200 ${
+      className={clsx(
+        styles['copy-button'],
         copiedMessageId === messageId
-          ? 'bg-success-100 text-success-600 dark:bg-success-500/10 dark:text-success-400'
-          : 'text-text-quaternary hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-quaternary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary'
-      }`}
+          ? styles['copy-button--copied']
+          : styles['copy-button--default'],
+      )}
     >
       {copiedMessageId === messageId ? (
-        <CheckCircle2 className="h-3.5 w-3.5" />
+        <CheckCircle2 className={styles['copy-icon']} />
       ) : (
-        <Copy className="h-3.5 w-3.5" />
+        <Copy className={styles['copy-icon']} />
       )}
     </Button>
   );
 
   return (
-    <div className="flex items-center gap-0.5">
+    <div className={styles['message-actions']}>
       {showTooltip ? (
         <Tooltip content={copiedMessageId === messageId ? 'Copied!' : copyLabel} position="bottom">
           {button}

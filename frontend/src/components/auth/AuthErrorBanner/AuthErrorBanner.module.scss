@@ -1,0 +1,10 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/animations' as anim;
+
+.banner {
+    @include anim.fade-in;
+    border: 1px solid colors.status-color('error', 500, 0.2);
+    border-radius: var(--radius-lg);
+    background-color: colors.status-color('error', 500, 0.1);
+    padding: var(--space-3);
+}

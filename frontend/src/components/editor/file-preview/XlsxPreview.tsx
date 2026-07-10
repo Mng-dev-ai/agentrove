@@ -1,14 +1,16 @@
 import { memo, useState } from 'react';
+import clsx from 'clsx';
 import { logger } from '@/utils/logger';
 import { base64ToUint8Array } from '@/utils/base64';
 import type { FileStructure } from '@/types/file-system.types';
-import { Button } from '@/components/ui/primitives/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { useAsyncEffect } from '@/hooks/useAsyncEffect';
 import { PreviewContainer } from './PreviewContainer';
 import { PreviewEmptyState } from './PreviewEmptyState';
 import { previewBackgroundClass, tableBorderClass } from './previewConstants';
 import { getDisplayFileName, isValidBase64 } from './previewUtils';
+import styles from './XlsxPreview.module.scss';
 
 export interface XlsxPreviewProps {
   file: FileStructure;
@@ -124,19 +126,15 @@ export const XlsxPreview = memo(function XlsxPreview({
       onToggleFullscreen={onToggleFullscreen}
       disableContentWrapper
     >
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className={styles['xlsx-preview']}>
         {hasMultipleSheets && (
-          <div className="flex h-12 shrink-0 gap-1 border-b border-border bg-surface-secondary p-2 dark:border-border-dark dark:bg-surface-dark-secondary">
+          <div className={styles.tabs}>
             {worksheetData.map((sheet, index) => (
               <Button
                 key={index}
                 onClick={() => setActiveSheet(index)}
                 variant="unstyled"
-                className={`cursor-pointer rounded px-3 py-1 text-sm ${
-                  activeSheet === index
-                    ? 'bg-surface text-text-primary shadow-sm dark:bg-surface-dark dark:text-text-dark-primary'
-                    : 'text-text-secondary hover:bg-surface-hover/50 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover/50'
-                }`}
+                className={clsx(styles.tab, activeSheet === index && styles['tab--active'])}
               >
                 {sheet.name}
               </Button>
@@ -144,16 +142,20 @@ export const XlsxPreview = memo(function XlsxPreview({
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-auto p-4">
+        <div className={styles['table-wrapper']}>
           <table
-            className={`border-collapse ${tableBorderClass} ${isFullscreen ? 'w-full' : 'w-auto'}`}
+            className={clsx(styles.table, tableBorderClass, isFullscreen && styles['table--full'])}
           >
-            <thead className="sticky top-0 z-10 bg-surface-secondary dark:bg-surface-dark-secondary">
+            <thead className={styles.thead}>
               <tr>
                 {currentSheet.data[0]?.map((_, colIndex) => (
                   <th
                     key={colIndex}
-                    className={`${tableBorderClass} px-3 py-2 text-left text-xs font-medium text-text-secondary dark:text-text-dark-secondary ${isFullscreen ? 'w-auto' : 'w-auto min-w-32'}`}
+                    className={clsx(
+                      tableBorderClass,
+                      styles['header-cell'],
+                      !isFullscreen && styles['header-cell--compact'],
+                    )}
                   >
                     {(() => {
                       let result = '';
@@ -173,18 +175,18 @@ export const XlsxPreview = memo(function XlsxPreview({
               {currentSheet.data.map((row, rowIndex) => (
                 <tr
                   key={rowIndex}
-                  className={
-                    rowIndex % 2 === 0
-                      ? previewBackgroundClass
-                      : 'bg-surface-secondary dark:bg-surface-dark-secondary'
-                  }
+                  className={rowIndex % 2 === 0 ? previewBackgroundClass : styles['alt-row']}
                 >
                   {row.map((cell, cellIndex) => (
                     <td
                       key={cellIndex}
-                      className={`${tableBorderClass} break-words px-3 py-2 text-sm text-text-primary dark:text-text-dark-primary ${isFullscreen ? 'w-auto' : 'w-auto min-w-32'}`}
+                      className={clsx(
+                        tableBorderClass,
+                        styles.cell,
+                        !isFullscreen && styles['cell--compact'],
+                      )}
                     >
-                      <FloatingTooltip content={cell.value} className="block">
+                      <FloatingTooltip content={cell.value} className={styles['tooltip-content']}>
                         {cell.value || ''}
                       </FloatingTooltip>
                     </td>
@@ -195,8 +197,8 @@ export const XlsxPreview = memo(function XlsxPreview({
           </table>
         </div>
 
-        <div className="h-16 shrink-0 border-t border-border bg-surface-secondary p-4 dark:border-border-dark dark:bg-surface-dark-secondary">
-          <div className="text-sm text-text-secondary dark:text-text-dark-secondary">
+        <div className={styles.footer}>
+          <div className={styles['footer-text']}>
             {currentSheet.data.length} rows ×{' '}
             {currentSheet.data.reduce((max, row) => Math.max(max, row.length), 0)} columns
           </div>

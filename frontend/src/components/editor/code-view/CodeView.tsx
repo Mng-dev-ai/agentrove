@@ -1,15 +1,16 @@
 import { memo, useState, useCallback, useEffect, useRef } from 'react';
+import clsx from 'clsx';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
 import { CodeSidebar } from '../code-sidebar/CodeSidebar';
 import type { TreeHandle } from '../file-tree/Tree';
 import { View } from '../editor-view/View';
 import type { FileStructure } from '@/types/file-system.types';
-import { cn } from '@/utils/cn';
 import { findFileByToolPath, findFileInStructure } from '@/utils/file';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useUIStore } from '@/store/uiStore';
+import styles from './CodeView.module.scss';
 
 export interface CodeViewProps {
   files: FileStructure[];
@@ -34,7 +35,8 @@ export const CodeView = memo(function CodeView({
   onFileSelect,
   openFiles,
   onCloseFile,
-  theme,
+  // Background now comes from --theme-surface-secondary, which already tracks
+  // the active theme via :root[data-theme] — no need to branch on it here.
   sandboxId,
   cwd,
   onDownload,
@@ -44,7 +46,6 @@ export const CodeView = memo(function CodeView({
   isRefreshing = false,
   chatId,
 }: CodeViewProps) {
-  const backgroundClass = theme === 'light' ? 'bg-surface-secondary' : 'bg-surface-dark-secondary';
   const isMobile = useIsMobile();
   const [showMobileTree, setShowMobileTree] = useState(false);
   const fileTreePanelRef = useRef<ImperativePanelHandle>(null);
@@ -156,25 +157,18 @@ export const CodeView = memo(function CodeView({
 
   if (isMobile) {
     return (
-      <div className={cn('relative flex min-h-0 flex-1 flex-col overflow-hidden', backgroundClass)}>
+      <div className={clsx(styles['code-view'], styles['code-view--mobile'])}>
         {showMobileTree && (
           <>
             <div
-              className="absolute inset-0 z-20 bg-black/50"
+              className={styles['code-view__mobile-backdrop']}
               onClick={() => setShowMobileTree(false)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') setShowMobileTree(false);
               }}
               role="presentation"
             />
-            <div
-              data-code-sidebar
-              className={cn(
-                'absolute left-0 top-0 z-30 h-full w-72',
-                'border-r border-border dark:border-border-dark',
-                backgroundClass,
-              )}
-            >
+            <div data-code-sidebar className={styles['code-view__mobile-drawer']}>
               <CodeSidebar
                 {...sharedSidebarProps}
                 onFileSelect={handleMobileFileSelect}
@@ -184,7 +178,7 @@ export const CodeView = memo(function CodeView({
           </>
         )}
 
-        <div className={cn('min-h-0 flex-1 overflow-hidden', backgroundClass)}>
+        <div className={styles['code-view__mobile-content']}>
           <View
             selectedFile={selectedFile}
             fileStructure={files}
@@ -205,7 +199,7 @@ export const CodeView = memo(function CodeView({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
+    <div className={styles['code-view']}>
       <PanelGroup direction="horizontal" autoSaveId="code-view-layout">
         <Panel
           ref={fileTreePanelRef}
@@ -217,10 +211,7 @@ export const CodeView = memo(function CodeView({
           onCollapse={() => setIsFileTreeCollapsed(true)}
           onExpand={handleFileTreeExpand}
         >
-          <div
-            data-code-sidebar
-            className={`h-full overflow-hidden border-r border-border dark:border-border-dark ${backgroundClass}`}
-          >
+          <div data-code-sidebar className={styles['code-view__tree-panel']}>
             <CodeSidebar
               {...sharedSidebarProps}
               onFileSelect={onFileSelect}
@@ -229,19 +220,12 @@ export const CodeView = memo(function CodeView({
           </div>
         </Panel>
 
-        <PanelResizeHandle
-          className={cn(
-            'group relative w-px',
-            'bg-border/50 dark:bg-border-dark/50',
-            'hover:bg-text-quaternary/50 dark:hover:bg-text-dark-quaternary/50',
-            'transition-colors duration-200',
-          )}
-        >
-          <div className="absolute inset-y-0 -left-1.5 -right-1.5 cursor-col-resize" />
+        <PanelResizeHandle className={styles['code-view__resize-handle']}>
+          <div className={styles['code-view__resize-handle-hit-area']} />
         </PanelResizeHandle>
 
         <Panel>
-          <div className={`h-full overflow-hidden ${backgroundClass}`}>
+          <div className={styles['code-view__content-panel']}>
             <View
               selectedFile={selectedFile}
               fileStructure={files}

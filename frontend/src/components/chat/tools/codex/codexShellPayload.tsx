@@ -1,4 +1,5 @@
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
+import toolText from '../common/toolText.module.scss';
+import styles from './codexShellPayload.module.scss';
 
 export type ParsedCmdType = 'list_files' | 'search' | 'read' | 'unknown';
 
@@ -43,8 +44,8 @@ export const renderCommand = (command: string): React.ReactNode => {
   }
 
   return (
-    <pre className="whitespace-pre-wrap break-all font-mono text-2xs leading-relaxed text-text-secondary dark:text-text-dark-tertiary">
-      <span className="select-none text-text-quaternary dark:text-text-dark-quaternary">$ </span>
+    <pre className={styles['command-pre']}>
+      <span className={styles['command-prompt']}>$ </span>
       {command}
     </pre>
   );
@@ -55,5 +56,5 @@ export const renderOutput = (output: string): React.ReactNode => {
     return null;
   }
 
-  return <pre className={TOOL_OUTPUT_PRE_CLASS}>{output}</pre>;
+  return <pre className={toolText['output-pre']}>{output}</pre>;
 };

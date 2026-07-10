@@ -1,0 +1,21 @@
+@use '@/styles/globals/controls' as controls;
+
+.input {
+    @include controls.input-base;
+    height: var(--space-10);
+
+    &--error {
+        @include controls.input-error;
+    }
+}
+
+.input-unstyled {
+    &:focus-visible {
+        outline: none;
+    }
+
+    &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+}

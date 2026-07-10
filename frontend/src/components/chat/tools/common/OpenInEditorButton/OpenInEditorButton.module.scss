@@ -1,0 +1,32 @@
+@use '@/styles/globals/responsive' as responsive;
+
+.tooltip {
+    display: flex;
+}
+
+.button {
+    border-radius: var(--radius-sm);
+    opacity: 0;
+    transition: opacity var(--duration-fast);
+
+    &:focus-visible {
+        opacity: 1;
+    }
+
+    // Reveal when hovering the enclosing ToolCard (global `.tool-card` marker)
+    @include responsive.media('not-touch') {
+        :global(.tool-card):hover & {
+            opacity: 1;
+        }
+    }
+}
+
+.icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    color: var(--theme-text-tertiary);
+
+    @include responsive.hover {
+        color: var(--theme-text-primary);
+    }
+}

@@ -1,8 +1,9 @@
 import { GitBranch } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { useRunStreamAction } from '@/hooks/useRunStreamAction';
+import styles from './StreamActionsBar.module.scss';
 
 interface StreamActionsBarProps {
   chatId: string;
@@ -21,10 +22,8 @@ export function StreamActionsBar({ chatId }: StreamActionsBarProps) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 px-4 pb-2 sm:px-6">
-      <span className="text-2xs font-medium uppercase tracking-wider text-text-quaternary dark:text-text-dark-quaternary">
-        Run
-      </span>
+    <div className={styles['stream-actions']}>
+      <span className={styles['stream-actions-label']}>Run</span>
       {enabledActions.map((action) => (
         <Button
           key={action.label}
@@ -32,9 +31,9 @@ export function StreamActionsBar({ chatId }: StreamActionsBarProps) {
           variant="outline"
           size="sm"
           onClick={() => runAction(action)}
-          className="gap-1.5"
+          className={styles['action-button']}
         >
-          <GitBranch className="h-3.5 w-3.5" />
+          <GitBranch className={styles['action-icon']} />
           {action.label}
         </Button>
       ))}

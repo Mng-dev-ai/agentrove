@@ -1,0 +1,124 @@
+@use '@/styles/globals/typography' as type;
+
+.card {
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--theme-border);
+    background-color: var(--theme-surface-tertiary);
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--theme-border);
+    padding: var(--space-2) var(--space-3);
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.icon-wrap {
+    border-radius: var(--radius-md);
+    padding: var(--space-1);
+    // subtle inset surface — black overlay on light, white overlay on dark
+    background-color: rgb(0 0 0 / 0.05);
+
+    :global([data-theme='dark']) & {
+        background-color: rgb(255 255 255 / 0.05);
+    }
+}
+
+.plan-icon {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    color: var(--theme-text-tertiary);
+}
+
+.title {
+    @include type.type-default(500);
+    color: var(--theme-text-primary);
+}
+
+.card-body {
+    // TODO(refactor): no spacing token for viewport-relative max-height
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: var(--space-3);
+}
+
+.description {
+    @include type.type-default;
+    color: var(--theme-text-secondary);
+}
+
+.plan-box {
+    overflow: auto;
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-2);
+    @include type.type-default;
+    background-color: rgb(0 0 0 / 0.05);
+
+    :global([data-theme='dark']) & {
+        background-color: rgb(255 255 255 / 0.05);
+    }
+}
+
+.plan-box--spaced {
+    margin-top: var(--space-3);
+}
+
+// 'prose'/'prose-sm'/'max-w-none'/'dark:prose-invert' come from the Tailwind Typography
+// plugin (tailwind.config.js) — no SCSS token exists for its nested markdown ruleset, and
+// config edits are out of scope for this migration, so those stay literal Tailwind classes.
+.plan-prose {
+    color: var(--theme-text-primary);
+}
+
+.permissions-label {
+    @include type.type-meta(500);
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    color: var(--theme-text-tertiary);
+}
+
+.permissions-list {
+    margin-top: var(--space-1-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.permission-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    border-radius: var(--radius-md);
+    padding: var(--space-1-5) var(--space-2);
+    background-color: rgb(0 0 0 / 0.05);
+
+    :global([data-theme='dark']) & {
+        background-color: rgb(255 255 255 / 0.05);
+    }
+}
+
+.permission-icon {
+    height: var(--space-3);
+    width: var(--space-3);
+    flex-shrink: 0;
+    color: var(--theme-text-tertiary);
+}
+
+.permission-text {
+    @include type.type-default;
+    color: var(--theme-text-secondary);
+}
+
+.stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}

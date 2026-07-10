@@ -2,10 +2,11 @@ import { memo } from 'react';
 import { FileX, FileOutput } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { ToolCard } from '../common/ToolCard';
-import { OpenInEditorButton } from '../common/OpenInEditorButton';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
+import styles from './FileActionTool.module.scss';
 
-const ICON_CLASS = 'h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary';
+const ICON_CLASS = styles.icon;
 
 interface DeleteInput {
   file_path?: string;
@@ -38,11 +39,7 @@ const DeleteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       loadingContent="Deleting file..."
       error={tool.error}
     >
-      {filePath && (
-        <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-          {filePath}
-        </div>
-      )}
+      {filePath && <div className={styles.path}>{filePath}</div>}
     </ToolCard>
   );
 };
@@ -74,17 +71,9 @@ const MoveToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       actions={destination ? <OpenInEditorButton filePath={destination} /> : null}
     >
       {(source || destination) && (
-        <div className="space-y-1">
-          {source && (
-            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-              {source}
-            </div>
-          )}
-          {destination && (
-            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-              {destination}
-            </div>
-          )}
+        <div className={styles.paths}>
+          {source && <div className={styles.path}>{source}</div>}
+          {destination && <div className={styles.path}>{destination}</div>}
         </div>
       )}
     </ToolCard>

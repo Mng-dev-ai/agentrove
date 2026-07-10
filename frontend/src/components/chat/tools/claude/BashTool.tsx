@@ -2,8 +2,10 @@ import { memo } from 'react';
 import { Terminal } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { formatResult } from '@/utils/format';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
+import styles from './BashTool.module.scss';
 
 interface BashInput {
   command: string;
@@ -21,7 +23,7 @@ const BashToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<Terminal className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<Terminal className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         if (description) {
@@ -41,16 +43,14 @@ const BashToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(command || output) && (
-        <div className="space-y-1">
+        <div className={styles.content}>
           {command && (
-            <pre className="whitespace-pre-wrap break-all font-mono text-2xs leading-relaxed text-text-secondary dark:text-text-dark-tertiary">
-              <span className="select-none text-text-quaternary dark:text-text-dark-quaternary">
-                ${' '}
-              </span>
+            <pre className={styles.command}>
+              <span className={styles.prompt}>$ </span>
               {command}
             </pre>
           )}
-          {output.length > 0 && <pre className={TOOL_OUTPUT_PRE_CLASS}>{output}</pre>}
+          {output.length > 0 && <pre className={toolText['output-pre']}>{output}</pre>}
         </div>
       )}
     </ToolCard>

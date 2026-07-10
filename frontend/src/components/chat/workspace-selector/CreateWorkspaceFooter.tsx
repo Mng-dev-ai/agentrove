@@ -1,125 +1,21 @@
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
-import { Search, GitBranch, Plus, Box, HardDrive, Lock, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button';
-import { Input } from '@/components/ui/primitives/Input';
+import { Search, GitBranch, Plus, Box, HardDrive, Loader2 } from 'lucide-react';
+import clsx from 'clsx';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
 import { useCreateWorkspaceMutation } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { useGitHubReposQuery } from '@/hooks/queries/useGitHubQueries';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import type { GitHubRepo } from '@/types/github.types';
-import { formatRelativeTime } from '@/utils/date';
-import { cn } from '@/utils/cn';
 import { isDesktopApp } from '@/utils/platform';
 import { open } from '@tauri-apps/plugin-dialog';
-
-const SKELETON_ITEMS = [0, 1, 2];
+import { CreateWorkspaceProviderToggle } from './CreateWorkspaceProviderToggle';
+import { CreateWorkspaceGitHubRepoItem } from './CreateWorkspaceGitHubRepoItem';
+import { CreateWorkspaceRepoListSkeleton } from './CreateWorkspaceRepoListSkeleton';
+import styles from './CreateWorkspaceFooter.module.scss';
 
 type CreationMode = 'none' | 'menu' | 'empty' | 'git';
-
-function ProviderToggle({
-  value,
-  onChange,
-}: {
-  value: 'docker' | 'host';
-  onChange: (v: 'docker' | 'host') => void;
-}) {
-  const btnCls = (active: boolean) =>
-    cn(
-      'rounded-md px-2 py-0.5 text-2xs transition-colors duration-200',
-      active
-        ? 'bg-surface-active text-text-primary dark:bg-surface-dark-active dark:text-text-dark-primary'
-        : 'text-text-quaternary hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary',
-    );
-  return (
-    <div className="flex items-center gap-1">
-      <span className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-        Provider:
-      </span>
-      <Button
-        variant="unstyled"
-        type="button"
-        onClick={() => onChange('host')}
-        className={btnCls(value === 'host')}
-      >
-        Host
-      </Button>
-      <Button
-        variant="unstyled"
-        type="button"
-        onClick={() => onChange('docker')}
-        className={btnCls(value === 'docker')}
-      >
-        Docker
-      </Button>
-    </div>
-  );
-}
-
-const GitHubRepoItem = memo(function GitHubRepoItem({
-  repo,
-  onSelect,
-  isCloning,
-}: {
-  repo: GitHubRepo;
-  onSelect: (cloneUrl: string, name: string) => void | Promise<void>;
-  isCloning: boolean;
-}) {
-  return (
-    <Button
-      variant="unstyled"
-      type="button"
-      disabled={isCloning}
-      onClick={() => onSelect(repo.clone_url, repo.name)}
-      className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors duration-200 hover:bg-surface-hover disabled:opacity-50 dark:hover:bg-surface-dark-hover"
-    >
-      <GitBranch className="mt-0.5 h-3.5 w-3.5 shrink-0 text-text-quaternary dark:text-text-dark-quaternary" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="truncate text-xs text-text-primary dark:text-text-dark-primary">
-            {repo.full_name}
-          </span>
-          {repo.private && (
-            <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-surface-tertiary px-1.5 py-0.5 text-2xs text-text-tertiary dark:bg-surface-dark-tertiary dark:text-text-dark-tertiary">
-              <Lock className="h-2.5 w-2.5" />
-              private
-            </span>
-          )}
-        </div>
-        {repo.description && (
-          <p className="truncate text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-            {repo.description}
-          </p>
-        )}
-        <div className="flex items-center gap-1.5 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
-          {repo.language && <span>{repo.language}</span>}
-          {repo.pushed_at && (
-            <>
-              {repo.language && <span>·</span>}
-              <span>{formatRelativeTime(repo.pushed_at)}</span>
-            </>
-          )}
-        </div>
-      </div>
-    </Button>
-  );
-});
-
-function RepoListSkeleton() {
-  return (
-    <div className="flex flex-col gap-2">
-      {SKELETON_ITEMS.map((i) => (
-        <div key={i} className="flex items-start gap-2.5 px-2.5 py-2">
-          <div className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-surface-tertiary motion-reduce:animate-none dark:bg-surface-dark-tertiary" />
-          <div className="flex-1 space-y-1.5">
-            <div className="h-3 w-2/3 animate-pulse rounded bg-surface-tertiary motion-reduce:animate-none dark:bg-surface-dark-tertiary" />
-            <div className="h-2.5 w-full animate-pulse rounded bg-surface-tertiary motion-reduce:animate-none dark:bg-surface-dark-tertiary" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // Creation flows for local workspaces: empty, local folder (desktop only), and
 // git clone (browse GitHub repos when a token is configured, otherwise paste a URL).
@@ -215,9 +111,9 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
         variant="unstyled"
         type="button"
         onClick={() => setCreationMode('menu')}
-        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-text-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+        className={styles['option-button']}
       >
-        <Plus className="h-3.5 w-3.5 text-text-quaternary dark:text-text-dark-quaternary" />
+        <Plus className={styles['option-icon']} />
         New workspace
       </Button>
     );
@@ -225,9 +121,9 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
 
   if (creationMode === 'empty') {
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center gap-2 text-xs text-text-secondary dark:text-text-dark-secondary">
-          <Box className="h-3.5 w-3.5 text-text-quaternary dark:text-text-dark-quaternary" />
+      <div className={styles.form}>
+        <div className={styles['form-label']}>
+          <Box className={styles['option-icon']} />
           Empty workspace
         </div>
         <Input
@@ -239,10 +135,10 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
           }}
           placeholder="Workspace name"
           autoFocus
-          className="h-8 w-full rounded-lg border border-border/50 bg-surface-tertiary px-3 text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
+          className={styles['text-input']}
         />
-        <ProviderToggle value={sandboxProvider} onChange={setSandboxProvider} />
-        <div className="flex items-center justify-end gap-2">
+        <CreateWorkspaceProviderToggle value={sandboxProvider} onChange={setSandboxProvider} />
+        <div className={styles.actions}>
           <Button
             type="button"
             size="sm"
@@ -269,10 +165,10 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
 
   if (creationMode === 'git') {
     return (
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-xs text-text-secondary dark:text-text-dark-secondary">
-            <GitBranch className="h-3.5 w-3.5 text-text-quaternary dark:text-text-dark-quaternary" />
+      <div className={styles.form}>
+        <div className={styles['form-header']}>
+          <div className={styles['form-label']}>
+            <GitBranch className={styles['option-icon']} />
             Clone Git repo
           </div>
           {hasGitHubToken && (
@@ -284,7 +180,7 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
                 setRepoSearchQuery('');
                 setGitUrl('');
               }}
-              className="text-2xs text-text-quaternary transition-colors duration-200 hover:text-text-secondary dark:text-text-dark-quaternary dark:hover:text-text-dark-secondary"
+              className={styles['toggle-mode-button']}
             >
               {showUrlInput ? 'Browse repos' : 'Paste URL'}
             </Button>
@@ -293,35 +189,33 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
 
         {hasGitHubToken && !showUrlInput ? (
           <>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-text-quaternary dark:text-text-dark-quaternary" />
+            <div className={styles['search-field']}>
+              <Search className={styles['search-icon']} />
               <Input
                 variant="unstyled"
                 value={repoSearchQuery}
                 onChange={(e) => setRepoSearchQuery(e.target.value)}
                 placeholder="Search repositories…"
                 autoFocus
-                className="h-8 w-full rounded-lg border border-border/50 bg-surface-tertiary pl-8 pr-3 text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
+                className={clsx(styles['text-input'], styles['text-input--search'])}
               />
             </div>
-            <div className="max-h-[12rem] overflow-y-auto">
+            <div className={styles['repo-list']}>
               {createWorkspace.isPending ? (
-                <div className="flex items-center justify-center gap-2 px-2.5 py-6">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-text-quaternary motion-reduce:animate-none dark:text-text-dark-quaternary" />
-                  <span className="text-xs text-text-tertiary dark:text-text-dark-tertiary">
-                    Cloning repository…
-                  </span>
+                <div className={styles['repo-loading']}>
+                  <Loader2 className={styles['repo-loading-icon']} />
+                  <span className={styles['repo-loading-label']}>Cloning repository…</span>
                 </div>
               ) : reposLoading ? (
-                <RepoListSkeleton />
+                <CreateWorkspaceRepoListSkeleton />
               ) : !reposData?.items.length ? (
-                <p className="px-2.5 py-4 text-center text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+                <p className={styles['repo-empty']}>
                   {debouncedRepoQuery ? 'No repositories found' : 'No repositories'}
                 </p>
               ) : (
-                <div className="flex flex-col gap-0.5">
+                <div className={styles['repo-items']}>
                   {reposData.items.map((repo) => (
-                    <GitHubRepoItem
+                    <CreateWorkspaceGitHubRepoItem
                       key={repo.full_name}
                       repo={repo}
                       onSelect={cloneRepo}
@@ -344,18 +238,18 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
               placeholder="https://github.com/org/repo.git"
               autoFocus
               disabled={createWorkspace.isPending}
-              className="h-8 w-full rounded-lg border border-border/50 bg-surface-tertiary px-3 font-mono text-xs text-text-primary outline-none placeholder:text-text-quaternary focus-visible:border-border-hover disabled:opacity-50 dark:border-border-dark/50 dark:bg-surface-dark-secondary dark:text-text-dark-primary dark:placeholder:text-text-dark-quaternary dark:focus-visible:border-border-dark-hover"
+              className={clsx(styles['text-input'], styles['text-input--mono'])}
             />
             {!hasGitHubToken && (
-              <p className="text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+              <p className={styles['helper-text']}>
                 Add a GitHub token in Settings to browse repos
               </p>
             )}
           </>
         )}
 
-        <ProviderToggle value={sandboxProvider} onChange={setSandboxProvider} />
-        <div className="flex items-center justify-end gap-2">
+        <CreateWorkspaceProviderToggle value={sandboxProvider} onChange={setSandboxProvider} />
+        <div className={styles.actions}>
           <Button
             type="button"
             size="sm"
@@ -385,17 +279,17 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
   }
 
   return (
-    <div className="flex flex-col gap-0.5">
-      <div className="px-2.5 py-1.5">
-        <ProviderToggle value={sandboxProvider} onChange={setSandboxProvider} />
+    <div className={styles.menu}>
+      <div className={styles['menu-provider']}>
+        <CreateWorkspaceProviderToggle value={sandboxProvider} onChange={setSandboxProvider} />
       </div>
       <Button
         variant="unstyled"
         type="button"
         onClick={() => setCreationMode('empty')}
-        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-text-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+        className={styles['option-button']}
       >
-        <Box className="h-3.5 w-3.5 text-text-quaternary dark:text-text-dark-quaternary" />
+        <Box className={styles['option-icon']} />
         Empty workspace
       </Button>
       {isDesktop && (
@@ -404,9 +298,9 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
           type="button"
           onClick={() => void handleChooseLocal()}
           disabled={createWorkspace.isPending}
-          className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-text-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary disabled:opacity-50 dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+          className={styles['option-button']}
         >
-          <HardDrive className="h-3.5 w-3.5 text-text-quaternary dark:text-text-dark-quaternary" />
+          <HardDrive className={styles['option-icon']} />
           Local folder
         </Button>
       )}
@@ -414,9 +308,9 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
         variant="unstyled"
         type="button"
         onClick={() => setCreationMode('git')}
-        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-xs text-text-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-text-primary dark:text-text-dark-secondary dark:hover:bg-surface-dark-hover dark:hover:text-text-dark-primary"
+        className={styles['option-button']}
       >
-        <GitBranch className="h-3.5 w-3.5 text-text-quaternary dark:text-text-dark-quaternary" />
+        <GitBranch className={styles['option-icon']} />
         Clone Git repo
       </Button>
     </div>

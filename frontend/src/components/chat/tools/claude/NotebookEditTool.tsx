@@ -2,8 +2,10 @@ import { memo } from 'react';
 import { BookOpen } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { TOOL_OUTPUT_PRE_CLASS } from '@/utils/toolStyles';
-import { ToolCard } from '../common/ToolCard';
+import { ToolCard } from '../common/ToolCard/ToolCard';
+import toolText from '../common/toolText.module.scss';
+import toolIcon from './toolIcon.module.scss';
+import styles from './NotebookEditTool.module.scss';
 
 type EditMode = 'replace' | 'insert' | 'delete';
 
@@ -37,7 +39,7 @@ const NotebookEditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
 
   return (
     <ToolCard
-      icon={<BookOpen className="h-3.5 w-3.5 text-text-secondary dark:text-text-dark-tertiary" />}
+      icon={<BookOpen className={toolIcon.icon} />}
       status={tool.status}
       title={(status) => {
         const suffix = filename ? ` ${filename}` : '';
@@ -54,34 +56,24 @@ const NotebookEditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     >
       {(notebookPath || newSource || cellId || cellType) && (
-        <div className="space-y-1.5">
-          {notebookPath && (
-            <div className="truncate font-mono text-2xs text-text-tertiary dark:text-text-dark-quaternary">
-              {notebookPath}
-            </div>
-          )}
+        <div className={styles.details}>
+          {notebookPath && <div className={styles.path}>{notebookPath}</div>}
           {(cellId || cellType) && (
-            <div className="flex gap-3 text-2xs text-text-quaternary dark:text-text-dark-quaternary">
+            <div className={styles['meta-row']}>
               {cellId && (
                 <span>
-                  cell:{' '}
-                  <span className="font-mono text-text-tertiary dark:text-text-dark-tertiary">
-                    {cellId}
-                  </span>
+                  cell: <span className={styles.mono}>{cellId}</span>
                 </span>
               )}
               {cellType && (
                 <span>
-                  type:{' '}
-                  <span className="font-mono text-text-tertiary dark:text-text-dark-tertiary">
-                    {cellType}
-                  </span>
+                  type: <span className={styles.mono}>{cellType}</span>
                 </span>
               )}
             </div>
           )}
           {newSource && editMode !== 'delete' && (
-            <pre className={TOOL_OUTPUT_PRE_CLASS}>{newSource}</pre>
+            <pre className={toolText['output-pre']}>{newSource}</pre>
           )}
         </div>
       )}

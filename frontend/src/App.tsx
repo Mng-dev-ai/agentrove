@@ -2,14 +2,14 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect, useState, Suspense, lazy } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDesktopZoom } from '@/hooks/useDesktopZoom';
-import { Layout } from '@/components/layout/Layout';
+import { Layout } from '@/components/layout/Layout/Layout';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useUIStore } from '@/store/uiStore';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
-import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { LoadingScreen } from '@/components/ui/LoadingScreen/LoadingScreen';
 import { useGlobalStream } from '@/hooks/useGlobalStream';
 import { useLocalStreamRestoration } from '@/hooks/useLocalStreamRestoration';
 import { useCloudStreamRestoration } from '@/hooks/useCloudStreamRestoration';
@@ -17,7 +17,7 @@ import { useChatEvents } from '@/hooks/useChatEvents';
 import { useCloudChatEvents } from '@/hooks/useCloudChatEvents';
 import { authService } from '@/services/authService';
 import { toasterConfig } from '@/config/toaster';
-import { AuthRoute } from '@/components/routes/AuthRoute';
+import { AuthRoute } from '@/components/routes/AuthRoute/AuthRoute';
 import { setApiPort } from '@/lib/api';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { isDesktopApp, isMobileApp } from '@/utils/platform';
@@ -25,26 +25,37 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { clearCloudOrigins } from '@/utils/chatOrigin';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
-import { DesktopDragRegion } from '@/components/layout/TitleBar';
+import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
+import styles from './App.module.scss';
 
 const LandingPage = lazy(() =>
-  import('@/pages/LandingPage').then((m) => ({ default: m.LandingPage })),
+  import('@/pages/LandingPage/LandingPage').then((m) => ({ default: m.LandingPage })),
 );
-const ChatPage = lazy(() => import('@/pages/ChatPage').then((m) => ({ default: m.ChatPage })));
-const LoginPage = lazy(() => import('@/pages/LoginPage').then((m) => ({ default: m.LoginPage })));
+const ChatPage = lazy(() =>
+  import('@/pages/ChatPage/ChatPage').then((m) => ({ default: m.ChatPage })),
+);
+const LoginPage = lazy(() =>
+  import('@/pages/LoginPage/LoginPage').then((m) => ({ default: m.LoginPage })),
+);
 const SignupPage = lazy(() =>
-  import('@/pages/SignupPage').then((m) => ({ default: m.SignupPage })),
+  import('@/pages/SignupPage/SignupPage').then((m) => ({ default: m.SignupPage })),
 );
 const EmailVerificationPage = lazy(() =>
-  import('@/pages/EmailVerificationPage').then((m) => ({ default: m.EmailVerificationPage })),
+  import('@/pages/EmailVerificationPage/EmailVerificationPage').then((m) => ({
+    default: m.EmailVerificationPage,
+  })),
 );
 const ForgotPasswordPage = lazy(() =>
-  import('@/pages/ForgotPasswordPage').then((m) => ({ default: m.ForgotPasswordPage })),
+  import('@/pages/ForgotPasswordPage/ForgotPasswordPage').then((m) => ({
+    default: m.ForgotPasswordPage,
+  })),
 );
 const ResetPasswordPage = lazy(() =>
-  import('@/pages/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage })),
+  import('@/pages/ResetPasswordPage/ResetPasswordPage').then((m) => ({
+    default: m.ResetPasswordPage,
+  })),
 );
-const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
+const SettingsPage = lazy(() => import('@/pages/SettingsPage/SettingsPage'));
 
 function AppContent() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -198,8 +209,6 @@ export default function App() {
   });
 
   useEffect(() => {
-    document.body.classList.remove('light', 'dark');
-    document.body.classList.add(resolvedTheme);
     document.documentElement.setAttribute('data-theme', resolvedTheme);
     // data-palette drives the per-theme CSS-var overrides (dim/sepia); base modes have no override block
     document.documentElement.setAttribute('data-palette', theme);
@@ -296,12 +305,10 @@ export default function App() {
 
   if (desktopError) {
     return (
-      <div className="flex min-h-screen flex-col bg-surface text-text-primary dark:bg-surface-dark dark:text-text-dark-primary">
+      <div className={styles['error-shell']}>
         <DesktopDragRegion />
-        <div className="flex flex-1 items-center justify-center">
-          <div className="rounded-lg border border-border/50 bg-surface-secondary px-4 py-3 text-xs dark:border-border-dark/50 dark:bg-surface-dark-secondary">
-            {desktopError}
-          </div>
+        <div className={styles['error-body']}>
+          <div className={styles['error-card']}>{desktopError}</div>
         </div>
       </div>
     );

@@ -18,7 +18,7 @@ import {
   viewTypeToTileId,
 } from '@/utils/tileHelpers';
 import { clearTerminalStorage } from '@/utils/terminal';
-import type { MenuMode } from '@/components/ui/commandRegistry';
+import type { MenuMode } from '@/components/ui/command-menu/commandRegistry';
 import { EMPTY_SIDEBAR_FILTERS, type SidebarFilters } from '@/store/sidebarFilters';
 import { THEME_CYCLE } from '@/utils/theme';
 
@@ -463,7 +463,7 @@ export const useUIStore = create<UIStoreState>()(
           set({ secondaryChatId: chatId, ...resetForNewSecondary });
           return;
         }
-        const openTabs = state.openTabs.includes('agent:secondary')
+        const openTabs: TileId[] = state.openTabs.includes('agent:secondary')
           ? state.openTabs
           : [...state.openTabs, 'agent:secondary'];
         set({

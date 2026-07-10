@@ -11,8 +11,8 @@ import {
 import { flushSync } from 'react-dom';
 import { FolderOpen } from 'lucide-react';
 import { FileTree as PierreFileTree, useFileTree } from '@pierre/trees/react';
-import type { FileTree } from '@pierre/trees';
-import { Spinner } from '@/components/ui/primitives/Spinner';
+import type { FileTree, FileTreeDirectoryHandle } from '@pierre/trees';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import type { FileStructure } from '@/types/file-system.types';
 import {
@@ -21,7 +21,15 @@ import {
   hasActualFiles,
   traverseFileStructure,
 } from '@/utils/file';
+import styles from './Tree.module.scss';
 import '@/styles/pierre-tree-theme.css';
+
+// getItem() returns a union of file/directory handles; expand()/isExpanded() live only
+// on the directory variant. isDirectory()'s literal return type doesn't narrow the object
+// through a call, so narrow explicitly with a type predicate.
+function isDirectoryHandle(item: ReturnType<FileTree['getItem']>): item is FileTreeDirectoryHandle {
+  return item != null && item.isDirectory();
+}
 
 const UNSAFE_CSS = `
   [data-file-tree-search-input] {
@@ -54,7 +62,7 @@ function focusPathWithTreeOwnership(
 function expandAncestorFolders(model: FileTree, path: string): void {
   for (const ancestor of getAncestorFolderPaths(path)) {
     const item = model.getItem(ancestor);
-    if (item && item.isDirectory()) item.expand();
+    if (isDirectoryHandle(item)) item.expand();
   }
 }
 
@@ -164,7 +172,9 @@ export const Tree = memo(function Tree({
     const expanded = new Set<string>();
     for (const path of paths) {
       for (const ancestor of getAncestorFolderPaths(path)) {
-        if (!expanded.has(ancestor) && model.getItem(ancestor)?.isExpanded()) {
+        if (expanded.has(ancestor)) continue;
+        const ancestorItem = model.getItem(ancestor);
+        if (isDirectoryHandle(ancestorItem) && ancestorItem.isExpanded()) {
           expanded.add(ancestor);
         }
       }
@@ -256,18 +266,18 @@ export const Tree = memo(function Tree({
 
   if (!hasActualFiles(files)) {
     return (
-      <div className="flex h-full select-none flex-col items-center justify-center gap-2 px-4 py-12">
+      <div className={styles['tree-empty']}>
         {isSandboxSyncing ? (
-          <Spinner size="md" className="text-text-quaternary dark:text-text-dark-quaternary" />
+          <Spinner size="md" className={styles['tree-empty-spinner']} />
         ) : (
-          <FolderOpen className="h-5 w-5 text-text-quaternary dark:text-text-dark-quaternary" />
+          <FolderOpen className={styles['tree-empty-icon']} />
         )}
-        <p className="text-xs text-text-quaternary dark:text-text-dark-quaternary">
+        <p className={styles['tree-empty-text']}>
           {isSandboxSyncing ? 'Loading files...' : 'No files yet'}
         </p>
       </div>
     );
   }
 
-  return <PierreFileTree model={model} header={header} className="h-full select-none" />;
+  return <PierreFileTree model={model} header={header} className={styles.tree} />;
 });

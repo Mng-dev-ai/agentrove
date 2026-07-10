@@ -1,0 +1,44 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+// Padding mirrors the assistant message row so the swap from indicator to
+// content doesn't shift the text down.
+.status-typewriter {
+    @include anim.fade-in;
+    padding: var(--space-1-5) var(--space-4);
+
+    @include responsive.media('sm-up') {
+        padding: var(--space-2) var(--space-6);
+    }
+}
+
+.status-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.status-verb {
+    @include type.type-default;
+    display: flex;
+    align-items: center;
+    color: var(--theme-text-tertiary);
+}
+
+.status-caret {
+    display: inline-block;
+    margin-left: 1px;
+    height: var(--space-3);
+    width: 1px;
+    background-color: var(--theme-text-tertiary);
+
+    &--blinking {
+        animation: caret-blink 1.1s step-end infinite;
+    }
+}
+
+.status-elapsed {
+    @include type.type-default;
+    color: var(--theme-text-quaternary);
+}
