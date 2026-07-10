@@ -4,15 +4,11 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ToggleButton } from '@/components/ui/ToggleButton/ToggleButton';
-import { ViewSwitcher, type SwitchableView } from '@/components/layout/ViewSwitcher/ViewSwitcher';
+import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
 import { ChatTabs } from '@/components/layout/ChatTabs/ChatTabs';
 import clsx from 'clsx';
 import { IS_MAC_PLATFORM, isDesktopApp } from '@/utils/platform';
 import styles from './TitleBar.module.scss';
-
-// The landing page's renderView only supports these two non-agent views —
-// diff/terminal need a chat, so their switcher buttons would open blank panes.
-const LANDING_VIEWS: SwitchableView[] = ['editor', 'secrets'];
 
 async function getTauriWindow() {
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
@@ -181,10 +177,9 @@ export function TitleBar() {
           {isAuthenticated && (isChatPage || isLandingPage) && <ChatTabs />}
         </div>
         {/* Views have no tabs — the switcher is the only affordance to open and
-            close them, so landing (which can show an editor/secrets pane) needs
-            it too, just restricted to the views it can render. */}
-        {isChatPage && <ViewSwitcher />}
-        {isLandingPage && <ViewSwitcher views={LANDING_VIEWS} />}
+            close them, so landing (which renders every view against the selected
+            workspace's sandbox) needs it too. */}
+        {(isChatPage || isLandingPage) && <ViewSwitcher />}
       </div>
     </div>
   );
