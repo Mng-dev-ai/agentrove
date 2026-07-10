@@ -24,6 +24,7 @@ export const AGENT_OPTIONS: { value: AgentKind; label: string }[] = [
   { value: 'codex', label: 'Codex' },
   { value: 'copilot', label: 'Copilot' },
   { value: 'cursor', label: 'Cursor' },
+  { value: 'grok', label: 'Grok' },
   { value: 'opencode', label: 'OpenCode' },
 ];
 

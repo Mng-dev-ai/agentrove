@@ -1,6 +1,6 @@
 # Agentrove
 
-Self-hosted AI coding workspace for running Claude Code, Codex, Copilot, Cursor, and OpenCode agents from one interface.
+Self-hosted AI coding workspace for running Claude Code, Codex, Copilot, Cursor, Grok, and OpenCode agents from one interface.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
@@ -13,7 +13,7 @@ Self-hosted AI coding workspace for running Claude Code, Codex, Copilot, Cursor,
 
 ## What It Does
 
-- Runs Claude, Codex, Copilot, Cursor, and OpenCode through ACP adapters.
+- Runs Claude, Codex, Copilot, Cursor, Grok, and OpenCode through ACP adapters.
 - Gives each workspace its own Docker or host sandbox.
 - Combines chat, code editor, terminal, file tree, diffs, secrets, and git tools in one workspace.
 - Supports workspaces from empty folders, git clones, existing local folders, or GitHub repositories.

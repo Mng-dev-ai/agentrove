@@ -209,6 +209,10 @@ MODELS: dict[str, ModelInfo] = {
         "Grok 4.20 Thinking", AgentKind.CURSOR, 200_000
     ),
     "cursor:kimi-k2.5": ModelInfo("Kimi K2.5", AgentKind.CURSOR, 262_000),
+    "grok:grok-4.5": ModelInfo("Grok 4.5", AgentKind.GROK, 500_000),
+    "grok:grok-composer-2.5-fast": ModelInfo(
+        "Composer 2.5 (Grok)", AgentKind.GROK, 200_000
+    ),
     "opencode:opencode/big-pickle": ModelInfo(
         "Big Pickle (OpenCode)", AgentKind.OPENCODE, 200_000
     ),
@@ -1703,6 +1707,9 @@ BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
     # Cursor's slash commands live in its TUI client, not the ACP server, so
     # cursor-agent treats them as prompt text rather than commands.
     AgentKind.CURSOR: [],
+    # Grok's ACP server advertises its commands (compact, session-info, user
+    # skills, ...) via availableCommands, so we rely on runtime discovery.
+    AgentKind.GROK: [],
     # OpenCode's slash commands live in its TUI; the ACP server surfaces only
     # user-defined commands, so we rely on runtime discovery.
     AgentKind.OPENCODE: [],

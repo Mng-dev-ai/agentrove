@@ -40,6 +40,12 @@ RUN curl -fsSL https://opencode.ai/install | bash && \
     cp /root/.opencode/bin/opencode /usr/local/bin/opencode && \
     chmod +x /usr/local/bin/opencode
 
+# Grok Build CLI (installs `grok` to /root/.local/bin) — used for the Grok ACP
+# server (`grok agent stdio`).
+RUN curl -fsSL https://x.ai/cli/install.sh | bash && \
+    cp /root/.local/bin/grok /usr/local/bin/grok && \
+    chmod +x /usr/local/bin/grok
+
 # Install uv package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | bash
 

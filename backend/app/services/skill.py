@@ -45,12 +45,16 @@ class SkillService:
 
         # .{name}/skills namespaces each agent searches. Codex/Copilot/Cursor share
         # the Vercel .agents/skills ecosystem; OpenCode additionally cross-reads
-        # Claude-compatible skills.
+        # Claude-compatible skills; Grok scans .agents plus the Claude and Cursor
+        # skill directories by default.
         result: dict[str, list[Path]] = {
             AgentKind.CODEX.value: ns(workspace_path, base, ["codex", "agents"]),
             AgentKind.COPILOT.value: ns(workspace_path, base, ["copilot", "agents"]),
             AgentKind.CURSOR.value: ns(workspace_path, base, ["cursor", "agents"]),
             AgentKind.CLAUDE.value: ns(workspace_path, base, ["claude"]),
+            AgentKind.GROK.value: ns(
+                workspace_path, base, ["grok", "agents", "claude", "cursor"]
+            ),
             AgentKind.OPENCODE.value: ns(
                 workspace_path, base, ["opencode", "agents", "claude"]
             ),

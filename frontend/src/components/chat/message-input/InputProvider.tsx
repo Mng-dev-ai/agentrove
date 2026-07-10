@@ -24,6 +24,7 @@ import { getAgentKindForModelId, type AgentKind } from '@/types/chat.types';
 const AGENTS_WITHOUT_USAGE_UPDATE: ReadonlySet<AgentKind> = new Set([
   'copilot',
   'cursor',
+  'grok',
   'opencode',
 ]);
 

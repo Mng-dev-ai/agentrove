@@ -14,6 +14,7 @@ class AgentKind(str, Enum):
     CODEX = "codex"
     COPILOT = "copilot"
     CURSOR = "cursor"
+    GROK = "grok"
     OPENCODE = "opencode"
 
 
@@ -28,6 +29,9 @@ NATIVE_FILE_TYPES: dict[AgentKind, frozenset[str]] = {
     AgentKind.CODEX: frozenset({"image"}),
     AgentKind.COPILOT: frozenset({"image"}),
     AgentKind.CURSOR: frozenset({"image"}),
+    # Grok advertises ACP promptCapabilities image: false — attachments are
+    # referenced via sandbox paths instead.
+    AgentKind.GROK: frozenset(),
     AgentKind.OPENCODE: frozenset({"image"}),
 }
 
@@ -62,6 +66,16 @@ COPILOT_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 # Cursor CLI exposes three ACP session modes (see https://cursor.com/docs/cli/acp).
 CURSOR_SESSION_MODES = frozenset({"agent", "plan", "ask"})
 
+# Grok Build's ACP session modes: `code` is normal full execution, `plan`
+# blocks writes except the session plan file. Grok auto-approves every tool
+# call over ACP stdio (it never sends session/request_permission), so there
+# is no separate ask/approve mode to expose.
+GROK_SESSION_MODES = frozenset({"code", "plan"})
+# Only Grok 4.5 exposes the low/medium/high reasoning-effort dial; Composer
+# ignores it, so the effort launch flag is skipped for other models.
+GROK_VALID_THINKING_MODES = frozenset({"low", "medium", "high"})
+GROK_REASONING_MODEL_IDS = frozenset({"grok:grok-4.5"})
+
 # OpenCode's built-in primary agents double as ACP session modes; `plan`
 # restricts edits to `.opencode/plans/*.md`, `build` has full tool access.
 OPENCODE_SESSION_MODES = frozenset({"build", "plan"})
@@ -75,16 +89,19 @@ NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
     AgentKind.CODEX: "auto",
     AgentKind.COPILOT: "agent",
     AgentKind.CURSOR: "agent",
+    AgentKind.GROK: "code",
     AgentKind.OPENCODE: "build",
 }
 
 # Agents that can have their base system prompt replaced by a persona.
 # Claude/Codex expose a first-class mechanism (ACP _meta.systemPrompt for
 # Claude; model_instructions_file via CODEX_CONFIG for Codex). OpenCode uses a custom
-# primary agent injected through OPENCODE_CONFIG_CONTENT. Cursor and Copilot
-# ignore system prompt replacement over ACP, so personas would have no effect.
+# primary agent injected through OPENCODE_CONFIG_CONTENT. Grok documents
+# session/new _meta.systemPromptOverride/rules in its ACP docs. Cursor and
+# Copilot ignore system prompt replacement over ACP, so personas would have
+# no effect.
 PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
-    {AgentKind.CLAUDE, AgentKind.CODEX, AgentKind.OPENCODE}
+    {AgentKind.CLAUDE, AgentKind.CODEX, AgentKind.GROK, AgentKind.OPENCODE}
 )
 
 
@@ -150,6 +167,7 @@ class AgentAdapter(ABC):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> LaunchConfig:
         raise NotImplementedError
 
@@ -188,6 +206,7 @@ class ClaudeAgentAdapter(AgentAdapter):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> LaunchConfig:
         # Claude doesn't use CLI args — all config is via env vars and session meta.
         return LaunchConfig(binary="claude-agent-acp")
@@ -240,6 +259,7 @@ class CodexAgentAdapter(AgentAdapter):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> LaunchConfig:
         # codex-acp ignores CLI args entirely — customization goes through the
         # CODEX_CONFIG env var, a JSON object merged into the Codex session
@@ -310,6 +330,7 @@ class CopilotCliAdapter(AgentAdapter):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary="copilot", cli_args=["--acp", "--stdio"])
 
@@ -367,6 +388,7 @@ class CursorAgentAdapter(AgentAdapter):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary="cursor-agent", cli_args=["acp"])
 
@@ -401,6 +423,79 @@ class CursorAgentAdapter(AgentAdapter):
         return model_id.removeprefix("cursor:")
 
 
+class GrokAgentAdapter(AgentAdapter):
+    # Grok Build (xAI) runs as an ACP server via `grok agent stdio`. Reasoning
+    # effort is a launch-only flag (`grok agent --reasoning-effort <tier> stdio`)
+    # — there is no ACP method to change it mid-session, so effort changes take
+    # effect through the session fingerprint respawning the process. Grok
+    # auto-approves every tool call over ACP stdio (it never sends
+    # session/request_permission), so its modes (code/plan) are workflow
+    # choices rather than approval policies.
+
+    def __init__(self) -> None:
+        super().__init__(kind=AgentKind.GROK)
+
+    def build_launch_config(
+        self,
+        *,
+        system_prompt: str | None,
+        system_prompt_is_full_replace: bool,
+        instructions_file_path: str | None = None,
+        reasoning_effort: str | None = None,
+    ) -> LaunchConfig:
+        # Agent-level flags must precede the `stdio` subcommand.
+        cli_args = ["agent"]
+        if reasoning_effort:
+            cli_args.extend(["--reasoning-effort", reasoning_effort])
+        cli_args.append("stdio")
+        return LaunchConfig(binary="grok", cli_args=cli_args)
+
+    def build_session_config(
+        self,
+        *,
+        system_prompt: str | None,
+        system_prompt_is_full_replace: bool,
+        model_id: str,
+        thinking_mode: str | None,
+        permission_mode: str,
+    ) -> SessionConfig:
+        # Grok's session/new _meta supports systemPromptOverride (full
+        # replacement) and rules (appended to the default prompt).
+        meta: dict[str, Any] = {}
+        if system_prompt:
+            if system_prompt_is_full_replace:
+                meta["systemPromptOverride"] = system_prompt
+            else:
+                meta["rules"] = system_prompt
+
+        reasoning_effort = (
+            coerce_thinking_mode(thinking_mode, GROK_VALID_THINKING_MODES)
+            if model_id in GROK_REASONING_MODEL_IDS
+            else None
+        )
+
+        return SessionConfig(
+            meta=meta,
+            reasoning_effort=reasoning_effort,
+            permission=PermissionConfig(
+                session_mode=self.map_session_mode(permission_mode)
+            ),
+        )
+
+    def map_session_mode(self, permission_mode: str) -> str:
+        # Persisted settings may still carry mode strings from a different
+        # previous agent. Default to Grok's normal code mode — both Grok modes
+        # auto-approve what they allow, so no mapping widens permissions.
+        if permission_mode not in GROK_SESSION_MODES:
+            return "code"
+        return permission_mode
+
+    def map_model_id(self, model_id: str) -> str:
+        # Internal keys use "grok:" prefix to namespace; the CLI expects the
+        # raw model ID (e.g. "grok-4.5" not "grok:grok-4.5").
+        return model_id.removeprefix("grok:")
+
+
 class OpencodeAgentAdapter(AgentAdapter):
     # OpenCode CLI runs as an ACP server via `opencode acp` and speaks the same
     # ACP transport as the other adapters. OpenCode's "primary agents" (build,
@@ -418,6 +513,7 @@ class OpencodeAgentAdapter(AgentAdapter):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
+        reasoning_effort: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary="opencode", cli_args=["acp"])
 
@@ -494,5 +590,6 @@ AGENT_ADAPTERS: dict[AgentKind, AgentAdapter] = {
     AgentKind.CODEX: CodexAgentAdapter(),
     AgentKind.COPILOT: CopilotCliAdapter(),
     AgentKind.CURSOR: CursorAgentAdapter(),
+    AgentKind.GROK: GrokAgentAdapter(),
     AgentKind.OPENCODE: OpencodeAgentAdapter(),
 }

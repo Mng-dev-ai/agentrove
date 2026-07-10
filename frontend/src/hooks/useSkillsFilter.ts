@@ -5,7 +5,7 @@ import { fuzzySearch } from '@/utils/fuzzySearch';
 
 // Chip order for the source filter — typed against AgentKind so it can't drift
 // from the canonical provider set if a kind is added, removed, or renamed.
-const SOURCE_ORDER: AgentKind[] = ['claude', 'codex', 'copilot', 'cursor', 'opencode'];
+const SOURCE_ORDER: AgentKind[] = ['claude', 'codex', 'copilot', 'cursor', 'grok', 'opencode'];
 
 export function useSkillsFilter(items: CustomSkill[], workspaceId: string | undefined) {
   const [searchQuery, setSearchQuery] = useState('');
