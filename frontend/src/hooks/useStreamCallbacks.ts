@@ -70,7 +70,7 @@ interface UseStreamCallbacksResult {
   startStream: (
     request: StreamOptions['request'],
     signal?: AbortSignal,
-  ) => Promise<{ messageId: string; checkpointId: string | null }>;
+  ) => Promise<{ messageId: string; checkpointId: string | null; worktreeCwd: string | null }>;
   replayStream: (messageId: string, afterSeq?: number) => Promise<string>;
   stopStream: (messageId: string) => Promise<void>;
   updateMessageInCache: ReturnType<typeof useMessageCache>['updateMessageInCache'];
