@@ -11,7 +11,7 @@ export interface ParsedCommand {
 }
 
 export interface ShellLikeInput {
-  command?: string[];
+  command?: string | string[];
   cwd?: string;
   parsed_cmd?: ParsedCommand[];
   source?: string;
@@ -26,12 +26,13 @@ export interface ShellLikeOutput {
 }
 
 export const extractCommand = (input: ShellLikeInput | undefined): string => {
-  if (!input?.command) return '';
-  const args = input.command;
-  if (args.length >= 3 && args[1] === '-lc' && args[0].startsWith('/bin/')) {
-    return args[2];
+  const command = input?.command;
+  if (!command) return '';
+  if (typeof command === 'string') return command;
+  if (command.length >= 3 && command[1] === '-lc' && command[0].startsWith('/bin/')) {
+    return command[2];
   }
-  return args.join(' ');
+  return command.join(' ');
 };
 
 export const extractOutput = (result: ShellLikeOutput | undefined): string => {
