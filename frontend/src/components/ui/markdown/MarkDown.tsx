@@ -1,6 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useMemo, useState, memo, useEffect, lazy, Suspense } from 'react';
+import { useMemo, useState, memo, useEffect, Suspense } from 'react';
+import { lazyNamed } from '@/utils/lazyNamed';
 import type { Options } from 'react-markdown';
 import clsx from 'clsx';
 import { MARKDOWN_COMPONENTS } from './markdownComponents';
@@ -12,9 +13,7 @@ import {
 } from './markdownParsing';
 import styles from './MarkDown.module.scss';
 
-const VisualWidget = lazy(() =>
-  import('../VisualWidget/VisualWidget').then((m) => ({ default: m.VisualWidget })),
-);
+const VisualWidget = lazyNamed(() => import('../VisualWidget/VisualWidget'), 'VisualWidget');
 
 interface MarkdownBlockProps {
   content: string;

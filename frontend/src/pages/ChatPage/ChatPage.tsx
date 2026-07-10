@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useCallback, useRef, ReactNode, lazy, Suspense } from 'react';
+import { useEffect, useMemo, useCallback, useRef, ReactNode, Suspense } from 'react';
+import { lazyNamed } from '@/utils/lazyNamed';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
@@ -26,34 +27,30 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import { SubThreadDialog } from './SubThreadDialog';
 import styles from './ChatPage.module.scss';
 
-const EditorPane = lazy(() =>
-  import('@/components/editor/editor-core/EditorPane').then((m) => ({ default: m.EditorPane })),
+const EditorPane = lazyNamed(
+  () => import('@/components/editor/editor-core/EditorPane'),
+  'EditorPane',
 );
-const SecretsView = lazy(() =>
-  import('@/components/sandbox/secrets/SecretsView/SecretsView').then((m) => ({
-    default: m.SecretsView,
-  })),
+const SecretsView = lazyNamed(
+  () => import('@/components/sandbox/secrets/SecretsView/SecretsView'),
+  'SecretsView',
 );
-const DiffView = lazy(() =>
-  import('@/components/sandbox/git/DiffView/DiffView').then((m) => ({ default: m.DiffView })),
+const DiffView = lazyNamed(() => import('@/components/sandbox/git/DiffView/DiffView'), 'DiffView');
+const TerminalContainer = lazyNamed(
+  () => import('@/components/sandbox/terminal/Container/Container'),
+  'Container',
 );
-const TerminalContainer = lazy(() =>
-  import('@/components/sandbox/terminal/Container/Container').then((m) => ({
-    default: m.Container,
-  })),
+const CreateBranchDialog = lazyNamed(
+  () => import('@/components/chat/github/CreateBranchDialog'),
+  'CreateBranchDialog',
 );
-const CreateBranchDialog = lazy(() =>
-  import('@/components/chat/github/CreateBranchDialog').then((m) => ({
-    default: m.CreateBranchDialog,
-  })),
+const CreateCommitDialog = lazyNamed(
+  () => import('@/components/chat/github/CreateCommitDialog'),
+  'CreateCommitDialog',
 );
-const CreateCommitDialog = lazy(() =>
-  import('@/components/chat/github/CreateCommitDialog').then((m) => ({
-    default: m.CreateCommitDialog,
-  })),
-);
-const CreatePRDialog = lazy(() =>
-  import('@/components/chat/github/CreatePRDialog').then((m) => ({ default: m.CreatePRDialog })),
+const CreatePRDialog = lazyNamed(
+  () => import('@/components/chat/github/CreatePRDialog'),
+  'CreatePRDialog',
 );
 
 export function ChatPage() {

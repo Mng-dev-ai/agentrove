@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
+import { lazyNamed } from '@/utils/lazyNamed';
 import type { Components } from 'react-markdown';
 import type { AnchorHTMLAttributes, HTMLAttributes, ImgHTMLAttributes } from 'react';
 import clsx from 'clsx';
@@ -9,7 +10,7 @@ import { createImageAttachment } from './markdownParsing';
 import { CodeBlock } from './CodeBlock';
 import styles from './markdownComponents.module.scss';
 
-const Mermaid = lazy(() => import('../Mermaid/Mermaid').then((m) => ({ default: m.Mermaid })));
+const Mermaid = lazyNamed(() => import('../Mermaid/Mermaid'), 'Mermaid');
 
 type CommonProps = {
   children?: React.ReactNode;

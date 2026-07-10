@@ -75,7 +75,9 @@ Import what you need per module with the standard namespaces:
 - Props are `interface NameProps` named 1:1 with the component; export the interface
   only when another module needs it.
 - `memo` inline form only: `export const Name = memo(function Name(props: NameProps) { ... });`
-  — never the two-step `NameInner` + `memo(NameInner)`.
+  — never the two-step `NameInner` + `memo(NameInner)`. Exception: generic components,
+  where `memo` erases type params — keep the cast escape hatch
+  (`memo(...) as typeof Inner`, see `SuggestionPanel`/`Dropdown`).
 - **Named exports only** (sole exception: `App.tsx`, imported as default by `main.tsx`).
   Lazy-loading a named export goes through `lazyNamed()` from `@/utils/lazyNamed` — never
   a `.then((m) => ({ default: m.X }))` remap or a default export added for `lazy()`.
