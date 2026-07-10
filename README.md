@@ -147,6 +147,10 @@ docker compose -f docker-compose-production.yml up -d --build
 
 Join the [Discord server](https://discord.gg/HvkJU8dcBA).
 
+## Contributing
+
+Contributions and feedback are welcome.
+
 ## License
 
 Apache 2.0. See [LICENSE](LICENSE).
