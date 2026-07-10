@@ -88,9 +88,9 @@ jobs:
 
       - name: Install test dependencies
         run: |
-          pip install -r backend/requirements.txt pytest pytest-asyncio
+          pip install -r backend/requirements.txt pytest pytest-asyncio pytest-cov
 
       - name: Run backend tests
         run: |
           cd backend
-          pytest tests
+          pytest tests --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=85
