@@ -29,6 +29,14 @@ export interface Message {
   checkpoint_id: string | null;
 }
 
+// ACP plan entry — each plan event carries the complete list, replacing the
+// previous plan state rather than appending to it.
+export interface PlanEntry {
+  content: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  priority?: string;
+}
+
 export type AssistantStreamEvent =
   | { type: 'assistant_text'; text: string }
   | { type: 'assistant_thinking'; thinking: string }
@@ -36,6 +44,7 @@ export type AssistantStreamEvent =
   | { type: 'tool_completed'; tool: ToolEventPayload }
   | { type: 'tool_failed'; tool: ToolEventPayload }
   | { type: 'user_text'; text: string }
+  | { type: 'plan'; data?: { entries?: PlanEntry[] } }
   | {
       type: 'system';
       data?: { context_usage?: { tokens_used: number; context_window: number } } & Record<
@@ -83,7 +92,6 @@ export interface ChatRequest {
   permission_mode: PermissionMode;
   thinking_mode?: string;
   worktree?: boolean;
-  plan_mode?: boolean;
   selected_persona_name: string;
 }
 

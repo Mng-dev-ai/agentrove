@@ -18,7 +18,6 @@ const DEFAULT_KEY = '__default__';
 export const DEFAULT_PERMISSION_MODE: PermissionMode = 'bypassPermissions';
 export const DEFAULT_THINKING_MODE: string = 'high';
 export const DEFAULT_WORKTREE = false;
-export const DEFAULT_PLAN_MODE = false;
 export const DEFAULT_PERSONA = 'Default';
 
 interface ChatSettingsState {
@@ -29,13 +28,11 @@ interface ChatSettingsState {
   // Global, not per-chat — chosen at creation time on the landing composer, and
   // cloud chats live on the VPS so they never get a local chat ID to key by.
   runOnCloud: boolean;
-  planModeByChat: Record<string, boolean>;
   personaByChat: Record<string, string>;
   setPermissionMode: (chatId: string, mode: PermissionMode) => void;
   setThinkingMode: (chatId: string, mode: string) => void;
   setWorktree: (chatId: string, enabled: boolean) => void;
   setRunOnCloud: (enabled: boolean) => void;
-  setPlanMode: (chatId: string, enabled: boolean) => void;
   setPersona: (chatId: string, name: string) => void;
   initChatFromDefaults: (chatId: string) => void;
 }
@@ -47,7 +44,6 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       thinkingModeByChat: {},
       worktreeByChat: {},
       runOnCloud: false,
-      planModeByChat: {},
       personaByChat: {},
       setPermissionMode: (chatId, mode) =>
         set((state) => ({
@@ -65,10 +61,6 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
           worktreeByChat: { ...state.worktreeByChat, [chatId]: enabled },
         })),
       setRunOnCloud: (enabled) => set({ runOnCloud: enabled }),
-      setPlanMode: (chatId, enabled) =>
-        set((state) => ({
-          planModeByChat: { ...state.planModeByChat, [chatId]: enabled },
-        })),
       setPersona: (chatId, name) =>
         set((state) => ({
           personaByChat: { ...state.personaByChat, [chatId]: name },
@@ -82,16 +74,11 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         const permission = state.permissionModeByChat[DEFAULT_KEY];
         const thinking = state.thinkingModeByChat[DEFAULT_KEY];
         const worktree = state.worktreeByChat[DEFAULT_KEY];
-        const planMode = state.planModeByChat[DEFAULT_KEY];
         const persona = state.personaByChat[DEFAULT_KEY];
         const updates: Partial<
           Pick<
             ChatSettingsState,
-            | 'permissionModeByChat'
-            | 'thinkingModeByChat'
-            | 'worktreeByChat'
-            | 'planModeByChat'
-            | 'personaByChat'
+            'permissionModeByChat' | 'thinkingModeByChat' | 'worktreeByChat' | 'personaByChat'
           >
         > = {};
         if (permission !== undefined) {
@@ -105,9 +92,6 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         }
         if (worktree !== undefined) {
           updates.worktreeByChat = { ...state.worktreeByChat, [chatId]: worktree };
-        }
-        if (planMode !== undefined) {
-          updates.planModeByChat = { ...state.planModeByChat, [chatId]: planMode };
         }
         if (persona !== undefined) {
           updates.personaByChat = { ...state.personaByChat, [chatId]: persona };

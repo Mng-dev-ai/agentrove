@@ -152,7 +152,6 @@ class SessionRegistry:
             "mcp_servers": config.mcp_servers,
             "system_prompt": config.system_prompt,
             "reasoning_effort": config.reasoning_effort,
-            "launch_approval_policy": config.launch_approval_policy,
         }
         data = json.dumps(fingerprint_dict, sort_keys=True, default=str)
         return hashlib.sha256(data.encode()).hexdigest()

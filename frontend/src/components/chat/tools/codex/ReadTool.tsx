@@ -17,7 +17,8 @@ import styles from './ReadTool.module.scss';
 export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as ShellLikeInput | undefined;
   const result = tool.result as ShellLikeOutput | undefined;
-  const filePath = input?.parsed_cmd?.[0]?.path ?? '';
+  // Command-action reads carry parsed_cmd; image views send a bare {path}.
+  const filePath = input?.parsed_cmd?.[0]?.path ?? input?.path ?? '';
   const fileLabel = filePath ? extractFilename(filePath) : 'file';
   const content = extractOutput(result);
   const command = extractCommand(input);

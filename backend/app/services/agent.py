@@ -161,14 +161,9 @@ class AgentService:
         custom_instructions: str | None,
         result: StreamResult,
         agent_kind: AgentKind = AgentKind.CLAUDE,
-        plan_mode: bool = False,
         attachments: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        user_content = self.prepare_user_prompt(
-            prompt,
-            custom_instructions,
-            plan_mode=plan_mode,
-        )
+        user_content = self.prepare_user_prompt(prompt, custom_instructions)
         adapter = AGENT_ADAPTERS[agent_kind]
 
         handler = session.handler
@@ -519,7 +514,6 @@ class AgentService:
             mcp_servers=self._build_mcp_server_configs(chat_id),
             model=model_id,
             permission_mode=session_config.permission.session_mode,
-            launch_approval_policy=session_config.permission.launch_approval_policy,
             resume_session_id=session_id,
             workspace_path=workspace_path,
             system_prompt=system_prompt,
@@ -532,10 +526,8 @@ class AgentService:
     def prepare_user_prompt(
         prompt: str,
         custom_instructions: str | None,
-        *,
-        plan_mode: bool = False,
     ) -> str:
-        # Slash commands (e.g. /plan) are passed through verbatim — the agent
+        # Slash commands (e.g. /review) are passed through verbatim — the agent
         # runtime interprets them directly, so wrapping in XML tags would break them.
         if prompt.startswith("/"):
             return prompt
@@ -546,9 +538,4 @@ class AgentService:
                 f"<user_instructions>\n{custom_instructions.strip()}\n</user_instructions>\n\n"
             )
         parts.append(f"<user_prompt>{prompt}</user_prompt>")
-        content = "".join(parts)
-
-        if plan_mode:
-            return "/plan " + content
-
-        return content
+        return "".join(parts)

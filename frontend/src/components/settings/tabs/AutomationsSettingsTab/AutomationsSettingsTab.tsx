@@ -19,7 +19,6 @@ import {
   DEFAULT_PERMISSION_MODE,
   DEFAULT_THINKING_MODE,
   DEFAULT_WORKTREE,
-  DEFAULT_PLAN_MODE,
   DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
@@ -69,7 +68,6 @@ function createDefaultForm(): AutomationForm {
     permission_mode: DEFAULT_PERMISSION_MODE,
     thinking_mode: DEFAULT_THINKING_MODE,
     worktree: DEFAULT_WORKTREE,
-    plan_mode: DEFAULT_PLAN_MODE,
     persona_name: DEFAULT_PERSONA,
     onCloud: false,
   };
@@ -89,7 +87,6 @@ function formFromItem(item: AutomationListItem): AutomationForm {
     permission_mode: automation.permission_mode,
     thinking_mode: automation.thinking_mode ?? '',
     worktree: automation.worktree,
-    plan_mode: automation.plan_mode,
     persona_name: automation.selected_persona_name,
     onCloud: item.onCloud,
   };
@@ -170,7 +167,6 @@ export function AutomationsSettingsTab() {
         permissionMode: form.permission_mode,
         thinkingMode: form.thinking_mode,
         worktree: form.worktree,
-        planMode: form.plan_mode,
         persona: form.persona_name,
       },
       personas,
@@ -185,7 +181,6 @@ export function AutomationsSettingsTab() {
       permission_mode: agentFields.permission_mode,
       thinking_mode: agentFields.thinking_mode || null,
       worktree: agentFields.worktree ?? false,
-      plan_mode: agentFields.plan_mode ?? false,
       selected_persona_name: agentFields.selected_persona_name,
       enabled: editingItem?.automation.enabled ?? true,
     };

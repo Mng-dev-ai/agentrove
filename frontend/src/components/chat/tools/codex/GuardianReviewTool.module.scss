@@ -1,0 +1,36 @@
+@use '@/styles/globals/typography' as type;
+
+.icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-secondary);
+
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-tertiary);
+  }
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.row-label {
+  @include type.type-meta;
+  color: var(--theme-text-quaternary);
+  flex-shrink: 0;
+  min-width: var(--space-16);
+}
+
+.row-value {
+  @include type.type-default;
+  color: var(--theme-text-secondary);
+  overflow-wrap: anywhere;
+}

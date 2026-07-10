@@ -1,0 +1,48 @@
+@use '@/styles/globals/typography' as type;
+
+.icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-secondary);
+
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-tertiary);
+  }
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.prompt {
+  @include type.type-default;
+  color: var(--theme-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.agents {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.agent-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.agent-id {
+  @include type.type-mono-meta;
+  @include type.type-overflow;
+  color: var(--theme-text-tertiary);
+}
+
+.agent-state {
+  @include type.type-meta;
+  color: var(--theme-text-quaternary);
+  flex-shrink: 0;
+}

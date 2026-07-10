@@ -77,14 +77,15 @@ export const MessageRenderer = memo(function MessageRenderer({
     [segments],
   );
 
-  // Split a completed turn at its last tool/thinking segment: everything up to
-  // it is the collapsible work trace, everything after is the final answer.
-  // While streaming, the trace stays empty so the live work renders flat.
+  // Split a completed turn at its last tool/thinking/plan segment: everything
+  // up to it is the collapsible work trace, everything after is the final
+  // answer. While streaming, the trace stays empty so the live work renders flat.
   const { traceSegments, tailSegments } = React.useMemo(() => {
     if (isStreaming) return { traceSegments: [], tailSegments: segments };
     let traceEnd = -1;
     for (let i = segments.length - 1; i >= 0; i--) {
-      if (segments[i].kind === 'tool' || segments[i].kind === 'thinking') {
+      const kind = segments[i].kind;
+      if (kind === 'tool' || kind === 'thinking' || kind === 'plan') {
         traceEnd = i;
         break;
       }

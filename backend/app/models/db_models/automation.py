@@ -38,9 +38,6 @@ class Automation(Base):
     worktree: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )
-    plan_mode: Mapped[bool] = mapped_column(
-        Boolean, default=False, server_default="false", nullable=False
-    )
     selected_persona_name: Mapped[str] = mapped_column(
         String(100), default="Default", server_default="Default", nullable=False
     )

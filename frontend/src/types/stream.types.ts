@@ -11,6 +11,7 @@ export type StreamKind =
   | 'system'
   | 'permission_request'
   | 'prompt_suggestions'
+  | 'plan'
   | 'snapshot'
   | 'complete'
   | 'error'

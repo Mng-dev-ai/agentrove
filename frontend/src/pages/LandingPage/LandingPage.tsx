@@ -24,7 +24,6 @@ import {
   DEFAULT_WORKTREE,
   DEFAULT_PERMISSION_MODE,
   DEFAULT_THINKING_MODE,
-  DEFAULT_PLAN_MODE,
   DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
 import { useQueryClient } from '@tanstack/react-query';
@@ -260,8 +259,6 @@ export function LandingPage() {
                   DEFAULT_THINKING_MODE,
                 worktree:
                   chatSettings.worktreeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_WORKTREE,
-                planMode:
-                  chatSettings.planModeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_PLAN_MODE,
                 persona: chatSettings.personaByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_PERSONA,
               },
               resolvedPersonas ?? [],

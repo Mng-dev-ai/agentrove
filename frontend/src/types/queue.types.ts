@@ -14,7 +14,6 @@ export interface QueuedMessage {
   permission_mode: PermissionMode;
   thinking_mode?: string | null;
   worktree: boolean;
-  plan_mode: boolean;
   selected_persona_name: string;
   queued_at: string;
   attachments?: QueueMessageAttachment[];
@@ -33,7 +32,6 @@ export interface LocalQueuedMessage {
   permissionMode?: PermissionMode;
   thinkingMode?: string | null;
   worktree?: boolean;
-  planMode?: boolean;
   selectedPersonaName?: string;
   queuedAt: number;
   synced: boolean;

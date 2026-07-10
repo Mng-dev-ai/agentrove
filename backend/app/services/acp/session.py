@@ -80,7 +80,6 @@ class AcpSessionConfig:
     mcp_servers: list[dict[str, Any]] = field(default_factory=list)
     model: str = ""
     permission_mode: str = "default"
-    launch_approval_policy: str | None = None
     resume_session_id: str | None = None
     workspace_path: str | None = None
     system_prompt: str | None = None
@@ -239,13 +238,16 @@ class AcpSession:
         except Exception:
             logger.warning("Failed to send ACP cancel", exc_info=True)
 
-    async def set_model(self, model_id: str) -> None:
+    async def set_model(
+        self, model_id: str, reasoning_effort: str | None = None
+    ) -> None:
         try:
             await self._set_model_on_conn(
                 self._conn,
                 self._agent_kind,
                 self.acp_session_id,
                 model_id,
+                reasoning_effort,
             )
         except Exception:
             logger.warning("Failed to set ACP model: %s", model_id, exc_info=True)
@@ -372,6 +374,7 @@ class AcpSession:
                         config.agent_kind,
                         acp_session_id,
                         config.model,
+                        config.reasoning_effort,
                     )
                 except Exception:
                     logger.warning("Failed to set initial model: %s", config.model)
@@ -389,8 +392,8 @@ class AcpSession:
 
             # Claude receives thinking budget via the "effort" session config
             # option (not launch CLI args), so it must be applied after
-            # new_session/load_session. Codex bakes reasoning_effort into CLI
-            # args at launch, so it doesn't need this post-handshake step.
+            # new_session/load_session. Codex carries effort inside the
+            # model[effort] ID set above, so it doesn't need this step.
             if config.agent_kind == AgentKind.CLAUDE and config.reasoning_effort:
                 try:
                     await conn.set_config_option(
@@ -450,6 +453,7 @@ class AcpSession:
         agent_kind: AgentKind,
         session_id: str,
         model_id: str,
+        reasoning_effort: str | None = None,
     ) -> None:
         # Claude's current ACP server canonicalizes aliases through the model
         # config option; the legacy model method can drift from /context state.
@@ -461,6 +465,10 @@ class AcpSession:
                 value=acp_model_id,
             )
             return
+        # codex-acp encodes reasoning effort inside the model ID and rejects
+        # bare IDs ("modelId[effort]" is the required format).
+        if agent_kind == AgentKind.CODEX and reasoning_effort:
+            acp_model_id = f"{acp_model_id}[{reasoning_effort}]"
         await conn.set_session_model(
             model_id=acp_model_id,
             session_id=session_id,
@@ -484,9 +492,6 @@ class AcpSession:
         return adapter.build_launch_config(
             system_prompt=config.system_prompt,
             system_prompt_is_full_replace=config.system_prompt_is_full_replace,
-            reasoning_effort=config.reasoning_effort,
-            permission_mode=config.permission_mode,
-            launch_approval_policy=config.launch_approval_policy,
             instructions_file_path=config.codex_instructions_file_path,
         )
 
@@ -512,7 +517,7 @@ class AcpSession:
             "-w",
             config.cwd,
         ]
-        for key, value in config.env.items():
+        for key, value in {**config.env, **launch.env}.items():
             cmd.extend(["-e", f"{key}={value}"])
 
         # Run through bash login shell so .bashrc env vars are available
@@ -554,6 +559,9 @@ class AcpSession:
                 env["HOME"] = host_home
         else:
             env.update(config.env)
+        # Launch env carries runtime-resolved values (e.g. Codex's CODEX_CONFIG
+        # with an absolute instructions path), so it skips the sandbox-path rewrite.
+        env.update(launch.env)
         env.setdefault("TERM", TERMINAL_TYPE)
 
         try:

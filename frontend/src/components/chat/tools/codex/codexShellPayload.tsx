@@ -15,6 +15,8 @@ export interface ShellLikeInput {
   cwd?: string;
   parsed_cmd?: ParsedCommand[];
   source?: string;
+  // Image-view reads carry a bare path instead of a shell command.
+  path?: string | null;
 }
 
 export interface ShellLikeOutput {

@@ -32,21 +32,15 @@ NATIVE_FILE_TYPES: dict[AgentKind, frozenset[str]] = {
 }
 
 
-# Maps UI permission modes to codex-acp launch-time approval_policy values.
-# "untrusted" = deny all writes, "on-request" = prompt for risky actions,
-# "never" = never prompt (auto-approve everything).
-CODEX_APPROVAL_POLICIES: dict[str, str] = {
-    "auto": "on-request",
-    "read-only": "untrusted",
-    "full-access": "never",
+# Maps UI permission modes to codex-acp session mode IDs. Each mode bundles
+# an approval policy and sandbox policy inside the adapter: "agent" =
+# on-request approvals + workspace write, "agent-full-access" = no approvals
+# + full disk/network access.
+CODEX_SESSION_MODES: dict[str, str] = {
+    "auto": "agent",
+    "read-only": "read-only",
+    "full-access": "agent-full-access",
 }
-# Pre-granted sandbox permissions for full-access mode so Codex doesn't
-# prompt for disk/network access on every tool call.
-CODEX_AUTO_SANDBOX_PERMISSIONS = (
-    '["disk-full-read-access","disk-write-access","network-full-access"]'
-)
-# Valid Codex ACP session modes.
-CODEX_SESSION_MODES = frozenset({"auto", "read-only", "full-access"})
 COPILOT_SESSION_MODES = frozenset({"agent", "plan", "autopilot"})
 COPILOT_SESSION_MODE_BASE_URL = "https://agentclientprotocol.com/protocol/session-modes"
 COPILOT_SESSION_MODE_IDS: dict[str, str] = {
@@ -59,6 +53,10 @@ CLAUDE_XHIGH_MODEL_IDS = frozenset({"opus", "claude-fable-5"})
 CODEX_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 CODEX_MAX_VALID_THINKING_MODES = CODEX_VALID_THINKING_MODES | {"max"}
 CODEX_MAX_MODEL_IDS = frozenset({"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"})
+# Per Codex's model registry, `ultra` (max reasoning + automatic task
+# delegation) is supported by Sol/Terra but not Luna.
+CODEX_ULTRA_VALID_THINKING_MODES = CODEX_MAX_VALID_THINKING_MODES | {"ultra"}
+CODEX_ULTRA_MODEL_IDS = frozenset({"gpt-5.6-sol", "gpt-5.6-terra"})
 COPILOT_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 
 # Cursor CLI exposes three ACP session modes (see https://cursor.com/docs/cli/acp).
@@ -82,7 +80,7 @@ NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
 
 # Agents that can have their base system prompt replaced by a persona.
 # Claude/Codex expose a first-class mechanism (ACP _meta.systemPrompt for
-# Claude; model_instructions_file CLI flag for Codex). OpenCode uses a custom
+# Claude; model_instructions_file via CODEX_CONFIG for Codex). OpenCode uses a custom
 # primary agent injected through OPENCODE_CONFIG_CONTENT. Cursor and Copilot
 # ignore system prompt replacement over ACP, so personas would have no effect.
 PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
@@ -112,19 +110,15 @@ def build_system_prompt_meta(
 class PermissionConfig:
     # ACP session mode ID sent via set_session_mode() after session creation.
     session_mode: str
-    # Codex-only: launch-time approval_policy passed as a CLI config flag.
-    # Claude doesn't use launch-time approval; its modes are session-level only.
-    launch_approval_policy: str | None = None
-    # Codex full-access also needs the permissive sandbox grant at launch time.
-    grant_full_sandbox: bool = False
 
 
 @dataclass(frozen=True)
 class LaunchConfig:
-    # Everything needed to spawn the agent process: the binary to exec
-    # and CLI flags to pass.
+    # Everything needed to spawn the agent process: the binary to exec,
+    # CLI flags to pass, and launch-only env vars (e.g. Codex's CODEX_CONFIG).
     binary: str
     cli_args: list[str] = field(default_factory=list)
+    env: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -155,9 +149,6 @@ class AgentAdapter(ABC):
         *,
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
-        reasoning_effort: str | None,
-        permission_mode: str | None,
-        launch_approval_policy: str | None,
         instructions_file_path: str | None = None,
     ) -> LaunchConfig:
         raise NotImplementedError
@@ -196,9 +187,6 @@ class ClaudeAgentAdapter(AgentAdapter):
         *,
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
-        reasoning_effort: str | None,
-        permission_mode: str | None,
-        launch_approval_policy: str | None,
         instructions_file_path: str | None = None,
     ) -> LaunchConfig:
         # Claude doesn't use CLI args — all config is via env vars and session meta.
@@ -251,44 +239,26 @@ class CodexAgentAdapter(AgentAdapter):
         *,
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
-        reasoning_effort: str | None,
-        permission_mode: str | None,
-        launch_approval_policy: str | None,
         instructions_file_path: str | None = None,
     ) -> LaunchConfig:
-        # Codex uses CLI -c flags for all customization (instructions,
-        # reasoning effort, sandbox permissions, approval policy).
-        args: list[str] = []
-        # Required for Codex to expose ACP session modes (auto/read-only/full-access).
-        args.extend(["-c", "features.collaboration_modes=true"])
-        args.extend(["-c", 'model_reasoning_summary="detailed"'])
+        # codex-acp ignores CLI args entirely — customization goes through the
+        # CODEX_CONFIG env var, a JSON object merged into the Codex session
+        # config. Approval/sandbox policy and reasoning effort no longer belong
+        # here: modes bundle approval+sandbox, and effort rides on the model ID.
+        config: dict[str, Any] = {}
         if system_prompt:
             if system_prompt_is_full_replace and instructions_file_path:
                 # Codex ignores base_instructions for replacing the full system
                 # prompt, so the caller writes the prompt to a file we point
                 # Codex at via model_instructions_file, and we disable the
                 # default personality so the file is the sole instruction set.
-                args.extend(["-c", "features.personality=false"])
-                args.extend(["-c", 'personality="none"'])
-                args.extend(
-                    [
-                        "-c",
-                        f"model_instructions_file={json.dumps(instructions_file_path)}",
-                    ]
-                )
+                config["features"] = {"personality": False}
+                config["personality"] = "none"
+                config["model_instructions_file"] = instructions_file_path
             else:
-                args.extend(
-                    ["-c", "developer_instructions=" + json.dumps(system_prompt)]
-                )
-        if reasoning_effort:
-            args.extend(["-c", f'model_reasoning_effort="{reasoning_effort}"'])
-        if launch_approval_policy == "never":
-            args.extend(["-c", f"sandbox_permissions={CODEX_AUTO_SANDBOX_PERMISSIONS}"])
-        # Codex collaboration Plan Mode is not an ACP session mode or
-        # launch-time approval_policy. We enter it per-turn via `/plan`.
-        if launch_approval_policy in ("untrusted", "on-request", "never"):
-            args.extend(["-c", f'approval_policy="{launch_approval_policy}"'])
-        return LaunchConfig(binary="codex-acp", cli_args=args)
+                config["developer_instructions"] = system_prompt
+        env = {"CODEX_CONFIG": json.dumps(config)} if config else {}
+        return LaunchConfig(binary="codex-acp", env=env)
 
     def build_session_config(
         self,
@@ -299,29 +269,23 @@ class CodexAgentAdapter(AgentAdapter):
         thinking_mode: str | None,
         permission_mode: str,
     ) -> SessionConfig:
-        # GPT-5.6 adds `max`; older Codex models keep the narrower tier set.
-        valid_modes = (
-            CODEX_MAX_VALID_THINKING_MODES
-            if model_id in CODEX_MAX_MODEL_IDS
-            else CODEX_VALID_THINKING_MODES
-        )
+        # GPT-5.6 adds `max` (and `ultra` on Sol/Terra); older Codex models
+        # keep the narrower tier set.
+        if model_id in CODEX_ULTRA_MODEL_IDS:
+            valid_modes = CODEX_ULTRA_VALID_THINKING_MODES
+        elif model_id in CODEX_MAX_MODEL_IDS:
+            valid_modes = CODEX_MAX_VALID_THINKING_MODES
+        else:
+            valid_modes = CODEX_VALID_THINKING_MODES
         reasoning_effort = coerce_thinking_mode(thinking_mode, valid_modes)
 
-        # Codex ACP advertises three session modes: auto, read-only, full-access.
-        # The UI sends these same values, so session_mode is a direct passthrough.
-        # launch_approval_policy controls the separate approval_policy CLI flag.
-        session_mode = self.map_session_mode(permission_mode)
-        launch_approval_policy = CODEX_APPROVAL_POLICIES.get(permission_mode)
-        permission = PermissionConfig(
-            session_mode=session_mode,
-            launch_approval_policy=launch_approval_policy,
-            grant_full_sandbox=launch_approval_policy == "never",
-        )
-
-        # Codex passes everything via CLI args, not session meta.
+        # Codex config rides on the CODEX_CONFIG launch env var and the model
+        # ID, not session meta.
         return SessionConfig(
             reasoning_effort=reasoning_effort,
-            permission=permission,
+            permission=PermissionConfig(
+                session_mode=self.map_session_mode(permission_mode)
+            ),
         )
 
     def map_session_mode(self, permission_mode: str) -> str:
@@ -329,7 +293,7 @@ class CodexAgentAdapter(AgentAdapter):
         # doesn't silently start with broader or different permissions.
         if permission_mode not in CODEX_SESSION_MODES:
             raise ValueError("Invalid Codex session mode: " + permission_mode)
-        return permission_mode
+        return CODEX_SESSION_MODES[permission_mode]
 
 
 class CopilotCliAdapter(AgentAdapter):
@@ -345,9 +309,6 @@ class CopilotCliAdapter(AgentAdapter):
         *,
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
-        reasoning_effort: str | None,
-        permission_mode: str | None,
-        launch_approval_policy: str | None,
         instructions_file_path: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary="copilot", cli_args=["--acp", "--stdio"])
@@ -405,9 +366,6 @@ class CursorAgentAdapter(AgentAdapter):
         *,
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
-        reasoning_effort: str | None,
-        permission_mode: str | None,
-        launch_approval_policy: str | None,
         instructions_file_path: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary="cursor-agent", cli_args=["acp"])
@@ -459,9 +417,6 @@ class OpencodeAgentAdapter(AgentAdapter):
         *,
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
-        reasoning_effort: str | None,
-        permission_mode: str | None,
-        launch_approval_policy: str | None,
         instructions_file_path: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary="opencode", cli_args=["acp"])

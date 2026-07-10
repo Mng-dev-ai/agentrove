@@ -5,7 +5,6 @@ import type { AutomationForm } from '@/types/automation.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
 import { Select } from '@/components/ui/primitives/Select/Select';
-import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
@@ -237,17 +236,6 @@ export function AutomationEditDialog({
               icon={GitFork}
               width="9rem"
             />
-            {agentKind === 'codex' && (
-              <label className={styles['inline-field']}>
-                <Switch
-                  size="sm"
-                  checked={form.plan_mode}
-                  onCheckedChange={(enabled) => onChange('plan_mode', enabled)}
-                  aria-label="Plan mode"
-                />
-                Plan mode
-              </label>
-            )}
           </div>
 
           <div>

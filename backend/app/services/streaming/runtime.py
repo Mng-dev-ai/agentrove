@@ -65,6 +65,7 @@ SNAPSHOT_EVENT_KINDS = frozenset(
         "tool_failed",
         "prompt_suggestions",
         "system",
+        "plan",
     }
 )
 
@@ -821,7 +822,6 @@ class ChatStreamRuntime:
             assistant_message_id=assistant_message_id,
             thinking_mode=queued_msg["thinking_mode"],
             worktree=queued_msg["worktree"],
-            plan_mode=queued_msg["plan_mode"],
             attachments=queued_msg["attachments"],
             selected_persona_name=selected_persona_name,
         )
@@ -1057,7 +1057,11 @@ class ChatStreamRuntime:
             try:
                 session_updates: list[Any] = []
                 if config.model and config.model != session.current_model:
-                    session_updates.append(session.acp_session.set_model(config.model))
+                    session_updates.append(
+                        session.acp_session.set_model(
+                            config.model, config.reasoning_effort
+                        )
+                    )
                 if (
                     config.permission_mode
                     and config.permission_mode != session.current_mode
@@ -1079,7 +1083,6 @@ class ChatStreamRuntime:
                     custom_instructions=request.custom_instructions,
                     result=stream_result,
                     agent_kind=config.agent_kind,
-                    plan_mode=request.plan_mode,
                     attachments=request.attachments,
                 )
                 return await runtime.run(stream_result, stream)

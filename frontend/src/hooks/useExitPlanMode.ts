@@ -38,7 +38,6 @@ export function useExitPlanMode(chatId: string | undefined) {
         if (result === 'success' && nextPermissionMode) {
           useChatSettingsStore.getState().setPermissionMode(chatId, nextPermissionMode);
         }
-        useChatSettingsStore.getState().setPlanMode(chatId, false);
       }
     },
     [chatId, pendingRequest],

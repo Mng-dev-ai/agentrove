@@ -369,7 +369,6 @@ export function useStreamCallbacks({
         const tool = (envelope.payload as { tool?: ToolEventPayload })?.tool;
         if (tool?.name === 'EnterPlanMode' && chatId) {
           useChatSettingsStore.getState().setPermissionMode(chatId, 'plan');
-          useChatSettingsStore.getState().setPlanMode(chatId, true);
         } else if (tool?.name === 'ExitPlanMode' && chatId) {
           if (tool.permission_mode) {
             // The backend's ExitPlanMode tool emits one of the known PermissionMode
@@ -378,7 +377,6 @@ export function useStreamCallbacks({
               .getState()
               .setPermissionMode(chatId, tool.permission_mode as PermissionMode);
           }
-          useChatSettingsStore.getState().setPlanMode(chatId, false);
         }
       }
 

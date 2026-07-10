@@ -287,7 +287,6 @@ async def test_send_message_endpoint_passes_form_fields_to_chat_service(
             "permission_mode": "default",
             "thinking_mode": "high",
             "worktree": "true",
-            "plan_mode": "true",
             "selected_persona_name": "Builder",
         },
         files={"attached_files": ("note.txt", b"hello", "text/plain")},
@@ -309,7 +308,6 @@ async def test_send_message_endpoint_passes_form_fields_to_chat_service(
     assert request.permission_mode == "default"
     assert request.thinking_mode == "high"
     assert request.worktree is True
-    assert request.plan_mode is True
     assert request.selected_persona_name == "Builder"
     assert request.attached_files is not None
     assert request.attached_files[0].filename == "note.txt"
@@ -984,7 +982,6 @@ async def test_queue_message_lifecycle(
             "permission_mode": "bypassPermissions",
             "thinking_mode": "high",
             "worktree": "true",
-            "plan_mode": "true",
             "selected_persona_name": "Default",
         },
         headers=headers,
@@ -1005,7 +1002,6 @@ async def test_queue_message_lifecycle(
     assert queued[0]["permission_mode"] == "bypassPermissions"
     assert queued[0]["thinking_mode"] == "high"
     assert queued[0]["worktree"] is True
-    assert queued[0]["plan_mode"] is True
     assert queued[0]["selected_persona_name"] == "Default"
     assert queued[0]["attachments"] is None
 

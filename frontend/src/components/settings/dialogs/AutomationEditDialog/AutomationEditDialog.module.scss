@@ -84,7 +84,7 @@
   gap: var(--space-2);
 }
 
-// Inline text + control clusters (plan-mode toggle, "every N hours", "at HH:MM")
+// Inline text + control clusters ("every N hours", "at HH:MM")
 .inline-field {
   @include type.type-meta;
   display: flex;

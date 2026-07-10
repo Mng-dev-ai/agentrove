@@ -41,12 +41,19 @@ export const SearchTool = memo(function SearchTool({ tool }: { tool: ToolAggrega
   const output = extractOutput(result);
   const command = extractCommand(input);
   const filePath = input?.parsed_cmd?.[0]?.path ?? '';
+  // Web search / fuzzy file search send no parsed_cmd but a self-contained
+  // title ("Web search: …", "Open page: …", "Search for '…'") — use it verbatim
+  // instead of composing a shell-search label around it.
+  const adapterTitle = !input?.parsed_cmd?.length ? (tool.title?.trim() ?? '') : '';
 
   return (
     <ToolCard
       icon={<FileSearch className={styles.icon} />}
       status={tool.status}
       title={(status) => {
+        if (adapterTitle) {
+          return status === 'failed' ? `${adapterTitle} (failed)` : adapterTitle;
+        }
         switch (status) {
           case 'completed':
             return `Searched: ${searchLabel}`;
@@ -57,8 +64,9 @@ export const SearchTool = memo(function SearchTool({ tool }: { tool: ToolAggrega
         }
       }}
       loadingContent={
-        // Codex search is a local file search, so its loading copy should not inherit web-specific text.
-        <SearchLoadingDots label="Searching files" />
+        // Codex shell search is a local file search, so the fallback loading
+        // copy should not inherit web-specific text.
+        <SearchLoadingDots label={adapterTitle || 'Searching files'} />
       }
       error={tool.error}
     >

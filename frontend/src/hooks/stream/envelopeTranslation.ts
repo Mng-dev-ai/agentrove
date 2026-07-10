@@ -1,4 +1,4 @@
-import type { AssistantStreamEvent } from '@/types/chat.types';
+import type { AssistantStreamEvent, PlanEntry } from '@/types/chat.types';
 import type { ToolEventPayload } from '@/types/tools.types';
 import type { StreamEnvelope } from '@/types/stream.types';
 
@@ -44,6 +44,11 @@ export function envelopeToRenderEvent(envelope: StreamEnvelope): AssistantStream
       const suggestions = raw.filter((item): item is string => typeof item === 'string');
       if (suggestions.length === 0) return null;
       return { type: 'prompt_suggestions', suggestions };
+    }
+    case 'plan': {
+      const entries = extractPayloadData(payload)?.entries;
+      if (!Array.isArray(entries) || entries.length === 0) return null;
+      return { type: 'plan', data: { entries: entries as PlanEntry[] } };
     }
     default:
       return null;
