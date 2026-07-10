@@ -50,13 +50,16 @@ export function TerminalTab({
 
   const lastSentSizeRef = useRef<TerminalSize | null>(null);
   const hasSentInitRef = useRef(false);
+  const focusOnNextWriteRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
   const isClosingRef = useRef(false);
+  const isVisibleRef = useRef(isVisible);
   const shouldCloseRef = useRef(shouldClose);
 
   const resetWsRefs = useCallback(() => {
     wsRef.current = null;
     hasSentInitRef.current = false;
+    focusOnNextWriteRef.current = false;
     lastSentSizeRef.current = null;
   }, []);
 
@@ -93,6 +96,7 @@ export function TerminalTab({
   });
 
   shouldCloseRef.current = shouldClose;
+  isVisibleRef.current = isVisible;
 
   useEffect(() => {
     if (!sandboxId || !isReady) return;
@@ -120,6 +124,7 @@ export function TerminalTab({
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
       hasSentInitRef.current = false;
+      focusOnNextWriteRef.current = true;
       lastSentSizeRef.current = null;
 
       const handleOpen = () => {
@@ -134,10 +139,6 @@ export function TerminalTab({
         ws.send(JSON.stringify({ type: 'init', rows: size.rows, cols: size.cols }));
         hasSentInitRef.current = true;
         lastSentSizeRef.current = size;
-
-        requestAnimationFrame(() => {
-          terminalRef.current?.focus();
-        });
       };
 
       const handleMessage = (event: MessageEvent) => {
@@ -151,7 +152,25 @@ export function TerminalTab({
             return;
           }
           if (message.type === 'stdout' && typeof message.data === 'string') {
-            terminalRef.current?.write(message.data);
+            const terminal = terminalRef.current;
+            const focusAfterWrite = focusOnNextWriteRef.current;
+            focusOnNextWriteRef.current = false;
+            terminal?.write(
+              message.data,
+              focusAfterWrite
+                ? () => {
+                    // Reattached tmux modes must be parsed before focus so TUIs
+                    // receive the focus event and paint without a user click.
+                    if (wsRef.current !== ws) {
+                      return;
+                    }
+                    terminal.refresh(0, terminal.rows - 1);
+                    if (isVisibleRef.current) {
+                      terminal.focus();
+                    }
+                  }
+                : undefined,
+            );
             setSessionState((prev) => (prev === 'connecting' ? 'ready' : prev));
             return;
           }
