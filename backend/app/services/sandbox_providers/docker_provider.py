@@ -398,7 +398,7 @@ class LocalDockerProvider(SandboxProvider):
         cmd = [
             "bash",
             "-c",
-            f"command -v tmux >/dev/null && tmux new -A -s {shlex.quote(tmux_session)} \\; set -g status off \\; set -g mouse off || exec bash",
+            self.build_pty_shell_command(tmux_session, "bash"),
         ]
 
         # Root terminals keep $HOME as the start dir (dotfiles, existing

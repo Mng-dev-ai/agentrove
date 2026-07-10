@@ -4,7 +4,7 @@ import logging
 import re
 import shlex
 from asyncio import QueueEmpty, QueueFull
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from typing import Callable, TypeVar
 
@@ -40,27 +40,30 @@ class TerminalSessionRecord:
     active_websocket: WebSocket | None = None
     tmux_session_name: str | None = None
     pty_exit_task: asyncio.Task[None] | None = None
+    start_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
-    async def ensure_started(self, rows: int, cols: int) -> bool:
-        if self.pty_id is None:
-            tmux_session = self._get_tmux_session_name()
-            self.output_queue = asyncio.Queue(maxsize=PTY_OUTPUT_QUEUE_SIZE)
-            self.pty_id = await self.sandbox_service.create_pty_session(
-                self.sandbox_id,
-                rows,
-                cols,
-                tmux_session,
-                self.cwd,
-                on_data=self._enqueue_output,
-                on_exit=self._schedule_pty_exit,
-            )
-            self.input_queue = asyncio.Queue(maxsize=PTY_INPUT_QUEUE_SIZE)
-            self.input_task = asyncio.create_task(self._input_worker(self.pty_id))
-            self.input_task.add_done_callback(self._handle_input_task_done)
-            return False
+    async def ensure_started(self, rows: int, cols: int) -> None:
+        # Serialized: a page refresh can race two connections into the same
+        # record; without the lock both see pty_id=None and spawn two PTYs.
+        async with self.start_lock:
+            if self.pty_id is None:
+                tmux_session = self._get_tmux_session_name()
+                self.output_queue = asyncio.Queue(maxsize=PTY_OUTPUT_QUEUE_SIZE)
+                self.pty_id = await self.sandbox_service.create_pty_session(
+                    self.sandbox_id,
+                    rows,
+                    cols,
+                    tmux_session,
+                    self.cwd,
+                    on_data=self._enqueue_output,
+                    on_exit=self._schedule_pty_exit,
+                )
+                self.input_queue = asyncio.Queue(maxsize=PTY_INPUT_QUEUE_SIZE)
+                self.input_task = asyncio.create_task(self._input_worker(self.pty_id))
+                self.input_task.add_done_callback(self._handle_input_task_done)
+                return
 
-        await self.resize(rows, cols)
-        return True
+            await self.resize(rows, cols)
 
     def enqueue_input(self, data: bytes) -> None:
         if not self.input_queue:
@@ -156,6 +159,8 @@ class TerminalSessionRecord:
         # Repaint the reattached terminal via tmux itself — Ctrl-L to the pane's
         # stdin only redraws shells; full-screen TUIs swallow it, leaving the
         # fresh xterm blank.
+        if self.pty_id is None:
+            return
         session_name = shlex.quote(self._get_tmux_session_name())
         command = (
             "for c in $(tmux list-clients -t "

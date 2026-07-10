@@ -23,6 +23,7 @@ from app.constants import (
     WS_MSG_CLOSE,
     WS_MSG_DETACH,
     WS_MSG_INIT,
+    WS_MSG_REFRESH,
     WS_MSG_RESIZE,
 )
 from app.models.db_models.chat import Chat
@@ -124,6 +125,8 @@ class FakePtySandboxProvider(SandboxProvider):
         self.killed: list[tuple[str, str]] = []
         self.executed_commands: list[tuple[str, str]] = []
         self._counter = 0
+        # Widens the create_pty await window so tests can race two inits.
+        self.create_delay = 0.0
 
     @property
     def workspace_root(self) -> str:
@@ -145,6 +148,8 @@ class FakePtySandboxProvider(SandboxProvider):
         on_data: PtyDataCallbackType,
         on_exit: PtyExitCallbackType,
     ) -> str:
+        if self.create_delay:
+            await asyncio.sleep(self.create_delay)
         self._counter += 1
         pty_id = f"pty-{self._counter}"
         self.on_data_callbacks[pty_id] = on_data
@@ -266,10 +271,13 @@ class FakeTerminalSession:
         self.attach_count = 0
         self.detach_count = 0
         self.terminate_count = 0
+        self.refresh_count = 0
 
-    async def ensure_started(self, rows: int, cols: int) -> bool:
+    async def ensure_started(self, rows: int, cols: int) -> None:
         self.ensure_started_calls.append((rows, cols))
-        return False
+
+    async def refresh_tmux_client(self) -> None:
+        self.refresh_count += 1
 
     async def attach(self, websocket: WebSocket) -> None:
         self.active_websocket = websocket
@@ -431,6 +439,7 @@ async def test_terminal_websocket_handles_control_frames(
             {"text": json.dumps({"type": WS_MSG_AUTH, "token": token})},
             {"text": "{not-json"},
             {"text": json.dumps({"type": WS_MSG_INIT, "rows": 40, "cols": 120})},
+            {"text": json.dumps({"type": WS_MSG_REFRESH})},
             {"bytes": b"ls\n"},
             {"text": json.dumps({"type": WS_MSG_RESIZE, "rows": 50, "cols": 140})},
             {"text": json.dumps({"type": WS_MSG_DETACH})},
@@ -458,6 +467,7 @@ async def test_terminal_websocket_handles_control_frames(
         "cols": 120,
     }
     assert session.ensure_started_calls == [(40, 120)]
+    assert session.refresh_count == 1
     assert session.resize_calls == [(50, 140)]
     assert session.inputs == [b"ls\n"]
     assert session.attach_count == 1
@@ -610,13 +620,66 @@ async def test_terminal_websocket_buffered_output_replays_on_reconnect(
         "data": "buffered-1 buffered-2",
     }
     assert len(pty_provider.created_ptys) == 1
-    # Reattaching an already-started session (is_reattach) repaints via tmux.
-    assert any(
+
+    # The repaint is client-driven: nothing is redrawn until the reconnected
+    # client asks, so the restored screen lands on the socket displaying it.
+    assert not any(
         "tmux refresh-client" in cmd for _sid, cmd in pty_provider.executed_commands
+    )
+    second_ws.push_text(json.dumps({"type": WS_MSG_REFRESH}))
+    await wait_until(
+        lambda: any(
+            "tmux refresh-client" in cmd for _sid, cmd in pty_provider.executed_commands
+        )
     )
 
     second_ws.push_text(json.dumps({"type": WS_MSG_CLOSE}))
     await asyncio.wait_for(second_task, timeout=2.0)
+
+
+async def test_terminal_websocket_concurrent_inits_share_one_pty(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    pty_provider: FakePtySandboxProvider,
+) -> None:
+    # A page refresh can race two connections into the same session record —
+    # ensure_started must serialize so only one PTY/tmux client is spawned
+    # and the second connection reattaches instead.
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="pty-race@example.com",
+        username="ptyrace",
+    )
+    token = headers["Authorization"].removeprefix("Bearer ")
+    pty_provider.create_delay = 0.05
+
+    sockets = [
+        LiveFakeWebSocket(query_params={"terminalId": "term-race"}) for _ in range(2)
+    ]
+    tasks = [
+        asyncio.create_task(
+            websocket_endpoint.terminal_websocket(
+                cast(WebSocket, ws), workspace.sandbox_id
+            )
+        )
+        for ws in sockets
+    ]
+    for ws in sockets:
+        ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
+        ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
+
+    await wait_until(lambda: sum(len(ws.sent_text) for ws in sockets) >= 2)
+    assert len(pty_provider.created_ptys) == 1
+    # The loser of the create race went down the reattach path.
+    assert len(pty_provider.resizes) == 1
+
+    for ws in sockets:
+        ws.push_text(json.dumps({"type": WS_MSG_DETACH}))
+    for task in tasks:
+        await asyncio.wait_for(task, timeout=2.0)
 
 
 async def test_terminal_websocket_input_and_resize_before_init_are_noops(
