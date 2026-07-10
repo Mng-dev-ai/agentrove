@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { SelectItem } from '@/components/ui/primitives/SelectItem/SelectItem';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { fuzzySearch } from '@/utils/fuzzySearch';
-import { stateClasses } from '@/constants/stateClasses';
+import { stateClasses } from '@/config/stateClasses';
 import styles from './Dropdown.module.scss';
 
 export type DropdownItemType<T> = { type: 'item'; data: T } | { type: 'header'; label: string };

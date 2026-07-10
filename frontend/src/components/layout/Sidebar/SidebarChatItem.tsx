@@ -13,7 +13,7 @@ import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
-import { stateClasses } from '@/constants/stateClasses';
+import { stateClasses } from '@/config/stateClasses';
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import styles from './SidebarChatItem.module.scss';

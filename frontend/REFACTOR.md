@@ -30,7 +30,7 @@ refactor, not a redesign.
 | `_elevation.scss`     | `--radius-*`, `--shadow-sm/medium/strong/inset`                                                                                      | ALL radius/shadows                        |
 | `_animations.scss`    | `--duration-*`, `--easing-*`, global keyframes (`fade-in`, `fade-in-up`, `spin`, `pulse`, `shimmer`, ...), `transition-colors` mixin | ALL motion                                |
 | `_zlayer.scss`        | `z($layer)` mixin (`raised/sticky/sidebar/titlebar/dropdown/modal/command-menu/tooltip/toast`)                                       | ALL z-index (never bare)                  |
-| `_state-classes.scss` | `$state-*` class names (mirrored in `src/constants/stateClasses.ts`)                                                                 | JS-driven state styling                   |
+| `_state-classes.scss` | `$state-*` class names (mirrored in `src/config/stateClasses.ts`)                                                                    | JS-driven state styling                   |
 | `_controls.scss`      | `focus-ring`, `button-base/size/variant`, `input-base/error` mixins                                                                  | building new controls (prefer primitives) |
 
 Import what you need per module with the standard namespaces:
@@ -58,7 +58,7 @@ Import what you need per module with the standard namespaces:
   (`styles['chat-row']`), single words with dots (`styles.sidebar`).
 - Variants are BEM-ish modifier classes composed with `clsx`:
   `clsx(styles.button, styles[`button--${size}`], styles[`button--${variant}`], className)`.
-- JS-driven states use `stateClasses` from `@/constants/stateClasses` on the TSX side and
+- JS-driven states use `stateClasses` from `@/config/stateClasses` on the TSX side and
   `&:global(.#{state.$state-open}) { ... }` on the SCSS side — never hardcode `is-*`
   strings. Where the DOM already has a semantic hook (`aria-selected`, `data-state`,
   `:disabled`), style that attribute instead of adding a state class.

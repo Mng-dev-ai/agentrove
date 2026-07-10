@@ -18,7 +18,11 @@ interface AgentToolExpandedModalProps {
   onClose: () => void;
 }
 
-function AgentToolExpandedModal({ agents, initialAgentId, onClose }: AgentToolExpandedModalProps) {
+export function AgentToolExpandedModal({
+  agents,
+  initialAgentId,
+  onClose,
+}: AgentToolExpandedModalProps) {
   const [selectedId, setSelectedId] = useState(initialAgentId);
 
   const selectedAgent = agents.find((a) => a.id === selectedId);
@@ -155,5 +159,3 @@ function AgentToolExpandedModal({ agents, initialAgentId, onClose }: AgentToolEx
     </BaseModal>
   );
 }
-
-export default AgentToolExpandedModal;

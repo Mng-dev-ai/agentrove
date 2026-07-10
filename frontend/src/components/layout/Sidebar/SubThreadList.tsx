@@ -14,7 +14,7 @@ import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
-import { stateClasses } from '@/constants/stateClasses';
+import { stateClasses } from '@/config/stateClasses';
 import type { Chat } from '@/types/chat.types';
 import styles from './SubThreadList.module.scss';
 

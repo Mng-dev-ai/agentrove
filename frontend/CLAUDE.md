@@ -159,7 +159,7 @@ Tailwind has been removed.
 - Radius/shadows: `var(--radius-md/lg/xl/2xl)` and `var(--shadow-sm/medium/strong)` only — md for small controls, lg for standard containers, xl for prominent cards/dropdowns, 2xl for overlays
 - z-index: only `@include z.z('layer')` from `_zlayer.scss` — never bare values
 - Breakpoints/hover: only `media()` / `hover()` / `active()` mixins from `_responsive.scss` — never raw `@media` or bare `&:hover`
-- JS-driven states: `stateClasses` from `@/constants/stateClasses` + `&:global(.#{state.$state-*})`; prefer styling semantic hooks (`aria-selected`, `data-state`, `:disabled`) when the DOM already has them
+- JS-driven states: `stateClasses` from `@/config/stateClasses` + `&:global(.#{state.$state-*})`; prefer styling semantic hooks (`aria-selected`, `data-state`, `:disabled`) when the DOM already has them
 - Focus rings: `@include controls.focus-ring;` — monochrome, never brand-colored
 
 ### Icons

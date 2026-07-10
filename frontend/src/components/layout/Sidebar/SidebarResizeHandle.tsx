@@ -7,7 +7,7 @@ import {
   useUIStore,
 } from '@/store/uiStore';
 import clsx from 'clsx';
-import { stateClasses } from '@/constants/stateClasses';
+import { stateClasses } from '@/config/stateClasses';
 import styles from './SidebarResizeHandle.module.scss';
 
 const KEYBOARD_STEP = 16;

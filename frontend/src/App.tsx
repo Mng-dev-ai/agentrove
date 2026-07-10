@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useEffect, useState, Suspense, lazy } from 'react';
+import { useEffect, useState, Suspense } from 'react';
+import { lazyNamed } from '@/utils/lazyNamed';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDesktopZoom } from '@/hooks/useDesktopZoom';
 import { Layout } from '@/components/layout/Layout/Layout';
@@ -26,36 +27,26 @@ import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { clearCloudOrigins } from '@/utils/chatOrigin';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
 import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import styles from './App.module.scss';
 
-const LandingPage = lazy(() =>
-  import('@/pages/LandingPage/LandingPage').then((m) => ({ default: m.LandingPage })),
+const LandingPage = lazyNamed(() => import('@/pages/LandingPage/LandingPage'), 'LandingPage');
+const ChatPage = lazyNamed(() => import('@/pages/ChatPage/ChatPage'), 'ChatPage');
+const LoginPage = lazyNamed(() => import('@/pages/LoginPage/LoginPage'), 'LoginPage');
+const SignupPage = lazyNamed(() => import('@/pages/SignupPage/SignupPage'), 'SignupPage');
+const EmailVerificationPage = lazyNamed(
+  () => import('@/pages/EmailVerificationPage/EmailVerificationPage'),
+  'EmailVerificationPage',
 );
-const ChatPage = lazy(() =>
-  import('@/pages/ChatPage/ChatPage').then((m) => ({ default: m.ChatPage })),
+const ForgotPasswordPage = lazyNamed(
+  () => import('@/pages/ForgotPasswordPage/ForgotPasswordPage'),
+  'ForgotPasswordPage',
 );
-const LoginPage = lazy(() =>
-  import('@/pages/LoginPage/LoginPage').then((m) => ({ default: m.LoginPage })),
+const ResetPasswordPage = lazyNamed(
+  () => import('@/pages/ResetPasswordPage/ResetPasswordPage'),
+  'ResetPasswordPage',
 );
-const SignupPage = lazy(() =>
-  import('@/pages/SignupPage/SignupPage').then((m) => ({ default: m.SignupPage })),
-);
-const EmailVerificationPage = lazy(() =>
-  import('@/pages/EmailVerificationPage/EmailVerificationPage').then((m) => ({
-    default: m.EmailVerificationPage,
-  })),
-);
-const ForgotPasswordPage = lazy(() =>
-  import('@/pages/ForgotPasswordPage/ForgotPasswordPage').then((m) => ({
-    default: m.ForgotPasswordPage,
-  })),
-);
-const ResetPasswordPage = lazy(() =>
-  import('@/pages/ResetPasswordPage/ResetPasswordPage').then((m) => ({
-    default: m.ResetPasswordPage,
-  })),
-);
-const SettingsPage = lazy(() => import('@/pages/SettingsPage/SettingsPage'));
+const SettingsPage = lazyNamed(() => import('@/pages/SettingsPage/SettingsPage'), 'SettingsPage');
 
 function AppContent() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -321,7 +312,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <Toaster {...toasterConfig} />
-      <AppContent />
+      {/* Root boundary — a render crash anywhere in the route tree must not white-screen the shell */}
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
