@@ -9,6 +9,7 @@ import type {
 } from '@/types/stream.types';
 import { StreamProcessingError } from '@/types/stream.types';
 import { chatService } from '@/services/chatService';
+import { streamConnection } from '@/services/streamConnection';
 import { logger } from '@/utils/logger';
 import { chatStorage } from '@/utils/storage';
 
@@ -45,6 +46,13 @@ interface StreamReconnectOptions {
 class StreamService {
   private readonly maxRecentSeqPerChat = 4096;
   private readonly recentSeqByChat = new Map<string, Set<number>>();
+
+  constructor() {
+    streamConnection.configure({
+      onEnvelopeData: (raw) => this.handleEnvelopeData(raw),
+      onConnectionFailure: (chatIds) => this.failStreamsForChats(chatIds),
+    });
+  }
 
   private parseStreamEvent<T>(data: string): T | null {
     try {
@@ -154,14 +162,18 @@ class StreamService {
     }
   }
 
-  private handleStreamEnvelope(event: MessageEvent, streamId: string, chatId: string): void {
-    if (!event.data) return;
+  private handleEnvelopeData(raw: string): void {
+    const parsed = this.parseStreamEvent<StreamEnvelope>(raw);
+    if (!parsed?.chatId) return;
+    const chatId = parsed.chatId;
 
-    const currentStream = useStreamStore.getState().getStream(streamId);
+    // The multiplexed feed carries every stream of the user, including chats with
+    // no client-side stream registered (e.g. background sub-threads). Those must
+    // be ignored entirely — marking their seqs seen or advancing the chatStorage
+    // cursor would make a later replay of that chat skip its content.
+    const currentStream = useStreamStore.getState().getStreamByChat(chatId);
     if (!currentStream) return;
-
-    const parsed = this.parseStreamEvent<StreamEnvelope>(event.data);
-    if (!parsed) return;
+    const streamId = currentStream.id;
 
     const seq = Number(parsed.seq);
     if (!Number.isFinite(seq) || seq <= 0) {
@@ -216,24 +228,18 @@ class StreamService {
     }
   }
 
-  private handleGenericError(event: Event | ErrorEvent, streamId: string, messageId: string): void {
-    const currentStream = useStreamStore.getState().getStream(streamId);
-    if (!currentStream) return;
-
-    // EventSource emits transport "error" while reconnecting; do not fail fast.
-    if (currentStream.source.readyState === EventSource.CONNECTING) {
-      return;
+  // Invoked when the shared connection gives up reconnecting — every stream
+  // riding it is unreachable, so fail them all like a fatal transport error.
+  private failStreamsForChats(chatIds: string[]): void {
+    for (const chatId of chatIds) {
+      const stream = useStreamStore.getState().getStreamByChat(chatId);
+      if (!stream) continue;
+      this.cleanupStream(
+        stream.id,
+        new StreamProcessingError('Stream connection error'),
+        stream.messageId,
+      );
     }
-
-    currentStream.source.close();
-
-    const error =
-      event instanceof ErrorEvent && event.error instanceof Error
-        ? event.error
-        : new Error('Stream connection error');
-
-    const wrappedError = new StreamProcessingError('Stream connection error', error);
-    this.cleanupStream(streamId, wrappedError, messageId);
   }
 
   private finalizeStreamAsCancelled(stream: ActiveStream): void {
@@ -246,61 +252,39 @@ class StreamService {
     useStreamStore.getState().abortStream(stream.id);
   }
 
-  private attachStreamHandlers(streamId: string, messageId: string): void {
-    const activeStream = useStreamStore.getState().getStream(streamId);
-    if (!activeStream) return;
-
-    const { source, chatId } = activeStream;
-
-    const register = (type: string, handler: EventListener) => {
-      source.addEventListener(type, handler);
-      activeStream.listeners.push({ type, handler });
-    };
-
-    register('stream', (event: Event) =>
-      this.handleStreamEnvelope(event as MessageEvent, streamId, chatId),
-    );
-
-    source.onerror = (event) => {
-      this.handleGenericError(event, streamId, messageId);
-    };
+  // Registering the stream opens the shared connection if it isn't already, and
+  // the replay request covers the already-open case — events published before
+  // this registration (send request window, pre-reconnect backlog) would
+  // otherwise be dropped, since an open feed only replays chats from its
+  // open-time cursors. The resume point is the chat's chatStorage cursor.
+  private registerAndReplay(
+    chatId: string,
+    messageId: string,
+    options: StreamOptions | StreamReconnectOptions,
+  ): void {
+    useStreamStore.getState().addStream({
+      id: crypto.randomUUID(),
+      chatId,
+      messageId,
+      startTime: Date.now(),
+      isActive: true,
+      callbacks: {
+        onEnvelope: options.onEnvelope,
+        onComplete: options.onComplete,
+        onError: options.onError,
+        onQueueProcess: options.onQueueProcess,
+      },
+    });
+    streamConnection.requestReplay(chatId);
   }
 
-  async startStream(
-    options: StreamOptions,
-  ): Promise<Pick<ApiStreamResponse, 'messageId' | 'checkpointId' | 'worktreeCwd'>> {
-    const streamId = crypto.randomUUID();
-
-    try {
-      const { source, messageId, checkpointId, worktreeCwd } = await chatService.createCompletion(
-        options.request,
-        options.signal,
-      );
-
-      const activeStream: ActiveStream = {
-        id: streamId,
-        chatId: options.chatId,
-        messageId,
-        source,
-        startTime: Date.now(),
-        isActive: true,
-        listeners: [],
-        callbacks: {
-          onEnvelope: options.onEnvelope,
-          onComplete: options.onComplete,
-          onError: options.onError,
-          onQueueProcess: options.onQueueProcess,
-        },
-      };
-
-      useStreamStore.getState().addStream(activeStream);
-      this.attachStreamHandlers(streamId, messageId);
-
-      return { messageId, checkpointId, worktreeCwd };
-    } catch (error) {
-      useStreamStore.getState().removeStream(streamId);
-      throw error;
-    }
+  async startStream(options: StreamOptions): Promise<ApiStreamResponse> {
+    const { messageId, checkpointId, worktreeCwd } = await chatService.createCompletion(
+      options.request,
+      options.signal,
+    );
+    this.registerAndReplay(options.chatId, messageId, options);
+    return { messageId, checkpointId, worktreeCwd };
   }
 
   async stopStreamByMessage(chatId: string, messageId: string): Promise<boolean> {
@@ -314,49 +298,15 @@ class StreamService {
     return false;
   }
 
-  async reconnectToStream(options: StreamReconnectOptions): Promise<string> {
-    const streamId = crypto.randomUUID();
-
-    try {
-      const { source } = await chatService.reconnectToStream(
-        options.chatId,
-        options.messageId,
-        undefined,
-        options.afterSeq,
-      );
-
-      const activeStream: ActiveStream = {
-        id: streamId,
-        chatId: options.chatId,
-        messageId: options.messageId,
-        source,
-        startTime: Date.now(),
-        isActive: true,
-        listeners: [],
-        callbacks: {
-          onEnvelope: options.onEnvelope,
-          onComplete: options.onComplete,
-          onError: options.onError,
-          onQueueProcess: options.onQueueProcess,
-        },
-      };
-
-      useStreamStore.getState().addStream(activeStream);
-
-      this.attachStreamHandlers(streamId, options.messageId);
-
-      return options.messageId;
-    } catch (error) {
-      useStreamStore.getState().removeStream(streamId);
-      throw error;
-    }
-  }
-
   async replayStream(options: StreamReconnectOptions): Promise<string> {
+    // A from-zero replay rebuilds the whole message, so the dedup window must
+    // not swallow the re-sent seqs. The actual resume point comes from the
+    // chatStorage cursor the reconnect flow wrote before calling this.
     if (!options.afterSeq || options.afterSeq <= 0) {
       this.recentSeqByChat.delete(options.chatId);
     }
-    return this.reconnectToStream(options);
+    this.registerAndReplay(options.chatId, options.messageId, options);
+    return options.messageId;
   }
 }
 

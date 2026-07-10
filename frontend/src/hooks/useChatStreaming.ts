@@ -114,7 +114,6 @@ export function useChatStreaming({
     startStream,
     replayStream,
     stopStream,
-    updateMessageInCache,
     addMessageToCache,
     setPendingUserMessageId,
   } = useStreamCallbacks({
@@ -242,7 +241,6 @@ export function useChatStreaming({
     setCurrentMessageId,
     setMessages,
     addMessageToCache,
-    updateMessageInCache,
     replayStream,
   });
 

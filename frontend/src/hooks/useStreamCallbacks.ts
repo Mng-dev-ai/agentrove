@@ -73,7 +73,6 @@ interface UseStreamCallbacksResult {
   ) => Promise<{ messageId: string; checkpointId: string | null; worktreeCwd: string | null }>;
   replayStream: (messageId: string, afterSeq?: number) => Promise<string>;
   stopStream: (messageId: string) => Promise<void>;
-  updateMessageInCache: ReturnType<typeof useMessageCache>['updateMessageInCache'];
   addMessageToCache: ReturnType<typeof useMessageCache>['addMessageToCache'];
   removeMessagesFromCache: ReturnType<typeof useMessageCache>['removeMessagesFromCache'];
   setPendingUserMessageId: (id: string | null) => void;
@@ -119,7 +118,7 @@ export function useStreamCallbacks({
   const chatIdRef = useRef(chatId);
   chatIdRef.current = chatId;
 
-  const { updateMessageInCache, addMessageToCache, removeMessagesFromCache } = useMessageCache({
+  const { addMessageToCache, removeMessagesFromCache } = useMessageCache({
     chatId,
     queryClient,
   });
@@ -726,8 +725,9 @@ export function useStreamCallbacks({
   );
 
   // Stash the latest callbacks in a ref so startStream/replayStream — which are
-  // intentionally stable (only the stable queryClient in deps) to avoid
-  // re-registering the EventSource — always dispatch through the freshest closures.
+  // intentionally stable (only the stable queryClient in deps) so re-renders
+  // don't re-fire the effects that consume them — always dispatch through the
+  // freshest closures.
   useEffect(() => {
     optionsRef.current = chatId
       ? { chatId, onEnvelope, onComplete, onError, onQueueProcess }
@@ -813,7 +813,6 @@ export function useStreamCallbacks({
     startStream,
     replayStream,
     stopStream,
-    updateMessageInCache,
     addMessageToCache,
     removeMessagesFromCache,
     setPendingUserMessageId,

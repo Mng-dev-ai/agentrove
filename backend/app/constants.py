@@ -12,7 +12,7 @@ class ModelInfo(NamedTuple):
     context_window: int | None
 
 
-REDIS_KEY_CHAT_STREAM_LIVE: Final[str] = "chat:{chat_id}:stream:live"
+REDIS_KEY_USER_STREAMS_LIVE: Final[str] = "user:{user_id}:streams:live"
 REDIS_KEY_USER_CHATS_LIVE: Final[str] = "user:{user_id}:chats:live"
 REDIS_KEY_USER_SETTINGS: Final[str] = "user_settings:{user_id}"
 REDIS_KEY_CHAT_CONTEXT_USAGE: Final[str] = "chat:{chat_id}:context_usage"

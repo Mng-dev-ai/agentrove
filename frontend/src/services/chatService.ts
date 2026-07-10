@@ -62,10 +62,16 @@ async function createCompletion(
       }>('/chat/chat', formData, signal);
 
       const payload = ensureResponse(taskResponse, 'Failed to start chat completion');
-      const eventSource = createEventSource(payload.chat_id, signal, payload.last_seq);
+
+      // Seed the replay cursor for the multiplexed feed: events published before
+      // the shared connection (re)opens are recovered by replaying after last_seq.
+      const storedSeq = normalizePositiveInt(chatStorage.getEventId(payload.chat_id));
+      const providedSeq = normalizePositiveInt(payload.last_seq);
+      if (providedSeq > storedSeq) {
+        chatStorage.setEventId(payload.chat_id, String(providedSeq));
+      }
 
       return {
-        source: eventSource,
         messageId: payload.message_id,
         checkpointId: payload.checkpoint_id,
         worktreeCwd: payload.worktree_cwd,
@@ -108,23 +114,6 @@ async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
     const streams = await apiClient.get<ActiveStreamSnapshot[]>('/chat/chats/active-streams');
     return streams ?? [];
   });
-}
-
-async function reconnectToStream(
-  chatId: string,
-  messageId: string,
-  signal?: AbortSignal,
-  afterSeq?: number,
-): Promise<{
-  source: EventSource;
-  messageId: string;
-}> {
-  const eventSource = createEventSource(chatId, signal, afterSeq);
-
-  return {
-    source: eventSource,
-    messageId,
-  };
 }
 
 async function stopStream(chatId: string): Promise<void> {
@@ -249,49 +238,6 @@ function normalizePositiveInt(value: unknown): number {
     return 0;
   }
   return Math.floor(parsed);
-}
-
-function createEventSource(
-  chatId: string,
-  signal?: AbortSignal,
-  baselineSeq?: number,
-): EventSource {
-  const client = resolveChatClient(chatId);
-  const token = client.getToken();
-  if (!token) {
-    throw new Error('Authentication token required');
-  }
-
-  const storedSeq = normalizePositiveInt(chatStorage.getEventId(chatId));
-  const providedSeq = normalizePositiveInt(baselineSeq);
-  const afterSeq = Math.max(storedSeq, providedSeq);
-  if (afterSeq > storedSeq) {
-    chatStorage.setEventId(chatId, String(afterSeq));
-  }
-
-  const baseUrl = `${client.getBaseUrl()}/chat/chats/${chatId}/stream`;
-
-  const params = new URLSearchParams();
-  params.append('token', token);
-  params.append('after_seq', String(afterSeq));
-
-  const url = `${baseUrl}?${params.toString()}`;
-  const eventSource = new EventSource(url);
-
-  if (signal) {
-    const abortHandler = () => {
-      signal.removeEventListener('abort', abortHandler);
-      eventSource.close();
-    };
-
-    signal.addEventListener('abort', abortHandler);
-    if (signal.aborted) {
-      abortHandler();
-      throw new DOMException('The operation was aborted.', 'AbortError');
-    }
-  }
-
-  return eventSource;
 }
 
 function createChatEventsSource(): EventSource {
@@ -433,7 +379,6 @@ export const chatService = {
   startCompletion,
   checkChatStatus,
   getActiveStreams,
-  reconnectToStream,
   stopStream,
   getMessages,
   listChats,

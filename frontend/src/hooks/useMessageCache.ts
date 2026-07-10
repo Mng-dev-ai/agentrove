@@ -15,27 +15,6 @@ interface UseMessageCacheParams {
 // Scoped to the current chatId — callers needing cross-chat writes must use
 // queryClient directly with the target chatId.
 export function useMessageCache({ chatId, queryClient }: UseMessageCacheParams) {
-  const updateMessageInCache = useCallback(
-    (messageId: string, updater: (msg: Message) => Message) => {
-      if (!chatId) return;
-
-      queryClient.setQueryData(
-        queryKeys.messages(chatId),
-        (oldData: { pages: PaginatedMessages[]; pageParams: unknown[] } | undefined) => {
-          if (!oldData?.pages) return oldData;
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page: PaginatedMessages) => ({
-              ...page,
-              items: page.items.map((msg: Message) => (msg.id === messageId ? updater(msg) : msg)),
-            })),
-          };
-        },
-      );
-    },
-    [chatId, queryClient],
-  );
-
   // Uses unshift into page 0 so newest messages match the backend's DESC
   // ordering. Optionally prepends the paired user message when both arrive together.
   const addMessageToCache = useCallback(
@@ -95,7 +74,6 @@ export function useMessageCache({ chatId, queryClient }: UseMessageCacheParams) 
   );
 
   return {
-    updateMessageInCache,
     addMessageToCache,
     removeMessagesFromCache,
   };

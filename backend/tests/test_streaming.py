@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
 from app.core import deps
-from app.constants import MODELS, REDIS_KEY_CHAT_STREAM_LIVE
+from app.constants import MODELS, REDIS_KEY_USER_STREAMS_LIVE
 from app.db.session import engine
 from app.models.db_models.chat import Chat
 from app.models.db_models.enums import MessageStreamStatus
@@ -1129,7 +1129,10 @@ async def test_stream_sse_replays_backlog_then_delivers_live_events(
         async with (
             sse_client,
             sse_client.stream(
-                "GET", f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
+                "GET",
+                "/api/v1/chat/chats/streams",
+                params={"cursors": json.dumps({str(chat.id): 0})},
+                headers=headers,
             ) as response,
         ):
             assert response.status_code == 200
@@ -1158,14 +1161,16 @@ async def test_stream_sse_replays_backlog_then_delivers_live_events(
                 payload={},
             )
             await streaming_cache.store.publish(
-                REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=chat.id), live_envelope
+                REDIS_KEY_USER_STREAMS_LIVE.format(user_id=user.id), live_envelope
             )
 
-            # A terminal live event must close the stream server-side, ending
-            # this iteration instead of hanging on a never-finished response.
+            # The multiplexed feed stays open across terminal events (other
+            # chats may still be streaming), so read exactly one live event
+            # instead of draining until server-side close.
             async for line in lines:
                 if line.startswith("data:"):
                     envelopes.append(json.loads(line.removeprefix("data:").strip()))
+                    break
 
     assert [e["seq"] for e in envelopes] == [backlog["seq"], backlog["seq"] + 1]
 
@@ -1196,7 +1201,10 @@ async def test_sse_endpoints_release_db_connection_while_streaming(
                 "GET", "/api/v1/chat/chats/events", headers=headers
             ) as events_response,
             sse_client.stream(
-                "GET", f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
+                "GET",
+                "/api/v1/chat/chats/streams",
+                params={"cursors": json.dumps({str(chat.id): 0})},
+                headers=headers,
             ) as chat_stream_response,
         ):
             assert events_response.status_code == 200
