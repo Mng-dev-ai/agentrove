@@ -29,6 +29,8 @@ from app.utils.sandbox import normalize_relative_path
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+WS_RECEIVE_TIMEOUT_SECONDS = 30.0
+
 
 @router.websocket("/{sandbox_id}/terminal")
 async def terminal_websocket(
@@ -74,9 +76,16 @@ async def terminal_websocket(
     try:
         while True:
             try:
-                message = await asyncio.wait_for(websocket.receive(), timeout=30.0)
+                message = await asyncio.wait_for(
+                    websocket.receive(), timeout=WS_RECEIVE_TIMEOUT_SECONDS
+                )
             except asyncio.TimeoutError:
-                await websocket.send_text(json.dumps({"type": WS_MSG_PING}))
+                try:
+                    await websocket.send_text(json.dumps({"type": WS_MSG_PING}))
+                except (RuntimeError, OSError):
+                    # Ping hit a dead connection — exit so `finally` detaches
+                    # instead of the error propagating out of the endpoint.
+                    break
                 continue
 
             if "bytes" in message:
@@ -158,6 +167,10 @@ async def terminal_websocket(
             await session.detach()
         try:
             await websocket.close()
+        except RuntimeError:
+            # Already closed server-side (attach() takeover or PTY exit) —
+            # starlette raises on a second close.
+            pass
         except OSError as exc:
             if exc.errno != errno.EPIPE:
                 logger.error("Failed to close websocket cleanly: %s", exc)

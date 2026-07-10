@@ -8,6 +8,7 @@ from typing import Any, Callable, cast
 import pytest
 import pytest_asyncio
 from fastapi import WebSocket
+from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.websockets import WebSocketDisconnect
 
@@ -24,11 +25,13 @@ from app.constants import (
     WS_MSG_INIT,
     WS_MSG_RESIZE,
 )
+from app.models.db_models.chat import Chat
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.types import (
     CommandResult,
     PtyDataCallbackType,
+    PtyExitCallbackType,
     PtySize,
 )
 
@@ -59,6 +62,7 @@ class LiveFakeWebSocket:
         self,
         query_params: dict[str, str] | None = None,
         close_error: OSError | None = None,
+        ping_error: Exception | None = None,
     ) -> None:
         self.query_params = query_params or {}
         self.accepted = False
@@ -67,6 +71,7 @@ class LiveFakeWebSocket:
         self.close_reason: str | None = None
         self._frames: "asyncio.Queue[dict[str, Any]]" = asyncio.Queue()
         self._close_error = close_error
+        self._ping_error = ping_error
 
     async def accept(self) -> None:
         self.accepted = True
@@ -78,6 +83,10 @@ class LiveFakeWebSocket:
         return frame
 
     async def send_text(self, payload: str) -> None:
+        # Simulates a NAT/network-dead connection where only the server's
+        # keepalive ping discovers the failure.
+        if self._ping_error is not None and '"ping"' in payload:
+            raise self._ping_error
         self.sent_text.append(payload)
 
     async def close(self, code: int = 1000, reason: str | None = None) -> None:
@@ -108,6 +117,7 @@ class FakePtySandboxProvider(SandboxProvider):
         self._workspace_root = "/tmp/agentrove-pty-test"
         self._pty_sessions: dict[str, dict[str, Any]] = {}
         self.on_data_callbacks: dict[str, PtyDataCallbackType] = {}
+        self.on_exit_callbacks: dict[str, PtyExitCallbackType] = {}
         self.created_ptys: list[tuple[str, str, int, int, str, str]] = []
         self.sent_inputs: list[tuple[str, str, bytes]] = []
         self.resizes: list[tuple[str, str, PtySize]] = []
@@ -133,10 +143,12 @@ class FakePtySandboxProvider(SandboxProvider):
         tmux_session: str,
         cwd: str,
         on_data: PtyDataCallbackType,
+        on_exit: PtyExitCallbackType,
     ) -> str:
         self._counter += 1
         pty_id = f"pty-{self._counter}"
         self.on_data_callbacks[pty_id] = on_data
+        self.on_exit_callbacks[pty_id] = on_exit
         self.created_ptys.append((pty_id, sandbox_id, rows, cols, tmux_session, cwd))
         self.register_pty_session(sandbox_id, pty_id, {})
         return pty_id
@@ -308,6 +320,41 @@ class FakeTerminalRegistry:
 
 async def run_terminal_websocket(websocket: FakeWebSocket, sandbox_id: str) -> None:
     await websocket_endpoint.terminal_websocket(cast(WebSocket, websocket), sandbox_id)
+
+
+async def attach_then_detach_terminal(
+    sandbox_id: str, token: str, terminal_id: str
+) -> str:
+    # Open a terminal via the endpoint, read its pty id, then detach cleanly —
+    # leaves a live-but-unattached session record, like a closed tab/refresh.
+    websocket = LiveFakeWebSocket(query_params={"terminalId": terminal_id})
+    task = asyncio.create_task(
+        websocket_endpoint.terminal_websocket(cast(WebSocket, websocket), sandbox_id)
+    )
+    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
+    websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
+    await wait_until(lambda: len(websocket.sent_text) >= 1)
+    pty_id = json.loads(websocket.sent_text[0])["id"]
+    websocket.push_text(json.dumps({"type": WS_MSG_DETACH}))
+    await asyncio.wait_for(task, timeout=2.0)
+    return pty_id
+
+
+async def assert_terminal_terminated(
+    provider: FakePtySandboxProvider, sandbox_id: str, pty_id: str, terminal_id: str
+) -> None:
+    # Sandbox/terminal teardown runs as a background task — poll for both the
+    # tmux kill-session command and the pty kill instead of a fixed sleep.
+    expected_tmux = (
+        f"agentrove_{sandbox_id.replace('-', '_')}_{terminal_id.replace('-', '_')}"
+    )
+    await wait_until(
+        lambda: any(
+            f"tmux kill-session -t {shlex.quote(expected_tmux)}" in cmd
+            for _sid, cmd in provider.executed_commands
+        )
+    )
+    await wait_until(lambda: (sandbox_id, pty_id) in provider.killed)
 
 
 async def test_terminal_websocket_rejects_invalid_auth() -> None:
@@ -875,4 +922,195 @@ async def test_terminal_websocket_ignores_malformed_frames_and_handles_disconnec
     # torn down by a bad frame — and the final close was attempted despite
     # raising.
     assert len(pty_provider.created_ptys) == 1
+    assert websocket.close_code == 1000
+
+
+async def test_terminal_websocket_pty_exit_drops_session_and_reconnect_starts_fresh(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    pty_provider: FakePtySandboxProvider,
+) -> None:
+    # A PTY that dies on its own (shell `exit`, sandbox restart) must tear
+    # down the record and close the attached client — the next connect starts
+    # a fresh PTY instead of silently "reattaching" to the dead one.
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="pty-exit@example.com",
+        username="ptyexit",
+    )
+    token = headers["Authorization"].removeprefix("Bearer ")
+    websocket = LiveFakeWebSocket(query_params={"terminalId": "term-exit"})
+    task = asyncio.create_task(
+        websocket_endpoint.terminal_websocket(
+            cast(WebSocket, websocket), workspace.sandbox_id
+        )
+    )
+    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
+    websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
+    await wait_until(lambda: len(websocket.sent_text) >= 1)
+    pty_id = json.loads(websocket.sent_text[0])["id"]
+
+    # Simulate the shell exiting: the provider's reader loop ends and fires
+    # the exit callback.
+    pty_provider.on_exit_callbacks[pty_id]()
+
+    await wait_until(lambda: (workspace.sandbox_id, pty_id) in pty_provider.killed)
+    await wait_until(lambda: websocket.close_code is not None)
+
+    # The endpoint loop is still parked on receive() — the fake close doesn't
+    # raise WebSocketDisconnect like a real socket would. Unpark it.
+    websocket.push_disconnect()
+    await asyncio.wait_for(task, timeout=2.0)
+
+    reconnect_ws = LiveFakeWebSocket(query_params={"terminalId": "term-exit"})
+    reconnect_task = asyncio.create_task(
+        websocket_endpoint.terminal_websocket(
+            cast(WebSocket, reconnect_ws), workspace.sandbox_id
+        )
+    )
+    reconnect_ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
+    reconnect_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
+    await wait_until(lambda: len(reconnect_ws.sent_text) >= 1)
+
+    assert json.loads(reconnect_ws.sent_text[0])["id"] != pty_id
+    assert len(pty_provider.created_ptys) == 2
+
+    reconnect_ws.push_text(json.dumps({"type": WS_MSG_CLOSE}))
+    await asyncio.wait_for(reconnect_task, timeout=2.0)
+
+
+async def test_delete_workspace_terminates_terminal_sessions(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    pty_provider: FakePtySandboxProvider,
+) -> None:
+    # Deleting a workspace must kill its terminal PTYs and tmux sessions —
+    # host-provider tmux would otherwise outlive the workspace forever.
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="pty-wsdelete@example.com",
+        username="ptywsdelete",
+    )
+    token = headers["Authorization"].removeprefix("Bearer ")
+    pty_id = await attach_then_detach_terminal(workspace.sandbox_id, token, "term-del")
+
+    response = await client.delete(
+        f"/api/v1/workspaces/{workspace.id}", headers=headers
+    )
+    assert response.status_code == 204
+
+    await assert_terminal_terminated(
+        pty_provider, workspace.sandbox_id, pty_id, "term-del"
+    )
+
+
+async def test_delete_last_chat_terminates_workspace_terminal_sessions(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    pty_provider: FakePtySandboxProvider,
+) -> None:
+    # Deleting the last chat auto-deletes the workspace — that path must run
+    # the same terminal teardown as an explicit workspace delete.
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="pty-chatdel@example.com",
+        username="ptychatdel",
+    )
+    chat = Chat(title="Only Chat", user_id=user.id, workspace_id=workspace.id)
+    db_session.add(chat)
+    await db_session.commit()
+    await db_session.refresh(chat)
+
+    token = headers["Authorization"].removeprefix("Bearer ")
+    pty_id = await attach_then_detach_terminal(
+        workspace.sandbox_id, token, "term-chatdel"
+    )
+
+    response = await client.delete(f"/api/v1/chat/chats/{chat.id}", headers=headers)
+    assert response.status_code == 204
+
+    await assert_terminal_terminated(
+        pty_provider, workspace.sandbox_id, pty_id, "term-chatdel"
+    )
+
+
+async def test_delete_all_chats_terminates_terminal_sessions(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    pty_provider: FakePtySandboxProvider,
+) -> None:
+    # The bulk delete-all path tears down every workspace's sandbox — it must
+    # kill terminal sessions too, same as the single-delete paths.
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="pty-delall@example.com",
+        username="ptydelall",
+    )
+    token = headers["Authorization"].removeprefix("Bearer ")
+    pty_id = await attach_then_detach_terminal(
+        workspace.sandbox_id, token, "term-delall"
+    )
+
+    response = await client.delete("/api/v1/chat/chats/all", headers=headers)
+    assert response.status_code == 204
+
+    await assert_terminal_terminated(
+        pty_provider, workspace.sandbox_id, pty_id, "term-delall"
+    )
+
+
+async def test_terminal_websocket_ping_send_failure_detaches_cleanly(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The keepalive ping is what discovers a silently-dead connection — its
+    # send failure must detach the session and end the endpoint cleanly
+    # instead of propagating out of the handler.
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="ws-pingfail@example.com",
+        username="wspingfail",
+    )
+    token = headers["Authorization"].removeprefix("Bearer ")
+    session = FakeTerminalSession()
+    registry = FakeTerminalRegistry(session)
+    monkeypatch.setattr(websocket_endpoint, "terminal_session_registry", registry)
+    monkeypatch.setattr(websocket_endpoint, "WS_RECEIVE_TIMEOUT_SECONDS", 0.05)
+    websocket = LiveFakeWebSocket(
+        query_params={"terminalId": "term-ping"},
+        ping_error=RuntimeError("send on closed connection"),
+    )
+    task = asyncio.create_task(
+        websocket_endpoint.terminal_websocket(
+            cast(WebSocket, websocket), workspace.sandbox_id
+        )
+    )
+
+    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
+    websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
+
+    # After init the client goes silent: the receive timeout fires, the ping
+    # hits the dead socket, and the endpoint must exit on its own.
+    await asyncio.wait_for(task, timeout=2.0)
+
+    assert session.detach_count == 1
     assert websocket.close_code == 1000

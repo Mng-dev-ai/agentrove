@@ -295,3 +295,43 @@ async def test_admin_create_user_hashes_grafted_password_field(
     )
     created = result.scalar_one()
     assert verify_password("freshpass123", created.hashed_password)
+
+
+class AsyncCallRecorder:
+    # Awaitable stand-in for lifespan collaborators; counts invocations so a
+    # test can assert shutdown wiring without running the real teardown.
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def __call__(self, *args: object) -> None:
+        self.calls += 1
+
+
+class FakeDisposableEngine:
+    async def dispose(self) -> None:
+        return None
+
+
+async def test_lifespan_shutdown_terminates_terminal_sessions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Shutdown must tear down terminal PTY/tmux sessions — host-provider
+    # shells would otherwise keep running after the app exits.
+    terminal_recorder = AsyncCallRecorder()
+    monkeypatch.setattr(main_module.MaintenanceService, "start", AsyncCallRecorder())
+    monkeypatch.setattr(main_module.MaintenanceService, "stop", AsyncCallRecorder())
+    monkeypatch.setattr(
+        main_module.ChatStreamRuntime, "stop_background_chats", AsyncCallRecorder()
+    )
+    monkeypatch.setattr(
+        main_module.session_registry, "terminate_all", AsyncCallRecorder()
+    )
+    monkeypatch.setattr(
+        main_module.terminal_session_registry, "terminate_all", terminal_recorder
+    )
+    monkeypatch.setattr(main_module, "engine", FakeDisposableEngine())
+
+    async with main_module.lifespan(main_module.app):
+        assert terminal_recorder.calls == 0
+
+    assert terminal_recorder.calls == 1

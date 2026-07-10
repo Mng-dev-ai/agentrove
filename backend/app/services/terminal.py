@@ -39,6 +39,7 @@ class TerminalSessionRecord:
     input_queue: asyncio.Queue[bytes] | None = None
     active_websocket: WebSocket | None = None
     tmux_session_name: str | None = None
+    pty_exit_task: asyncio.Task[None] | None = None
 
     async def ensure_started(self, rows: int, cols: int) -> bool:
         if self.pty_id is None:
@@ -51,6 +52,7 @@ class TerminalSessionRecord:
                 tmux_session,
                 self.cwd,
                 on_data=self._enqueue_output,
+                on_exit=self._schedule_pty_exit,
             )
             self.input_queue = asyncio.Queue(maxsize=PTY_INPUT_QUEUE_SIZE)
             self.input_task = asyncio.create_task(self._input_worker(self.pty_id))
@@ -127,6 +129,28 @@ class TerminalSessionRecord:
     async def terminate(self) -> None:
         await self.kill_tmux_session()
         await self.close()
+
+    def _schedule_pty_exit(self) -> None:
+        # Fired from inside the provider's reader task — hop to a fresh task
+        # (kept on self so it isn't GC'd) so close()'s kill_pty can cancel and
+        # await the reader without the reader awaiting itself.
+        self.pty_exit_task = asyncio.create_task(self._handle_pty_exit())
+
+    async def _handle_pty_exit(self) -> None:
+        # The shell/tmux died on its own (exit, sandbox restart) — drop the
+        # record so the next connect starts a fresh PTY instead of silently
+        # reattaching to a dead one, and close the client so it can offer
+        # a reconnect instead of freezing.
+        websocket = self.active_websocket
+        try:
+            await self.close()
+        except (OSError, RuntimeError, SandboxException) as exc:
+            logger.error("Failed to clean up exited terminal session: %s", exc)
+        if websocket:
+            try:
+                await websocket.close()
+            except (RuntimeError, OSError):
+                pass
 
     async def refresh_tmux_client(self) -> None:
         # Repaint the reattached terminal via tmux itself — Ctrl-L to the pane's
@@ -290,16 +314,40 @@ class TerminalSessionRegistry:
     def _remove(self, key: str) -> None:
         self._sessions.pop(key, None)
 
+    async def terminate_for_sandbox(self, sandbox_id: str) -> None:
+        # Workspace-deletion path: kill this sandbox's PTYs and tmux sessions
+        # while the sandbox still exists, and drop the records so they don't
+        # outlive the workspace.
+        async with self._lock:
+            sessions = [
+                s for s in self._sessions.values() if s.sandbox_id == sandbox_id
+            ]
+        await self._terminate_sessions(sessions)
+
     async def terminate_all(self) -> None:
         async with self._lock:
             sessions = list(self._sessions.values())
             self._sessions.clear()
+        await self._terminate_sessions(sessions)
 
-        for session in sessions:
-            try:
-                await session.terminate()
-            except (OSError, RuntimeError, SandboxException) as exc:
-                logger.error("Failed to terminate terminal session: %s", exc)
+    @staticmethod
+    async def _terminate_sessions(sessions: list[TerminalSessionRecord]) -> None:
+        results = await asyncio.gather(
+            *[session.terminate() for session in sessions], return_exceptions=True
+        )
+        for result in results:
+            if isinstance(result, Exception):
+                logger.error("Failed to terminate terminal session: %s", result)
 
 
 terminal_session_registry = TerminalSessionRegistry()
+
+
+async def teardown_workspace_sandbox(
+    sandbox_id: str, sandbox_service: SandboxService
+) -> None:
+    # Every workspace-sandbox deletion funnels through here so the ordering
+    # can't drift: terminals must die while the sandbox still exists (tmux
+    # kill-session runs inside it), then the sandbox itself is deleted.
+    await terminal_session_registry.terminate_for_sandbox(sandbox_id)
+    await sandbox_service.delete_sandbox(sandbox_id)

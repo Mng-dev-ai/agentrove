@@ -33,6 +33,7 @@ from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
 from app.services.skill import SkillService
+from app.services.terminal import teardown_workspace_sandbox
 from app.services.user import UserService
 
 settings = get_settings()
@@ -317,7 +318,7 @@ class WorkspaceService(BaseDbService[Workspace]):
                 )
                 sandbox_service = SandboxService(provider)
                 asyncio.create_task(
-                    sandbox_service.delete_sandbox(workspace.sandbox_id)
+                    teardown_workspace_sandbox(workspace.sandbox_id, sandbox_service)
                 )
 
     async def _clone_git_workspace(

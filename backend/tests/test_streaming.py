@@ -848,6 +848,9 @@ async def test_send_now_returns_404_for_unknown_queued_message(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
+    # Not used directly — routes get_queue_service to the in-memory cache so
+    # the test doesn't require a live Redis (503 instead of 404 without it).
+    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login

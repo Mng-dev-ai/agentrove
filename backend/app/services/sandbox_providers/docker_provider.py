@@ -24,6 +24,7 @@ from app.services.sandbox_providers.types import (
     FileContent,
     FileMetadata,
     PtyDataCallbackType,
+    PtyExitCallbackType,
     PtySize,
 )
 
@@ -386,6 +387,7 @@ class LocalDockerProvider(SandboxProvider):
         tmux_session: str,
         cwd: str,
         on_data: PtyDataCallbackType,
+        on_exit: PtyExitCallbackType,
     ) -> str:
         # Spawn a PTY-attached shell inside the container via docker exec.
         # Tries tmux for session persistence across WebSocket reconnections,
@@ -414,7 +416,7 @@ class LocalDockerProvider(SandboxProvider):
         # WebSocket to the Docker daemon. No public API exists for this.
         await stream._init()
 
-        reader_task = asyncio.create_task(self._pty_reader(stream, on_data))
+        reader_task = asyncio.create_task(self._pty_reader(stream, on_data, on_exit))
         self.register_pty_session(
             sandbox_id,
             session_id,
@@ -434,6 +436,7 @@ class LocalDockerProvider(SandboxProvider):
         self,
         stream: Any,
         on_data: PtyDataCallbackType,
+        on_exit: PtyExitCallbackType,
     ) -> None:
         # Background task that continuously reads container exec output
         # and forwards it to the WebSocket callback. Exits when the
@@ -445,9 +448,13 @@ class LocalDockerProvider(SandboxProvider):
                     break
                 await on_data(msg.data)
         except asyncio.CancelledError:
-            pass
+            # kill_pty tearing us down — the owner already knows.
+            return
         except Exception as e:
+            # A dead exec stream (container restarted/removed) is also a
+            # terminal condition — fall through to on_exit.
             logger.error("PTY reader error: %s", e)
+        on_exit()
 
     async def send_pty_input(
         self,
