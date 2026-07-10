@@ -3,61 +3,61 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .actions {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-    padding-inline: var(--space-4);
-    padding-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-inline: var(--space-4);
+  padding-top: var(--space-2);
 }
 
 .new-thread {
-    @include anim.transition-colors;
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: var(--space-2-5);
-    border-radius: var(--radius-lg);
-    padding: var(--space-2) var(--space-3);
-    // TODO(refactor): no 13px type token exists — sidebar controls use a one-off text-[13px]
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--theme-text-primary);
+  @include anim.transition-colors;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-2-5);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-3);
+  // TODO(refactor): no 13px type token exists — sidebar controls use a one-off text-[13px]
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--theme-text-primary);
+  background-color: var(--theme-surface-tertiary);
+
+  // Dark mode rests at half-strength tertiary and fills to full on hover
+  :global([data-theme='dark']) & {
+    background-color: colors.theme-color('surface-tertiary', 0.5);
+  }
+
+  @include responsive.hover {
     background-color: var(--theme-surface-tertiary);
-
-    // Dark mode rests at half-strength tertiary and fills to full on hover
-    :global([data-theme='dark']) & {
-        background-color: colors.theme-color('surface-tertiary', 0.5);
-    }
-
-    @include responsive.hover {
-        background-color: var(--theme-surface-tertiary);
-    }
+  }
 }
 
 .search-btn {
-    @include anim.transition-colors;
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: var(--space-2-5);
-    border-radius: var(--radius-lg);
-    padding: var(--space-2) var(--space-3);
-    // TODO(refactor): no 13px type token exists — sidebar controls use a one-off text-[13px]
-    font-size: 13px;
-    color: var(--theme-text-secondary);
+  @include anim.transition-colors;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-2-5);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-3);
+  // TODO(refactor): no 13px type token exists — sidebar controls use a one-off text-[13px]
+  font-size: 13px;
+  color: var(--theme-text-secondary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-tertiary);
-        color: var(--theme-text-primary);
+  @include responsive.hover {
+    background-color: var(--theme-surface-tertiary);
+    color: var(--theme-text-primary);
 
-        // Dark mode washes tertiary at half strength on hover
-        :global([data-theme='dark']) & {
-            background-color: colors.theme-color('surface-tertiary', 0.5);
-        }
+    // Dark mode washes tertiary at half strength on hover
+    :global([data-theme='dark']) & {
+      background-color: colors.theme-color('surface-tertiary', 0.5);
     }
+  }
 }
 
 .action-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }

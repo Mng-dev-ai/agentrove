@@ -1,10 +1,10 @@
 @use '@/styles/globals/typography' as type;
 
 .mode-label {
-    @include type.type-meta(500);
-    color: var(--theme-text-secondary);
+  @include type.type-meta(500);
+  color: var(--theme-text-secondary);
 
-    &--selected {
-        color: var(--theme-text-primary);
-    }
+  &--selected {
+    color: var(--theme-text-primary);
+  }
 }

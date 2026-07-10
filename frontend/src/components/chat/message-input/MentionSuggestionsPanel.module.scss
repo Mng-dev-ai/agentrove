@@ -1,29 +1,29 @@
 @use '@/styles/globals/typography' as type;
 
 .file-row {
-    display: flex;
-    min-width: 0;
-    flex: 1;
-    flex-direction: column;
-    gap: var(--space-0-5);
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0-5);
 }
 
 .file-icon {
-    height: var(--space-4);
-    width: var(--space-4);
+  height: var(--space-4);
+  width: var(--space-4);
 }
 
 .file-name {
-    @include type.type-mono(0.75rem, 1.25);
-    color: var(--theme-text-secondary);
+  @include type.type-mono(0.75rem, 1.25);
+  color: var(--theme-text-secondary);
 
-    &--active {
-        color: var(--theme-text-primary);
-    }
+  &--active {
+    color: var(--theme-text-primary);
+  }
 }
 
 .file-path {
-    @include type.type-meta;
-    @include type.type-overflow;
-    color: var(--theme-text-tertiary);
+  @include type.type-meta;
+  @include type.type-overflow;
+  color: var(--theme-text-tertiary);
 }

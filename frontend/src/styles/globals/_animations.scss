@@ -3,88 +3,143 @@
 // kill-switch lives in _rules.scss.
 
 @mixin animation-tokens {
-    :root {
-        --duration-fast: 150ms;
-        --duration-base: 200ms;
-        --duration-slow: 300ms;
-        --duration-slower: 500ms;
+  :root {
+    --duration-fast: 150ms;
+    --duration-base: 200ms;
+    --duration-slow: 300ms;
+    --duration-slower: 500ms;
 
-        --easing-out: cubic-bezier(0, 0, 0.2, 1);
-        --easing-in: cubic-bezier(0.4, 0, 1, 1);
-        --easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
-    }
+    --easing-out: cubic-bezier(0, 0, 0.2, 1);
+    --easing-in: cubic-bezier(0.4, 0, 1, 1);
+    --easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  }
 
-    @keyframes fade-in {
-        from { opacity: 0; }
-        to { opacity: 1; }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
     }
+    to {
+      opacity: 1;
+    }
+  }
 
-    @keyframes fade-out {
-        from { opacity: 1; }
-        to { opacity: 0; }
+  @keyframes fade-out {
+    from {
+      opacity: 1;
     }
+    to {
+      opacity: 0;
+    }
+  }
 
-    @keyframes fade-in-up {
-        from { opacity: 0; transform: translateY(4px); }
-        to { opacity: 1; transform: translateY(0); }
+  @keyframes fade-in-up {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
     }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
-    @keyframes fade-in-rise {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+  @keyframes fade-in-rise {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
     }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 
-    @keyframes slide-in {
-        from { transform: translateX(-100%); }
-        to { transform: translateX(0); }
+  @keyframes slide-in {
+    from {
+      transform: translateX(-100%);
     }
+    to {
+      transform: translateX(0);
+    }
+  }
 
-    @keyframes slide-out {
-        from { transform: translateX(0); }
-        to { transform: translateX(-100%); }
+  @keyframes slide-out {
+    from {
+      transform: translateX(0);
     }
+    to {
+      transform: translateX(-100%);
+    }
+  }
 
-    @keyframes shimmer {
-        from { left: -33%; }
-        to { left: 100%; }
+  @keyframes shimmer {
+    from {
+      left: -33%;
     }
+    to {
+      left: 100%;
+    }
+  }
 
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.5; }
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
     }
+    50% {
+      opacity: 0.5;
+    }
+  }
 
-    @keyframes spin {
-        to { transform: rotate(360deg); }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
     }
+  }
 
-    @keyframes bounce {
-        0%, 100% { transform: translateY(-25%); animation-timing-function: var(--easing-in); }
-        50% { transform: translateY(0); animation-timing-function: var(--easing-out); }
+  @keyframes bounce {
+    0%,
+    100% {
+      transform: translateY(-25%);
+      animation-timing-function: var(--easing-in);
     }
+    50% {
+      transform: translateY(0);
+      animation-timing-function: var(--easing-out);
+    }
+  }
 
-    @keyframes progress-bar {
-        from { width: 0%; }
-        to { width: 100%; }
+  @keyframes progress-bar {
+    from {
+      width: 0%;
     }
+    to {
+      width: 100%;
+    }
+  }
 
-    @keyframes caret-blink {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0; }
+  @keyframes caret-blink {
+    0%,
+    100% {
+      opacity: 1;
     }
+    50% {
+      opacity: 0;
+    }
+  }
 }
 
 // The ubiquitous hover/focus color transition (old `transition-colors duration-200`)
 @mixin transition-colors($duration: var(--duration-base)) {
-    transition-property: color, background-color, border-color, fill, stroke;
-    transition-duration: $duration;
-    transition-timing-function: var(--easing-in-out);
+  transition-property: color, background-color, border-color, fill, stroke;
+  transition-duration: $duration;
+  transition-timing-function: var(--easing-in-out);
 }
 
 @mixin fade-in($duration: var(--duration-slow)) {
-    animation: fade-in $duration var(--easing-out);
+  animation: fade-in $duration var(--easing-out);
 }
 
 @mixin fade-in-up($duration: 350ms) {
-    animation: fade-in-up $duration var(--easing-out) forwards;
+  animation: fade-in-up $duration var(--easing-out) forwards;
 }

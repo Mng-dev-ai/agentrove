@@ -5,26 +5,26 @@
 @use '@/styles/globals/zlayer' as z;
 
 .resize-handle {
-    @include z.z('raised');
-    @include anim.transition-colors(var(--duration-fast));
-    position: absolute;
-    right: 0;
-    top: 0;
-    height: 100%;
-    width: var(--space-1);
-    cursor: col-resize;
-    background-color: transparent;
+  @include z.z('raised');
+  @include anim.transition-colors(var(--duration-fast));
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  width: var(--space-1);
+  cursor: col-resize;
+  background-color: transparent;
 
-    @include responsive.hover {
-        background-color: colors.theme-color('border', 0.7);
-    }
+  @include responsive.hover {
+    background-color: colors.theme-color('border', 0.7);
+  }
 
-    &:focus-visible {
-        outline: none;
-        background-color: colors.theme-color('border', 0.7);
-    }
+  &:focus-visible {
+    outline: none;
+    background-color: colors.theme-color('border', 0.7);
+  }
 
-    &:global(.#{state.$state-dragging}) {
-        background-color: var(--theme-border);
-    }
+  &:global(.#{state.$state-dragging}) {
+    background-color: var(--theme-border);
+  }
 }

@@ -4,121 +4,121 @@
 @use '@/styles/globals/zlayer' as z;
 
 .trail {
-    @include z.z('raised');
-    pointer-events: none;
-    position: absolute;
-    top: var(--space-6);
-    bottom: var(--space-6);
-    left: 0;
-    display: none;
-    flex-direction: column;
-    justify-content: center;
+  @include z.z('raised');
+  pointer-events: none;
+  position: absolute;
+  top: var(--space-6);
+  bottom: var(--space-6);
+  left: 0;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
 
-    @include responsive.media('lg-up') {
-        display: flex;
-    }
+  @include responsive.media('lg-up') {
+    display: flex;
+  }
 }
 
 .trail-rail {
-    position: relative;
+  position: relative;
 }
 
 .trail-item {
-    pointer-events: auto;
-    position: absolute;
-    left: 0;
-    display: flex;
-    align-items: center;
-    transform: translateY(-50%);
+  pointer-events: auto;
+  position: absolute;
+  left: 0;
+  display: flex;
+  align-items: center;
+  transform: translateY(-50%);
 
-    @include responsive.hover {
-        .tick--inactive {
-            width: var(--space-3-5);
-            background-color: var(--theme-text-tertiary);
-        }
-
-        .tick--inactive-compact {
-            width: var(--space-2);
-            background-color: var(--theme-text-tertiary);
-        }
-
-        .tooltip {
-            visibility: visible;
-            opacity: 1;
-        }
+  @include responsive.hover {
+    .tick--inactive {
+      width: var(--space-3-5);
+      background-color: var(--theme-text-tertiary);
     }
+
+    .tick--inactive-compact {
+      width: var(--space-2);
+      background-color: var(--theme-text-tertiary);
+    }
+
+    .tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+  }
 }
 
 .trail-button {
-    display: flex;
-    height: var(--space-2-5);
-    align-items: center;
+  display: flex;
+  height: var(--space-2-5);
+  align-items: center;
 
-    &--compact {
-        padding-left: var(--space-1);
-        padding-right: var(--space-1);
-    }
+  &--compact {
+    padding-left: var(--space-1);
+    padding-right: var(--space-1);
+  }
 
-    &--regular {
-        padding-left: var(--space-2);
-        padding-right: var(--space-2);
-    }
+  &--regular {
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+  }
 }
 
 .tick {
-    height: var(--space-0-5);
-    border-radius: var(--radius-full);
-    transition: all var(--duration-base);
+  height: var(--space-0-5);
+  border-radius: var(--radius-full);
+  transition: all var(--duration-base);
 
-    &--active {
-        width: var(--space-4);
-        background-color: var(--theme-text-primary);
-    }
+  &--active {
+    width: var(--space-4);
+    background-color: var(--theme-text-primary);
+  }
 
-    &--active-compact {
-        width: var(--space-2-5);
-        background-color: var(--theme-text-primary);
-    }
+  &--active-compact {
+    width: var(--space-2-5);
+    background-color: var(--theme-text-primary);
+  }
 
-    &--inactive {
-        width: var(--space-2-5);
-        background-color: colors.theme-color('text-quaternary', 0.5);
-    }
+  &--inactive {
+    width: var(--space-2-5);
+    background-color: colors.theme-color('text-quaternary', 0.5);
+  }
 
-    &--inactive-compact {
-        width: var(--space-1-5);
-        background-color: colors.theme-color('text-quaternary', 0.5);
-    }
+  &--inactive-compact {
+    width: var(--space-1-5);
+    background-color: colors.theme-color('text-quaternary', 0.5);
+  }
 }
 
 .tooltip {
-    @include z.z('sticky');
-    pointer-events: none;
-    position: absolute;
-    left: 100%;
-    top: 50%;
-    width: var(--space-72);
-    transform: translateY(-50%);
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-xl);
-    background-color: colors.theme-color('surface', 0.95);
-    padding: var(--space-2) var(--space-3);
-    box-shadow: var(--shadow-medium);
-    backdrop-filter: blur(24px);
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity var(--duration-base);
+  @include z.z('sticky');
+  pointer-events: none;
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  width: var(--space-72);
+  transform: translateY(-50%);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-xl);
+  background-color: colors.theme-color('surface', 0.95);
+  padding: var(--space-2) var(--space-3);
+  box-shadow: var(--shadow-medium);
+  backdrop-filter: blur(24px);
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--duration-base);
 }
 
 .tooltip-title {
-    @include type.type-default(500);
-    @include type.type-lineclamp(1);
-    color: var(--theme-text-primary);
+  @include type.type-default(500);
+  @include type.type-lineclamp(1);
+  color: var(--theme-text-primary);
 }
 
 .tooltip-body {
-    @include type.type-default;
-    @include type.type-lineclamp(3);
-    margin-top: var(--space-1);
-    color: var(--theme-text-secondary);
+  @include type.type-default;
+  @include type.type-lineclamp(3);
+  margin-top: var(--space-1);
+  color: var(--theme-text-secondary);
 }

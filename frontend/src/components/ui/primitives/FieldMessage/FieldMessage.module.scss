@@ -1,15 +1,15 @@
 @use '@/styles/globals/typography' as type;
 
 .field-message {
-    @include type.type-default;
-    margin-top: var(--space-1);
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  margin-top: var(--space-1);
+  color: var(--theme-text-tertiary);
 
-    &--error {
-        color: var(--theme-error-text);
-    }
+  &--error {
+    color: var(--theme-error-text);
+  }
 
-    &--success {
-        color: var(--theme-success-text);
-    }
+  &--success {
+    color: var(--theme-success-text);
+  }
 }

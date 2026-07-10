@@ -4,93 +4,93 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid colors.theme-color('border', 0.5);
-    padding: var(--space-2-5) var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-2-5) var(--space-4);
 }
 
 .title-group {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: var(--space-2);
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .filename {
-    @include type.type-default(500);
-    @include type.type-overflow;
-    color: var(--theme-text-primary);
+  @include type.type-default(500);
+  @include type.type-overflow;
+  color: var(--theme-text-primary);
 }
 
 .counter {
-    @include type.type-meta;
-    flex-shrink: 0;
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  flex-shrink: 0;
+  color: var(--theme-text-quaternary);
 }
 
 .actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }
 
 .stage {
-    position: relative;
-    display: flex;
-    min-height: 60vh;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--theme-surface-secondary);
+  position: relative;
+  display: flex;
+  min-height: 60vh;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--theme-surface-secondary);
 }
 
 .error-text {
-    @include type.type-default;
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  color: var(--theme-text-tertiary);
 }
 
 .image {
-    max-height: 80vh;
-    max-width: 100%;
-    object-fit: contain;
+  max-height: 80vh;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .nav-button {
-    @include anim.transition-colors;
-    position: absolute;
-    top: 50%;
-    transform: translateY(-50%);
-    border-radius: var(--radius-full);
-    padding: var(--space-2);
-    color: white;
-    background-color: rgb(0 0 0 / 0.5);
-    backdrop-filter: blur(4px);
+  @include anim.transition-colors;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: var(--radius-full);
+  padding: var(--space-2);
+  color: white;
+  background-color: rgb(0 0 0 / 0.5);
+  backdrop-filter: blur(4px);
 
-    @include responsive.hover {
-        background-color: rgb(0 0 0 / 0.7);
-    }
+  @include responsive.hover {
+    background-color: rgb(0 0 0 / 0.7);
+  }
 
-    &:focus-visible {
-        outline: none;
-        box-shadow: 0 0 0 2px rgb(255 255 255 / 0.7);
-    }
+  &:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgb(255 255 255 / 0.7);
+  }
 
-    &--left {
-        left: var(--space-3);
-    }
+  &--left {
+    left: var(--space-3);
+  }
 
-    &--right {
-        right: var(--space-3);
-    }
+  &--right {
+    right: var(--space-3);
+  }
 }
 
 .nav-icon {
-    height: var(--space-4);
-    width: var(--space-4);
+  height: var(--space-4);
+  width: var(--space-4);
 }

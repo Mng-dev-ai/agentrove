@@ -3,38 +3,38 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .message-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-0-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
 }
 
 .copy-button {
-    @include anim.transition-colors;
-    position: relative;
-    overflow: hidden;
-    border-radius: var(--radius-md);
-    padding: var(--space-1);
+  @include anim.transition-colors;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
 
-    &--default {
-        color: var(--theme-text-quaternary);
+  &--default {
+    color: var(--theme-text-quaternary);
 
-        @include responsive.hover {
-            background-color: var(--theme-surface-hover);
-            color: var(--theme-text-primary);
-        }
+    @include responsive.hover {
+      background-color: var(--theme-surface-hover);
+      color: var(--theme-text-primary);
     }
+  }
 
-    &--copied {
-        background-color: colors.status-color('success', 100);
-        color: var(--theme-success-text);
+  &--copied {
+    background-color: colors.status-color('success', 100);
+    color: var(--theme-success-text);
 
-        :global([data-theme='dark']) & {
-            background-color: colors.status-color('success', 500, 0.1);
-        }
+    :global([data-theme='dark']) & {
+      background-color: colors.status-color('success', 500, 0.1);
     }
+  }
 }
 
 .copy-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }

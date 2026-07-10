@@ -4,90 +4,90 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .message {
-    padding: var(--space-1-5) var(--space-4);
+  padding: var(--space-1-5) var(--space-4);
 
-    @include responsive.media('sm-up') {
-        padding: var(--space-2) var(--space-6);
-    }
+  @include responsive.media('sm-up') {
+    padding: var(--space-2) var(--space-6);
+  }
 }
 
 .message-row {
-    display: flex;
-    align-items: flex-start;
+  display: flex;
+  align-items: flex-start;
 }
 
 .message-body {
-    min-width: 0;
-    flex: 1;
+  min-width: 0;
+  flex: 1;
 }
 
 .user-bubble {
-    display: inline-block;
-    max-width: 100%;
-    overflow: hidden;
-    border-radius: var(--radius-xl);
-    padding: var(--space-1-5) var(--space-3);
-    background-color: colors.theme-color('surface-hover', 0.6);
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  padding: var(--space-1-5) var(--space-3);
+  background-color: colors.theme-color('surface-hover', 0.6);
 
-    :global([data-theme='dark']) & {
-        background-color: colors.theme-color('surface-tertiary', 0.8);
-    }
+  :global([data-theme='dark']) & {
+    background-color: colors.theme-color('surface-tertiary', 0.8);
+  }
 }
 
 .message-text {
-    @include type.type-body;
-    max-width: none;
-    overflow-wrap: break-word;
-    color: var(--theme-text-primary);
+  @include type.type-body;
+  max-width: none;
+  overflow-wrap: break-word;
+  color: var(--theme-text-primary);
 }
 
 .actions-slot {
-    margin-top: var(--space-1);
+  margin-top: var(--space-1);
 }
 
 .footer {
-    margin-top: var(--space-2);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
+  margin-top: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .footer-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-0-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
 }
 
 .restore-button {
-    @include anim.transition-colors;
-    border-radius: var(--radius-md);
-    padding: var(--space-1);
-    color: var(--theme-text-quaternary);
+  @include anim.transition-colors;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  color: var(--theme-text-quaternary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
 
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 
 .restore-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }
 
 .footer-meta {
-    @include type.type-meta;
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  color: var(--theme-text-quaternary);
 }
 
 .footer-time {
-    cursor: default;
+  cursor: default;
 }

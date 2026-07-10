@@ -3,48 +3,48 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .worked-rollup {
-    margin-bottom: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
 .rollup-button {
-    @include type.type-default(500);
-    @include anim.transition-colors;
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    padding: var(--space-0-5) 0;
-    color: var(--theme-text-tertiary);
+  @include type.type-default(500);
+  @include anim.transition-colors;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-0-5) 0;
+  color: var(--theme-text-tertiary);
 
-    // Light base tertiary → dark base quaternary; hover diverges too, so both
-    // themes need explicit steps a single semantic token can't express.
+  // Light base tertiary → dark base quaternary; hover diverges too, so both
+  // themes need explicit steps a single semantic token can't express.
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-quaternary);
+  }
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+
+    .rollup-chevron {
+      color: var(--theme-text-primary);
+    }
+
     :global([data-theme='dark']) & {
-        color: var(--theme-text-quaternary);
+      color: var(--theme-text-secondary);
     }
-
-    @include responsive.hover {
-        color: var(--theme-text-primary);
-
-        .rollup-chevron {
-            color: var(--theme-text-primary);
-        }
-
-        :global([data-theme='dark']) & {
-            color: var(--theme-text-secondary);
-        }
-    }
+  }
 }
 
 .rollup-chevron {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    transition: transform var(--duration-slow) var(--easing-out);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  transition: transform var(--duration-slow) var(--easing-out);
 
-    &--expanded {
-        transform: rotate(90deg);
-    }
+  &--expanded {
+    transform: rotate(90deg);
+  }
 }
 
 .rollup-content {
-    @include anim.fade-in;
-    margin-top: var(--space-1);
+  @include anim.fade-in;
+  margin-top: var(--space-1);
 }

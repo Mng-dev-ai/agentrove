@@ -2,74 +2,74 @@
 @use '@/styles/globals/controls' as controls;
 
 .switch {
-    @include controls.focus-ring(1px, 2px);
-    position: relative;
-    display: inline-flex;
-    flex-shrink: 0;
-    cursor: pointer;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-full);
-    background-color: var(--theme-surface-tertiary);
-    transition:
-        background-color var(--duration-base),
-        border-color var(--duration-base);
+  @include controls.focus-ring(1px, 2px);
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  cursor: pointer;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-surface-tertiary);
+  transition:
+    background-color var(--duration-base),
+    border-color var(--duration-base);
 
-    // px on purpose — control art that must never rescale
-    &--md {
-        height: 22px;
-        width: 40px;
-        padding-inline: 2px;
+  // px on purpose — control art that must never rescale
+  &--md {
+    height: 22px;
+    width: 40px;
+    padding-inline: 2px;
+  }
+
+  &--sm {
+    height: 18px;
+    width: 32px;
+    padding-inline: 2px;
+  }
+
+  &[data-state='checked'] {
+    border-color: colors.theme-color('text-primary', 0.8);
+    background-color: var(--theme-text-primary);
+
+    .switch-track {
+      justify-content: flex-end;
     }
 
-    &--sm {
-        height: 18px;
-        width: 32px;
-        padding-inline: 2px;
+    .switch-thumb {
+      transform: scale(1);
+      background-color: var(--theme-surface);
     }
+  }
 
-    &[data-state='checked'] {
-        border-color: colors.theme-color('text-primary', 0.8);
-        background-color: var(--theme-text-primary);
-
-        .switch-track {
-            justify-content: flex-end;
-        }
-
-        .switch-thumb {
-            transform: scale(1);
-            background-color: var(--theme-surface);
-        }
-    }
-
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 
 .switch-track {
-    display: flex;
-    height: 100%;
-    width: 100%;
-    align-items: center;
-    justify-content: flex-start;
-    border-radius: var(--radius-full);
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  border-radius: var(--radius-full);
 }
 
 .switch-thumb {
-    border-radius: var(--radius-full);
-    box-shadow: var(--shadow-sm);
-    background-color: var(--theme-text-quaternary);
-    transform: scale(0.85);
-    transition: transform var(--duration-base);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-sm);
+  background-color: var(--theme-text-quaternary);
+  transform: scale(0.85);
+  transition: transform var(--duration-base);
 
-    &--md {
-        height: var(--space-4);
-        width: var(--space-4);
-    }
+  &--md {
+    height: var(--space-4);
+    width: var(--space-4);
+  }
 
-    &--sm {
-        height: var(--space-3);
-        width: var(--space-3);
-    }
+  &--sm {
+    height: var(--space-3);
+    width: var(--space-3);
+  }
 }

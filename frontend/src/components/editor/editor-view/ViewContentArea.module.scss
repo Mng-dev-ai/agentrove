@@ -3,26 +3,26 @@
 @use '@/styles/globals/zlayer' as z;
 
 .content-area {
-    position: relative;
-    flex: 1;
-    overflow: hidden;
+  position: relative;
+  flex: 1;
+  overflow: hidden;
 }
 
 .loading-overlay {
-    @include z.z('raised');
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: colors.theme-color('surface-secondary', 0.75);
+  @include z.z('raised');
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: colors.theme-color('surface-secondary', 0.75);
 }
 
 .loading-text {
-    @include type.type-body;
-    color: var(--theme-text-secondary);
+  @include type.type-body;
+  color: var(--theme-text-secondary);
 }
 
 .preview-wrapper {
-    height: 100%;
+  height: 100%;
 }

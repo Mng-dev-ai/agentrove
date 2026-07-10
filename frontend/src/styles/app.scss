@@ -10,53 +10,53 @@
 // as the terminal's primary font so glyph lookup never falls back to a generic
 // monospace that resolves PUA codepoints to a last-resort box.
 @font-face {
-    font-family: 'JetBrainsMono Nerd Font';
-    src: url('/fonts/JetBrainsMonoNerdFontMono-Regular.woff2') format('woff2');
-    font-weight: normal;
-    font-style: normal;
-    font-display: swap;
+  font-family: 'JetBrainsMono Nerd Font';
+  src: url('/fonts/JetBrainsMonoNerdFontMono-Regular.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
 }
 
 @font-face {
-    font-family: 'JetBrainsMono Nerd Font';
-    src: url('/fonts/JetBrainsMonoNerdFontMono-Bold.woff2') format('woff2');
-    font-weight: bold;
-    font-style: normal;
-    font-display: swap;
+  font-family: 'JetBrainsMono Nerd Font';
+  src: url('/fonts/JetBrainsMonoNerdFontMono-Bold.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
 }
 
 // Third-party render targets (mermaid SVG, monaco widgets) — global because the
 // libraries own the DOM, so CSS modules can't reach it.
 
 .mermaid-container {
-    font-family: var(--font-sans);
+  font-family: var(--font-sans);
 
-    svg {
-        display: block;
-        width: 100% !important;
-        max-width: 100%;
-        height: auto !important;
+  svg {
+    display: block;
+    width: 100% !important;
+    max-width: 100%;
+    height: auto !important;
 
-        text {
-            font-size: 10px !important;
-            font-family: var(--font-sans) !important;
-        }
-
-        .node rect,
-        .node circle,
-        .node ellipse,
-        .node polygon {
-            stroke-width: 1px;
-        }
-
-        .edgeLabel {
-            font-size: 9px !important;
-        }
-
-        .nodeLabel {
-            font-size: 10px !important;
-        }
+    text {
+      font-size: 10px !important;
+      font-family: var(--font-sans) !important;
     }
+
+    .node rect,
+    .node circle,
+    .node ellipse,
+    .node polygon {
+      stroke-width: 1px;
+    }
+
+    .edgeLabel {
+      font-size: 9px !important;
+    }
+
+    .nodeLabel {
+      font-size: 10px !important;
+    }
+  }
 }
 
 // Monaco peek widget (go-to-definition / references): monaco's CSS sets no
@@ -64,15 +64,15 @@
 // the editor renders at 12px. Pin the widget chrome to the editor scale and pad
 // labels away from the fixed-width twistie chevron.
 .monaco-editor .peekview-widget .head .peekview-title {
-    font-size: 12px;
+  font-size: 12px;
 }
 
 .monaco-editor .reference-zone-widget .ref-tree {
-    font-size: 12px;
+  font-size: 12px;
 
-    .monaco-tl-contents {
-        padding-left: 3px;
-    }
+  .monaco-tl-contents {
+    padding-left: 3px;
+  }
 }
 
 // Cross-boundary utility classes — real class names consumed outside JSX class
@@ -81,18 +81,18 @@
 // react-hot-toast surface (see config/toaster.ts) — !important overrides the
 // library's default inline background/color
 .app-toast {
-    border: 1px solid var(--theme-border) !important;
-    background-color: var(--theme-surface-secondary) !important;
-    color: var(--theme-text-primary) !important;
-    box-shadow: var(--shadow-medium) !important;
+  border: 1px solid var(--theme-border) !important;
+  background-color: var(--theme-surface-secondary) !important;
+  color: var(--theme-text-primary) !important;
+  box-shadow: var(--shadow-medium) !important;
 }
 
 // @mention / /command pill (see HighlightedText.MENTION_PILL_CLASSNAME)
 .mention-pill {
-    border-radius: var(--radius-sm);
-    background-color: var(--theme-surface-active);
-    box-decoration-break: clone;
-    -webkit-box-decoration-break: clone;
-    padding: var(--space-0-5) var(--space-1);
-    color: var(--theme-text-primary);
+  border-radius: var(--radius-sm);
+  background-color: var(--theme-surface-active);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: var(--space-0-5) var(--space-1);
+  color: var(--theme-text-primary);
 }

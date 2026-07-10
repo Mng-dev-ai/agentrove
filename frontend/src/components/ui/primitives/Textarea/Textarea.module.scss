@@ -1,24 +1,24 @@
 @use '@/styles/globals/controls' as controls;
 
 .textarea {
-    @include controls.input-base;
-    min-height: var(--space-32);
-    resize: vertical;
+  @include controls.input-base;
+  min-height: var(--space-32);
+  resize: vertical;
 
-    &--error {
-        @include controls.input-error;
-    }
+  &--error {
+    @include controls.input-error;
+  }
 }
 
 .textarea-unstyled {
-    resize: none;
+  resize: none;
 
-    &:focus-visible {
-        outline: none;
-    }
+  &:focus-visible {
+    outline: none;
+  }
 
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }

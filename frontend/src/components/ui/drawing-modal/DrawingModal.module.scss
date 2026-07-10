@@ -1,38 +1,38 @@
 @use '@/styles/globals/colors' as colors;
 
 .body {
-    padding: var(--space-4);
+  padding: var(--space-4);
 }
 
 .canvas-wrap {
-    position: relative;
-    display: flex;
-    width: 100%;
-    justify-content: center;
+  position: relative;
+  display: flex;
+  width: 100%;
+  justify-content: center;
 }
 
 .canvas {
-    width: 100%;
-    cursor: crosshair;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-lg);
+  width: 100%;
+  cursor: crosshair;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
 
-    &--hidden {
-        opacity: 0;
-    }
+  &--hidden {
+    opacity: 0;
+  }
 }
 
 .loading-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface);
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface);
 }
 
 .loading-text {
-    color: var(--theme-text-tertiary);
+  color: var(--theme-text-tertiary);
 }

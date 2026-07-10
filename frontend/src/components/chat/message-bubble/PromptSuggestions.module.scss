@@ -4,22 +4,22 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .prompt-suggestions {
-    margin-top: var(--space-3);
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1-5);
+  margin-top: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
 }
 
 .suggestion {
-    @include type.type-meta;
-    @include anim.transition-colors(var(--duration-fast));
-    border-radius: var(--radius-md);
-    padding: var(--space-1) var(--space-2-5);
-    background-color: colors.theme-color('surface-tertiary', 0.6);
-    color: var(--theme-text-tertiary);
+  @include type.type-meta;
+  @include anim.transition-colors(var(--duration-fast));
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2-5);
+  background-color: colors.theme-color('surface-tertiary', 0.6);
+  color: var(--theme-text-tertiary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
 }

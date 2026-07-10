@@ -2,29 +2,29 @@
 @use '@/styles/globals/typography' as type;
 
 .create-pr-changed-files {
-    max-height: var(--space-28);
-    overflow-y: auto;
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface-secondary);
-    padding: var(--space-2);
+  max-height: var(--space-28);
+  overflow-y: auto;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-2);
 }
 
 .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding-block: var(--space-0-5);
-    @include type.type-mono-meta;
-    color: var(--theme-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-block: var(--space-0-5);
+  @include type.type-mono-meta;
+  color: var(--theme-text-secondary);
 }
 
 .path {
-    @include type.type-overflow;
+  @include type.type-overflow;
 }
 
 .stat {
-    flex-shrink: 0;
-    margin-left: var(--space-2);
-    color: var(--theme-text-quaternary);
+  flex-shrink: 0;
+  margin-left: var(--space-2);
+  color: var(--theme-text-quaternary);
 }

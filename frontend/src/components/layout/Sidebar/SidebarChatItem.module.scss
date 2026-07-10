@@ -5,235 +5,235 @@
 @use '@/styles/globals/state-classes' as state;
 
 .chat-item {
-    @include anim.transition-colors;
-    position: relative;
-    display: flex;
-    margin-inline: calc(var(--space-2) * -1);
-    align-items: center;
-    gap: var(--space-2);
-    border-radius: var(--radius-lg);
-    padding-inline: var(--space-2);
-    padding-block: 7px;
-    color: var(--theme-text-secondary);
+  @include anim.transition-colors;
+  position: relative;
+  display: flex;
+  margin-inline: calc(var(--space-2) * -1);
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-lg);
+  padding-inline: var(--space-2);
+  padding-block: 7px;
+  color: var(--theme-text-secondary);
 
-    // Dark mode rests one step dimmer than light for inactive rows
-    :global([data-theme='dark']) & {
-        color: var(--theme-text-tertiary);
+  // Dark mode rests one step dimmer than light for inactive rows
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-tertiary);
+  }
+
+  // Only inactive rows respond to hover — active rows keep a fixed fill/color
+  &:not(:global(.#{state.$state-active})) {
+    @include responsive.hover {
+      background-color: colors.theme-color('surface-hover', 0.5);
+      color: var(--theme-text-primary);
+
+      :global([data-theme='dark']) & {
+        color: var(--theme-text-secondary);
+      }
     }
+  }
 
-    // Only inactive rows respond to hover — active rows keep a fixed fill/color
-    &:not(:global(.#{state.$state-active})) {
-        @include responsive.hover {
-            background-color: colors.theme-color('surface-hover', 0.5);
-            color: var(--theme-text-primary);
-
-            :global([data-theme='dark']) & {
-                color: var(--theme-text-secondary);
-            }
-        }
-    }
-
-    &:global(.#{state.$state-active}) {
-        background-color: colors.theme-color('surface-hover', 0.5);
-        color: var(--theme-text-primary);
-    }
+  &:global(.#{state.$state-active}) {
+    background-color: colors.theme-color('surface-hover', 0.5);
+    color: var(--theme-text-primary);
+  }
 }
 
 // Right padding reserves room for the timestamp/dropdown so long titles truncate
 // before reaching them.
 .title-col {
-    display: flex;
-    min-width: 0;
-    flex: 1;
-    flex-direction: column;
-    padding-right: var(--space-10);
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  padding-right: var(--space-10);
 }
 
 .title-row {
-    display: flex;
-    min-width: 0;
-    align-items: center;
-    gap: var(--space-1-5);
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1-5);
 }
 
 // Positioning slots passed to FloatingTooltip wrappers (own our own layout)
 .status-tooltip {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
 }
 
 .title-tooltip {
-    display: flex;
-    min-width: 0;
-    flex: 1;
+  display: flex;
+  min-width: 0;
+  flex: 1;
 }
 
 .status-slot {
-    position: relative;
-    display: flex;
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
+  position: relative;
+  display: flex;
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
 }
 
 .item-spinner {
-    @include type.type-title;
-    line-height: 1;
+  @include type.type-title;
+  line-height: 1;
 }
 
 .provider-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    color: var(--theme-text-tertiary);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-tertiary);
 }
 
 // Corner overlay when the dot sits on top of a provider icon/caret
 .status-corner {
-    position: absolute;
-    right: calc(var(--space-0-5) * -1);
-    top: calc(var(--space-0-5) * -1);
+  position: absolute;
+  right: calc(var(--space-0-5) * -1);
+  top: calc(var(--space-0-5) * -1);
 }
 
 // 1px halo punching the dot out from the surface behind it
 .status-ring {
-    box-shadow: 0 0 0 1px var(--theme-surface-secondary);
+  box-shadow: 0 0 0 1px var(--theme-surface-secondary);
 }
 
 .caret-btn {
-    @include anim.transition-colors;
-    // Negative margin + padding keeps a large thumb target without shifting the row
-    margin: calc(var(--space-1) * -1);
-    flex-shrink: 0;
-    padding: var(--space-1);
-    color: var(--theme-text-tertiary);
+  @include anim.transition-colors;
+  // Negative margin + padding keeps a large thumb target without shifting the row
+  margin: calc(var(--space-1) * -1);
+  flex-shrink: 0;
+  padding: var(--space-1);
+  color: var(--theme-text-tertiary);
 
-    @include responsive.hover {
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
 }
 
 .caret-slot {
-    position: relative;
-    display: flex;
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    align-items: center;
-    justify-content: center;
+  position: relative;
+  display: flex;
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  align-items: center;
+  justify-content: center;
 }
 
 .chevron {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    transition: transform var(--duration-base);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  transition: transform var(--duration-base);
 
-    &--expanded {
-        transform: rotate(90deg);
-    }
+  &--expanded {
+    transform: rotate(90deg);
+  }
 }
 
 .title-btn {
-    // flex-1 keeps the whole row width as the open-chat hit target, not just the text
-    display: flex;
-    min-width: 0;
-    flex: 1;
-    align-items: center;
-    gap: var(--space-1-5);
-    text-align: left;
-    // TODO(refactor): no 13px type token exists — sidebar rows use a one-off text-[13px]
-    font-size: 13px;
+  // flex-1 keeps the whole row width as the open-chat hit target, not just the text
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-1-5);
+  text-align: left;
+  // TODO(refactor): no 13px type token exists — sidebar rows use a one-off text-[13px]
+  font-size: 13px;
 }
 
 .title-text {
-    @include type.type-overflow;
-    min-width: 0;
+  @include type.type-overflow;
+  min-width: 0;
 
-    &--emphasis {
-        font-weight: 500;
-    }
+  &--emphasis {
+    font-weight: 500;
+  }
 }
 
 .subthread-hint {
-    height: var(--space-3);
-    width: var(--space-3);
-    flex-shrink: 0;
-    color: var(--theme-text-quaternary);
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  color: var(--theme-text-quaternary);
 }
 
 .workspace-badge {
-    @include type.type-meta(500);
-    @include anim.transition-colors;
-    display: flex;
-    max-width: 100%;
-    align-items: center;
-    gap: var(--space-1);
-    align-self: flex-start;
-    color: var(--theme-text-quaternary);
+  @include type.type-meta(500);
+  @include anim.transition-colors;
+  display: flex;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--space-1);
+  align-self: flex-start;
+  color: var(--theme-text-quaternary);
 
-    @include responsive.hover {
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
 
-    // pl-5 (icon 14px + gap 6px) indents the name under the title, not the icon
-    &--indented {
-        padding-left: var(--space-5);
-    }
+  // pl-5 (icon 14px + gap 6px) indents the name under the title, not the icon
+  &--indented {
+    padding-left: var(--space-5);
+  }
 }
 
 .cloud-icon {
-    height: var(--space-2-5);
-    width: var(--space-2-5);
-    flex-shrink: 0;
+  height: var(--space-2-5);
+  width: var(--space-2-5);
+  flex-shrink: 0;
 }
 
 .workspace-name {
-    @include type.type-overflow;
+  @include type.type-overflow;
 }
 
 .timestamp {
-    @include type.type-meta;
-    position: absolute;
-    right: var(--space-2);
-    display: flex;
-    align-items: center;
-    font-variant-numeric: tabular-nums;
-    color: var(--theme-text-quaternary);
-    opacity: 1;
-    transition: opacity var(--duration-base);
+  @include type.type-meta;
+  position: absolute;
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-quaternary);
+  opacity: 1;
+  transition: opacity var(--duration-base);
 
-    &--hidden {
-        opacity: 0;
-    }
+  &--hidden {
+    opacity: 0;
+  }
 }
 
 .dropdown-btn {
-    @include anim.transition-colors;
-    position: absolute;
-    right: var(--space-2);
-    flex-shrink: 0;
-    border-radius: var(--radius-md);
-    padding: var(--space-0-5);
-    color: var(--theme-text-quaternary);
-    opacity: 0;
-    transition: all var(--duration-base);
+  @include anim.transition-colors;
+  position: absolute;
+  right: var(--space-2);
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5);
+  color: var(--theme-text-quaternary);
+  opacity: 0;
+  transition: all var(--duration-base);
 
-    @include responsive.hover {
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
 
-    // Group-hover reveal: hovering anywhere on the row surfaces the button
-    .chat-item:hover & {
-        opacity: 1;
-    }
+  // Group-hover reveal: hovering anywhere on the row surfaces the button
+  .chat-item:hover & {
+    opacity: 1;
+  }
 
-    &--visible {
-        opacity: 1;
-    }
+  &--visible {
+    opacity: 1;
+  }
 }
 
 .dropdown-icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 }

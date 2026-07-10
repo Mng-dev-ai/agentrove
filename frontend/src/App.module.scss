@@ -2,24 +2,24 @@
 @use '@/styles/globals/typography' as type;
 
 .error-shell {
-    display: flex;
-    min-height: 100vh;
-    flex-direction: column;
-    background-color: var(--theme-surface);
-    color: var(--theme-text-primary);
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+  background-color: var(--theme-surface);
+  color: var(--theme-text-primary);
 }
 
 .error-body {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    justify-content: center;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
 }
 
 .error-card {
-    @include type.type-default;
-    border-radius: var(--radius-lg);
-    border: 1px solid colors.theme-color('border', 0.5);
-    background-color: var(--theme-surface-secondary);
-    padding: var(--space-3) var(--space-4);
+  @include type.type-default;
+  border-radius: var(--radius-lg);
+  border: 1px solid colors.theme-color('border', 0.5);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-3) var(--space-4);
 }

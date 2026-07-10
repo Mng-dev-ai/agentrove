@@ -4,38 +4,38 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .create-pr-reviewers {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface-secondary);
-    padding: var(--space-1) var(--space-2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-1) var(--space-2);
 }
 
 .empty {
-    @include type.type-meta;
-    padding: var(--space-0-5) var(--space-1);
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  padding: var(--space-0-5) var(--space-1);
+  color: var(--theme-text-quaternary);
 }
 
 .chip {
-    @include anim.transition-colors;
-    border-radius: var(--radius-sm);
-    padding: var(--space-0-5) var(--space-1-5);
-    @include type.type-meta;
-    color: var(--theme-text-secondary);
+  @include anim.transition-colors;
+  border-radius: var(--radius-sm);
+  padding: var(--space-0-5) var(--space-1-5);
+  @include type.type-meta;
+  color: var(--theme-text-secondary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
 }
 
 // Separate (not composed with .chip) — selected chips don't participate in the hover state
 .chip-selected {
-    border-radius: var(--radius-sm);
-    padding: var(--space-0-5) var(--space-1-5);
-    @include type.type-meta;
-    background-color: var(--theme-text-primary);
-    color: var(--theme-surface);
+  border-radius: var(--radius-sm);
+  padding: var(--space-0-5) var(--space-1-5);
+  @include type.type-meta;
+  background-color: var(--theme-text-primary);
+  color: var(--theme-surface);
 }

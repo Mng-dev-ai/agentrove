@@ -4,77 +4,77 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .no-sandbox {
-    @include type.type-default;
-    display: flex;
-    height: 100%;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--theme-surface-secondary);
-    color: var(--theme-text-quaternary);
+  @include type.type-default;
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--theme-surface-secondary);
+  color: var(--theme-text-quaternary);
 }
 
 .diff-view {
-    display: flex;
-    height: 100%;
-    width: 100%;
-    flex-direction: column;
-    background-color: var(--theme-surface-secondary);
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  background-color: var(--theme-surface-secondary);
 }
 
 .content {
-    display: flex;
-    min-height: 0;
-    flex: 1;
+  display: flex;
+  min-height: 0;
+  flex: 1;
 }
 
 .sidebar-pane {
-    display: flex;
-    width: var(--space-52);
-    flex-shrink: 0;
-    flex-direction: column;
-    border-right: 1px solid colors.theme-color('border', 0.5);
+  display: flex;
+  width: var(--space-52);
+  flex-shrink: 0;
+  flex-direction: column;
+  border-right: 1px solid colors.theme-color('border', 0.5);
 }
 
 .pane {
-    position: relative;
-    min-height: 0;
-    flex: 1;
-    overflow: hidden;
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
 }
 
 .pane-loading {
-    display: flex;
-    height: 100%;
-    align-items: center;
-    justify-content: center;
+  display: flex;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
 }
 
 .spinner {
-    color: var(--theme-text-quaternary);
+  color: var(--theme-text-quaternary);
 }
 
 .virtualizer {
-    height: 100%;
-    width: 100%;
-    overflow: auto;
-    // The library restores its own line-level scroll anchor on height changes
-    // (composer row insert/remove); native anchoring double-corrects into a jump.
-    overflow-anchor: none;
+  height: 100%;
+  width: 100%;
+  overflow: auto;
+  // The library restores its own line-level scroll anchor on height changes
+  // (composer row insert/remove); native anchoring double-corrects into a jump.
+  overflow-anchor: none;
 }
 
 .virtualizer-content {
-    > * + * {
-        border-top: 1px solid colors.theme-color('border', 0.3);
-    }
+  > * + * {
+    border-top: 1px solid colors.theme-color('border', 0.3);
+  }
 }
 
 .empty-link {
-    @include anim.transition-colors;
-    @include type.type-meta;
-    color: var(--theme-text-tertiary);
-    text-decoration: underline;
+  @include anim.transition-colors;
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
+  text-decoration: underline;
 
-    @include responsive.hover {
-        color: var(--theme-text-secondary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
+  }
 }

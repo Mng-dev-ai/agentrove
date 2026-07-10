@@ -3,48 +3,48 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .diff-content {
-    height: 100%;
+  height: 100%;
 }
 
 .diff-state {
-    display: flex;
-    height: 100%;
-    width: 100%;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    background-color: var(--theme-surface-secondary);
+  display: flex;
+  height: 100%;
+  width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  background-color: var(--theme-surface-secondary);
 }
 
 .diff-loading-text {
-    @include type.type-default;
-    animation: pulse 2s var(--easing-in-out) infinite;
-    color: var(--theme-text-quaternary);
+  @include type.type-default;
+  animation: pulse 2s var(--easing-in-out) infinite;
+  color: var(--theme-text-quaternary);
 }
 
 .diff-message {
-    @include type.type-default;
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  color: var(--theme-text-tertiary);
 }
 
 .diff-retry {
-    @include type.type-meta;
-    @include anim.transition-colors;
-    color: var(--theme-text-tertiary);
-    text-decoration: underline;
+  @include type.type-meta;
+  @include anim.transition-colors;
+  color: var(--theme-text-tertiary);
+  text-decoration: underline;
 
-    @include responsive.hover {
-        color: var(--theme-text-secondary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
+  }
 }
 
 .diff-icon {
-    height: var(--space-5);
-    width: var(--space-5);
-    color: var(--theme-text-quaternary);
+  height: var(--space-5);
+  width: var(--space-5);
+  color: var(--theme-text-quaternary);
 }
 
 .diff-editor {
-    background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface-secondary);
 }

@@ -1,24 +1,24 @@
 @use '@/styles/globals/typography' as type;
 
 .content {
-    height: 100%;
+  height: 100%;
 }
 
 .content-loading {
-    @include type.type-default;
-    display: flex;
-    height: 100%;
-    width: 100%;
-    align-items: center;
-    justify-content: center;
-    color: var(--theme-text-quaternary);
-    background-color: var(--theme-surface-secondary);
+  @include type.type-default;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  color: var(--theme-text-quaternary);
+  background-color: var(--theme-surface-secondary);
 }
 
 .content-loading-pulse {
-    animation: pulse 2s var(--easing-in-out) infinite;
+  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .content-editor {
-    background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface-secondary);
 }

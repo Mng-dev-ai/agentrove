@@ -1,14 +1,14 @@
 .content {
-    display: flex;
-    min-height: 0;
-    align-items: center;
-    justify-content: center;
-    overflow: auto;
-    padding: var(--space-4);
+  display: flex;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: var(--space-4);
 }
 
 .image {
-    max-height: 100%;
-    max-width: 100%;
-    object-fit: contain;
+  max-height: 100%;
+  max-width: 100%;
+  object-fit: contain;
 }

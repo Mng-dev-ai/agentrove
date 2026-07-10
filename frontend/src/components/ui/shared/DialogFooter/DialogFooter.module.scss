@@ -1,26 +1,26 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .dialog-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
 
-    &--bordered {
-        border-top: 1px solid var(--theme-border);
-        padding: var(--space-3) var(--space-5);
-    }
+  &--bordered {
+    border-top: 1px solid var(--theme-border);
+    padding: var(--space-3) var(--space-5);
+  }
 
-    &--plain {
-        margin-top: var(--space-5);
-    }
+  &--plain {
+    margin-top: var(--space-5);
+  }
 }
 
 .save-button {
-    border: 1px solid var(--theme-text-primary);
-    background-color: var(--theme-text-primary);
-    color: var(--theme-surface);
+  border: 1px solid var(--theme-text-primary);
+  background-color: var(--theme-text-primary);
+  color: var(--theme-surface);
 
-    @include responsive.hover {
-        background-color: var(--theme-text-secondary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-text-secondary);
+  }
 }

@@ -2,58 +2,58 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .send-button {
-    @include anim.transition-colors;
-    padding: var(--space-1-5);
-    border-radius: var(--radius-full);
-    transform: scale(0.9);
+  @include anim.transition-colors;
+  padding: var(--space-1-5);
+  border-radius: var(--radius-full);
+  transform: scale(0.9);
 
-    &:active {
-        transform: scale(0.95);
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  &--ready {
+    transform: scale(1);
+  }
+
+  &--primary {
+    background-color: var(--theme-text-primary);
+
+    @include responsive.hover {
+      background-color: var(--theme-text-secondary);
     }
+  }
 
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
-
-    &--ready {
-        transform: scale(1);
-    }
-
-    &--primary {
-        background-color: var(--theme-text-primary);
-
-        @include responsive.hover {
-            background-color: var(--theme-text-secondary);
-        }
-    }
-
-    &--idle {
-        background-color: var(--theme-surface-tertiary);
-    }
+  &--idle {
+    background-color: var(--theme-surface-tertiary);
+  }
 }
 
 .icon-spinner {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    color: var(--theme-text-inverse);
-    animation: spin 1s linear infinite;
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-inverse);
+  animation: spin 1s linear infinite;
 }
 
 .icon-stop {
-    height: var(--space-3);
-    width: var(--space-3);
-    color: var(--theme-surface);
-    animation: pulse 2s var(--easing-in-out) infinite;
+  height: var(--space-3);
+  width: var(--space-3);
+  color: var(--theme-surface);
+  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .icon-send {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    transition: transform var(--duration-base);
-    color: var(--theme-text-quaternary);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  transition: transform var(--duration-base);
+  color: var(--theme-text-quaternary);
 
-    &--active {
-        color: var(--theme-text-inverse);
-    }
+  &--active {
+    color: var(--theme-text-inverse);
+  }
 }

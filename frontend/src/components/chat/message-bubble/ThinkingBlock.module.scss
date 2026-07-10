@@ -3,89 +3,89 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .thinking-toggle {
-    @include anim.transition-colors(var(--duration-fast));
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
-    margin-left: calc(-1 * var(--space-1));
-    border-radius: var(--radius-md);
-    padding: var(--space-0-5) var(--space-1);
+  @include anim.transition-colors(var(--duration-fast));
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin-left: calc(-1 * var(--space-1));
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
 }
 
 .thinking-icon {
-    height: var(--space-3);
-    width: var(--space-3);
-    color: var(--theme-text-quaternary);
+  height: var(--space-3);
+  width: var(--space-3);
+  color: var(--theme-text-quaternary);
 }
 
 .thinking-label {
-    @include type.type-meta(500);
-    color: var(--theme-text-tertiary);
+  @include type.type-meta(500);
+  color: var(--theme-text-tertiary);
 }
 
 .thinking-dots {
-    display: flex;
-    gap: var(--space-0-5);
+  display: flex;
+  gap: var(--space-0-5);
 }
 
 .thinking-dot {
-    height: var(--space-0-5);
-    width: var(--space-0-5);
-    border-radius: var(--radius-full);
-    background-color: var(--theme-text-quaternary);
-    animation: bounce 1s infinite;
+  height: var(--space-0-5);
+  width: var(--space-0-5);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-text-quaternary);
+  animation: bounce 1s infinite;
 }
 
 .thinking-preview {
-    @include type.type-meta;
-    @include type.type-overflow;
-    max-width: var(--space-48);
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  @include type.type-overflow;
+  max-width: var(--space-48);
+  color: var(--theme-text-quaternary);
 }
 
 .thinking-chevron {
-    height: var(--space-3);
-    width: var(--space-3);
-    color: var(--theme-text-quaternary);
-    transition: transform var(--duration-base);
+  height: var(--space-3);
+  width: var(--space-3);
+  color: var(--theme-text-quaternary);
+  transition: transform var(--duration-base);
 
-    &--expanded {
-        transform: rotate(90deg);
-    }
+  &--expanded {
+    transform: rotate(90deg);
+  }
 }
 
 .thinking-body {
-    overflow: hidden;
-    transition:
-        max-height var(--duration-base) var(--easing-in-out),
-        opacity var(--duration-base) var(--easing-in-out);
+  overflow: hidden;
+  transition:
+    max-height var(--duration-base) var(--easing-in-out),
+    opacity var(--duration-base) var(--easing-in-out);
 
-    &--collapsed {
-        max-height: 0;
-        opacity: 0;
-    }
+  &--collapsed {
+    max-height: 0;
+    opacity: 0;
+  }
 
-    &--expanded {
-        margin-top: var(--space-1-5);
-        max-height: var(--space-96);
-        opacity: 1;
-    }
+  &--expanded {
+    margin-top: var(--space-1-5);
+    max-height: var(--space-96);
+    opacity: 1;
+  }
 }
 
 .thinking-content {
-    border-left: 1px solid var(--theme-border);
-    padding-left: var(--space-3);
+  border-left: 1px solid var(--theme-border);
+  padding-left: var(--space-3);
 }
 
 .thinking-text {
-    @include type.type-meta;
-    max-height: var(--space-80);
-    overflow-y: auto;
-    white-space: pre-wrap;
-    line-height: 1.625;
-    color: var(--theme-text-tertiary);
+  @include type.type-meta;
+  max-height: var(--space-80);
+  overflow-y: auto;
+  white-space: pre-wrap;
+  line-height: 1.625;
+  color: var(--theme-text-tertiary);
 }

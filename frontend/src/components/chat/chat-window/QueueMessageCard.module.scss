@@ -4,214 +4,214 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .uploading-overlay {
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius-md);
-    background-color: rgb(0 0 0 / 0.35);
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
+  background-color: rgb(0 0 0 / 0.35);
 }
 
 .uploading-overlay-inner {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .uploading-spinner {
-    color: rgb(255 255 255);
+  color: rgb(255 255 255);
 }
 
 .file-thumb {
-    position: relative;
-    height: var(--space-8);
-    width: var(--space-8);
-    border-radius: var(--radius-md);
+  position: relative;
+  height: var(--space-8);
+  width: var(--space-8);
+  border-radius: var(--radius-md);
 }
 
 .file-thumb-image {
-    height: var(--space-8);
-    width: var(--space-8);
-    border-radius: var(--radius-md);
-    object-fit: cover;
+  height: var(--space-8);
+  width: var(--space-8);
+  border-radius: var(--radius-md);
+  object-fit: cover;
 }
 
 .file-thumb-icon {
-    display: flex;
-    height: var(--space-8);
-    width: var(--space-8);
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    background-color: var(--theme-surface-tertiary);
+  display: flex;
+  height: var(--space-8);
+  width: var(--space-8);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background-color: var(--theme-surface-tertiary);
 
-    // LocalFilePreview stacks an uploading overlay on top
-    &--overlay {
-        position: relative;
-    }
+  // LocalFilePreview stacks an uploading overlay on top
+  &--overlay {
+    position: relative;
+  }
 }
 
 .thumb-icon {
-    height: var(--space-4);
-    width: var(--space-4);
+  height: var(--space-4);
+  width: var(--space-4);
 
-    &--success {
-        color: var(--theme-success-text);
+  &--success {
+    color: var(--theme-success-text);
+  }
+
+  &--error {
+    color: colors.status-color('error', 500);
+
+    :global([data-theme='dark']) & {
+      color: colors.status-color('error', 400);
     }
+  }
 
-    &--error {
-        color: colors.status-color('error', 500);
-
-        :global([data-theme='dark']) & {
-            color: colors.status-color('error', 400);
-        }
-    }
-
-    &--muted {
-        color: var(--theme-text-tertiary);
-    }
+  &--muted {
+    color: var(--theme-text-tertiary);
+  }
 }
 
 .thumb-loading {
-    height: var(--space-3);
-    width: var(--space-3);
-    border-radius: var(--radius-full);
-    background-color: var(--theme-text-quaternary);
-    animation: pulse 2s var(--easing-in-out) infinite;
+  height: var(--space-3);
+  width: var(--space-3);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-text-quaternary);
+  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .thumb-error {
-    @include type.type-meta;
-    color: var(--theme-text-tertiary);
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
 }
 
 .card {
-    display: flex;
-    width: 100%;
-    flex-direction: column;
-    padding: var(--space-1-5) var(--space-3);
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  padding: var(--space-1-5) var(--space-3);
 }
 
 .card-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .card-main {
-    display: flex;
-    min-width: 0;
-    flex: 1;
-    align-items: center;
-    gap: var(--space-2);
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .reply-icon {
-    height: var(--space-3);
-    width: var(--space-3);
-    flex-shrink: 0;
-    color: var(--theme-text-quaternary);
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  color: var(--theme-text-quaternary);
 }
 
 .thumbs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
 }
 
 .edit-input {
-    @include type.type-default;
-    min-width: 0;
-    flex: 1;
-    background: transparent;
-    color: var(--theme-text-primary);
+  @include type.type-default;
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  color: var(--theme-text-primary);
 
-    &::placeholder {
-        color: var(--theme-text-quaternary);
-    }
+  &::placeholder {
+    color: var(--theme-text-quaternary);
+  }
 
-    &:focus {
-        outline: none;
-    }
+  &:focus {
+    outline: none;
+  }
 }
 
 .message-preview {
-    @include type.type-default;
-    @include type.type-overflow;
-    color: var(--theme-text-secondary);
+  @include type.type-default;
+  @include type.type-overflow;
+  color: var(--theme-text-secondary);
 }
 
 .card-actions {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    gap: var(--space-1);
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .sending {
-    @include type.type-meta;
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
-    padding: 0 var(--space-1);
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: 0 var(--space-1);
+  color: var(--theme-text-quaternary);
 }
 
 .action-btn {
-    @include anim.transition-colors;
-    display: inline-flex;
-    height: var(--space-5);
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-1-5);
-    border-radius: var(--radius-md);
-    padding: 0 var(--space-1-5);
-    cursor: pointer;
+  @include anim.transition-colors;
+  display: inline-flex;
+  height: var(--space-5);
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1-5);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-1-5);
+  cursor: pointer;
 
-    &--save {
-        @include type.type-meta(500);
-        color: var(--theme-text-primary);
+  &--save {
+    @include type.type-meta(500);
+    color: var(--theme-text-primary);
 
-        @include responsive.hover {
-            background-color: var(--theme-surface-hover);
-        }
+    @include responsive.hover {
+      background-color: var(--theme-surface-hover);
     }
+  }
 
-    &--cancel-edit {
-        @include type.type-meta(500);
-        color: var(--theme-text-tertiary);
+  &--cancel-edit {
+    @include type.type-meta(500);
+    color: var(--theme-text-tertiary);
 
-        @include responsive.hover {
-            background-color: var(--theme-surface-hover);
-        }
+    @include responsive.hover {
+      background-color: var(--theme-surface-hover);
     }
+  }
 
-    &--icon {
-        color: var(--theme-text-tertiary);
+  &--icon {
+    color: var(--theme-text-tertiary);
 
-        @include responsive.hover {
-            background-color: var(--theme-surface-hover);
-            color: var(--theme-text-primary);
-        }
+    @include responsive.hover {
+      background-color: var(--theme-surface-hover);
+      color: var(--theme-text-primary);
     }
+  }
 
-    &--delete {
-        color: var(--theme-text-tertiary);
+  &--delete {
+    color: var(--theme-text-tertiary);
 
-        @include responsive.hover {
-            background-color: colors.status-color('error', 50);
-            color: var(--theme-error-text);
+    @include responsive.hover {
+      background-color: colors.status-color('error', 50);
+      color: var(--theme-error-text);
 
-            :global([data-theme='dark']) & {
-                background-color: colors.status-color('error', 500, 0.1);
-            }
-        }
+      :global([data-theme='dark']) & {
+        background-color: colors.status-color('error', 500, 0.1);
+      }
     }
+  }
 }
 
 .action-glyph {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 }

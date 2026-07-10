@@ -5,107 +5,107 @@
 @use '@/styles/globals/zlayer' as z;
 
 .header {
-    @include z.z('titlebar');
-    border-bottom: 1px solid colors.theme-color('border', 0.5);
-    background-color: var(--theme-surface);
-    padding-inline: var(--space-4);
-    // TitleBar (which normally owns the iOS top inset) is null on these pages
-    padding-top: var(--safe-area-top);
+  @include z.z('titlebar');
+  border-bottom: 1px solid colors.theme-color('border', 0.5);
+  background-color: var(--theme-surface);
+  padding-inline: var(--space-4);
+  // TitleBar (which normally owns the iOS top inset) is null on these pages
+  padding-top: var(--safe-area-top);
 }
 
 .row {
-    position: relative;
-    display: flex;
-    height: var(--space-10);
-    align-items: center;
-    justify-content: space-between;
+  position: relative;
+  display: flex;
+  height: var(--space-10);
+  align-items: center;
+  justify-content: space-between;
 }
 
 .left {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .right {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
 }
 
 .icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }
 
 // Positioning slot for the theme-toggle FloatingTooltip wrapper
 .toggle-tooltip {
-    display: flex;
+  display: flex;
 }
 
 .theme-toggle {
-    @include anim.transition-colors;
-    position: relative;
-    border-radius: var(--radius-full);
-    padding: var(--space-1-5);
-    color: var(--theme-text-tertiary);
+  @include anim.transition-colors;
+  position: relative;
+  border-radius: var(--radius-full);
+  padding: var(--space-1-5);
+  color: var(--theme-text-tertiary);
 
-    // Dark mode drops one step dimmer than light for this control
-    :global([data-theme='dark']) & {
-        color: var(--theme-text-quaternary);
-    }
+  // Dark mode drops one step dimmer than light for this control
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-quaternary);
+  }
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
 }
 
 .back-button {
-    @include type.type-default;
-    @include anim.transition-colors;
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
-    border-radius: var(--radius-lg);
-    padding: var(--space-1-5) var(--space-2);
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  @include anim.transition-colors;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  border-radius: var(--radius-lg);
+  padding: var(--space-1-5) var(--space-2);
+  color: var(--theme-text-tertiary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
 }
 
 .auth-buttons {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .auth-login {
-    @include type.type-default(500);
-    @include anim.transition-colors;
-    border-radius: var(--radius-lg);
-    padding: var(--space-1-5) var(--space-3);
-    color: var(--theme-text-secondary);
+  @include type.type-default(500);
+  @include anim.transition-colors;
+  border-radius: var(--radius-lg);
+  padding: var(--space-1-5) var(--space-3);
+  color: var(--theme-text-secondary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
 }
 
 .auth-signup {
-    @include type.type-default(500);
-    @include anim.transition-colors;
-    border-radius: var(--radius-lg);
-    padding: var(--space-1-5) var(--space-3);
-    // Inverted: primary-text fill with the base surface as the label color
-    background-color: var(--theme-text-primary);
-    color: var(--theme-surface-secondary);
+  @include type.type-default(500);
+  @include anim.transition-colors;
+  border-radius: var(--radius-lg);
+  padding: var(--space-1-5) var(--space-3);
+  // Inverted: primary-text fill with the base surface as the label color
+  background-color: var(--theme-text-primary);
+  color: var(--theme-surface-secondary);
 
-    @include responsive.hover {
-        opacity: 0.8;
-    }
+  @include responsive.hover {
+    opacity: 0.8;
+  }
 }

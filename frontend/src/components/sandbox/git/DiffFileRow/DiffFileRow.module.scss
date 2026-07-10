@@ -5,195 +5,195 @@
 @use '@/styles/globals/zlayer' as z;
 
 .render-error {
-    @include type.type-default;
-    padding: var(--space-4) var(--space-3);
-    color: var(--theme-error-text);
+  @include type.type-default;
+  padding: var(--space-4) var(--space-3);
+  color: var(--theme-error-text);
 }
 
 .file-stats {
-    @include type.type-mono-meta;
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    gap: var(--space-1-5);
-    padding-right: var(--space-2);
+  @include type.type-mono-meta;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding-right: var(--space-2);
 }
 
 .stat-add {
-    color: var(--theme-success-text);
+  color: var(--theme-success-text);
 }
 
 .stat-del {
-    color: var(--theme-error-text);
+  color: var(--theme-error-text);
 }
 
 .status-badge {
-    @include type.type-noselect;
-    flex-shrink: 0;
-    border-radius: var(--radius-sm);
-    padding: var(--space-0-5) var(--space-1);
-    // No 9px type token exists — micro-badge sizing kept literal.
-    // TODO(refactor): add a type-micro mixin if 9px badges proliferate.
-    font-size: 9px;
-    font-weight: 500;
-    line-height: 1;
+  @include type.type-noselect;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  padding: var(--space-0-5) var(--space-1);
+  // No 9px type token exists — micro-badge sizing kept literal.
+  // TODO(refactor): add a type-micro mixin if 9px badges proliferate.
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
 
-    &--new {
-        color: var(--theme-success-text);
-        background-color: colors.status-color('success', 600, 0.15);
+  &--new {
+    color: var(--theme-success-text);
+    background-color: colors.status-color('success', 600, 0.15);
 
-        :global([data-theme='dark']) & {
-            background-color: colors.status-color('success', 400, 0.15);
-        }
+    :global([data-theme='dark']) & {
+      background-color: colors.status-color('success', 400, 0.15);
     }
+  }
 
-    &--deleted {
-        color: var(--theme-error-text);
-        background-color: colors.status-color('error', 600, 0.15);
+  &--deleted {
+    color: var(--theme-error-text);
+    background-color: colors.status-color('error', 600, 0.15);
 
-        :global([data-theme='dark']) & {
-            background-color: colors.status-color('error', 400, 0.15);
-        }
+    :global([data-theme='dark']) & {
+      background-color: colors.status-color('error', 400, 0.15);
     }
+  }
 
-    &--renamed {
-        color: var(--theme-warning-text);
-        background-color: colors.status-color('warning', 600, 0.15);
+  &--renamed {
+    color: var(--theme-warning-text);
+    background-color: colors.status-color('warning', 600, 0.15);
 
-        :global([data-theme='dark']) & {
-            background-color: colors.status-color('warning', 400, 0.15);
-        }
+    :global([data-theme='dark']) & {
+      background-color: colors.status-color('warning', 400, 0.15);
     }
+  }
 }
 
 .header {
-    @include anim.transition-colors;
-    @include z.z('raised');
-    position: sticky;
-    top: 0;
-    display: flex;
-    width: 100%;
-    align-items: center;
-    // Opaque bg so diff lines don't bleed through the sticky header.
-    background-color: var(--theme-surface-secondary);
+  @include anim.transition-colors;
+  @include z.z('raised');
+  position: sticky;
+  top: 0;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  // Opaque bg so diff lines don't bleed through the sticky header.
+  background-color: var(--theme-surface-secondary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
 
-    &--expanded {
-        border-bottom: 1px solid colors.theme-color('border', 0.3);
-    }
+  &--expanded {
+    border-bottom: 1px solid colors.theme-color('border', 0.3);
+  }
 }
 
 .toggle {
-    display: flex;
-    min-width: 0;
-    flex: 1;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-1-5) var(--space-3);
-    text-align: left;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1-5) var(--space-3);
+  text-align: left;
 }
 
 .chevron {
-    height: var(--space-3);
-    width: var(--space-3);
-    flex-shrink: 0;
-    color: var(--theme-text-quaternary);
-    transition: transform var(--duration-base);
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  color: var(--theme-text-quaternary);
+  transition: transform var(--duration-base);
 
-    &--expanded {
-        transform: rotate(90deg);
-    }
+  &--expanded {
+    transform: rotate(90deg);
+  }
 }
 
 .file-icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 }
 
 .file-name {
-    @include type.type-mono-meta;
-    @include type.type-overflow;
-    min-width: 0;
-    color: var(--theme-text-secondary);
+  @include type.type-mono-meta;
+  @include type.type-overflow;
+  min-width: 0;
+  color: var(--theme-text-secondary);
 }
 
 .prev-name {
-    color: var(--theme-text-quaternary);
+  color: var(--theme-text-quaternary);
 }
 
 .rename-arrow {
-    margin-inline: var(--space-1);
-    color: var(--theme-text-quaternary);
+  margin-inline: var(--space-1);
+  color: var(--theme-text-quaternary);
 }
 
 // FloatingTooltip anchors around the hover-reveal action buttons.
 .action-slot {
-    display: flex;
-    flex-shrink: 0;
-    margin-right: var(--space-1);
+  display: flex;
+  flex-shrink: 0;
+  margin-right: var(--space-1);
 }
 
 .review-slot {
-    display: flex;
-    flex-shrink: 0;
-    margin-right: var(--space-3);
+  display: flex;
+  flex-shrink: 0;
+  margin-right: var(--space-3);
 }
 
 .file-action {
-    border-radius: var(--radius-md);
-    padding: var(--space-1);
-    color: var(--theme-text-quaternary);
-    opacity: 0;
-    transition: opacity var(--duration-base);
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  color: var(--theme-text-quaternary);
+  opacity: 0;
+  transition: opacity var(--duration-base);
 
-    @include responsive.hover {
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
 
-    &:focus-visible {
-        opacity: 1;
-    }
+  &:focus-visible {
+    opacity: 1;
+  }
 
-    // group-hover reveal — only meaningful on hover-capable pointers.
-    @include responsive.media('not-touch') {
-        .header:hover & {
-            opacity: 1;
-        }
+  // group-hover reveal — only meaningful on hover-capable pointers.
+  @include responsive.media('not-touch') {
+    .header:hover & {
+      opacity: 1;
     }
+  }
 
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 
 .action-icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 }
 
 .review-toggle {
-    @include anim.transition-colors;
-    border-radius: var(--radius-md);
-    padding: var(--space-1);
+  @include anim.transition-colors;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
 
-    &--reviewed {
-        color: var(--theme-success-text);
+  &--reviewed {
+    color: var(--theme-success-text);
+  }
+
+  &--unreviewed {
+    color: var(--theme-text-quaternary);
+
+    @include responsive.hover {
+      color: var(--theme-text-secondary);
     }
-
-    &--unreviewed {
-        color: var(--theme-text-quaternary);
-
-        @include responsive.hover {
-            color: var(--theme-text-secondary);
-        }
-    }
+  }
 }
 
 .review-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }

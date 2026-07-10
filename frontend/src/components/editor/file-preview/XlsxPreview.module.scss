@@ -5,106 +5,106 @@
 @use '@/styles/globals/zlayer' as z;
 
 .xlsx-preview {
-    display: flex;
-    min-height: 0;
-    flex: 1;
-    flex-direction: column;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
 }
 
 .tabs {
-    display: flex;
-    height: var(--space-12);
-    flex-shrink: 0;
-    gap: var(--space-1);
-    border-bottom: 1px solid var(--theme-border);
-    background-color: var(--theme-surface-secondary);
-    padding: var(--space-2);
+  display: flex;
+  height: var(--space-12);
+  flex-shrink: 0;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--theme-border);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-2);
 }
 
 .tab {
-    @include type.type-body;
-    @include anim.transition-colors;
-    cursor: pointer;
-    // TODO(refactor): Tailwind's bare `rounded` (0.25rem) has no exact token — approximated with radius-md
-    border-radius: var(--radius-md);
-    padding: var(--space-1) var(--space-3);
-    color: var(--theme-text-secondary);
+  @include type.type-body;
+  @include anim.transition-colors;
+  cursor: pointer;
+  // TODO(refactor): Tailwind's bare `rounded` (0.25rem) has no exact token — approximated with radius-md
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-3);
+  color: var(--theme-text-secondary);
 
-    @include responsive.hover {
-        background-color: colors.theme-color('surface-hover', 0.5);
-    }
+  @include responsive.hover {
+    background-color: colors.theme-color('surface-hover', 0.5);
+  }
 
-    &--active {
-        background-color: var(--theme-surface);
-        color: var(--theme-text-primary);
-        box-shadow: var(--shadow-sm);
-    }
+  &--active {
+    background-color: var(--theme-surface);
+    color: var(--theme-text-primary);
+    box-shadow: var(--shadow-sm);
+  }
 }
 
 .table-wrapper {
-    min-height: 0;
-    flex: 1;
-    overflow: auto;
-    padding: var(--space-4);
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-4);
 }
 
 .table {
-    width: auto;
-    border-collapse: collapse;
+  width: auto;
+  border-collapse: collapse;
 
-    &--full {
-        width: 100%;
-    }
+  &--full {
+    width: 100%;
+  }
 }
 
 .thead {
-    @include z.z('raised');
-    position: sticky;
-    top: 0;
-    background-color: var(--theme-surface-secondary);
+  @include z.z('raised');
+  position: sticky;
+  top: 0;
+  background-color: var(--theme-surface-secondary);
 }
 
 .header-cell {
-    @include type.type-default(500);
-    width: auto;
-    padding: var(--space-2) var(--space-3);
-    text-align: left;
-    color: var(--theme-text-secondary);
+  @include type.type-default(500);
+  width: auto;
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  color: var(--theme-text-secondary);
 
-    &--compact {
-        min-width: var(--space-32);
-    }
+  &--compact {
+    min-width: var(--space-32);
+  }
 }
 
 .alt-row {
-    background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface-secondary);
 }
 
 .cell {
-    @include type.type-body;
-    width: auto;
-    overflow-wrap: break-word;
-    padding: var(--space-2) var(--space-3);
-    color: var(--theme-text-primary);
+  @include type.type-body;
+  width: auto;
+  overflow-wrap: break-word;
+  padding: var(--space-2) var(--space-3);
+  color: var(--theme-text-primary);
 
-    &--compact {
-        min-width: var(--space-32);
-    }
+  &--compact {
+    min-width: var(--space-32);
+  }
 }
 
 .tooltip-content {
-    display: block;
+  display: block;
 }
 
 .footer {
-    height: var(--space-16);
-    flex-shrink: 0;
-    border-top: 1px solid var(--theme-border);
-    background-color: var(--theme-surface-secondary);
-    padding: var(--space-4);
+  height: var(--space-16);
+  flex-shrink: 0;
+  border-top: 1px solid var(--theme-border);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-4);
 }
 
 .footer-text {
-    @include type.type-body;
-    color: var(--theme-text-secondary);
+  @include type.type-body;
+  color: var(--theme-text-secondary);
 }

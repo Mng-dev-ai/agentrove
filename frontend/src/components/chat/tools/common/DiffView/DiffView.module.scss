@@ -2,53 +2,53 @@
 @use '@/styles/globals/colors' as colors;
 
 .diff {
-    @include type.type-mono(0.625rem, 1.625);
-    max-height: var(--space-48);
-    overflow: auto;
+  @include type.type-mono(0.625rem, 1.625);
+  max-height: var(--space-48);
+  overflow: auto;
 }
 
 .header-line {
-    color: var(--theme-text-quaternary);
+  color: var(--theme-text-quaternary);
 }
 
 .line {
-    display: flex;
+  display: flex;
 }
 
 .gutter {
-    width: var(--space-4);
-    flex-shrink: 0;
-    user-select: none;
-    text-align: center;
-    color: transparent;
+  width: var(--space-4);
+  flex-shrink: 0;
+  user-select: none;
+  text-align: center;
+  color: transparent;
 }
 
 .gutter--removed {
-    color: colors.status-color('error', 600, 0.4);
+  color: colors.status-color('error', 600, 0.4);
 
-    :global([data-theme='dark']) & {
-        color: colors.status-color('error', 400, 0.4);
-    }
+  :global([data-theme='dark']) & {
+    color: colors.status-color('error', 400, 0.4);
+  }
 }
 
 .gutter--added {
-    color: colors.status-color('success', 600, 0.4);
+  color: colors.status-color('success', 600, 0.4);
 
-    :global([data-theme='dark']) & {
-        color: colors.status-color('success', 400, 0.4);
-    }
+  :global([data-theme='dark']) & {
+    color: colors.status-color('success', 400, 0.4);
+  }
 }
 
 .content {
-    white-space: pre;
-    color: var(--theme-text-tertiary);
+  white-space: pre;
+  color: var(--theme-text-tertiary);
 }
 
 .content--removed {
-    color: var(--theme-text-quaternary);
-    text-decoration: line-through;
+  color: var(--theme-text-quaternary);
+  text-decoration: line-through;
 }
 
 .content--added {
-    color: var(--theme-text-secondary);
+  color: var(--theme-text-secondary);
 }

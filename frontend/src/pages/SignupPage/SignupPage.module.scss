@@ -1,54 +1,54 @@
 @use '@/styles/globals/typography' as type;
 
 .form {
-    > * + * {
-        margin-top: var(--space-4);
-    }
+  > * + * {
+    margin-top: var(--space-4);
+  }
 }
 
 .error-text {
-    @include type.type-default(500);
-    color: var(--theme-error-text);
+  @include type.type-default(500);
+  color: var(--theme-error-text);
 }
 
 .fields {
-    > * + * {
-        margin-top: var(--space-3-5);
-    }
+  > * + * {
+    margin-top: var(--space-3-5);
+  }
 }
 
 .field {
-    > * + * {
-        margin-top: var(--space-1-5);
-    }
+  > * + * {
+    margin-top: var(--space-1-5);
+  }
 }
 
 .label {
-    @include type.type-default(500);
-    color: var(--theme-text-secondary);
+  @include type.type-default(500);
+  color: var(--theme-text-secondary);
 }
 
 .link-small {
-    @include type.type-default(500);
+  @include type.type-default(500);
 }
 
 .submit {
-    margin-top: var(--space-5);
-    width: 100%;
+  margin-top: var(--space-5);
+  width: 100%;
 }
 
 .footer {
-    padding-top: var(--space-4);
-    text-align: center;
+  padding-top: var(--space-4);
+  text-align: center;
 }
 
 .icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }
 
 .spinner-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    animation: spin 1s linear infinite;
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  animation: spin 1s linear infinite;
 }

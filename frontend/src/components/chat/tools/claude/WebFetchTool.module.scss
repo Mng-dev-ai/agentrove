@@ -1,22 +1,22 @@
 @use '@/styles/globals/typography' as type;
 
 .details {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
 }
 
 .url {
-    @include type.type-overflow;
-    @include type.type-mono-meta;
-    color: var(--theme-text-tertiary);
+  @include type.type-overflow;
+  @include type.type-mono-meta;
+  color: var(--theme-text-tertiary);
 
-    :global([data-theme='dark']) & {
-        color: var(--theme-text-quaternary);
-    }
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-quaternary);
+  }
 }
 
 .prompt {
-    @include type.type-meta;
-    color: var(--theme-text-tertiary);
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
 }
