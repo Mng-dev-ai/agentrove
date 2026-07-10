@@ -13,7 +13,7 @@ import {
 import type { ViewType } from '@/types/ui.types';
 import styles from './ViewSwitcher.module.scss';
 
-export type SwitchableView = Exclude<ViewType, 'agent'>;
+type SwitchableView = Exclude<ViewType, 'agent'>;
 
 // Non-agent secondary views, in the order Cursor lays them out: diff (git),
 // editor (file), terminal, secrets.
@@ -33,7 +33,7 @@ function viewTooltip(view: SwitchableView): string {
   return `${label} · ⇧-click or right-click to split`;
 }
 
-export function ViewSwitcher({ views = SWITCHABLE_VIEWS }: { views?: SwitchableView[] }) {
+export function ViewSwitcher() {
   const activeAgentTile = useUIStore((s) => s.activeAgentTile);
   const secondaryChatId = useUIStore((s) => s.secondaryChatId);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
@@ -48,7 +48,7 @@ export function ViewSwitcher({ views = SWITCHABLE_VIEWS }: { views?: SwitchableV
 
   return (
     <div className={styles['view-switcher']}>
-      {views.map((view) => {
+      {SWITCHABLE_VIEWS.map((view) => {
         const Icon = VIEW_ICONS[view];
         const isActive = visibleSet.has(viewTypeToTileId(view, secondary));
         return (

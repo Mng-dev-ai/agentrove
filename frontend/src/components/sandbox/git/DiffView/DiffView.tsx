@@ -48,6 +48,9 @@ interface DiffViewProps {
   // The chat this tile renders — resolves the sandbox/cwd it diffs and binds it
   // to jumps so the primary and secondary diff tiles never consume each other's.
   chatId: string | undefined;
+  // Chat-less contexts (the landing page) supply the sandbox directly — diffs run
+  // at the workspace root and review comments are disabled (they need a chat).
+  sandboxId?: string;
   // Whether this tile is currently on screen — background tiles stay mounted, so
   // visibility is how we know the user just switched to the diff view.
   isVisible: boolean;
@@ -63,10 +66,14 @@ export const DiffView = memo(function DiffView(props: DiffViewProps) {
   return <DiffViewContent {...props} />;
 });
 
-const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: DiffViewProps) {
+const DiffViewContent = memo(function DiffViewContent({
+  chatId,
+  sandboxId: workspaceSandboxId,
+  isVisible,
+}: DiffViewProps) {
   const theme = useResolvedTheme();
   const { data: chat } = useChatQuery(chatId);
-  const sandboxId = chat?.sandbox_id ?? undefined;
+  const sandboxId = chat?.sandbox_id ?? workspaceSandboxId;
   const cwd = chat?.worktree_cwd ?? undefined;
   // Files render expanded by default (continuous review scroll) — track the
   // exceptions the user collapsed instead of the ones they opened.

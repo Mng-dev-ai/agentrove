@@ -56,6 +56,11 @@ const SecretsView = lazyNamed(
   () => import('@/components/sandbox/secrets/SecretsView/SecretsView'),
   'SecretsView',
 );
+const DiffView = lazyNamed(() => import('@/components/sandbox/git/DiffView/DiffView'), 'DiffView');
+const TerminalContainer = lazyNamed(
+  () => import('@/components/sandbox/terminal/Container/Container'),
+  'Container',
+);
 
 const EXAMPLE_PROMPTS = [
   'Build a REST API with authentication',
@@ -351,7 +356,7 @@ export function LandingPage() {
   useLayoutSidebar(sidebarContent);
 
   const renderView = useCallback(
-    (tileId: TileId): ReactNode => {
+    (tileId: TileId, isVisible: boolean): ReactNode => {
       switch (tileIdToViewType(tileId)) {
         case 'agent':
           return (
@@ -426,6 +431,26 @@ export function LandingPage() {
           return (
             <Suspense fallback={viewLoadingFallback}>
               <SecretsView sandboxId={selectedSandboxId} />
+            </Suspense>
+          );
+        case 'diff':
+          // No chat yet — the sandbox comes from the selected workspace, so the
+          // diff runs at the workspace root and review comments are disabled.
+          return (
+            <Suspense fallback={viewLoadingFallback}>
+              <DiffView chatId={undefined} sandboxId={selectedSandboxId} isVisible={isVisible} />
+            </Suspense>
+          );
+        case 'terminal':
+          // No chatId — pre-chat terminal tabs aren't persisted; the shell
+          // spawns at the workspace root.
+          return (
+            <Suspense fallback={viewLoadingFallback}>
+              <TerminalContainer
+                sandboxId={selectedSandboxId}
+                isVisible={isVisible}
+                panelKey={`tile-${tileId}`}
+              />
             </Suspense>
           );
         default:
