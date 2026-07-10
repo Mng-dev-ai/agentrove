@@ -6,151 +6,151 @@
 // -mb-px drops the strip over the title bar's hairline so the active tab's
 // underline can cross its segment of the border.
 .chat-tabs {
-    display: flex;
-    height: 100%;
-    min-width: 0;
-    margin-bottom: -1px;
-    gap: var(--space-1);
-    overflow-x: auto;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  margin-bottom: -1px;
+  gap: var(--space-1);
+  overflow-x: auto;
 }
 
 .chat-tab {
-    @include anim.transition-colors;
-    position: relative;
-    display: flex;
-    height: 100%;
-    min-width: 0;
-    max-width: 180px;
-    flex-shrink: 0;
-    align-items: center;
-    gap: var(--space-1);
-    border-radius: var(--radius-md);
-    padding-left: var(--space-2);
-    padding-right: var(--space-1);
-    color: var(--theme-text-tertiary);
+  @include anim.transition-colors;
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  max-width: 180px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  padding-left: var(--space-2);
+  padding-right: var(--space-1);
+  color: var(--theme-text-tertiary);
 
-    // Reveal the close button while hovering anywhere on the tab
+  // Reveal the close button while hovering anywhere on the tab
+  @include responsive.hover {
+    .tab-close {
+      opacity: 1;
+    }
+  }
+
+  // Only inactive tabs get a hover fill — the active one stays a flat band
+  &:not(:global(.#{state.$state-active})) {
     @include responsive.hover {
-        .tab-close {
-            opacity: 1;
-        }
+      background-color: var(--theme-surface-hover);
+      color: var(--theme-text-primary);
     }
+  }
 
-    // Only inactive tabs get a hover fill — the active one stays a flat band
-    &:not(:global(.#{state.$state-active})) {
-        @include responsive.hover {
-            background-color: var(--theme-surface-hover);
-            color: var(--theme-text-primary);
-        }
+  &:global(.#{state.$state-active}) {
+    color: var(--theme-text-primary);
+
+    .tab-close {
+      opacity: 1;
     }
-
-    &:global(.#{state.$state-active}) {
-        color: var(--theme-text-primary);
-
-        .tab-close {
-            opacity: 1;
-        }
-    }
+  }
 }
 
 // Positioning slot for the title FloatingTooltip wrapper
 .tab-tooltip {
-    display: flex;
-    min-width: 0;
-    flex: 1;
+  display: flex;
+  min-width: 0;
+  flex: 1;
 }
 
 .tab-select {
-    display: flex;
-    width: 100%;
-    min-width: 0;
-    align-items: center;
-    gap: var(--space-1-5);
-    text-align: left;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1-5);
+  text-align: left;
 }
 
 .tab-spinner {
-    @include type.type-body;
-    width: var(--space-3);
-    flex-shrink: 0;
-    text-align: center;
-    line-height: 1;
+  @include type.type-body;
+  width: var(--space-3);
+  flex-shrink: 0;
+  text-align: center;
+  line-height: 1;
 }
 
 .tab-status-dot {
-    height: var(--space-3);
-    width: var(--space-3);
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
 }
 
 .tab-provider-icon {
-    height: var(--space-3);
-    width: var(--space-3);
-    flex-shrink: 0;
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
 }
 
 .tab-title {
-    @include type.type-meta(500);
-    @include type.type-overflow;
-    min-width: 0;
+  @include type.type-meta(500);
+  @include type.type-overflow;
+  min-width: 0;
 }
 
 .tab-close {
-    display: flex;
-    height: var(--space-5);
-    width: var(--space-4);
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    color: var(--theme-text-tertiary);
-    opacity: 0;
-    transition: opacity var(--duration-base);
+  display: flex;
+  height: var(--space-5);
+  width: var(--space-4);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--theme-text-tertiary);
+  opacity: 0;
+  transition: opacity var(--duration-base);
 
-    @include responsive.hover {
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
 
-    // Keep the hidden close button reachable for keyboard users
-    &:focus-visible {
-        opacity: 1;
-    }
+  // Keep the hidden close button reachable for keyboard users
+  &:focus-visible {
+    opacity: 1;
+  }
 }
 
 .close-icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 }
 
 .tab-underline {
-    position: absolute;
-    inset-inline: 0;
-    bottom: 0;
-    height: var(--space-0-5);
-    border-radius: var(--radius-full);
-    background-color: var(--theme-text-primary);
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: var(--space-0-5);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-text-primary);
 }
 
 .new-tab {
-    @include anim.transition-colors;
-    display: flex;
-    height: var(--space-5);
-    width: var(--space-5);
-    flex-shrink: 0;
-    align-self: center;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    color: var(--theme-text-tertiary);
+  @include anim.transition-colors;
+  display: flex;
+  height: var(--space-5);
+  width: var(--space-5);
+  flex-shrink: 0;
+  align-self: center;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--theme-text-tertiary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
 }
 
 .new-tab-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }

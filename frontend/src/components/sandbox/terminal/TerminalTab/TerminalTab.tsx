@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { logger } from '@/utils/logger';
-import type { FC } from 'react';
 import 'xterm/css/xterm.css';
 
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -33,14 +32,14 @@ const WS_CLOSE_AUTH_FAILED = 4001;
 const WS_CLOSE_SANDBOX_NOT_FOUND = 4004;
 const WS_CLOSE_INVALID_CWD = 4005;
 
-export const TerminalTab: FC<TerminalTabProps> = ({
+export function TerminalTab({
   isVisible,
   sandboxId,
   terminalId,
   cwd,
   shouldClose = false,
   onClosed,
-}) => {
+}: TerminalTabProps) {
   const resolvedTheme = useResolvedTheme();
   const rawTheme = useUIStore((s) => s.theme);
   // Only `system` needs resolving; every other theme is itself a palette
@@ -286,4 +285,4 @@ export const TerminalTab: FC<TerminalTabProps> = ({
       )}
     </div>
   );
-};
+}

@@ -25,7 +25,7 @@ interface ToolCardProps {
   defaultExpanded?: boolean;
 }
 
-const ToolCardInner: React.FC<ToolCardProps> = ({
+export const ToolCard = memo(function ToolCard({
   icon,
   status,
   title,
@@ -36,7 +36,7 @@ const ToolCardInner: React.FC<ToolCardProps> = ({
   children,
   className = '',
   defaultExpanded = false,
-}) => {
+}: ToolCardProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const resolvedTitle = typeof title === 'function' ? title(status) : title;
 
@@ -112,6 +112,4 @@ const ToolCardInner: React.FC<ToolCardProps> = ({
       {showChildren && details}
     </div>
   );
-};
-
-export const ToolCard = memo(ToolCardInner);
+});

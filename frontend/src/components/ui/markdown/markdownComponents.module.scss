@@ -3,187 +3,187 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .table-wrap {
-    margin: var(--space-6) 0;
-    overflow-x: auto;
+  margin: var(--space-6) 0;
+  overflow-x: auto;
 }
 
 .table {
-    min-width: 100%;
+  min-width: 100%;
 
-    > * + * {
-        border-top: 1px solid var(--theme-border);
-    }
+  > * + * {
+    border-top: 1px solid var(--theme-border);
+  }
 }
 
 .thead {
-    background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface-secondary);
 }
 
 .tbody {
-    background-color: var(--theme-surface);
+  background-color: var(--theme-surface);
 
-    > * + * {
-        border-top: 1px solid var(--theme-border);
-    }
+  > * + * {
+    border-top: 1px solid var(--theme-border);
+  }
 }
 
 .tr {
-    @include anim.transition-colors;
+  @include anim.transition-colors;
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
 }
 
 .th {
-    @include type.type-default(600);
-    padding: var(--space-2) var(--space-3);
-    text-align: left;
-    color: var(--theme-text-primary);
+  @include type.type-default(600);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  color: var(--theme-text-primary);
 }
 
 .td {
-    @include type.type-default;
-    padding: var(--space-2) var(--space-3);
-    color: var(--theme-text-secondary);
+  @include type.type-default;
+  padding: var(--space-2) var(--space-3);
+  color: var(--theme-text-secondary);
 }
 
 .h1 {
-    @include type.type-title(600);
-    margin: var(--space-4) 0 var(--space-3);
-    color: var(--theme-text-primary);
+  @include type.type-title(600);
+  margin: var(--space-4) 0 var(--space-3);
+  color: var(--theme-text-primary);
 
-    &:first-child {
-        margin-top: 0;
-    }
+  &:first-child {
+    margin-top: 0;
+  }
 }
 
 .h2 {
-    @include type.type-large(600);
-    margin: var(--space-4) 0 var(--space-2);
-    color: var(--theme-text-primary);
+  @include type.type-large(600);
+  margin: var(--space-4) 0 var(--space-2);
+  color: var(--theme-text-primary);
 }
 
 .h3 {
-    @include type.type-body(600);
-    margin: var(--space-3) 0 var(--space-1-5);
-    color: var(--theme-text-primary);
+  @include type.type-body(600);
+  margin: var(--space-3) 0 var(--space-1-5);
+  color: var(--theme-text-primary);
 }
 
 .p {
-    margin-bottom: var(--space-3);
-    white-space: pre-wrap;
-    line-height: 1.25rem;
-    color: var(--theme-text-secondary);
-    overflow-wrap: anywhere;
+  margin-bottom: var(--space-3);
+  white-space: pre-wrap;
+  line-height: 1.25rem;
+  color: var(--theme-text-secondary);
+  overflow-wrap: anywhere;
 
-    &:last-child {
-        margin-bottom: 0;
-    }
+  &:last-child {
+    margin-bottom: 0;
+  }
 }
 
 .image-paragraph {
-    margin-bottom: var(--space-3);
+  margin-bottom: var(--space-3);
 
-    &:last-child {
-        margin-bottom: 0;
-    }
+  &:last-child {
+    margin-bottom: 0;
+  }
 }
 
 .strong {
-    font-weight: 600;
-    color: var(--theme-text-primary);
+  font-weight: 600;
+  color: var(--theme-text-primary);
 }
 
 .em {
-    font-style: italic;
-    color: var(--theme-text-secondary);
+  font-style: italic;
+  color: var(--theme-text-secondary);
 }
 
 .code-inline {
-    @include type.type-mono;
-    border-radius: var(--radius-md);
-    padding: var(--space-0-5) var(--space-1);
-    background-color: var(--theme-surface-secondary);
-    color: var(--theme-text-primary);
+  @include type.type-mono;
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1);
+  background-color: var(--theme-surface-secondary);
+  color: var(--theme-text-primary);
 }
 
 .plain-code-block {
-    margin: var(--space-4) 0;
+  margin: var(--space-4) 0;
 }
 
 .plain-pre {
-    overflow-x: auto;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface-secondary);
-    padding: var(--space-2);
+  overflow-x: auto;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-2);
 }
 
 .code-content {
-    @include type.type-mono;
-    color: var(--theme-text-primary);
+  @include type.type-mono;
+  color: var(--theme-text-primary);
 }
 
 .ul {
-    margin-bottom: var(--space-3);
-    padding-left: var(--space-4);
-    list-style: disc;
-    color: var(--theme-text-secondary);
+  margin-bottom: var(--space-3);
+  padding-left: var(--space-4);
+  list-style: disc;
+  color: var(--theme-text-secondary);
 
-    > * + * {
-        margin-top: var(--space-1);
-    }
+  > * + * {
+    margin-top: var(--space-1);
+  }
 }
 
 .ol {
-    margin-bottom: var(--space-3);
-    padding-left: var(--space-4);
-    list-style: decimal;
-    color: var(--theme-text-secondary);
+  margin-bottom: var(--space-3);
+  padding-left: var(--space-4);
+  list-style: decimal;
+  color: var(--theme-text-secondary);
 
-    > * + * {
-        margin-top: var(--space-1);
-    }
+  > * + * {
+    margin-top: var(--space-1);
+  }
 }
 
 .li {
-    padding-left: var(--space-1);
-    color: var(--theme-text-secondary);
+  padding-left: var(--space-1);
+  color: var(--theme-text-secondary);
 }
 
 .blockquote {
-    margin: var(--space-3) 0;
-    border-left: 2px solid var(--theme-border);
-    padding-left: var(--space-3);
-    font-style: italic;
-    color: var(--theme-text-secondary);
+  margin: var(--space-3) 0;
+  border-left: 2px solid var(--theme-border);
+  padding-left: var(--space-3);
+  font-style: italic;
+  color: var(--theme-text-secondary);
 }
 
 .link {
-    @include anim.transition-colors;
-    color: var(--theme-text-primary);
-    text-decoration: underline;
+  @include anim.transition-colors;
+  color: var(--theme-text-primary);
+  text-decoration: underline;
 
-    @include responsive.hover {
-        color: var(--theme-text-secondary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
+  }
 }
 
 .img {
-    margin: var(--space-4) 0;
-    height: auto;
-    max-width: 100%;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-lg);
+  margin: var(--space-4) 0;
+  height: auto;
+  max-width: 100%;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
 }
 
 .hr {
-    margin: var(--space-6) 0;
-    border: 0;
-    border-top: 1px solid var(--theme-border);
+  margin: var(--space-6) 0;
+  border: 0;
+  border-top: 1px solid var(--theme-border);
 }
 
 .pre {
-    overflow-x: auto;
+  overflow-x: auto;
 }

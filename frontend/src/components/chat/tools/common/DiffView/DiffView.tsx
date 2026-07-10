@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import clsx from 'clsx';
 import styles from './DiffView.module.scss';
 
-const DiffLine: React.FC<{ line: string }> = ({ line }) => {
+function DiffLine({ line }: { line: string }) {
   const isAdded = line.startsWith('+') && !line.startsWith('+++');
   const isRemoved = line.startsWith('-') && !line.startsWith('---');
   const isHunkHeader =
@@ -35,9 +35,9 @@ const DiffLine: React.FC<{ line: string }> = ({ line }) => {
       </span>
     </div>
   );
-};
+}
 
-const DiffViewInner: React.FC<{ diff: string }> = ({ diff }) => {
+export const DiffView = memo(function DiffView({ diff }: { diff: string }) {
   const lines = useMemo(() => diff.split('\n').filter((l) => l.length > 0), [diff]);
   return (
     <div className={styles.diff}>
@@ -46,6 +46,4 @@ const DiffViewInner: React.FC<{ diff: string }> = ({ diff }) => {
       ))}
     </div>
   );
-};
-
-export const DiffView = memo(DiffViewInner);
+});

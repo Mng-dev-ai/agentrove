@@ -3,50 +3,50 @@
 @use '@/styles/globals/zlayer' as z;
 
 .suggestion-panel {
-    @include z.z('dropdown');
-    position: absolute;
-    bottom: 100%;
-    left: 0;
-    right: 0;
-    margin-bottom: var(--space-2);
+  @include z.z('dropdown');
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  margin-bottom: var(--space-2);
 }
 
 .panel-scroll {
-    max-height: var(--space-64);
-    overflow-y: auto;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface);
-    box-shadow: var(--shadow-sm);
+  max-height: var(--space-64);
+  overflow-y: auto;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .list {
-    padding-block: var(--space-1);
+  padding-block: var(--space-1);
 }
 
 .section-label {
-    @include type.type-section-header;
-    padding: var(--space-1) var(--space-3);
+  @include type.type-section-header;
+  padding: var(--space-1) var(--space-3);
 }
 
 .item {
-    display: flex;
-    width: 100%;
-    align-items: center;
-    text-align: left;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  text-align: left;
 
-    &:not(.item--active) {
-        @include responsive.hover {
-            background-color: var(--theme-surface-hover);
-        }
+  &:not(.item--active) {
+    @include responsive.hover {
+      background-color: var(--theme-surface-hover);
     }
+  }
 
-    &--default {
-        gap: var(--space-2);
-        padding: var(--space-1-5) var(--space-3);
-    }
+  &--default {
+    gap: var(--space-2);
+    padding: var(--space-1-5) var(--space-3);
+  }
 
-    &--active {
-        background-color: var(--theme-surface-active);
-    }
+  &--active {
+    background-color: var(--theme-surface-active);
+  }
 }

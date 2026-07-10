@@ -51,7 +51,7 @@ const tabLoadingFallback = (
   </div>
 );
 
-const SettingsPage: React.FC = () => {
+export function SettingsPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -338,6 +338,4 @@ const SettingsPage: React.FC = () => {
       />
     </div>
   );
-};
-
-export default SettingsPage;
+}

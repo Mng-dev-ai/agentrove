@@ -15,7 +15,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
 import { isSecondaryTile } from '@/utils/tileHelpers';
-import { stateClasses } from '@/constants/stateClasses';
+import { stateClasses } from '@/config/stateClasses';
 import styles from './ChatTabs.module.scss';
 
 type ChatTabStatus = 'blocked' | 'streaming' | 'completed';

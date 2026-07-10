@@ -5,80 +5,80 @@
 
 // Loading/empty placeholder rendered before the real Dropdown mounts.
 .status {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
-    border-radius: var(--radius-full);
-    padding: var(--space-1) var(--space-2-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-2-5);
 }
 
 .status-pill {
-    height: var(--space-3-5);
-    width: var(--space-16);
-    border-radius: var(--radius-full);
-    background-color: colors.theme-color('text-quaternary', 0.2);
-    animation: pulse 2s var(--easing-in-out) infinite;
+  height: var(--space-3-5);
+  width: var(--space-16);
+  border-radius: var(--radius-full);
+  background-color: colors.theme-color('text-quaternary', 0.2);
+  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .status-text {
-    @include type.type-default;
-    color: var(--theme-text-quaternary);
+  @include type.type-default;
+  color: var(--theme-text-quaternary);
 }
 
 .item {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .item-tooltip {
-    min-width: 0;
-    flex: 1;
+  min-width: 0;
+  flex: 1;
 }
 
 .item-label {
-    @include type.type-meta(500);
-    @include type.type-overflow;
-    color: var(--theme-text-secondary);
+  @include type.type-meta(500);
+  @include type.type-overflow;
+  color: var(--theme-text-secondary);
 
-    &--selected {
-        color: var(--theme-text-primary);
-    }
+  &--selected {
+    color: var(--theme-text-primary);
+  }
 }
 
 .item-context {
-    @include type.type-meta(500);
-    flex-shrink: 0;
-    border-radius: var(--radius-md);
-    background-color: var(--theme-surface-tertiary);
-    padding: var(--space-0-5) var(--space-1-5);
-    color: var(--theme-text-quaternary);
+  @include type.type-meta(500);
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background-color: var(--theme-surface-tertiary);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-quaternary);
 }
 
 .favorite-button {
-    @include anim.transition-colors(var(--duration-fast));
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-md);
-    padding: var(--space-0-5);
-    color: var(--theme-text-quaternary);
+  @include anim.transition-colors(var(--duration-fast));
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5);
+  color: var(--theme-text-quaternary);
 
-    @include responsive.hover {
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
 
-    &--active {
-        color: var(--theme-text-primary);
-    }
+  &--active {
+    color: var(--theme-text-primary);
+  }
 }
 
 .favorite-icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 
-    &--active {
-        fill: currentColor;
-    }
+  &--active {
+    fill: currentColor;
+  }
 }

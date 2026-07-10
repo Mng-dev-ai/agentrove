@@ -2,9 +2,9 @@
 @use '@/styles/globals/typography' as type;
 
 .ascii-spinner {
-    @include type.type-noselect;
-    // font-mono here only sets the family — original didn't set a size, so avoid
-    // type.type-mono() which would also fix font-size (inherits from parent)
-    font-family: var(--font-mono);
-    color: colors.status-color('warning', 500);
+  @include type.type-noselect;
+  // font-mono here only sets the family — original didn't set a size, so avoid
+  // type.type-mono() which would also fix font-size (inherits from parent)
+  font-family: var(--font-mono);
+  color: colors.status-color('warning', 500);
 }

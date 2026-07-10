@@ -1,71 +1,71 @@
 @use '@/styles/globals/typography' as type;
 
 .avatar-circle {
-    @include type.type-meta(500);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-full);
-    background-color: var(--theme-surface-hover);
-    color: var(--theme-text-secondary);
-    transition: all var(--duration-base);
+  @include type.type-meta(500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background-color: var(--theme-surface-hover);
+  color: var(--theme-text-secondary);
+  transition: all var(--duration-base);
 
-    &--default {
-        height: var(--space-5);
-        width: var(--space-5);
-    }
+  &--default {
+    height: var(--space-5);
+    width: var(--space-5);
+  }
 
-    &--large {
-        height: var(--space-7);
-        width: var(--space-7);
-    }
+  &--large {
+    height: var(--space-7);
+    width: var(--space-7);
+  }
 }
 
 .avatar-circle-icon {
-    &--default {
-        height: var(--space-3);
-        width: var(--space-3);
-    }
+  &--default {
+    height: var(--space-3);
+    width: var(--space-3);
+  }
 
-    &--large {
-        height: var(--space-3-5);
-        width: var(--space-3-5);
-    }
+  &--large {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+  }
 }
 
 .avatar {
-    display: flex;
-    height: var(--space-6);
-    width: var(--space-6);
-    align-items: center;
-    justify-content: center;
+  display: flex;
+  height: var(--space-6);
+  width: var(--space-6);
+  align-items: center;
+  justify-content: center;
 }
 
 .avatar-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    color: var(--theme-text-tertiary);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-tertiary);
 }
 
 .bot-icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 
-    // Two icon variants swap by theme — the dark-colored glyph shows on light
-    // surfaces and vice versa.
-    &--on-light {
-        display: block;
+  // Two icon variants swap by theme — the dark-colored glyph shows on light
+  // surfaces and vice versa.
+  &--on-light {
+    display: block;
 
-        :global([data-theme='dark']) & {
-            display: none;
-        }
+    :global([data-theme='dark']) & {
+      display: none;
     }
+  }
 
-    &--on-dark {
-        display: none;
+  &--on-dark {
+    display: none;
 
-        :global([data-theme='dark']) & {
-            display: block;
-        }
+    :global([data-theme='dark']) & {
+      display: block;
     }
+  }
 }

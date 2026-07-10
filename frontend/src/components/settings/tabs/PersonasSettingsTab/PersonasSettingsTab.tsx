@@ -13,7 +13,7 @@ const PersonaEditDialog = lazyNamed(
   'PersonaEditDialog',
 );
 
-export const PersonasSettingsTab: React.FC = () => {
+export function PersonasSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
 
   const personaCrud = useCrudForm(localSettings, persistSettings, {
@@ -65,4 +65,4 @@ export const PersonasSettingsTab: React.FC = () => {
       )}
     </>
   );
-};
+}

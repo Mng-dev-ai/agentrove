@@ -48,7 +48,7 @@ const ICON_BY_OP: Record<EditOp, React.ReactNode> = {
   update: <FileEdit className={toolIcon.icon} />,
 };
 
-const PendingPreview: React.FC<{ input: CopilotEditInput; op: EditOp }> = ({ input, op }) => {
+function PendingPreview({ input, op }: { input: CopilotEditInput; op: EditOp }) {
   if (typeof input.raw === 'string') {
     return <DiffView diff={input.raw} />;
   }
@@ -59,9 +59,9 @@ const PendingPreview: React.FC<{ input: CopilotEditInput; op: EditOp }> = ({ inp
     return <DiffView diff={buildUnifiedDiff(input.old_str ?? '', input.new_str ?? '')} />;
   }
   return null;
-};
+}
 
-const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as CopilotEditInput | undefined;
   const result = tool.result as CopilotToolOutput | undefined;
 
@@ -107,6 +107,4 @@ const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       ) : null}
     </ToolCard>
   );
-};
-
-export const EditTool = memo(EditToolInner);
+});

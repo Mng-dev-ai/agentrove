@@ -13,11 +13,15 @@ interface AgentOutputInput {
   timeout?: number;
 }
 
-const OutputToolInner: React.FC<{
+function OutputToolInner({
+  tool,
+  idField,
+  label,
+}: {
   tool: ToolAggregate;
   idField: 'task_id' | 'bash_id';
   label: string;
-}> = ({ tool, idField, label }) => {
+}) {
   const input = tool.input as AgentOutputInput | undefined;
   const id = input?.[idField] ?? '';
   const truncatedId = id.length > 12 ? `${id.slice(0, 12)}\u2026` : id;
@@ -49,12 +53,12 @@ const OutputToolInner: React.FC<{
       )}
     </ToolCard>
   );
-};
+}
 
-export const AgentOutputTool = memo<{ tool: ToolAggregate }>(({ tool }) => (
-  <OutputToolInner tool={tool} idField="task_id" label="agent" />
-));
+export const AgentOutputTool = memo(function AgentOutputTool({ tool }: { tool: ToolAggregate }) {
+  return <OutputToolInner tool={tool} idField="task_id" label="agent" />;
+});
 
-export const BashOutputTool = memo<{ tool: ToolAggregate }>(({ tool }) => (
-  <OutputToolInner tool={tool} idField="bash_id" label="bash" />
-));
+export const BashOutputTool = memo(function BashOutputTool({ tool }: { tool: ToolAggregate }) {
+  return <OutputToolInner tool={tool} idField="bash_id" label="bash" />;
+});

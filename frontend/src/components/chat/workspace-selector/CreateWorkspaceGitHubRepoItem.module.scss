@@ -3,76 +3,76 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .github-repo-item {
-    @include anim.transition-colors;
-    display: flex;
-    width: 100%;
-    align-items: flex-start;
-    gap: var(--space-2-5);
-    border-radius: var(--radius-lg);
-    padding: var(--space-2) var(--space-2-5);
-    text-align: left;
+  @include anim.transition-colors;
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: var(--space-2-5);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-2-5);
+  text-align: left;
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
 
-    &:disabled {
-        opacity: 0.5;
-    }
+  &:disabled {
+    opacity: 0.5;
+  }
 }
 
 .icon {
-    margin-top: var(--space-0-5);
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    flex-shrink: 0;
-    color: var(--theme-text-quaternary);
+  margin-top: var(--space-0-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  flex-shrink: 0;
+  color: var(--theme-text-quaternary);
 }
 
 .content {
-    min-width: 0;
-    flex: 1;
+  min-width: 0;
+  flex: 1;
 }
 
 .header-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
 }
 
 .name {
-    @include type.type-default;
-    @include type.type-overflow;
-    color: var(--theme-text-primary);
+  @include type.type-default;
+  @include type.type-overflow;
+  color: var(--theme-text-primary);
 }
 
 .private-badge {
-    @include type.type-meta;
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    gap: var(--space-0-5);
-    border-radius: var(--radius-full);
-    background-color: var(--theme-surface-tertiary);
-    padding: var(--space-0-5) var(--space-1-5);
-    color: var(--theme-text-tertiary);
+  @include type.type-meta;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-0-5);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-surface-tertiary);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-tertiary);
 }
 
 .lock-icon {
-    height: var(--space-2-5);
-    width: var(--space-2-5);
+  height: var(--space-2-5);
+  width: var(--space-2-5);
 }
 
 .description {
-    @include type.type-meta;
-    @include type.type-overflow;
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  @include type.type-overflow;
+  color: var(--theme-text-quaternary);
 }
 
 .meta-row {
-    @include type.type-meta;
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  color: var(--theme-text-quaternary);
 }

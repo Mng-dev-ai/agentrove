@@ -1,32 +1,32 @@
 @use '@/styles/globals/typography' as type;
 
 .tree {
-    @include type.type-noselect;
-    height: 100%;
+  @include type.type-noselect;
+  height: 100%;
 }
 
 .tree-empty {
-    @include type.type-noselect;
-    display: flex;
-    height: 100%;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: var(--space-12) var(--space-4);
+  @include type.type-noselect;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-12) var(--space-4);
 }
 
 .tree-empty-spinner {
-    color: var(--theme-text-quaternary);
+  color: var(--theme-text-quaternary);
 }
 
 .tree-empty-icon {
-    height: var(--space-5);
-    width: var(--space-5);
-    color: var(--theme-text-quaternary);
+  height: var(--space-5);
+  width: var(--space-5);
+  color: var(--theme-text-quaternary);
 }
 
 .tree-empty-text {
-    @include type.type-default;
-    color: var(--theme-text-quaternary);
+  @include type.type-default;
+  color: var(--theme-text-quaternary);
 }

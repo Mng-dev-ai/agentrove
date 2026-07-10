@@ -1,17 +1,8 @@
-import { memo, useMemo, useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import toast from 'react-hot-toast';
+import { memo, useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useToggleSet } from '@/hooks/useToggleSet';
 import { useAnchoredPanel } from '@/hooks/useAnchoredPanel';
-import { useDiffReviewStore } from '@/store/diffReviewStore';
-import { AlertCircle, GitCompareArrows } from 'lucide-react';
-import { Button } from '@/components/ui/primitives/Button/Button';
-import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
-import {
-  useGitDiffQuery,
-  useGitRestoreAllMutation,
-  useGitRestoreFileMutation,
-} from '@/hooks/queries/useSandboxQueries';
+import { useGitDiffQuery } from '@/hooks/queries/useSandboxQueries';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useFirstPaint } from '@/hooks/useFirstPaint';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
@@ -22,24 +13,22 @@ import {
   DiffFileSidebar,
   type FileChangeStats,
 } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
-import { DiffFileRow, isRenameFileType } from '@/components/sandbox/git/DiffFileRow/DiffFileRow';
 import { useDiffComments } from '@/hooks/useDiffComments';
-import { Virtualizer, WorkerPoolContextProvider } from '@pierre/diffs/react';
+import { WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
 import type { DiffMode } from '@/types/sandbox.types';
-import { DiffEmptyState } from './DiffEmptyState';
+import { DiffPane } from './DiffPane';
 import { DiffToolbar } from './DiffToolbar';
+import { useDiffDiscard } from './useDiffDiscard';
+import { useDiffReview } from './useDiffReview';
+import { useDiffScroll } from './useDiffScroll';
 import {
   DIFF_THEMES,
-  DIFF_EMPTY_LABELS,
   DIFF_UNSAFE_CSS,
   NARROW_BREAKPOINT,
-  SCROLL_KEYS,
-  VIRTUALIZER_CONFIG,
   computeMenuPos,
   computeOverflowMenuPos,
-  findScroller,
   hashDiffContent,
   rebuildWithCollapsedContext,
 } from './diffView.utils';
@@ -84,8 +73,6 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   const [collapsedFiles, toggleCollapsed, setCollapsedFiles] = useToggleSet<string>();
   const [mode, setMode] = useState<DiffMode>('all');
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
-  const [discardTarget, setDiscardTarget] = useState<FileDiffMetadata | null>(null);
-  const [discardAllOpen, setDiscardAllOpen] = useState(false);
   // Scrollspy target — the file whose diff currently tops the pane.
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [isNarrow, setIsNarrow] = useState(false);
@@ -105,8 +92,16 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     refetch,
   } = useGitDiffQuery(sandboxId, mode, true, cwd, { enabled: !!sandboxId });
 
-  const restoreFile = useGitRestoreFileMutation();
-  const restoreAll = useGitRestoreAllMutation();
+  const {
+    discardTarget,
+    setDiscardTarget,
+    discardAllOpen,
+    setDiscardAllOpen,
+    handleDiscard,
+    handleDiscardAll,
+    restoreFilePending,
+    restoreAllPending,
+  } = useDiffDiscard({ sandboxId, cwd });
 
   // Scopes the jump-scroll query to this tile's DOM — both diff tiles emit
   // identical data-diff-file-path attributes, so a document-wide query could
@@ -114,21 +109,11 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   const rootRef = useRef<HTMLDivElement>(null);
   // Diff pane wrapper — its top edge is the scrollspy's reference line.
   const paneRef = useRef<HTMLDivElement>(null);
-  // In-flight jump animation — a new click, scope change, or unmount cancels it.
-  const jumpRafRef = useRef(0);
-  const cancelJump = useCallback(() => {
-    cancelAnimationFrame(jumpRafRef.current);
-    jumpRafRef.current = 0;
-  }, []);
 
   // Files we collapsed because they were marked reviewed. Tracked so we can tell
   // a review-collapse apart from a manual one and re-expand it if the ✓ later
   // invalidates (content changed) — the changed diff must not stay hidden.
   const reviewCollapsedRef = useRef<Set<string>>(new Set());
-  // Latest collapsedFiles for reads inside the stable toggleReviewed callback,
-  // so it can spot a pre-existing manual collapse without depending on the set.
-  const collapsedFilesRef = useRef(collapsedFiles);
-  collapsedFilesRef.current = collapsedFiles;
 
   // Callback ref instead of an effect — the root div appears only once a
   // sandbox is connected, so a mount-only effect could observe nothing.
@@ -166,47 +151,13 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
   const filesMenu = useAnchoredPanel(computeMenuPos);
   const overflowMenu = useAnchoredPanel(computeOverflowMenuPos);
 
-  const handleDiscard = useCallback(async () => {
-    if (!sandboxId || !discardTarget) return;
-    const file = discardTarget;
-    try {
-      const result = await restoreFile.mutateAsync({
-        sandboxId,
-        filePath: file.name,
-        oldPath: isRenameFileType(file.type) ? file.prevName : undefined,
-        cwd,
-      });
-      if (result.success) {
-        toast.success('Changes discarded');
-      } else {
-        toast.error(result.error || 'Failed to discard changes');
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to discard changes');
-    }
-  }, [sandboxId, discardTarget, cwd, restoreFile]);
-
-  const handleDiscardAll = useCallback(async () => {
-    if (!sandboxId) return;
-    try {
-      const result = await restoreAll.mutateAsync({ sandboxId, cwd });
-      if (result.success) {
-        toast.success('All changes discarded');
-      } else {
-        toast.error(result.error || 'Failed to discard all changes');
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to discard all changes');
-    }
-  }, [sandboxId, cwd, restoreAll]);
-
   // Closing a menu is a no-op when it isn't open, so every discard-all trigger
   // (toolbar, overflow menu, empty state) shares this handler.
   const openDiscardAll = useCallback(() => {
     setDiscardAllOpen(true);
     filesMenu.close();
     overflowMenu.close();
-  }, [filesMenu.close, overflowMenu.close]);
+  }, [setDiscardAllOpen, filesMenu.close, overflowMenu.close]);
 
   const diffContent = diffData?.diff ?? '';
   const diffCacheKey = useMemo(
@@ -252,50 +203,21 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     return { additions, deletions };
   }, [statsByFile]);
 
-  // path -> `path\0contentHash`. The hash folds a file's changed lines in, so a
-  // key stored as "reviewed" stops matching once the file's content shifts.
-  const reviewKeyByFile = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const file of parsedFiles) {
-      const content = `${file.deletionLines.join('')}\0${file.additionLines.join('')}`;
-      map.set(file.name, `${file.name}\0${hashDiffContent(content)}`);
-    }
-    return map;
-  }, [parsedFiles]);
-
-  // Persisted reviewed keys for this scope (survives reloads). Undefined until
-  // the user marks anything, so default to empty.
-  const reviewedKeys = useDiffReviewStore((s) => s.reviewedByScope[scopeKey]);
-
-  // Names whose current key is marked reviewed — only ever holds live files, so
-  // stale keys left behind by edits don't inflate the count.
-  const reviewedNames = useMemo(() => {
-    const stored = new Set(reviewedKeys ?? []);
-    const names = new Set<string>();
-    reviewKeyByFile.forEach((key, name) => {
-      if (stored.has(key)) names.add(name);
-    });
-    return names;
-  }, [reviewKeyByFile, reviewedKeys]);
-
-  // Re-expand any review-collapsed file whose ✓ just invalidated (its content
-  // changed, so reviewedNames dropped it). Render-phase reconcile — cheaper than
-  // an effect, and self-terminating since each name is removed once reopened.
-  if (reviewCollapsedRef.current.size > 0) {
-    const reopen: string[] = [];
-    reviewCollapsedRef.current.forEach((name) => {
-      if (!reviewedNames.has(name)) reopen.push(name);
-    });
-    if (reopen.length > 0) {
-      for (const name of reopen) reviewCollapsedRef.current.delete(name);
-      setCollapsedFiles((prev) => {
-        const next = new Set(prev);
-        let changed = false;
-        for (const name of reopen) if (next.delete(name)) changed = true;
-        return changed ? next : prev;
-      });
-    }
-  }
+  const {
+    reviewKeyByFile,
+    reviewedNames,
+    allCollapsed,
+    toggleAll,
+    handleToggleCollapsed,
+    toggleReviewed,
+  } = useDiffReview({
+    parsedFiles,
+    scopeKey,
+    collapsedFiles,
+    setCollapsedFiles,
+    toggleCollapsed,
+    reviewCollapsedRef,
+  });
 
   // Refetches can drop the tracked file (e.g. after a discard) — fall back to
   // the first file so the sidebar highlight never points at a missing row.
@@ -314,49 +236,25 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     [theme, diffStyle],
   );
 
-  const jumpToFile = useCallback(
-    (name: string) => {
-      setActiveFile(name);
-      // Expanding to show the file releases our review-collapse claim on it.
-      reviewCollapsedRef.current.delete(name);
-      setCollapsedFiles((prev) => {
-        if (!prev.has(name)) return prev;
-        const next = new Set(prev);
-        next.delete(name);
-        return next;
-      });
-      cancelJump();
-      // rAF: a just-expanded file needs a render before its body has height.
-      jumpRafRef.current = requestAnimationFrame(() => {
-        const el = rootRef.current?.querySelector<HTMLElement>(
-          `[data-diff-file-path="${CSS.escape(name)}"]`,
-        );
-        if (!el) return;
-        const scroller = findScroller(el, paneRef.current);
-        if (!scroller) return;
-        // Hand-rolled animation instead of smooth scrollIntoView: the Virtualizer
-        // reconciles estimated heights as content renders in, shifting the target
-        // mid-flight — scrollIntoView animates to the position measured at call
-        // time and lands on a neighboring file. Re-measuring every frame converges
-        // on the live position; instant teleports are equally off the table since
-        // the Virtualizer only renders from scroll/intersection events.
-        let frames = 0;
-        const step = () => {
-          const delta = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
-          if (Math.abs(delta) < 1) {
-            scroller.scrollTop += delta;
-            return;
-          }
-          scroller.scrollTop +=
-            Math.sign(delta) * Math.min(Math.abs(delta), Math.max(Math.abs(delta) * 0.3, 24));
-          // Frame cap so a target that never settles can't animate forever.
-          if ((frames += 1) < 180) jumpRafRef.current = requestAnimationFrame(step);
-        };
-        step();
-      });
-    },
-    [cancelJump, setCollapsedFiles],
-  );
+  const isLoading = isFetching && !diffData;
+  const isGitRepo = diffData?.is_git_repo ?? false;
+  const hasChanges = diffData?.has_changes ?? false;
+  const diffError = diffData?.error ?? null;
+  const ready = !isLoading && !isError && isGitRepo;
+  const showFiles = ready && hasChanges && parsedFiles.length > 0;
+  // Discard restores against HEAD — only coherent in `all` mode.
+  // `!isPlaceholderData` blocks acting on rows from the previous mode's fetch.
+  const canDiscard = ready && hasChanges && mode === 'all' && !isPlaceholderData;
+
+  const { jumpToFile } = useDiffScroll({
+    rootRef,
+    paneRef,
+    scopeKey,
+    showFiles,
+    setActiveFile,
+    setCollapsedFiles,
+    reviewCollapsedRef,
+  });
 
   const selectFile = useCallback(
     (name: string) => {
@@ -377,134 +275,10 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
     wasVisibleRef.current = isVisible;
   }, [isVisible, refetch, sandboxId]);
 
-  // Scope changes must cancel before a stale frame can run against the new diff.
-  useLayoutEffect(() => cancelJump, [cancelJump, scopeKey]);
-
-  const allCollapsed =
-    parsedFiles.length > 0 && parsedFiles.every((f) => collapsedFiles.has(f.name));
-
-  const toggleAll = useCallback(() => {
-    // A bulk collapse/expand is a user override — drop all review-collapse
-    // ownership so a later un-review/invalidation won't fight the user's choice.
-    reviewCollapsedRef.current = new Set();
-    setCollapsedFiles((prev) => {
-      const allOff = parsedFiles.length > 0 && parsedFiles.every((f) => prev.has(f.name));
-      if (allOff) return new Set();
-      return new Set(parsedFiles.map((f) => f.name));
-    });
-  }, [parsedFiles, setCollapsedFiles]);
-
-  // Chevron/header toggle — manually changing a file's collapse hands ownership
-  // back to the user, so drop our review-collapse claim on it first.
-  const handleToggleCollapsed = useCallback(
-    (name: string) => {
-      reviewCollapsedRef.current.delete(name);
-      toggleCollapsed(name);
-    },
-    [toggleCollapsed],
-  );
-
   const toggleAllFromMenu = useCallback(() => {
     toggleAll();
     overflowMenu.close();
   }, [toggleAll, overflowMenu.close]);
-
-  const toggleReviewed = useCallback(
-    (name: string) => {
-      const key = reviewKeyByFile.get(name);
-      if (!key) return;
-      const store = useDiffReviewStore.getState();
-      const willReview = !(store.reviewedByScope[scopeKey]?.includes(key) ?? false);
-      store.toggleReviewed(scopeKey, key);
-      // Collapse on review / reopen on un-review, mirroring GitHub's "Viewed".
-      if (willReview) {
-        // Only auto-collapse (and claim it as ours) when the file isn't already
-        // collapsed — a manual collapse must outlive a later un-review/invalidate.
-        if (!collapsedFilesRef.current.has(name)) {
-          reviewCollapsedRef.current.add(name);
-          setCollapsedFiles((prev) => {
-            if (prev.has(name)) return prev;
-            const next = new Set(prev);
-            next.add(name);
-            return next;
-          });
-        }
-      } else if (reviewCollapsedRef.current.delete(name)) {
-        // Un-review reopens only the collapse we added, never a manual one.
-        setCollapsedFiles((prev) => {
-          if (!prev.has(name)) return prev;
-          const next = new Set(prev);
-          next.delete(name);
-          return next;
-        });
-      }
-    },
-    [reviewKeyByFile, scopeKey, setCollapsedFiles],
-  );
-
-  const isLoading = isFetching && !diffData;
-  const isGitRepo = diffData?.is_git_repo ?? false;
-  const hasChanges = diffData?.has_changes ?? false;
-  const diffError = diffData?.error ?? null;
-  const ready = !isLoading && !isError && isGitRepo;
-  const showFiles = ready && hasChanges && parsedFiles.length > 0;
-  // Discard restores against HEAD — only coherent in `all` mode.
-  // `!isPlaceholderData` blocks acting on rows from the previous mode's fetch.
-  const canDiscard = ready && hasChanges && mode === 'all' && !isPlaceholderData;
-
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root || !showFiles) return;
-    const cancelKeyboardScroll = (event: KeyboardEvent) => {
-      if (SCROLL_KEYS.has(event.key)) cancelJump();
-    };
-    // A user gesture means the click-initiated jump should yield immediately.
-    root.addEventListener('pointerdown', cancelJump, { capture: true, passive: true });
-    root.addEventListener('wheel', cancelJump, { capture: true, passive: true });
-    root.addEventListener('keydown', cancelKeyboardScroll, { capture: true });
-    return () => {
-      root.removeEventListener('pointerdown', cancelJump, { capture: true });
-      root.removeEventListener('wheel', cancelJump, { capture: true });
-      root.removeEventListener('keydown', cancelKeyboardScroll, { capture: true });
-    };
-  }, [cancelJump, showFiles]);
-
-  // Scrollspy — capture-phase because scroll doesn't bubble and the Virtualizer
-  // owns the scroll container. The last header within 32px of the pane top wins,
-  // so the active file flips as each sticky header reaches its pinned position.
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root || !showFiles) return;
-    let raf = 0;
-    const onScroll = () => {
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        const pane = paneRef.current;
-        if (!pane) return;
-        const paneTop = pane.getBoundingClientRect().top;
-        let current: string | null = null;
-        const wrappers = pane.querySelectorAll<HTMLElement>('[data-diff-file-path]');
-        for (const wrapper of wrappers) {
-          if (wrapper.getBoundingClientRect().top - paneTop > 32) break;
-          current = wrapper.dataset.diffFilePath ?? null;
-        }
-        // Trailing files shorter than the pane never reach the top reference
-        // line — at the scroll end, highlight the last file instead.
-        const last = wrappers[wrappers.length - 1];
-        const scroller = last && findScroller(last, pane);
-        if (scroller && scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) {
-          current = last.dataset.diffFilePath ?? current;
-        }
-        if (current) setActiveFile(current);
-      });
-    };
-    root.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    return () => {
-      root.removeEventListener('scroll', onScroll, { capture: true });
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, [showFiles]);
 
   if (!sandboxId) {
     return <div className={styles['no-sandbox']}>No sandbox connected</div>;
@@ -540,7 +314,7 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
           totals={totals}
           reviewedCount={reviewedNames.size}
           canDiscard={canDiscard}
-          discardAllPending={restoreAll.isPending}
+          discardAllPending={restoreAllPending}
           allCollapsed={allCollapsed}
           onToggleAll={toggleAllFromMenu}
           onDiscardAll={openDiscardAll}
@@ -554,94 +328,37 @@ const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: Dif
             <div className={styles['sidebar-pane']}>{filesSidebar}</div>
           )}
 
-          <div ref={paneRef} className={styles.pane}>
-            {isLoading && (
-              <div className={styles['pane-loading']}>
-                <Spinner size="md" className={styles.spinner} />
-              </div>
-            )}
-
-            {!isLoading && isError && (
-              <DiffEmptyState icon={AlertCircle} label="Failed to load diff">
-                <Button
-                  onClick={() => refetch()}
-                  variant="unstyled"
-                  className={styles['empty-link']}
-                >
-                  Retry
-                </Button>
-              </DiffEmptyState>
-            )}
-
-            {!isLoading && !isError && !isGitRepo && (
-              <DiffEmptyState icon={GitCompareArrows} label="Not a git repository" />
-            )}
-
-            {ready && diffError && <DiffEmptyState icon={GitCompareArrows} label={diffError} />}
-
-            {ready && !diffError && !hasChanges && (
-              <DiffEmptyState icon={GitCompareArrows} label={DIFF_EMPTY_LABELS[mode]} />
-            )}
-
-            {showFiles && (
-              // Virtualizer as scroll root — FileDiff auto-switches to the
-              // virtualized impl so offscreen hunks stay unrendered.
-              // overflow-anchor off: the library restores its own line-level
-              // scroll anchor on height changes (composer row insert/remove),
-              // and native anchoring double-corrects into a visible jump.
-              // CodeView disables it on its root; plain Virtualizer doesn't.
-              <Virtualizer
-                config={VIRTUALIZER_CONFIG}
-                className={styles.virtualizer}
-                contentClassName={styles['virtualizer-content']}
-              >
-                {parsedFiles.map((file) => (
-                  <DiffFileRow
-                    key={file.name}
-                    file={file}
-                    contentKey={reviewKeyByFile.get(file.name)}
-                    isExpanded={!collapsedFiles.has(file.name)}
-                    isReviewed={reviewedNames.has(file.name)}
-                    stats={statsByFile.get(file.name)}
-                    canDiscard={canDiscard}
-                    discardPending={restoreFile.isPending}
-                    cwd={cwd}
-                    chatId={chatId}
-                    options={options}
-                    commentRange={
-                      pendingComment?.fileName === file.name ? pendingComment.range : null
-                    }
-                    isComposing={pendingComment?.fileName === file.name && pendingComment.composing}
-                    onToggle={handleToggleCollapsed}
-                    onToggleReviewed={toggleReviewed}
-                    onDiscard={setDiscardTarget}
-                    onSelectionChange={handleSelectionChange}
-                    onSelectionEnd={handleSelectionEnd}
-                    onSubmitComment={handleSubmitComment}
-                    onCancelComment={resetComments}
-                  />
-                ))}
-              </Virtualizer>
-            )}
-
-            {ready && hasChanges && parsedFiles.length === 0 && (
-              <DiffEmptyState
-                icon={GitCompareArrows}
-                label="Changes detected but diff cannot be displayed"
-                sublabel="Binary or unsupported file formats"
-              >
-                {canDiscard && (
-                  <Button
-                    onClick={openDiscardAll}
-                    variant="unstyled"
-                    className={styles['empty-link']}
-                  >
-                    Discard all changes
-                  </Button>
-                )}
-              </DiffEmptyState>
-            )}
-          </div>
+          <DiffPane
+            paneRef={paneRef}
+            isLoading={isLoading}
+            isError={isError}
+            isGitRepo={isGitRepo}
+            ready={ready}
+            diffError={diffError}
+            hasChanges={hasChanges}
+            mode={mode}
+            showFiles={showFiles}
+            parsedFiles={parsedFiles}
+            onRefetch={() => refetch()}
+            openDiscardAll={openDiscardAll}
+            canDiscard={canDiscard}
+            discardPending={restoreFilePending}
+            reviewKeyByFile={reviewKeyByFile}
+            collapsedFiles={collapsedFiles}
+            reviewedNames={reviewedNames}
+            statsByFile={statsByFile}
+            cwd={cwd}
+            chatId={chatId}
+            options={options}
+            pendingComment={pendingComment}
+            onToggle={handleToggleCollapsed}
+            onToggleReviewed={toggleReviewed}
+            onDiscard={setDiscardTarget}
+            onSelectionChange={handleSelectionChange}
+            onSelectionEnd={handleSelectionEnd}
+            onSubmitComment={handleSubmitComment}
+            onCancelComment={resetComments}
+          />
         </div>
 
         <ConfirmDialog

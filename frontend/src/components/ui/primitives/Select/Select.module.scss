@@ -3,63 +3,63 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .select {
-    position: relative;
-    display: inline-flex;
-    width: 100%;
+  position: relative;
+  display: inline-flex;
+  width: 100%;
 }
 
 .select-input {
-    @include type.type-body;
-    height: var(--space-10);
-    width: 100%;
-    appearance: none;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface-tertiary);
-    padding-inline: var(--space-3) var(--space-9);
-    color: var(--theme-text-primary);
-    transition:
-        color var(--duration-base),
-        border-color var(--duration-base),
-        box-shadow var(--duration-base);
+  @include type.type-body;
+  height: var(--space-10);
+  width: 100%;
+  appearance: none;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-tertiary);
+  padding-inline: var(--space-3) var(--space-9);
+  color: var(--theme-text-primary);
+  transition:
+    color var(--duration-base),
+    border-color var(--duration-base),
+    box-shadow var(--duration-base);
 
-    @include responsive.hover {
-        border-color: var(--theme-border-hover);
-    }
+  @include responsive.hover {
+    border-color: var(--theme-border-hover);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--theme-border-hover);
+    box-shadow: 0 0 0 1px colors.theme-color('text-quaternary', 0.3);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  &--error {
+    border-color: colors.status-color('error', 500, 0.5);
+    color: var(--theme-error-text);
 
     &:focus-visible {
-        outline: none;
-        border-color: var(--theme-border-hover);
-        box-shadow: 0 0 0 1px colors.theme-color('text-quaternary', 0.3);
+      border-color: colors.status-color('error', 500);
+      box-shadow: 0 0 0 1px colors.status-color('error', 500, 0.2);
     }
-
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
-
-    &--error {
-        border-color: colors.status-color('error', 500, 0.5);
-        color: var(--theme-error-text);
-
-        &:focus-visible {
-            border-color: colors.status-color('error', 500);
-            box-shadow: 0 0 0 1px colors.status-color('error', 500, 0.2);
-        }
-    }
+  }
 }
 
 .select-chevron {
-    pointer-events: none;
-    position: absolute;
-    inset-block: 0;
-    right: var(--space-3);
-    display: flex;
-    align-items: center;
-    color: var(--theme-text-quaternary);
+  pointer-events: none;
+  position: absolute;
+  inset-block: 0;
+  right: var(--space-3);
+  display: flex;
+  align-items: center;
+  color: var(--theme-text-quaternary);
 
-    svg {
-        height: var(--space-3-5);
-        width: var(--space-3-5);
-    }
+  svg {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+  }
 }

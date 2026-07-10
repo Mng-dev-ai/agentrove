@@ -47,7 +47,7 @@ const renderHelperText = (helperText?: HelperTextLink | HelperTextCode) => {
   }
 };
 
-export const SecretInput: React.FC<SecretInputProps> = ({
+export function SecretInput({
   value,
   placeholder,
   isVisible,
@@ -58,32 +58,34 @@ export const SecretInput: React.FC<SecretInputProps> = ({
   containerClassName = styles['secret-input'],
   inputClassName,
   buttonClassName,
-}) => (
-  <div className={containerClassName}>
-    <div className={styles.field}>
-      <Input
-        type={isVisible ? 'text' : 'password'}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onBlur}
-        placeholder={placeholder}
-        className={clsx(styles.input, inputClassName)}
-      />
-      <Button
-        type="button"
-        onClick={onToggleVisibility}
-        variant="ghost"
-        size="icon"
-        className={clsx(styles['toggle-button'], buttonClassName)}
-        aria-label={isVisible ? 'Hide value' : 'Show value'}
-      >
-        {isVisible ? (
-          <EyeOff className={styles['toggle-icon']} />
-        ) : (
-          <Eye className={styles['toggle-icon']} />
-        )}
-      </Button>
+}: SecretInputProps) {
+  return (
+    <div className={containerClassName}>
+      <div className={styles.field}>
+        <Input
+          type={isVisible ? 'text' : 'password'}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          className={clsx(styles.input, inputClassName)}
+        />
+        <Button
+          type="button"
+          onClick={onToggleVisibility}
+          variant="ghost"
+          size="icon"
+          className={clsx(styles['toggle-button'], buttonClassName)}
+          aria-label={isVisible ? 'Hide value' : 'Show value'}
+        >
+          {isVisible ? (
+            <EyeOff className={styles['toggle-icon']} />
+          ) : (
+            <Eye className={styles['toggle-icon']} />
+          )}
+        </Button>
+      </div>
+      {renderHelperText(helperText)}
     </div>
-    {renderHelperText(helperText)}
-  </div>
-);
+  );
+}

@@ -15,7 +15,10 @@ interface ParsedLine {
   text: string;
 }
 
-const NumberedContentInner: React.FC<NumberedContentProps> = ({ content, prefixPattern }) => {
+export const NumberedContent = memo(function NumberedContent({
+  content,
+  prefixPattern,
+}: NumberedContentProps) {
   const lines = useMemo<ParsedLine[]>(
     () =>
       content.split('\n').map((line, idx) => {
@@ -38,6 +41,4 @@ const NumberedContentInner: React.FC<NumberedContentProps> = ({ content, prefixP
       ))}
     </div>
   );
-};
-
-export const NumberedContent = memo(NumberedContentInner);
+});

@@ -31,7 +31,7 @@ interface ListManagementTabProps<T> {
   logContext: string;
 }
 
-export const ListManagementTab = <T,>({
+export function ListManagementTab<T>({
   title,
   description,
   items,
@@ -49,7 +49,7 @@ export const ListManagementTab = <T,>({
   renderItemActions,
   footerContent,
   logContext,
-}: ListManagementTabProps<T>) => {
+}: ListManagementTabProps<T>) {
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
 
@@ -167,4 +167,4 @@ export const ListManagementTab = <T,>({
       />
     </div>
   );
-};
+}

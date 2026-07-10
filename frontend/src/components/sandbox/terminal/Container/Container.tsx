@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import clsx from 'clsx';
-import type { FC } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { TerminalTab } from '@/components/sandbox/terminal/TerminalTab/TerminalTab';
@@ -20,13 +19,7 @@ interface TerminalInstance {
   label: string;
 }
 
-export const Container: FC<ContainerProps> = ({
-  sandboxId,
-  chatId,
-  worktreeCwd,
-  isVisible,
-  panelKey,
-}) => {
+export function Container({ sandboxId, chatId, worktreeCwd, isVisible, panelKey }: ContainerProps) {
   const defaultTerminalId = `terminal-${panelKey}-1`;
   const storageKey = chatId ? terminalStorageKey(chatId, panelKey) : null;
   const [terminals, setTerminals] = useState<TerminalInstance[]>([
@@ -194,4 +187,4 @@ export const Container: FC<ContainerProps> = ({
       </div>
     </div>
   );
-};
+}

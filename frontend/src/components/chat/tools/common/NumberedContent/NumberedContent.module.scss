@@ -1,25 +1,25 @@
 @use '@/styles/globals/typography' as type;
 
 .numbered {
-    @include type.type-mono(0.625rem, 1.625);
-    max-height: var(--space-48);
-    overflow: auto;
+  @include type.type-mono(0.625rem, 1.625);
+  max-height: var(--space-48);
+  overflow: auto;
 }
 
 .line {
-    display: flex;
+  display: flex;
 }
 
 .gutter {
-    width: var(--space-8);
-    flex-shrink: 0;
-    user-select: none;
-    padding-right: var(--space-2);
-    text-align: right;
-    color: var(--theme-text-quaternary);
+  width: var(--space-8);
+  flex-shrink: 0;
+  user-select: none;
+  padding-right: var(--space-2);
+  text-align: right;
+  color: var(--theme-text-quaternary);
 }
 
 .text {
-    white-space: pre;
-    color: var(--theme-text-tertiary);
+  white-space: pre;
+  color: var(--theme-text-tertiary);
 }

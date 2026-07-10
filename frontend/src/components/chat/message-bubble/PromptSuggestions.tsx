@@ -7,7 +7,10 @@ interface PromptSuggestionsProps {
   onSelect: (suggestion: string) => void;
 }
 
-const PromptSuggestionsInner: React.FC<PromptSuggestionsProps> = ({ suggestions, onSelect }) => {
+export const PromptSuggestions = memo(function PromptSuggestions({
+  suggestions,
+  onSelect,
+}: PromptSuggestionsProps) {
   if (!suggestions || suggestions.length === 0) {
     return null;
   }
@@ -27,6 +30,4 @@ const PromptSuggestionsInner: React.FC<PromptSuggestionsProps> = ({ suggestions,
       ))}
     </div>
   );
-};
-
-export const PromptSuggestions = memo(PromptSuggestionsInner);
+});

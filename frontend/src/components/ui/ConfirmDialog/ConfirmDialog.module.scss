@@ -2,54 +2,54 @@
 @use '@/styles/globals/colors' as colors;
 
 .body {
-    padding: var(--space-5);
+  padding: var(--space-5);
 }
 
 .row {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-3);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
 .icon-badge {
-    display: flex;
-    height: var(--space-8);
-    width: var(--space-8);
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface-tertiary);
+  display: flex;
+  height: var(--space-8);
+  width: var(--space-8);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-tertiary);
 }
 
 .icon {
-    height: var(--space-4);
-    width: var(--space-4);
-    color: var(--theme-text-tertiary);
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-tertiary);
 }
 
 .text {
-    min-width: 0;
-    flex: 1;
-    padding-top: var(--space-0-5);
+  min-width: 0;
+  flex: 1;
+  padding-top: var(--space-0-5);
 }
 
 .title {
-    @include type.type-body(500);
-    color: var(--theme-text-primary);
+  @include type.type-body(500);
+  color: var(--theme-text-primary);
 }
 
 .message {
-    @include type.type-default;
-    margin-top: var(--space-1-5);
-    line-height: 1.625;
-    color: var(--theme-text-secondary);
+  @include type.type-default;
+  margin-top: var(--space-1-5);
+  line-height: 1.625;
+  color: var(--theme-text-secondary);
 }
 
 .footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    border-top: 1px solid colors.theme-color('border', 0.5);
-    padding: var(--space-3-5) var(--space-5);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-3-5) var(--space-5);
 }

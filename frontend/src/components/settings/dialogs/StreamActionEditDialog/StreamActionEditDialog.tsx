@@ -41,7 +41,7 @@ interface StreamActionEditDialogProps {
   onActionChange: <K extends keyof StreamAction>(field: K, value: StreamAction[K]) => void;
 }
 
-export const StreamActionEditDialog: React.FC<StreamActionEditDialogProps> = ({
+export function StreamActionEditDialog({
   isOpen,
   isEditing,
   action,
@@ -50,7 +50,7 @@ export const StreamActionEditDialog: React.FC<StreamActionEditDialogProps> = ({
   onClose,
   onSubmit,
   onActionChange,
-}) => {
+}: StreamActionEditDialogProps) {
   const { data: models = [] } = useModelsQuery();
   // Builtin slash commands are static per agent, so any workspace's resources
   // surface the same set. Custom skills are intentionally excluded — stream actions
@@ -232,4 +232,4 @@ export const StreamActionEditDialog: React.FC<StreamActionEditDialogProps> = ({
       </div>
     </BaseModal>
   );
-};
+}

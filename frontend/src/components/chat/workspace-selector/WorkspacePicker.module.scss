@@ -4,108 +4,108 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .trigger {
-    @include anim.transition-colors;
-    @include type.type-meta;
-    display: inline-flex;
-    min-width: 0;
-    align-items: center;
-    gap: var(--space-1-5);
-    border-radius: var(--radius-md);
-    padding: var(--space-1) var(--space-1-5);
-    color: var(--theme-text-tertiary);
+  @include anim.transition-colors;
+  @include type.type-meta;
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1-5);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-1-5);
+  color: var(--theme-text-tertiary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
 
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 
 .trigger-icon {
-    height: var(--space-3);
-    width: var(--space-3);
-    flex-shrink: 0;
-    color: var(--theme-text-quaternary);
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  color: var(--theme-text-quaternary);
 }
 
 .trigger-label {
-    @include type.type-overflow;
-    max-width: var(--space-64);
+  @include type.type-overflow;
+  max-width: var(--space-64);
 }
 
 .body {
-    display: flex;
-    flex-direction: column;
+  display: flex;
+  flex-direction: column;
 }
 
 .search-section {
-    padding: var(--space-3) var(--space-4) 0;
+  padding: var(--space-3) var(--space-4) 0;
 }
 
 .search-field {
-    position: relative;
+  position: relative;
 }
 
 .search-icon {
-    position: absolute;
-    left: var(--space-2-5);
-    top: 50%;
-    transform: translateY(-50%);
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    color: var(--theme-text-quaternary);
+  position: absolute;
+  left: var(--space-2-5);
+  top: 50%;
+  transform: translateY(-50%);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-quaternary);
 }
 
 .search-input {
-    @include type.type-default;
-    height: var(--space-8);
-    width: 100%;
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface-tertiary);
-    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-8);
-    color: var(--theme-text-primary);
-    outline: none;
+  @include type.type-default;
+  height: var(--space-8);
+  width: 100%;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-tertiary);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-8);
+  color: var(--theme-text-primary);
+  outline: none;
 
-    &::placeholder {
-        color: var(--theme-text-quaternary);
-    }
+  &::placeholder {
+    color: var(--theme-text-quaternary);
+  }
 
-    &:focus-visible {
-        border-color: var(--theme-border-hover);
-    }
+  &:focus-visible {
+    border-color: var(--theme-border-hover);
+  }
 
-    // Light reads surface-tertiary, dark reads one step lighter — asymmetric pairing
-    // from the original Tailwind classes, not a plain light/dark token resolution.
-    :global([data-theme='dark']) & {
-        background-color: var(--theme-surface-secondary);
-    }
+  // Light reads surface-tertiary, dark reads one step lighter — asymmetric pairing
+  // from the original Tailwind classes, not a plain light/dark token resolution.
+  :global([data-theme='dark']) & {
+    background-color: var(--theme-surface-secondary);
+  }
 }
 
 .list {
-    max-height: var(--space-80);
-    overflow-y: auto;
-    padding: var(--space-2) var(--space-3);
+  max-height: var(--space-80);
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-3);
 }
 
 .empty {
-    @include type.type-default;
-    padding: var(--space-4) var(--space-2);
-    text-align: center;
-    color: var(--theme-text-quaternary);
+  @include type.type-default;
+  padding: var(--space-4) var(--space-2);
+  text-align: center;
+  color: var(--theme-text-quaternary);
 }
 
 .list-items {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-0-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
 }
 
 .footer {
-    border-top: 1px solid colors.theme-color('border', 0.5);
-    padding: var(--space-3) var(--space-4);
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-3) var(--space-4);
 }

@@ -3,44 +3,44 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .scroll-button-slot {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 100%;
-    display: flex;
-    justify-content: center;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  display: flex;
+  justify-content: center;
 }
 
 .scroll-button {
-    @include anim.transition-colors;
-    display: flex;
-    height: var(--space-8);
-    width: var(--space-8);
-    align-items: center;
-    justify-content: center;
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-full);
-    background-color: var(--theme-surface);
-    // TODO(refactor): Tailwind `shadow-soft` custom shadow has no token — shadow-medium is closest
-    box-shadow: var(--shadow-medium);
+  @include anim.transition-colors;
+  display: flex;
+  height: var(--space-8);
+  width: var(--space-8);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-surface);
+  // TODO(refactor): Tailwind `shadow-soft` custom shadow has no token — shadow-medium is closest
+  box-shadow: var(--shadow-medium);
 
-    @include responsive.hover {
-        transform: scale(1.1);
-        background-color: var(--theme-surface-hover);
+  @include responsive.hover {
+    transform: scale(1.1);
+    background-color: var(--theme-surface-hover);
 
-        .scroll-icon {
-            color: var(--theme-text-primary);
-        }
+    .scroll-icon {
+      color: var(--theme-text-primary);
     }
+  }
 
-    &:active {
-        transform: scale(0.95);
-    }
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
 .scroll-icon {
-    @include anim.transition-colors;
-    height: var(--space-4);
-    width: var(--space-4);
-    color: var(--theme-text-secondary);
+  @include anim.transition-colors;
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-secondary);
 }

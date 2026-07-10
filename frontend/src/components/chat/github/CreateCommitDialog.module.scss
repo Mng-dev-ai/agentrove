@@ -4,118 +4,118 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .body {
-    padding: var(--space-5);
+  padding: var(--space-5);
 }
 
 .header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
 }
 
 .icon-box {
-    display: flex;
-    height: var(--space-8);
-    width: var(--space-8);
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface-tertiary);
+  display: flex;
+  height: var(--space-8);
+  width: var(--space-8);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-tertiary);
 }
 
 .header-icon {
-    height: var(--space-4);
-    width: var(--space-4);
-    color: var(--theme-text-tertiary);
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-tertiary);
 }
 
 .title {
-    @include type.type-body(500);
-    color: var(--theme-text-primary);
+  @include type.type-body(500);
+  color: var(--theme-text-primary);
 }
 
 .field {
-    margin-top: var(--space-4);
+  margin-top: var(--space-4);
 }
 
 .field-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--space-1-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-1-5);
 }
 
 .field-label {
-    @include type.type-section-header;
+  @include type.type-section-header;
 }
 
 .tooltip-wrap {
-    display: flex;
+  display: flex;
 }
 
 .generate-button {
-    @include anim.transition-colors;
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    border-radius: var(--radius-md);
-    padding: var(--space-0-5) var(--space-1-5);
-    @include type.type-meta;
-    color: var(--theme-text-tertiary);
+  @include anim.transition-colors;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1-5);
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-secondary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-secondary);
+  }
 
-    // Dark theme brightens the hover text one step further (matches the old dark: pair)
-    :global([data-theme='dark']) &:hover {
-        color: var(--theme-text-primary);
-    }
+  // Dark theme brightens the hover text one step further (matches the old dark: pair)
+  :global([data-theme='dark']) &:hover {
+    color: var(--theme-text-primary);
+  }
 
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
 }
 
 .generate-icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 
-    &--pulsing {
-        animation: pulse 2s var(--easing-in-out) infinite;
-    }
+  &--pulsing {
+    animation: pulse 2s var(--easing-in-out) infinite;
+  }
 }
 
 .message-textarea {
-    @include anim.transition-colors;
-    width: 100%;
-    resize: none;
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface-secondary);
-    padding: var(--space-1-5) var(--space-3);
-    @include type.type-default;
-    color: var(--theme-text-primary);
-    outline: none;
+  @include anim.transition-colors;
+  width: 100%;
+  resize: none;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-1-5) var(--space-3);
+  @include type.type-default;
+  color: var(--theme-text-primary);
+  outline: none;
 
-    &:focus {
-        border-color: var(--theme-border-hover);
-    }
+  &:focus {
+    border-color: var(--theme-border-hover);
+  }
 }
 
 .hint {
-    @include type.type-meta;
-    margin-top: var(--space-1);
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  margin-top: var(--space-1);
+  color: var(--theme-text-quaternary);
 }
 
 .footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    border-top: 1px solid colors.theme-color('border', 0.5);
-    padding: var(--space-3-5) var(--space-5);
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-3-5) var(--space-5);
 }

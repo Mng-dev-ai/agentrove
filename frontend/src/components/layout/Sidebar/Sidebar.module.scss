@@ -2,30 +2,30 @@
 @use '@/styles/globals/zlayer' as z;
 
 .sidebar {
-    @include z.z('sidebar');
-    position: absolute;
-    left: 0;
-    top: 0;
-    display: flex;
-    height: 100%;
-    width: var(--sidebar-width);
-    flex-direction: column;
-    border-right: 1px solid colors.theme-color('border', 0.5);
-    background-color: var(--theme-surface-secondary);
-    transform: translateX(-100%);
-    transition-property: transform, width;
-    transition-duration: var(--sidebar-transition-duration, var(--duration-slower));
-    transition-timing-function: var(--easing-in-out);
+  @include z.z('sidebar');
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  height: 100%;
+  width: var(--sidebar-width);
+  flex-direction: column;
+  border-right: 1px solid colors.theme-color('border', 0.5);
+  background-color: var(--theme-surface-secondary);
+  transform: translateX(-100%);
+  transition-property: transform, width;
+  transition-duration: var(--sidebar-transition-duration, var(--duration-slower));
+  transition-timing-function: var(--easing-in-out);
 
-    &--open {
-        transform: translateX(0);
-    }
+  &--open {
+    transform: translateX(0);
+  }
 }
 
 // User profile pinned at the bottom — always rendered so settings/logout stay
 // reachable even while the user query is loading or failed.
 .footer {
-    flex-shrink: 0;
-    border-top: 1px solid colors.theme-color('border', 0.5);
-    padding: var(--space-2-5) var(--space-4);
+  flex-shrink: 0;
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-2-5) var(--space-4);
 }

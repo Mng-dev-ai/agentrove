@@ -4,148 +4,148 @@
 @use '@/styles/globals/controls' as controls;
 
 .thumbnail {
-    @include controls.focus-ring;
-    position: relative;
-    border-radius: var(--radius-md);
+  @include controls.focus-ring;
+  position: relative;
+  border-radius: var(--radius-md);
 
-    &--interactive {
-        cursor: zoom-in;
-    }
+  &--interactive {
+    cursor: zoom-in;
+  }
 
-    @include responsive.hover {
-        .download-wrap {
-            opacity: 1;
-        }
+  @include responsive.hover {
+    .download-wrap {
+      opacity: 1;
     }
+  }
 }
 
 .download-wrap {
-    position: absolute;
-    right: var(--space-1);
-    top: var(--space-1);
-    opacity: 0;
-    transition: opacity var(--duration-fast);
+  position: absolute;
+  right: var(--space-1);
+  top: var(--space-1);
+  opacity: 0;
+  transition: opacity var(--duration-fast);
 }
 
 // Fixed art on top of image thumbnails — black translucent chip, always-white icon,
 // independent of the active theme.
 .download-button {
-    height: var(--space-5);
-    width: var(--space-5);
-    border-radius: var(--radius-full);
-    padding: 0;
-    background-color: rgb(0 0 0 / 0.6);
-    color: rgb(255 255 255);
-    box-shadow: var(--shadow-sm);
-    backdrop-filter: blur(4px);
+  height: var(--space-5);
+  width: var(--space-5);
+  border-radius: var(--radius-full);
+  padding: 0;
+  background-color: rgb(0 0 0 / 0.6);
+  color: rgb(255 255 255);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(4px);
 
-    @include responsive.hover {
-        background-color: rgb(0 0 0 / 0.7);
-    }
+  @include responsive.hover {
+    background-color: rgb(0 0 0 / 0.7);
+  }
 }
 
 .download-icon {
-    height: var(--space-2-5);
-    width: var(--space-2-5);
-    color: rgb(255 255 255);
+  height: var(--space-2-5);
+  width: var(--space-2-5);
+  color: rgb(255 255 255);
 }
 
 .overlay {
-    pointer-events: none;
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius-md);
-    background-color: rgb(0 0 0 / 0.35);
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-md);
+  background-color: rgb(0 0 0 / 0.35);
 }
 
 .overlay-center {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .spinner-white {
-    color: rgb(255 255 255);
+  color: rgb(255 255 255);
 }
 
 .icon-thumbnail {
-    @include anim.transition-colors;
-    position: relative;
-    display: flex;
-    height: var(--space-10);
-    width: var(--space-10);
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-md);
-    background-color: var(--theme-surface-secondary);
+  @include anim.transition-colors;
+  position: relative;
+  display: flex;
+  height: var(--space-10);
+  width: var(--space-10);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  background-color: var(--theme-surface-secondary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
 }
 
 .icon {
-    height: var(--space-4);
-    width: var(--space-4);
+  height: var(--space-4);
+  width: var(--space-4);
 
-    &--pdf {
-        color: var(--theme-error-text);
-    }
+  &--pdf {
+    color: var(--theme-error-text);
+  }
 
-    &--xlsx {
-        color: var(--theme-success-text);
-    }
+  &--xlsx {
+    color: var(--theme-success-text);
+  }
 
-    &--file {
-        color: var(--theme-text-tertiary);
-    }
+  &--file {
+    color: var(--theme-text-tertiary);
+  }
 }
 
 .icon-label {
-    // TODO(refactor): no 8px type token — file-type badge kept at a fixed size.
-    font-size: 8px;
-    line-height: 1.25;
-    color: var(--theme-text-tertiary);
+  // TODO(refactor): no 8px type token — file-type badge kept at a fixed size.
+  font-size: 8px;
+  line-height: 1.25;
+  color: var(--theme-text-tertiary);
 }
 
 .image-loading {
-    position: relative;
-    height: var(--space-10);
-    width: var(--space-10);
-    border-radius: var(--radius-md);
-    background-color: var(--theme-surface-secondary);
+  position: relative;
+  height: var(--space-10);
+  width: var(--space-10);
+  border-radius: var(--radius-md);
+  background-color: var(--theme-surface-secondary);
 }
 
 .image-error {
-    display: flex;
-    height: var(--space-10);
-    width: var(--space-10);
-    align-items: center;
-    justify-content: center;
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-md);
-    background-color: var(--theme-surface-secondary);
+  display: flex;
+  height: var(--space-10);
+  width: var(--space-10);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  background-color: var(--theme-surface-secondary);
 }
 
 .error-label {
-    // TODO(refactor): no 8px type token — error badge kept at a fixed size.
-    font-size: 8px;
-    color: var(--theme-text-tertiary);
+  // TODO(refactor): no 8px type token — error badge kept at a fixed size.
+  font-size: 8px;
+  color: var(--theme-text-tertiary);
 }
 
 .image-wrap {
-    position: relative;
-    display: inline-block;
+  position: relative;
+  display: inline-block;
 }
 
 .image {
-    display: block;
-    height: var(--space-10);
-    width: var(--space-10);
-    border-radius: var(--radius-md);
-    object-fit: cover;
+  display: block;
+  height: var(--space-10);
+  width: var(--space-10);
+  border-radius: var(--radius-md);
+  object-fit: cover;
 }

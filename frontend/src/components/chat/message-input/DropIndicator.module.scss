@@ -4,61 +4,61 @@
 @use '@/styles/globals/zlayer' as z;
 
 .drop-indicator {
-    @include z.z('raised');
-    @include anim.transition-colors;
-    @include anim.fade-in;
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-2xl);
-    background-color: colors.theme-color('surface', 0.8);
-    backdrop-filter: blur(4px);
+  @include z.z('raised');
+  @include anim.transition-colors;
+  @include anim.fade-in;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-2xl);
+  background-color: colors.theme-color('surface', 0.8);
+  backdrop-filter: blur(4px);
 }
 
 .content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-3);
-    color: var(--theme-text-primary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  color: var(--theme-text-primary);
 }
 
 .icon-wrapper {
-    position: relative;
+  position: relative;
 }
 
 .glow {
-    position: absolute;
-    inset: 0;
-    border-radius: var(--radius-full);
-    background-color: colors.theme-color('text-quaternary', 0.2);
-    filter: blur(24px);
-    animation: pulse 2s var(--easing-in-out) infinite;
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-full);
+  background-color: colors.theme-color('text-quaternary', 0.2);
+  filter: blur(24px);
+  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .icon-badge {
-    position: relative;
-    border-radius: var(--radius-full);
-    padding: var(--space-2-5);
-    background-color: var(--theme-surface);
-    box-shadow: var(--shadow-medium);
+  position: relative;
+  border-radius: var(--radius-full);
+  padding: var(--space-2-5);
+  background-color: var(--theme-surface);
+  box-shadow: var(--shadow-medium);
 }
 
 .icon {
-    height: var(--space-5);
-    width: var(--space-5);
+  height: var(--space-5);
+  width: var(--space-5);
 }
 
 .title {
-    @include type.type-body(500);
+  @include type.type-body(500);
 }
 
 .hint {
-    @include type.type-default(500);
-    max-width: 20rem;
-    text-align: center;
-    color: var(--theme-text-tertiary);
+  @include type.type-default(500);
+  max-width: 20rem;
+  text-align: center;
+  color: var(--theme-text-tertiary);
 }

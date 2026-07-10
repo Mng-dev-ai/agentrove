@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import clsx from 'clsx';
-import { stateClasses } from '@/constants/stateClasses';
+import { stateClasses } from '@/config/stateClasses';
 import { FileUploadDialog } from '@/components/ui/FileUploadDialog/FileUploadDialog';
 import { DrawingModal } from '@/components/ui/drawing-modal/DrawingModal';
 import { DropIndicator } from './DropIndicator';

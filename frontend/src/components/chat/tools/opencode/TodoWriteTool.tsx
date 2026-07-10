@@ -20,7 +20,7 @@ const STATUS_ICON: Record<NonNullable<OpencodeTodoInfo['status']>, React.ReactNo
   cancelled: <XCircle className={clsx(styles['status-icon'], styles['status-icon--cancelled'])} />,
 };
 
-const TodoWriteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const TodoWriteTool = memo(function TodoWriteTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeTodoWriteInput | undefined;
   const todos = input?.todos ?? [];
 
@@ -89,6 +89,4 @@ const TodoWriteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const TodoWriteTool = memo(TodoWriteToolInner);
+});

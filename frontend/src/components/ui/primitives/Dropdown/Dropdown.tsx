@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { SelectItem } from '@/components/ui/primitives/SelectItem/SelectItem';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { fuzzySearch } from '@/utils/fuzzySearch';
-import { stateClasses } from '@/constants/stateClasses';
+import { stateClasses } from '@/config/stateClasses';
 import styles from './Dropdown.module.scss';
 
 export type DropdownItemType<T> = { type: 'item'; data: T } | { type: 'header'; label: string };
@@ -112,7 +112,7 @@ function normalizeToGrouped<T>(
   return filtered.map((data) => ({ type: 'item', data }));
 }
 
-function DropdownInner<T>({
+const Dropdown = memo(function Dropdown<T>({
   value,
   items,
   getItemKey,
@@ -337,6 +337,6 @@ function DropdownInner<T>({
       )}
     </div>
   );
-}
+}) as <T>(props: DropdownProps<T>) => ReactElement;
 
-export const Dropdown = memo(DropdownInner) as <T>(props: DropdownProps<T>) => ReactElement;
+export { Dropdown };

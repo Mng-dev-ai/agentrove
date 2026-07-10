@@ -10,7 +10,7 @@ import type { OpencodeWriteInput } from './opencodePayload';
 
 const ICON = <FilePlus className={toolIcon.icon} />;
 
-const WriteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const WriteTool = memo(function WriteTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeWriteInput | undefined;
   const filePath = input?.filePath ?? '';
   const fileName = filePath ? extractFilename(filePath) : tool.title?.trim() || 'file';
@@ -37,6 +37,4 @@ const WriteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       {content && <NumberedContent content={content} />}
     </ToolCard>
   );
-};
-
-export const WriteTool = memo(WriteToolInner);
+});

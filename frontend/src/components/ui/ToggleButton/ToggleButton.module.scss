@@ -1,15 +1,15 @@
 .toggle-button {
-    display: flex;
+  display: flex;
 }
 
 .icon-button {
-    height: var(--space-8);
-    width: var(--space-8);
-    transition: all var(--duration-base) var(--easing-in-out);
+  height: var(--space-8);
+  width: var(--space-8);
+  transition: all var(--duration-base) var(--easing-in-out);
 }
 
 .icon {
-    height: var(--space-4);
-    width: var(--space-4);
-    color: var(--theme-text-secondary);
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-secondary);
 }

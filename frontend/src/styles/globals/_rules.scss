@@ -5,187 +5,187 @@
 @use 'typography' as type;
 
 @mixin global-rules {
-    *,
-    *::before,
-    *::after {
-        box-sizing: border-box;
-        margin: 0;
-        padding: 0;
-        border-width: 0;
-        border-style: solid;
-        border-color: var(--theme-border);
-    }
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--theme-border);
+  }
 
-    html {
-        // Base metrics match the old Tailwind preflight so unmixed text keeps its size
-        line-height: 1.5;
-        tab-size: 4;
-        -webkit-text-size-adjust: 100%;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-    }
+  html {
+    // Base metrics match the old Tailwind preflight so unmixed text keeps its size
+    line-height: 1.5;
+    tab-size: 4;
+    -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-    code,
-    kbd,
-    samp,
-    pre {
-        font-family: var(--font-mono);
-        font-size: 1em;
-    }
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-size: 1em;
+  }
 
-    table {
-        text-indent: 0;
-        border-color: inherit;
-        border-collapse: collapse;
-    }
+  table {
+    text-indent: 0;
+    border-color: inherit;
+    border-collapse: collapse;
+  }
 
-    body {
-        max-width: 100vw;
-        font-family: var(--font-sans);
-        // Kill iOS WebKit's gray flash box on tapped buttons/icons — inherited, no-op on desktop
-        -webkit-tap-highlight-color: transparent;
-    }
+  body {
+    max-width: 100vw;
+    font-family: var(--font-sans);
+    // Kill iOS WebKit's gray flash box on tapped buttons/icons — inherited, no-op on desktop
+    -webkit-tap-highlight-color: transparent;
+  }
 
-    html,
-    body,
-    #root {
-        background-color: var(--theme-surface);
-        color: var(--theme-text-primary);
-    }
+  html,
+  body,
+  #root {
+    background-color: var(--theme-surface);
+    color: var(--theme-text-primary);
+  }
 
-    #root {
-        min-height: 100vh;
-        min-height: 100dvh;
-        // Contain the app's stacking contexts so overlays never fight external DOM
-        isolation: isolate;
-    }
+  #root {
+    min-height: 100vh;
+    min-height: 100dvh;
+    // Contain the app's stacking contexts so overlays never fight external DOM
+    isolation: isolate;
+  }
 
-    img,
-    picture,
-    video,
-    canvas,
-    svg,
-    iframe {
-        display: block;
-        max-width: 100%;
-    }
+  img,
+  picture,
+  video,
+  canvas,
+  svg,
+  iframe {
+    display: block;
+    max-width: 100%;
+  }
 
-    img,
-    video {
-        height: auto;
-    }
+  img,
+  video {
+    height: auto;
+  }
 
-    // Headings size via type-* mixins, never UA defaults
-    h1,
-    h2,
-    h3,
-    h4,
-    h5,
-    h6 {
-        font-size: inherit;
-        font-weight: inherit;
-    }
+  // Headings size via type-* mixins, never UA defaults
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: inherit;
+    font-weight: inherit;
+  }
 
-    button,
-    input,
-    select,
-    textarea {
-        font: inherit;
-        letter-spacing: inherit;
-        color: inherit;
-    }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    letter-spacing: inherit;
+    color: inherit;
+  }
 
-    button,
-    select {
-        text-transform: none;
-    }
+  button,
+  select {
+    text-transform: none;
+  }
 
-    // Kill the UA's grey ButtonFace — buttons are styled entirely by their modules
-    // (this replaced Tailwind preflight's button reset; without it every
-    // variant="unstyled" button paints the WebKit default grey).
-    // Element selector only — attribute selectors like [type='button'] have
-    // class-level specificity and would override module classes in cascade ties.
-    button {
-        appearance: button;
-        background-color: transparent;
-        background-image: none;
-    }
+  // Kill the UA's grey ButtonFace — buttons are styled entirely by their modules
+  // (this replaced Tailwind preflight's button reset; without it every
+  // variant="unstyled" button paints the WebKit default grey).
+  // Element selector only — attribute selectors like [type='button'] have
+  // class-level specificity and would override module classes in cascade ties.
+  button {
+    appearance: button;
+    background-color: transparent;
+    background-image: none;
+  }
 
-    button,
-    [role='button'] {
-        cursor: pointer;
-    }
+  button,
+  [role='button'] {
+    cursor: pointer;
+  }
 
-    :disabled {
-        cursor: default;
-    }
+  :disabled {
+    cursor: default;
+  }
 
-    ul,
-    ol {
-        list-style: none;
-    }
+  ul,
+  ol {
+    list-style: none;
+  }
 
-    a {
-        color: inherit;
-        text-decoration: none;
-    }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-    // Visually hidden but accessible to screen readers
-    .sr-only {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        padding: 0;
-        margin: -1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        border-width: 0;
-    }
+  // Visually hidden but accessible to screen readers
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
 
-    // Full-viewport helpers (dvh with vh fallback) — used by the app shell
-    .h-viewport {
-        height: 100vh;
-        height: 100dvh;
-    }
+  // Full-viewport helpers (dvh with vh fallback) — used by the app shell
+  .h-viewport {
+    height: 100vh;
+    height: 100dvh;
+  }
 
-    .min-h-viewport {
-        min-height: 100vh;
-        min-height: 100dvh;
-    }
+  .min-h-viewport {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
 
-    // ---- scrollbars ----
+  // ---- scrollbars ----
 
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--theme-border) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track,
+  *::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--theme-border);
+    border-radius: var(--radius-md);
+    transition: background-color var(--duration-base) ease;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--theme-border-secondary);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
     * {
-        scrollbar-width: thin;
-        scrollbar-color: var(--theme-border) transparent;
+      transition: none !important;
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
     }
-
-    *::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
-    }
-
-    *::-webkit-scrollbar-track,
-    *::-webkit-scrollbar-corner {
-        background: transparent;
-    }
-
-    *::-webkit-scrollbar-thumb {
-        background-color: var(--theme-border);
-        border-radius: var(--radius-md);
-        transition: background-color var(--duration-base) ease;
-    }
-
-    *::-webkit-scrollbar-thumb:hover {
-        background-color: var(--theme-border-secondary);
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        * {
-            transition: none !important;
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-        }
-    }
+  }
 }

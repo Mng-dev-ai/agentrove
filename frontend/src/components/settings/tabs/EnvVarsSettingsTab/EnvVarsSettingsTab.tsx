@@ -18,7 +18,7 @@ const maskValue = (value: string) => {
   return `${value.slice(0, 4)}${'·'.repeat(Math.min(value.length - 4, 16))}`;
 };
 
-export const EnvVarsSettingsTab: React.FC = () => {
+export function EnvVarsSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
 
   const envVarCrud = useCrudForm(localSettings, persistSettings, {
@@ -72,4 +72,4 @@ export const EnvVarsSettingsTab: React.FC = () => {
       )}
     </>
   );
-};
+}

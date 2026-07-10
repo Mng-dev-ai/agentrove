@@ -3,30 +3,30 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .row {
-    @include type.type-default;
-    @include anim.transition-colors;
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    color: var(--theme-text-primary);
+  @include type.type-default;
+  @include anim.transition-colors;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  color: var(--theme-text-primary);
 
-    &:not(.row--active) {
-        @include responsive.hover {
-            background-color: var(--theme-surface-hover);
-        }
+  &:not(.row--active) {
+    @include responsive.hover {
+      background-color: var(--theme-surface-hover);
     }
+  }
 }
 
 .row--active {
-    background-color: var(--theme-surface-active);
+  background-color: var(--theme-surface-active);
 }
 
 .option {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    gap: var(--space-3);
-    overflow: hidden;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+  overflow: hidden;
 }

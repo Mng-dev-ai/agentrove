@@ -21,6 +21,27 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // House style: components are function declarations typed via their signature
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            "TSTypeReference > TSQualifiedName[left.name='React'][right.name=/^(FC|FunctionComponent)$/]",
+          message: 'Type props via the function signature instead of React.FC.',
+        },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'react',
+              importNames: ['FC', 'FunctionComponent'],
+              message: 'Type props via the function signature instead of FC.',
+            },
+          ],
+        },
+      ],
     },
   },
   eslintConfigPrettier,

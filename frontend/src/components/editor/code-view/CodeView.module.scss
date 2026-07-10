@@ -4,74 +4,74 @@
 @use '@/styles/globals/zlayer' as z;
 
 .code-view {
-    display: flex;
-    min-height: 0;
-    flex: 1;
-    overflow: hidden;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
 
-    &--mobile {
-        position: relative;
-        flex-direction: column;
-        background-color: var(--theme-surface-secondary);
-    }
+  &--mobile {
+    position: relative;
+    flex-direction: column;
+    background-color: var(--theme-surface-secondary);
+  }
 }
 
 .code-view__mobile-backdrop {
-    // one layer below the drawer's sidebar z-layer
-    @include z.z('sticky');
-    position: absolute;
-    inset: 0;
-    background-color: rgb(0 0 0 / 0.5);
+  // one layer below the drawer's sidebar z-layer
+  @include z.z('sticky');
+  position: absolute;
+  inset: 0;
+  background-color: rgb(0 0 0 / 0.5);
 }
 
 .code-view__mobile-drawer {
-    @include z.z('sidebar');
-    position: absolute;
-    left: 0;
-    top: 0;
-    height: 100%;
-    width: var(--space-72);
-    border-right: 1px solid var(--theme-border);
-    background-color: var(--theme-surface-secondary);
+  @include z.z('sidebar');
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: var(--space-72);
+  border-right: 1px solid var(--theme-border);
+  background-color: var(--theme-surface-secondary);
 }
 
 .code-view__mobile-content {
-    min-height: 0;
-    flex: 1;
-    overflow: hidden;
-    background-color: var(--theme-surface-secondary);
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  background-color: var(--theme-surface-secondary);
 }
 
 .code-view__tree-panel {
-    height: 100%;
-    overflow: hidden;
-    border-right: 1px solid var(--theme-border);
-    background-color: var(--theme-surface-secondary);
+  height: 100%;
+  overflow: hidden;
+  border-right: 1px solid var(--theme-border);
+  background-color: var(--theme-surface-secondary);
 }
 
 .code-view__content-panel {
-    height: 100%;
-    overflow: hidden;
-    background-color: var(--theme-surface-secondary);
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--theme-surface-secondary);
 }
 
 .code-view__resize-handle {
-    @include anim.transition-colors;
-    position: relative;
-    // px on purpose — 1px divider line, never rescales
-    width: 1px;
-    background-color: colors.theme-color('border', 0.5);
+  @include anim.transition-colors;
+  position: relative;
+  // px on purpose — 1px divider line, never rescales
+  width: 1px;
+  background-color: colors.theme-color('border', 0.5);
 
-    @include responsive.hover {
-        background-color: colors.theme-color('text-quaternary', 0.5);
-    }
+  @include responsive.hover {
+    background-color: colors.theme-color('text-quaternary', 0.5);
+  }
 }
 
 .code-view__resize-handle-hit-area {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: calc(var(--space-1-5) * -1);
-    right: calc(var(--space-1-5) * -1);
-    cursor: col-resize;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--space-1-5) * -1);
+  right: calc(var(--space-1-5) * -1);
+  cursor: col-resize;
 }

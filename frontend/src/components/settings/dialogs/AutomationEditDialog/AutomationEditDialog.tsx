@@ -61,7 +61,7 @@ interface AutomationEditDialogProps {
   onChange: <K extends keyof AutomationForm>(field: K, value: AutomationForm[K]) => void;
 }
 
-export const AutomationEditDialog: React.FC<AutomationEditDialogProps> = ({
+export function AutomationEditDialog({
   isOpen,
   isEditing,
   form,
@@ -73,7 +73,7 @@ export const AutomationEditDialog: React.FC<AutomationEditDialogProps> = ({
   onClose,
   onSubmit,
   onChange,
-}) => {
+}: AutomationEditDialogProps) {
   const { data: models = [] } = useModelsQuery();
   const localWorkspaces = useWorkspacesList();
   const { data: cloudWorkspaces = [] } = useCloudWorkspacesQuery(cloudConnected);
@@ -367,4 +367,4 @@ export const AutomationEditDialog: React.FC<AutomationEditDialogProps> = ({
       </div>
     </BaseModal>
   );
-};
+}

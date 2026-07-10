@@ -4,81 +4,81 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .segmented-control {
-    position: relative;
-    display: inline-flex;
-    border: 1px solid var(--theme-border);
-    background-color: var(--theme-surface-tertiary);
+  position: relative;
+  display: inline-flex;
+  border: 1px solid var(--theme-border);
+  background-color: var(--theme-surface-tertiary);
 
-    // Dark mode reads one surface step lighter for contrast against panels
-    :global([data-theme='dark']) & {
-        background-color: var(--theme-surface-secondary);
-    }
+  // Dark mode reads one surface step lighter for contrast against panels
+  :global([data-theme='dark']) & {
+    background-color: var(--theme-surface-secondary);
+  }
 
-    &--sm {
-        border-radius: var(--radius-md);
-    }
+  &--sm {
+    border-radius: var(--radius-md);
+  }
 
-    &--md {
-        border-radius: var(--radius-lg);
-    }
+  &--md {
+    border-radius: var(--radius-lg);
+  }
 }
 
 .indicator {
-    position: absolute;
-    left: 0;
-    top: 0;
-    background-color: var(--theme-surface-secondary);
-    box-shadow: var(--shadow-sm);
-    transition:
-        transform var(--duration-slow) var(--easing-out),
-        width var(--duration-slow) var(--easing-out),
-        height var(--duration-slow) var(--easing-out);
+  position: absolute;
+  left: 0;
+  top: 0;
+  background-color: var(--theme-surface-secondary);
+  box-shadow: var(--shadow-sm);
+  transition:
+    transform var(--duration-slow) var(--easing-out),
+    width var(--duration-slow) var(--easing-out),
+    height var(--duration-slow) var(--easing-out);
 
-    :global([data-theme='dark']) & {
-        background-color: var(--theme-surface-hover);
-    }
+  :global([data-theme='dark']) & {
+    background-color: var(--theme-surface-hover);
+  }
 
-    // Inner radius tucks 1-2px inside the container's — px art, not tokens
-    &--sm {
-        border-radius: 5px;
-    }
+  // Inner radius tucks 1-2px inside the container's — px art, not tokens
+  &--sm {
+    border-radius: 5px;
+  }
 
-    &--md {
-        border-radius: 7px;
-    }
+  &--md {
+    border-radius: 7px;
+  }
 }
 
 .segment {
-    @include anim.transition-colors;
-    @include controls.focus-ring;
-    position: relative;
-    cursor: pointer;
-    border: none;
-    background: none;
-    color: var(--theme-text-quaternary);
+  @include anim.transition-colors;
+  @include controls.focus-ring;
+  position: relative;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--theme-text-quaternary);
 
-    @include responsive.hover {
-        color: var(--theme-text-secondary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
+  }
 
-    &--sm {
-        @include type.type-meta(500);
-        padding: var(--space-1) var(--space-2-5);
-        border-radius: 5px;
-    }
+  &--sm {
+    @include type.type-meta(500);
+    padding: var(--space-1) var(--space-2-5);
+    border-radius: 5px;
+  }
 
-    &--md {
-        @include type.type-default(500);
-        padding: var(--space-1-5) var(--space-3-5);
-        border-radius: 7px;
-    }
+  &--md {
+    @include type.type-default(500);
+    padding: var(--space-1-5) var(--space-3-5);
+    border-radius: 7px;
+  }
 
-    &[aria-checked='true'] {
-        color: var(--theme-text-primary);
-    }
+  &[aria-checked='true'] {
+    color: var(--theme-text-primary);
+  }
 
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.35;
-    }
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+  }
 }

@@ -14,133 +14,213 @@
 
 // Status color scales (status indicators only — never structural/interactive UI).
 $status-colors: (
-    'success': (
-        50: #f0fdf4, 100: #dcfce7, 200: #bbf7d0, 300: #86efac, 400: #4ade80,
-        500: #22c55e, 600: #16a34a, 700: #15803d, 800: #166534, 900: #14532d, 950: #052e16,
-    ),
-    'error': (
-        50: #fef2f2, 100: #fee2e2, 200: #fecaca, 300: #fca5a5, 400: #f87171,
-        500: #ef4444, 600: #dc2626, 700: #b91c1c, 800: #991b1b, 900: #7f1d1d, 950: #450a0a,
-    ),
-    'warning': (
-        50: #fffbeb, 100: #fef3c7, 200: #fde68a, 300: #fcd34d, 400: #fbbf24,
-        500: #f59e0b, 600: #d97706, 700: #b45309, 800: #92400e, 900: #78350f, 950: #451a03,
-    ),
-    'info': (
-        50: #eff6ff, 100: #dbeafe, 200: #bfdbfe, 300: #93c5fd, 400: #60a5fa,
-        500: #3b82f6, 600: #2563eb, 700: #1d4ed8, 800: #1e40af, 900: #1e3a8a, 950: #172554,
-    ),
+  'success': (
+    50: #f0fdf4,
+    100: #dcfce7,
+    200: #bbf7d0,
+    300: #86efac,
+    400: #4ade80,
+    500: #22c55e,
+    600: #16a34a,
+    700: #15803d,
+    800: #166534,
+    900: #14532d,
+    950: #052e16,
+  ),
+  'error': (
+    50: #fef2f2,
+    100: #fee2e2,
+    200: #fecaca,
+    300: #fca5a5,
+    400: #f87171,
+    500: #ef4444,
+    600: #dc2626,
+    700: #b91c1c,
+    800: #991b1b,
+    900: #7f1d1d,
+    950: #450a0a,
+  ),
+  'warning': (
+    50: #fffbeb,
+    100: #fef3c7,
+    200: #fde68a,
+    300: #fcd34d,
+    400: #fbbf24,
+    500: #f59e0b,
+    600: #d97706,
+    700: #b45309,
+    800: #92400e,
+    900: #78350f,
+    950: #451a03,
+  ),
+  'info': (
+    50: #eff6ff,
+    100: #dbeafe,
+    200: #bfdbfe,
+    300: #93c5fd,
+    400: #60a5fa,
+    500: #3b82f6,
+    600: #2563eb,
+    700: #1d4ed8,
+    800: #1e40af,
+    900: #1e3a8a,
+    950: #172554,
+  ),
 );
 
 // Semantic theme tokens: name → (light channel var, dark channel var).
 $theme-tokens: (
-    'surface': (--surface, --surface-dark),
-    'surface-secondary': (--surface-secondary, --surface-dark-secondary),
-    'surface-tertiary': (--surface-tertiary, --surface-dark-tertiary),
-    'surface-hover': (--surface-hover, --surface-dark-hover),
-    'surface-active': (--surface-active, --surface-dark-active),
-    'border': (--border, --border-dark),
-    'border-secondary': (--border-secondary, --border-dark-secondary),
-    'border-hover': (--border-hover, --border-dark-hover),
-    'text-primary': (--text-primary, --text-dark-primary),
-    'text-secondary': (--text-secondary, --text-dark-secondary),
-    'text-tertiary': (--text-tertiary, --text-dark-tertiary),
-    'text-quaternary': (--text-quaternary, --text-dark-quaternary),
-    // Inverted pair — light theme reads the dark set and vice versa (primary buttons,
-    // tooltips: dark-on-light / light-on-dark).
-    'surface-inverse': (--surface-dark, --surface),
-    'text-inverse': (--text-dark-primary, --text-primary),
+  'surface': (
+    --surface,
+    --surface-dark,
+  ),
+  'surface-secondary': (
+    --surface-secondary,
+    --surface-dark-secondary,
+  ),
+  'surface-tertiary': (
+    --surface-tertiary,
+    --surface-dark-tertiary,
+  ),
+  'surface-hover': (
+    --surface-hover,
+    --surface-dark-hover,
+  ),
+  'surface-active': (
+    --surface-active,
+    --surface-dark-active,
+  ),
+  'border': (
+    --border,
+    --border-dark,
+  ),
+  'border-secondary': (
+    --border-secondary,
+    --border-dark-secondary,
+  ),
+  'border-hover': (
+    --border-hover,
+    --border-dark-hover,
+  ),
+  'text-primary': (
+    --text-primary,
+    --text-dark-primary,
+  ),
+  'text-secondary': (
+    --text-secondary,
+    --text-dark-secondary,
+  ),
+  'text-tertiary': (
+    --text-tertiary,
+    --text-dark-tertiary,
+  ),
+  'text-quaternary': (
+    --text-quaternary,
+    --text-dark-quaternary,
+  ),
+  // Inverted pair — light theme reads the dark set and vice versa (primary buttons,
+  // tooltips: dark-on-light / light-on-dark).
+  'surface-inverse': (
+      --surface-dark,
+      --surface,
+    ),
+  'text-inverse': (
+    --text-dark-primary,
+    --text-primary,
+  ),
 );
 
 // theme-color('surface', 0.5) → rgb(var(--theme-surface-rgb) / 0.5).
 // Only for opacities not covered by an existing token — plain var(--theme-surface) otherwise.
 @function theme-color($token, $opacity: 1) {
-    @if not map.has-key($theme-tokens, $token) {
-        @error 'Unknown theme token: #{$token}';
-    }
-    @if $opacity == 1 {
-        @return var(--theme-#{$token});
-    }
-    @return rgb(var(--theme-#{$token}-rgb) / #{$opacity});
+  @if not map.has-key($theme-tokens, $token) {
+    @error 'Unknown theme token: #{$token}';
+  }
+  @if $opacity == 1 {
+    @return var(--theme-#{$token});
+  }
+  @return rgb(var(--theme-#{$token}-rgb) / #{$opacity});
 }
 
 // status-color('error', 500) → var(--color-error-500); optional $opacity for /alpha usage.
 @function status-color($name, $step: 500, $opacity: 1) {
-    @if not map.has-key($status-colors, $name) {
-        @error 'Unknown status color: #{$name}';
-    }
-    @if $opacity == 1 {
-        @return var(--color-#{$name}-#{$step});
-    }
-    @return rgb(var(--color-#{$name}-#{$step}-rgb) / #{$opacity});
+  @if not map.has-key($status-colors, $name) {
+    @error 'Unknown status color: #{$name}';
+  }
+  @if $opacity == 1 {
+    @return var(--color-#{$name}-#{$step});
+  }
+  @return rgb(var(--color-#{$name}-#{$step}-rgb) / #{$opacity});
 }
 
 @mixin color-tokens {
-    :root {
-        color-scheme: light;
+  :root {
+    color-scheme: light;
 
-        // Raw channel sets — light + dark both always defined; data-palette overrides
-        // (build-generated) re-theme these without touching any component.
-        --surface: 245 245 245;
-        --surface-secondary: 249 249 249;
-        --surface-tertiary: 243 243 243;
-        --surface-hover: 224 224 224;
-        --surface-active: 216 216 216;
-        --border: 226 226 226;
-        --border-secondary: 209 209 209;
-        --border-hover: 154 154 154;
-        --text-primary: 15 23 42;
-        --text-secondary: 71 85 105;
-        --text-tertiary: 100 116 139;
-        --text-quaternary: 148 163 184;
+    // Raw channel sets — light + dark both always defined; data-palette overrides
+    // (build-generated) re-theme these without touching any component.
+    --surface: 245 245 245;
+    --surface-secondary: 249 249 249;
+    --surface-tertiary: 243 243 243;
+    --surface-hover: 224 224 224;
+    --surface-active: 216 216 216;
+    --border: 226 226 226;
+    --border-secondary: 209 209 209;
+    --border-hover: 154 154 154;
+    --text-primary: 15 23 42;
+    --text-secondary: 71 85 105;
+    --text-tertiary: 100 116 139;
+    --text-quaternary: 148 163 184;
 
-        --surface-dark: 17 17 17;
-        --surface-dark-secondary: 20 20 20;
-        --surface-dark-tertiary: 30 30 30;
-        --surface-dark-hover: 40 40 40;
-        --surface-dark-active: 50 50 50;
-        --border-dark: 42 42 42;
-        --border-dark-secondary: 51 51 51;
-        --border-dark-hover: 64 64 64;
-        --text-dark-primary: 255 255 255;
-        --text-dark-secondary: 224 224 224;
-        --text-dark-tertiary: 192 192 192;
-        --text-dark-quaternary: 160 160 160;
+    --surface-dark: 17 17 17;
+    --surface-dark-secondary: 20 20 20;
+    --surface-dark-tertiary: 30 30 30;
+    --surface-dark-hover: 40 40 40;
+    --surface-dark-active: 50 50 50;
+    --border-dark: 42 42 42;
+    --border-dark-secondary: 51 51 51;
+    --border-dark-hover: 64 64 64;
+    --text-dark-primary: 255 255 255;
+    --text-dark-secondary: 224 224 224;
+    --text-dark-tertiary: 192 192 192;
+    --text-dark-quaternary: 160 160 160;
 
-        // macOS traffic lights (desktop title bar only)
-        --color-traffic-close: #ff5f57;
-        --color-traffic-minimize: #febc2e;
-        --color-traffic-maximize: #28c840;
+    // macOS traffic lights (desktop title bar only)
+    --color-traffic-close: #ff5f57;
+    --color-traffic-minimize: #febc2e;
+    --color-traffic-maximize: #28c840;
 
-        @each $name, $scale in $status-colors {
-            @each $step, $hex in $scale {
-                --color-#{$name}-#{$step}: #{$hex};
-                --color-#{$name}-#{$step}-rgb: #{color.channel($hex, 'red', $space: rgb)} #{color.channel($hex, 'green', $space: rgb)} #{color.channel($hex, 'blue', $space: rgb)};
-            }
-        }
-
-        // Semantic layer — light resolution
-        @each $token, $pair in $theme-tokens {
-            --theme-#{$token}: rgb(var(#{list.nth($pair, 1)}));
-            --theme-#{$token}-rgb: var(#{list.nth($pair, 1)});
-        }
-
-        // Status text needs a darker step on light backgrounds, lighter on dark
-        @each $name, $scale in $status-colors {
-            --theme-#{$name}-text: var(--color-#{$name}-600);
-        }
+    @each $name, $scale in $status-colors {
+      @each $step, $hex in $scale {
+        --color-#{$name}-#{$step}: #{$hex};
+        --color-#{$name}-#{$step}-rgb: #{color.channel($hex, 'red', $space: rgb)}
+          #{color.channel($hex, 'green', $space: rgb)}
+          #{color.channel($hex, 'blue', $space: rgb)};
+      }
     }
 
-    :root[data-theme='dark'] {
-        color-scheme: dark;
-
-        @each $token, $pair in $theme-tokens {
-            --theme-#{$token}: rgb(var(#{list.nth($pair, 2)}));
-            --theme-#{$token}-rgb: var(#{list.nth($pair, 2)});
-        }
-
-        @each $name, $scale in $status-colors {
-            --theme-#{$name}-text: var(--color-#{$name}-400);
-        }
+    // Semantic layer — light resolution
+    @each $token, $pair in $theme-tokens {
+      --theme-#{$token}: rgb(var(#{list.nth($pair, 1)}));
+      --theme-#{$token}-rgb: var(#{list.nth($pair, 1)});
     }
+
+    // Status text needs a darker step on light backgrounds, lighter on dark
+    @each $name, $scale in $status-colors {
+      --theme-#{$name}-text: var(--color-#{$name}-600);
+    }
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+
+    @each $token, $pair in $theme-tokens {
+      --theme-#{$token}: rgb(var(#{list.nth($pair, 2)}));
+      --theme-#{$token}-rgb: var(#{list.nth($pair, 2)});
+    }
+
+    @each $name, $scale in $status-colors {
+      --theme-#{$name}-text: var(--color-#{$name}-400);
+    }
+  }
 }

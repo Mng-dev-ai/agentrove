@@ -4,59 +4,59 @@
 @use '@/styles/globals/state-classes' as state;
 
 .input {
-    position: relative;
-    padding-inline: var(--space-4);
+  position: relative;
+  padding-inline: var(--space-4);
 
-    @include responsive.media('sm-up') {
-        padding-inline: var(--space-6);
-    }
+  @include responsive.media('sm-up') {
+    padding-inline: var(--space-6);
+  }
 }
 
 .field {
-    position: relative;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-2xl);
-    background-color: var(--theme-surface-secondary);
-    transition: border-color var(--duration-slow);
+  position: relative;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-2xl);
+  background-color: var(--theme-surface-secondary);
+  transition: border-color var(--duration-slow);
 
-    &:global(.#{state.$state-dragging}) {
-        border-color: var(--theme-border-hover);
-        transform: scale(1.01);
-    }
+  &:global(.#{state.$state-dragging}) {
+    border-color: var(--theme-border-hover);
+    transform: scale(1.01);
+  }
 }
 
 .textarea-wrap {
-    position: relative;
-    padding: var(--space-2-5) var(--space-4) 0;
+  position: relative;
+  padding: var(--space-2-5) var(--space-4) 0;
 }
 
 .actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-0-5);
-    padding: var(--space-0-5) var(--space-2) var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-0-5);
+  padding: var(--space-0-5) var(--space-2) var(--space-2);
 }
 
 .footer-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: var(--space-1-5) var(--space-2) var(--safe-area-bottom);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1-5) var(--space-2) var(--safe-area-bottom);
 }
 
 .context-slot {
-    flex-shrink: 0;
+  flex-shrink: 0;
 }
 
 .tip {
-    @include type.type-meta;
-    @include anim.fade-in;
-    margin-top: var(--space-1);
-    text-align: center;
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  @include anim.fade-in;
+  margin-top: var(--space-1);
+  text-align: center;
+  color: var(--theme-text-quaternary);
 }
 
 .tip-label {
-    font-weight: 500;
+  font-weight: 500;
 }

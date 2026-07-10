@@ -1,4 +1,3 @@
-import React from 'react';
 import clsx from 'clsx';
 import { ListTodo, CheckCircle2, Circle, Clock } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
@@ -16,7 +15,7 @@ interface TodoWriteProps {
   tool: ToolAggregate;
 }
 
-export const TodoWrite: React.FC<TodoWriteProps> = ({ tool }) => {
+export function TodoWrite({ tool }: TodoWriteProps) {
   const todos = Array.isArray(tool.input?.todos) ? tool.input.todos : [];
   const todoCount = todos.length;
   const completedCount = todos.filter((todo) => todo.status === 'completed').length;
@@ -98,4 +97,4 @@ export const TodoWrite: React.FC<TodoWriteProps> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
+}

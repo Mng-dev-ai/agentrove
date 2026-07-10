@@ -1,4 +1,5 @@
-import { memo, useMemo, lazy, Suspense } from 'react';
+import { memo, useMemo, Suspense } from 'react';
+import { lazyNamed } from '@/utils/lazyNamed';
 import type { ComponentType } from 'react';
 import { createPortal } from 'react-dom';
 import type { FileStructure } from '@/types/file-system.types';
@@ -21,23 +22,13 @@ type PreviewComponentProps = {
 
 type PreviewComponent = ComponentType<PreviewComponentProps>;
 
-const LazyMarkdownPreview = lazy(() =>
-  import('./MarkdownPreview').then((m) => ({ default: m.MarkdownPreview })),
-);
-const LazyCsvPreview = lazy(() => import('./CsvPreview').then((m) => ({ default: m.CsvPreview })));
-const LazyXlsxPreview = lazy(() =>
-  import('./XlsxPreview').then((m) => ({ default: m.XlsxPreview })),
-);
-const LazyImagePreview = lazy(() =>
-  import('./ImagePreview').then((m) => ({ default: m.ImagePreview })),
-);
-const LazyHtmlPreview = lazy(() =>
-  import('./HtmlPreview').then((m) => ({ default: m.HtmlPreview })),
-);
-const LazyPowerPointPreview = lazy(() =>
-  import('./PowerPointPreview').then((m) => ({ default: m.PowerPointPreview })),
-);
-const LazyPDFPreview = lazy(() => import('./PDFPreview').then((m) => ({ default: m.PDFPreview })));
+const LazyMarkdownPreview = lazyNamed(() => import('./MarkdownPreview'), 'MarkdownPreview');
+const LazyCsvPreview = lazyNamed(() => import('./CsvPreview'), 'CsvPreview');
+const LazyXlsxPreview = lazyNamed(() => import('./XlsxPreview'), 'XlsxPreview');
+const LazyImagePreview = lazyNamed(() => import('./ImagePreview'), 'ImagePreview');
+const LazyHtmlPreview = lazyNamed(() => import('./HtmlPreview'), 'HtmlPreview');
+const LazyPowerPointPreview = lazyNamed(() => import('./PowerPointPreview'), 'PowerPointPreview');
+const LazyPDFPreview = lazyNamed(() => import('./PDFPreview'), 'PDFPreview');
 
 interface PreviewRenderer {
   match: (file: FileStructure) => boolean;

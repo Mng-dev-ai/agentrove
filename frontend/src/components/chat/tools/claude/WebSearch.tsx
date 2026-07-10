@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { Search } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { ToolCard } from '../common/ToolCard/ToolCard';
@@ -59,7 +59,7 @@ const parseClaudeSearchResults = (result: string): SearchSource[] => {
   return [];
 };
 
-export const WebSearch: React.FC<WebSearchProps> = ({ tool }) => {
+export function WebSearch({ tool }: WebSearchProps) {
   const query = (tool.input?.query as string | undefined) ?? '';
   const toolStatus = tool.status;
   const errorMessage = tool.error;
@@ -107,4 +107,4 @@ export const WebSearch: React.FC<WebSearchProps> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
+}

@@ -2,104 +2,104 @@
 @use '@/styles/globals/zlayer' as z;
 
 .tooltip-wrapper {
-    position: relative;
-    display: inline-flex;
+  position: relative;
+  display: inline-flex;
 }
 
 .bubble {
-    @include type.type-default(500);
-    @include z.z('tooltip');
-    pointer-events: none;
-    position: absolute;
-    white-space: nowrap;
-    // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
-    border-radius: var(--radius-sm);
-    background-color: var(--theme-surface-tertiary);
-    padding: var(--space-1) var(--space-2);
-    color: var(--theme-text-primary);
-    opacity: 0;
-    // TODO(refactor): shadow-lg had no token, using medium
-    box-shadow: var(--shadow-medium);
-    transition: opacity var(--duration-fast);
+  @include type.type-default(500);
+  @include z.z('tooltip');
+  pointer-events: none;
+  position: absolute;
+  white-space: nowrap;
+  // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
+  border-radius: var(--radius-sm);
+  background-color: var(--theme-surface-tertiary);
+  padding: var(--space-1) var(--space-2);
+  color: var(--theme-text-primary);
+  opacity: 0;
+  // TODO(refactor): shadow-lg had no token, using medium
+  box-shadow: var(--shadow-medium);
+  transition: opacity var(--duration-fast);
 
-    // group-hover/tooltip reveal — plain :hover is fine for this pure CSS reveal
-    .tooltip-wrapper:hover & {
-        opacity: 1;
-    }
+  // group-hover/tooltip reveal — plain :hover is fine for this pure CSS reveal
+  .tooltip-wrapper:hover & {
+    opacity: 1;
+  }
 
-    &--top {
-        bottom: 100%;
-        left: 50%;
-        margin-bottom: var(--space-2);
-        transform: translateX(-50%);
-    }
+  &--top {
+    bottom: 100%;
+    left: 50%;
+    margin-bottom: var(--space-2);
+    transform: translateX(-50%);
+  }
 
-    &--right {
-        left: 100%;
-        top: 50%;
-        margin-left: var(--space-2);
-        transform: translateY(-50%);
-    }
+  &--right {
+    left: 100%;
+    top: 50%;
+    margin-left: var(--space-2);
+    transform: translateY(-50%);
+  }
 
-    &--bottom {
-        top: 100%;
-        left: 50%;
-        margin-top: var(--space-2);
-        transform: translateX(-50%);
-    }
+  &--bottom {
+    top: 100%;
+    left: 50%;
+    margin-top: var(--space-2);
+    transform: translateX(-50%);
+  }
 
-    &--bottom-end {
-        top: 100%;
-        right: 0;
-        margin-top: var(--space-2);
-    }
+  &--bottom-end {
+    top: 100%;
+    right: 0;
+    margin-top: var(--space-2);
+  }
 
-    &--left {
-        right: 100%;
-        top: 50%;
-        margin-right: var(--space-2);
-        transform: translateY(-50%);
-    }
+  &--left {
+    right: 100%;
+    top: 50%;
+    margin-right: var(--space-2);
+    transform: translateY(-50%);
+  }
 }
 
 .arrow {
-    position: absolute;
-    height: 0;
-    width: 0;
-    // px on purpose — arrow-triangle border trick, geometry that must never rescale
-    border: 4px solid transparent;
+  position: absolute;
+  height: 0;
+  width: 0;
+  // px on purpose — arrow-triangle border trick, geometry that must never rescale
+  border: 4px solid transparent;
 
-    &--top {
-        top: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        border-top-color: var(--theme-surface-tertiary);
-    }
+  &--top {
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-top-color: var(--theme-surface-tertiary);
+  }
 
-    &--right {
-        right: 100%;
-        top: 50%;
-        transform: translateY(-50%);
-        border-right-color: var(--theme-surface-tertiary);
-    }
+  &--right {
+    right: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    border-right-color: var(--theme-surface-tertiary);
+  }
 
-    &--bottom {
-        bottom: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        border-bottom-color: var(--theme-surface-tertiary);
-    }
+  &--bottom {
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border-bottom-color: var(--theme-surface-tertiary);
+  }
 
-    &--bottom-end {
-        bottom: 100%;
-        right: var(--space-2);
-        border-bottom-color: var(--theme-surface-tertiary);
-    }
+  &--bottom-end {
+    bottom: 100%;
+    right: var(--space-2);
+    border-bottom-color: var(--theme-surface-tertiary);
+  }
 
-    &--left {
-        left: 100%;
-        top: 50%;
-        transform: translateY(-50%);
-        border-left-color: var(--theme-surface-tertiary);
-    }
+  &--left {
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%);
+    border-left-color: var(--theme-surface-tertiary);
+  }
 }

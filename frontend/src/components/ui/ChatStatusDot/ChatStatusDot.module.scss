@@ -2,56 +2,56 @@
 
 // Classic Tailwind `ping`: scale + fade from the element's own base state.
 @keyframes chat-status-ping {
-    75%,
-    100% {
-        transform: scale(2);
-        opacity: 0;
-    }
+  75%,
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
 }
 
 .chat-status-dot {
-    display: flex;
-    height: var(--space-2);
-    width: var(--space-2);
+  display: flex;
+  height: var(--space-2);
+  width: var(--space-2);
 }
 
 .dot-inner {
-    position: relative;
-    display: flex;
-    height: var(--space-2);
-    width: var(--space-2);
+  position: relative;
+  display: flex;
+  height: var(--space-2);
+  width: var(--space-2);
 }
 
 .ping {
-    position: absolute;
-    display: inline-flex;
-    height: 100%;
-    width: 100%;
-    border-radius: var(--radius-full);
-    opacity: 0.75;
-    animation: chat-status-ping 1s var(--easing-in-out) infinite;
+  position: absolute;
+  display: inline-flex;
+  height: 100%;
+  width: 100%;
+  border-radius: var(--radius-full);
+  opacity: 0.75;
+  animation: chat-status-ping 1s var(--easing-in-out) infinite;
 }
 
 .dot-ring {
-    position: relative;
-    display: inline-flex;
-    height: var(--space-2);
-    width: var(--space-2);
-    border-radius: var(--radius-full);
+  position: relative;
+  display: inline-flex;
+  height: var(--space-2);
+  width: var(--space-2);
+  border-radius: var(--radius-full);
 }
 
 .dot--blocked {
-    background-color: colors.status-color('error', 500);
+  background-color: colors.status-color('error', 500);
 }
 
 .dot--running {
-    background-color: colors.status-color('warning', 500);
+  background-color: colors.status-color('warning', 500);
 }
 
 .dot--completed {
-    background-color: colors.status-color('success', 500);
+  background-color: colors.status-color('success', 500);
 }
 
 .dot--unread {
-    background-color: colors.status-color('info', 500);
+  background-color: colors.status-color('info', 500);
 }

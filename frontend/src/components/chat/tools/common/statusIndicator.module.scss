@@ -1,19 +1,19 @@
 @use '@/styles/globals/animations' as anim;
 
 .icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 }
 
 .icon--completed {
-    color: var(--theme-success-text);
+  color: var(--theme-success-text);
 }
 
 .icon--failed {
-    color: var(--theme-error-text);
+  color: var(--theme-error-text);
 }
 
 .icon--started {
-    animation: pulse 2s var(--easing-in-out) infinite;
-    color: var(--theme-text-quaternary);
+  animation: pulse 2s var(--easing-in-out) infinite;
+  color: var(--theme-text-quaternary);
 }

@@ -10,7 +10,13 @@ interface SelectItemProps {
   role?: string;
 }
 
-function SelectItemInner({ isSelected, onSelect, className, children, role }: SelectItemProps) {
+export const SelectItem = memo(function SelectItem({
+  isSelected,
+  onSelect,
+  className,
+  children,
+  role,
+}: SelectItemProps) {
   // Rendered as a div (not a button) so renderItem can nest secondary interactive controls
   // like a favorite toggle — nesting interactive elements inside a <button> is invalid.
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -31,6 +37,4 @@ function SelectItemInner({ isSelected, onSelect, className, children, role }: Se
       {children}
     </div>
   );
-}
-
-export const SelectItem = memo(SelectItemInner);
+});

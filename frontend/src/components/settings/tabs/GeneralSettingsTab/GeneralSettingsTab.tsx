@@ -96,7 +96,7 @@ function SecretField({
   );
 }
 
-export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
+export function GeneralSettingsTab({
   fields,
   settings,
   revealedFields,
@@ -104,63 +104,65 @@ export const GeneralSettingsTab: React.FC<GeneralSettingsTabProps> = ({
   onToggleVisibility,
   onDeleteAllChats,
   onNotificationsEnabledChange,
-}) => (
-  <div className={styles.general}>
-    <SectionCard title="API Keys & Authentication">
-      <div className={styles.stack}>
-        {fields.map((field) => (
-          <SecretField
-            key={field.key}
-            field={field}
-            savedValue={settings[field.key] ?? ''}
-            isVisible={revealedFields[field.key]}
-            onPersist={onPersistSecret}
-            onToggleVisibility={onToggleVisibility}
-          />
-        ))}
-      </div>
-    </SectionCard>
-
-    <SectionCard title="Preferences">
-      <div className={styles.divided}>
-        <div className={styles['pref-row']}>
-          <h3 className={styles['setting-title']}>Theme</h3>
-          <ThemeControl />
+}: GeneralSettingsTabProps) {
+  return (
+    <div className={styles.general}>
+      <SectionCard title="API Keys & Authentication">
+        <div className={styles.stack}>
+          {fields.map((field) => (
+            <SecretField
+              key={field.key}
+              field={field}
+              savedValue={settings[field.key] ?? ''}
+              isVisible={revealedFields[field.key]}
+              onPersist={onPersistSecret}
+              onToggleVisibility={onToggleVisibility}
+            />
+          ))}
         </div>
-        <div className={styles['pref-row-notif']}>
+      </SectionCard>
+
+      <SectionCard title="Preferences">
+        <div className={styles.divided}>
+          <div className={styles['pref-row']}>
+            <h3 className={styles['setting-title']}>Theme</h3>
+            <ThemeControl />
+          </div>
+          <div className={styles['pref-row-notif']}>
+            <div className={styles['pref-text']}>
+              <h3 className={styles['setting-title']}>Notifications</h3>
+              <p className={styles['field-desc']}>
+                Send notifications for permission requests, questions, and task completion.
+              </p>
+            </div>
+            <Switch
+              checked={settings.notifications_enabled}
+              onCheckedChange={onNotificationsEnabledChange}
+              aria-label="Notifications"
+            />
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Data Management">
+        <div className={styles['data-row']}>
           <div className={styles['pref-text']}>
-            <h3 className={styles['setting-title']}>Notifications</h3>
+            <h3 className={styles['setting-title']}>Delete All Chats</h3>
             <p className={styles['field-desc']}>
-              Send notifications for permission requests, questions, and task completion.
+              Permanently delete all chat history. This action cannot be undone.
             </p>
           </div>
-          <Switch
-            checked={settings.notifications_enabled}
-            onCheckedChange={onNotificationsEnabledChange}
-            aria-label="Notifications"
-          />
+          <Button
+            type="button"
+            onClick={onDeleteAllChats}
+            variant="outline"
+            size="sm"
+            className={styles['delete-button']}
+          >
+            Delete All
+          </Button>
         </div>
-      </div>
-    </SectionCard>
-
-    <SectionCard title="Data Management">
-      <div className={styles['data-row']}>
-        <div className={styles['pref-text']}>
-          <h3 className={styles['setting-title']}>Delete All Chats</h3>
-          <p className={styles['field-desc']}>
-            Permanently delete all chat history. This action cannot be undone.
-          </p>
-        </div>
-        <Button
-          type="button"
-          onClick={onDeleteAllChats}
-          variant="outline"
-          size="sm"
-          className={styles['delete-button']}
-        >
-          Delete All
-        </Button>
-      </div>
-    </SectionCard>
-  </div>
-);
+      </SectionCard>
+    </div>
+  );
+}

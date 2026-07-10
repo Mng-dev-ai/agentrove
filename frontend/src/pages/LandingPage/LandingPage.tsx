@@ -1,13 +1,5 @@
-import {
-  useState,
-  useRef,
-  useMemo,
-  useCallback,
-  useEffect,
-  ReactNode,
-  lazy,
-  Suspense,
-} from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect, ReactNode, Suspense } from 'react';
+import { lazyNamed } from '@/utils/lazyNamed';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useNavigate, useLocation } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -59,13 +51,10 @@ import { PENDING_NEW_CHAT_KEY, type TileId } from '@/types/ui.types';
 import { tileIdToViewType } from '@/utils/tileHelpers';
 import styles from './LandingPage.module.scss';
 
-const Editor = lazy(() =>
-  import('@/components/editor/editor-core/Editor').then((m) => ({ default: m.Editor })),
-);
-const SecretsView = lazy(() =>
-  import('@/components/sandbox/secrets/SecretsView/SecretsView').then((m) => ({
-    default: m.SecretsView,
-  })),
+const Editor = lazyNamed(() => import('@/components/editor/editor-core/Editor'), 'Editor');
+const SecretsView = lazyNamed(
+  () => import('@/components/sandbox/secrets/SecretsView/SecretsView'),
+  'SecretsView',
 );
 
 const EXAMPLE_PROMPTS = [

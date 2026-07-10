@@ -14,7 +14,7 @@ const StreamActionEditDialog = lazyNamed(
   'StreamActionEditDialog',
 );
 
-export const StreamActionsSettingsTab: React.FC = () => {
+export function StreamActionsSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
 
   const actionCrud = useCrudForm(localSettings, persistSettings, {
@@ -94,4 +94,4 @@ export const StreamActionsSettingsTab: React.FC = () => {
       )}
     </>
   );
-};
+}

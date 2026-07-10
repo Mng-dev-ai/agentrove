@@ -14,7 +14,7 @@ interface BashInput {
   run_in_background?: boolean;
 }
 
-const BashToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const BashTool = memo(function BashTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as BashInput | undefined;
   const command = input?.command ?? '';
   const description = input?.description;
@@ -55,6 +55,4 @@ const BashToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const BashTool = memo(BashToolInner);
+});

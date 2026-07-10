@@ -1,4 +1,3 @@
-import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -6,7 +5,7 @@ import { useUIStore } from '@/store/uiStore';
 import { useChatContext } from '@/hooks/useChatContext';
 import styles from './OpenInEditorButton.module.scss';
 
-export const OpenInEditorButton: React.FC<{ filePath: string }> = ({ filePath }) => {
+export function OpenInEditorButton({ filePath }: { filePath: string }) {
   // Open into the editor of the chat this tool belongs to, not always the primary.
   const { chatId } = useChatContext();
   return (
@@ -22,4 +21,4 @@ export const OpenInEditorButton: React.FC<{ filePath: string }> = ({ filePath })
       </Button>
     </FloatingTooltip>
   );
-};
+}

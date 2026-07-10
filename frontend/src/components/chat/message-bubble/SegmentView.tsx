@@ -20,7 +20,7 @@ interface SegmentViewProps {
   highlightMentions?: boolean;
 }
 
-const TextSegment = ({
+function TextSegment({
   text,
   isActive,
   highlightMentions,
@@ -28,7 +28,7 @@ const TextSegment = ({
   text: string;
   isActive: boolean;
   highlightMentions?: boolean;
-}) => {
+}) {
   // The segment receiving stream output reveals its text word-by-word instead
   // of jumping a flush-sized chunk at a time.
   const smoothText = useSmoothText(text, isActive);
@@ -41,7 +41,7 @@ const TextSegment = ({
       />
     </div>
   );
-};
+}
 
 export const SegmentView = memo(function SegmentView({
   segment,

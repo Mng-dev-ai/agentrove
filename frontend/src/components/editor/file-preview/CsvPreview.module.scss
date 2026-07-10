@@ -1,36 +1,36 @@
 @use '@/styles/globals/typography' as type;
 
 .csv-preview {
-    overflow-x: auto;
+  overflow-x: auto;
 }
 
 .content {
-    overflow: auto;
-    padding: var(--space-4);
+  overflow: auto;
+  padding: var(--space-4);
 }
 
 .table {
-    width: 100%;
-    border-collapse: collapse;
+  width: 100%;
+  border-collapse: collapse;
 }
 
 .header-row {
-    background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface-secondary);
 }
 
 .header-cell {
-    @include type.type-body(500);
-    padding: var(--space-2) var(--space-4);
-    text-align: left;
-    color: var(--theme-text-primary);
+  @include type.type-body(500);
+  padding: var(--space-2) var(--space-4);
+  text-align: left;
+  color: var(--theme-text-primary);
 }
 
 .alt-row {
-    background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface-secondary);
 }
 
 .cell {
-    @include type.type-body;
-    padding: var(--space-2) var(--space-4);
-    color: var(--theme-text-primary);
+  @include type.type-body;
+  padding: var(--space-2) var(--space-4);
+  color: var(--theme-text-primary);
 }

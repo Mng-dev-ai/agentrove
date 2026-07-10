@@ -18,7 +18,7 @@ interface EnvVarDialogProps {
   onEnvVarChange: <K extends keyof CustomEnvVar>(field: K, value: CustomEnvVar[K]) => void;
 }
 
-export const EnvVarDialog: React.FC<EnvVarDialogProps> = ({
+export function EnvVarDialog({
   isOpen,
   isEditing,
   envVar,
@@ -26,7 +26,7 @@ export const EnvVarDialog: React.FC<EnvVarDialogProps> = ({
   onClose,
   onSubmit,
   onEnvVarChange,
-}) => {
+}: EnvVarDialogProps) {
   const [isValueVisible, setIsValueVisible] = useState(false);
 
   return (
@@ -77,4 +77,4 @@ export const EnvVarDialog: React.FC<EnvVarDialogProps> = ({
       </div>
     </BaseModal>
   );
-};
+}

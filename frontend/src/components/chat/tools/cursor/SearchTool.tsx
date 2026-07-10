@@ -8,7 +8,7 @@ import styles from './SearchTool.module.scss';
 
 const ICON_CLASS = styles.icon;
 
-const SearchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const SearchTool = memo(function SearchTool({ tool }: { tool: ToolAggregate }) {
   const result = tool.result as CursorSearchOutput | undefined;
   const title = tool.title?.trim() || 'search';
 
@@ -77,6 +77,4 @@ const SearchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     />
   );
-};
-
-export const SearchTool = memo(SearchToolInner);
+});

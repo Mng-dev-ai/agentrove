@@ -2,30 +2,30 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .refresh-button {
-    @include anim.transition-colors;
-    border-radius: var(--radius-md);
-    padding: var(--space-1);
-    color: var(--theme-text-quaternary);
+  @include anim.transition-colors;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  color: var(--theme-text-quaternary);
 
-    @include responsive.hover {
-        color: var(--theme-text-secondary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
+  }
 
-    &:disabled {
-        cursor: wait;
-        opacity: 0.5;
-    }
+  &:disabled {
+    cursor: wait;
+    opacity: 0.5;
+  }
 }
 
 .icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 
-    &--spin {
-        animation: spin 1s linear infinite;
-    }
+  &--spin {
+    animation: spin 1s linear infinite;
+  }
 }
 
 .tooltip-wrap {
-    display: flex;
+  display: flex;
 }

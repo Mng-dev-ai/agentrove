@@ -1,4 +1,5 @@
-import React, { useMemo, useState, useRef, lazy, Suspense } from 'react';
+import { useMemo, useState, useRef, Suspense } from 'react';
+import { lazyNamed } from '@/utils/lazyNamed';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Bot, Maximize2 } from 'lucide-react';
@@ -13,15 +14,16 @@ import toolText from '../common/toolText.module.scss';
 import toolIcon from './toolIcon.module.scss';
 import styles from './AgentTool.module.scss';
 
-const LazyExpandedModal = lazy(
+const LazyExpandedModal = lazyNamed(
   () => import('@/components/ui/AgentToolExpandedModal/AgentToolExpandedModal'),
+  'AgentToolExpandedModal',
 );
 
 interface AgentToolProps {
   tool: ToolAggregate;
 }
 
-export const AgentTool: React.FC<AgentToolProps> = ({ tool }) => {
+export function AgentTool({ tool }: AgentToolProps) {
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [resultExpanded, setResultExpanded] = useState(false);
   const [toolsExpanded, setToolsExpanded] = useState(false);
@@ -153,4 +155,4 @@ export const AgentTool: React.FC<AgentToolProps> = ({ tool }) => {
       )}
     </>
   );
-};
+}

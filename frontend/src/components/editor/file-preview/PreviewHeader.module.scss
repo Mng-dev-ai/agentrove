@@ -3,37 +3,37 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .preview-header {
-    display: flex;
-    height: var(--space-16);
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--theme-border);
-    background-color: var(--theme-surface-secondary);
-    padding: var(--space-4);
+  display: flex;
+  height: var(--space-16);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--theme-border);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-4);
 }
 
 .title {
-    @include type.type-body(500);
-    color: var(--theme-text-primary);
+  @include type.type-body(500);
+  color: var(--theme-text-primary);
 }
 
 .tooltip-anchor {
-    display: flex;
+  display: flex;
 }
 
 .toggle-button {
-    @include anim.transition-colors;
-    border-radius: var(--radius-lg);
-    padding: var(--space-1-5);
-    color: var(--theme-text-secondary);
+  @include anim.transition-colors;
+  border-radius: var(--radius-lg);
+  padding: var(--space-1-5);
+  color: var(--theme-text-secondary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
 }
 
 .icon {
-    height: var(--space-4);
-    width: var(--space-4);
+  height: var(--space-4);
+  width: var(--space-4);
 }

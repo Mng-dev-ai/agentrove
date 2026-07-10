@@ -1,10 +1,12 @@
-import { memo, lazy, Suspense } from 'react';
+import { lazy, memo, Suspense } from 'react';
 import { GitCompareArrows } from 'lucide-react';
 import { MONACO_FONT_FAMILY } from '@/config/constants';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './DiffContent.module.scss';
 
 const DiffEditor = lazy(() =>
+  // Library module namespace (loader, hooks, components) doesn't fit lazyNamed's
+  // Record<string, ComponentType> bound — keep the manual default remap here.
   import('@monaco-editor/react').then((m) => ({ default: m.DiffEditor })),
 );
 

@@ -2,176 +2,176 @@
 @use '@/styles/globals/typography' as type;
 
 .file-preview-list {
-    position: relative;
+  position: relative;
 }
 
 .list {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-3);
 }
 
 .item {
-    position: relative;
+  position: relative;
 
-    &--compact {
-        height: var(--space-14);
-        width: var(--space-14);
-    }
+  &--compact {
+    height: var(--space-14);
+    width: var(--space-14);
+  }
 
-    &--full {
-        height: var(--space-48);
-        width: var(--space-48);
-    }
+  &--full {
+    height: var(--space-48);
+    width: var(--space-48);
+  }
 }
 
 .thumb {
-    display: block;
-    border-radius: var(--radius-lg);
-    object-fit: cover;
+  display: block;
+  border-radius: var(--radius-lg);
+  object-fit: cover;
 
-    &--compact {
-        height: var(--space-14);
-        width: var(--space-14);
-    }
+  &--compact {
+    height: var(--space-14);
+    width: var(--space-14);
+  }
 
-    &--full {
-        height: var(--space-48);
-        width: var(--space-48);
-    }
+  &--full {
+    height: var(--space-48);
+    width: var(--space-48);
+  }
 }
 
 .placeholder {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-secondary);
 
-    &--compact {
-        height: var(--space-14);
-        width: var(--space-14);
-    }
+  &--compact {
+    height: var(--space-14);
+    width: var(--space-14);
+  }
 
-    &--full {
-        height: var(--space-48);
-        width: var(--space-48);
-    }
+  &--full {
+    height: var(--space-48);
+    width: var(--space-48);
+  }
 
-    &--bordered {
-        border: 1px solid var(--theme-border);
-    }
+  &--bordered {
+    border: 1px solid var(--theme-border);
+  }
 }
 
 .placeholder-icon {
-    &--pdf {
-        color: colors.status-color('error', 500);
-    }
+  &--pdf {
+    color: colors.status-color('error', 500);
+  }
 
-    &--xlsx {
-        color: colors.status-color('success', 600);
-    }
+  &--xlsx {
+    color: colors.status-color('success', 600);
+  }
 
-    &--compact {
-        height: var(--space-6);
-        width: var(--space-6);
-        margin-bottom: var(--space-1);
-    }
+  &--compact {
+    height: var(--space-6);
+    width: var(--space-6);
+    margin-bottom: var(--space-1);
+  }
 
-    &--full {
-        height: var(--space-14);
-        width: var(--space-14);
-        margin-bottom: var(--space-3);
-    }
+  &--full {
+    height: var(--space-14);
+    width: var(--space-14);
+    margin-bottom: var(--space-3);
+  }
 }
 
 .placeholder-name {
-    @include type.type-body;
-    @include type.type-overflow;
-    max-width: 100%;
-    padding-inline: var(--space-4);
-    text-align: center;
-    color: var(--theme-text-secondary);
+  @include type.type-body;
+  @include type.type-overflow;
+  max-width: 100%;
+  padding-inline: var(--space-4);
+  text-align: center;
+  color: var(--theme-text-secondary);
 }
 
 .badge {
-    border-radius: var(--radius-full);
-    background-color: var(--theme-surface-active);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-surface-active);
 
-    &--compact {
-        margin-top: var(--space-1);
-        padding: var(--space-0-5) var(--space-2);
+  &--compact {
+    margin-top: var(--space-1);
+    padding: var(--space-0-5) var(--space-2);
+  }
+
+  &--full {
+    margin-top: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+  }
+
+  &--success {
+    background-color: colors.status-color('success', 100);
+
+    :global([data-theme='dark']) & {
+      background-color: colors.status-color('success', 900, 0.3);
     }
-
-    &--full {
-        margin-top: var(--space-2);
-        padding: var(--space-1) var(--space-3);
-    }
-
-    &--success {
-        background-color: colors.status-color('success', 100);
-
-        :global([data-theme='dark']) & {
-            background-color: colors.status-color('success', 900, 0.3);
-        }
-    }
+  }
 }
 
 .badge-text {
-    color: var(--theme-text-secondary);
+  color: var(--theme-text-secondary);
 
-    &--compact {
-        @include type.type-meta;
-    }
+  &--compact {
+    @include type.type-meta;
+  }
 
-    &--full {
-        @include type.type-default;
-    }
+  &--full {
+    @include type.type-default;
+  }
 
-    &--success {
-        color: var(--theme-success-text);
-    }
+  &--success {
+    color: var(--theme-success-text);
+  }
 }
 
 .actions {
-    position: absolute;
-    right: 0;
-    top: 0;
-    margin: var(--space-1);
-    display: flex;
-    gap: var(--space-1);
+  position: absolute;
+  right: 0;
+  top: 0;
+  margin: var(--space-1);
+  display: flex;
+  gap: var(--space-1);
 }
 
 .action-btn {
-    border-radius: var(--radius-full);
-    background-color: rgb(0 0 0 / 0.7);
-    color: white;
-    opacity: 0;
-    transition: opacity var(--duration-base);
+  border-radius: var(--radius-full);
+  background-color: rgb(0 0 0 / 0.7);
+  color: white;
+  opacity: 0;
+  transition: opacity var(--duration-base);
 
-    &--compact {
-        padding: var(--space-1);
-    }
+  &--compact {
+    padding: var(--space-1);
+  }
 
-    &--full {
-        padding: var(--space-1-5);
-    }
+  &--full {
+    padding: var(--space-1-5);
+  }
 
-    .item:hover & {
-        opacity: 1;
-    }
+  .item:hover & {
+    opacity: 1;
+  }
 }
 
 .action-icon {
-    &--compact {
-        height: var(--space-3);
-        width: var(--space-3);
-    }
+  &--compact {
+    height: var(--space-3);
+    width: var(--space-3);
+  }
 
-    &--full {
-        height: var(--space-3-5);
-        width: var(--space-3-5);
-    }
+  &--full {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+  }
 }

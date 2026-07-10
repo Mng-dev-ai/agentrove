@@ -23,7 +23,7 @@ interface AttachmentViewerProps {
 
 const DEFAULT_IMAGE_STATE: ImageState = { isLoading: true, error: false, imageSrc: '' };
 
-function AttachmentViewerInner({
+export const AttachmentViewer = memo(function AttachmentViewer({
   attachments,
   uploadingAttachmentIds,
   chatId,
@@ -207,6 +207,4 @@ function AttachmentViewerInner({
       />
     </>
   );
-}
-
-export const AttachmentViewer = memo(AttachmentViewerInner);
+});

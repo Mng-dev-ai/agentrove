@@ -2,41 +2,41 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .tooltip-wrap {
-    display: flex;
+  display: flex;
 }
 
 .enhance-button {
-    @include anim.transition-colors;
-    padding: var(--space-1-5);
-    border-radius: var(--radius-full);
+  @include anim.transition-colors;
+  padding: var(--space-1-5);
+  border-radius: var(--radius-full);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-secondary);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
     color: var(--theme-text-tertiary);
+  }
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-secondary);
-    }
-
-    &:active {
-        transform: scale(0.95);
-    }
-
-    &:disabled {
-        cursor: not-allowed;
-        opacity: 0.5;
-        color: var(--theme-text-tertiary);
-    }
-
-    // Dark theme brightens the hover text one step further (matches the old dark: pair)
-    :global([data-theme='dark']) &:hover {
-        color: var(--theme-text-primary);
-    }
+  // Dark theme brightens the hover text one step further (matches the old dark: pair)
+  :global([data-theme='dark']) &:hover {
+    color: var(--theme-text-primary);
+  }
 }
 
 .icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 
-    &--spinning {
-        animation: spin 1s linear infinite;
-    }
+  &--spinning {
+    animation: spin 1s linear infinite;
+  }
 }

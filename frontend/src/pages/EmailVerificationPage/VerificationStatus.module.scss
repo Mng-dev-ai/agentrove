@@ -3,139 +3,139 @@
 @use '@/styles/globals/zlayer' as z;
 
 .page {
-    display: flex;
-    height: 100%;
-    flex-direction: column;
-    background-color: var(--theme-surface-secondary);
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  background-color: var(--theme-surface-secondary);
 }
 
 .container {
-    display: flex;
-    flex: 1;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-4);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
 }
 
 .content {
-    @include z.z('raised');
-    position: relative;
-    width: 100%;
-    max-width: var(--space-96);
+  @include z.z('raised');
+  position: relative;
+  width: 100%;
+  max-width: var(--space-96);
 
-    > * + * {
-        margin-top: var(--space-5);
-    }
+  > * + * {
+    margin-top: var(--space-5);
+  }
 }
 
 .icon-row {
-    display: flex;
-    justify-content: center;
+  display: flex;
+  justify-content: center;
 }
 
 .status-icon {
-    height: var(--space-6);
-    width: var(--space-6);
+  height: var(--space-6);
+  width: var(--space-6);
 }
 
 .status-icon--error {
-    color: colors.status-color('error', 500);
+  color: colors.status-color('error', 500);
 
-    :global([data-theme='dark']) & {
-        color: colors.status-color('error', 400);
-    }
+  :global([data-theme='dark']) & {
+    color: colors.status-color('error', 400);
+  }
 }
 
 .status-icon--primary {
-    color: var(--theme-text-primary);
+  color: var(--theme-text-primary);
 }
 
 .status-icon--tertiary {
-    color: var(--theme-text-tertiary);
+  color: var(--theme-text-tertiary);
 }
 
 .status-icon--spinning {
-    height: var(--space-5);
-    width: var(--space-5);
-    color: var(--theme-text-tertiary);
-    animation: spin 1s linear infinite;
+  height: var(--space-5);
+  width: var(--space-5);
+  color: var(--theme-text-tertiary);
+  animation: spin 1s linear infinite;
 }
 
 .card {
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-xl);
-    background-color: var(--theme-surface-tertiary);
-    padding: var(--space-6);
-    box-shadow: var(--shadow-medium);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-xl);
+  background-color: var(--theme-surface-tertiary);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-medium);
 }
 
 .card-header {
-    margin-bottom: var(--space-5);
-    text-align: center;
+  margin-bottom: var(--space-5);
+  text-align: center;
 
-    > * + * {
-        margin-top: var(--space-1-5);
-    }
+  > * + * {
+    margin-top: var(--space-1-5);
+  }
 }
 
 .heading {
-    @include type.type-title(600);
+  @include type.type-title(600);
 }
 
 .heading--error {
-    color: var(--theme-error-text);
+  color: var(--theme-error-text);
 }
 
 .heading--primary {
-    color: var(--theme-text-primary);
+  color: var(--theme-text-primary);
 }
 
 .subtext {
-    @include type.type-default;
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  color: var(--theme-text-tertiary);
 }
 
 .info-box {
-    margin-bottom: var(--space-5);
-    border: 1px solid colors.theme-color('border', 0.5);
-    border-radius: var(--radius-lg);
-    background-color: colors.theme-color('surface-hover', 0.5);
-    padding: var(--space-3);
+  margin-bottom: var(--space-5);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-lg);
+  background-color: colors.theme-color('surface-hover', 0.5);
+  padding: var(--space-3);
 }
 
 .info-text {
-    @include type.type-default;
-    color: var(--theme-text-secondary);
+  @include type.type-default;
+  color: var(--theme-text-secondary);
 }
 
 .actions {
-    > * + * {
-        margin-top: var(--space-3);
-    }
+  > * + * {
+    margin-top: var(--space-3);
+  }
 }
 
 .full-width {
-    width: 100%;
+  width: 100%;
 }
 
 .footer {
-    @include type.type-meta;
-    text-align: center;
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  text-align: center;
+  color: var(--theme-text-quaternary);
 
-    > * + * {
-        margin-top: var(--space-0-5);
-    }
+  > * + * {
+    margin-top: var(--space-0-5);
+  }
 }
 
 .icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }
 
 .spinner-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    animation: spin 1s linear infinite;
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  animation: spin 1s linear infinite;
 }

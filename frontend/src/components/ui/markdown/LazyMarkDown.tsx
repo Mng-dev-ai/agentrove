@@ -1,8 +1,9 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import clsx from 'clsx';
+import { lazyNamed } from '@/utils/lazyNamed';
 import styles from './LazyMarkDown.module.scss';
 
-const MarkDown = lazy(() => import('./MarkDown'));
+const MarkDown = lazyNamed(() => import('./MarkDown'), 'MarkDown');
 
 interface LazyMarkDownProps {
   content: string;

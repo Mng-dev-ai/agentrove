@@ -1,19 +1,19 @@
 @use '@/styles/globals/typography' as type;
 
 .details {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
 }
 
 .key {
-    @include type.type-meta;
-    color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  color: var(--theme-text-quaternary);
 }
 
 .value {
-    white-space: pre-wrap;
-    word-break: break-all;
-    @include type.type-mono-meta;
-    color: var(--theme-text-tertiary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  @include type.type-mono-meta;
+  color: var(--theme-text-tertiary);
 }

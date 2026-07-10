@@ -2,21 +2,21 @@
 @use '@/styles/globals/typography' as type;
 
 .error-boundary {
-    border-radius: var(--radius-lg);
-    background-color: colors.status-color('error', 50);
-    padding: var(--space-4);
-    color: var(--theme-error-text);
+  border-radius: var(--radius-lg);
+  background-color: colors.status-color('error', 50);
+  padding: var(--space-4);
+  color: var(--theme-error-text);
 
-    :global([data-theme='dark']) & {
-        background-color: colors.status-color('error', 900, 0.2);
-    }
+  :global([data-theme='dark']) & {
+    background-color: colors.status-color('error', 900, 0.2);
+  }
 }
 
 .title {
-    margin-bottom: var(--space-2);
-    font-weight: 500;
+  margin-bottom: var(--space-2);
+  font-weight: 500;
 }
 
 .message {
-    @include type.type-body;
+  @include type.type-body;
 }

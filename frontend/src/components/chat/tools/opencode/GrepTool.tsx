@@ -9,7 +9,7 @@ import type { OpencodeGrepInput, OpencodeGrepMetadata, OpencodeOutput } from './
 
 const ICON = <FileSearch className={toolIcon.icon} />;
 
-const GrepToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const GrepTool = memo(function GrepTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeGrepInput | undefined;
   const result = tool.result as OpencodeOutput | undefined;
   const metadata = result?.metadata as OpencodeGrepMetadata | undefined;
@@ -44,6 +44,4 @@ const GrepToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const GrepTool = memo(GrepToolInner);
+});

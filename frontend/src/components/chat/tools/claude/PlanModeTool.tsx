@@ -21,26 +21,31 @@ interface AllowedPrompt {
   prompt: string;
 }
 
-const EnterPlanModeInner: React.FC<PlanModeToolProps> = ({ tool }) => (
-  <ToolCard
-    icon={<Map className={toolIcon.icon} />}
-    status={tool.status}
-    title={(status) => {
-      switch (status) {
-        case 'completed':
-          return 'Entered plan mode';
-        case 'failed':
-          return 'Failed to enter plan mode';
-        default:
-          return 'Entering plan mode';
-      }
-    }}
-    loadingContent="Entering plan mode…"
-    error={tool.error}
-  />
-);
+export const EnterPlanModeTool = memo(function EnterPlanModeTool({ tool }: PlanModeToolProps) {
+  return (
+    <ToolCard
+      icon={<Map className={toolIcon.icon} />}
+      status={tool.status}
+      title={(status) => {
+        switch (status) {
+          case 'completed':
+            return 'Entered plan mode';
+          case 'failed':
+            return 'Failed to enter plan mode';
+          default:
+            return 'Entering plan mode';
+        }
+      }}
+      loadingContent="Entering plan mode…"
+      error={tool.error}
+    />
+  );
+});
 
-const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
+export const ExitPlanModeTool = memo(function ExitPlanModeTool({
+  tool,
+  chatId,
+}: PlanModeToolProps) {
   const { pendingRequest, isLoading, error, handleApprove, handleReject } = useExitPlanMode(chatId);
 
   const planContent = tool.input?.plan as string | undefined;
@@ -152,7 +157,4 @@ const ExitPlanModeInner: React.FC<PlanModeToolProps> = ({ tool, chatId }) => {
       )}
     </ToolCard>
   );
-};
-
-export const EnterPlanModeTool = memo(EnterPlanModeInner);
-export const ExitPlanModeTool = memo(ExitPlanModeInner);
+});

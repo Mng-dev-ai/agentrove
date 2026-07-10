@@ -1,22 +1,22 @@
 @use '@/styles/globals/typography' as type;
 
 .item-header {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin-bottom: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
 }
 
 .item-key {
-    @include type.type-mono(0.75rem, 1rem, 500);
-    @include type.type-overflow;
-    min-width: 0;
-    max-width: 100%;
-    color: var(--theme-text-primary);
+  @include type.type-mono(0.75rem, 1rem, 500);
+  @include type.type-overflow;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--theme-text-primary);
 }
 
 .item-value {
-    @include type.type-mono-meta;
-    word-break: break-all;
-    color: var(--theme-text-quaternary);
+  @include type.type-mono-meta;
+  word-break: break-all;
+  color: var(--theme-text-quaternary);
 }

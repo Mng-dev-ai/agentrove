@@ -13,7 +13,7 @@ import type { CopilotReadInput, CopilotToolOutput } from './copilotPayload';
 // content and we fall back to the array index in NumberedContent.
 const LINE_NUMBER_PREFIX = /^(\d+)\.\s?/;
 
-const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as CopilotReadInput | undefined;
   const result = tool.result as CopilotToolOutput | undefined;
 
@@ -68,6 +68,4 @@ const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const ReadTool = memo(ReadToolInner);
+});

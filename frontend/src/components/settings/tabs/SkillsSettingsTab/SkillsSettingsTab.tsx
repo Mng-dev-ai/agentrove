@@ -22,14 +22,16 @@ interface EmptyStateProps {
 // (via availableSources' useMemo) into an infinite loop while the query is in flight.
 const EMPTY_SKILLS: CustomSkill[] = [];
 
-const EmptyState: React.FC<EmptyStateProps> = ({ icon: Icon, message }) => (
-  <div className={styles.empty}>
-    <Icon className={styles['empty-icon']} />
-    <p className={styles['empty-text']}>{message}</p>
-  </div>
-);
+function EmptyState({ icon: Icon, message }: EmptyStateProps) {
+  return (
+    <div className={styles.empty}>
+      <Icon className={styles['empty-icon']} />
+      <p className={styles['empty-text']}>{message}</p>
+    </div>
+  );
+}
 
-export const SkillsSettingsTab: React.FC = () => {
+export function SkillsSettingsTab() {
   const workspaces = useWorkspacesList();
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>();
   // Skills are per-workspace, so default to the first workspace until the user
@@ -164,4 +166,4 @@ export const SkillsSettingsTab: React.FC = () => {
       )}
     </div>
   );
-};
+}

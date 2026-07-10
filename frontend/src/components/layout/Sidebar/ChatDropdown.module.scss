@@ -5,60 +5,60 @@
 @use '@/styles/globals/zlayer' as z;
 
 .chat-dropdown {
-    @include z.z('dropdown');
-    position: fixed;
-    width: var(--space-32);
-    overflow: hidden;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-lg);
-    background-color: var(--theme-surface);
-    box-shadow: var(--shadow-medium);
+  @include z.z('dropdown');
+  position: fixed;
+  width: var(--space-32);
+  overflow: hidden;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface);
+  box-shadow: var(--shadow-medium);
 
-    &:focus {
-        outline: none;
-    }
+  &:focus {
+    outline: none;
+  }
 }
 
 .menu-item {
-    @include type.type-default;
-    @include anim.transition-colors;
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    text-align: left;
-    color: var(--theme-text-primary);
+  @include type.type-default;
+  @include anim.transition-colors;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  color: var(--theme-text-primary);
 
-    @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
 }
 
 .menu-item-delete {
-    @include type.type-default;
-    @include anim.transition-colors;
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    text-align: left;
-    color: var(--theme-error-text);
+  @include type.type-default;
+  @include anim.transition-colors;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  color: var(--theme-error-text);
 
+  @include responsive.hover {
+    background-color: colors.status-color('error', 50);
+  }
+
+  // Dark mode tints with a translucent deep-red instead of the pale light-mode wash
+  :global([data-theme='dark']) & {
     @include responsive.hover {
-        background-color: colors.status-color('error', 50);
+      background-color: colors.status-color('error', 900, 0.2);
     }
-
-    // Dark mode tints with a translucent deep-red instead of the pale light-mode wash
-    :global([data-theme='dark']) & {
-        @include responsive.hover {
-            background-color: colors.status-color('error', 900, 0.2);
-        }
-    }
+  }
 }
 
 .icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 }

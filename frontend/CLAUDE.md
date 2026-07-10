@@ -6,6 +6,15 @@
 
 - React 19 — use `use()` instead of `useContext()`; pass `ref` as a regular prop instead of `forwardRef`
 
+### Component Declaration Style
+
+- Components are function declarations with props destructured in the signature: `export function Name({ a, b }: NameProps) {}` — never arrow-const components
+- Never `React.FC`/`FC` — type props via the signature (ESLint-enforced)
+- Props typed as `interface NameProps`; export the interface only when another module imports it
+- `memo` inline form only: `export const Name = memo(function Name(props: NameProps) {...})`
+- Named exports only (`App.tsx` is the sole default-export exception); lazy-load named exports via `lazyNamed()` from `@/utils/lazyNamed`
+- Files stay under ~400 lines — split into co-located sibling components or focused hooks/modules before crossing it
+
 ### UI Primitives
 
 - Never use raw HTML interactive elements (`<button>`, `<input>`, `<select>`, `<a>`) when a primitive exists in `components/ui/primitives/` — use `Button`, `Input`, etc.; for fully custom styling use `variant="unstyled"` (keeps focus-visible and disabled styles); don't duplicate those built-in styles in `className`
@@ -159,7 +168,7 @@ Tailwind has been removed.
 - Radius/shadows: `var(--radius-md/lg/xl/2xl)` and `var(--shadow-sm/medium/strong)` only — md for small controls, lg for standard containers, xl for prominent cards/dropdowns, 2xl for overlays
 - z-index: only `@include z.z('layer')` from `_zlayer.scss` — never bare values
 - Breakpoints/hover: only `media()` / `hover()` / `active()` mixins from `_responsive.scss` — never raw `@media` or bare `&:hover`
-- JS-driven states: `stateClasses` from `@/constants/stateClasses` + `&:global(.#{state.$state-*})`; prefer styling semantic hooks (`aria-selected`, `data-state`, `:disabled`) when the DOM already has them
+- JS-driven states: `stateClasses` from `@/config/stateClasses` + `&:global(.#{state.$state-*})`; prefer styling semantic hooks (`aria-selected`, `data-state`, `:disabled`) when the DOM already has them
 - Focus rings: `@include controls.focus-ring;` — monochrome, never brand-colored
 
 ### Icons

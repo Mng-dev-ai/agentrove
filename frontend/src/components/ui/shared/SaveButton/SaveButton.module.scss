@@ -3,36 +3,36 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .save-button {
-    @include type.type-meta(500);
-    @include anim.transition-colors;
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    border-radius: var(--radius-md);
-    padding: var(--space-0-5) var(--space-2);
-    color: var(--theme-text-secondary);
+  @include type.type-meta(500);
+  @include anim.transition-colors;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-2);
+  color: var(--theme-text-secondary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+
+  &--saving {
+    cursor: not-allowed;
+    color: var(--theme-text-quaternary);
 
     @include responsive.hover {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-primary);
+      background-color: transparent;
+      color: var(--theme-text-quaternary);
     }
-
-    &--saving {
-        cursor: not-allowed;
-        color: var(--theme-text-quaternary);
-
-        @include responsive.hover {
-            background-color: transparent;
-            color: var(--theme-text-quaternary);
-        }
-    }
+  }
 }
 
 .icon {
-    height: var(--space-3);
-    width: var(--space-3);
+  height: var(--space-3);
+  width: var(--space-3);
 
-    &--spin {
-        animation: spin 1s linear infinite;
-    }
+  &--spin {
+    animation: spin 1s linear infinite;
+  }
 }

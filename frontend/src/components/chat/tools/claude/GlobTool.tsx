@@ -16,7 +16,7 @@ const parseResult = (result: unknown): string[] => {
   return [];
 };
 
-const GlobToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const GlobTool = memo(function GlobTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as GlobInput | undefined;
   const pattern = input?.pattern ?? '*';
   const path = input?.path;
@@ -52,6 +52,4 @@ const GlobToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const GlobTool = memo(GlobToolInner);
+});

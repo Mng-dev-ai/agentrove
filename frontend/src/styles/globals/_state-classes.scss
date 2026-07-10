@@ -1,4 +1,4 @@
-// Shared state class names, mirrored 1:1 in TS at src/constants/stateClasses.ts.
+// Shared state class names, mirrored 1:1 in TS at src/config/stateClasses.ts.
 // SCSS usage:  &:global(.#{state.$state-active}) { ... }
 // TSX usage:   clsx(styles['x'], isActive && stateClasses.ACTIVE)
 // Never hardcode 'is-*' strings on either side.

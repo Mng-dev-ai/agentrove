@@ -3,138 +3,138 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .list-management-tab {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 .header-row {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-3);
-    margin-bottom: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
 
-    @include responsive.media('sm-up') {
-        flex-direction: row;
-        align-items: center;
-        justify-content: space-between;
-        gap: var(--space-4);
-    }
+  @include responsive.media('sm-up') {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
 }
 
 .title {
-    @include type.type-body(500);
-    color: var(--theme-text-primary);
+  @include type.type-body(500);
+  color: var(--theme-text-primary);
 }
 
 .description {
-    @include type.type-default;
-    margin-top: var(--space-1);
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  margin-top: var(--space-1);
+  color: var(--theme-text-tertiary);
 }
 
 .add-btn {
-    width: 100%;
-    flex-shrink: 0;
+  width: 100%;
+  flex-shrink: 0;
 
-    @include responsive.media('sm-up') {
-        width: auto;
-    }
+  @include responsive.media('sm-up') {
+    width: auto;
+  }
 }
 
 .add-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }
 
 .loading {
-    @include anim.fade-in;
-    display: flex;
-    justify-content: center;
-    border: 1px dashed var(--theme-border);
-    border-radius: var(--radius-xl);
-    padding-block: var(--space-10);
-    opacity: 0;
+  @include anim.fade-in;
+  display: flex;
+  justify-content: center;
+  border: 1px dashed var(--theme-border);
+  border-radius: var(--radius-xl);
+  padding-block: var(--space-10);
+  opacity: 0;
 }
 
 .loading-icon {
-    height: var(--space-4);
-    width: var(--space-4);
-    color: var(--theme-text-quaternary);
-    animation: spin 1s linear infinite;
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-quaternary);
+  animation: spin 1s linear infinite;
 }
 
 .empty {
-    border: 1px dashed var(--theme-border);
-    border-radius: var(--radius-xl);
-    padding-block: var(--space-10);
-    text-align: center;
+  border: 1px dashed var(--theme-border);
+  border-radius: var(--radius-xl);
+  padding-block: var(--space-10);
+  text-align: center;
 }
 
 .empty-icon {
-    margin-inline: auto;
-    margin-bottom: var(--space-3);
-    height: var(--space-5);
-    width: var(--space-5);
-    color: var(--theme-text-quaternary);
+  margin-inline: auto;
+  margin-bottom: var(--space-3);
+  height: var(--space-5);
+  width: var(--space-5);
+  color: var(--theme-text-quaternary);
 }
 
 .empty-text {
-    @include type.type-default;
-    margin-bottom: var(--space-3);
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  margin-bottom: var(--space-3);
+  color: var(--theme-text-tertiary);
 }
 
 .items {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .card {
-    @include anim.transition-colors;
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-xl);
-    padding: var(--space-4);
+  @include anim.transition-colors;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
 
-    @include responsive.hover {
-        border-color: var(--theme-border-hover);
-    }
+  @include responsive.hover {
+    border-color: var(--theme-border-hover);
+  }
 }
 
 .card-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
 }
 
 .card-content {
-    min-width: 0;
-    flex: 1;
+  min-width: 0;
+  flex: 1;
 }
 
 .card-actions {
-    display: flex;
-    align-items: center;
-    gap: var(--space-0-5);
-    margin-left: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  margin-left: var(--space-3);
 }
 
 .action-btn {
-    height: var(--space-7);
-    width: var(--space-7);
-    color: var(--theme-text-quaternary);
+  height: var(--space-7);
+  width: var(--space-7);
+  color: var(--theme-text-quaternary);
 
-    @include responsive.hover {
-        color: var(--theme-text-secondary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
+  }
 }
 
 .action-icon {
-    height: var(--space-3-5);
-    width: var(--space-3-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }
 
 .spin {
-    animation: spin 1s linear infinite;
+  animation: spin 1s linear infinite;
 }

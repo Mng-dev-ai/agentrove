@@ -12,7 +12,7 @@ interface WebFetchInput {
   prompt: string;
 }
 
-const WebFetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const WebFetchTool = memo(function WebFetchTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as WebFetchInput | undefined;
   const url = input?.url ?? '';
   const prompt = input?.prompt ?? '';
@@ -46,6 +46,4 @@ const WebFetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const WebFetchTool = memo(WebFetchToolInner);
+});

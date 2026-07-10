@@ -4,102 +4,102 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .nav {
-    display: none;
-    width: var(--space-72);
-    flex-shrink: 0;
-    flex-direction: column;
-    border-right: 1px solid var(--theme-border);
-    background-color: var(--theme-surface-secondary);
+  display: none;
+  width: var(--space-72);
+  flex-shrink: 0;
+  flex-direction: column;
+  border-right: 1px solid var(--theme-border);
+  background-color: var(--theme-surface-secondary);
 
-    @include responsive.media('md-up') {
-        display: flex;
-    }
+  @include responsive.media('md-up') {
+    display: flex;
+  }
 }
 
 .header {
-    border-bottom: 1px solid var(--theme-border);
-    padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--theme-border);
+  padding: var(--space-4) var(--space-5);
 }
 
 .back {
-    @include type.type-default;
-    @include anim.transition-colors;
-    display: flex;
-    align-items: center;
-    gap: var(--space-1-5);
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  @include anim.transition-colors;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  color: var(--theme-text-tertiary);
 
-    @include responsive.hover {
-        color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
 }
 
 .back-icon {
-    height: var(--space-3);
-    width: var(--space-3);
-    transition: transform var(--duration-base);
+  height: var(--space-3);
+  width: var(--space-3);
+  transition: transform var(--duration-base);
 
-    // group-hover:-translate-x-0.5 — nudge the chevron when the Back button is hovered
-    .back:hover & {
-        transform: translateX(-2px);
-    }
+  // group-hover:-translate-x-0.5 — nudge the chevron when the Back button is hovered
+  .back:hover & {
+    transform: translateX(-2px);
+  }
 }
 
 .title {
-    @include type.type-body(600);
-    margin-top: var(--space-3);
-    color: var(--theme-text-primary);
+  @include type.type-body(600);
+  margin-top: var(--space-3);
+  color: var(--theme-text-primary);
 }
 
 .list {
-    flex: 1;
-    overflow-y: auto;
-    padding: var(--space-3);
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-3);
 
-    > * + * {
-        margin-top: 1px;
-    }
+  > * + * {
+    margin-top: 1px;
+  }
 }
 
 .item {
-    @include type.type-default;
-    @include anim.transition-colors;
-    display: flex;
-    width: 100%;
-    align-items: center;
-    gap: var(--space-2-5);
-    border-radius: var(--radius-lg);
-    padding: var(--space-1-5) var(--space-2-5);
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  @include anim.transition-colors;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-2-5);
+  border-radius: var(--radius-lg);
+  padding: var(--space-1-5) var(--space-2-5);
+  color: var(--theme-text-tertiary);
 
-    &:not([aria-selected='true']) {
-        @include responsive.hover {
-            background-color: colors.theme-color('surface-hover', 0.5);
-            color: var(--theme-text-secondary);
-        }
+  &:not([aria-selected='true']) {
+    @include responsive.hover {
+      background-color: colors.theme-color('surface-hover', 0.5);
+      color: var(--theme-text-secondary);
     }
+  }
 
-    &[aria-selected='true'] {
-        background-color: var(--theme-surface-hover);
-        color: var(--theme-text-primary);
-        font-weight: 500;
-    }
+  &[aria-selected='true'] {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+    font-weight: 500;
+  }
 }
 
 .item-icon {
-    @include anim.transition-colors;
-    height: var(--space-3-5);
-    width: var(--space-3-5);
-    flex-shrink: 0;
-    color: var(--theme-text-quaternary);
+  @include anim.transition-colors;
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  flex-shrink: 0;
+  color: var(--theme-text-quaternary);
 
-    .item[aria-selected='true'] & {
-        color: var(--theme-text-secondary);
-    }
+  .item[aria-selected='true'] & {
+    color: var(--theme-text-secondary);
+  }
 }
 
 .footer {
-    flex-shrink: 0;
-    border-top: 1px solid colors.theme-color('border', 0.5);
-    padding: var(--space-2-5) var(--space-4);
+  flex-shrink: 0;
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-2-5) var(--space-4);
 }

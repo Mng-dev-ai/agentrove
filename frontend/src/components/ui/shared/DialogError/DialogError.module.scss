@@ -1,16 +1,16 @@
 @use '@/styles/globals/typography' as type;
 
 .dialog-error {
-    padding: var(--space-2) var(--space-5);
+  padding: var(--space-2) var(--space-5);
 }
 
 .box {
-    border: 1px solid var(--theme-border);
-    border-radius: var(--radius-xl);
-    padding: var(--space-3);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-3);
 }
 
 .text {
-    @include type.type-default;
-    color: var(--theme-text-secondary);
+  @include type.type-default;
+  color: var(--theme-text-secondary);
 }

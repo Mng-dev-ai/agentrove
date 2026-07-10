@@ -1,29 +1,29 @@
 @use '@/styles/globals/typography' as type;
 
 .instructions {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 .title {
-    @include type.type-body(500);
-    color: var(--theme-text-primary);
+  @include type.type-body(500);
+  color: var(--theme-text-primary);
 }
 
 .description {
-    @include type.type-default;
-    margin-top: var(--space-1);
-    color: var(--theme-text-tertiary);
+  @include type.type-default;
+  margin-top: var(--space-1);
+  color: var(--theme-text-tertiary);
 }
 
 .label {
-    @include type.type-default;
-    display: block;
-    margin-bottom: var(--space-2);
-    color: var(--theme-text-secondary);
+  @include type.type-default;
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--theme-text-secondary);
 }
 
 .textarea {
-    min-height: var(--space-32);
+  min-height: var(--space-32);
 }
