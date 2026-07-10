@@ -8,7 +8,7 @@ import styles from './QuestionTool.module.scss';
 
 const ICON = <HelpCircle className={toolIcon.icon} />;
 
-const QuestionToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const QuestionTool = memo(function QuestionTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeQuestionInput | undefined;
   const result = tool.result as OpencodeQuestionOutput | undefined;
 
@@ -53,6 +53,4 @@ const QuestionToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const QuestionTool = memo(QuestionToolInner);
+});

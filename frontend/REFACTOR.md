@@ -66,6 +66,22 @@ Import what you need per module with the standard namespaces:
   Pass `className` down when a parent needs to position a child.
 - Keep every component's public prop API unchanged unless the task says otherwise.
 
+## TypeScript component style
+
+- Components are **function declarations**, props destructured in the signature:
+  `export function Name({ a, b }: NameProps) { ... }` (unexported when file-local).
+- **Never `React.FC` / `FC`** — type props via the signature (enforced by ESLint
+  `no-restricted-syntax` / `no-restricted-imports`).
+- Props are `interface NameProps` named 1:1 with the component; export the interface
+  only when another module needs it.
+- `memo` inline form only: `export const Name = memo(function Name(props: NameProps) { ... });`
+  — never the two-step `NameInner` + `memo(NameInner)`.
+- **Named exports only** (sole exception: `App.tsx`, imported as default by `main.tsx`).
+  Lazy-loading a named export goes through `lazyNamed()` from `@/utils/lazyNamed` — never
+  a `.then((m) => ({ default: m.X }))` remap or a default export added for `lazy()`.
+- Files stay under ~400 lines — split along natural seams into co-located siblings
+  (components) or focused modules/hooks (logic) before crossing the ceiling.
+
 ## SCSS rules
 
 - **Colors**: only `var(--theme-*)` / `theme-color()` / `status-color()` / `--theme-<status>-text`.

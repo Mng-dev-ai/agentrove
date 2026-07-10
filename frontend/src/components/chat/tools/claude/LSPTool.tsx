@@ -25,7 +25,7 @@ interface LSPInput {
   character?: number;
 }
 
-const LSPToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const LSPTool = memo(function LSPTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as LSPInput | undefined;
   const operation = input?.operation;
   const filePath = input?.filePath ?? '';
@@ -69,6 +69,4 @@ const LSPToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const LSPTool = memo(LSPToolInner);
+});

@@ -23,7 +23,7 @@ interface ImagePreviewModalProps {
   onDownload: (url: string, filename: string) => void;
 }
 
-function ImagePreviewModalInner({
+export const ImagePreviewModal = memo(function ImagePreviewModal({
   isOpen,
   onClose,
   attachments,
@@ -123,6 +123,4 @@ function ImagePreviewModalInner({
       </div>
     </BaseModal>
   );
-}
-
-export const ImagePreviewModal = memo(ImagePreviewModalInner);
+});

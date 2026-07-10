@@ -34,7 +34,7 @@ const buildSearchLabel = (input: ShellLikeInput | undefined): string => {
   return 'files';
 };
 
-const SearchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const SearchTool = memo(function SearchTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as ShellLikeInput | undefined;
   const result = tool.result as ShellLikeOutput | undefined;
   const searchLabel = buildSearchLabel(input);
@@ -71,6 +71,4 @@ const SearchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const SearchTool = memo(SearchToolInner);
+});

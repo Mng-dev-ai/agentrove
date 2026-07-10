@@ -160,7 +160,7 @@ function buildFrameHtml(code: string, isDark: boolean, theme: Theme): string {
   return `<html style="color-scheme:${colorScheme}"><head><style>${themeCSS}\n${override}\n${BASE_CLASSES}\n${rampClasses}</style></head><body>${code}${HEIGHT_REPORTER}</body></html>`;
 }
 
-function VisualWidgetInner({ code }: VisualWidgetProps) {
+export const VisualWidget = memo(function VisualWidget({ code }: VisualWidgetProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [iframeHeight, setIframeHeight] = useState(INITIAL_IFRAME_HEIGHT);
   const [isFrameLoaded, setIsFrameLoaded] = useState(false);
@@ -211,6 +211,4 @@ function VisualWidgetInner({ code }: VisualWidgetProps) {
       />
     </div>
   );
-}
-
-export const VisualWidget = memo(VisualWidgetInner);
+});

@@ -9,20 +9,23 @@ interface MessageAttachmentsProps {
   chatId?: string;
 }
 
-export const MessageAttachments = memo(
-  ({ attachments, uploadingAttachmentIds, className = '', chatId }: MessageAttachmentsProps) => {
-    if (attachments.length === 0) {
-      return null;
-    }
+export const MessageAttachments = memo(function MessageAttachments({
+  attachments,
+  uploadingAttachmentIds,
+  className = '',
+  chatId,
+}: MessageAttachmentsProps) {
+  if (attachments.length === 0) {
+    return null;
+  }
 
-    return (
-      <div className={className}>
-        <AttachmentViewer
-          attachments={attachments}
-          uploadingAttachmentIds={uploadingAttachmentIds}
-          chatId={chatId}
-        />
-      </div>
-    );
-  },
-);
+  return (
+    <div className={className}>
+      <AttachmentViewer
+        attachments={attachments}
+        uploadingAttachmentIds={uploadingAttachmentIds}
+        chatId={chatId}
+      />
+    </div>
+  );
+});

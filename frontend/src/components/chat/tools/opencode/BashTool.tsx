@@ -9,7 +9,7 @@ import styles from './BashTool.module.scss';
 
 const ICON = <Terminal className={toolIcon.icon} />;
 
-const BashToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const BashTool = memo(function BashTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeBashInput | undefined;
   const result = tool.result as OpencodeOutput | undefined;
 
@@ -48,6 +48,4 @@ const BashToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const BashTool = memo(BashToolInner);
+});

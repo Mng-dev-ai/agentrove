@@ -51,7 +51,7 @@ interface MarkDownProps {
   highlightMentions?: boolean;
 }
 
-function MarkDownInner({
+export const MarkDown = memo(function MarkDown({
   content,
   className,
   streaming = false,
@@ -142,7 +142,4 @@ function MarkDownInner({
       )}
     </div>
   );
-}
-
-const MarkDown = memo(MarkDownInner);
-export default MarkDown;
+});

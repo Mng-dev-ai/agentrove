@@ -10,7 +10,7 @@ import type { OpencodeReadInput, OpencodeOutput } from './opencodePayload';
 
 const ICON = <FileSearch className={toolIcon.icon} />;
 
-const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeReadInput | undefined;
   const result = tool.result as OpencodeOutput | undefined;
 
@@ -39,6 +39,4 @@ const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       {content && <NumberedContent content={content} />}
     </ToolCard>
   );
-};
-
-export const ReadTool = memo(ReadToolInner);
+});

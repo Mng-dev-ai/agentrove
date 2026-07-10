@@ -6,6 +6,15 @@
 
 - React 19 — use `use()` instead of `useContext()`; pass `ref` as a regular prop instead of `forwardRef`
 
+### Component Declaration Style
+
+- Components are function declarations with props destructured in the signature: `export function Name({ a, b }: NameProps) {}` — never arrow-const components
+- Never `React.FC`/`FC` — type props via the signature (ESLint-enforced)
+- Props typed as `interface NameProps`; export the interface only when another module imports it
+- `memo` inline form only: `export const Name = memo(function Name(props: NameProps) {...})`
+- Named exports only (`App.tsx` is the sole default-export exception); lazy-load named exports via `lazyNamed()` from `@/utils/lazyNamed`
+- Files stay under ~400 lines — split into co-located sibling components or focused hooks/modules before crossing it
+
 ### UI Primitives
 
 - Never use raw HTML interactive elements (`<button>`, `<input>`, `<select>`, `<a>`) when a primitive exists in `components/ui/primitives/` — use `Button`, `Input`, etc.; for fully custom styling use `variant="unstyled"` (keeps focus-visible and disabled styles); don't duplicate those built-in styles in `className`

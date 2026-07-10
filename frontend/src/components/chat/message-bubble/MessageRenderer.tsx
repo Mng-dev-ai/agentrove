@@ -18,7 +18,7 @@ interface MessageRendererProps {
   highlightMentions?: boolean;
 }
 
-const MessageRendererInner: React.FC<MessageRendererProps> = ({
+export const MessageRenderer = memo(function MessageRenderer({
   events,
   className = '',
   isStreaming = false,
@@ -28,7 +28,7 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
   onSuggestionSelect,
   agentKind,
   highlightMentions = false,
-}) => {
+}: MessageRendererProps) {
   const prevSegmentsRef = React.useRef<Map<string, MessageSegment>>(new Map());
 
   const { segments, activeThinkingId, activeTextId } = React.useMemo(() => {
@@ -137,6 +137,4 @@ const MessageRendererInner: React.FC<MessageRendererProps> = ({
       </div>
     </AgentToolsContext>
   );
-};
-
-export const MessageRenderer = memo(MessageRendererInner);
+});

@@ -10,7 +10,7 @@ import type { CopilotFetchInput, CopilotToolOutput } from './copilotPayload';
 
 const ICON = <Globe className={toolIcon.icon} />;
 
-const FetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const FetchTool = memo(function FetchTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as CopilotFetchInput | undefined;
   const result = tool.result as CopilotToolOutput | undefined;
 
@@ -43,6 +43,4 @@ const FetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const FetchTool = memo(FetchToolInner);
+});

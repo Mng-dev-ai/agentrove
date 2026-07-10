@@ -17,7 +17,7 @@ interface MoveInput {
   destination?: string;
 }
 
-const DeleteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const DeleteTool = memo(function DeleteTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as DeleteInput | undefined;
   const filePath = input?.file_path ?? '';
   const fileName = filePath ? extractFilename(filePath) : '';
@@ -42,9 +42,9 @@ const DeleteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       {filePath && <div className={styles.path}>{filePath}</div>}
     </ToolCard>
   );
-};
+});
 
-const MoveToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const MoveTool = memo(function MoveTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as MoveInput | undefined;
   const source = input?.source ?? '';
   const destination = input?.destination ?? '';
@@ -78,7 +78,4 @@ const MoveToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const DeleteTool = memo(DeleteToolInner);
-export const MoveTool = memo(MoveToolInner);
+});

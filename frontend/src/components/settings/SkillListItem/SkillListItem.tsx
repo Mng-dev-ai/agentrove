@@ -9,7 +9,7 @@ interface SkillListItemProps {
   onEdit: (skill: CustomSkill) => void;
 }
 
-export const SkillListItem: React.FC<SkillListItemProps> = ({ skill, onEdit }) => {
+export function SkillListItem({ skill, onEdit }: SkillListItemProps) {
   return (
     <div className={styles['skill-list-item']}>
       <div className={styles.header}>
@@ -43,4 +43,4 @@ export const SkillListItem: React.FC<SkillListItemProps> = ({ skill, onEdit }) =
       </div>
     </div>
   );
-};
+}

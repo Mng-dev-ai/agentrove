@@ -17,7 +17,7 @@ interface NotebookEditInput {
   edit_mode?: EditMode;
 }
 
-const NotebookEditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const NotebookEditTool = memo(function NotebookEditTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as NotebookEditInput | undefined;
   const notebookPath = input?.notebook_path ?? '';
   const editMode = input?.edit_mode ?? 'replace';
@@ -79,6 +79,4 @@ const NotebookEditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const NotebookEditTool = memo(NotebookEditToolInner);
+});

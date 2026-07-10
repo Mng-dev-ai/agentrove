@@ -95,7 +95,7 @@ function formFromItem(item: AutomationListItem): AutomationForm {
   };
 }
 
-export const AutomationsSettingsTab: React.FC = () => {
+export function AutomationsSettingsTab() {
   const { localSettings } = useSettingsContext();
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const cloudConnected = !!cloudUrl;
@@ -314,4 +314,4 @@ export const AutomationsSettingsTab: React.FC = () => {
       )}
     </>
   );
-};
+}

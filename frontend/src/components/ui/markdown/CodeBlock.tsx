@@ -9,8 +9,8 @@ interface CodeBlockProps extends HTMLAttributes<HTMLElement> {
   codeContent: string;
 }
 
-export const CodeBlock = ({ language, codeContent, className, ...props }: CodeBlockProps) => {
-  // Copied state lives here, not in MarkDownInner, so a copy click doesn't
+export function CodeBlock({ language, codeContent, className, ...props }: CodeBlockProps) {
+  // Copied state lives here, not in MarkDown, so a copy click doesn't
   // change the components mapping identity and re-parse every memoized block.
   const [isCopied, setIsCopied] = useState(false);
 
@@ -40,4 +40,4 @@ export const CodeBlock = ({ language, codeContent, className, ...props }: CodeBl
       </pre>
     </div>
   );
-};
+}

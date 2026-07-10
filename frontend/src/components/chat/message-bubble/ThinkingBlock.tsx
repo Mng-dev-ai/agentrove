@@ -1,4 +1,4 @@
-import React, { useState, useMemo, memo, type CSSProperties } from 'react';
+import { useState, useMemo, memo, type CSSProperties } from 'react';
 import clsx from 'clsx';
 import { ChevronRight, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -13,7 +13,10 @@ interface ThinkingBlockProps {
   isActiveThinking: boolean;
 }
 
-const ThinkingBlockInner: React.FC<ThinkingBlockProps> = ({ content, isActiveThinking }) => {
+export const ThinkingBlock = memo(function ThinkingBlock({
+  content,
+  isActiveThinking,
+}: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
   const previewText = useMemo(() => {
@@ -73,6 +76,4 @@ const ThinkingBlockInner: React.FC<ThinkingBlockProps> = ({ content, isActiveThi
       </div>
     </div>
   );
-};
-
-export const ThinkingBlock = memo(ThinkingBlockInner);
+});

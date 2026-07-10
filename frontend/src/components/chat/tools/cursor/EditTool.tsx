@@ -29,15 +29,15 @@ const classifyOp = (block: CursorDiffBlock): EditOp => {
   return 'update';
 };
 
-const DiffEntry: React.FC<{ block: CursorDiffBlock }> = ({ block }) => {
+function DiffEntry({ block }: { block: CursorDiffBlock }) {
   const op = classifyOp(block);
   if (op === 'add') {
     return <NumberedContent content={block.newText ?? ''} />;
   }
   return <DiffView diff={buildUnifiedDiff(block.oldText ?? '', block.newText ?? '')} />;
-};
+}
 
-const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }) {
   const result = tool.result as CursorEditOutput | undefined;
   const diffs = result?.diffs ?? [];
 
@@ -91,6 +91,4 @@ const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const EditTool = memo(EditToolInner);
+});

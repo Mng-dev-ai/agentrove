@@ -8,10 +8,7 @@ interface InstructionsSettingsTabProps {
   onPersist: (value: string) => void;
 }
 
-export const InstructionsSettingsTab: React.FC<InstructionsSettingsTabProps> = ({
-  instructions,
-  onPersist,
-}) => {
+export function InstructionsSettingsTab({ instructions, onPersist }: InstructionsSettingsTabProps) {
   const { draft, setDraft, handleBlur } = useDraftField(instructions, onPersist);
 
   return (
@@ -35,4 +32,4 @@ export const InstructionsSettingsTab: React.FC<InstructionsSettingsTabProps> = (
       </div>
     </div>
   );
-};
+}

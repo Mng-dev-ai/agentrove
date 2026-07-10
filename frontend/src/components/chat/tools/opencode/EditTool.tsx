@@ -11,7 +11,7 @@ import type { OpencodeEditInput } from './opencodePayload';
 
 const ICON = <FileEdit className={toolIcon.icon} />;
 
-const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeEditInput | undefined;
   const filePath = input?.filePath ?? '';
   const fileName = filePath ? extractFilename(filePath) : tool.title?.trim() || 'file';
@@ -40,6 +40,4 @@ const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       {diff && <DiffView diff={diff} />}
     </ToolCard>
   );
-};
-
-export const EditTool = memo(EditToolInner);
+});

@@ -112,7 +112,7 @@ function normalizeToGrouped<T>(
   return filtered.map((data) => ({ type: 'item', data }));
 }
 
-function DropdownInner<T>({
+const Dropdown = memo(function Dropdown<T>({
   value,
   items,
   getItemKey,
@@ -337,6 +337,6 @@ function DropdownInner<T>({
       )}
     </div>
   );
-}
+}) as <T>(props: DropdownProps<T>) => ReactElement;
 
-export const Dropdown = memo(DropdownInner) as <T>(props: DropdownProps<T>) => ReactElement;
+export { Dropdown };

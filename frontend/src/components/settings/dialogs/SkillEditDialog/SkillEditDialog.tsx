@@ -41,13 +41,13 @@ interface SkillEditDialogProps {
   onSaved: () => Promise<void>;
 }
 
-export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
+export function SkillEditDialog({
   isOpen,
   workspaceId,
   skill,
   onClose,
   onSaved,
-}) => {
+}: SkillEditDialogProps) {
   const [files, setFiles] = useState<SkillFileEntry[]>([]);
   const [selectedFile, setSelectedFile] = useState<FileStructure | null>(null);
   const [modifiedFiles, setModifiedFiles] = useState<Map<string, string>>(new Map());
@@ -212,7 +212,7 @@ export const SkillEditDialog: React.FC<SkillEditDialogProps> = ({
       />
     </BaseModal>
   );
-};
+}
 
 function skillFilesToFileTree(files: SkillFileEntry[]): FileStructure[] {
   const root: FileStructure[] = [];

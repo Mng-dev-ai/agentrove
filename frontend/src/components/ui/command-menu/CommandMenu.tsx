@@ -1,525 +1,58 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import clsx from 'clsx';
 import { createPortal } from 'react-dom';
-import toast from 'react-hot-toast';
-import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../primitives/Button/Button';
-import { useUIStore } from '@/store/uiStore';
-import { useAuthStore } from '@/store/authStore';
-import { useIsMobile } from '@/hooks/useIsMobile';
-import { isSecondaryPaneActive } from '@/utils/tileHelpers';
-import { useChatContext } from '@/hooks/useChatContext';
-import { useActiveChat } from '@/hooks/useActiveChat';
-import { useSandboxFiles } from '@/hooks/useSandboxFiles';
-import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
-import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
-import { useSearchChatsQuery } from '@/hooks/queries/useChatQueries';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { fuzzySearch } from '@/utils/fuzzySearch';
 import { SearchPanel } from '@/components/editor/file-search/SearchPanel';
 import { ChatSearchPanel } from '@/components/chat/chat-search/ChatSearchPanel';
-import { THEMES, type ThemeMeta } from '@/utils/theme';
-import { IS_MAC_PLATFORM } from '@/utils/platform';
-import type { ViewType, SplitDirection, Theme } from '@/types/ui.types';
 import { CommandMenuInput } from './CommandMenuInput';
 import { CommandMenuList } from './CommandMenuList';
-import {
-  ALL_COMMANDS,
-  COMMAND_TO_MODE,
-  MAIN_FILTERS,
-  executeCommand,
-  flattenFiles,
-  type CommandItem,
-  type ChatRowItem,
-  type FlatFileItem,
-  type MainFilter,
-  type MenuListItem,
-  type MenuMode,
-} from './commandRegistry';
+import { CommandMenuSubmode } from './CommandMenuSubmode';
+import { useCommandMenu } from './useCommandMenu';
+import { FILTER_LABELS, isMainMode } from './commandMenuModes';
+import { MAIN_FILTERS } from './commandRegistry';
 import styles from './CommandMenu.module.scss';
 
-const FILTER_LABELS: Record<MainFilter, string> = {
-  all: 'All',
-  chats: 'Chats',
-  files: 'Files',
-  actions: 'Actions',
-};
-
-const isMainMode = (mode: MenuMode): mode is MainFilter =>
-  mode === 'all' || mode === 'chats' || mode === 'files' || mode === 'actions';
-
 export function CommandMenu() {
-  const [query, setQuery] = useState('');
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [mode, setMode] = useState<MenuMode>('all');
-  const inputRef = useRef<HTMLInputElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const chatSearchInputRef = useRef<HTMLInputElement>(null);
-  const previousFocusRef = useRef<Element | null>(null);
-  const activeItemRef = useRef<HTMLDivElement>(null);
-  const stateRef = useRef({ activeIndex: 0, mode: 'all' as MenuMode });
-  const listItemsRef = useRef<MenuListItem[]>([]);
-  const filteredBranchesRef = useRef<string[]>([]);
-  const filteredThemesRef = useRef<ThemeMeta[]>([]);
-  const listLengthRef = useRef(0);
-  // Browsers replay hover events when rows render or scroll under a stationary cursor
-  // (dialog open, mode switch, arrow-key scrollIntoView) — only honor real pointer movement.
-  const lastMouseRef = useRef<{ x: number; y: number } | null>(null);
-  const listId = 'command-menu-list';
-
-  const isOpen = useUIStore((state) => state.commandMenuOpen);
-  const theme = useUIStore((state) => state.theme);
-  const isMobile = useIsMobile();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  // On-screen tile ids (not deduped view kinds) so the active-state/split
-  // affordances can distinguish a view's primary tile from its `:secondary`
-  // variant. Keyed on visibility, not open membership — views have no tabs, so an
-  // open-but-hidden background tile must stay surfaceable/splittable. Gated on
-  // open — layout churn is irrelevant while the always-mounted menu is closed.
-  const visibleLayout = useUIStore((s) => (s.commandMenuOpen ? s.visibleLayout : null));
-  const leafTileIds = useMemo(() => new Set(visibleLayout?.flat() ?? []), [visibleLayout]);
-  const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const primaryCtx = useChatContext();
-
-  // File/search/branch actions target the pane the user last interacted with — in
-  // split view the secondary pane is a different chat with its own files/cwd/tiles.
-  const activeAgentTile = useUIStore((s) =>
-    s.commandMenuOpen ? s.activeAgentTile : 'agent:primary',
-  );
-  const secondaryChatId = useUIStore((s) => s.secondaryChatId);
-  const useSecondary = isSecondaryPaneActive(activeAgentTile, secondaryChatId);
-  // Resolve the active pane's chat through the canonical hook, gated on the menu
-  // being open so the always-mounted menu doesn't re-render on pane/secondary
-  // churn while closed. Only used for the secondary pane — the primary reuses the
-  // chat context directly below (its files/chatId are available there immediately).
-  const activeChat = useActiveChat(isOpen);
-  const secondaryChat = useSecondary ? activeChat : undefined;
-  const { fileStructure: secondaryFiles } = useSandboxFiles(
-    secondaryChat ?? undefined,
-    useSecondary ? (secondaryChatId ?? undefined) : undefined,
-  );
-
-  const chatId = useSecondary ? (secondaryChatId ?? undefined) : primaryCtx.chatId;
-  const fileStructure = useSecondary ? secondaryFiles : primaryCtx.fileStructure;
-  const sandboxId = useSecondary ? (secondaryChat?.sandbox_id ?? undefined) : primaryCtx.sandboxId;
-  const worktreeCwd = useSecondary
-    ? (secondaryChat?.worktree_cwd ?? undefined)
-    : primaryCtx.worktreeCwd;
-
-  // Fetch branches whenever the menu is open so we can both render the branches mode and
-  // filter the switch-branch command out of the list for chats without a repo. Cache is
-  // usually warm from BranchSelector so this rarely triggers a real fetch.
-  const { data: branchesData } = useGitBranchesQuery(sandboxId, isOpen && !!sandboxId, worktreeCwd);
-  const checkoutBranch = useCheckoutBranchMutation();
-
-  const canSwitchBranch = !!branchesData?.is_git_repo && branchesData.branches.length > 0;
-
-  // Chat rows reuse the sidebar's queries (cache-warm on every page the menu mounts on),
-  // gated on open + auth so the always-mounted menu doesn't fetch while closed or logged out.
-  const chatQueriesEnabled = isOpen && isAuthenticated;
-  const workspaces = useWorkspacesList({ enabled: chatQueriesEnabled });
-  const { pinnedChats, recentChats, workspaceBadgeById } = useSidebarChatLists(
-    workspaces,
-    chatQueriesEnabled,
-  );
-  const menuChats = useMemo(() => {
-    if (!isOpen) return [];
-    // Pinned and recents are disjoint; the menu is a single recency-ordered list.
-    return [...pinnedChats, ...recentChats].sort(
-      (a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at),
-    );
-  }, [isOpen, pinnedChats, recentChats]);
-
-  const flatFiles = useMemo(() => flattenFiles(fileStructure), [fileStructure]);
-
-  const filteredChats = useMemo(
-    () =>
-      mode !== 'all' && mode !== 'chats'
-        ? []
-        : fuzzySearch(query, menuChats, { keys: ['title'], limit: mode === 'chats' ? 30 : 5 }),
-    [query, menuChats, mode],
-  );
-
-  // Deep search runs on the Chats tab only — the All tab stays instant/local; the
-  // "Search in chats" action remains the snippet-level browser for message matches.
-  const debouncedQuery = useDebouncedValue(query, 250);
-  const deepSearchQuery = mode === 'chats' ? debouncedQuery.trim() : '';
   const {
-    data: chatSearchData,
-    isFetching: isSearchingChats,
-    isPlaceholderData: isStaleChatSearch,
-  } = useSearchChatsQuery(deepSearchQuery, { enabled: isOpen && deepSearchQuery.length >= 2 });
-  const trimmedQuery = query.trim();
-  // Debounce/fetch lag — content rows are hidden while the search trails the input,
-  // so show the searching hint instead of a misleading empty or settled list.
-  const isChatSearchPending =
-    mode === 'chats' &&
-    trimmedQuery.length >= 2 &&
-    (deepSearchQuery !== trimmedQuery || isSearchingChats);
-
-  const chatRows = useMemo<ChatRowItem[]>(() => {
-    const titleRows = filteredChats.map((chat) => ({
-      id: chat.id,
-      title: chat.title,
-      workspaceName: workspaceBadgeById.get(chat.workspace_id)?.name,
-    }));
-    // Stale rows are selectable, so a quick Enter could open a chat unrelated to the
-    // current input. Two windows produce them: the debounce lag (deepSearchQuery still
-    // holds the previous term) and keepPreviousData while a new request is in flight
-    // (placeholder response for the previous term). Hide content rows through both;
-    // the length gate keeps the section query-driven below the search minimum.
-    if (
-      mode !== 'chats' ||
-      deepSearchQuery.length < 2 ||
-      deepSearchQuery !== trimmedQuery ||
-      !chatSearchData ||
-      isStaleChatSearch
-    ) {
-      return titleRows;
-    }
-    // Content-only hits go below title matches, deduped by chat id.
-    const titleIds = new Set(titleRows.map((row) => row.id));
-    const contentRows = chatSearchData.results
-      .filter((result) => !titleIds.has(result.chat_id))
-      .map((result) => ({
-        id: result.chat_id,
-        title: result.chat_title,
-        workspaceName: result.workspace_name,
-        matchCount: result.match_count,
-      }));
-    return [...titleRows, ...contentRows];
-  }, [
-    filteredChats,
-    workspaceBadgeById,
-    mode,
-    deepSearchQuery,
-    trimmedQuery,
-    chatSearchData,
-    isStaleChatSearch,
-  ]);
-
-  const filteredFiles = useMemo(
-    () =>
-      mode !== 'all' && mode !== 'files'
-        ? []
-        : fuzzySearch(query, flatFiles, {
-            keys: ['name', 'path'],
-            limit: mode === 'files' ? 30 : 5,
-          }),
-    [query, flatFiles, mode],
-  );
-
-  const visibleCommands = useMemo(
-    () =>
-      ALL_COMMANDS.filter((cmd) => {
-        if (isMobile && cmd.hideOnMobile) return false;
-        if (cmd.requiresChat && !chatId) return false;
-        if (cmd.requiresSandbox && !sandboxId) return false;
-        if (cmd.id === 'switch-branch' && !canSwitchBranch) return false;
-        return true;
-      }),
-    [isMobile, canSwitchBranch, chatId, sandboxId],
-  );
-
-  const filteredCommands = useMemo(
-    () =>
-      mode !== 'all' && mode !== 'actions'
-        ? []
-        : fuzzySearch(query, visibleCommands, { keys: ['label'], limit: 20 }),
-    [query, visibleCommands, mode],
-  );
-
-  const listItems = useMemo<MenuListItem[]>(
-    () => [
-      ...chatRows.map((chat) => ({ kind: 'chat' as const, chat })),
-      ...filteredFiles.map((file) => ({ kind: 'file' as const, file })),
-      ...filteredCommands.map((command) => ({ kind: 'command' as const, command })),
-    ],
-    [chatRows, filteredFiles, filteredCommands],
-  );
-
-  const orderedBranches = useMemo(() => {
-    if (!branchesData) return [];
-    const current = branchesData.current_branch;
-    const others = branchesData.branches.filter((b) => b !== current);
-    return current ? [current, ...others] : others;
-  }, [branchesData]);
-
-  const filteredBranches = useMemo(
-    () => (mode !== 'branches' ? [] : fuzzySearch(query, orderedBranches, { limit: 30 })),
-    [mode, query, orderedBranches],
-  );
-
-  const filteredThemes = useMemo(
-    () => (mode !== 'themes' ? [] : fuzzySearch(query, THEMES, { keys: ['label'], limit: 30 })),
-    [mode, query],
-  );
-
-  const listLength =
-    mode === 'branches'
-      ? filteredBranches.length
-      : mode === 'themes'
-        ? filteredThemes.length
-        : listItems.length;
-
-  const activateFromMouse = (index: number, e: React.MouseEvent) => {
-    const last = lastMouseRef.current;
-    lastMouseRef.current = { x: e.clientX, y: e.clientY };
-    // First event after open/mode-switch or a same-coords replay is synthetic — skip it.
-    if (!last || (last.x === e.clientX && last.y === e.clientY)) return;
-    setActiveIndex(index);
-  };
-
-  const switchMode = useCallback((next: MenuMode) => {
-    // Re-arm the synthetic-event guard — the new mode's list renders under the cursor.
-    lastMouseRef.current = null;
-    setMode(next);
-    setQuery('');
-    setActiveIndex(0);
-    if (next === 'search') {
-      // SearchPanel owns its own input; focus it after React flushes the mode change.
-      requestAnimationFrame(() => searchInputRef.current?.focus());
-    } else if (next === 'chat-search') {
-      requestAnimationFrame(() => chatSearchInputRef.current?.focus());
-    } else {
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
-  }, []);
-
-  // Tab clicks and ⌘[/⌘] keep the typed query — filters narrow the current search.
-  const switchFilter = useCallback((next: MainFilter) => {
-    lastMouseRef.current = null;
-    setMode(next);
-    setActiveIndex(0);
-  }, []);
-
-  useEffect(() => {
-    if (isOpen) {
-      previousFocusRef.current = document.activeElement;
-      // switchMode also focuses the right input for the target mode.
-      const ui = useUIStore.getState();
-      switchMode(ui.pendingMenuMode ?? 'all');
-      ui.setPendingMenuMode(null);
-    } else if (previousFocusRef.current instanceof HTMLElement) {
-      previousFocusRef.current.focus();
-      previousFocusRef.current = null;
-    }
-  }, [isOpen, switchMode]);
-
-  const close = useCallback(() => {
-    useUIStore.getState().setCommandMenuOpen(false);
-  }, []);
-
-  const handleSelectItem = useCallback(
-    (cmd: CommandItem) => {
-      executeCommand(cmd, queryClient, navigate, false, { sandboxId, worktreeCwd });
-      close();
-    },
-    [close, queryClient, navigate, sandboxId, worktreeCwd],
-  );
-
-  // Commands either dispatch an action or switch the menu into a sub-mode/filter.
-  const runCommand = useCallback(
-    (cmd: CommandItem) => {
-      const nextMode = COMMAND_TO_MODE[cmd.id];
-      if (nextMode) switchMode(nextMode);
-      else handleSelectItem(cmd);
-    },
-    [switchMode, handleSelectItem],
-  );
-
-  const handleSelectFile = useCallback(
-    (file: FlatFileItem) => {
-      // Jumps target the active chat's editor, or the chat-less landing editor
-      // (undefined chatId) when browsing workspace files before a chat exists.
-      useUIStore.getState().openFileInEditor(file.path, chatId);
-      close();
-    },
-    [close, chatId],
-  );
-
-  const handleOpenSearchResult = useCallback(
-    (path: string, lineNumber: number) => {
-      useUIStore.getState().openFileInEditor(path, chatId, lineNumber);
-      close();
-    },
-    [close, chatId],
-  );
-
-  const handleOpenChatResult = useCallback(
-    (chatId: string) => {
-      navigate(`/chat/${chatId}`);
-      close();
-    },
-    [close, navigate],
-  );
-
-  const handleSelectBranch = useCallback(
-    (branch: string) => {
-      if (!sandboxId) {
-        toast.error('No sandbox connected');
-        return;
-      }
-      if (branch === branchesData?.current_branch) {
-        close();
-        return;
-      }
-      checkoutBranch.mutate(
-        { sandboxId, branch, cwd: worktreeCwd },
-        {
-          onSuccess: (data) => {
-            if (data.success) {
-              toast.success(`Switched to ${branch}`);
-            } else {
-              toast.error(data.error ?? 'Failed to switch branch');
-            }
-          },
-          onError: (err) => {
-            toast.error(err instanceof Error ? err.message : 'Failed to switch branch');
-          },
-        },
-      );
-      close();
-    },
-    [sandboxId, worktreeCwd, branchesData, checkoutBranch, close],
-  );
-
-  const handleSelectTheme = useCallback(
-    (value: Theme) => {
-      useUIStore.getState().setTheme(value);
-      close();
-    },
-    [close],
-  );
-
-  const handleSplit = useCallback(
-    (viewId: ViewType, direction: SplitDirection) => {
-      useUIStore.getState().addViewToSplit(viewId, direction);
-      close();
-    },
-    [close],
-  );
-
-  stateRef.current.activeIndex = activeIndex;
-  stateRef.current.mode = mode;
-  listItemsRef.current = listItems;
-  filteredBranchesRef.current = filteredBranches;
-  filteredThemesRef.current = filteredThemes;
-  listLengthRef.current = listLength;
-
-  useEffect(() => {
-    activeItemRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [activeIndex]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const { activeIndex: idx, mode: m } = stateRef.current;
-      const len = listLengthRef.current;
-
-      if (m === 'search' || m === 'chat-search') {
-        // The embedded panel handles its own typing + click-to-open; don't
-        // hijack Enter/arrows here. Only wire Escape to step back to the main list.
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          switchMode('all');
-        }
-        return;
-      }
-
-      // ⌘[/⌘] cycle the main-mode filter tabs (preventDefault also blocks the
-      // browser's back/forward navigation bound to these chords).
-      if (isMainMode(m) && (e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']')) {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        const step = e.key === ']' ? 1 : -1;
-        const current = MAIN_FILTERS.indexOf(m);
-        switchFilter(MAIN_FILTERS[(current + step + MAIN_FILTERS.length) % MAIN_FILTERS.length]);
-        return;
-      }
-
-      switch (e.key) {
-        case 'Escape':
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          if (m === 'branches' || m === 'themes') {
-            switchMode('all');
-          } else if (m !== 'all') {
-            switchFilter('all');
-          } else {
-            close();
-          }
-          break;
-        case 'ArrowDown':
-          e.preventDefault();
-          if (len > 0) {
-            setActiveIndex((prev) => (prev + 1) % len);
-          }
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          if (len > 0) {
-            setActiveIndex((prev) => (prev - 1 + len) % len);
-          }
-          break;
-        case 'Enter':
-          e.preventDefault();
-          if (m === 'branches') {
-            const branch = filteredBranchesRef.current[idx];
-            if (branch) handleSelectBranch(branch);
-          } else if (m === 'themes') {
-            const themeItem = filteredThemesRef.current[idx];
-            if (themeItem) handleSelectTheme(themeItem.value);
-          } else {
-            const item = listItemsRef.current[idx];
-            if (!item) break;
-            if (item.kind === 'chat') {
-              handleOpenChatResult(item.chat.id);
-            } else if (item.kind === 'file') {
-              handleSelectFile(item.file);
-            } else {
-              runCommand(item.command);
-            }
-          }
-          break;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, { capture: true });
-    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [
     isOpen,
-    runCommand,
-    handleSelectFile,
-    handleOpenChatResult,
-    handleSelectBranch,
-    handleSelectTheme,
+    close,
+    mode,
     switchMode,
     switchFilter,
-    close,
-  ]);
+    query,
+    setQuery,
+    setActiveIndex,
+    activeIndex,
+    inputRef,
+    searchInputRef,
+    chatSearchInputRef,
+    activeItemRef,
+    listId,
+    activeDescendant,
+    activateFromMouse,
+    trimmedQuery,
+    isMobile,
+    listItems,
+    leafTileIds,
+    useSecondary,
+    isChatSearchPending,
+    handleOpenChatResult,
+    handleSelectFile,
+    runCommand,
+    handleSplit,
+    filteredBranches,
+    branchesData,
+    sandboxId,
+    worktreeCwd,
+    checkoutBranch,
+    handleSelectBranch,
+    filteredThemes,
+    theme,
+    handleSelectTheme,
+    handleOpenSearchResult,
+    modKey,
+  } = useCommandMenu();
 
   if (!isOpen) return null;
-
-  const modKey = IS_MAC_PLATFORM ? '⌘' : 'Ctrl+';
-
-  const activeDescendant =
-    mode === 'branches'
-      ? filteredBranches[activeIndex]
-        ? `branch-item-${activeIndex}`
-        : undefined
-      : mode === 'themes'
-        ? filteredThemes[activeIndex]
-          ? `theme-item-${activeIndex}`
-          : undefined
-        : listItems[activeIndex]
-          ? `menu-item-${activeIndex}`
-          : undefined;
 
   return createPortal(
     <div
@@ -535,44 +68,18 @@ export function CommandMenu() {
         onKeyDown={(e) => e.stopPropagation()}
       >
         {mode === 'search' ? (
-          <>
-            <div className={styles['submode-header']}>
-              <Button
-                variant="unstyled"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => switchMode('all')}
-                className={styles['submode-back']}
-              >
-                Search in files
-              </Button>
-              <span className={styles['submode-hint']}>Esc to go back</span>
-            </div>
-            <div className={styles['submode-panel']}>
-              <SearchPanel
-                sandboxId={sandboxId ?? undefined}
-                cwd={worktreeCwd}
-                onOpenResult={handleOpenSearchResult}
-                inputRef={searchInputRef}
-              />
-            </div>
-          </>
+          <CommandMenuSubmode label="Search in files" onBack={() => switchMode('all')}>
+            <SearchPanel
+              sandboxId={sandboxId ?? undefined}
+              cwd={worktreeCwd}
+              onOpenResult={handleOpenSearchResult}
+              inputRef={searchInputRef}
+            />
+          </CommandMenuSubmode>
         ) : mode === 'chat-search' ? (
-          <>
-            <div className={styles['submode-header']}>
-              <Button
-                variant="unstyled"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => switchMode('all')}
-                className={styles['submode-back']}
-              >
-                Search in chats
-              </Button>
-              <span className={styles['submode-hint']}>Esc to go back</span>
-            </div>
-            <div className={styles['submode-panel']}>
-              <ChatSearchPanel onOpenChat={handleOpenChatResult} inputRef={chatSearchInputRef} />
-            </div>
-          </>
+          <CommandMenuSubmode label="Search in chats" onBack={() => switchMode('all')}>
+            <ChatSearchPanel onOpenChat={handleOpenChatResult} inputRef={chatSearchInputRef} />
+          </CommandMenuSubmode>
         ) : (
           <>
             <CommandMenuInput

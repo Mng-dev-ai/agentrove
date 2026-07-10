@@ -13,12 +13,14 @@ interface IconWrapperProps {
   children: React.ReactNode;
 }
 
-const IconWrapper = ({ children }: IconWrapperProps) => (
-  <div className={styles['icon-wrapper']}>
-    <div className={styles.glow}></div>
-    <div className={styles['icon-badge']}>{children}</div>
-  </div>
-);
+function IconWrapper({ children }: IconWrapperProps) {
+  return (
+    <div className={styles['icon-wrapper']}>
+      <div className={styles.glow}></div>
+      <div className={styles['icon-badge']}>{children}</div>
+    </div>
+  );
+}
 
 export function DropIndicator({
   visible,

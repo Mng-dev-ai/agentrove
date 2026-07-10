@@ -9,7 +9,7 @@ import type { OpencodeGlobInput, OpencodeGlobMetadata, OpencodeOutput } from './
 
 const ICON = <FolderSearch className={toolIcon.icon} />;
 
-const GlobToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const GlobTool = memo(function GlobTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeGlobInput | undefined;
   const result = tool.result as OpencodeOutput | undefined;
   const metadata = result?.metadata as OpencodeGlobMetadata | undefined;
@@ -44,6 +44,4 @@ const GlobToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const GlobTool = memo(GlobToolInner);
+});

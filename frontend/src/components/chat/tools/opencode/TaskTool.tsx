@@ -10,7 +10,7 @@ import toolIcon from './toolIcon.module.scss';
 import type { OpencodeTaskInput, OpencodeOutput } from './opencodePayload';
 import styles from './TaskTool.module.scss';
 
-const TaskToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const TaskTool = memo(function TaskTool({ tool }: { tool: ToolAggregate }) {
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [resultExpanded, setResultExpanded] = useState(false);
   const [toolsExpanded, setToolsExpanded] = useState(false);
@@ -118,6 +118,4 @@ const TaskToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const TaskTool = memo(TaskToolInner);
+});

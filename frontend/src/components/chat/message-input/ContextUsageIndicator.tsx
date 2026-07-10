@@ -10,7 +10,7 @@ export interface ContextUsageInfo {
 const RADIUS = 9;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-export const ContextUsageIndicator = ({ usage }: { usage: ContextUsageInfo }) => {
+export function ContextUsageIndicator({ usage }: { usage: ContextUsageInfo }) {
   const percentage =
     usage.contextWindow > 0 ? Math.min((usage.tokensUsed / usage.contextWindow) * 100, 100) : 0;
 
@@ -62,4 +62,4 @@ export const ContextUsageIndicator = ({ usage }: { usage: ContextUsageInfo }) =>
       </svg>
     </FloatingTooltip>
   );
-};
+}

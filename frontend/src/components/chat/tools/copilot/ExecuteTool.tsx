@@ -9,7 +9,7 @@ import type { CopilotExecuteInput, CopilotToolOutput } from './copilotPayload';
 
 const ICON = <Terminal className={toolIcon.icon} />;
 
-const ExecuteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const ExecuteTool = memo(function ExecuteTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as CopilotExecuteInput | undefined;
   const result = tool.result as CopilotToolOutput | undefined;
 
@@ -48,6 +48,4 @@ const ExecuteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const ExecuteTool = memo(ExecuteToolInner);
+});

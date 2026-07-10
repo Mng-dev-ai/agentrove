@@ -8,7 +8,7 @@ import type { OpencodeSkillInput, OpencodeOutput } from './opencodePayload';
 
 const ICON = <Sparkles className={toolIcon.icon} />;
 
-const SkillToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const SkillTool = memo(function SkillTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeSkillInput | undefined;
   const result = tool.result as OpencodeOutput | undefined;
 
@@ -35,6 +35,4 @@ const SkillToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       {output && <pre className={toolText['output-pre']}>{output}</pre>}
     </ToolCard>
   );
-};
-
-export const SkillTool = memo(SkillToolInner);
+});

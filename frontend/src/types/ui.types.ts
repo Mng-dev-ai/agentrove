@@ -1,7 +1,8 @@
+import type { ComponentType } from 'react';
 import type { Chat } from './chat.types';
 import type { ToolAggregate } from './tools.types';
 
-export type ToolComponent = React.FC<{ tool: ToolAggregate; chatId?: string }>;
+export type ToolComponent = ComponentType<{ tool: ToolAggregate; chatId?: string }>;
 
 // Each theme rides a light or dark base (see DARK_PALETTES / useResolvedTheme)
 export type Theme =

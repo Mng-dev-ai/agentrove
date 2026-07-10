@@ -12,7 +12,7 @@ interface WorkedRollupProps {
 
 // Collapses the tool/thinking trace of a completed turn behind a single header,
 // so the transcript leads with the final answer and the work expands on demand.
-export const WorkedRollup: React.FC<WorkedRollupProps> = ({ durationMs, children }) => {
+export function WorkedRollup({ durationMs, children }: WorkedRollupProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   // Older messages persisted before duration tracking have no duration_ms.
   const label =
@@ -38,4 +38,4 @@ export const WorkedRollup: React.FC<WorkedRollupProps> = ({ durationMs, children
       {isExpanded && <div className={styles['rollup-content']}>{children}</div>}
     </div>
   );
-};
+}

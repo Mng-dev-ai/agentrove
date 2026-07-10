@@ -22,7 +22,7 @@ const ICON_BY_TYPE: Record<ParsedCmdType, React.ReactNode> = {
   unknown: <Terminal className={ICON_CLASS} />,
 };
 
-const ShellToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const ShellTool = memo(function ShellTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as ShellLikeInput | undefined;
   const result = tool.result as ShellLikeOutput | undefined;
 
@@ -69,6 +69,4 @@ const ShellToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const ShellTool = memo(ShellToolInner);
+});

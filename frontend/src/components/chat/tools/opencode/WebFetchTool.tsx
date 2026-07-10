@@ -10,7 +10,7 @@ import styles from './WebFetchTool.module.scss';
 
 const ICON = <Globe className={toolIcon.icon} />;
 
-const WebFetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const WebFetchTool = memo(function WebFetchTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as OpencodeWebFetchInput | undefined;
   const result = tool.result as OpencodeOutput | undefined;
 
@@ -43,6 +43,4 @@ const WebFetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const WebFetchTool = memo(WebFetchToolInner);
+});

@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { StreamContentBuffer } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-import { markChatViewed, patchChatInCache } from '@/hooks/queries/useChatQueries';
+import { markChatViewed } from '@/hooks/queries/useChatQueries';
 import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import type {
@@ -16,17 +16,25 @@ import type {
   PermissionRequest,
 } from '@/types/chat.types';
 import type { ToolEventPayload } from '@/types/tools.types';
-import {
-  StreamProcessingError,
-  type QueueProcessingData,
-  type StreamEnvelope,
-  type StreamState,
-} from '@/types/stream.types';
+import type { QueueProcessingData, StreamEnvelope, StreamState } from '@/types/stream.types';
 import { useMessageCache } from '@/hooks/useMessageCache';
 import { streamService } from '@/services/streamService';
 import type { StreamOptions } from '@/services/streamService';
 import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
 import type { PaginatedMessages } from '@/types/api.types';
+import {
+  findMessageInCache,
+  patchChatWorktreeCwd,
+  updateMessageInCacheForChat,
+} from '@/hooks/stream/cachePatch';
+import {
+  buildContentFlushUpdate,
+  buildFailedMessageUpdate,
+  createEmptyRenderSnapshot,
+  getStreamErrorMessage,
+  type StreamSessionState,
+} from '@/hooks/stream/messageUpdates';
+import { envelopeToRenderEvent, extractPayloadData } from '@/hooks/stream/envelopeTranslation';
 
 // Batching window for streaming content updates. Envelopes arrive at token-level
 // granularity (~10-50ms apart); flushing on every token would thrash React state
@@ -34,148 +42,6 @@ import type { PaginatedMessages } from '@/types/api.types';
 // affordable because memoized markdown blocks and segments mean each flush only
 // re-renders the growing tail of the message.
 const STREAM_FLUSH_INTERVAL_MS = 50;
-
-// Cross-chat cache mutators: unlike the hook-scoped useMessageCache (which
-// closes over the currently viewed chatId), these target a specific chat by
-// explicit parameter — needed when off-screen streams flush or finalize into
-// a chat the user has navigated away from.
-function updateMessageInCacheForChat(
-  queryClient: QueryClient,
-  chatId: string,
-  messageId: string,
-  updater: (msg: Message) => Message,
-) {
-  queryClient.setQueryData(
-    queryKeys.messages(chatId),
-    (oldData: { pages: PaginatedMessages[]; pageParams: unknown[] } | undefined) => {
-      if (!oldData?.pages) return oldData;
-      return {
-        ...oldData,
-        pages: oldData.pages.map((page: PaginatedMessages) => ({
-          ...page,
-          items: page.items.map((msg: Message) => (msg.id === messageId ? updater(msg) : msg)),
-        })),
-      };
-    },
-  );
-}
-
-function patchChatWorktreeCwd(queryClient: QueryClient, chatId: string, worktreeCwd: string) {
-  patchChatInCache(queryClient, chatId, (chat) =>
-    chat.worktree_cwd !== worktreeCwd ? { ...chat, worktree_cwd: worktreeCwd } : chat,
-  );
-}
-
-function findMessageInCache(
-  queryClient: QueryClient,
-  chatId: string,
-  messageId: string,
-): Message | undefined {
-  const data = queryClient.getQueryData<{ pages: PaginatedMessages[] }>(queryKeys.messages(chatId));
-  if (!data?.pages) return undefined;
-  for (const page of data.pages) {
-    const msg = page.items.find((m) => m.id === messageId);
-    if (msg) return msg;
-  }
-  return undefined;
-}
-
-function createEmptyRenderSnapshot(): Message['content_render'] {
-  return { events: [] };
-}
-
-function getStreamErrorMessage(streamError: Error): string {
-  if (streamError instanceof StreamProcessingError) {
-    const originalMessage = streamError.originalError?.message;
-    if (originalMessage?.trim()) return originalMessage;
-  }
-  return streamError.message || 'An error occurred';
-}
-
-function buildFailedMessageUpdate(streamError: Error): (msg: Message) => Message {
-  const errorMessage = getStreamErrorMessage(streamError);
-
-  return (msg: Message): Message => {
-    const existingEvents = Array.isArray(msg.content_render?.events)
-      ? msg.content_render.events
-      : [];
-    const nextEvents: AssistantStreamEvent[] = [
-      ...existingEvents,
-      { type: 'assistant_text', text: '\n\nError: ' + errorMessage },
-    ];
-
-    return {
-      ...msg,
-      content_text: msg.content_text || errorMessage,
-      content_render: { events: nextEvents },
-      active_stream_id: null,
-      stream_status: 'failed',
-    };
-  };
-}
-
-function buildContentFlushUpdate(
-  streamId: string,
-  buffer: StreamContentBuffer,
-  session: StreamSessionState,
-): (msg: Message) => Message {
-  const nextRender = buffer.snapshot();
-  const nextText = buffer.getContentText();
-  const nextSeq = session.lastSeq;
-  return (msg: Message): Message => ({
-    ...msg,
-    content_text: nextText,
-    content_render: { events: nextRender.events ?? [] },
-    last_seq: nextSeq,
-    active_stream_id: streamId,
-  });
-}
-
-function extractPayloadData(payload: Record<string, unknown>): Record<string, unknown> | undefined {
-  return payload.data && typeof payload.data === 'object'
-    ? (payload.data as Record<string, unknown>)
-    : undefined;
-}
-
-// Side-effect-only envelope kinds (system, permission_request) are handled
-// upstream in onEnvelope — this function only converts content-bearing kinds
-// into the AssistantStreamEvent shape consumed by the buffer.
-function envelopeToRenderEvent(envelope: StreamEnvelope): AssistantStreamEvent | null {
-  const payload = envelope.payload as Record<string, unknown>;
-
-  switch (envelope.kind) {
-    case 'assistant_text': {
-      const text = typeof payload.text === 'string' ? payload.text : '';
-      if (!text) return null;
-      return { type: 'assistant_text', text };
-    }
-    case 'assistant_thinking': {
-      const thinking = typeof payload.thinking === 'string' ? payload.thinking : '';
-      if (!thinking) return null;
-      return { type: 'assistant_thinking', thinking };
-    }
-    case 'tool_started':
-    case 'tool_completed':
-    case 'tool_failed': {
-      if (!payload.tool || typeof payload.tool !== 'object') {
-        return null;
-      }
-      return {
-        type: envelope.kind,
-        tool: payload.tool as ToolEventPayload,
-      } as AssistantStreamEvent;
-    }
-    case 'prompt_suggestions': {
-      const raw = payload.suggestions;
-      if (!Array.isArray(raw)) return null;
-      const suggestions = raw.filter((item): item is string => typeof item === 'string');
-      if (suggestions.length === 0) return null;
-      return { type: 'prompt_suggestions', suggestions };
-    }
-    default:
-      return null;
-  }
-}
 
 interface UseStreamCallbacksParams {
   messages: Message[];
@@ -211,15 +77,6 @@ interface UseStreamCallbacksResult {
   addMessageToCache: ReturnType<typeof useMessageCache>['addMessageToCache'];
   removeMessagesFromCache: ReturnType<typeof useMessageCache>['removeMessagesFromCache'];
   setPendingUserMessageId: (id: string | null) => void;
-}
-
-interface StreamSessionState {
-  messageId: string;
-  lastSeq: number;
-  chatId: string;
-  // Captured at session creation so an off-screen completion can invalidate the
-  // right sandbox's caches — the user may be viewing a different chat by then.
-  sandboxId: string | undefined;
 }
 
 // Core streaming pipeline: receives raw SSE envelopes, buffers renderable

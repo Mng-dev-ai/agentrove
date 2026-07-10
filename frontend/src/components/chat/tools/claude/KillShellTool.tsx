@@ -8,7 +8,7 @@ interface KillShellInput {
   shell_id: string;
 }
 
-const KillShellToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const KillShellTool = memo(function KillShellTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as KillShellInput | undefined;
   const shellId = input?.shell_id ?? '';
   const idSuffix = shellId ? `: ${shellId}` : '';
@@ -31,6 +31,4 @@ const KillShellToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       error={tool.error}
     />
   );
-};
-
-export const KillShellTool = memo(KillShellToolInner);
+});

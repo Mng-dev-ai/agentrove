@@ -33,7 +33,7 @@ const extractSources = (input: FetchInput | undefined): PageSource[] => {
   return [];
 };
 
-const FetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const FetchTool = memo(function FetchTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as FetchInput | undefined;
   const url = input?.action?.url ?? '';
   const pattern = input?.action?.pattern ?? '';
@@ -77,6 +77,4 @@ const FetchToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const FetchTool = memo(FetchToolInner);
+});

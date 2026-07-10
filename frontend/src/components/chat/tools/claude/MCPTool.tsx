@@ -31,7 +31,7 @@ const formatToolName = (toolName: string): string => {
     .join(' ');
 };
 
-const MCPToolInner: React.FC<MCPToolProps> = ({ tool }) => {
+export const MCPTool = memo(function MCPTool({ tool }: MCPToolProps) {
   const isMcpTool = tool.name.startsWith('mcp__');
   const formattedToolName = formatToolName(tool.name);
 
@@ -80,6 +80,4 @@ const MCPToolInner: React.FC<MCPToolProps> = ({ tool }) => {
       ) : null}
     </ToolCard>
   );
-};
-
-export const MCPTool = memo(MCPToolInner);
+});

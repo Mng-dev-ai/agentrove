@@ -14,7 +14,7 @@ import {
 } from './codexShellPayload';
 import styles from './ReadTool.module.scss';
 
-const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as ShellLikeInput | undefined;
   const result = tool.result as ShellLikeOutput | undefined;
   const filePath = input?.parsed_cmd?.[0]?.path ?? '';
@@ -49,6 +49,4 @@ const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const ReadTool = memo(ReadToolInner);
+});

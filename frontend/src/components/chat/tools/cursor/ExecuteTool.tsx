@@ -9,7 +9,7 @@ import styles from './ExecuteTool.module.scss';
 
 const ICON = <Terminal className={styles.icon} />;
 
-const ExecuteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const ExecuteTool = memo(function ExecuteTool({ tool }: { tool: ToolAggregate }) {
   const result = tool.result as CursorExecuteOutput | undefined;
 
   // Cursor leaves rawInput empty on streamed tool_call events, so the title
@@ -49,6 +49,4 @@ const ExecuteToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const ExecuteTool = memo(ExecuteToolInner);
+});

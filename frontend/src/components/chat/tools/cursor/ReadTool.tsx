@@ -8,7 +8,7 @@ import styles from './ReadTool.module.scss';
 
 const ICON = <FileSearch className={styles.icon} />;
 
-const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }) {
   const result = tool.result as CursorReadOutput | undefined;
   // Cursor omits the file path from rawInput on streamed events, so the title
   // ("Read File") is all we can show for the header — the path isn't available.
@@ -35,6 +35,4 @@ const ReadToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       {content && <NumberedContent content={content} />}
     </ToolCard>
   );
-};
-
-export const ReadTool = memo(ReadToolInner);
+});

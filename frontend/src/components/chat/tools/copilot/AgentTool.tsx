@@ -16,7 +16,7 @@ interface CopilotAgentInput {
   prompt?: string;
 }
 
-const AgentToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const AgentTool = memo(function AgentTool({ tool }: { tool: ToolAggregate }) {
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [resultExpanded, setResultExpanded] = useState(false);
   const prevToolIdRef = useRef(tool.id);
@@ -101,6 +101,4 @@ const AgentToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const AgentTool = memo(AgentToolInner);
+});

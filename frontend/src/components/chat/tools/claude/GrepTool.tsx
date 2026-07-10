@@ -22,7 +22,7 @@ const MODE_LABELS: Record<OutputMode, string> = {
   count: 'counts',
 };
 
-const GrepToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const GrepTool = memo(function GrepTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as GrepInput | undefined;
   const pattern = input?.pattern ?? '';
   const outputMode = input?.output_mode ?? 'files_with_matches';
@@ -50,6 +50,4 @@ const GrepToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       {result && <pre className={toolText['output-pre']}>{result}</pre>}
     </ToolCard>
   );
-};
-
-export const GrepTool = memo(GrepToolInner);
+});

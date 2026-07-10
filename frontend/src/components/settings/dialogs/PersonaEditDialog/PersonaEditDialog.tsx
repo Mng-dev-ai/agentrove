@@ -17,7 +17,7 @@ interface PersonaEditDialogProps {
   onPersonaChange: <K extends keyof Persona>(field: K, value: Persona[K]) => void;
 }
 
-export const PersonaEditDialog: React.FC<PersonaEditDialogProps> = ({
+export function PersonaEditDialog({
   isOpen,
   isEditing,
   persona,
@@ -25,7 +25,7 @@ export const PersonaEditDialog: React.FC<PersonaEditDialogProps> = ({
   onClose,
   onSubmit,
   onPersonaChange,
-}) => {
+}: PersonaEditDialogProps) {
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="4xl" className={styles.dialog}>
       <div className={styles.body}>
@@ -66,4 +66,4 @@ export const PersonaEditDialog: React.FC<PersonaEditDialogProps> = ({
       </div>
     </BaseModal>
   );
-};
+}

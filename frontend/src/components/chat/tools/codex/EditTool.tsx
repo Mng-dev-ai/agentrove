@@ -24,7 +24,7 @@ interface EditOutput {
   changes?: Record<string, FileChange>;
 }
 
-const DiffLine: React.FC<{ line: string }> = ({ line }) => {
+function DiffLine({ line }: { line: string }) {
   const isAdded = line.startsWith('+') && !line.startsWith('+++');
   const isRemoved = line.startsWith('-') && !line.startsWith('---');
   const isHeader = line.startsWith('@@');
@@ -55,9 +55,9 @@ const DiffLine: React.FC<{ line: string }> = ({ line }) => {
       </span>
     </div>
   );
-};
+}
 
-const FileContent: React.FC<{ change: FileChange }> = ({ change }) => {
+function FileContent({ change }: { change: FileChange }) {
   if (change.unified_diff) {
     const lines = change.unified_diff.split('\n').filter((l) => l.length > 0);
     return (
@@ -83,9 +83,9 @@ const FileContent: React.FC<{ change: FileChange }> = ({ change }) => {
   }
 
   return null;
-};
+}
 
-const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
+export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as EditInput | undefined;
   const result = tool.result as EditOutput | undefined;
 
@@ -145,6 +145,4 @@ const EditToolInner: React.FC<{ tool: ToolAggregate }> = ({ tool }) => {
       )}
     </ToolCard>
   );
-};
-
-export const EditTool = memo(EditToolInner);
+});

@@ -87,10 +87,7 @@ const computeDiffLines = (oldStr: string, newStr: string): DiffLine[] => {
   return result;
 };
 
-const InlineDiff: React.FC<{ oldContent: string; newContent: string }> = ({
-  oldContent,
-  newContent,
-}) => {
+function InlineDiff({ oldContent, newContent }: { oldContent: string; newContent: string }) {
   const lines = useMemo(() => computeDiffLines(oldContent, newContent), [oldContent, newContent]);
 
   if (lines.length === 0) {
@@ -123,9 +120,12 @@ const InlineDiff: React.FC<{ oldContent: string; newContent: string }> = ({
       ))}
     </div>
   );
-};
+}
 
-const FileOperationToolInner: React.FC<FileOperationToolProps> = ({ tool, variant }) => {
+const FileOperationTool = memo(function FileOperationTool({
+  tool,
+  variant,
+}: FileOperationToolProps) {
   const config = OPERATION_CONFIGS[variant];
   const Icon = config.icon;
   const filePath = (tool.input?.file_path as string | undefined) ?? '';
@@ -177,9 +177,7 @@ const FileOperationToolInner: React.FC<FileOperationToolProps> = ({ tool, varian
       {hasContent ? renderContent() : null}
     </ToolCard>
   );
-};
-
-const FileOperationTool = memo(FileOperationToolInner);
+});
 
 export const WriteTool: ToolComponent = ({ tool }) => (
   <FileOperationTool tool={tool} variant="write" />

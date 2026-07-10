@@ -20,12 +20,12 @@ interface FileActionButtonsProps {
   editLabel?: string;
 }
 
-const FileActionButtons = ({
+function FileActionButtons({
   onEdit,
   onRemove,
   compact,
   editLabel = 'Edit',
-}: FileActionButtonsProps) => {
+}: FileActionButtonsProps) {
   const sizeModifier = compact ? 'compact' : 'full';
   return (
     <div className={styles.actions}>
@@ -51,7 +51,7 @@ const FileActionButtons = ({
       </Button>
     </div>
   );
-};
+}
 
 const FilePreviewItem = memo(function FilePreviewItem({
   file,

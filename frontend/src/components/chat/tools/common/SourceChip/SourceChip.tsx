@@ -1,4 +1,3 @@
-import React from 'react';
 import clsx from 'clsx';
 import { Globe } from 'lucide-react';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -10,7 +9,7 @@ interface SourceChipProps {
   index: number;
 }
 
-export const SourceChip: React.FC<SourceChipProps> = ({ source, index }) => {
+export function SourceChip({ source, index }: SourceChipProps) {
   let domain = '';
   let faviconUrl: string | null = null;
 
@@ -50,4 +49,4 @@ export const SourceChip: React.FC<SourceChipProps> = ({ source, index }) => {
       </Link>
     </FloatingTooltip>
   );
-};
+}
