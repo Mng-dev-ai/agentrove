@@ -359,6 +359,12 @@ class AcpClientHandler:
             parent_id=self._extract_parent_tool_id(tc),
             input=self._extract_raw_input(tc.raw_input),
         )
+        # Codex attaches edit diffs as content blocks on the initial tool_call
+        # (and re-sent tool_call updates), while its terminal tool_call_update
+        # carries only a status — capture the diffs here or they're lost.
+        diffs = self._extract_content_diffs(tc)
+        if diffs:
+            payload["result"] = {"diffs": diffs}
         self._active_tools[tc.tool_call_id] = payload
         return StreamEvent(type="tool_started", tool=payload)
 
@@ -396,7 +402,11 @@ class AcpClientHandler:
         if status == "completed":
             self._active_tools.pop(tc.tool_call_id, None)
             existing["status"] = ToolStatus.COMPLETED.value
-            existing["result"] = self._extract_tool_result(tc)
+            result = self._extract_tool_result(tc)
+            # Codex edit diffs were captured from earlier tool_call events —
+            # don't wipe them when the terminal update carries no result.
+            if result is not None or "result" not in existing:
+                existing["result"] = result
             selected_mode = self._resolved_permissions.pop(tc.tool_call_id, None)
             if selected_mode is not None:
                 existing["permission_mode"] = selected_mode
@@ -503,9 +513,12 @@ class AcpClientHandler:
         return texts
 
     @staticmethod
-    def _extract_content_diffs(tc: ToolCallProgress) -> list[dict[str, Any]]:
-        # Cursor emits its `edit` tool results as ACP FileEditToolCallContent
-        # blocks (type="diff") with path/oldText/newText, without raw_output.
+    def _extract_content_diffs(
+        tc: ToolCallStart | ToolCallProgress,
+    ) -> list[dict[str, Any]]:
+        # Cursor and Codex emit `edit` tool results as ACP FileEditToolCallContent
+        # blocks (type="diff") with path/oldText/newText, without raw_output —
+        # Cursor on the terminal update, Codex on the initial tool_call.
         # Surface these so the frontend edit renderer can show the diff.
         if not tc.content:
             return []

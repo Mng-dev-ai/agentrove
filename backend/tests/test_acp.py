@@ -31,6 +31,7 @@ from tests.fake_acp_agent import (
     MARKER_TOOL_LEFT_OPEN,
     MARKER_TOOL_PROGRESS_NEW,
     MARKER_TOOL_PROGRESS_ORPHAN,
+    MARKER_TOOL_START_DIFF,
     MARKER_TOOL_STRING_ERROR,
     MARKER_TOOL_TEXT_ERROR,
     MARKER_TOOL_TEXT_RESULT,
@@ -415,6 +416,12 @@ async def test_enhance_prompt_survives_config_option_failures(
             {"diffs": [{"path": "app.py", "oldText": "old", "newText": "new"}]},
         ),
         (MARKER_TOOL_TEXT_RESULT, "tool-primary", "result", "plain text result"),
+        (
+            MARKER_TOOL_START_DIFF,
+            "tool-primary",
+            "result",
+            {"diffs": [{"path": "app.py", "oldText": "old", "newText": "new"}]},
+        ),
         (MARKER_TOOL_CODEX_ERROR, "tool-secondary", "error", "boom codex"),
         (MARKER_TOOL_STRING_ERROR, "tool-secondary", "error", "boom plain string"),
         (

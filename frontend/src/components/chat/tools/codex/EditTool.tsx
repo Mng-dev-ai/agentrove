@@ -1,5 +1,6 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import clsx from 'clsx';
+import { structuredPatch } from 'diff';
 import { FileEdit, FilePlus } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
@@ -14,6 +15,12 @@ interface FileChange {
   move_path?: string | null;
 }
 
+interface DiffBlock {
+  path?: string | null;
+  oldText?: string | null;
+  newText?: string | null;
+}
+
 interface EditInput {
   changes?: Record<string, FileChange>;
 }
@@ -22,7 +29,30 @@ interface EditOutput {
   success?: boolean;
   stdout?: string;
   changes?: Record<string, FileChange>;
+  diffs?: DiffBlock[];
 }
+
+// codex-acp sends ACP diff blocks carrying full old/new file contents, so
+// compute hunked unified diffs to render only the changed regions.
+const toUnifiedDiff = (oldText: string, newText: string): string => {
+  const patch = structuredPatch('', '', oldText, newText);
+  return patch.hunks
+    .map((h) =>
+      [`@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@`, ...h.lines].join('\n'),
+    )
+    .join('\n');
+};
+
+const diffBlockToFileChange = (block: DiffBlock): FileChange => {
+  // ACP diff semantics: empty oldText = create, empty newText = delete.
+  if (!block.oldText) {
+    return { type: 'add', content: block.newText ?? '' };
+  }
+  if (!block.newText) {
+    return { type: 'delete', unified_diff: toUnifiedDiff(block.oldText, '') };
+  }
+  return { type: 'update', unified_diff: toUnifiedDiff(block.oldText, block.newText) };
+};
 
 function DiffLine({ line }: { line: string }) {
   const isAdded = line.startsWith('+') && !line.startsWith('+++');
@@ -89,7 +119,14 @@ export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }
   const input = tool.input as EditInput | undefined;
   const result = tool.result as EditOutput | undefined;
 
-  const changedFiles = Object.entries(input?.changes ?? result?.changes ?? {});
+  const changedFiles = useMemo<[string, FileChange][]>(() => {
+    const changes = input?.changes ?? result?.changes;
+    if (changes) return Object.entries(changes);
+    return (result?.diffs ?? []).map((block): [string, FileChange] => [
+      block.path ?? '',
+      diffBlockToFileChange(block),
+    ]);
+  }, [input, result]);
 
   const firstFilePath = changedFiles[0]?.[0] ?? '';
   const firstFileName = firstFilePath ? extractFilename(firstFilePath) : '';

@@ -68,6 +68,7 @@ MARKER_TOOL_LEFT_OPEN = "MARKER_TOOL_LEFT_OPEN"
 MARKER_FS_TERMINAL_STUBS = "MARKER_FS_TERMINAL_STUBS"
 MARKER_IMAGE_CONTENT = "MARKER_IMAGE_CONTENT"
 MARKER_TOOL_EMPTY_RESULT = "MARKER_TOOL_EMPTY_RESULT"
+MARKER_TOOL_START_DIFF = "MARKER_TOOL_START_DIFF"
 MARKER_TOOL_UNKNOWN_DICT_ERROR = "MARKER_TOOL_UNKNOWN_DICT_ERROR"
 MARKER_ENTER_PLAN_MODE = "MARKER_ENTER_PLAN_MODE"
 # 1x1 transparent PNG, reused wherever the protocol needs inline image bytes.
@@ -376,6 +377,7 @@ class FakeAgent:
         field_meta: dict[str, Any] | None = None,
         raw_input: Any = None,
         kind: str = "execute",
+        content: list[Any] | None = None,
     ) -> None:
         assert self._client is not None
         await self._client.session_update(
@@ -387,6 +389,7 @@ class FakeAgent:
                 kind=kind,
                 raw_input=raw_input,
                 field_meta=field_meta,
+                content=content,
             ),
         )
 
@@ -543,6 +546,15 @@ class FakeAgent:
         elif MARKER_RAW_INPUT_INVALID in text:
             raw_input = "not-json{{"
 
+        start_content: list[Any] | None = None
+        if MARKER_TOOL_START_DIFF in text:
+            # Codex attaches edit diffs to the initial tool_call and ends with a
+            # status-only update — the diff must survive to tool_completed.
+            start_content = [
+                FileEditToolCallContent(
+                    type="diff", path="app.py", old_text="old", new_text="new"
+                )
+            ]
         await self._emit_tool_started(
             session_id,
             "tool-primary",
@@ -551,6 +563,7 @@ class FakeAgent:
                 "claudeCode": {"toolName": "Read", "parentToolUseId": "parent-1"}
             },
             raw_input=raw_input,
+            content=start_content,
         )
         # Title-only update with no status — re-emitted as tool_started so the
         # UI can refresh the loading title before the tool finishes.
@@ -698,9 +711,11 @@ class FakeAgent:
                 ),
             )
             return
-        if MARKER_TOOL_EMPTY_RESULT in text:
+        if MARKER_TOOL_EMPTY_RESULT in text or MARKER_TOOL_START_DIFF in text:
             # No raw_output, no diff/text content — _extract_tool_result falls
             # all the way through to its empty-content "return None" fallback.
+            # For START_DIFF the diffs captured from the ToolCallStart must
+            # survive this bare terminal update (Codex edit shape).
             await self._client.session_update(
                 session_id=session_id,
                 update=ToolCallProgress(
