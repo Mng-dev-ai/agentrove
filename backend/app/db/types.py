@@ -1,11 +1,10 @@
-import json
 import uuid as uuid_module
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
 from cryptography.fernet import InvalidToken
-from sqlalchemy import CHAR, DateTime, String, Text
+from sqlalchemy import CHAR, DateTime, String
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.types import TypeDecorator
 
@@ -81,40 +80,3 @@ class EncryptedString(TypeDecorator[str]):
             return decrypt_value(value)
         except InvalidToken:
             return value
-
-
-class EncryptedJSON(TypeDecorator[Any]):
-    impl = Text
-    cache_ok = True
-
-    def process_bind_param(self, value: Any, _dialect: Dialect) -> Any:
-        from app.core.security import encrypt_value
-
-        if value is None:
-            return None
-        if isinstance(value, str):
-            serialized = value
-        else:
-            serialized = json.dumps(value, separators=(",", ":"), ensure_ascii=True)
-        return encrypt_value(serialized)
-
-    def process_result_value(self, value: Any, _dialect: Dialect) -> Any:
-        from app.core.security import decrypt_value
-
-        if value is None:
-            return None
-        if isinstance(value, (list, dict)):
-            return value
-        if isinstance(value, str):
-            try:
-                decrypted = decrypt_value(value)
-            except InvalidToken:
-                try:
-                    return json.loads(value)
-                except json.JSONDecodeError:
-                    return value
-            try:
-                return json.loads(decrypted)
-            except json.JSONDecodeError:
-                return decrypted
-        return value

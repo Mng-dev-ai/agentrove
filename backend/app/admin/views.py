@@ -6,7 +6,7 @@ from sqladmin import ModelView
 from sqladmin.helpers import get_object_identifier
 from app.models.db_models.chat import Chat, Message, MessageAttachment
 from app.models.db_models.user import User, UserSettings
-from wtforms import PasswordField, SelectField
+from wtforms import Form, PasswordField, SelectField
 from app.models.db_models.enums import (
     MessageRole,
     MessageStreamStatus,
@@ -60,7 +60,13 @@ class UserAdmin(ModelView, model=User):
 
     form_excluded_columns = ["chats", "settings", "hashed_password"]
 
-    form_extra_fields = {"password": PasswordField("Password")}
+    async def scaffold_form(self, rules: list[str] | None = None) -> type[Form]:
+        # This sqladmin version has no form_extra_fields support, so graft the
+        # password field onto the scaffolded form — without it, creating a user
+        # fails on the NOT NULL hashed_password column.
+        form: type[Form] = await super().scaffold_form(rules)
+        form.password = PasswordField("Password")
+        return form
 
     def _url_for_delete(self, request: Request, obj: Any) -> str:
         # SQLAdmin renders absolute delete URLs; proxied admin pages need

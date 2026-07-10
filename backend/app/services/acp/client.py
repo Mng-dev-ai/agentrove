@@ -281,7 +281,9 @@ class AcpClientHandler:
         terminal_id: str,
         **kwargs: Any,
     ) -> TerminalOutputResponse:
-        return TerminalOutputResponse(output="")
+        # truncated is required by the ACP schema — omitting it makes the
+        # response fail validation and aborts the agent's whole turn.
+        return TerminalOutputResponse(output="", truncated=False)
 
     async def release_terminal(
         self,

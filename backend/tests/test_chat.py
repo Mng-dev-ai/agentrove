@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
@@ -13,13 +14,19 @@ from app.models.db_models.chat import Chat, ChatCheckpoint, Message, MessageEven
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
-from app.models.schemas.chat import ChatRequest
+from app.models.schemas.chat import (
+    ChatCreate,
+    ChatRequest,
+    ChatSearchResponse,
+    ChatUpdate,
+)
+from app.services import chat as chat_service_module
 from app.services.db import SessionFactoryType
-from app.services.exceptions import AgentException, ChatException
+from app.services.exceptions import AgentException, ChatException, SandboxException
 from app.services.queue import QueueService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.utils.cache import MemoryStore
+from app.utils.cache import CacheError, MemoryStore
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
@@ -52,6 +59,21 @@ class SendNowCapture:
     ) -> bool:
         self.chat_ids.append(chat_id)
         return True
+
+
+class ProcessSendNowIdleFailure:
+    async def process_send_now_idle(
+        self, chat_id: str, _session_factory: SessionFactoryType
+    ) -> bool:
+        raise RuntimeError("idle send-now boom")
+
+
+class CancelGenerationCapture:
+    def __init__(self) -> None:
+        self.chat_ids: list[str] = []
+
+    async def __call__(self, chat_id: str) -> None:
+        self.chat_ids.append(chat_id)
 
 
 class PermissionResolver:
@@ -98,7 +120,9 @@ class AgentServiceOverride:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, User]] = []
         self.ask_code_calls: list[tuple[str, str, str, str, User, Chat]] = []
+        self.title_calls: list[tuple[str, str, User, Chat | None]] = []
         self.fail = False
+        self.next_title: str | None = "Generated Title"
 
     def __call__(self) -> "AgentServiceOverride":
         return self
@@ -125,6 +149,82 @@ class AgentServiceOverride:
         if self.fail:
             raise AgentException("Ask failed", status_code=503)
         return "Answer: " + question
+
+    async def generate_title(
+        self, prompt: str, model_id: str, user: User, chat: Chat | None = None
+    ) -> str | None:
+        self.title_calls.append((prompt, model_id, user, chat))
+        return self.next_title
+
+
+class RaisingChatService:
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+    async def __call__(self) -> AsyncIterator["RaisingChatService"]:
+        yield self
+
+    async def create_chat(self, user: User, chat_data: ChatCreate) -> Chat:
+        raise self.exc
+
+    async def search_messages(
+        self, user: User, query: str, *, limit: int = 50, per_chat_limit: int = 5
+    ) -> ChatSearchResponse:
+        raise self.exc
+
+    async def get_sub_threads(self, chat_id: UUID, user: User) -> list[Chat]:
+        raise self.exc
+
+    async def get_chat(self, chat_id: UUID, user: User) -> Chat:
+        raise self.exc
+
+    async def update_chat(
+        self, chat_id: UUID, chat_update: ChatUpdate, user: User
+    ) -> Chat:
+        raise self.exc
+
+
+class RaisingMessageService:
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+    async def get_in_progress_assistant_message(self, chat_id: UUID) -> Message:
+        raise self.exc
+
+
+class StreamStatusServiceOverride:
+    # Wraps a real Chat row (so get_chat succeeds) while forcing the
+    # in-progress-message lookup to fail, isolating the endpoint's
+    # SQLAlchemyError branch from the ChatException branch.
+    def __init__(self, chat: Chat, exc: Exception) -> None:
+        self._chat = chat
+        self.message_service = RaisingMessageService(exc)
+
+    async def __call__(self) -> AsyncIterator["StreamStatusServiceOverride"]:
+        yield self
+
+    async def get_chat(self, chat_id: UUID, user: User) -> Chat:
+        return self._chat
+
+
+class WriteFailingSandboxProvider(FakeSandboxProvider):
+    async def write_file(
+        self, sandbox_id: str, path: str, content: str | bytes
+    ) -> None:
+        raise SandboxException("disk full", status_code=400)
+
+
+class RaisingCacheConnection:
+    # Stands in for app.services.chat.cache_connection so the best-effort
+    # chat-event publish hits its CacheError branch without a real Redis.
+    def __call__(self) -> "RaisingCacheConnection":
+        return self
+
+    async def __aenter__(self) -> None:
+        raise CacheError("cache unavailable")
+
+    async def __aexit__(self, *exc_info: object) -> None:
+        return None
 
 
 @pytest.fixture
@@ -209,12 +309,13 @@ async def create_checkpoint_row(
     *,
     cwd: str | None = None,
     pre_run_diff: str = "",
+    base_head: str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 ) -> ChatCheckpoint:
     checkpoint = ChatCheckpoint(
         chat_id=chat.id,
         assistant_message_id=assistant_message.id,
         cwd=cwd,
-        base_head="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        base_head=base_head,
         pre_run_diff=pre_run_diff,
     )
     db_session.add(checkpoint)
@@ -1180,3 +1281,861 @@ async def test_chats_reject_missing_token(client: AsyncClient) -> None:
     assert list_response.status_code == 401
     assert create_response.status_code == 401
     assert detail_response.status_code == 401
+
+
+async def test_create_chat_publishes_best_effort_and_swallows_cache_errors(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    monkeypatch.setattr(
+        chat_service_module, "cache_connection", RaisingCacheConnection()
+    )
+
+    response = await client.post(
+        "/api/v1/chat/chats",
+        json={
+            "title": "Best Effort",
+            "model_id": TEST_MODEL_ID,
+            "workspace_id": str(workspace.id),
+        },
+        headers=headers,
+    )
+
+    # The chat_created broadcast is best-effort — a cache outage must not
+    # block chat creation.
+    assert response.status_code == 201
+    assert response.json()["title"] == "Best Effort"
+
+
+async def test_create_chat_endpoint_translates_database_and_cache_errors(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    payload = {
+        "title": "New Chat",
+        "model_id": TEST_MODEL_ID,
+        "workspace_id": str(workspace.id),
+    }
+
+    app.dependency_overrides[get_chat_service] = RaisingChatService(
+        SQLAlchemyError("db down")
+    )
+    db_error_response = await client.post(
+        "/api/v1/chat/chats", json=payload, headers=headers
+    )
+
+    app.dependency_overrides[get_chat_service] = RaisingChatService(
+        CacheError("redis down")
+    )
+    cache_error_response = await client.post(
+        "/api/v1/chat/chats", json=payload, headers=headers
+    )
+
+    assert db_error_response.status_code == 500
+    assert db_error_response.json()["detail"] == "Database error while creating chat"
+    assert cache_error_response.status_code == 503
+    assert cache_error_response.json()["detail"] == "Service temporarily unavailable"
+
+
+async def test_generate_chat_title_endpoint_covers_success_and_failure_paths(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    agent_service = AgentServiceOverride()
+    app.dependency_overrides[get_agent_service] = agent_service
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    empty_chat = await create_chat_row(db_session, user, workspace, title="Empty")
+
+    no_messages_response = await client.post(
+        f"/api/v1/chat/chats/{empty_chat.id}/generate-title", headers=headers
+    )
+
+    chat = await create_chat_row(db_session, user, workspace, title="With Messages")
+    await create_message_row(db_session, chat, content="Ship the release notes")
+    await create_message_row(
+        db_session,
+        chat,
+        content="",
+        role=MessageRole.ASSISTANT,
+        model_id=TEST_MODEL_ID,
+    )
+
+    success_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/generate-title", headers=headers
+    )
+
+    agent_service.next_title = None
+    failure_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/generate-title", headers=headers
+    )
+
+    assert no_messages_response.status_code == 400
+    assert (
+        no_messages_response.json()["detail"]
+        == "Chat has no messages to generate a title from"
+    )
+    assert success_response.status_code == 200
+    assert success_response.json() == {"title": "Generated Title"}
+    assert failure_response.status_code == 503
+    assert failure_response.json()["detail"] == "Title generation failed"
+    [prompt, model_id, stored_user, stored_chat] = agent_service.title_calls[0]
+    assert prompt == "Ship the release notes"
+    assert model_id == TEST_MODEL_ID
+    assert stored_user.id == user.id
+    assert stored_chat is not None
+    assert stored_chat.id == chat.id
+
+
+async def test_search_chats_endpoint_translates_database_error(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _user, _workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    app.dependency_overrides[get_chat_service] = RaisingChatService(
+        SQLAlchemyError("db down")
+    )
+
+    response = await client.get("/api/v1/chat/chats/search?q=needle", headers=headers)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Database error while searching chats"
+
+
+async def test_get_active_streams_returns_empty_and_populated_results(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    monkeypatch.setattr(ChatStreamRuntime, "active_chat_ids", lambda: set())
+    empty_response = await client.get(
+        "/api/v1/chat/chats/active-streams", headers=headers
+    )
+
+    stream_id = uuid4()
+    message = await create_message_row(
+        db_session,
+        chat,
+        content="Streaming",
+        role=MessageRole.ASSISTANT,
+        stream_status=MessageStreamStatus.IN_PROGRESS,
+        active_stream_id=stream_id,
+        last_seq=3,
+    )
+    monkeypatch.setattr(ChatStreamRuntime, "active_chat_ids", lambda: {str(chat.id)})
+    populated_response = await client.get(
+        "/api/v1/chat/chats/active-streams", headers=headers
+    )
+
+    assert empty_response.status_code == 200
+    assert empty_response.json() == []
+    assert populated_response.status_code == 200
+    [status_entry] = populated_response.json()
+    assert status_entry["chat_id"] == str(chat.id)
+    assert status_entry["message_id"] == str(message.id)
+    assert status_entry["stream_id"] == str(stream_id)
+    assert status_entry["last_seq"] == 3
+
+
+async def test_get_sub_threads_endpoint_handles_missing_chat_and_database_error(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    missing_response = await client.get(
+        f"/api/v1/chat/chats/{uuid4()}/sub-threads", headers=headers
+    )
+
+    app.dependency_overrides[get_chat_service] = RaisingChatService(
+        SQLAlchemyError("db down")
+    )
+    db_error_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/sub-threads", headers=headers
+    )
+
+    assert missing_response.status_code == 404
+    assert missing_response.json()["detail"] == "Chat not found"
+    assert db_error_response.status_code == 500
+    assert (
+        db_error_response.json()["detail"]
+        == "Database error while retrieving sub-threads"
+    )
+
+
+async def test_get_chat_detail_endpoint_translates_database_error(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _user, _workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    app.dependency_overrides[get_chat_service] = RaisingChatService(
+        SQLAlchemyError("db down")
+    )
+
+    response = await client.get(f"/api/v1/chat/chats/{uuid4()}", headers=headers)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Database error while retrieving chat"
+
+
+async def test_update_chat_endpoint_rejects_missing_chat_and_translates_database_error(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _user, _workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+
+    missing_response = await client.patch(
+        f"/api/v1/chat/chats/{uuid4()}",
+        json={"title": "Ghost"},
+        headers=headers,
+    )
+
+    app.dependency_overrides[get_chat_service] = RaisingChatService(
+        SQLAlchemyError("db down")
+    )
+    db_error_response = await client.patch(
+        f"/api/v1/chat/chats/{uuid4()}",
+        json={"title": "Ghost"},
+        headers=headers,
+    )
+
+    assert missing_response.status_code == 404
+    assert (
+        missing_response.json()["detail"]
+        == "Chat not found or you don't have permission to update it"
+    )
+    assert db_error_response.status_code == 500
+    assert db_error_response.json()["detail"] == "Database error while updating chat"
+
+
+async def test_mark_chat_viewed_and_update_preserve_read_state_across_bumps(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    viewed_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/viewed", headers=headers
+    )
+    updated_response = await client.patch(
+        f"/api/v1/chat/chats/{chat.id}",
+        json={"title": "Renamed after viewing"},
+        headers=headers,
+    )
+
+    assert viewed_response.status_code == 204
+    assert updated_response.status_code == 200
+    updated = updated_response.json()
+    assert updated["title"] == "Renamed after viewing"
+    # Marking viewed then updating shouldn't flip the chat back to unread —
+    # confirms the read-state carry-through in ChatService.update_chat.
+    assert updated["unread"] is False
+
+
+async def test_get_chats_filters_by_workspace_id(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    other_workspace = Workspace(
+        name="Second Workspace",
+        user_id=user.id,
+        sandbox_id="sandbox-second",
+        sandbox_provider="host",
+        workspace_path="/tmp/agentrove-test-second",
+        source_type="empty",
+        source_url=None,
+    )
+    db_session.add(other_workspace)
+    await db_session.commit()
+    await db_session.refresh(other_workspace)
+
+    chat_in_workspace = await create_chat_row(
+        db_session, user, workspace, title="In Workspace"
+    )
+    await create_chat_row(db_session, user, other_workspace, title="Other Workspace")
+
+    response = await client.get(
+        f"/api/v1/chat/chats?workspace_id={workspace.id}", headers=headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert [item["id"] for item in body["items"]] == [str(chat_in_workspace.id)]
+
+
+async def test_search_messages_reports_truncation_from_chat_cap_and_per_chat_limits(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+
+    # chat_cap truncation: 3 distinct matching chats but limit=1 caps the
+    # lookahead at chat_cap=2, so the loop breaks mid-iteration.
+    for index in range(3):
+        cap_chat = await create_chat_row(
+            db_session, user, workspace, title=f"Cap Chat {index}"
+        )
+        await create_message_row(
+            db_session, cap_chat, content=f"contains cap-needle-{index}"
+        )
+    cap_response = await client.get(
+        "/api/v1/chat/chats/search?q=cap-needle&limit=1&per_chat_limit=5",
+        headers=headers,
+    )
+
+    # per-chat truncation: one chat with 2 matches but per_chat_limit=1.
+    per_chat = await create_chat_row(
+        db_session, user, workspace, title="Per Chat Limit"
+    )
+    await create_message_row(
+        db_session, per_chat, content="first perchat-needle mention"
+    )
+    await create_message_row(
+        db_session, per_chat, content="second perchat-needle mention"
+    )
+    per_chat_response = await client.get(
+        "/api/v1/chat/chats/search?q=perchat-needle&limit=5&per_chat_limit=1",
+        headers=headers,
+    )
+
+    # post-loop truncation: exactly limit+1 distinct chats so the loop
+    # exhausts all rows without ever hitting the mid-loop break.
+    for index in range(2):
+        tail_chat = await create_chat_row(
+            db_session, user, workspace, title=f"Tail Chat {index}"
+        )
+        await create_message_row(
+            db_session, tail_chat, content=f"contains tail-needle-{index}"
+        )
+    tail_response = await client.get(
+        "/api/v1/chat/chats/search?q=tail-needle&limit=1&per_chat_limit=5",
+        headers=headers,
+    )
+
+    assert cap_response.status_code == 200
+    cap_body = cap_response.json()
+    assert cap_body["truncated"] is True
+    assert len(cap_body["results"]) == 1
+
+    assert per_chat_response.status_code == 200
+    per_chat_body = per_chat_response.json()
+    assert per_chat_body["truncated"] is True
+    assert per_chat_body["results"][0]["match_count"] == 2
+    assert len(per_chat_body["results"][0]["matches"]) == 1
+
+    assert tail_response.status_code == 200
+    tail_body = tail_response.json()
+    assert tail_body["truncated"] is True
+    assert len(tail_body["results"]) == 1
+
+
+async def test_create_sub_thread_rejects_missing_parent_and_preserves_read_state(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    parent = await create_chat_row(db_session, user, workspace, title="Parent")
+
+    missing_parent_response = await client.post(
+        "/api/v1/chat/chats",
+        json={
+            "title": "Orphan",
+            "model_id": TEST_MODEL_ID,
+            "workspace_id": str(workspace.id),
+            "parent_chat_id": str(uuid4()),
+        },
+        headers=headers,
+    )
+
+    await client.post(f"/api/v1/chat/chats/{parent.id}/viewed", headers=headers)
+
+    sub_thread_response = await client.post(
+        "/api/v1/chat/chats",
+        json={
+            "title": "Sub-thread",
+            "model_id": TEST_MODEL_ID,
+            "workspace_id": str(workspace.id),
+            "parent_chat_id": str(parent.id),
+        },
+        headers=headers,
+    )
+    parent_detail = await client.get(f"/api/v1/chat/chats/{parent.id}", headers=headers)
+
+    assert missing_parent_response.status_code == 404
+    assert missing_parent_response.json()["detail"] == "Parent chat not found"
+    assert sub_thread_response.status_code == 201
+    assert parent_detail.status_code == 200
+    # Sub-thread creation bumps the parent's ordering timestamp but should
+    # carry the already-read state across it rather than flipping unread.
+    assert parent_detail.json()["unread"] is False
+
+
+async def test_create_chat_rejects_missing_or_foreign_workspace(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _user, _workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+
+    response = await client.post(
+        "/api/v1/chat/chats",
+        json={
+            "title": "No Workspace",
+            "model_id": TEST_MODEL_ID,
+            "workspace_id": str(uuid4()),
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Workspace not found"
+
+
+async def test_delete_chat_rejects_missing_chat_and_cascades_sub_threads_and_workspace(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(SandboxProvider, "create_provider", FakeProviderFactory())
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+
+    missing_response = await client.delete(
+        f"/api/v1/chat/chats/{uuid4()}", headers=headers
+    )
+
+    parent = await create_chat_row(db_session, user, workspace, title="Parent")
+    sub_create = await client.post(
+        "/api/v1/chat/chats",
+        json={
+            "title": "Sub-thread",
+            "model_id": TEST_MODEL_ID,
+            "workspace_id": str(workspace.id),
+            "parent_chat_id": str(parent.id),
+        },
+        headers=headers,
+    )
+    sub_thread_id = sub_create.json()["id"]
+
+    delete_response = await client.delete(
+        f"/api/v1/chat/chats/{parent.id}", headers=headers
+    )
+    sub_thread_detail = await client.get(
+        f"/api/v1/chat/chats/{sub_thread_id}", headers=headers
+    )
+
+    assert missing_response.status_code == 404
+    assert sub_create.status_code == 201
+    assert delete_response.status_code == 204
+    # Deleting the parent must cascade-delete its sub-thread too.
+    assert sub_thread_detail.status_code == 404
+
+
+async def test_restore_message_checkpoint_translates_sandbox_and_value_errors(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    invalid_message = await create_message_row(
+        db_session, chat, content="Invalid checkpoint", role=MessageRole.ASSISTANT
+    )
+    await create_checkpoint_row(
+        db_session, chat, invalid_message, base_head="not-a-valid-hash"
+    )
+    monkeypatch.setattr(SandboxProvider, "create_provider", FakeProviderFactory())
+    value_error_response = await client.post(
+        f"/api/v1/chat/messages/{invalid_message.id}/checkpoint/restore-all",
+        headers=headers,
+    )
+
+    write_failing_message = await create_message_row(
+        db_session, chat, content="Write failure", role=MessageRole.ASSISTANT
+    )
+    await create_checkpoint_row(
+        db_session,
+        chat,
+        write_failing_message,
+        pre_run_diff="diff --git a/app.py b/app.py\n",
+    )
+    monkeypatch.setattr(
+        SandboxProvider,
+        "create_provider",
+        FakeProviderFactory(provider=WriteFailingSandboxProvider()),
+    )
+    sandbox_error_response = await client.post(
+        f"/api/v1/chat/messages/{write_failing_message.id}/checkpoint/restore-all",
+        headers=headers,
+    )
+
+    assert value_error_response.status_code == 400
+    assert value_error_response.json()["detail"] == "Invalid checkpoint commit"
+    assert sandbox_error_response.status_code == 400
+    assert sandbox_error_response.json()["detail"] == "disk full"
+
+
+async def test_cancel_stream_endpoint_only_cancels_when_active_or_pending(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    idle_chat = await create_chat_row(db_session, user, workspace, title="Idle")
+    pending_chat = await create_chat_row(db_session, user, workspace, title="Pending")
+    await create_message_row(
+        db_session,
+        pending_chat,
+        content="",
+        role=MessageRole.ASSISTANT,
+        stream_status=MessageStreamStatus.IN_PROGRESS,
+    )
+    active_chat = await create_chat_row(db_session, user, workspace, title="Active")
+
+    capture = CancelGenerationCapture()
+    monkeypatch.setattr(chat_endpoint.session_registry, "cancel_generation", capture)
+    monkeypatch.setattr(
+        ChatStreamRuntime,
+        "has_active_chat",
+        lambda chat_id: chat_id == str(active_chat.id),
+    )
+
+    idle_response = await client.delete(
+        f"/api/v1/chat/chats/{idle_chat.id}/stream", headers=headers
+    )
+    pending_response = await client.delete(
+        f"/api/v1/chat/chats/{pending_chat.id}/stream", headers=headers
+    )
+    active_response = await client.delete(
+        f"/api/v1/chat/chats/{active_chat.id}/stream", headers=headers
+    )
+
+    assert idle_response.status_code == 204
+    assert pending_response.status_code == 204
+    assert active_response.status_code == 204
+    # Idle+no-pending-start must not cancel; pending-start and active-runtime
+    # chats both should, even though only one has an active runtime task.
+    assert capture.chat_ids == [str(pending_chat.id), str(active_chat.id)]
+
+
+async def test_queue_message_with_attachments_saves_to_sandbox(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = FakeSandboxProvider()
+    monkeypatch.setattr(
+        SandboxProvider, "create_provider", FakeProviderFactory(provider=provider)
+    )
+    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    create_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Review this", "model_id": TEST_MODEL_ID},
+        files={"attached_files": ("report.pdf", b"%PDF-1.4", "application/pdf")},
+        headers=headers,
+    )
+    list_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
+    )
+
+    assert create_response.status_code == 201
+    assert list_response.status_code == 200
+    queued = list_response.json()
+    assert len(queued) == 1
+    [attachment] = queued[0]["attachments"]
+    assert attachment["filename"] == "report.pdf"
+    assert attachment["file_type"] == "pdf"
+    assert attachment["file_url"].startswith("/api/v1/attachments/temp/preview?path=")
+    assert len(provider.writes) == 1
+    sandbox_id, path, _content = provider.writes[0]
+    assert sandbox_id == workspace.sandbox_id
+    assert path.endswith(".pdf")
+
+
+async def test_send_now_queued_message_cancels_active_stream_and_handles_idle_failure(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    first_create = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "First", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    first_id = first_create.json()["id"]
+
+    capture = CancelGenerationCapture()
+    monkeypatch.setattr(chat_endpoint.session_registry, "cancel_generation", capture)
+    monkeypatch.setattr(ChatStreamRuntime, "has_active_chat", lambda _chat_id: True)
+
+    active_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{first_id}/send-now", headers=headers
+    )
+
+    second_create = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Second", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    second_id = second_create.json()["id"]
+
+    monkeypatch.setattr(ChatStreamRuntime, "has_active_chat", lambda _chat_id: False)
+    monkeypatch.setattr(
+        ChatStreamRuntime,
+        "process_send_now_idle",
+        staticmethod(ProcessSendNowIdleFailure().process_send_now_idle),
+    )
+
+    idle_failure_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{second_id}/send-now", headers=headers
+    )
+
+    assert active_response.status_code == 204
+    assert capture.chat_ids == [str(chat.id)]
+    assert idle_failure_response.status_code == 503
+    assert (
+        idle_failure_response.json()["detail"] == "Failed to start send-now execution"
+    )
+
+
+async def test_get_message_events_returns_404_for_missing_message(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _user, _workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+
+    response = await client.get(
+        f"/api/v1/chat/messages/{uuid4()}/events", headers=headers
+    )
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Message not found"
+
+
+async def test_get_stream_status_handles_access_denied_and_missing_active_message(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner_headers, owner, workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="stream-status-owner@example.com",
+        username="streamstatusowner",
+    )
+    chat = await create_chat_row(db_session, owner, workspace)
+    other_headers, _other_user, _other_workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="stream-status-other@example.com",
+        username="streamstatusother",
+    )
+
+    monkeypatch.setattr(ChatStreamRuntime, "has_active_chat", lambda _chat_id: True)
+
+    denied_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/status", headers=other_headers
+    )
+    no_message_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/status", headers=owner_headers
+    )
+
+    assert denied_response.status_code == 404
+    assert denied_response.json()["detail"] == "Chat not found or access denied"
+    assert no_message_response.status_code == 200
+    assert no_message_response.json() == {
+        "has_active_task": False,
+        "message_id": None,
+        "stream_id": None,
+        "last_seq": 0,
+    }
+
+
+async def test_get_stream_status_translates_database_error(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    monkeypatch.setattr(ChatStreamRuntime, "has_active_chat", lambda _chat_id: True)
+    app.dependency_overrides[get_chat_service] = StreamStatusServiceOverride(
+        chat, SQLAlchemyError("db down")
+    )
+
+    response = await client.get(f"/api/v1/chat/chats/{chat.id}/status", headers=headers)
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Database error while checking chat status"
+
+
+async def test_chat_messages_pagination_cursor_round_trip_and_rejects_invalid_cursor(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    older = await create_message_row(db_session, chat, content="Older message")
+    newer = await create_message_row(db_session, chat, content="Newer message")
+
+    first_page = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/messages?limit=1", headers=headers
+    )
+    first_body = first_page.json()
+    next_cursor = first_body["next_cursor"]
+
+    second_page = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/messages?limit=1&cursor={next_cursor}",
+        headers=headers,
+    )
+
+    invalid_cursor_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/messages?cursor=not-valid-base64!!",
+        headers=headers,
+    )
+
+    assert first_page.status_code == 200
+    assert first_body["has_more"] is True
+    assert next_cursor is not None
+    assert first_body["items"][0]["id"] == str(newer.id)
+    assert second_page.status_code == 200
+    second_body = second_page.json()
+    assert second_body["has_more"] is False
+    assert second_body["items"][0]["id"] == str(older.id)
+    assert invalid_cursor_response.status_code == 400
+    assert invalid_cursor_response.json()["detail"] == "Invalid pagination cursor"
+
+
+async def test_context_usage_for_chat_without_assistant_message(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    chat_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/context-usage", headers=headers
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "tokens_used": 0,
+        "context_window": 0,
+        "percentage": 0.0,
+    }
