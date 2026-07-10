@@ -125,7 +125,7 @@ export interface CreateChatRequest {
   parent_chat_id?: string;
 }
 
-export type AgentKind = 'claude' | 'codex' | 'copilot' | 'cursor' | 'opencode';
+export type AgentKind = 'claude' | 'codex' | 'copilot' | 'cursor' | 'grok' | 'opencode';
 
 export interface Model {
   model_id: string;
@@ -157,6 +157,7 @@ export function getAgentKindForModelId(modelId: string | null | undefined): Agen
   // convention instead of maintaining a duplicate static set.
   if (modelId.startsWith('copilot:')) return 'copilot';
   if (modelId.startsWith('cursor:')) return 'cursor';
+  if (modelId.startsWith('grok:')) return 'grok';
   if (modelId.startsWith('opencode:')) return 'opencode';
   return 'claude';
 }

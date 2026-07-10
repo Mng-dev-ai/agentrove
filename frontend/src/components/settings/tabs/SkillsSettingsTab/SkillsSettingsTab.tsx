@@ -71,8 +71,8 @@ export function SkillsSettingsTab() {
           )}
         </div>
         <p className={styles.description}>
-          Skills available in the selected workspace, from the Claude, Codex, Copilot, Cursor, or
-          OpenCode CLI.
+          Skills available in the selected workspace, from the Claude, Codex, Copilot, Cursor, Grok,
+          or OpenCode CLI.
         </p>
       </div>
 

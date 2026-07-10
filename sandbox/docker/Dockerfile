@@ -68,6 +68,9 @@ RUN curl -fsSL https://opencode.ai/install | bash && \
     mkdir -p /home/user/.local/bin && \
     ln -sf /home/user/.opencode/bin/opencode /home/user/.local/bin/opencode
 
+# Grok Build CLI (installs `grok` to ~/.local/bin, which is already on PATH).
+RUN curl -fsSL https://x.ai/cli/install.sh | bash
+
 RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
     uv

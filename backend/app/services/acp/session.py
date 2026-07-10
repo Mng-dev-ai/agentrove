@@ -493,6 +493,7 @@ class AcpSession:
             system_prompt=config.system_prompt,
             system_prompt_is_full_replace=config.system_prompt_is_full_replace,
             instructions_file_path=config.codex_instructions_file_path,
+            reasoning_effort=config.reasoning_effort,
         )
 
     @staticmethod

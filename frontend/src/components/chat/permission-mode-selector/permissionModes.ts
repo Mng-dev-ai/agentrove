@@ -68,6 +68,19 @@ export const CURSOR_PERMISSION_MODES: PermissionModeOption[] = [
   },
 ];
 
+export const GROK_PERMISSION_MODES: PermissionModeOption[] = [
+  {
+    value: 'code',
+    label: 'Code',
+    description: 'Full tool access, tool calls run without approval prompts',
+  },
+  {
+    value: 'plan',
+    label: 'Plan',
+    description: 'Blocks edits while Grok designs an approach first',
+  },
+];
+
 export const OPENCODE_PERMISSION_MODES: PermissionModeOption[] = [
   {
     value: 'build',
@@ -86,6 +99,7 @@ export const MODES_BY_AGENT: Record<AgentKind, PermissionModeOption[]> = {
   codex: CODEX_PERMISSION_MODES,
   copilot: COPILOT_PERMISSION_MODES,
   cursor: CURSOR_PERMISSION_MODES,
+  grok: GROK_PERMISSION_MODES,
   opencode: OPENCODE_PERMISSION_MODES,
 };
 
@@ -94,6 +108,7 @@ const DEFAULT_BY_AGENT: Record<AgentKind, PermissionMode> = {
   codex: 'full-access',
   copilot: 'agent',
   cursor: 'agent',
+  grok: 'code',
   opencode: 'build',
 };
 

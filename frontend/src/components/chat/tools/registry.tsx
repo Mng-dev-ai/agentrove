@@ -34,6 +34,21 @@ const cursorToolLoaders: Record<string, ToolModuleLoader> = {
   edit: () => import('./cursor/EditTool').then((m) => ({ default: m.EditTool })),
 };
 
+// Grok surfaces its raw tool names via _meta["x.ai/tool"].name (the backend
+// extracts these as tool_name for grok sessions). Backend web searches carry
+// no x.ai/tool meta, so they arrive under the ACP kind "search".
+const grokToolLoaders: Record<string, ToolModuleLoader> = {
+  run_terminal_command: () => import('./grok/BashTool').then((m) => ({ default: m.BashTool })),
+  write: () => import('./grok/WriteTool').then((m) => ({ default: m.WriteTool })),
+  search_replace: () => import('./grok/EditTool').then((m) => ({ default: m.EditTool })),
+  read_file: () => import('./grok/ReadTool').then((m) => ({ default: m.ReadTool })),
+  list_dir: () => import('./grok/ListDirTool').then((m) => ({ default: m.ListDirTool })),
+  grep: () => import('./grok/GrepTool').then((m) => ({ default: m.GrepTool })),
+  web_fetch: () => import('./grok/WebFetchTool').then((m) => ({ default: m.WebFetchTool })),
+  search: () => import('./grok/WebSearchTool').then((m) => ({ default: m.WebSearchTool })),
+  todo_write: () => import('./grok/TodoWriteTool').then((m) => ({ default: m.TodoWriteTool })),
+};
+
 // OpenCode uses the raw tool names (bash, read, edit, write, grep, glob,
 // webfetch, task, todowrite, skill, question) rather than ACP kinds — the
 // backend's tool-name extractor picks these out of the ACP `title` field for
@@ -118,6 +133,10 @@ export const getToolComponent = (toolName: string, agentKind?: AgentKind): ToolC
 
   if (agentKind === 'cursor' && cursorToolLoaders[toolName]) {
     return getOrCreateLazy(`cursor:${toolName}`, cursorToolLoaders[toolName]);
+  }
+
+  if (agentKind === 'grok' && grokToolLoaders[toolName]) {
+    return getOrCreateLazy(`grok:${toolName}`, grokToolLoaders[toolName]);
   }
 
   if (agentKind === 'opencode' && opencodeToolLoaders[toolName]) {

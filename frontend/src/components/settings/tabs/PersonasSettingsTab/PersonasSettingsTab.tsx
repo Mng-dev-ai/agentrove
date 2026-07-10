@@ -28,7 +28,7 @@ export function PersonasSettingsTab() {
     <>
       <ListManagementTab<Persona>
         title="Personas"
-        description="Create personas with custom system prompts. Select from the persona dropdown in the input bar. Claude, Codex, and OpenCode support replacing the system prompt; the persona selector is hidden for Cursor and Copilot."
+        description="Create personas with custom system prompts. Select from the persona dropdown in the input bar. Claude, Codex, Grok, and OpenCode support replacing the system prompt; the persona selector is hidden for Cursor and Copilot."
         items={localSettings.personas ?? []}
         emptyIcon={UserCircle}
         emptyText="No personas configured yet"

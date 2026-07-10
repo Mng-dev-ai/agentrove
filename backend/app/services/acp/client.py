@@ -474,7 +474,12 @@ class AcpClientHandler:
         # write, grep, glob, webfetch, task, todowrite, skill, question) in
         # `title` — its ACP `kind` collapses distinct tools (edit/write/patch
         # all become "edit"), so title is the only way to distinguish them.
-        # Codex/Copilot/Cursor use the top-level `kind` field.
+        # Grok puts the raw tool name (write, search_replace, read_file, grep,
+        # run_terminal_command, ...) in field_meta["x.ai/tool"].name — its
+        # initial tool_call has no `kind` and later updates rewrite `title`
+        # to a human label. Web search calls lack that meta, so they fall
+        # through to `kind` ("search"). Codex/Copilot/Cursor use the
+        # top-level `kind` field.
         meta = getattr(tc, "field_meta", None) or {}
         claude_meta = meta.get("claudeCode", {})
         if tool_name := claude_meta.get("toolName"):
@@ -482,6 +487,9 @@ class AcpClientHandler:
         if self.agent_kind == AgentKind.OPENCODE:
             if title := getattr(tc, "title", None):
                 return str(title)
+        if self.agent_kind == AgentKind.GROK:
+            if tool_name := meta.get("x.ai/tool", {}).get("name"):
+                return str(tool_name)
         kind = getattr(tc, "kind", None)
         if kind:
             return str(kind)
@@ -553,8 +561,14 @@ class AcpClientHandler:
         texts = cls._extract_content_texts(tc)
         return "\n".join(texts) if texts else None
 
-    @classmethod
-    def _extract_tool_error(cls, tc: ToolCallProgress) -> str:
+    def _extract_tool_error(self, tc: ToolCallProgress) -> str:
+        # Grok's failed updates carry a variant-tag dict in raw_output (e.g.
+        # {"type": "FileNotFound"}) while the readable message lives in the
+        # content text blocks, so prefer those.
+        if self.agent_kind == AgentKind.GROK:
+            texts = self._extract_content_texts(tc)
+            if texts:
+                return "\n".join(texts)
         if tc.raw_output is not None:
             if isinstance(tc.raw_output, dict):
                 # Codex wraps the error in formatted_output; opencode uses a
@@ -566,5 +580,5 @@ class AcpClientHandler:
                         return str(value)
                 return str(tc.raw_output)
             return str(tc.raw_output)
-        texts = cls._extract_content_texts(tc)
+        texts = self._extract_content_texts(tc)
         return "\n".join(texts) if texts else "Tool execution failed"
