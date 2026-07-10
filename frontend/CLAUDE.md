@@ -11,7 +11,7 @@
 - Components are function declarations with props destructured in the signature: `export function Name({ a, b }: NameProps) {}` — never arrow-const components
 - Never `React.FC`/`FC` — type props via the signature (ESLint-enforced)
 - Props typed as `interface NameProps`; export the interface only when another module imports it
-- `memo` inline form only: `export const Name = memo(function Name(props: NameProps) {...})`
+- `memo` inline form only: `export const Name = memo(function Name(props: NameProps) {...})`; exception: generic components, where `memo` erases type params — keep the cast escape hatch (`memo(...) as typeof Inner`, see `SuggestionPanel`/`Dropdown`)
 - Named exports only (`App.tsx` is the sole default-export exception); lazy-load named exports via `lazyNamed()` from `@/utils/lazyNamed`
 - Files stay under ~400 lines — split into co-located sibling components or focused hooks/modules before crossing it
 
@@ -147,9 +147,31 @@
 
 ## UI/UX Guidelines
 
-Styling is SCSS Modules + a global design-token layer (`src/styles/globals/`) — see
-`frontend/REFACTOR.md` for the full conventions and the Tailwind→token mapping table.
-Tailwind has been removed.
+Styling is SCSS Modules + a global design-token layer (`src/styles/globals/`). No Tailwind.
+Reference implementations: `ui/primitives/Button` (variants/sizes via BEM modifiers),
+`ui/primitives/Dropdown` (z-layer, state classes, responsive compaction),
+`ui/primitives/Switch` (`data-state` styling).
+
+### Token Layer (`src/styles/globals/`)
+
+| File                  | Provides                                                                                                                     | Governs                                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `_colors.scss`        | `--theme-*` vars, `theme-color($token, $opacity)`, `status-color($name, $step, $opacity)`                                    | ALL colors                              |
+| `_spacing.scss`       | `--space-N` vars, `space($n)`                                                                                                | ALL margin/padding/gap/inset/size steps |
+| `_typography.scss`    | `type-meta/default/body/large/title/page-title/section-header/mono` + `type-overflow`, `type-lineclamp($n)`, `type-noselect` | ALL font sizing                         |
+| `_responsive.scss`    | `media($query)`, `hover`, `active`, `hide`, `show`                                                                           | ALL breakpoints + hover/active          |
+| `_elevation.scss`     | `--radius-*`, `--shadow-sm/medium/strong/inset`                                                                              | ALL radius/shadows                      |
+| `_animations.scss`    | `--duration-*`, `--easing-*`, global keyframes, `transition-colors`                                                          | ALL motion                              |
+| `_zlayer.scss`        | `z($layer)` (`raised/sticky/sidebar/titlebar/dropdown/modal/command-menu/tooltip/toast`)                                     | ALL z-index                             |
+| `_state-classes.scss` | `$state-*` names (mirrored in `src/config/stateClasses.ts` — keep in sync)                                                   | JS-driven state styling                 |
+| `_controls.scss`      | `focus-ring`, `button-base/size/variant`, `input-base/error`                                                                 | new controls (prefer primitives)        |
+
+Standard `@use` namespaces per module: `colors as colors`, `typography as type`,
+`responsive as responsive`, `animations as anim`, `state-classes as state`, `zlayer as z`,
+`controls as controls` (e.g. `@use '@/styles/globals/typography' as type;`).
+
+If a token/mixin you need is genuinely missing, approximate with the closest existing
+token and leave a `// TODO(refactor):` comment — don't invent new global tokens.
 
 ### Design Philosophy
 
@@ -159,10 +181,13 @@ Tailwind has been removed.
 
 ### Styling System
 
-- Co-located `.module.scss` per component (folder-per-component); kebab-case classes; variants as BEM-ish `&--modifier` composed with `clsx`
+- Co-located `.module.scss` per component (folder-per-component); multi-component features keep domain-prefixed siblings flat in the feature folder, each with its own module
+- Kebab-case classes (bracket access: `styles['chat-row']`); root element carries a class named 1:1 with the component (`.sidebar` for `Sidebar`); variants as BEM-ish `&--modifier` composed with `clsx`
+- A module must never style another component's internals — style only your own DOM; pass `className` down when a parent needs to position a child
+- Mixin includes go at the top of a rule block, before declarations
 - Colors: only `var(--theme-*)` semantic vars / `theme-color()` / `status-color()` from `_colors.scss` — they flip automatically with `data-theme`, so never write light/dark styles twice; rare divergences use `:global([data-theme='dark']) &`
 - Semantic colors (`--color-success/error/warning/info-*`, `--theme-<status>-text`) are for status indication only, never structural/interactive elements
-- Spacing: `var(--space-N)` only; typography: `type-*` mixins only (`type-default` 12px is the app default, `type-meta` 10px for meta/section headers, `type-body` 14px for primary inputs, `type-title` 18px for dialog titles only)
+- Spacing: `var(--space-N)` only — `px` allowed only for never-rescaling art (1px borders, switch-knob geometry); typography: `type-*` mixins only, never raw `font-size` (`type-default` 12px is the app default, `type-meta` 10px for meta/section headers, `type-body` 14px for primary inputs, `type-title` 18px for dialog titles only)
 - Section headers: `@include type.type-section-header;` (10px uppercase wide-tracked quaternary)
 - `type-mono*` mixins for code, URIs, package names, env vars, file paths, technical IDs
 - Radius/shadows: `var(--radius-md/lg/xl/2xl)` and `var(--shadow-sm/medium/strong)` only — md for small controls, lg for standard containers, xl for prominent cards/dropdowns, 2xl for overlays
