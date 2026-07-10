@@ -57,6 +57,8 @@ CLAUDE_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "max"})
 CLAUDE_XHIGH_VALID_THINKING_MODES = CLAUDE_VALID_THINKING_MODES | {"xhigh"}
 CLAUDE_XHIGH_MODEL_IDS = frozenset({"opus", "claude-fable-5"})
 CODEX_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
+CODEX_MAX_VALID_THINKING_MODES = CODEX_VALID_THINKING_MODES | {"max"}
+CODEX_MAX_MODEL_IDS = frozenset({"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"})
 COPILOT_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 
 # Cursor CLI exposes three ACP session modes (see https://cursor.com/docs/cli/acp).
@@ -297,11 +299,13 @@ class CodexAgentAdapter(AgentAdapter):
         thinking_mode: str | None,
         permission_mode: str,
     ) -> SessionConfig:
-        # Codex accepts reasoning_effort directly as a CLI config value
-        # (low, medium, high, xhigh) — no remapping needed.
-        reasoning_effort = coerce_thinking_mode(
-            thinking_mode, CODEX_VALID_THINKING_MODES
+        # GPT-5.6 adds `max`; older Codex models keep the narrower tier set.
+        valid_modes = (
+            CODEX_MAX_VALID_THINKING_MODES
+            if model_id in CODEX_MAX_MODEL_IDS
+            else CODEX_VALID_THINKING_MODES
         )
+        reasoning_effort = coerce_thinking_mode(thinking_mode, valid_modes)
 
         # Codex ACP advertises three session modes: auto, read-only, full-access.
         # The UI sends these same values, so session_mode is a direct passthrough.

@@ -23,7 +23,7 @@ const NODE_VERSION = '22.12.0';
 const RELEASE_TAG = '20260211';
 const RIPGREP_VERSION = '14.1.1';
 const CLAUDE_AGENT_ACP_VERSION = '0.57.0';
-const CODEX_ACP_VERSION = '0.15.0';
+const CODEX_ACP_VERSION = '1.1.2';
 const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
 
 const platform = process.platform;
@@ -205,7 +205,7 @@ function installAcpAdapters() {
       'install', '--prefix', sidecarDir,
       '--omit=dev', '--no-audit', '--no-fund', '--package-lock=false',
       `@agentclientprotocol/claude-agent-acp@${CLAUDE_AGENT_ACP_VERSION}`,
-      `@zed-industries/codex-acp@${CODEX_ACP_VERSION}`,
+      `@agentclientprotocol/codex-acp@${CODEX_ACP_VERSION}`,
     ],
     { stdio: 'inherit' },
   );
@@ -226,7 +226,7 @@ function writeAcpLauncher(name, packageEntry) {
 
 function writeAcpLaunchers() {
   writeAcpLauncher('claude-agent-acp', '@agentclientprotocol/claude-agent-acp/dist/index.js');
-  writeAcpLauncher('codex-acp', '@zed-industries/codex-acp/bin/codex-acp.js');
+  writeAcpLauncher('codex-acp', '@agentclientprotocol/codex-acp/dist/index.js');
 }
 
 function copySource() {
