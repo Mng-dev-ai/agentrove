@@ -23,7 +23,8 @@ aiosmtplib
 prometheus-fastapi-instrumentator
 slowapi
 sse-starlette
-wtforms
+# <3.2: sqladmin's admin-form widgets break on wtforms 3.2 (no validation_attrs)
+wtforms<3.2
 croniter
 redis
 PyYAML>=6.0

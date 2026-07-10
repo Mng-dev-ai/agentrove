@@ -11,6 +11,7 @@ from app.services.sandbox_providers.types import (
     FileContent,
     FileMetadata,
     PtyDataCallbackType,
+    PtyExitCallbackType,
     PtySize,
     SandboxProviderType,
 )
@@ -143,9 +144,12 @@ class SandboxProvider:
         tmux_session: str,
         cwd: str,
         on_data: PtyDataCallbackType,
+        on_exit: PtyExitCallbackType,
     ) -> str:
         # Returns the new PTY session id. `cwd` is workspace-relative; ""
-        # means the provider's default start dir.
+        # means the provider's default start dir. `on_exit` fires when the
+        # PTY stream ends on its own (shell exit, container gone) — never on
+        # kill_pty's own cancellation.
         raise NotImplementedError
 
     async def send_pty_input(

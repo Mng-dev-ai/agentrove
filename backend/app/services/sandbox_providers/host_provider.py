@@ -26,6 +26,7 @@ from app.services.sandbox_providers.types import (
     FileContent,
     FileMetadata,
     PtyDataCallbackType,
+    PtyExitCallbackType,
     PtySize,
 )
 from app.utils.sandbox import normalize_relative_path
@@ -212,6 +213,7 @@ class LocalHostProvider(SandboxProvider):
         tmux_session: str,
         cwd: str,
         on_data: PtyDataCallbackType,
+        on_exit: PtyExitCallbackType,
     ) -> str:
         # Spawn a PTY-attached shell in the workspace directory (or a
         # workspace-relative cwd, e.g. a chat's worktree). Tries tmux
@@ -252,7 +254,7 @@ class LocalHostProvider(SandboxProvider):
         os.close(slave_fd)
 
         reader_task = asyncio.create_task(
-            self._pty_reader(session_id, master_fd, on_data)
+            self._pty_reader(session_id, master_fd, on_data, on_exit)
         )
         self.register_pty_session(
             sandbox_id,
@@ -271,6 +273,7 @@ class LocalHostProvider(SandboxProvider):
         session_id: str,
         master_fd: int,
         on_data: PtyDataCallbackType,
+        on_exit: PtyExitCallbackType,
     ) -> None:
         # Continuously read PTY output and forward to the WebSocket via on_data.
         # Runs as a background task until the process exits or kill_pty cancels it.
@@ -281,9 +284,13 @@ class LocalHostProvider(SandboxProvider):
                     break
                 await on_data(chunk)
         except asyncio.CancelledError:
-            pass
+            # kill_pty tearing us down — the owner already knows.
+            return
         except OSError as e:
-            logger.error("PTY reader error for session %s: %s", session_id, e)
+            # On Linux the master fd raises EIO instead of returning EOF when
+            # the shell exits, so this path is also a normal termination.
+            logger.info("PTY reader ended for session %s: %s", session_id, e)
+        on_exit()
 
     async def send_pty_input(
         self,

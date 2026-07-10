@@ -11,6 +11,7 @@ from app.models.types import CustomEnvVarDict
 from app.services.exceptions import SandboxException
 from app.services.sandbox_providers import (
     PtyDataCallbackType,
+    PtyExitCallbackType,
     PtySize,
     SandboxProvider,
     SandboxProviderType,
@@ -88,6 +89,7 @@ class SandboxService:
         tmux_session: str,
         cwd: str,
         on_data: PtyDataCallbackType,
+        on_exit: PtyExitCallbackType,
     ) -> str:
         return await self.provider.create_pty(
             sandbox_id,
@@ -96,6 +98,7 @@ class SandboxService:
             tmux_session,
             cwd,
             on_data=on_data,
+            on_exit=on_exit,
         )
 
     async def send_pty_input(

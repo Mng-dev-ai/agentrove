@@ -337,13 +337,12 @@ export function resolveSandboxClient(sandboxId: string | undefined): APIClient {
   return sandboxId && isCloudSandbox(sandboxId) ? remoteApiClient : apiClient;
 }
 
-// Terminal WebSockets bypass APIClient, so resolve the base URL + token for the
-// backend that owns the sandbox.
-export function resolveSandboxWs(sandboxId: string): { baseUrl: string; token: string | null } {
-  if (isCloudSandbox(sandboxId)) {
-    return { baseUrl: CLOUD_WS_BASE_URL, token: remoteApiClient.getToken() };
-  }
-  return { baseUrl: WS_BASE_URL, token: apiClient.getToken() };
+// Terminal WebSockets bypass APIClient, so resolve the base URL for the
+// backend that owns the sandbox. Tokens are minted per-connect via
+// resolveSandboxClient(...).getValidToken() — the cached cloud access token
+// is memory-only and missing right after a page reload.
+export function resolveSandboxWs(sandboxId: string): string {
+  return isCloudSandbox(sandboxId) ? CLOUD_WS_BASE_URL : WS_BASE_URL;
 }
 
 export function setApiPort(port: number): void {

@@ -17,6 +17,7 @@ from app.services.sandbox_providers.types import (
     FileContent,
     FileMetadata,
     PtyDataCallbackType,
+    PtyExitCallbackType,
     PtySize,
 )
 
@@ -154,6 +155,7 @@ class FakeSandboxProvider(SandboxProvider):
         tmux_session: str,
         cwd: str,
         on_data: PtyDataCallbackType,
+        on_exit: PtyExitCallbackType,
     ) -> str:
         return "pty-1"
 

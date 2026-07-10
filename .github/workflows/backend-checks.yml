@@ -91,6 +91,10 @@ jobs:
           pip install -r backend/requirements.txt pytest pytest-asyncio pytest-cov
 
       - name: Run backend tests
+        # sysmon core: the default C tracer drops lines executed through
+        # SQLAlchemy's greenlet switches, under-reporting request handlers.
+        env:
+          COVERAGE_CORE: sysmon
         run: |
           cd backend
           pytest tests --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=85

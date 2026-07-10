@@ -29,6 +29,7 @@ from app.db.session import SessionLocal, engine
 from app.services.maintenance import MaintenanceService
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.terminal import terminal_session_registry
 from app.utils.cache import cache_connection
 
 try:
@@ -52,6 +53,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await maintenance_service.stop()
         await ChatStreamRuntime.stop_background_chats()
         await session_registry.terminate_all()
+        # Kill terminal PTYs and their tmux sessions — host-provider shells
+        # would otherwise keep running after the app exits.
+        await terminal_session_registry.terminate_all()
         await engine.dispose()
 
 

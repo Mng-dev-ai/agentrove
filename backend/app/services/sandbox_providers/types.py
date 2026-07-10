@@ -3,6 +3,9 @@ from enum import Enum
 from typing import Any, Callable, Coroutine
 
 PtyDataCallbackType = Callable[[bytes], Coroutine[Any, Any, None]]
+# Sync on purpose — fired from inside the provider's reader task, so handlers
+# must schedule their own async work rather than be awaited there.
+PtyExitCallbackType = Callable[[], None]
 
 
 class SandboxProviderType(str, Enum):

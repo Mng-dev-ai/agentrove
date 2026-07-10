@@ -6,7 +6,7 @@ import 'xterm/css/xterm.css';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useUIStore } from '@/store/uiStore';
-import { resolveSandboxWs } from '@/lib/api';
+import { resolveSandboxClient, resolveSandboxWs } from '@/lib/api';
 
 import { useXterm } from '@/hooks/useXterm';
 import type { TerminalSize } from '@/types/sandbox.types';
@@ -102,8 +102,7 @@ export function TerminalTab({
     terminalRef.current?.reset();
 
     // Route to the cloud VPS WS host when the sandbox lives there, else local.
-    const { baseUrl, token } = resolveSandboxWs(sandboxId);
-    if (!token) return;
+    const baseUrl = resolveSandboxWs(sandboxId);
 
     const params = new URLSearchParams();
     if (terminalId) params.set('terminalId', terminalId);
@@ -114,110 +113,141 @@ export function TerminalTab({
     setSessionState('connecting');
     setCloseReason(null);
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
-    hasSentInitRef.current = false;
-    lastSentSizeRef.current = null;
+    let cancelled = false;
+    let teardown: (() => void) | null = null;
 
-    const handleOpen = () => {
-      ws.send(JSON.stringify({ type: 'auth', token }));
+    const connect = (token: string) => {
+      const ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+      hasSentInitRef.current = false;
+      lastSentSizeRef.current = null;
 
-      const size =
-        fitTerminal() ??
-        (terminalRef.current
-          ? { rows: terminalRef.current.rows, cols: terminalRef.current.cols }
-          : { rows: 24, cols: 80 });
+      const handleOpen = () => {
+        ws.send(JSON.stringify({ type: 'auth', token }));
 
-      ws.send(JSON.stringify({ type: 'init', rows: size.rows, cols: size.cols }));
-      hasSentInitRef.current = true;
-      lastSentSizeRef.current = size;
+        const size =
+          fitTerminal() ??
+          (terminalRef.current
+            ? { rows: terminalRef.current.rows, cols: terminalRef.current.cols }
+            : { rows: 24, cols: 80 });
 
-      requestAnimationFrame(() => {
-        terminalRef.current?.focus();
-      });
-    };
+        ws.send(JSON.stringify({ type: 'init', rows: size.rows, cols: size.cols }));
+        hasSentInitRef.current = true;
+        lastSentSizeRef.current = size;
 
-    const handleMessage = (event: MessageEvent) => {
-      if (typeof event.data !== 'string') {
-        return;
-      }
-      try {
-        const message = JSON.parse(event.data) as Record<string, unknown>;
-        // Server ping is a NAT/LB keepalive — no pong is expected.
-        if (message.type === 'ping') {
+        requestAnimationFrame(() => {
+          terminalRef.current?.focus();
+        });
+      };
+
+      const handleMessage = (event: MessageEvent) => {
+        if (typeof event.data !== 'string') {
           return;
         }
-        if (message.type === 'stdout' && typeof message.data === 'string') {
-          terminalRef.current?.write(message.data);
-          setSessionState((prev) => (prev === 'connecting' ? 'ready' : prev));
-          return;
-        }
-        if (message.type === 'init') {
-          const rows = typeof message.rows === 'number' ? message.rows : undefined;
-          const cols = typeof message.cols === 'number' ? message.cols : undefined;
-          if (rows && cols) {
-            lastSentSizeRef.current = { rows, cols };
+        try {
+          const message = JSON.parse(event.data) as Record<string, unknown>;
+          // Server ping is a NAT/LB keepalive — no pong is expected.
+          if (message.type === 'ping') {
+            return;
           }
-          setSessionState('ready');
+          if (message.type === 'stdout' && typeof message.data === 'string') {
+            terminalRef.current?.write(message.data);
+            setSessionState((prev) => (prev === 'connecting' ? 'ready' : prev));
+            return;
+          }
+          if (message.type === 'init') {
+            const rows = typeof message.rows === 'number' ? message.rows : undefined;
+            const cols = typeof message.cols === 'number' ? message.cols : undefined;
+            if (rows && cols) {
+              lastSentSizeRef.current = { rows, cols };
+            }
+            setSessionState('ready');
+          }
+        } catch (error) {
+          logger.error('Terminal write failed', 'TerminalTab', error);
         }
-      } catch (error) {
-        logger.error('Terminal write failed', 'TerminalTab', error);
-      }
-    };
+      };
 
-    const handleError = () => {
-      setSessionState('error');
-    };
-
-    const handleClose = (event: CloseEvent) => {
-      resetWsRefs();
-      // User-initiated tab close tears the socket down on purpose — don't
-      // surface that as an unexpected disconnect.
-      if (isClosingRef.current) {
-        return;
-      }
-      // The server closes with WS_CLOSE_AUTH_FAILED / WS_CLOSE_SANDBOX_NOT_FOUND
-      // and a human-readable reason. Surface both so the overlay can tell the
-      // user why the connection dropped instead of showing a generic message.
-      if (
-        event.code === WS_CLOSE_AUTH_FAILED ||
-        event.code === WS_CLOSE_SANDBOX_NOT_FOUND ||
-        event.code === WS_CLOSE_INVALID_CWD
-      ) {
-        setCloseReason(event.reason || null);
+      const handleError = () => {
         setSessionState('error');
-        return;
-      }
-      // Any other close while this effect is live (backend restart, network
-      // drop) is unexpected — offer a reconnect instead of a frozen terminal.
-      setSessionState((prev) => (prev === 'error' ? prev : 'disconnected'));
+      };
+
+      const handleClose = (event: CloseEvent) => {
+        resetWsRefs();
+        // User-initiated tab close tears the socket down on purpose — don't
+        // surface that as an unexpected disconnect.
+        if (isClosingRef.current) {
+          return;
+        }
+        // The server closes with WS_CLOSE_AUTH_FAILED / WS_CLOSE_SANDBOX_NOT_FOUND
+        // and a human-readable reason. Surface both so the overlay can tell the
+        // user why the connection dropped instead of showing a generic message.
+        if (
+          event.code === WS_CLOSE_AUTH_FAILED ||
+          event.code === WS_CLOSE_SANDBOX_NOT_FOUND ||
+          event.code === WS_CLOSE_INVALID_CWD
+        ) {
+          setCloseReason(event.reason || null);
+          setSessionState('error');
+          return;
+        }
+        // Any other close while this effect is live (backend restart, network
+        // drop) is unexpected — offer a reconnect instead of a frozen terminal.
+        setSessionState((prev) => (prev === 'error' ? prev : 'disconnected'));
+      };
+
+      const handleBeforeUnload = () => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'detach' }));
+        }
+        ws.close();
+      };
+
+      ws.addEventListener('open', handleOpen);
+      ws.addEventListener('message', handleMessage);
+      ws.addEventListener('error', handleError);
+      ws.addEventListener('close', handleClose);
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      teardown = () => {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        ws.removeEventListener('open', handleOpen);
+        ws.removeEventListener('message', handleMessage);
+        ws.removeEventListener('error', handleError);
+        ws.removeEventListener('close', handleClose);
+
+        if (!shouldCloseRef.current && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'detach' }));
+        }
+        ws.close();
+        resetWsRefs();
+      };
     };
 
-    const handleBeforeUnload = () => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'detach' }));
-      }
-      ws.close();
-    };
-
-    ws.addEventListener('open', handleOpen);
-    ws.addEventListener('message', handleMessage);
-    ws.addEventListener('error', handleError);
-    ws.addEventListener('close', handleClose);
-    window.addEventListener('beforeunload', handleBeforeUnload);
+    // Mint a fresh token instead of reading the cached one — the cloud access
+    // token lives only in memory, so it's absent right after a page reload.
+    void resolveSandboxClient(sandboxId)
+      .getValidToken()
+      .then((token) => {
+        if (cancelled) return;
+        if (!token) {
+          // Route the null-token case through the catch so both auth
+          // failures share one error path.
+          throw new Error('Missing terminal auth token');
+        }
+        connect(token);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          logger.error('Terminal auth token mint failed', 'TerminalTab', error);
+          setSessionState('error');
+          setCloseReason('Terminal authentication failed');
+        }
+      });
 
     return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      ws.removeEventListener('open', handleOpen);
-      ws.removeEventListener('message', handleMessage);
-      ws.removeEventListener('error', handleError);
-      ws.removeEventListener('close', handleClose);
-
-      if (!shouldCloseRef.current && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: 'detach' }));
-      }
-      ws.close();
-      resetWsRefs();
+      cancelled = true;
+      teardown?.();
       setSessionState('idle');
     };
   }, [sandboxId, terminalId, cwd, isReady, connectAttempt, fitTerminal, terminalRef, resetWsRefs]);

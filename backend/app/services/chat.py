@@ -52,6 +52,7 @@ from app.services.session_registry import session_registry
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChatStreamRequest, StreamEnvelope
+from app.services.terminal import teardown_workspace_sandbox
 from app.services.user import UserService
 from app.utils.cache import CacheError, CachePubSub, cache_connection, cache_pubsub
 
@@ -676,7 +677,7 @@ class ChatService(BaseDbService[Chat]):
                     if workspace.sandbox_id:
                         ws_sandbox = self.sandbox_for_workspace(workspace)
                         asyncio.create_task(
-                            ws_sandbox.delete_sandbox(workspace.sandbox_id)
+                            teardown_workspace_sandbox(workspace.sandbox_id, ws_sandbox)
                         )
 
     async def delete_all_chats(self, user: User) -> int:
@@ -728,7 +729,9 @@ class ChatService(BaseDbService[Chat]):
             for ws in workspaces:
                 if ws.sandbox_id:
                     ws_sandbox = self.sandbox_for_workspace(ws)
-                    asyncio.create_task(ws_sandbox.delete_sandbox(ws.sandbox_id))
+                    asyncio.create_task(
+                        teardown_workspace_sandbox(ws.sandbox_id, ws_sandbox)
+                    )
 
             return len(chat_ids)
 
