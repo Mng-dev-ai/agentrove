@@ -15,7 +15,7 @@ from app.models.db_models import (  # noqa: F401
     workspace,
 )
 from app.core.config import get_settings
-from app.db.types import GUID, EncryptedString, EncryptedJSON, UTCDateTime
+from app.db.types import GUID, EncryptedString, UTCDateTime
 
 config = context.config
 
@@ -38,9 +38,6 @@ def render_item(type_, obj, autogen_context):
         if isinstance(obj, EncryptedString):
             autogen_context.imports.add("from app.db.types import EncryptedString")
             return "EncryptedString()"
-        if isinstance(obj, EncryptedJSON):
-            autogen_context.imports.add("from app.db.types import EncryptedJSON")
-            return "EncryptedJSON()"
         if isinstance(obj, UTCDateTime):
             autogen_context.imports.add("from app.db.types import UTCDateTime")
             return "UTCDateTime()"
