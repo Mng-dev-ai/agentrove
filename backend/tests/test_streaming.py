@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.endpoints import chat as chat_endpoint
 from app.core import deps
 from app.constants import MODELS, REDIS_KEY_CHAT_STREAM_LIVE
+from app.db.session import engine
 from app.models.db_models.chat import Chat
 from app.models.db_models.enums import MessageStreamStatus
 from app.models.db_models.user import User
@@ -1164,3 +1165,42 @@ async def test_stream_sse_replays_backlog_then_delivers_live_events(
                     envelopes.append(json.loads(line.removeprefix("data:").strip()))
 
     assert [e["seq"] for e in envelopes] == [backlog["seq"], backlog["seq"] + 1]
+
+
+async def test_sse_endpoints_release_db_connection_while_streaming(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    streaming_cache: EndpointCache,
+    live_server_url: str,
+) -> None:
+    # Regression: FastAPI holds the get_db yield dependency open until the
+    # response completes, so an open SSE connection used to pin the auth
+    # chain's pooled DB connection for its whole lifetime — a handful of open
+    # tabs exhausted the default 5+10 pool and every request then timed out at
+    # auth. The SSE handlers must release the session before streaming starts.
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    baseline = engine.pool.checkedout()
+    async with asyncio.timeout(15):
+        sse_client = httpx.AsyncClient(base_url=live_server_url, timeout=10.0)
+        async with (
+            sse_client,
+            sse_client.stream(
+                "GET", "/api/v1/chat/chats/events", headers=headers
+            ) as events_response,
+            sse_client.stream(
+                "GET", f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
+            ) as chat_stream_response,
+        ):
+            assert events_response.status_code == 200
+            assert chat_stream_response.status_code == 200
+            # The chat stream's backlog replay briefly opens its own session,
+            # so poll rather than assert instantly. Without the release fix
+            # each open stream pins a connection forever, the count never
+            # returns to baseline, and asyncio.timeout fails the test.
+            while engine.pool.checkedout() > baseline:
+                await asyncio.sleep(0.01)
