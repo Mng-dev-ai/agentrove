@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.constants import (
     MODELS,
     REDIS_KEY_CHAT_CONTEXT_USAGE,
-    REDIS_KEY_CHAT_STREAM_LIVE,
+    REDIS_KEY_USER_STREAMS_LIVE,
 )
 from app.core.config import get_settings
 from app.db.session import SessionLocal
@@ -339,9 +339,11 @@ class ChatStreamRuntime:
         )
 
     async def _publish_to_redis(self, events: list[str]) -> None:
+        # Envelopes carry chatId, so all of a user's streams share one channel —
+        # the multiplexed SSE feed subscribes once and routes client-side.
         if not self.cache or not events:
             return
-        channel = REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=self.chat_id)
+        channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=self.chat.user_id)
         for raw in events:
             try:
                 await self.cache.publish(channel, raw)
@@ -951,6 +953,7 @@ class ChatStreamRuntime:
     async def emit_bootstrap_error(
         *,
         chat_id: str,
+        user_id: str,
         assistant_message_id: str | None,
         session_factory: SessionFactoryType,
         error_message: str,
@@ -973,7 +976,7 @@ class ChatStreamRuntime:
                 audit_payload={"payload": payload},
             )
             async with cache_connection() as cache:
-                channel = REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=chat_id)
+                channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=user_id)
                 envelope = StreamEnvelope.serialize(
                     chat_id=UUID(chat_id),
                     message_id=UUID(assistant_message_id),
@@ -1136,6 +1139,7 @@ class ChatStreamRuntime:
             )
             await cls.emit_bootstrap_error(
                 chat_id=chat_id,
+                user_id=str(request.chat_data["user_id"]),
                 assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 error_message=str(exc),

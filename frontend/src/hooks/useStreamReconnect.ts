@@ -20,7 +20,6 @@ interface UseStreamReconnectParams {
   setCurrentMessageId: Dispatch<SetStateAction<string | null>>;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   addMessageToCache: (message: Message) => void;
-  updateMessageInCache: (messageId: string, updater: (msg: Message) => Message) => void;
   replayStream: (messageId: string, afterSeq?: number) => Promise<string>;
 }
 
@@ -41,7 +40,6 @@ export function useStreamReconnect({
   setCurrentMessageId,
   setMessages,
   addMessageToCache,
-  updateMessageInCache,
   replayStream,
 }: UseStreamReconnectParams): void {
   const fetchedMessagesRef = useRef(fetchedMessages);
@@ -85,16 +83,6 @@ export function useStreamReconnect({
         const messages = fetchedMessagesRef.current;
         const existingMessage = messages.find((msg) => msg.id === targetMessageId);
         const messageExists = existingMessage != null;
-        // Snapshot the message's current content before replay so we can
-        // restore it if the replay connection fails partway through.
-        const previousSnapshot = existingMessage
-          ? {
-              content_text: existingMessage.content_text,
-              content_render: existingMessage.content_render,
-              last_seq: existingMessage.last_seq,
-              active_stream_id: existingMessage.active_stream_id ?? null,
-            }
-          : null;
 
         // Pick the highest known seq across three sources: server status, local
         // storage (persisted across page refreshes), and the message's own cursor.
@@ -139,34 +127,10 @@ export function useStreamReconnect({
           setMessages((prev) => [...prev, placeholderMessage]);
         }
 
-        try {
-          await replayStream(targetMessageId, replayAfterSeq);
-        } catch (replayError) {
-          logger.error('Stream reconnect failed', 'useStreamReconnect', replayError);
-          if (previousSnapshot) {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === targetMessageId ? { ...msg, ...previousSnapshot } : msg,
-              ),
-            );
-            updateMessageInCache(targetMessageId, (msg) => ({
-              ...msg,
-              ...previousSnapshot,
-            }));
-          } else {
-            const markFailed = (msg: Message): Message => ({
-              ...msg,
-              active_stream_id: null,
-              stream_status: 'failed',
-            });
-            setMessages((prev) =>
-              prev.map((msg) => (msg.id === targetMessageId ? markFailed(msg) : msg)),
-            );
-            updateMessageInCache(targetMessageId, markFailed);
-          }
-          setStreamState('idle');
-          setCurrentMessageId(null);
-        }
+        // Replay registers the stream on the shared connection and cannot fail
+        // synchronously — a connection that ultimately gives up routes through
+        // the stream's onError callback (message marked failed, UI reset there).
+        await replayStream(targetMessageId, replayAfterSeq);
       } catch (checkError) {
         logger.error('Active task check failed', 'useStreamReconnect', checkError);
       }
@@ -184,7 +148,6 @@ export function useStreamReconnect({
     isInitialLoading,
     replayStream,
     streamState,
-    updateMessageInCache,
     wasAborted,
     addMessageToCache,
     setStreamState,

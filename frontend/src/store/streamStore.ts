@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { logger } from '@/utils/logger';
 import type { ActiveStream, StreamMetadata } from '@/types/stream.types';
 
 interface StreamState {
@@ -48,24 +47,10 @@ const removeStreamMetadataEntry = (metadata: StreamMetadata[], chatId: string): 
   metadata.filter((item) => item.chatId !== chatId);
 
 const shutdownStream = (stream: ActiveStream) => {
-  try {
-    stream.listeners.forEach(({ type, handler }) => {
-      stream.source.removeEventListener(type, handler);
-    });
-    stream.listeners.length = 0;
-  } catch (error) {
-    logger.error('Stream listener cleanup failed', 'store', error);
-  }
-
-  try {
-    stream.source.close();
-  } catch (error) {
-    logger.error('Stream close failed', 'store', error);
-  }
-
+  // The shared multiplexed connection (streamConnection) reconciles against the
+  // store, so dropping the entry is enough — no per-stream socket to close.
   stream.isActive = false;
   stream.callbacks = undefined;
-  stream.source.onerror = null;
 };
 
 export const useStreamStore = create<StreamState>((set, get) => ({

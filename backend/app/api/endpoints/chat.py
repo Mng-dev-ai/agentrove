@@ -11,7 +11,6 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
-    Request,
     UploadFile,
     status,
 )
@@ -76,7 +75,7 @@ from app.services.session_registry import session_registry
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.utils.cache import CacheError, cache_connection
-from app.utils.parsing import parse_non_negative_seq
+from app.utils.parsing import parse_stream_cursors
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -307,6 +306,39 @@ async def stream_user_chat_events(
     )
 
 
+@router.get("/chats/streams")
+async def stream_user_streams(
+    cursors: str | None = Query(None, max_length=8192),
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+    db: AsyncSession = Depends(get_db),
+) -> EventSourceResponse:
+    # Single multiplexed SSE feed carrying every active stream for the user —
+    # envelopes self-route client-side via chatId, so N streaming chats share one
+    # connection instead of exhausting the browser's per-origin HTTP/1.1 pool.
+    # `cursors` is a JSON object of chat id -> last seen seq for backlog replay.
+    try:
+        requested = parse_stream_cursors(cursors)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)
+        ) from e
+    owned = await chat_service.filter_owned_chat_ids(current_user.id, list(requested))
+    replay_cursors = {cid: seq for cid, seq in requested.items() if cid in owned}
+
+    # Same rationale as /chats/events: auth is done — release the pooled DB
+    # session so the long-lived SSE connection doesn't pin it until disconnect.
+    await db.close()
+    return EventSourceResponse(
+        chat_service.create_user_streams_feed(current_user.id, replay_cursors),
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @router.get("/chats/{chat_id}/sub-threads", response_model=list[ChatSchema])
 async def get_sub_threads(
     chat_id: UUID,
@@ -445,35 +477,6 @@ async def get_chat_messages(
 ) -> CursorPaginatedResponse[MessageSchema]:
     return await chat_service.get_chat_messages(
         chat_id, current_user, pagination.cursor, pagination.limit
-    )
-
-
-@router.get("/chats/{chat_id}/stream")
-async def stream_events(
-    chat_id: UUID,
-    request: Request,
-    _chat: Chat = Depends(ensure_chat_access),
-    chat_service: ChatService = Depends(get_chat_service),
-    db: AsyncSession = Depends(get_db),
-) -> EventSourceResponse:
-    # Browser EventSource reconnects send the current cursor via Last-Event-ID.
-    # Keep query-param baseline support and use whichever is more advanced.
-    after_seq = max(
-        parse_non_negative_seq(request.query_params.get("after_seq")),
-        parse_non_negative_seq(request.headers.get("Last-Event-ID")),
-    )
-
-    # Access checks are done; release the request session (shared with the auth
-    # chain via the dependency cache) so this SSE stream doesn't pin a pooled DB
-    # connection for its whole lifetime — the generator opens its own sessions.
-    await db.close()
-    return EventSourceResponse(
-        chat_service.create_event_stream(chat_id, after_seq),
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
     )
 
 

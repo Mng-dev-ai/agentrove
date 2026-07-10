@@ -5,7 +5,7 @@ import math
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any, cast
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import exists, func, select, update
 from sqlalchemy.exc import SQLAlchemyError
@@ -13,8 +13,8 @@ from sqlalchemy.orm import aliased, selectinload
 
 from app.constants import (
     MODELS,
-    REDIS_KEY_CHAT_STREAM_LIVE,
     REDIS_KEY_USER_CHATS_LIVE,
+    REDIS_KEY_USER_STREAMS_LIVE,
 )
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus, StreamEventKind
@@ -87,21 +87,6 @@ class ChatService(BaseDbService[Chat]):
             workspace.sandbox_provider, workspace_path=workspace.workspace_path
         )
         return SandboxService(provider)
-
-    @staticmethod
-    def _extract_queue_processing_message_id(raw_data: Any) -> UUID | None:
-        if not isinstance(raw_data, str):
-            return None
-        if StreamEventKind.QUEUE_PROCESSING.value not in raw_data:
-            return None
-        try:
-            env = json.loads(raw_data)
-            if env.get("kind") != StreamEventKind.QUEUE_PROCESSING.value:
-                return None
-            new_mid = (env.get("payload") or {}).get("assistant_message_id")
-            return UUID(new_mid) if new_mid else None
-        except (json.JSONDecodeError, ValueError):
-            return None
 
     async def get_user_chats(
         self,
@@ -905,7 +890,7 @@ class ChatService(BaseDbService[Chat]):
         payload: dict[str, Any],
     ) -> dict[str, Any]:
         # Canonical builder for the SSE envelope shape sent to the frontend.
-        # The live-Redis path in _stream_live_redis_events constructs the same
+        # The live path in _stream_live_user_envelopes constructs the same
         # {id, event, data} shape directly from pre-serialized envelope JSON.
         return {
             "id": str(seq),
@@ -920,70 +905,36 @@ class ChatService(BaseDbService[Chat]):
             ),
         }
 
-    async def _build_stream_error_event(
+    async def has_cancelable_pending_start(self, chat_id: UUID) -> bool:
+        message = await self.message_service.get_in_progress_assistant_message(chat_id)
+        return bool(message and message.active_stream_id is None)
+
+    async def filter_owned_chat_ids(
+        self, user_id: UUID, chat_ids: list[UUID]
+    ) -> set[UUID]:
+        # Cursor chat ids come straight from the client — replay only chats the
+        # user owns. One query instead of a per-chat get_chat fan-out.
+        if not chat_ids:
+            return set()
+        async with self.session_factory() as db:
+            result = await db.execute(
+                select(Chat.id).filter(
+                    Chat.id.in_(chat_ids),
+                    Chat.user_id == user_id,
+                    Chat.deleted_at.is_(None),
+                )
+            )
+            return set(result.scalars().all())
+
+    async def _stream_live_user_envelopes(
         self,
-        *,
-        chat_id: UUID,
-        message_id: UUID | None,
-        stream_id: UUID | None,
-        fallback_seq: int,
-        error_message: str,
-    ) -> dict[str, Any]:
-        # Build an error SSE event that the client can always display. The caller
-        # (create_event_stream) already resolves message/stream IDs before entering
-        # the try block — if they're None, no active stream existed so we synthesize
-        # IDs. If they're set, we persist the error to DB for replay on reconnect.
-        payload = {"error": error_message}
-
-        if message_id is None:
-            return self._build_stream_sse_event(
-                chat_id=chat_id,
-                message_id=uuid4(),
-                stream_id=stream_id or uuid4(),
-                seq=fallback_seq + 1,
-                kind="error",
-                payload=payload,
-            )
-
-        resolved_stream_id = stream_id or uuid4()
-
-        try:
-            error_seq = await self.message_service.append_event_with_next_seq(
-                chat_id=chat_id,
-                message_id=message_id,
-                stream_id=resolved_stream_id,
-                event_type="error",
-                render_payload=payload,
-                audit_payload={"payload": payload},
-            )
-        except Exception as exc:
-            # Broad catch so the client always receives an error event, even if
-            # DB persistence fails; fall back to a synthesized seq.
-            logger.warning(
-                "Failed to persist stream error event for chat %s: %s",
-                chat_id,
-                exc,
-            )
-            error_seq = fallback_seq + 1
-
-        return self._build_stream_sse_event(
-            chat_id=chat_id,
-            message_id=message_id,
-            stream_id=resolved_stream_id,
-            seq=error_seq,
-            kind="error",
-            payload=payload,
-        )
-
-    async def _stream_live_redis_events(
-        self,
-        chat_id: UUID,
-        last_seq: int,
+        user_id: UUID,
+        last_seq_by_chat: dict[str, int],
         live_pubsub: CachePubSub,
     ) -> AsyncIterator[dict[str, Any]]:
-        # Real-time leg of the SSE connection: events are published as full
-        # envelopes on the Redis channel so we can yield them directly without
-        # a DB round-trip.
+        # Live leg of the multiplexed feed: every envelope for the user arrives on
+        # one channel and self-routes client-side via its chatId. Terminal events
+        # end a single turn, not the connection — other chats keep streaming.
         while True:
             message = await live_pubsub.get_message(
                 ignore_subscribe_messages=True, timeout=1.0
@@ -998,112 +949,74 @@ class ChatService(BaseDbService[Chat]):
             try:
                 envelope = json.loads(raw)
             except (json.JSONDecodeError, TypeError):
-                logger.warning("Malformed Redis stream message for chat %s", chat_id)
+                logger.warning("Malformed stream message for user %s", user_id)
                 continue
 
             if not isinstance(envelope, dict) or "seq" not in envelope:
-                logger.warning("Redis stream message missing seq for chat %s", chat_id)
+                logger.warning("Stream message missing seq for user %s", user_id)
+                continue
+
+            chat_key = str(envelope.get("chatId") or "")
+            if not chat_key:
                 continue
 
             seq = int(envelope["seq"])
-            if seq <= last_seq:
-                continue
-
-            # Gap detected — a pub/sub message was missed. Fall back to DB
-            # to recover the skipped events before yielding this one.
-            if seq > last_seq + 1:
-                async for event in self._replay_stream_backlog(chat_id, last_seq):
-                    yield event
-                    last_seq = int(event["id"])
-                if last_seq >= seq:
-                    if envelope.get("kind") in TERMINAL_STREAM_EVENT_TYPES:
-                        return
+            # An untracked chat is a turn started after connect — the subscription
+            # predates its first event, so that event is a safe seq baseline.
+            last_seq = last_seq_by_chat.get(chat_key)
+            if last_seq is not None:
+                if seq <= last_seq:
                     continue
+
+                # Gap detected — a pub/sub message was missed. Fall back to DB
+                # to recover the skipped events before yielding this one.
+                if seq > last_seq + 1:
+                    async for event in self._replay_stream_backlog(
+                        UUID(chat_key), last_seq
+                    ):
+                        yield event
+                        last_seq = int(event["id"])
+                    last_seq_by_chat[chat_key] = last_seq
+                    if last_seq >= seq:
+                        continue
 
             yield {
                 "id": str(seq),
                 "event": StreamEventKind.STREAM.value,
                 "data": raw,
             }
-            last_seq = seq
+            last_seq_by_chat[chat_key] = seq
 
-            if envelope.get("kind") in TERMINAL_STREAM_EVENT_TYPES:
-                return
-
-    async def has_cancelable_pending_start(self, chat_id: UUID) -> bool:
-        message = await self.message_service.get_in_progress_assistant_message(chat_id)
-        return bool(message and message.active_stream_id is None)
-
-    async def _get_active_stream_targets(
-        self, chat_id: UUID
-    ) -> tuple[UUID | None, UUID | None]:
-        # Look up the in-progress assistant message so create_event_stream has
-        # real IDs for error reporting if the stream fails unexpectedly.
-        active_assistant_message = (
-            await self.message_service.get_in_progress_assistant_message(chat_id)
-        )
-        if active_assistant_message:
-            return (
-                active_assistant_message.id,
-                active_assistant_message.active_stream_id,
-            )
-        return None, None
-
-    async def create_event_stream(
-        self, chat_id: UUID, after_seq: int
+    async def create_user_streams_feed(
+        self, user_id: UUID, cursors: dict[UUID, int]
     ) -> AsyncIterator[dict[str, Any]]:
-        # Entry point for the SSE connection: replays missed events from the DB,
-        # then switches to live Redis pub/sub. If anything fails, yields an error
-        # event so the client always gets feedback instead of hanging.
-        active_message_id, active_stream_id = await self._get_active_stream_targets(
-            chat_id
-        )
-        last_seq = after_seq
-
+        # One SSE connection carrying every active stream for the user — per-chat
+        # connections would exhaust the browser's 6-per-origin HTTP/1.1 pool once
+        # several chats stream concurrently. Replays each cursor chat's backlog
+        # from the DB, then switches to live pub/sub.
+        last_seq_by_chat: dict[str, int] = {}
         try:
             async with cache_connection() as cache:
-                channel = REDIS_KEY_CHAT_STREAM_LIVE.format(chat_id=chat_id)
+                channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=user_id)
                 async with cache_pubsub(cache, channel) as live_pubsub:
-                    async for item in self._replay_stream_backlog(chat_id, after_seq):
-                        yield item
-                        last_seq = int(item["id"])
-                        new_mid = self._extract_queue_processing_message_id(
-                            item.get("data")
-                        )
-                        if new_mid:
-                            active_message_id = new_mid
-                            active_stream_id = None
+                    # Subscribe before replaying so nothing published mid-replay is
+                    # lost; the live leg drops what replay already covered via seq.
+                    for chat_id, after_seq in cursors.items():
+                        last_seq_by_chat[str(chat_id)] = after_seq
+                        async for item in self._replay_stream_backlog(
+                            chat_id, after_seq
+                        ):
+                            yield item
+                            last_seq_by_chat[str(chat_id)] = int(item["id"])
 
-                    async for event in self._stream_live_redis_events(
-                        chat_id,
-                        last_seq,
-                        live_pubsub,
+                    async for event in self._stream_live_user_envelopes(
+                        user_id, last_seq_by_chat, live_pubsub
                     ):
                         yield event
-                        event_seq = int(event["id"])
-                        if event_seq > last_seq:
-                            last_seq = event_seq
-
-                        new_mid = self._extract_queue_processing_message_id(
-                            event.get("data")
-                        )
-                        if new_mid:
-                            active_message_id = new_mid
-                            active_stream_id = None
-
-        except Exception as exc:
-            # Final SSE safety net — any failure must surface as an error
-            # event rather than a silently hung connection.
-            logger.error(
-                "Error in event stream for chat %s: %s", chat_id, exc, exc_info=True
-            )
-            yield await self._build_stream_error_event(
-                chat_id=chat_id,
-                message_id=active_message_id,
-                stream_id=active_stream_id,
-                fallback_seq=last_seq,
-                error_message=str(exc),
-            )
+        except Exception:
+            # A transport failure isn't a turn failure, so no per-message error
+            # event — ending the feed lets the client reconnect with fresh cursors.
+            logger.error("User streams feed failed for %s", user_id, exc_info=True)
 
     async def create_chat_events_stream(
         self, user_id: UUID

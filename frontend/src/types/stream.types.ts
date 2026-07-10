@@ -42,7 +42,6 @@ export interface QueueProcessingData {
 }
 
 export interface ApiStreamResponse {
-  source: EventSource;
   messageId: string;
   checkpointId: string | null;
   // Set when this turn bound the chat to a worktree — created server-side
@@ -50,14 +49,14 @@ export interface ApiStreamResponse {
   worktreeCwd: string | null;
 }
 
+// Envelopes arrive over the shared multiplexed connection (streamConnection)
+// and route here via envelope.chatId — a stream entry no longer owns a socket.
 export interface ActiveStream {
   id: string;
   chatId: string;
   messageId: string;
-  source: EventSource;
   startTime: number;
   isActive: boolean;
-  listeners: Array<{ type: string; handler: EventListener }>;
   callbacks?: {
     onEnvelope?: (envelope: StreamEnvelope) => void;
     onComplete?: (

@@ -2,28 +2,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useStreamStore } from './streamStore';
 import type { ActiveStream } from '@/types/stream.types';
 
-vi.mock('@/utils/logger', () => ({
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-// Minimal EventSource stand-in — only the members shutdownStream touches.
-function makeSource() {
-  return {
-    removeEventListener: vi.fn(),
-    close: vi.fn(),
-    onerror: (() => {}) as unknown,
-  };
-}
-
 function makeStream(id: string, chatId: string, messageId: string, isActive = true): ActiveStream {
   return {
     id,
     chatId,
     messageId,
-    source: makeSource() as unknown as EventSource,
     startTime: 1000,
     isActive,
-    listeners: [{ type: 'message', handler: vi.fn() }],
     callbacks: { onEnvelope: vi.fn() },
   };
 }
@@ -74,7 +59,6 @@ describe('getStreamByChat', () => {
 describe('removeStream', () => {
   it('shuts down the stream and drops it from every index', () => {
     const stream = makeStream('s1', 'c1', 'm1');
-    const source = stream.source as unknown as ReturnType<typeof makeSource>;
     useStreamStore.getState().addStream(stream);
     useStreamStore.getState().removeStream('s1');
 
@@ -82,11 +66,8 @@ describe('removeStream', () => {
     expect(state.getStream('s1')).toBeUndefined();
     expect(state.getStreamByChatAndMessage('c1', 'm1')).toBeUndefined();
     expect(state.activeStreamMetadata).toEqual([]);
-    expect(source.close).toHaveBeenCalledOnce();
-    expect(source.removeEventListener).toHaveBeenCalledOnce();
     expect(stream.isActive).toBe(false);
     expect(stream.callbacks).toBeUndefined();
-    expect(source.onerror).toBeNull();
   });
 
   it('keeps chat metadata while another active stream remains for the chat', () => {
