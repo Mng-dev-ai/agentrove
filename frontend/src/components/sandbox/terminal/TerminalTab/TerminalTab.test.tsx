@@ -91,6 +91,12 @@ class FakeWebSocket {
     this.dispatch('message', new MessageEvent('message', { data: JSON.stringify(data) }));
   }
 
+  sentMessages(): unknown[] {
+    return this.send.mock.calls
+      .filter(([payload]) => typeof payload === 'string')
+      .map(([payload]) => JSON.parse(payload as string) as unknown);
+  }
+
   private dispatch(type: string, event: Event): void {
     for (const listener of this.listeners.get(type) ?? []) {
       if (typeof listener === 'function') {
@@ -110,11 +116,14 @@ describe('TerminalTab restored output', () => {
     vi.stubGlobal('WebSocket', FakeWebSocket);
     // The real xterm is opened asynchronously, so the mount-time focus frame
     // runs before terminalRef is populated. Keep that frame pending here too.
-    vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
   });
 
-  it('repaints and focuses only after the first restored write is parsed', async () => {
+  it('requests a repaint after init, then focuses only after the first write is parsed', async () => {
     render(<TerminalTab isVisible sandboxId="sandbox-1" terminalId="terminal-1" />);
 
     await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
@@ -122,6 +131,12 @@ describe('TerminalTab restored output', () => {
 
     act(() => websocket.open());
     expect(mocks.terminal.focus).not.toHaveBeenCalled();
+    // No repaint request until the server acks init — the session may not
+    // even have a PTY yet.
+    expect(websocket.sentMessages()).not.toContainEqual({ type: 'refresh' });
+
+    act(() => websocket.message({ type: 'init', id: 'pty-1', rows: 40, cols: 120 }));
+    expect(websocket.sentMessages()).toContainEqual({ type: 'refresh' });
 
     act(() => websocket.message({ type: 'stdout', data: '\u001b[?1004hrestored screen' }));
     expect(mocks.terminal.write).toHaveBeenCalledWith(

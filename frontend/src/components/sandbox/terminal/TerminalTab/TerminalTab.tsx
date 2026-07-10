@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { logger } from '@/utils/logger';
-import 'xterm/css/xterm.css';
+import '@xterm/xterm/css/xterm.css';
 
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
@@ -102,7 +102,7 @@ export function TerminalTab({
     if (!sandboxId || !isReady) return;
 
     // Reset on every (re)connect so stale screen contents and cursor position
-    // do not leak into the next PTY — the server repaints via tmux on reattach.
+    // do not leak into the next PTY — the server repaints via tmux on request.
     terminalRef.current?.reset();
 
     // Route to the cloud VPS WS host when the sandbox lives there, else local.
@@ -141,49 +141,65 @@ export function TerminalTab({
         lastSentSizeRef.current = size;
       };
 
+      const handleStdout = (data: string) => {
+        const terminal = terminalRef.current;
+        if (!terminal) {
+          return;
+        }
+        const focusAfterWrite = focusOnNextWriteRef.current;
+        focusOnNextWriteRef.current = false;
+        terminal.write(
+          data,
+          focusAfterWrite
+            ? () => {
+                // Reattached tmux modes must be parsed before focus so TUIs
+                // receive the focus event and paint without a user click.
+                if (wsRef.current !== ws) {
+                  return;
+                }
+                terminal.refresh(0, terminal.rows - 1);
+                if (isVisibleRef.current) {
+                  terminal.focus();
+                }
+              }
+            : undefined,
+        );
+        setSessionState((prev) => (prev === 'connecting' ? 'ready' : prev));
+      };
+
       const handleMessage = (event: MessageEvent) => {
         if (typeof event.data !== 'string') {
           return;
         }
+
+        let message: Record<string, unknown>;
         try {
-          const message = JSON.parse(event.data) as Record<string, unknown>;
-          // Server ping is a NAT/LB keepalive — no pong is expected.
-          if (message.type === 'ping') {
-            return;
+          message = JSON.parse(event.data) as Record<string, unknown>;
+        } catch {
+          logger.error('Malformed terminal frame', 'TerminalTab', event.data);
+          return;
+        }
+
+        // Server ping is a NAT/LB keepalive — no pong is expected.
+        if (message.type === 'ping') {
+          return;
+        }
+        if (message.type === 'stdout' && typeof message.data === 'string') {
+          handleStdout(message.data);
+          return;
+        }
+        if (message.type === 'init') {
+          const rows = typeof message.rows === 'number' ? message.rows : undefined;
+          const cols = typeof message.cols === 'number' ? message.cols : undefined;
+          if (rows && cols) {
+            lastSentSizeRef.current = { rows, cols };
           }
-          if (message.type === 'stdout' && typeof message.data === 'string') {
-            const terminal = terminalRef.current;
-            const focusAfterWrite = focusOnNextWriteRef.current;
-            focusOnNextWriteRef.current = false;
-            terminal?.write(
-              message.data,
-              focusAfterWrite
-                ? () => {
-                    // Reattached tmux modes must be parsed before focus so TUIs
-                    // receive the focus event and paint without a user click.
-                    if (wsRef.current !== ws) {
-                      return;
-                    }
-                    terminal.refresh(0, terminal.rows - 1);
-                    if (isVisibleRef.current) {
-                      terminal.focus();
-                    }
-                  }
-                : undefined,
-            );
-            setSessionState((prev) => (prev === 'connecting' ? 'ready' : prev));
-            return;
-          }
-          if (message.type === 'init') {
-            const rows = typeof message.rows === 'number' ? message.rows : undefined;
-            const cols = typeof message.cols === 'number' ? message.cols : undefined;
-            if (rows && cols) {
-              lastSentSizeRef.current = { rows, cols };
-            }
-            setSessionState('ready');
-          }
-        } catch (error) {
-          logger.error('Terminal write failed', 'TerminalTab', error);
+          // A reattach with an unchanged size produces no output on its own,
+          // so ask tmux for a repaint now that this socket can display it —
+          // an earlier connection torn down mid-handshake may have consumed
+          // the previous repaint.
+          ws.send(JSON.stringify({ type: 'refresh' }));
+          setSessionState('ready');
         }
       };
 

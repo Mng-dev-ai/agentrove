@@ -38,6 +38,9 @@
     "@tauri-apps/plugin-process": "^2.3.0",
     "@tauri-apps/plugin-store": "^2.4.0",
     "@tauri-apps/plugin-updater": "^2.10.0",
+    "@xterm/addon-clipboard": "^0.2.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "clsx": "^2.1.1",
     "diff": "^7.0.0",
     "dompurify": "^3.3.0",
@@ -57,8 +60,6 @@
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "xlsx": "^0.18.5",
-    "xterm": "^5.3.0",
-    "xterm-addon-fit": "^0.8.0",
     "zustand": "^5.0.3"
   },
   "devDependencies": {

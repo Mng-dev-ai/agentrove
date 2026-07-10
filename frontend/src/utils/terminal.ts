@@ -1,4 +1,4 @@
-import type { ITerminalOptions } from 'xterm';
+import type { ITerminalOptions } from '@xterm/xterm';
 import type { Palette } from '@/types/ui.types';
 import { CUSTOM_PALETTE_TOKENS, DARK_PALETTES } from '@/utils/theme';
 

@@ -115,6 +115,7 @@ WS_MSG_RESIZE: Final[str] = "resize"
 WS_MSG_CLOSE: Final[str] = "close"
 WS_MSG_PING: Final[str] = "ping"
 WS_MSG_DETACH: Final[str] = "detach"
+WS_MSG_REFRESH: Final[str] = "refresh"
 
 WS_CLOSE_AUTH_FAILED: Final[int] = 4001
 WS_CLOSE_SANDBOX_NOT_FOUND: Final[int] = 4004

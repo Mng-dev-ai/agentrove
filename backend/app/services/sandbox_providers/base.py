@@ -1,6 +1,7 @@
 import base64
 import logging
 import posixpath
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -151,6 +152,26 @@ class SandboxProvider:
         # PTY stream ends on its own (shell exit, container gone) — never on
         # kill_pty's own cancellation.
         raise NotImplementedError
+
+    @staticmethod
+    def build_pty_shell_command(tmux_session: str, fallback_shell: str) -> str:
+        # Shared tmux launch for every provider's PTY, falling back to a bare
+        # shell when tmux isn't installed. history-limit precedes new -A: it
+        # only applies to panes created after it's set (tmux applies it fine
+        # with no server running). Mouse on: xterm has no scrollback under
+        # tmux's alternate screen, so wheel scrolling must go through tmux
+        # copy-mode. Drag-selection then copies via tmux — set-clipboard plus
+        # the Ms override forward it as OSC 52 to the frontend clipboard addon.
+        return (
+            "command -v tmux >/dev/null && "
+            "tmux set -g history-limit 10000"
+            f" \\; new -A -s {shlex.quote(tmux_session)}"
+            " \\; set -g status off"
+            " \\; set -g mouse on"
+            " \\; set -s set-clipboard on"
+            " \\; set -as terminal-overrides ',xterm-256color:Ms=\\E]52;%p1%s;%p2%s\\007'"
+            f" || exec {shlex.quote(fallback_shell)}"
+        )
 
     async def send_pty_input(
         self,

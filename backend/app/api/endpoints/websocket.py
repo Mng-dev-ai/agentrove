@@ -16,6 +16,7 @@ from app.constants import (
     WS_MSG_DETACH,
     WS_MSG_INIT,
     WS_MSG_PING,
+    WS_MSG_REFRESH,
     WS_MSG_RESIZE,
 )
 from app.core.security import (
@@ -40,7 +41,7 @@ async def terminal_websocket(
     # Client protocol: after accept, the first frame must be an auth message
     # (handled by wait_for_websocket_auth). Subsequent frames are either raw
     # bytes (forwarded to the PTY stdin) or JSON control messages
-    # (init / resize / close / detach). A 30s receive-timeout drives a
+    # (init / refresh / resize / close / detach). A 30s receive-timeout drives a
     # server→client ping so idle connections keep NAT/LB state alive.
     await websocket.accept()
 
@@ -121,7 +122,7 @@ async def terminal_websocket(
                     max_value=500,
                 )
 
-                is_reattach = await session.ensure_started(rows, cols)
+                await session.ensure_started(rows, cols)
                 await session.attach(websocket)
 
                 await websocket.send_text(
@@ -135,10 +136,13 @@ async def terminal_websocket(
                     )
                 )
 
-                if is_reattach:
-                    # Repaint through tmux rather than the pane's stdin — the
-                    # foreground app (e.g. a TUI) may swallow injected keys.
-                    await session.refresh_tmux_client()
+            elif data_type == WS_MSG_REFRESH:
+                # Client-requested repaint after its xterm is open and sized —
+                # a reattach with an unchanged size emits nothing on its own,
+                # and repainting at init time can land on a connection that a
+                # racing reconnect is about to replace. Goes through tmux, not
+                # the pane's stdin: a foreground TUI would swallow injected keys.
+                await session.refresh_tmux_client()
 
             elif data_type == WS_MSG_RESIZE:
                 rows = parse_pty_dimension(
