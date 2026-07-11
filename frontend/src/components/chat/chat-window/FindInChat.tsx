@@ -18,7 +18,9 @@ export const FIND_REVEAL_EVENT = 'find-in-chat:reveal';
 
 function isEmbeddedEditor(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return !!target.closest('.monaco-editor, .xterm');
+  // [data-terminal-search] is the terminal's own find bar — a ⌘F retype there
+  // must re-select that bar's input, not open this one
+  return !!target.closest('.monaco-editor, .xterm, [data-terminal-search]');
 }
 
 interface FindInChatProps {

@@ -9,6 +9,7 @@ import { useUIStore } from '@/store/uiStore';
 import { resolveSandboxClient, resolveSandboxWs } from '@/lib/api';
 
 import { useXterm } from '@/hooks/useXterm';
+import { TerminalSearch } from '@/components/sandbox/terminal/TerminalSearch/TerminalSearch';
 import type { TerminalSize } from '@/types/sandbox.types';
 import type { Palette } from '@/types/ui.types';
 import styles from './TerminalTab.module.scss';
@@ -83,7 +84,7 @@ export function TerminalTab({
     lastSentSizeRef.current = size;
   }, []);
 
-  const { fitTerminal, isReady, terminalRef, wrapperRef } = useXterm({
+  const { fitTerminal, isReady, searchAddonRef, terminalRef, wrapperRef } = useXterm({
     isVisible,
     mode: palette,
     onData: (data: string) => {
@@ -334,6 +335,12 @@ export function TerminalTab({
           )}
         />
       </div>
+      <TerminalSearch
+        isReady={isReady}
+        palette={palette}
+        searchAddonRef={searchAddonRef}
+        terminalRef={terminalRef}
+      />
       {isVisible && overlayMessage && (
         <div className={styles['terminal-overlay']}>
           <div className={styles['terminal-overlay-message']}>{overlayMessage}</div>

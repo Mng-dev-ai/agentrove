@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
   const terminal = {
     cols: 120,
     rows: 40,
+    attachCustomKeyEventHandler: vi.fn(),
     focus: vi.fn(),
     refresh: vi.fn(),
     reset: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock('@/hooks/useXterm', () => ({
   useXterm: () => ({
     fitTerminal: mocks.fitTerminal,
     isReady: true,
+    searchAddonRef: { current: null },
     terminalRef: mocks.terminalRef,
     wrapperRef: mocks.wrapperRef,
   }),

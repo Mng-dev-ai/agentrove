@@ -3,6 +3,7 @@ import type { MutableRefObject } from 'react';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { IClipboardProvider } from '@xterm/addon-clipboard';
+import type { SearchAddon } from '@xterm/addon-search';
 
 import { logger } from '@/utils/logger';
 import { buildTerminalTheme } from '@/utils/terminal';
@@ -31,6 +32,7 @@ interface UseXtermOptions {
 interface UseXtermReturn {
   fitTerminal: () => TerminalSize | null;
   isReady: boolean;
+  searchAddonRef: MutableRefObject<SearchAddon | null>;
   terminalRef: MutableRefObject<XTerm | null>;
   wrapperRef: MutableRefObject<HTMLDivElement | null>;
 }
@@ -41,6 +43,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
   // never touch a terminal whose renderer doesn't exist yet.
   const terminalRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [initAttempt, setInitAttempt] = useState(0);
 
@@ -107,10 +110,11 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
     let xterm: XTerm | null = null;
 
     void (async () => {
-      const [{ Terminal }, { FitAddon }, { ClipboardAddon }] = await Promise.all([
+      const [{ Terminal }, { FitAddon }, { ClipboardAddon }, { SearchAddon }] = await Promise.all([
         import('@xterm/xterm'),
         import('@xterm/addon-fit'),
         import('@xterm/addon-clipboard'),
+        import('@xterm/addon-search'),
       ]);
 
       // Wait for the Nerd Font before first paint so the renderer measures
@@ -126,7 +130,12 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
       }
 
       xterm = new Terminal({
-        scrollback: 1000,
+        // The search addon's match decorations use registerDecoration, which
+        // xterm still gates as a proposed API.
+        allowProposedApi: true,
+        // tmux attaches without the alternate screen (smcup@ override), so this
+        // buffer is the scroll/search history — sized to tmux's history-limit.
+        scrollback: 10000,
         fontSize: 12,
         // Nerd Font primary so PUA icon glyphs (eza/ls icons, Starship prompt
         // symbols) render; generic monospace is only a last-resort fallback.
@@ -135,8 +144,10 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
       });
       const fitAddon = new FitAddon();
       xterm.loadAddon(fitAddon);
-      // OSC 52 → system clipboard: tmux runs with mouse mode on, so drag
-      // selection is tmux copy-mode — its copy must reach navigator.clipboard.
+      const searchAddon = new SearchAddon();
+      xterm.loadAddon(searchAddon);
+      // OSC 52 → system clipboard: inner apps (vim, keyboard copy-mode) copy
+      // through tmux's set-clipboard/Ms path and must reach navigator.clipboard.
       xterm.loadAddon(new ClipboardAddon(undefined, WRITE_ONLY_CLIPBOARD));
       // Registered once for the terminal's lifetime; dispose() cleans it up.
       xterm.onData((data) => onDataRef.current(data));
@@ -144,6 +155,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
 
       hasInitializedRef.current = true;
       fitAddonRef.current = fitAddon;
+      searchAddonRef.current = searchAddon;
       terminalRef.current = xterm;
       setIsReady(true);
     })().catch((error: unknown) => {
@@ -155,6 +167,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
     return () => {
       cancelled = true;
       fitAddonRef.current = null;
+      searchAddonRef.current = null;
       terminalRef.current = null;
       xterm?.dispose();
       setIsReady(false);
@@ -233,6 +246,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
     () => ({
       fitTerminal,
       isReady,
+      searchAddonRef,
       terminalRef,
       wrapperRef,
     }),
