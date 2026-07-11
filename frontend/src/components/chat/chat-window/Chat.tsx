@@ -11,6 +11,7 @@ import { Input } from '@/components/chat/message-input/Input';
 import { ChatSkeleton } from './ChatSkeleton';
 import { ScrollButton } from './ScrollButton';
 import { MessageTrail } from './MessageTrail';
+import { FindInChat } from './FindInChat';
 import { StatusTypewriter } from './StatusTypewriter';
 import { useChatScroll } from './useChatScroll';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
@@ -343,6 +344,8 @@ export const Chat = memo(function Chat() {
               </div>
             </div>
             <MessageTrail messages={messages} scrollerRef={scrollerRef} />
+            {/* Keyed by chat so query/match state resets on chat switch */}
+            <FindInChat key={chatId ?? 'chat'} messages={messages} scrollerRef={scrollerRef} />
           </>
         )}
       </div>

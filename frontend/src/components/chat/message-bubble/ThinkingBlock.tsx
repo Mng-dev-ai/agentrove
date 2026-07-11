@@ -1,7 +1,9 @@
-import { useState, useMemo, memo, type CSSProperties } from 'react';
+import { useState, useMemo, useRef, memo, type CSSProperties } from 'react';
 import clsx from 'clsx';
 import { ChevronRight, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { FIND_REVEAL_EVENT } from '@/components/chat/chat-window/FindInChat';
+import { useMountEffect } from '@/hooks/useMountEffect';
 import styles from './ThinkingBlock.module.scss';
 
 const DELAY_0: CSSProperties = { animationDelay: '0ms' };
@@ -18,6 +20,17 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   isActiveThinking,
 }: ThinkingBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useMountEffect(() => {
+    // Find-in-chat jumps to a match inside the collapsed body dispatch a reveal
+    // event that bubbles up here — expand so the match is visible when it scrolls
+    const node = rootRef.current;
+    if (!node) return;
+    const expand = () => setIsExpanded(true);
+    node.addEventListener(FIND_REVEAL_EVENT, expand);
+    return () => node.removeEventListener(FIND_REVEAL_EVENT, expand);
+  });
 
   const previewText = useMemo(() => {
     if (!content) return '';
@@ -33,7 +46,7 @@ export const ThinkingBlock = memo(function ThinkingBlock({
   }, [content]);
 
   return (
-    <div>
+    <div ref={rootRef}>
       <Button
         type="button"
         variant="unstyled"
@@ -52,7 +65,11 @@ export const ThinkingBlock = memo(function ThinkingBlock({
           </div>
         )}
         {!isExpanded && content && (
-          <span className={styles['thinking-preview']}>{previewText}</span>
+          // data-find-exclude: duplicates the body's first line and unmounts on
+          // expand — matching it would leave dead find-in-chat ranges
+          <span data-find-exclude className={styles['thinking-preview']}>
+            {previewText}
+          </span>
         )}
         <ChevronRight
           className={clsx(
