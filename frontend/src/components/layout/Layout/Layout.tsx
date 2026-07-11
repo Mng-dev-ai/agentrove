@@ -52,7 +52,9 @@ export function Layout({
   const [sidebarContent, setSidebarContent] = useState<ReactNode | null>(null);
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
   const isMobile = useIsMobile();
-  const shouldPushContent = !!sidebarContent && sidebarOpen && !isMobile;
+  // Desktop-only gating lives in CSS (media query on main--pushed) so the push
+  // can never disagree with the scrim/titlebar when JS isMobile state goes stale
+  const shouldPushContent = !!sidebarContent && sidebarOpen;
 
   useSidebarWidthVar();
 
