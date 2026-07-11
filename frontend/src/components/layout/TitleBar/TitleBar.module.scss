@@ -94,6 +94,18 @@
   margin-left: var(--space-3);
   display: flex;
   align-items: center;
+  gap: var(--space-1);
+}
+
+.search-button {
+  height: var(--space-8);
+  width: var(--space-8);
+}
+
+.search-icon {
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-secondary);
 }
 
 .spacer {

@@ -1,9 +1,11 @@
 import { useCallback } from 'react';
+import { Search } from 'lucide-react';
 import { useMatch } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ToggleButton } from '@/components/ui/ToggleButton/ToggleButton';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
 import { ChatTabs } from '@/components/layout/ChatTabs/ChatTabs';
 import clsx from 'clsx';
@@ -159,6 +161,20 @@ export function TitleBar() {
               position="left"
               ariaLabel="Toggle sidebar"
             />
+            {!sidebarOpen && (
+              <FloatingTooltip content="Search">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={styles['search-button']}
+                  onClick={() => useUIStore.getState().setCommandMenuOpen(true)}
+                  aria-label="Search"
+                >
+                  <Search className={styles['search-icon']} />
+                </Button>
+              </FloatingTooltip>
+            )}
           </div>
         )}
 
