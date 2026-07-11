@@ -108,13 +108,6 @@
   color: var(--theme-text-quaternary);
 }
 
-.pending {
-  @include type.type-meta;
-  padding: var(--space-2) var(--space-3);
-  text-align: center;
-  color: var(--theme-text-quaternary);
-}
-
 .tooltip-wrap {
   display: flex;
 }
