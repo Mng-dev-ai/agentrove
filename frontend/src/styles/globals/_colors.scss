@@ -170,7 +170,7 @@ $theme-tokens: (
     --text-primary: 15 23 42;
     --text-secondary: 71 85 105;
     --text-tertiary: 100 116 139;
-    --text-quaternary: 148 163 184;
+    --text-quaternary: 128 140 159;
 
     --surface-dark: 17 17 17;
     --surface-dark-secondary: 20 20 20;
@@ -205,10 +205,11 @@ $theme-tokens: (
       --theme-#{$token}-rgb: var(#{list.nth($pair, 1)});
     }
 
-    // Status text needs a darker step on light backgrounds, lighter on dark
+    // Status labels are small, so keep them readable across tinted palette surfaces.
     @each $name, $scale in $status-colors {
-      --theme-#{$name}-text: var(--color-#{$name}-600);
+      --theme-#{$name}-text: var(--color-#{$name}-800);
     }
+    --theme-warning-text: var(--color-warning-900);
   }
 
   :root[data-theme='dark'] {
@@ -220,7 +221,7 @@ $theme-tokens: (
     }
 
     @each $name, $scale in $status-colors {
-      --theme-#{$name}-text: var(--color-#{$name}-400);
+      --theme-#{$name}-text: var(--color-#{$name}-200);
     }
   }
 }

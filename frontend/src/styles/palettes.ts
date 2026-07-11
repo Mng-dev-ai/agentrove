@@ -43,8 +43,8 @@ export interface PaletteDef {
   surface: string;
   surfaceSecondary: string;
   surfaceTertiary: string;
-  // Hover/active back full list rows (e.g. the selected command-menu row), so
-  // textSecondary/textTertiary must stay readable on them (~3:1 contrast or better).
+  // Hover/active back full list rows, so secondary text stays at 4.5:1 and tertiary
+  // UI stays at 3:1. Quaternary UI keeps 3:1 on the ordinary surface set.
   surfaceHover: string;
   surfaceActive: string;
   border: string;
@@ -70,7 +70,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#e4e4e6',
     textSecondary: '#b8b8bd',
     textTertiary: '#8a8a90',
-    textQuaternary: '#6a6a70',
+    textQuaternary: '#79797e',
   },
   sepia: {
     base: 'light',
@@ -83,9 +83,9 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#d0c098',
     borderHover: '#b8a472',
     textPrimary: '#4b3a2a',
-    textSecondary: '#6f5942',
+    textSecondary: '#68543e',
     textTertiary: '#856c4e',
-    textQuaternary: '#b3a07f',
+    textQuaternary: '#908167',
   },
   'solarized-light': {
     base: 'light',
@@ -98,9 +98,9 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#ccc4a8',
     borderHover: '#b8ae8c',
     textPrimary: '#073642',
-    textSecondary: '#586e75',
+    textSecondary: '#4c5f66',
     textTertiary: '#657b83',
-    textQuaternary: '#93a1a1',
+    textQuaternary: '#7b8686',
   },
   'solarized-dark': {
     base: 'dark',
@@ -113,9 +113,9 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#135f73',
     borderHover: '#1a7088',
     textPrimary: '#eee8d5',
-    textSecondary: '#93a1a1',
-    textTertiary: '#839496',
-    textQuaternary: '#657b83',
+    textSecondary: '#acb7b7',
+    textTertiary: '#869698',
+    textQuaternary: '#798d93',
   },
   nord: {
     base: 'dark',
@@ -130,7 +130,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#eceff4',
     textSecondary: '#d8dee9',
     textTertiary: '#a3acbd',
-    textQuaternary: '#7b8494',
+    textQuaternary: '#868e9d',
   },
   midnight: {
     base: 'dark',
@@ -145,7 +145,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#e6ecff',
     textSecondary: '#aebbd8',
     textTertiary: '#7384a8',
-    textQuaternary: '#56688c',
+    textQuaternary: '#5c6e90',
   },
   dracula: {
     base: 'dark',
@@ -160,7 +160,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#f8f8f2',
     textSecondary: '#c8cadc',
     textTertiary: '#989fbd',
-    textQuaternary: '#6272a4',
+    textQuaternary: '#7281ad',
   },
   'tokyo-night': {
     base: 'dark',
@@ -175,7 +175,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#c0caf5',
     textSecondary: '#a9b1d6',
     textTertiary: '#787c99',
-    textQuaternary: '#565f89',
+    textQuaternary: '#697196',
   },
   'catppuccin-latte': {
     base: 'light',
@@ -188,9 +188,9 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#caced8',
     borderHover: '#9ca0b0',
     textPrimary: '#4c4f69',
-    textSecondary: '#5c5f77',
+    textSecondary: '#55576e',
     textTertiary: '#6c6f85',
-    textQuaternary: '#9ca0b0',
+    textQuaternary: '#7b7e8b',
   },
   ember: {
     base: 'dark',
@@ -205,7 +205,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#f5e6d8',
     textSecondary: '#e0b894',
     textTertiary: '#b3835f',
-    textQuaternary: '#856249',
+    textQuaternary: '#89674e',
   },
   gruvbox: {
     base: 'dark',
@@ -233,9 +233,9 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#2a273f',
     borderHover: '#524f67',
     textPrimary: '#e0def4',
-    textSecondary: '#908caa',
-    textTertiary: '#6e6a86',
-    textQuaternary: '#524f67',
+    textSecondary: '#918eab',
+    textTertiary: '#74718b',
+    textQuaternary: '#706e81',
   },
   'rose-pine-dawn': {
     base: 'light',
@@ -248,9 +248,9 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#dfdad9',
     borderHover: '#cecacd',
     textPrimary: '#575279',
-    textSecondary: '#797593',
+    textSecondary: '#64617a',
     textTertiary: '#817b98',
-    textQuaternary: '#a8a3b3',
+    textQuaternary: '#888390',
   },
   everforest: {
     base: 'dark',
@@ -263,7 +263,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#3d484d',
     borderHover: '#4f585e',
     textPrimary: '#d3c6aa',
-    textSecondary: '#bdc3af',
+    textSecondary: '#c0c6b2',
     textTertiary: '#9da9a0',
     textQuaternary: '#859289',
   },
@@ -278,9 +278,9 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#363646',
     borderHover: '#54546d',
     textPrimary: '#dcd7ba',
-    textSecondary: '#c8c093',
+    textSecondary: '#d3cda8',
     textTertiary: '#9cabca',
-    textQuaternary: '#727169',
+    textQuaternary: '#76756d',
   },
   'one-dark': {
     base: 'dark',
@@ -295,7 +295,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#abb2bf',
     textSecondary: '#9da5b4',
     textTertiary: '#7f848e',
-    textQuaternary: '#5c6370',
+    textQuaternary: '#757b86',
   },
   'catppuccin-mocha': {
     base: 'dark',
@@ -308,9 +308,9 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#45475a',
     borderHover: '#6c7086',
     textPrimary: '#cdd6f4',
-    textSecondary: '#bac2de',
-    textTertiary: '#a6adc8',
-    textQuaternary: '#6c7086',
+    textSecondary: '#cfd5e8',
+    textTertiary: '#a8afc9',
+    textQuaternary: '#797c90',
   },
   cyberpunk: {
     base: 'dark',
@@ -340,7 +340,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#ededed',
     textSecondary: '#a1a1a1',
     textTertiary: '#737373',
-    textQuaternary: '#525252',
+    textQuaternary: '#656565',
   },
   github: {
     base: 'dark',
@@ -387,7 +387,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     // so use systemGray3 (light) as the opaque equivalent step.
     textSecondary: '#c7c7cc',
     textTertiary: '#98989d',
-    textQuaternary: '#636366',
+    textQuaternary: '#858587',
   },
   raycast: {
     base: 'dark',
@@ -402,7 +402,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#f2f2f2',
     textSecondary: '#c0c0c0',
     textTertiary: '#8f8f8f',
-    textQuaternary: '#6b6b6b',
+    textQuaternary: '#6f6f6f',
   },
   notion: {
     base: 'light',
@@ -417,7 +417,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#37352f',
     textSecondary: '#5f5e5b',
     textTertiary: '#787774',
-    textQuaternary: '#9b9a97',
+    textQuaternary: '#8b8a87',
   },
   matrix: {
     base: 'dark',
@@ -432,7 +432,7 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textPrimary: '#00ff41',
     textSecondary: '#00d936',
     textTertiary: '#00b32d',
-    textQuaternary: '#00661a',
+    textQuaternary: '#12712a',
   },
   linear: {
     base: 'dark',
@@ -460,8 +460,8 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     borderSecondary: '#3a4e64',
     borderHover: '#ff5533',
     textPrimary: '#ffe8dc',
-    textSecondary: '#ff6b4a',
+    textSecondary: '#ff7b5d',
     textTertiary: '#d2694a',
-    textQuaternary: '#7a5048',
+    textQuaternary: '#8e6b64',
   },
 };
