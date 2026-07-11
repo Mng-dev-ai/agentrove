@@ -69,6 +69,8 @@
 
   // Sidebar pushes the main content in from the left when docked open on desktop
   &--pushed {
-    padding-left: var(--sidebar-width);
+    @include responsive.media('desktop') {
+      padding-left: var(--sidebar-width);
+    }
   }
 }
