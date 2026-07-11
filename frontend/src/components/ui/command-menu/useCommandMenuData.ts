@@ -9,8 +9,6 @@ import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
-import { useSearchChatsQuery } from '@/hooks/queries/useChatQueries';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { fuzzySearch } from '@/utils/fuzzySearch';
 import { THEMES } from '@/utils/theme';
 import {
@@ -94,63 +92,17 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
     [query, menuChats, mode],
   );
 
-  // Deep search runs on the Chats tab only — the All tab stays instant/local; the
-  // "Search in chats" action remains the snippet-level browser for message matches.
-  const debouncedQuery = useDebouncedValue(query, 250);
-  const deepSearchQuery = mode === 'chats' ? debouncedQuery.trim() : '';
-  const {
-    data: chatSearchData,
-    isFetching: isSearchingChats,
-    isPlaceholderData: isStaleChatSearch,
-  } = useSearchChatsQuery(deepSearchQuery, { enabled: isOpen && deepSearchQuery.length >= 2 });
   const trimmedQuery = query.trim();
-  // Debounce/fetch lag — content rows are hidden while the search trails the input,
-  // so show the searching hint instead of a misleading empty or settled list.
-  const isChatSearchPending =
-    mode === 'chats' &&
-    trimmedQuery.length >= 2 &&
-    (deepSearchQuery !== trimmedQuery || isSearchingChats);
 
-  const chatRows = useMemo<ChatRowItem[]>(() => {
-    const titleRows = filteredChats.map((chat) => ({
-      id: chat.id,
-      title: chat.title,
-      workspaceName: workspaceBadgeById.get(chat.workspace_id)?.name,
-    }));
-    // Stale rows are selectable, so a quick Enter could open a chat unrelated to the
-    // current input. Two windows produce them: the debounce lag (deepSearchQuery still
-    // holds the previous term) and keepPreviousData while a new request is in flight
-    // (placeholder response for the previous term). Hide content rows through both;
-    // the length gate keeps the section query-driven below the search minimum.
-    if (
-      mode !== 'chats' ||
-      deepSearchQuery.length < 2 ||
-      deepSearchQuery !== trimmedQuery ||
-      !chatSearchData ||
-      isStaleChatSearch
-    ) {
-      return titleRows;
-    }
-    // Content-only hits go below title matches, deduped by chat id.
-    const titleIds = new Set(titleRows.map((row) => row.id));
-    const contentRows = chatSearchData.results
-      .filter((result) => !titleIds.has(result.chat_id))
-      .map((result) => ({
-        id: result.chat_id,
-        title: result.chat_title,
-        workspaceName: result.workspace_name,
-        matchCount: result.match_count,
-      }));
-    return [...titleRows, ...contentRows];
-  }, [
-    filteredChats,
-    workspaceBadgeById,
-    mode,
-    deepSearchQuery,
-    trimmedQuery,
-    chatSearchData,
-    isStaleChatSearch,
-  ]);
+  const chatRows = useMemo<ChatRowItem[]>(
+    () =>
+      filteredChats.map((chat) => ({
+        id: chat.id,
+        title: chat.title,
+        workspaceName: workspaceBadgeById.get(chat.workspace_id)?.name,
+      })),
+    [filteredChats, workspaceBadgeById],
+  );
 
   const filteredFiles = useMemo(
     () =>
@@ -232,6 +184,5 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
     filteredBranches,
     filteredThemes,
     trimmedQuery,
-    isChatSearchPending,
   };
 }

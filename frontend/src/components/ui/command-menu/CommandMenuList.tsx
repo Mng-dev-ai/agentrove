@@ -30,7 +30,6 @@ interface CommandMenuListProps {
   listItems: MenuListItem[];
   leafTileIds: Set<string>;
   useSecondary: boolean;
-  isChatSearchPending: boolean;
   onOpenChat: (id: string) => void;
   onSelectFile: (file: FlatFileItem) => void;
   onRunCommand: (cmd: CommandItem) => void;
@@ -59,7 +58,6 @@ export function CommandMenuList({
   listItems,
   leafTileIds,
   useSecondary,
-  isChatSearchPending,
   onOpenChat,
   onSelectFile,
   onRunCommand,
@@ -99,15 +97,7 @@ export function CommandMenuList({
               searchQuery={query}
               className={styles['chat-title']}
             />
-            {/* Content hits show the match count — it explains why a title
-                that doesn't match the query is listed. */}
-            {(chat.matchCount != null || chat.workspaceName) && (
-              <span className={styles.meta}>
-                {chat.matchCount != null
-                  ? `${chat.matchCount} ${chat.matchCount === 1 ? 'match' : 'matches'}`
-                  : chat.workspaceName}
-              </span>
-            )}
+            {chat.workspaceName && <span className={styles.meta}>{chat.workspaceName}</span>}
           </MenuRow>
         </Fragment>
       );
@@ -260,8 +250,7 @@ export function CommandMenuList({
       ) : (
         <>
           {listItems.map(renderMainRow)}
-          {isChatSearchPending && <p className={styles.pending}>Searching messages…</p>}
-          {listItems.length === 0 && !isChatSearchPending && (
+          {listItems.length === 0 && (
             <p className={styles.empty}>
               {mode === 'chats'
                 ? 'No matching chats'

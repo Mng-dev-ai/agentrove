@@ -90,7 +90,7 @@ export const FindInChat = memo(function FindInChat({ messages, scrollerRef }: Fi
   );
 
   useMountEffect(() => {
-    // Plain ⌘F only — ⌘⇧F belongs to search-in-files; Monaco/xterm keep their own find
+    // Plain ⌘F only — shifted chords stay free for global shortcuts; Monaco/xterm keep their own find
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.code !== 'KeyF') return;
       if (isEmbeddedEditor(e.target)) return;

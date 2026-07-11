@@ -9,14 +9,11 @@ import {
   Terminal,
   Lock,
   GitBranch,
-  Search,
   PanelLeftClose,
-  FileSearch,
   GitPullRequest,
   GitCommitHorizontal,
   ArrowUpFromLine,
   ArrowDownFromLine,
-  MessageSquare,
   Palette,
   Settings,
 } from 'lucide-react';
@@ -57,26 +54,27 @@ export interface ActionCommandItem {
 
 export type CommandItem = ViewCommandItem | ActionCommandItem;
 
-// Main-mode filter tabs share one unified list; ⌘[/⌘] cycle through them in this order.
-export type MainFilter = 'all' | 'chats' | 'files' | 'actions';
-export const MAIN_FILTERS: MainFilter[] = ['all', 'chats', 'files', 'actions'];
+// Main-mode filter tabs; ⌘[/⌘] cycle through them in this order. Chats/Files match
+// titles/filenames in the unified list; Messages/Grep host the content-search panels
+// (chat messages / file contents) — named so they don't read as duplicates of Chats/Files.
+export type MainFilter = 'all' | 'chats' | 'messages' | 'files' | 'grep' | 'actions';
+export const MAIN_FILTERS: MainFilter[] = ['all', 'chats', 'messages', 'files', 'grep', 'actions'];
 
-// Sub-modes (branch picker, theme picker, embedded search panels) replace the whole
-// menu surface; main filters only narrow the unified list.
-export type MenuMode = MainFilter | 'branches' | 'search' | 'chat-search' | 'themes';
+// Sub-modes (branch picker, theme picker) replace the whole menu surface; main
+// filters only narrow the unified list or swap in a search panel.
+export type MenuMode = MainFilter | 'branches' | 'themes';
 
 export interface FlatFileItem {
   path: string;
   name: string;
 }
 
-// Chat rows come from two sources — loaded chat lists (instant title fuzzy match) and
-// the backend message-content search (Chats tab only) — normalized to one display shape.
+// Loaded chat lists (instant title fuzzy match) normalized to one display shape;
+// message-content search lives in the Messages tab, not here.
 export interface ChatRowItem {
   id: string;
   title: string;
   workspaceName?: string;
-  matchCount?: number;
 }
 
 // One flat list drives both keyboard navigation and rendering of the sectioned
@@ -165,15 +163,6 @@ const SETTING_COMMANDS: ActionCommandItem[] = [
   // Opens the theme picker sub-mode (every theme as a list) instead of one command per
   // theme — keeps the chord space sane as themes grow.
   { type: 'action', id: 'set-theme', label: 'Set theme', icon: Palette, shortcut: 'm' },
-  { type: 'action', id: 'search-in-files', label: 'Search in files', icon: Search, shortcut: 'f' },
-  {
-    type: 'action',
-    id: 'search-in-chats',
-    label: 'Search in chats',
-    icon: MessageSquare,
-    shortcut: 'k',
-  },
-  { type: 'action', id: 'go-to-file', label: 'Go to file', icon: FileSearch, shortcut: 'o' },
   { type: 'action', id: 'open-settings', label: 'Settings', icon: Settings, shortcut: ',' },
 ];
 
@@ -192,9 +181,6 @@ export const SHORTCUT_MAP = new Map<string, CommandItem>(
 
 // Commands that switch the menu into a sub-mode instead of dispatching an action.
 export const COMMAND_TO_MODE: Partial<Record<string, MenuMode>> = {
-  'search-in-files': 'search',
-  'search-in-chats': 'chat-search',
-  'go-to-file': 'files',
   'switch-branch': 'branches',
   'set-theme': 'themes',
 };
@@ -320,15 +306,6 @@ export function executeCommand(
     ui.setSidebarOpen(!ui.sidebarOpen);
   } else if (cmd.id === 'set-theme') {
     ui.setPendingMenuMode('themes');
-    ui.setCommandMenuOpen(true);
-  } else if (cmd.id === 'search-in-files') {
-    ui.setPendingMenuMode('search');
-    ui.setCommandMenuOpen(true);
-  } else if (cmd.id === 'search-in-chats') {
-    ui.setPendingMenuMode('chat-search');
-    ui.setCommandMenuOpen(true);
-  } else if (cmd.id === 'go-to-file') {
-    ui.setPendingMenuMode('files');
     ui.setCommandMenuOpen(true);
   } else if (cmd.id === 'open-settings') {
     navigate('/settings');

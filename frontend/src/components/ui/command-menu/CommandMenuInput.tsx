@@ -18,7 +18,7 @@ interface CommandMenuInputProps {
 const PLACEHOLDERS: Partial<Record<MenuMode, string>> = {
   branches: 'Search branches...',
   themes: 'Search themes...',
-  chats: 'Search chats and messages...',
+  chats: 'Search chats...',
   files: 'Search files...',
   actions: 'Search actions...',
 };

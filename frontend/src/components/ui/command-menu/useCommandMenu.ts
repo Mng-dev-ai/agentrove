@@ -7,7 +7,7 @@ import { type ThemeMeta } from '@/utils/theme';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
 import type { ViewType, SplitDirection, Theme } from '@/types/ui.types';
 import { useCommandMenuData } from './useCommandMenuData';
-import { isMainMode } from './commandMenuModes';
+import { isMainMode, isPanelMode } from './commandMenuModes';
 import {
   COMMAND_TO_MODE,
   MAIN_FILTERS,
@@ -57,7 +57,6 @@ export function useCommandMenu() {
     filteredBranches,
     filteredThemes,
     trimmedQuery,
-    isChatSearchPending,
   } = useCommandMenuData(mode, query);
 
   const activateFromMouse = (index: number, e: React.MouseEvent) => {
@@ -68,28 +67,38 @@ export function useCommandMenu() {
     setActiveIndex(index);
   };
 
-  const switchMode = useCallback((next: MenuMode) => {
-    // Re-arm the synthetic-event guard — the new mode's list renders under the cursor.
-    lastMouseRef.current = null;
-    setMode(next);
-    setQuery('');
-    setActiveIndex(0);
-    if (next === 'search') {
-      // SearchPanel owns its own input; focus it after React flushes the mode change.
-      requestAnimationFrame(() => searchInputRef.current?.focus());
-    } else if (next === 'chat-search') {
-      requestAnimationFrame(() => chatSearchInputRef.current?.focus());
-    } else {
-      requestAnimationFrame(() => inputRef.current?.focus());
-    }
+  // The panels own their inputs; focus the right one after React flushes the mode change.
+  const focusModeInput = useCallback((next: MenuMode) => {
+    requestAnimationFrame(() => {
+      if (next === 'grep') searchInputRef.current?.focus();
+      else if (next === 'messages') chatSearchInputRef.current?.focus();
+      else inputRef.current?.focus();
+    });
   }, []);
 
+  const switchMode = useCallback(
+    (next: MenuMode) => {
+      // Re-arm the synthetic-event guard — the new mode's list renders under the cursor.
+      lastMouseRef.current = null;
+      setMode(next);
+      setQuery('');
+      setActiveIndex(0);
+      focusModeInput(next);
+    },
+    [focusModeInput],
+  );
+
   // Tab clicks and ⌘[/⌘] keep the typed query — filters narrow the current search.
-  const switchFilter = useCallback((next: MainFilter) => {
-    lastMouseRef.current = null;
-    setMode(next);
-    setActiveIndex(0);
-  }, []);
+  // Crossing to/from a panel tab remounts the focused input, so refocus explicitly.
+  const switchFilter = useCallback(
+    (next: MainFilter) => {
+      lastMouseRef.current = null;
+      setMode(next);
+      setActiveIndex(0);
+      focusModeInput(next);
+    },
+    [focusModeInput],
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -216,17 +225,6 @@ export function useCommandMenu() {
       const { activeIndex: idx, mode: m } = stateRef.current;
       const len = listLengthRef.current;
 
-      if (m === 'search' || m === 'chat-search') {
-        // The embedded panel handles its own typing + click-to-open; don't
-        // hijack Enter/arrows here. Only wire Escape to step back to the main list.
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          switchMode('all');
-        }
-        return;
-      }
-
       // ⌘[/⌘] cycle the main-mode filter tabs (preventDefault also blocks the
       // browser's back/forward navigation bound to these chords).
       if (isMainMode(m) && (e.metaKey || e.ctrlKey) && (e.key === '[' || e.key === ']')) {
@@ -235,6 +233,17 @@ export function useCommandMenu() {
         const step = e.key === ']' ? 1 : -1;
         const current = MAIN_FILTERS.indexOf(m);
         switchFilter(MAIN_FILTERS[(current + step + MAIN_FILTERS.length) % MAIN_FILTERS.length]);
+        return;
+      }
+
+      if (isPanelMode(m)) {
+        // The embedded panel handles its own typing + click-to-open; don't
+        // hijack Enter/arrows here. Only wire Escape to step back to the All tab.
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          switchFilter('all');
+        }
         return;
       }
 
@@ -336,7 +345,6 @@ export function useCommandMenu() {
     listItems,
     leafTileIds,
     useSecondary,
-    isChatSearchPending,
     handleOpenChatResult,
     handleSelectFile,
     runCommand,
