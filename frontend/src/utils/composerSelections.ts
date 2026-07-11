@@ -2,10 +2,7 @@ import type { ComposerSelection } from '@/store/uiStore';
 
 const BACKTICK_RUN = /`+/g;
 
-export function formatComposerSelections(
-  selections: ComposerSelection[],
-  message: string,
-): string {
+export function formatComposerSelections(selections: ComposerSelection[], message: string): string {
   // Chips are UI-only; at send time the selections ride in the prompt as
   // fenced blocks above the user's text.
   const blocks = selections.map((s) => {
