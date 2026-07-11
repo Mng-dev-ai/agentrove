@@ -25,6 +25,7 @@ import { isDesktopApp, isMobileApp } from '@/utils/platform';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { clearCloudOrigins } from '@/utils/chatOrigin';
+import { PALETTES } from '@/styles/palettes';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
 import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
@@ -205,7 +206,12 @@ export default function App() {
     document.documentElement.setAttribute('data-palette', theme);
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      metaThemeColor.setAttribute('content', resolvedTheme === 'dark' ? '#0a0a0a' : '#ffffff');
+      const palette =
+        theme === 'light' || theme === 'dark' || theme === 'system' ? null : PALETTES[theme];
+      metaThemeColor.setAttribute(
+        'content',
+        palette?.surface ?? (resolvedTheme === 'dark' ? '#111111' : '#f5f5f5'),
+      );
     }
   }, [resolvedTheme, theme]);
 
