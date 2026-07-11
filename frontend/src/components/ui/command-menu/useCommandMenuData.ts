@@ -185,9 +185,9 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
 
   const listItems = useMemo<MenuListItem[]>(
     () => [
+      ...filteredCommands.map((command) => ({ kind: 'command' as const, command })),
       ...chatRows.map((chat) => ({ kind: 'chat' as const, chat })),
       ...filteredFiles.map((file) => ({ kind: 'file' as const, file })),
-      ...filteredCommands.map((command) => ({ kind: 'command' as const, command })),
     ],
     [chatRows, filteredFiles, filteredCommands],
   );
