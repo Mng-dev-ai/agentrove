@@ -17,8 +17,6 @@ import styles from './Textarea.module.scss';
 
 const THIN_SCROLLBAR_STYLE: CSSProperties = { scrollbarWidth: 'thin' };
 
-// Backdrop variant of the pill: no text colors (the textarea's own glyphs render
-// on top) and negative margins so the painted background doesn't shift the flow.
 const BACKDROP_TOKEN_CLASSNAME = styles['backdrop-token'];
 
 // Invisible scrollbar that still reserves the same thin gutter as the textarea's,
@@ -144,9 +142,7 @@ export function Textarea({
   return (
     <div className={styles.textarea}>
       {hasTokens && (
-        // Paints pill backgrounds behind @mention and /command tokens; the textarea's own
-        // glyphs render on top, so this layer's text is transparent and must mirror the
-        // textarea's typography, padding, and wrapping exactly.
+        // Mirrors the textarea so individual tokens can be colored without changing its value.
         <div
           ref={backdropRef}
           aria-hidden
@@ -176,6 +172,7 @@ export function Textarea({
         rows={1}
         className={clsx(
           styles['textarea-field'],
+          hasTokens && styles['textarea-field--highlighted'],
           isMobile && compact && styles['textarea-field--compact'],
         )}
         style={THIN_SCROLLBAR_STYLE}

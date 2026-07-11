@@ -118,6 +118,10 @@ $theme-tokens: (
     --text-quaternary,
     --text-dark-quaternary,
   ),
+  'token-highlight': (
+    --token-highlight,
+    --token-dark-highlight,
+  ),
   // Inverted pair — light theme reads the dark set and vice versa (primary buttons,
   // tooltips: dark-on-light / light-on-dark).
   'surface-inverse': (
@@ -171,6 +175,7 @@ $theme-tokens: (
     --text-secondary: 71 85 105;
     --text-tertiary: 100 116 139;
     --text-quaternary: 128 140 159;
+    --token-highlight: 180 83 9;
 
     --surface-dark: 17 17 17;
     --surface-dark-secondary: 20 20 20;
@@ -184,6 +189,7 @@ $theme-tokens: (
     --text-dark-secondary: 224 224 224;
     --text-dark-tertiary: 192 192 192;
     --text-dark-quaternary: 160 160 160;
+    --token-dark-highlight: 255 184 99;
 
     // macOS traffic lights (desktop title bar only)
     --color-traffic-close: #ff5f57;
