@@ -5,7 +5,7 @@ import {
   type MessageSegment,
   type ToolSegment,
 } from './segmentBuilder';
-import type { AssistantStreamEvent } from '@/types/chat.types';
+import type { AssistantStreamEvent, PlanEntry } from '@/types/chat.types';
 import type { ToolEventPayload } from '@/types/tools.types';
 
 // Minimal tool payload factory — only the fields buildSegments reads.
@@ -263,6 +263,53 @@ describe('buildSegments — ordering across kinds', () => {
       { type: 'tool_started', tool: toolPayload({ id: 't1' }) },
     ]);
     expect(segments.map((s) => s.kind)).toEqual(['thinking', 'text', 'tool']);
+  });
+});
+
+describe('buildSegments — plan translation', () => {
+  const entry = (content: string, status: PlanEntry['status'] = 'pending'): PlanEntry => ({
+    content,
+    status,
+  });
+
+  it('flushes pending text before emitting a plan segment', () => {
+    const segments = buildSegments([
+      { type: 'assistant_text', text: 'working' },
+      { type: 'plan', data: { entries: [entry('a')] } },
+    ]);
+    expect(segments).toEqual([
+      { kind: 'text', id: 'text-0', text: 'working' },
+      { kind: 'plan', id: 'plan-0', entries: [entry('a')] },
+    ]);
+  });
+
+  it('re-renders the plan at the current position when content arrives in between', () => {
+    const first = [entry('a', 'in_progress')];
+    const second = [entry('a', 'completed')];
+    const segments = buildSegments([
+      { type: 'plan', data: { entries: first } },
+      { type: 'assistant_text', text: 'step done' },
+      { type: 'plan', data: { entries: second } },
+    ]);
+    expect(segments).toEqual([
+      { kind: 'plan', id: 'plan-0', entries: first },
+      { kind: 'text', id: 'text-0', text: 'step done' },
+      { kind: 'plan', id: 'plan-1', entries: second },
+    ]);
+  });
+
+  it('collapses back-to-back plan snapshots into one segment', () => {
+    const second = [entry('a', 'completed'), entry('b', 'in_progress')];
+    const segments = buildSegments([
+      { type: 'plan', data: { entries: [entry('a', 'completed')] } },
+      { type: 'plan', data: { entries: second } },
+    ]);
+    expect(segments).toEqual([{ kind: 'plan', id: 'plan-0', entries: second }]);
+  });
+
+  it('ignores plan events with missing or empty entries', () => {
+    expect(buildSegments([{ type: 'plan' }])).toEqual([]);
+    expect(buildSegments([{ type: 'plan', data: { entries: [] } }])).toEqual([]);
   });
 });
 

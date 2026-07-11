@@ -363,6 +363,7 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
   let textSegmentCount = 0;
   let thinkingSegmentCount = 0;
   let suggestionsSegmentCount = 0;
+  let planSegmentCount = 0;
 
   const flushText = () => {
     if (!pendingText) return;
@@ -433,16 +434,17 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
       case 'plan': {
         const entries = event.data?.entries;
         if (!Array.isArray(entries) || entries.length === 0) break;
-        // Each plan event is a full snapshot — update the existing segment in
-        // place so the checklist stays at the position planning started.
-        // Scan instead of caching an index: tool reparenting can splice segments.
-        const planIndex = segments.findIndex((segment) => segment.kind === 'plan');
-        if (planIndex === -1) {
+        // Each plan event is a full snapshot. Render it at the current stream
+        // position so updates stay visible as the chat scrolls; collapse
+        // back-to-back snapshots into one card instead of stacking duplicates.
+        const last = segments[segments.length - 1];
+        if (last?.kind === 'plan' && !pendingText && !pendingThinking) {
+          segments[segments.length - 1] = { kind: 'plan', id: last.id, entries };
+        } else {
           flushText();
           flushThinking();
-          segments.push({ kind: 'plan', id: 'plan', entries });
-        } else {
-          segments[planIndex] = { kind: 'plan', id: 'plan', entries };
+          segments.push({ kind: 'plan', id: `plan-${planSegmentCount}`, entries });
+          planSegmentCount++;
         }
         break;
       }
