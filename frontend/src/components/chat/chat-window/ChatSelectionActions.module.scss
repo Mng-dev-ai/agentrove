@@ -1,0 +1,65 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/zlayer' as z;
+
+// Covers the message content so children can anchor to selection coordinates;
+// pointer-events pass through everywhere except the toolbar/panel themselves.
+.selection-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.toolbar {
+  @include z.z('raised');
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background-color: colors.theme-color('surface', 0.95);
+  box-shadow: var(--shadow-medium);
+  backdrop-filter: blur(24px);
+  padding: var(--space-0-5);
+  pointer-events: auto;
+  // Sit centered above the selection with a small gap.
+  transform: translate(-50%, calc(-100% - var(--space-1-5)));
+  animation: fade-in var(--duration-fast) var(--easing-out);
+}
+
+.action {
+  @include anim.transition-colors;
+  @include type.type-default;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  color: var(--theme-text-secondary);
+  white-space: nowrap;
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+}
+
+.action-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.divider {
+  width: 1px;
+  height: var(--space-4);
+  background-color: colors.theme-color('border', 0.5);
+}
+
+.ask {
+  @include z.z('raised');
+  position: absolute;
+  pointer-events: auto;
+}

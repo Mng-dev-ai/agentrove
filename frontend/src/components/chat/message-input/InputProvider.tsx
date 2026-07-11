@@ -1,6 +1,6 @@
 import { useRef, useState, useMemo, type ReactNode } from 'react';
 import { useAuthStore } from '@/store/authStore';
-import { useUIStore, type EditorCodeSelection } from '@/store/uiStore';
+import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useInputAttachments } from '@/hooks/useInputAttachments';
@@ -29,7 +29,7 @@ const AGENTS_WITHOUT_USAGE_UPDATE: ReadonlySet<AgentKind> = new Set([
 ]);
 
 // Stable fallback so chat-less composers (landing page) don't churn the selector.
-const NO_SELECTIONS: EditorCodeSelection[] = [];
+const NO_SELECTIONS: ComposerSelection[] = [];
 
 export function InputProvider({
   message,
@@ -64,7 +64,7 @@ export function InputProvider({
   // the bar is misleading.
   const visibleContextUsage = AGENTS_WITHOUT_USAGE_UPDATE.has(agentKind) ? undefined : contextUsage;
   const storedSelections = useUIStore((s) =>
-    chatId ? s.editorSelectionsByChat[chatId] : undefined,
+    chatId ? s.composerSelectionsByChat[chatId] : undefined,
   );
   const attachedSelections = storedSelections ?? NO_SELECTIONS;
 

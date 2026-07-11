@@ -45,7 +45,7 @@ export function useDiffComments(chatId: string | undefined, cwd: string | undefi
       // Attach even when snippet extraction comes up empty — losing the typed
       // comment is worse than an empty code block.
       const snippet = getSelectedDiffText(file, range);
-      useUIStore.getState().addEditorSelection(chatId, {
+      useUIStore.getState().addComposerSelection(chatId, {
         // Same workspace-root basis as "open in editor" and editor selections.
         path: cwd ? `${cwd}/${file.name}` : file.name,
         startLine: range.start,

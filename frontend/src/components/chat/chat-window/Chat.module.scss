@@ -22,6 +22,11 @@
   overflow-x: hidden;
 }
 
+// Positioning context for the selection-actions layer anchored to message content.
+.content {
+  position: relative;
+}
+
 // Centered message column — full width, capped and centered from the lg breakpoint
 .column {
   width: 100%;

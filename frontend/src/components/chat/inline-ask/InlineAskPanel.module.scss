@@ -3,7 +3,7 @@
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
-.inline-chat {
+.inline-ask {
   // Fixed panel width — never rescales, so px is intentional here.
   width: 440px;
   max-width: 80vw;
@@ -15,7 +15,7 @@
   backdrop-filter: blur(24px);
 }
 
-.inline-chat-header {
+.inline-ask-header {
   display: flex;
   height: var(--space-9);
   align-items: center;
@@ -24,7 +24,7 @@
   padding-inline: var(--space-3);
 }
 
-.inline-chat-location {
+.inline-ask-location {
   @include type.type-mono-meta;
   @include type.type-overflow;
   min-width: 0;
@@ -32,7 +32,7 @@
   color: var(--theme-text-tertiary);
 }
 
-.inline-chat-close {
+.inline-ask-close {
   @include anim.transition-colors;
   color: var(--theme-text-tertiary);
 
@@ -46,14 +46,14 @@
   width: var(--space-3);
 }
 
-.inline-chat-form {
+.inline-ask-form {
   display: flex;
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1-5) var(--space-2);
 }
 
-.inline-chat-input {
+.inline-ask-input {
   @include type.type-body;
   max-height: var(--space-24);
   flex: 1;
@@ -67,7 +67,7 @@
   }
 }
 
-.inline-chat-submit {
+.inline-ask-submit {
   @include anim.transition-colors;
   border-radius: var(--radius-md);
   padding: var(--space-1-5);
@@ -83,12 +83,12 @@
   }
 }
 
-.inline-chat-submit-icon {
+.inline-ask-submit-icon {
   height: var(--space-3-5);
   width: var(--space-3-5);
 }
 
-.inline-chat-result {
+.inline-ask-result {
   max-height: var(--space-72);
   overflow-y: auto;
   border-top: 1px solid colors.theme-color('border', 0.5);
@@ -97,7 +97,7 @@
   padding: var(--space-2) var(--space-3);
 }
 
-.inline-chat-status {
+.inline-ask-status {
   @include type.type-default;
   display: flex;
   align-items: center;
@@ -106,14 +106,14 @@
   color: var(--theme-text-tertiary);
 }
 
-.inline-chat-spinner {
+.inline-ask-spinner {
   height: var(--space-3);
   width: var(--space-3);
   color: var(--theme-text-quaternary);
   animation: spin 1s linear infinite;
 }
 
-.inline-chat-error {
+.inline-ask-error {
   @include type.type-default;
   color: var(--theme-error-text);
 }

@@ -114,10 +114,12 @@ class EnhancePromptResponse(BaseModel):
 class AskCodeRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=10000)
     code: str = Field(..., min_length=1, max_length=100000)
-    file_path: str = Field(..., min_length=1, max_length=1024)
-    language: str = Field(..., min_length=1, max_length=64)
-    start_line: int = Field(..., ge=1)
-    end_line: int = Field(..., ge=1)
+    # Location fields exist only for editor code selections — chat-page text
+    # selections have no file identity and omit them.
+    file_path: str | None = Field(None, min_length=1, max_length=1024)
+    language: str | None = Field(None, min_length=1, max_length=64)
+    start_line: int | None = Field(None, ge=1)
+    end_line: int | None = Field(None, ge=1)
     model_id: str = Field(..., min_length=1, max_length=255)
 
 

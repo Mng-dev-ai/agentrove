@@ -13,7 +13,7 @@ import type {
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
 import type { GitCommitResult } from '@/types/sandbox.types';
 import type { CursorPaginationParams, PaginatedChats, PaginatedMessages } from '@/types/api.types';
-import type { EditorCodeSelection } from '@/store/uiStore';
+import type { ComposerSelection } from '@/store/uiStore';
 
 export function buildChatFormData(request: ChatRequest): FormData {
   // Single encoding of the /chat/chat multipart contract — shared with
@@ -320,7 +320,7 @@ async function enhancePrompt(prompt: string, modelId: string): Promise<string> {
 
 async function askAboutCode(
   chatId: string,
-  selection: EditorCodeSelection,
+  selection: ComposerSelection,
   question: string,
   modelId: string,
 ): Promise<string> {
@@ -329,16 +329,23 @@ async function askAboutCode(
   validateRequired(modelId, 'Model ID');
 
   return serviceCall(async () => {
+    // Chat-text selections have no file identity — the location fields stay unset.
+    const location =
+      'kind' in selection
+        ? {}
+        : {
+            file_path: selection.path,
+            language: selection.languageId,
+            start_line: selection.startLine,
+            end_line: selection.endLine,
+          };
     const response = await resolveChatClient(chatId).post<{ answer: string }>(
       `/chat/chats/${chatId}/ask-code`,
       {
         question,
         code: selection.text,
-        file_path: selection.path,
-        language: selection.languageId,
-        start_line: selection.startLine,
-        end_line: selection.endLine,
         model_id: modelId,
+        ...location,
       },
     );
 

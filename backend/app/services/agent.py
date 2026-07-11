@@ -315,24 +315,32 @@ class AgentService:
         self,
         question: str,
         code: str,
-        file_path: str,
-        language: str,
-        start_line: int,
-        end_line: int,
+        file_path: str | None,
+        language: str | None,
+        start_line: int | None,
+        end_line: int | None,
         model_id: str,
         user: User,
         chat: Chat,
     ) -> str:
-        line_ref = (
-            str(start_line)
-            if start_line == end_line
-            else str(start_line) + "-" + str(end_line)
-        )
+        # No file identity = chat-page text selection; label it accordingly so
+        # the model doesn't hunt for a file.
+        if file_path and language and start_line and end_line:
+            line_ref = (
+                str(start_line)
+                if start_line == end_line
+                else str(start_line) + "-" + str(end_line)
+            )
+            header = (
+                "File: " + file_path + " (lines " + line_ref + ", " + language + ")"
+            )
+        else:
+            header = "Selected text from the conversation:"
         # XML-ish wrapping instead of Markdown fences — snippets can contain
         # backtick runs that would close any fence we pick.
         user_message = (
-            "File: " + file_path + " (lines " + line_ref + ", " + language + ")\n"
-            "<code>\n" + code + "\n</code>\n\n"
+            header + "\n"
+            "<selection>\n" + code + "\n</selection>\n\n"
             "<question>\n" + question + "\n</question>"
         )
         result = await self._generate_text(

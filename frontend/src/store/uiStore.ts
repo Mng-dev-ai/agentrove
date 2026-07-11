@@ -47,6 +47,14 @@ export interface EditorCodeSelection {
   comment?: string;
 }
 
+// Text selected from rendered chat messages — no file/line identity.
+export interface ChatTextSelection {
+  kind: 'chat';
+  text: string;
+}
+
+export type ComposerSelection = EditorCodeSelection | ChatTextSelection;
+
 type UIStoreState = ThemeState &
   Pick<UIState, 'sidebarOpen' | 'sidebarWidth'> &
   Pick<UIActions, 'setSidebarOpen' | 'setSidebarWidth'> &
@@ -77,12 +85,13 @@ type UIStoreState = ThemeState &
     openFileInEditor: (path: string, chatId: string | undefined, line?: number) => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
-    // Code snippets attached to a chat's input as removable chips (VS Code
-    // "add selection to chat") — serialized into the prompt only at send time.
-    editorSelectionsByChat: Record<string, EditorCodeSelection[]>;
-    addEditorSelection: (chatId: string, selection: EditorCodeSelection) => void;
-    removeEditorSelection: (chatId: string, index: number) => void;
-    clearEditorSelections: (chatId: string) => void;
+    // Editor snippets / chat-text selections attached to a chat's input as
+    // removable chips (VS Code "add selection to chat") — serialized into the
+    // prompt only at send time.
+    composerSelectionsByChat: Record<string, ComposerSelection[]>;
+    addComposerSelection: (chatId: string, selection: ComposerSelection) => void;
+    removeComposerSelection: (chatId: string, index: number) => void;
+    clearComposerSelections: (chatId: string) => void;
     // Sandbox of the workspace selected on the landing page. Lets context-less
     // consumers (the global git shortcuts) resolve a target before a chat exists.
     workspaceSandboxId: string | null;
@@ -193,24 +202,24 @@ export const useUIStore = create<UIStoreState>()(
       pendingChatMessage: null,
       setPendingChatMessage: (payload) => set({ pendingChatMessage: payload }),
 
-      editorSelectionsByChat: {},
-      addEditorSelection: (chatId, selection) =>
+      composerSelectionsByChat: {},
+      addComposerSelection: (chatId, selection) =>
         set((state) => ({
-          editorSelectionsByChat: {
-            ...state.editorSelectionsByChat,
-            [chatId]: [...(state.editorSelectionsByChat[chatId] ?? []), selection],
+          composerSelectionsByChat: {
+            ...state.composerSelectionsByChat,
+            [chatId]: [...(state.composerSelectionsByChat[chatId] ?? []), selection],
           },
         })),
-      removeEditorSelection: (chatId, index) =>
+      removeComposerSelection: (chatId, index) =>
         set((state) => ({
-          editorSelectionsByChat: {
-            ...state.editorSelectionsByChat,
-            [chatId]: (state.editorSelectionsByChat[chatId] ?? []).filter((_, i) => i !== index),
+          composerSelectionsByChat: {
+            ...state.composerSelectionsByChat,
+            [chatId]: (state.composerSelectionsByChat[chatId] ?? []).filter((_, i) => i !== index),
           },
         })),
-      clearEditorSelections: (chatId) =>
+      clearComposerSelections: (chatId) =>
         set((state) => ({
-          editorSelectionsByChat: { ...state.editorSelectionsByChat, [chatId]: [] },
+          composerSelectionsByChat: { ...state.composerSelectionsByChat, [chatId]: [] },
         })),
 
       workspaceSandboxId: null,

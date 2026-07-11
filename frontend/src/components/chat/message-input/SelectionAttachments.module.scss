@@ -30,6 +30,12 @@
   color: var(--theme-text-secondary);
 }
 
+// Chat-text selections have no short path:line label — truncate the raw text.
+.label--text {
+  @include type.type-overflow;
+  max-width: var(--space-48);
+}
+
 .remove {
   @include anim.transition-colors;
   // TODO(refactor): bare `rounded` (4px) has no exact token — using sm
