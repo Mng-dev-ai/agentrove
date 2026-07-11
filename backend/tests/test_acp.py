@@ -469,9 +469,9 @@ async def test_chat_tool_call_extraction_variants(
     tool = last_tool(message, tool_id)
     assert tool[field] == expected
 
-    # tool-orphan and Claude's plan suppression are exercised on every turn.
+    # tool-orphan no-op and Claude plan forwarding are exercised on every turn.
     assert not any(e["tool"]["id"] == "tool-orphan" for e in tool_events(message))
-    assert not any(e["type"] == "plan" for e in message["content_render"]["events"])
+    assert any(e["type"] == "plan" for e in message["content_render"]["events"])
     assert any(e["type"] == "system" for e in message["content_render"]["events"])
 
 
