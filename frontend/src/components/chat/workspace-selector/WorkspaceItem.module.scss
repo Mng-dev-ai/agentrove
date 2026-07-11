@@ -115,10 +115,10 @@
 }
 
 .branch-loading-icon {
+  @include anim.spin;
   height: var(--space-3);
   width: var(--space-3);
   color: var(--theme-text-quaternary);
-  animation: spin 1s linear infinite;
 }
 
 .branch-loading-label {

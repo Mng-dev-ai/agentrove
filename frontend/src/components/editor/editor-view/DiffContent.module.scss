@@ -19,7 +19,7 @@
 
 .diff-loading-text {
   @include type.type-default;
-  animation: pulse 2s var(--easing-in-out) infinite;
+  @include anim.pulse;
   color: var(--theme-text-quaternary);
 }
 

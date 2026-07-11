@@ -22,7 +22,7 @@
   width: var(--space-3);
 
   &--spin {
-    animation: spin 1s linear infinite;
+    @include anim.spin;
   }
 }
 

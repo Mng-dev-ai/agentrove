@@ -1,4 +1,5 @@
 @use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/animations' as anim;
 
 .chat-skeleton {
   margin-left: auto;
@@ -38,7 +39,7 @@
 
 // Shared pulsing placeholder fill — light surface-hover, dark surface-tertiary
 .pulse-block {
-  animation: pulse 2s var(--easing-in-out) infinite;
+  @include anim.pulse;
   background-color: var(--theme-surface-hover);
 
   :global([data-theme='dark']) & {

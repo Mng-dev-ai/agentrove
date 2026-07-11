@@ -13,11 +13,11 @@
 }
 
 .status-pill {
+  @include anim.pulse;
   height: var(--space-3-5);
   width: var(--space-16);
   border-radius: var(--radius-full);
   background-color: colors.theme-color('text-quaternary', 0.2);
-  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .status-text {

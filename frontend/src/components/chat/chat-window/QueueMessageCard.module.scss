@@ -74,11 +74,11 @@
 }
 
 .thumb-loading {
+  @include anim.pulse;
   height: var(--space-3);
   width: var(--space-3);
   border-radius: var(--radius-full);
   background-color: var(--theme-text-quaternary);
-  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .thumb-error {

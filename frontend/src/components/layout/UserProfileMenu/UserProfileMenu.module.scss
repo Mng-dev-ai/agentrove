@@ -48,6 +48,7 @@
 
 .panel {
   @include z.z('dropdown');
+  @include anim.fade-in(var(--duration-base), forwards);
   position: absolute;
   bottom: 100%;
   left: 0;
@@ -57,7 +58,6 @@
   border-radius: var(--radius-xl);
   background-color: var(--theme-surface-secondary);
   box-shadow: var(--shadow-medium);
-  animation: fade-in var(--duration-base) var(--easing-out) forwards;
 }
 
 .update-section {
@@ -108,7 +108,7 @@
   }
 
   &--spin {
-    animation: spin 1s linear infinite;
+    @include anim.spin;
   }
 
   &--primary {

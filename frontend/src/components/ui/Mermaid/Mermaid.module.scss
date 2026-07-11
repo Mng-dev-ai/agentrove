@@ -65,9 +65,9 @@
 }
 
 .loading-icon {
+  @include anim.spin;
   height: var(--space-5);
   width: var(--space-5);
-  animation: spin 1s linear infinite;
 }
 
 .loading-text {

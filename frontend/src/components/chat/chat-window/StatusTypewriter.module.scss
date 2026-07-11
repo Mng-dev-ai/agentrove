@@ -34,7 +34,7 @@
   background-color: var(--theme-text-tertiary);
 
   &--blinking {
-    animation: caret-blink 1.1s step-end infinite;
+    @include anim.caret-blink;
   }
 }
 

@@ -107,10 +107,10 @@
 }
 
 .inline-ask-spinner {
+  @include anim.spin;
   height: var(--space-3);
   width: var(--space-3);
   color: var(--theme-text-quaternary);
-  animation: spin 1s linear infinite;
 }
 
 .inline-ask-error {
