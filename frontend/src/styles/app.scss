@@ -87,12 +87,7 @@
   box-shadow: var(--shadow-medium) !important;
 }
 
-// @mention / /command pill (see HighlightedText.MENTION_PILL_CLASSNAME)
+// @mention / /command highlight (see HighlightedText.MENTION_PILL_CLASSNAME)
 .mention-pill {
-  border-radius: var(--radius-sm);
-  background-color: var(--theme-surface-active);
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-  padding: var(--space-0-5) var(--space-1);
-  color: var(--theme-text-primary);
+  color: var(--theme-token-highlight);
 }

@@ -16,22 +16,15 @@
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  color: transparent;
+  color: var(--theme-text-primary);
 
   &--dimmed {
     opacity: 0.5;
   }
 }
 
-// Backdrop pill behind @mention / command tokens — mirrors the textarea glyphs
 .backdrop-token {
-  // TODO(refactor): bare `rounded` (4px) has no exact token — using sm (matches sibling modules)
-  margin-inline: calc(var(--space-0-5) * -1);
-  border-radius: var(--radius-sm);
-  padding: var(--space-0-5);
-  background-color: var(--theme-surface-active);
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  color: var(--theme-token-highlight);
 }
 
 .textarea-field {
@@ -50,6 +43,11 @@
 
   &::placeholder {
     color: var(--theme-text-quaternary);
+  }
+
+  &--highlighted {
+    color: transparent;
+    caret-color: var(--theme-text-primary);
   }
 
   &--compact {
