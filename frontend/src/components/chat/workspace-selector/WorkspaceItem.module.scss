@@ -7,7 +7,8 @@
   @include anim.transition-colors;
   display: flex;
   width: 100%;
-  align-items: flex-start;
+  min-height: var(--space-12);
+  align-items: center;
   gap: var(--space-2-5);
   border-radius: var(--radius-lg);
   padding: var(--space-2) var(--space-2-5);
@@ -15,6 +16,7 @@
 
   &--selected {
     background-color: var(--theme-surface-active);
+    box-shadow: var(--shadow-inset);
   }
 
   &--unselected {
@@ -25,9 +27,8 @@
 }
 
 .source-icon {
-  margin-top: var(--space-0-5);
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  height: var(--space-4);
+  width: var(--space-4);
   flex-shrink: 0;
   color: var(--theme-text-quaternary);
 }
@@ -49,6 +50,14 @@
   color: var(--theme-text-primary);
 }
 
+.selected-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--theme-text-secondary);
+}
+
 .badge {
   @include type.type-meta;
   flex-shrink: 0;
@@ -67,8 +76,10 @@
 }
 
 .branches {
-  margin-left: var(--space-6);
+  margin-left: var(--space-5);
   margin-top: var(--space-0-5);
+  padding-left: var(--space-4);
+  border-left: 1px solid colors.theme-color('border', 0.5);
 }
 
 .branch-toggle {

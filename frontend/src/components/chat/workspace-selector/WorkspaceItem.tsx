@@ -15,11 +15,22 @@ const EMPTY_BRANCHES: string[] = [];
 function sourceIcon(sourceType: string | null | undefined) {
   switch (sourceType) {
     case 'git':
-      return <GitBranch className={styles['source-icon']} />;
+      return <GitBranch className={styles['source-icon']} aria-hidden="true" />;
     case 'local':
-      return <HardDrive className={styles['source-icon']} />;
+      return <HardDrive className={styles['source-icon']} aria-hidden="true" />;
     default:
-      return <Box className={styles['source-icon']} />;
+      return <Box className={styles['source-icon']} aria-hidden="true" />;
+  }
+}
+
+function sourceLabel(sourceType: string | null | undefined) {
+  switch (sourceType) {
+    case 'git':
+      return 'Git repository';
+    case 'local':
+      return 'Local folder';
+    default:
+      return 'Empty workspace';
   }
 }
 
@@ -70,22 +81,25 @@ export function WorkspaceItem({
         variant="unstyled"
         type="button"
         onClick={() => onSelect(ws)}
+        aria-pressed={isSelected}
         className={clsx(styles.item, styles[isSelected ? 'item--selected' : 'item--unselected'])}
       >
         {sourceIcon(ws.source_type)}
         <div className={styles.content}>
           <div className={styles['name-row']}>
             <span className={styles.name}>{ws.name}</span>
-            <span className={styles.badge}>{ws.source_type ?? 'empty'}</span>
             <span className={styles.badge}>
-              {ws.sandbox_provider === 'host' ? 'host' : 'docker'}
+              {ws.sandbox_provider === 'host' ? 'Host' : 'Docker'}
             </span>
+            {isSelected && <Check className={styles['selected-icon']} aria-hidden="true" />}
           </div>
           <div className={styles['meta-row']}>
+            <span>{sourceLabel(ws.source_type)}</span>
+            <span aria-hidden="true">·</span>
             <span>{formatRelativeTime(ws.updated_at)}</span>
             {ws.chat_count > 0 && (
               <>
-                <span>·</span>
+                <span aria-hidden="true">·</span>
                 <span>
                   {ws.chat_count} {ws.chat_count === 1 ? 'chat' : 'chats'}
                 </span>
@@ -104,14 +118,15 @@ export function WorkspaceItem({
               if (branchesExpanded) setBranchSearch('');
               setBranchesExpanded(!branchesExpanded);
             }}
+            aria-expanded={branchesExpanded}
             className={styles['branch-toggle']}
           >
             {branchesExpanded ? (
-              <ChevronDown className={styles['branch-toggle-icon']} />
+              <ChevronDown className={styles['branch-toggle-icon']} aria-hidden="true" />
             ) : (
-              <ChevronRight className={styles['branch-toggle-icon']} />
+              <ChevronRight className={styles['branch-toggle-icon']} aria-hidden="true" />
             )}
-            <GitBranch className={styles['branch-toggle-icon']} />
+            <GitBranch className={styles['branch-toggle-icon']} aria-hidden="true" />
             <span className={styles['branch-toggle-label']}>
               {branchesData?.current_branch || '…'}
             </span>
@@ -120,7 +135,7 @@ export function WorkspaceItem({
             <div className={styles['branch-panel']}>
               {branchesLoading ? (
                 <div className={styles['branch-loading']}>
-                  <Loader2 className={styles['branch-loading-icon']} />
+                  <Loader2 className={styles['branch-loading-icon']} aria-hidden="true" />
                   <span className={styles['branch-loading-label']}>Loading branches…</span>
                 </div>
               ) : !branches.length ? (
@@ -132,6 +147,10 @@ export function WorkspaceItem({
                       <Input
                         variant="unstyled"
                         type="text"
+                        name={`branch-search-${ws.id}`}
+                        aria-label={`Search branches in ${ws.name}`}
+                        autoComplete="off"
+                        spellCheck={false}
                         value={branchSearch}
                         onChange={(e) => setBranchSearch(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
@@ -184,7 +203,10 @@ export function WorkspaceItem({
                                 )}
                               >
                                 {isCurrent ? (
-                                  <Check className={styles['branch-row-check']} />
+                                  <Check
+                                    className={styles['branch-row-check']}
+                                    aria-hidden="true"
+                                  />
                                 ) : (
                                   <span className={styles['branch-row-check']} />
                                 )}

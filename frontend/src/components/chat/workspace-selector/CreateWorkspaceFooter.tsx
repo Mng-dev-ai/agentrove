@@ -113,8 +113,8 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
         onClick={() => setCreationMode('menu')}
         className={styles['option-button']}
       >
-        <Plus className={styles['option-icon']} />
-        New workspace
+        <Plus className={styles['option-icon']} aria-hidden="true" />
+        New Workspace
       </Button>
     );
   }
@@ -123,11 +123,14 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
     return (
       <div className={styles.form}>
         <div className={styles['form-label']}>
-          <Box className={styles['option-icon']} />
-          Empty workspace
+          <Box className={styles['option-icon']} aria-hidden="true" />
+          Empty Workspace
         </div>
         <Input
           variant="unstyled"
+          name="workspace-name"
+          aria-label="Workspace name"
+          autoComplete="off"
           value={emptyName}
           onChange={(e) => setEmptyName(e.target.value)}
           onKeyDown={(e) => {
@@ -156,7 +159,7 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
             onClick={() => void handleCreateEmpty()}
             isLoading={createWorkspace.isPending}
           >
-            Create
+            Create Workspace
           </Button>
         </div>
       </div>
@@ -168,8 +171,8 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
       <div className={styles.form}>
         <div className={styles['form-header']}>
           <div className={styles['form-label']}>
-            <GitBranch className={styles['option-icon']} />
-            Clone Git repo
+            <GitBranch className={styles['option-icon']} aria-hidden="true" />
+            Clone Git Repository
           </div>
           {hasGitHubToken && (
             <Button
@@ -190,9 +193,14 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
         {hasGitHubToken && !showUrlInput ? (
           <>
             <div className={styles['search-field']}>
-              <Search className={styles['search-icon']} />
+              <Search className={styles['search-icon']} aria-hidden="true" />
               <Input
                 variant="unstyled"
+                type="search"
+                name="repository-search"
+                aria-label="Search repositories"
+                autoComplete="off"
+                spellCheck={false}
                 value={repoSearchQuery}
                 onChange={(e) => setRepoSearchQuery(e.target.value)}
                 placeholder="Search repositories…"
@@ -203,7 +211,7 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
             <div className={styles['repo-list']}>
               {createWorkspace.isPending ? (
                 <div className={styles['repo-loading']}>
-                  <Loader2 className={styles['repo-loading-icon']} />
+                  <Loader2 className={styles['repo-loading-icon']} aria-hidden="true" />
                   <span className={styles['repo-loading-label']}>Cloning repository…</span>
                 </div>
               ) : reposLoading ? (
@@ -230,6 +238,11 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
           <>
             <Input
               variant="unstyled"
+              type="url"
+              name="git-repository-url"
+              aria-label="Git repository URL"
+              autoComplete="off"
+              spellCheck={false}
               value={gitUrl}
               onChange={(e) => setGitUrl(e.target.value)}
               onKeyDown={(e) => {
@@ -270,7 +283,7 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
               onClick={() => void handleCloneGit()}
               isLoading={createWorkspace.isPending}
             >
-              Clone
+              Clone Repository
             </Button>
           )}
         </div>
@@ -289,8 +302,8 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
         onClick={() => setCreationMode('empty')}
         className={styles['option-button']}
       >
-        <Box className={styles['option-icon']} />
-        Empty workspace
+        <Box className={styles['option-icon']} aria-hidden="true" />
+        Empty Workspace
       </Button>
       {isDesktop && (
         <Button
@@ -300,8 +313,8 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
           disabled={createWorkspace.isPending}
           className={styles['option-button']}
         >
-          <HardDrive className={styles['option-icon']} />
-          Local folder
+          <HardDrive className={styles['option-icon']} aria-hidden="true" />
+          Local Folder
         </Button>
       )}
       <Button
@@ -310,8 +323,8 @@ export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) =
         onClick={() => setCreationMode('git')}
         className={styles['option-button']}
       >
-        <GitBranch className={styles['option-icon']} />
-        Clone Git repo
+        <GitBranch className={styles['option-icon']} aria-hidden="true" />
+        Clone Git Repository
       </Button>
     </div>
   );
