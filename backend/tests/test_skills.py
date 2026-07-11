@@ -298,9 +298,9 @@ async def test_real_skill_service_lists_reads_and_updates_files_on_disk(
     assert list_response.status_code == 200
     entries = {item["name"]: item for item in list_response.json()}
     assert entries["myskill"]["description"] == "Reviews code changes"
-    # OpenCode's namespace list also cross-reads `.claude/skills`, so the same
-    # on-disk dir surfaces under both sources (see SkillService._build_paths_by_source).
-    assert entries["myskill"]["sources"] == ["claude", "opencode"]
+    # Grok and OpenCode also cross-read `.claude/skills`, so the same on-disk
+    # dir surfaces under all three sources (see SkillService._build_paths_by_source).
+    assert entries["myskill"]["sources"] == ["claude", "grok", "opencode"]
     assert entries["myskill"]["read_only"] is False
     assert entries["myskill"]["file_count"] == 3
 
