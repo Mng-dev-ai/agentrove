@@ -1,0 +1,90 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/zlayer' as z;
+
+.find-in-chat {
+  @include z.z('raised');
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-2);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface);
+  box-shadow: var(--shadow-medium);
+}
+
+.search-icon {
+  pointer-events: none;
+  flex: none;
+  height: var(--space-3);
+  width: var(--space-3);
+  color: var(--theme-text-quaternary);
+}
+
+.find-input {
+  @include type.type-default;
+  height: var(--space-6);
+  width: var(--space-44);
+  border: none;
+  background: transparent;
+  color: var(--theme-text-primary);
+
+  &::placeholder {
+    color: var(--theme-text-quaternary);
+  }
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.count {
+  @include type.type-meta;
+  flex: none;
+  color: var(--theme-text-quaternary);
+  // Tabular so 9/10 → 10/10 doesn't shift the nav buttons
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-button {
+  @include anim.transition-colors;
+  display: flex;
+  flex: none;
+  height: var(--space-5);
+  width: var(--space-5);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--theme-text-quaternary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+}
+
+.nav-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+}
+
+// Match styling for the ranges FindInChat.tsx registers in CSS.highlights — the
+// pseudo-element is unscopable, so declare it :global; inverse tokens keep the
+// current match monochrome but clearly distinct from the rest.
+:global {
+  ::highlight(find-in-chat) {
+    background-color: var(--theme-surface-active);
+    color: var(--theme-text-primary);
+  }
+
+  ::highlight(find-in-chat-current) {
+    background-color: var(--theme-surface-inverse);
+    color: var(--theme-text-inverse);
+  }
+}
