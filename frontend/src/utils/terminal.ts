@@ -1,4 +1,5 @@
 import type { ITerminalOptions } from '@xterm/xterm';
+import type { ISearchDecorationOptions } from '@xterm/addon-search';
 import type { Palette } from '@/types/ui.types';
 import { CUSTOM_PALETTE_TOKENS, DARK_PALETTES } from '@/utils/theme';
 
@@ -26,6 +27,18 @@ export const buildTerminalTheme = (palette: Palette): ITerminalOptions['theme'] 
     cursorAccent: isDark ? '#0a0a0a' : '#ffffff',
     selectionBackground: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)',
     selectionInactiveBackground: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+  };
+};
+
+export const buildSearchDecorations = (palette: Palette): ISearchDecorationOptions => {
+  // Opaque #RRGGBB only — xterm drops the alpha byte and paints the cell
+  // background solid, so the grays must keep the theme foreground readable.
+  const isDark = DARK_PALETTES.has(palette);
+  return {
+    matchBackground: isDark ? '#3f3f46' : '#d4d4d8',
+    activeMatchBackground: isDark ? '#71717a' : '#a1a1aa',
+    matchOverviewRuler: isDark ? '#71717a' : '#a1a1aa',
+    activeMatchColorOverviewRuler: isDark ? '#e4e4e7' : '#27272a',
   };
 };
 

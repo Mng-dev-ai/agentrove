@@ -156,18 +156,26 @@ class SandboxProvider:
     @staticmethod
     def build_pty_shell_command(tmux_session: str, fallback_shell: str) -> str:
         # Shared tmux launch for every provider's PTY, falling back to a bare
-        # shell when tmux isn't installed. history-limit precedes new -A: it
-        # only applies to panes created after it's set (tmux applies it fine
-        # with no server running). Mouse on: xterm has no scrollback under
-        # tmux's alternate screen, so wheel scrolling must go through tmux
-        # copy-mode. Drag-selection then copies via tmux — set-clipboard plus
-        # the Ms override forward it as OSC 52 to the frontend clipboard addon.
+        # shell when tmux isn't installed. history-limit and the smcup@/rmcup@
+        # override precede new -A: they only apply to panes/clients created
+        # after they're set (tmux applies them fine with no server running).
+        # smcup@/rmcup@ keep tmux off the alternate screen so output lands in
+        # xterm's own scrollback — native wheel scroll, drag selection, and
+        # find-in-terminal. indn@ too: with it tmux scrolls via CSI S, which
+        # xterm.js splices away instead of archiving; without it tmux falls
+        # back to linefeeds, the only path that feeds xterm scrollback.
+        # Mouse off for the same reason (an explicit off so
+        # servers started before this change lose the old mouse-on); tmux still
+        # forwards mouse-mode requests from inner TUIs. set-clipboard plus the
+        # Ms override forward inner-app/copy-mode copies as OSC 52 to the
+        # frontend clipboard addon.
         return (
             "command -v tmux >/dev/null && "
             "tmux set -g history-limit 10000"
+            " \\; set -as terminal-overrides ',xterm-256color:smcup@:rmcup@:indn@'"
             f" \\; new -A -s {shlex.quote(tmux_session)}"
             " \\; set -g status off"
-            " \\; set -g mouse on"
+            " \\; set -g mouse off"
             " \\; set -s set-clipboard on"
             " \\; set -as terminal-overrides ',xterm-256color:Ms=\\E]52;%p1%s;%p2%s\\007'"
             f" || exec {shlex.quote(fallback_shell)}"
