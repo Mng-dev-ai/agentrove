@@ -73,6 +73,8 @@ nothing is hardcoded to anyone else's server.
 Requirements: macOS with Xcode (plus its iOS SDK and Simulator), the Rust iOS
 targets (`rustup target add aarch64-apple-ios aarch64-apple-ios-sim`), and CocoaPods.
 
+> If your device runs an iOS beta whose SDK isn't in a stable Xcode yet, build against the latest stable Xcode's SDK (`sudo xcode-select -s /Applications/Xcode.app`) — apps built with an older SDK still run on newer iOS.
+
 Point the app at your instance:
 
 ```bash
