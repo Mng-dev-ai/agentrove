@@ -13,7 +13,8 @@
   pointer-events: none;
   position: fixed;
   // arbitrary Tailwind value (280px), not in the spacing scale
-  max-width: 280px;
+  width: max-content;
+  max-width: min(280px, calc(100vw - var(--space-4)));
   white-space: pre-line;
   overflow-wrap: break-word;
   // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
