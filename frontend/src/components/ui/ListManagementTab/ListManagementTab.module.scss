@@ -58,10 +58,10 @@
 }
 
 .loading-icon {
+  @include anim.spin;
   height: var(--space-4);
   width: var(--space-4);
   color: var(--theme-text-quaternary);
-  animation: spin 1s linear infinite;
 }
 
 .empty {
@@ -136,5 +136,5 @@
 }
 
 .spin {
-  animation: spin 1s linear infinite;
+  @include anim.spin;
 }

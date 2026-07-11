@@ -33,11 +33,11 @@
 }
 
 .thinking-dot {
+  @include anim.bounce;
   height: var(--space-0-5);
   width: var(--space-0-5);
   border-radius: var(--radius-full);
   background-color: var(--theme-text-quaternary);
-  animation: bounce 1s infinite;
 }
 
 .thinking-preview {

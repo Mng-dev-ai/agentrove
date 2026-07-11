@@ -14,6 +14,7 @@
 
 .toolbar {
   @include z.z('raised');
+  @include anim.fade-in(var(--duration-fast));
   position: absolute;
   display: flex;
   align-items: center;
@@ -27,7 +28,6 @@
   pointer-events: auto;
   // Sit centered above the selection with a small gap.
   transform: translate(-50%, calc(-100% - var(--space-1-5)));
-  animation: fade-in var(--duration-fast) var(--easing-out);
 }
 
 .action {

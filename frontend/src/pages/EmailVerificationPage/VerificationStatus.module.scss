@@ -1,6 +1,7 @@
 @use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/zlayer' as z;
+@use '@/styles/globals/animations' as anim;
 
 .page {
   display: flex;
@@ -56,10 +57,10 @@
 }
 
 .status-icon--spinning {
+  @include anim.spin;
   height: var(--space-5);
   width: var(--space-5);
   color: var(--theme-text-tertiary);
-  animation: spin 1s linear infinite;
 }
 
 .card {
@@ -135,7 +136,7 @@
 }
 
 .spinner-icon {
+  @include anim.spin;
   height: var(--space-3-5);
   width: var(--space-3-5);
-  animation: spin 1s linear infinite;
 }

@@ -39,7 +39,7 @@
   flex-shrink: 0;
 
   &--spinning {
-    animation: spin 1s linear infinite;
+    @include anim.spin;
   }
 }
 

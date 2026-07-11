@@ -34,17 +34,17 @@
 }
 
 .icon-spinner {
+  @include anim.spin;
   height: var(--space-3-5);
   width: var(--space-3-5);
   color: var(--theme-text-inverse);
-  animation: spin 1s linear infinite;
 }
 
 .icon-stop {
+  @include anim.pulse;
   height: var(--space-3);
   width: var(--space-3);
   color: var(--theme-surface);
-  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .icon-send {

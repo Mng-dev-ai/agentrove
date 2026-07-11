@@ -14,32 +14,12 @@
     --easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   }
 
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
   @keyframes fade-out {
     from {
       opacity: 1;
     }
     to {
       opacity: 0;
-    }
-  }
-
-  @keyframes fade-in-up {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
     }
   }
 
@@ -81,50 +61,12 @@
     }
   }
 
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.5;
-    }
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  @keyframes bounce {
-    0%,
-    100% {
-      transform: translateY(-25%);
-      animation-timing-function: var(--easing-in);
-    }
-    50% {
-      transform: translateY(0);
-      animation-timing-function: var(--easing-out);
-    }
-  }
-
   @keyframes progress-bar {
     from {
       width: 0%;
     }
     to {
       width: 100%;
-    }
-  }
-
-  @keyframes caret-blink {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0;
     }
   }
 }
@@ -136,10 +78,66 @@
   transition-timing-function: var(--easing-in-out);
 }
 
-@mixin fade-in($duration: var(--duration-slow)) {
-  animation: fade-in $duration var(--easing-out);
+// CSS modules hash animation names, so these mixins re-emit their @keyframes into the
+// consuming module (Sass hoists them to root) so the name and @keyframes share one hash.
+@mixin fade-in($duration: var(--duration-slow), $fill: null) {
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  animation: fade-in $duration var(--easing-out) $fill;
 }
 
-@mixin fade-in-up($duration: 350ms) {
-  animation: fade-in-up $duration var(--easing-out) forwards;
+@mixin spin {
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  animation: spin 1s linear infinite;
+}
+
+@mixin pulse {
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  animation: pulse 2s var(--easing-in-out) infinite;
+}
+
+@mixin bounce {
+  @keyframes bounce {
+    0%,
+    100% {
+      transform: translateY(-25%);
+      animation-timing-function: var(--easing-in);
+    }
+    50% {
+      transform: translateY(0);
+      animation-timing-function: var(--easing-out);
+    }
+  }
+  animation: bounce 1s infinite;
+}
+
+@mixin caret-blink {
+  @keyframes caret-blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+  animation: caret-blink 1.1s step-end infinite;
 }

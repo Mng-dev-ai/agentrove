@@ -161,7 +161,7 @@ Reference implementations: `ui/primitives/Button` (variants/sizes via BEM modifi
 | `_typography.scss`    | `type-meta/default/body/large/title/page-title/section-header/mono` + `type-overflow`, `type-lineclamp($n)`, `type-noselect` | ALL font sizing                         |
 | `_responsive.scss`    | `media($query)`, `hover`, `active`, `hide`, `show`                                                                           | ALL breakpoints + hover/active          |
 | `_elevation.scss`     | `--radius-*`, `--shadow-sm/medium/strong/inset`                                                                              | ALL radius/shadows                      |
-| `_animations.scss`    | `--duration-*`, `--easing-*`, global keyframes, `transition-colors`                                                          | ALL motion                              |
+| `_animations.scss`    | `--duration-*`, `--easing-*`, animation mixins (`spin`, `pulse`, `fade-in`, ...), `transition-colors`                        | ALL motion                              |
 | `_zlayer.scss`        | `z($layer)` (`raised/sticky/sidebar/titlebar/dropdown/modal/command-menu/tooltip/toast`)                                     | ALL z-index                             |
 | `_state-classes.scss` | `$state-*` names (mirrored in `src/config/stateClasses.ts` — keep in sync)                                                   | JS-driven state styling                 |
 | `_controls.scss`      | `focus-ring`, `button-base/size/variant`, `input-base/error`                                                                 | new controls (prefer primitives)        |
@@ -213,7 +213,7 @@ token and leave a `// TODO(refactor):` comment — don't invent new global token
 
 ### Animations & Transitions
 
-- Global keyframes live in `_animations.scss` (`fade-in`, `fade-in-up`, `spin`, `pulse`, `shimmer`, ...) — no framer-motion or other JS animation libs
+- Animate via the `_animations.scss` mixins (`anim.fade-in`, `anim.spin`, `anim.pulse`, ...) — they emit module-local keyframes (CSS modules hash bare names); no framer-motion or other JS animation libs
 - `@include anim.transition-colors;` for hover/focus; durations/easings only via `--duration-*` / `--easing-*` vars
 - Loading: `spin` for circular spinners only; `pulse` for non-circular loading icons and skeletons
 - Delay-reveal loading indicators for data that usually resolves fast (opacity 0 + `animationDelay` ~300ms + explicit `animationFillMode: 'forwards'`) so fast loads render nothing (see `ListManagementTab`)

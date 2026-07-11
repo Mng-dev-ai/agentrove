@@ -133,10 +133,10 @@
 }
 
 .repo-loading-icon {
+  @include anim.spin;
   height: var(--space-3-5);
   width: var(--space-3-5);
   color: var(--theme-text-quaternary);
-  animation: spin 1s linear infinite;
 }
 
 .repo-loading-label {

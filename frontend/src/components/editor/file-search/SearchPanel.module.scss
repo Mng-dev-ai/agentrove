@@ -116,9 +116,9 @@
 }
 
 .spin-icon {
+  @include anim.spin;
   height: var(--space-3);
   width: var(--space-3);
-  animation: spin 1s linear infinite;
 }
 
 .error-message {

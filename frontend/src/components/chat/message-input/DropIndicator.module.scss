@@ -31,12 +31,12 @@
 }
 
 .glow {
+  @include anim.pulse;
   position: absolute;
   inset: 0;
   border-radius: var(--radius-full);
   background-color: colors.theme-color('text-quaternary', 0.2);
   filter: blur(24px);
-  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .icon-badge {

@@ -1,3 +1,5 @@
+@use '@/styles/globals/animations' as anim;
+
 .loading-screen {
   min-height: 100vh;
   min-height: 100dvh;
@@ -21,10 +23,10 @@
 }
 
 .spinner {
+  @include anim.spin;
   height: var(--space-8);
   width: var(--space-8);
   color: var(--theme-text-quaternary);
-  animation: spin 1s linear infinite;
 }
 
 .label {

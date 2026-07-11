@@ -1,3 +1,5 @@
+@use '@/styles/globals/animations' as anim;
+
 .repo-list-skeleton {
   display: flex;
   flex-direction: column;
@@ -14,13 +16,13 @@
 // Bare Tailwind `rounded` (0.25rem) has no exact token match; --radius-sm is closest.
 // TODO(refactor): confirm intended radius once design tokens add a 0.25rem step.
 .icon {
+  @include anim.pulse;
   margin-top: var(--space-0-5);
   height: var(--space-3-5);
   width: var(--space-3-5);
   flex-shrink: 0;
   border-radius: var(--radius-sm);
   background-color: var(--theme-surface-tertiary);
-  animation: pulse 2s var(--easing-in-out) infinite;
 }
 
 .content {
@@ -31,11 +33,11 @@
 }
 
 .line {
+  @include anim.pulse;
   height: var(--space-3);
   width: 66.6667%;
   border-radius: var(--radius-sm);
   background-color: var(--theme-surface-tertiary);
-  animation: pulse 2s var(--easing-in-out) infinite;
 
   &--full {
     height: var(--space-2-5);
