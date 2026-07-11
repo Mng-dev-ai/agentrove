@@ -12,6 +12,7 @@ import { ChatSkeleton } from './ChatSkeleton';
 import { ScrollButton } from './ScrollButton';
 import { MessageTrail } from './MessageTrail';
 import { FindInChat } from './FindInChat';
+import { ChatSelectionActions } from './ChatSelectionActions';
 import { StatusTypewriter } from './StatusTypewriter';
 import { useChatScroll } from './useChatScroll';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
@@ -317,7 +318,7 @@ export const Chat = memo(function Chat() {
           <>
             <div key={chatId ?? 'chat'} ref={containerRefCallback} className={styles.scroller}>
               {/* Single wrapper so the stick-to-bottom ResizeObserver tracks all content */}
-              <div>
+              <div className={styles.content}>
                 {listHeader}
 
                 {turns.map((turn, turnIndex) => {
@@ -341,6 +342,10 @@ export const Chat = memo(function Chat() {
                 })}
 
                 {turns.length === 0 && listFooter}
+
+                {/* Inside the content wrapper so the selection toolbar / ask
+                    panel anchor in content coordinates and scroll with it */}
+                <ChatSelectionActions chatId={chatId} scrollerRef={scrollerRef} />
               </div>
             </div>
             <MessageTrail messages={messages} scrollerRef={scrollerRef} />

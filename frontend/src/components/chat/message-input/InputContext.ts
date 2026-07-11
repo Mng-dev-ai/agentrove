@@ -1,6 +1,6 @@
 import { createContext, type RefObject } from 'react';
 import type { MentionItem, SlashCommand } from '@/types/ui.types';
-import type { EditorCodeSelection } from '@/store/uiStore';
+import type { ComposerSelection } from '@/store/uiStore';
 import type { ContextUsageInfo } from './ContextUsageIndicator';
 
 export interface InputState {
@@ -24,7 +24,7 @@ export interface InputState {
   selectedModelId: string;
   dropdownPosition: 'top' | 'bottom';
   attachedFiles: File[] | null;
-  attachedSelections: EditorCodeSelection[];
+  attachedSelections: ComposerSelection[];
   previewUrls: string[];
   editingImageIndex: number | null;
   contextUsage?: ContextUsageInfo;

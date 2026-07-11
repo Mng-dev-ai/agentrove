@@ -16,7 +16,7 @@ import { useStreamCallbacks } from '@/hooks/useStreamCallbacks';
 import { useStreamReconnect } from '@/hooks/useStreamReconnect';
 import { chatService } from '@/services/chatService';
 import { useUIStore } from '@/store/uiStore';
-import { formatEditorSelections } from '@/lib/editorChatActions';
+import { formatComposerSelections } from '@/utils/composerSelections';
 
 interface UseChatStreamingParams {
   chatId: string | undefined;
@@ -329,17 +329,19 @@ export function useChatStreaming({
       event.preventDefault();
       // Selection chips live in the UI store; serialize them into the prompt
       // only now so the visible input text stays clean while they're attached.
-      const selections = chatId ? (useUIStore.getState().editorSelectionsByChat[chatId] ?? []) : [];
+      const selections = chatId
+        ? (useUIStore.getState().composerSelectionsByChat[chatId] ?? [])
+        : [];
       const draftMessage = inputMessageRef.current;
       const draftFiles = inputFiles;
       // Clear optimistically — the send awaits a server round-trip (startStream),
       // and the draft would otherwise linger in the input bar until it resolves.
       clearInput();
       if (chatId && selections.length > 0) {
-        useUIStore.getState().clearEditorSelections(chatId);
+        useUIStore.getState().clearComposerSelections(chatId);
       }
       const result = await handleMessageSendAction(
-        formatEditorSelections(selections, draftMessage),
+        formatComposerSelections(selections, draftMessage),
         draftFiles,
       );
       if (!result?.success) {
@@ -347,7 +349,7 @@ export function useChatStreaming({
         setInputMessageWithRef(draftMessage);
         setInputFiles(draftFiles);
         if (chatId) {
-          selections.forEach((sel) => useUIStore.getState().addEditorSelection(chatId, sel));
+          selections.forEach((sel) => useUIStore.getState().addComposerSelection(chatId, sel));
         }
       }
     },

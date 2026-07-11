@@ -119,7 +119,7 @@ class ChatCompletionServiceOverride:
 class AgentServiceOverride:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, User]] = []
-        self.ask_code_calls: list[tuple[str, str, str, str, User, Chat]] = []
+        self.ask_code_calls: list[tuple[str, str, str | None, str, User, Chat]] = []
         self.title_calls: list[tuple[str, str, User, Chat | None]] = []
         self.fail = False
         self.next_title: str | None = "Generated Title"
@@ -137,10 +137,10 @@ class AgentServiceOverride:
         self,
         question: str,
         code: str,
-        file_path: str,
-        language: str,
-        start_line: int,
-        end_line: int,
+        file_path: str | None,
+        language: str | None,
+        start_line: int | None,
+        end_line: int | None,
         model_id: str,
         user: User,
         chat: Chat,
@@ -525,6 +525,19 @@ async def test_ask_code_endpoint_answers_and_enforces_chat_access(
     )
     assert stored_user.id == user.id
     assert stored_chat.id == chat.id
+
+    # Chat-page text selections omit the location fields entirely.
+    text_payload = {
+        "question": "Summarize this",
+        "code": "The deploy failed because the token expired.",
+        "model_id": TEST_MODEL_ID,
+    }
+    text_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/ask-code", json=text_payload, headers=headers
+    )
+    assert text_response.status_code == 200
+    assert text_response.json() == {"answer": "Answer: Summarize this"}
+    assert agent_service.ask_code_calls[-1][2] is None
 
     other_headers, _other_user, _other_workspace = await create_authenticated_workspace(
         db_session,

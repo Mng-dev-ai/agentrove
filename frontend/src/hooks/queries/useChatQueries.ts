@@ -15,7 +15,7 @@ import type {
 import { chatService } from '@/services/chatService';
 import { isCloudChat } from '@/utils/chatOrigin';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
-import { useUIStore, type EditorCodeSelection } from '@/store/uiStore';
+import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import type { Chat, ChatSearchResponse, ContextUsage, CreateChatRequest } from '@/types/chat.types';
 import type { PaginatedChats } from '@/types/api.types';
 import { logger } from '@/utils/logger';
@@ -399,7 +399,7 @@ export const useEnhancePromptMutation = (
 
 interface AskAboutCodeParams {
   chatId: string;
-  selection: EditorCodeSelection;
+  selection: ComposerSelection;
   question: string;
   modelId: string;
 }

@@ -1,8 +1,8 @@
 import { useCallback, type RefObject } from 'react';
 import toast from 'react-hot-toast';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
-import { useUIStore, type EditorCodeSelection } from '@/store/uiStore';
-import { formatEditorSelections } from '@/lib/editorChatActions';
+import { useUIStore, type ComposerSelection } from '@/store/uiStore';
+import { formatComposerSelections } from '@/utils/composerSelections';
 import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
 import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import {
@@ -29,7 +29,7 @@ interface UseInputSubmitOptions {
   selectedModelId: string;
   agentKind: AgentKind;
   personas: Persona[];
-  attachedSelections: EditorCodeSelection[];
+  attachedSelections: ComposerSelection[];
   attachedFiles: File[] | null;
   messageRef: RefObject<string>;
   setMessage: (value: string) => void;
@@ -105,7 +105,7 @@ export function useInputSubmit({
       const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
       const validPersona = resolvePersona(storedPersona, personas);
       // Queued messages are stored as plain text, so serialize chips here.
-      const fullMessage = formatEditorSelections(attachedSelections, messageRef.current.trim());
+      const fullMessage = formatComposerSelections(attachedSelections, messageRef.current.trim());
       void useMessageQueueStore
         .getState()
         .queueMessage(
@@ -120,7 +120,7 @@ export function useInputSubmit({
         );
       setMessage('');
       onAttach?.([]);
-      if (attachedSelections.length > 0) useUIStore.getState().clearEditorSelections(chatId);
+      if (attachedSelections.length > 0) useUIStore.getState().clearComposerSelections(chatId);
       setPreviewDismissed(true);
       return;
     }
@@ -164,7 +164,7 @@ export function useInputSubmit({
 
   const handleRemoveSelection = useCallback(
     (index: number) => {
-      if (chatId) useUIStore.getState().removeEditorSelection(chatId, index);
+      if (chatId) useUIStore.getState().removeComposerSelection(chatId, index);
     },
     [chatId],
   );

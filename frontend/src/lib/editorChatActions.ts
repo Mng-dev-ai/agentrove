@@ -4,8 +4,6 @@ import { useUIStore, type EditorCodeSelection } from '@/store/uiStore';
 
 type Monaco = typeof import('monaco-editor');
 
-const BACKTICK_RUN = /`+/g;
-
 function getSelectionSnippet(ed: monacoNs.editor.ICodeEditor): EditorCodeSelection | null {
   const selection = ed.getSelection();
   const model = ed.getModel();
@@ -48,7 +46,7 @@ export function attachAddSelectionToChat(
       const snippet = getSelectionSnippet(ed);
       const { chatId } = context;
       if (!snippet || !chatId) return;
-      useUIStore.getState().addEditorSelection(chatId, snippet);
+      useUIStore.getState().addComposerSelection(chatId, snippet);
     },
   });
 }
@@ -73,20 +71,4 @@ export function attachAskAboutSelection(
       onOpen(snippet);
     },
   });
-}
-
-export function formatEditorSelections(selections: EditorCodeSelection[], message: string): string {
-  // Chips are UI-only; at send time the code rides in the prompt as fenced
-  // blocks above the user's text.
-  const blocks = selections.map((s) => {
-    const lineRef = s.startLine === s.endLine ? `${s.startLine}` : `${s.startLine}-${s.endLine}`;
-    // Snippets can contain ``` (Markdown, nested fences) which would close a
-    // bare fence early — use one longer than the longest run in the text.
-    const longestRun =
-      s.text.match(BACKTICK_RUN)?.reduce((max, run) => Math.max(max, run.length), 0) ?? 0;
-    const fence = '`'.repeat(Math.max(3, longestRun + 1));
-    const block = `${s.path}:${lineRef}\n${fence}${s.languageId}\n${s.text}\n${fence}`;
-    return s.comment ? `${block}\n${s.comment}` : block;
-  });
-  return [...blocks, message].filter(Boolean).join('\n\n');
 }
