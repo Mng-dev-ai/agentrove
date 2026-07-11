@@ -442,10 +442,9 @@ class AcpClientHandler:
         return StreamEvent(type="system", data={})
 
     def _map_plan(self, plan: AgentPlanUpdate) -> StreamEvent | None:
-        # Claude/OpenCode todos already arrive as TodoWrite/todowrite tool
-        # events with dedicated renderers — mapping their plan updates too
-        # would show the same checklist twice.
-        if self.agent_kind in (AgentKind.CLAUDE, AgentKind.OPENCODE):
+        # Claude sends TodoWrite and Task* state only as plan updates. OpenCode
+        # also emits todowrite tool calls, so forwarding its plan would duplicate it.
+        if self.agent_kind == AgentKind.OPENCODE:
             return None
         # Each ACP plan update carries the complete entry list; the frontend
         # replaces the whole plan rather than appending.
