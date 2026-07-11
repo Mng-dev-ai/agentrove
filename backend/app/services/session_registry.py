@@ -58,11 +58,11 @@ class SessionRegistry:
             session = None
 
         if session is not None and session.fingerprint != fingerprint:
+            # Keep config.resume_session_id: agent kind can't change mid-chat
+            # (blocked upstream), so the respawned process can load_session the
+            # old id and preserve context across model/effort changes.
             await self._close_session(session)
             session = None
-            # The stored session_id belongs to the old agent/config —
-            # don't try to resume it in the new process.
-            config.resume_session_id = None
 
         created = session is None
         if created:
