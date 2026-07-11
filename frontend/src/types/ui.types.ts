@@ -18,7 +18,24 @@ export type Theme =
   | 'dracula'
   | 'tokyo-night'
   | 'catppuccin-latte'
-  | 'ember';
+  | 'catppuccin-mocha'
+  | 'ember'
+  | 'gruvbox'
+  | 'rose-pine'
+  | 'rose-pine-dawn'
+  | 'everforest'
+  | 'kanagawa'
+  | 'one-dark'
+  | 'cyberpunk'
+  | 'vercel'
+  | 'github'
+  | 'vscode-plus'
+  | 'xcode'
+  | 'raycast'
+  | 'notion'
+  | 'matrix'
+  | 'linear'
+  | 'lobster';
 export type ResolvedTheme = 'light' | 'dark';
 // Active palette with `system` resolved away — used where concrete per-theme colors
 // are built outside CSS (Monaco/xterm can't read CSS vars). Theme = Palette | 'system'.
