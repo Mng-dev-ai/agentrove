@@ -17,6 +17,28 @@ function paletteSurface(palette: Palette): { background: string; foreground: str
   return { background: t.surfaceSecondary, foreground: t.textPrimary };
 }
 
+// xterm's built-in ANSI 16 defaults assume a dark background — on a light canvas,
+// white/bright-white and yellow output (git, ls, prompts) is near-invisible. Light
+// palettes get VS Code Light+'s re-tuned set; dark palettes keep the built-ins.
+const LIGHT_ANSI = {
+  black: '#000000',
+  red: '#cd3131',
+  green: '#00bc00',
+  yellow: '#949800',
+  blue: '#0451a5',
+  magenta: '#bc05bc',
+  cyan: '#0598bc',
+  white: '#555555',
+  brightBlack: '#666666',
+  brightRed: '#cd3131',
+  brightGreen: '#14ce14',
+  brightYellow: '#b5ba00',
+  brightBlue: '#0451a5',
+  brightMagenta: '#bc05bc',
+  brightCyan: '#0598bc',
+  brightWhite: '#a5a5a5',
+} as const;
+
 export const buildTerminalTheme = (palette: Palette): ITerminalOptions['theme'] => {
   const isDark = DARK_PALETTES.has(palette);
   const { background, foreground } = paletteSurface(palette);
@@ -27,6 +49,7 @@ export const buildTerminalTheme = (palette: Palette): ITerminalOptions['theme'] 
     cursorAccent: isDark ? '#0a0a0a' : '#ffffff',
     selectionBackground: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)',
     selectionInactiveBackground: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    ...(isDark ? null : LIGHT_ANSI),
   };
 };
 
