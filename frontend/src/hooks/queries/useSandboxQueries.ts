@@ -12,7 +12,6 @@ import type {
   GitPushPullResult,
   SearchParams,
   SearchResponse,
-  Secret,
   UpdateFileResult,
 } from '@/types/sandbox.types';
 import { createMutation } from './createMutation';
@@ -50,18 +49,6 @@ export const useFilesMetadataQuery = (
   });
 };
 
-export const useSecretsQuery = (
-  sandboxId: string | undefined,
-  options?: Partial<UseQueryOptions<Secret[]>>,
-) => {
-  return useQuery({
-    queryKey: queryKeys.sandbox.secrets(sandboxId),
-    queryFn: () => sandboxService.getSecrets(sandboxId!),
-    enabled: !!sandboxId,
-    ...options,
-  });
-};
-
 interface UpdateFileParams {
   sandboxId: string;
   filePath: string;
@@ -81,28 +68,6 @@ export const useUpdateFileMutation = createMutation<UpdateFileResult, Error, Upd
       invalidateGitState(queryClient, sandboxId),
     ]);
   },
-);
-
-type SecretMutationVariables = { sandboxId: string; key: string; value?: string };
-
-function createSecretMutation<TVariables extends { sandboxId: string }>(
-  mutationFn: (variables: TVariables) => Promise<void>,
-) {
-  return createMutation<void, Error, TVariables>(mutationFn, (queryClient, _data, variables) => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.secrets(variables.sandboxId) });
-  });
-}
-
-export const useAddSecretMutation = createSecretMutation<SecretMutationVariables>(
-  ({ sandboxId, key, value }) => sandboxService.addSecret(sandboxId, key, value!),
-);
-
-export const useUpdateSecretMutation = createSecretMutation<SecretMutationVariables>(
-  ({ sandboxId, key, value }) => sandboxService.updateSecret(sandboxId, key, value!),
-);
-
-export const useDeleteSecretMutation = createSecretMutation<{ sandboxId: string; key: string }>(
-  ({ sandboxId, key }) => sandboxService.deleteSecret(sandboxId, key),
 );
 
 // Every query derived from git state (diff content, per-file HEAD baselines,

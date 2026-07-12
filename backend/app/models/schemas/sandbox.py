@@ -28,15 +28,6 @@ class FileContentResponse(BaseModel):
     is_binary: bool
 
 
-class AddSecretRequest(BaseModel):
-    key: str = Field(..., min_length=1)
-    value: str = Field(..., min_length=1)
-
-
-class UpdateSecretRequest(BaseModel):
-    value: str = Field(..., min_length=1)
-
-
 class GitDiffResponse(BaseModel):
     diff: str
     has_changes: bool

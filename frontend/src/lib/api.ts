@@ -332,7 +332,7 @@ export function resolveChatClient(chatId: string | undefined): APIClient {
   return chatId && isCloudChat(chatId) ? remoteApiClient : apiClient;
 }
 
-// Same routing for per-sandbox calls (files, git, secrets, search).
+// Same routing for per-sandbox calls (files, git, search).
 export function resolveSandboxClient(sandboxId: string | undefined): APIClient {
   return sandboxId && isCloudSandbox(sandboxId) ? remoteApiClient : apiClient;
 }

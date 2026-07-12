@@ -1,13 +1,3 @@
-export interface Secret {
-  key: string;
-  value: string;
-  originalKey?: string;
-  originalValue?: string;
-  isNew?: boolean;
-  isModified?: boolean;
-  isDeleted?: boolean;
-}
-
 export interface TerminalSize {
   cols: number;
   rows: number;

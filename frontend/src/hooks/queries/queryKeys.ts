@@ -20,7 +20,6 @@ export const queryKeys = {
     filesMetadata: (sandboxId?: string, cwd?: string) =>
       ['sandbox', sandboxId, 'files-metadata', cwd] as const,
     filesMetadataAll: (sandboxId?: string) => ['sandbox', sandboxId, 'files-metadata'] as const,
-    secrets: (sandboxId?: string) => ['sandbox', sandboxId, 'secrets'] as const,
     gitDiff: (
       sandboxId: string | undefined,
       mode: DiffMode,

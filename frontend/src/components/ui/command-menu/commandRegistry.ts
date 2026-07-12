@@ -7,7 +7,6 @@ import {
   MessageSquarePlus,
   CodeXml,
   Terminal,
-  Lock,
   GitBranch,
   PanelLeftClose,
   GitPullRequest,
@@ -89,7 +88,6 @@ const VIEW_COMMANDS: ViewCommandItem[] = [
   { type: 'view', id: 'editor', label: 'Editor', icon: CodeXml, shortcut: 'e' },
   { type: 'view', id: 'terminal', label: 'Terminal', icon: Terminal, shortcut: 't' },
   { type: 'view', id: 'diff', label: 'Diff', icon: GitBranch, shortcut: 'd' },
-  { type: 'view', id: 'secrets', label: 'Secrets', icon: Lock, shortcut: 's' },
 ];
 
 const ACTION_COMMANDS: ActionCommandItem[] = [

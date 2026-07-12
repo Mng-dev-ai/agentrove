@@ -51,10 +51,6 @@ import { tileIdToViewType } from '@/utils/tileHelpers';
 import styles from './LandingPage.module.scss';
 
 const Editor = lazyNamed(() => import('@/components/editor/editor-core/Editor'), 'Editor');
-const SecretsView = lazyNamed(
-  () => import('@/components/sandbox/secrets/SecretsView/SecretsView'),
-  'SecretsView',
-);
 const DiffView = lazyNamed(() => import('@/components/sandbox/git/DiffView/DiffView'), 'DiffView');
 const TerminalContainer = lazyNamed(
   () => import('@/components/sandbox/terminal/Container/Container'),
@@ -422,12 +418,6 @@ export function LandingPage() {
                 isRefreshing={isRefreshing}
                 chatId={undefined}
               />
-            </Suspense>
-          );
-        case 'secrets':
-          return (
-            <Suspense fallback={viewLoadingFallback}>
-              <SecretsView sandboxId={selectedSandboxId} />
             </Suspense>
           );
         case 'diff':

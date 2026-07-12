@@ -10,7 +10,7 @@ import {
 } from './tileHelpers';
 import type { ViewType } from '@/types/ui.types';
 
-const ALL_VIEWS: ViewType[] = ['agent', 'diff', 'editor', 'terminal', 'secrets'];
+const ALL_VIEWS: ViewType[] = ['agent', 'diff', 'editor', 'terminal'];
 
 describe('isSecondaryPaneActive', () => {
   it('is active only when the secondary agent pane is focused and bound to a chat', () => {
