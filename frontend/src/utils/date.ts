@@ -1,3 +1,11 @@
+export function formatDayLabel(date: Date, referenceDate: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: date.getFullYear() !== referenceDate.getFullYear() ? 'numeric' : undefined,
+  }).format(date);
+}
+
 export const formatRelativeTime = (date: string | Date): string => {
   const targetDate = typeof date === 'string' ? new Date(date) : date;
   const now = new Date();
@@ -27,11 +35,7 @@ export const formatRelativeTime = (date: string | Date): string => {
     return `${diffDays} days ago`;
   }
 
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: now.getFullYear() !== targetDate.getFullYear() ? 'numeric' : undefined,
-  }).format(targetDate);
+  return formatDayLabel(targetDate, now);
 };
 
 export function getRelativeTime(dateStr: string): string {

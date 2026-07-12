@@ -1,6 +1,7 @@
 import type { Chat } from '@/types/chat.types';
 import type { SidebarGroupBy, SidebarStatusFilter } from '@/store/sidebarFilters';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
+import { formatDayLabel } from '@/utils/date';
 
 export interface SidebarChatSection {
   key: string;
@@ -29,8 +30,8 @@ interface GroupingContext {
 
 // Always returns a sections list so the JSX renders one shape — ungrouped is a
 // single headerless section. Groups keep the flat list's recency order:
-// workspace groups appear in order of their most recent chat; status groups
-// follow badge urgency. Pinned stays flat — it's a small, user-curated list.
+// date and workspace groups appear in order of their most recent chat; status
+// groups follow badge urgency. Pinned stays flat — it's a small, curated list.
 export function buildRecentChatSections({
   groupBy,
   visibleRecentChats,
@@ -39,6 +40,32 @@ export function buildRecentChatSections({
   streamingChatIdSet,
   completedChatIds,
 }: GroupingContext): SidebarChatSection[] {
+  if (groupBy === 'date') {
+    const groups = new Map<number, SidebarChatSection>();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    for (const chat of visibleRecentChats) {
+      const chatDate = new Date(chat.updated_at);
+      chatDate.setHours(0, 0, 0, 0);
+      const key = chatDate.getTime();
+      let group = groups.get(key);
+      if (!group) {
+        const label =
+          key === today.getTime()
+            ? 'Today'
+            : key === yesterday.getTime()
+              ? 'Yesterday'
+              : formatDayLabel(chatDate, today);
+        group = { key: String(key), label, chats: [] };
+        groups.set(key, group);
+      }
+      group.chats.push(chat);
+    }
+    return Array.from(groups.values());
+  }
   if (groupBy === 'workspace') {
     const groups = new Map<string, SidebarChatSection>();
     for (const chat of visibleRecentChats) {
