@@ -54,6 +54,14 @@ describe('getStreamByChat', () => {
     useStreamStore.getState().addStream(makeStream('s1', 'c1', 'm1', false));
     expect(useStreamStore.getState().getStreamByChat('c1')).toBeUndefined();
   });
+
+  it('returns the first active stream when several exist for the chat', () => {
+    const inactive = makeStream('s1', 'c1', 'm1', false);
+    const active = makeStream('s2', 'c1', 'm2');
+    useStreamStore.getState().addStream(inactive);
+    useStreamStore.getState().addStream(active);
+    expect(useStreamStore.getState().getStreamByChat('c1')).toBe(active);
+  });
 });
 
 describe('removeStream', () => {
@@ -76,6 +84,14 @@ describe('removeStream', () => {
     useStreamStore.getState().removeStream('s2');
     // s1 is still active for c1, so its rollup metadata must survive.
     expect(useStreamStore.getState().activeStreamMetadata).toHaveLength(1);
+  });
+
+  it('drops chat metadata when the only remaining sibling stream is inactive', () => {
+    useStreamStore.getState().addStream(makeStream('s1', 'c1', 'm1'));
+    useStreamStore.getState().addStream(makeStream('s2', 'c1', 'm2', false));
+    useStreamStore.getState().removeStream('s1');
+    // Only an inactive stream is left, so the "running" rollup must clear.
+    expect(useStreamStore.getState().activeStreamMetadata).toEqual([]);
   });
 
   it('is a no-op for an unknown stream id', () => {
