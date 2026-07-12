@@ -7,6 +7,17 @@ export interface QueueMessageAttachment {
   filename?: string;
 }
 
+// Toolbar + attachment payload for queueMessage — named fields avoid a growing
+// positional boolean list (worktree/fastMode after files).
+export interface QueueMessageOptions {
+  permissionMode?: PermissionMode;
+  thinkingMode?: string | null;
+  worktree?: boolean;
+  fastMode?: boolean;
+  selectedPersonaName?: string;
+  files?: File[];
+}
+
 export interface QueuedMessage {
   id: string;
   content: string;
@@ -14,6 +25,7 @@ export interface QueuedMessage {
   permission_mode: PermissionMode;
   thinking_mode?: string | null;
   worktree: boolean;
+  fast_mode: boolean;
   selected_persona_name: string;
   queued_at: string;
   attachments?: QueueMessageAttachment[];
@@ -32,6 +44,7 @@ export interface LocalQueuedMessage {
   permissionMode?: PermissionMode;
   thinkingMode?: string | null;
   worktree?: boolean;
+  fastMode?: boolean;
   selectedPersonaName?: string;
   queuedAt: number;
   synced: boolean;

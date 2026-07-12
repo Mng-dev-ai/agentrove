@@ -14,21 +14,24 @@ beforeEach(() => {
     permissionModeByChat: {},
     thinkingModeByChat: {},
     worktreeByChat: {},
+    fastModeByChat: {},
     runOnCloud: false,
     personaByChat: {},
   });
 });
 
 describe('per-chat setters', () => {
-  it('records permission, thinking, worktree, and persona keyed by chat', () => {
+  it('records permission, thinking, worktree, fast mode, and persona keyed by chat', () => {
     state().setPermissionMode('c1', 'plan');
     state().setThinkingMode('c1', 'low');
     state().setWorktree('c1', true);
+    state().setFastMode('c1', true);
     state().setPersona('c1', 'Reviewer');
 
     expect(state().permissionModeByChat.c1).toBe('plan');
     expect(state().thinkingModeByChat.c1).toBe('low');
     expect(state().worktreeByChat.c1).toBe(true);
+    expect(state().fastModeByChat.c1).toBe(true);
     expect(state().personaByChat.c1).toBe('Reviewer');
   });
 
@@ -59,6 +62,7 @@ describe('initChatFromDefaults', () => {
     permission?: PermissionMode;
     thinking?: string;
     worktree?: boolean;
+    fastMode?: boolean;
     persona?: string;
   }) => {
     if (over.permission !== undefined)
@@ -66,16 +70,24 @@ describe('initChatFromDefaults', () => {
     if (over.thinking !== undefined)
       state().setThinkingMode(DEFAULT_CHAT_SETTINGS_KEY, over.thinking);
     if (over.worktree !== undefined) state().setWorktree(DEFAULT_CHAT_SETTINGS_KEY, over.worktree);
+    if (over.fastMode !== undefined) state().setFastMode(DEFAULT_CHAT_SETTINGS_KEY, over.fastMode);
     if (over.persona !== undefined) state().setPersona(DEFAULT_CHAT_SETTINGS_KEY, over.persona);
   };
 
   it('copies every set default onto the new chat', () => {
-    seedDefaults({ permission: 'plan', thinking: 'low', worktree: true, persona: 'Reviewer' });
+    seedDefaults({
+      permission: 'plan',
+      thinking: 'low',
+      worktree: true,
+      fastMode: true,
+      persona: 'Reviewer',
+    });
     state().initChatFromDefaults('c1');
 
     expect(state().permissionModeByChat.c1).toBe('plan');
     expect(state().thinkingModeByChat.c1).toBe('low');
     expect(state().worktreeByChat.c1).toBe(true);
+    expect(state().fastModeByChat.c1).toBe(true);
     expect(state().personaByChat.c1).toBe('Reviewer');
   });
 
@@ -87,6 +99,7 @@ describe('initChatFromDefaults', () => {
     expect(state().permissionModeByChat.c1).toBe('plan');
     expect('c1' in state().thinkingModeByChat).toBe(false);
     expect('c1' in state().worktreeByChat).toBe(false);
+    expect('c1' in state().fastModeByChat).toBe(false);
     expect('c1' in state().personaByChat).toBe(false);
   });
 

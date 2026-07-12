@@ -30,12 +30,14 @@ vi.mock('@/store/chatSettingsStore', () => ({
       permissionModeByChat: {},
       thinkingModeByChat: {},
       worktreeByChat: {},
+      fastModeByChat: {},
       personaByChat: {},
     }),
   },
   DEFAULT_PERMISSION_MODE: 'bypassPermissions',
   DEFAULT_THINKING_MODE: 'high',
   DEFAULT_WORKTREE: false,
+  DEFAULT_FAST_MODE: false,
   DEFAULT_PERSONA: 'Default',
 }));
 

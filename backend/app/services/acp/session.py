@@ -67,6 +67,12 @@ EMPTY_FROZENSET: frozenset[str] = frozenset()
 CLAUDE_EFFORT_CONFIG_ID = "effort"
 CLAUDE_MODEL_CONFIG_ID = "model"
 
+# codex-acp advertises Fast mode as a session config option (select on/off, or
+# boolean when the client supports it). Values match FastModeConfig.ts.
+CODEX_FAST_MODE_CONFIG_ID = "fast-mode"
+CODEX_FAST_MODE_ON = "on"
+CODEX_FAST_MODE_OFF = "off"
+
 
 @dataclass
 class AcpSessionConfig:
@@ -89,6 +95,8 @@ class AcpSessionConfig:
     # Codex-only: absolute path to a model_instructions_file written before spawn
     # when doing a full system prompt replacement (personas, one-shot text tasks).
     codex_instructions_file_path: str | None = None
+    # Codex-only: 1.5x speed service tier via set_config_option("fast-mode").
+    fast_mode: bool = False
 
 
 class AcpSession:
@@ -261,6 +269,14 @@ class AcpSession:
         except Exception:
             logger.warning("Failed to set ACP mode: %s", mode_id, exc_info=True)
 
+    async def set_fast_mode(self, enabled: bool) -> None:
+        try:
+            await self._set_fast_mode_on_conn(
+                self._conn, self._agent_kind, self.acp_session_id, enabled
+            )
+        except Exception:
+            logger.warning("Failed to set Codex fast mode: %s", enabled, exc_info=True)
+
     async def close(self) -> None:
         # Orderly shutdown: cancel any pending permission prompts (so blocked
         # request_permission() calls unblock), close the ACP connection, then
@@ -407,6 +423,16 @@ class AcpSession:
                         config.reasoning_effort,
                     )
 
+            # Fast mode is per-turn service tier state inside codex-acp; default
+            # is off so only enable when the user opted in.
+            if config.fast_mode:
+                try:
+                    await cls._set_fast_mode_on_conn(
+                        conn, config.agent_kind, acp_session_id, True
+                    )
+                except Exception:
+                    logger.warning("Failed to enable Codex fast mode")
+
         except Exception as exc:
             stderr_output = ""
             if process.stderr:
@@ -472,6 +498,23 @@ class AcpSession:
         await conn.set_session_model(
             model_id=acp_model_id,
             session_id=session_id,
+        )
+
+    @staticmethod
+    async def _set_fast_mode_on_conn(
+        conn: ClientSideConnection,
+        agent_kind: AgentKind,
+        session_id: str,
+        enabled: bool,
+    ) -> None:
+        # codex-acp only; no-op for other agents. Select values ("on"/"off")
+        # work for clients without boolean configOptions capability.
+        if agent_kind != AgentKind.CODEX:
+            return
+        await conn.set_config_option(
+            config_id=CODEX_FAST_MODE_CONFIG_ID,
+            session_id=session_id,
+            value=CODEX_FAST_MODE_ON if enabled else CODEX_FAST_MODE_OFF,
         )
 
     @staticmethod

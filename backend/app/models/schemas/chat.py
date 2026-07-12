@@ -34,6 +34,8 @@ class ChatRequest(BaseModel):
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = Field(None, max_length=50)
     worktree: bool = False
+    # Codex-only: 1.5x speed service tier via codex-acp's fast-mode config.
+    fast_mode: bool = False
     selected_persona_name: str = Field(DEFAULT_PERSONA_NAME, max_length=100)
 
 

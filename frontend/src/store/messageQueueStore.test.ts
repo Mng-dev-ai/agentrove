@@ -206,6 +206,7 @@ describe('fetchQueue', () => {
         permission_mode: 'default',
         thinking_mode: null,
         worktree: false,
+        fast_mode: false,
         selected_persona_name: 'Default',
         queued_at: '2020-01-01T00:00:00Z',
         attachments: [],

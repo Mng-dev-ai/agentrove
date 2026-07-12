@@ -92,6 +92,8 @@ export interface ChatRequest {
   permission_mode: PermissionMode;
   thinking_mode?: string;
   worktree?: boolean;
+  // Codex-only; ignored by other agents on the backend.
+  fast_mode?: boolean;
   selected_persona_name: string;
 }
 

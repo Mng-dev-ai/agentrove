@@ -119,6 +119,7 @@ class AgentService:
         system_prompt: str | None = None,
         worktree: bool = False,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
+        fast_mode: bool = False,
     ) -> AcpSessionConfig:
         user_settings = await self._get_user_settings(user.id)
 
@@ -152,6 +153,8 @@ class AgentService:
             workspace_path=workspace_path,
             system_prompt=system_prompt,
             system_prompt_is_full_replace=is_custom_persona,
+            # AcpSession is the codex boundary (create/set_fast_mode no-op elsewhere).
+            fast_mode=fast_mode,
         )
 
     async def stream_response(
@@ -482,6 +485,7 @@ class AgentService:
         workspace_path: str | None = None,
         system_prompt: str | None = None,
         system_prompt_is_full_replace: bool = False,
+        fast_mode: bool = False,
     ) -> AcpSessionConfig:
         env: dict[str, str] = {}
 
@@ -528,6 +532,7 @@ class AgentService:
             system_prompt_is_full_replace=system_prompt_is_full_replace,
             reasoning_effort=session_config.reasoning_effort,
             session_meta=session_config.meta,
+            fast_mode=fast_mode,
         )
 
     @staticmethod
