@@ -35,7 +35,3 @@ class RefreshToken(Base):
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         return bool(datetime.now(timezone.utc) > expires_at)
-
-    @property
-    def is_revoked(self) -> bool:
-        return self.revoked_at is not None

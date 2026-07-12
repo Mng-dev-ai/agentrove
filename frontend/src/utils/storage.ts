@@ -173,47 +173,28 @@ export const authStorage = {
     }
     return cachedToken;
   },
-  setToken: (token: string): void => {
-    cachedToken = token;
-    tokenCacheInitialized = true;
-
-    if (isTauri()) {
-      void persistDesktopAuthState();
-      safeRemoveItem(AUTH_TOKEN_KEY);
-      return;
-    }
-
-    safeSetItem(AUTH_TOKEN_KEY, token);
-  },
   getRefreshToken: (): string | null => {
     if (!tokenCacheInitialized && !isTauri()) {
       initTokenCacheFromLocalStorage();
     }
     return cachedRefreshToken;
   },
-  setRefreshToken: (token: string): void => {
-    cachedRefreshToken = token;
+  setTokens: async (token: string, refreshToken: string): Promise<void> => {
+    cachedToken = token;
+    cachedRefreshToken = refreshToken;
     tokenCacheInitialized = true;
 
     if (isTauri()) {
-      void persistDesktopAuthState();
+      // Awaited so refresh rotation can't complete before the new token hits
+      // disk — a quit mid-persist would strand the old (rotated-away) one.
+      await persistDesktopAuthState();
+      safeRemoveItem(AUTH_TOKEN_KEY);
       safeRemoveItem(REFRESH_TOKEN_KEY);
       return;
     }
 
-    safeSetItem(REFRESH_TOKEN_KEY, token);
-  },
-  removeRefreshToken: (): void => {
-    cachedRefreshToken = null;
-    tokenCacheInitialized = true;
-
-    if (isTauri()) {
-      void persistDesktopAuthState();
-      safeRemoveItem(REFRESH_TOKEN_KEY);
-      return;
-    }
-
-    safeRemoveItem(REFRESH_TOKEN_KEY);
+    safeSetItem(AUTH_TOKEN_KEY, token);
+    safeSetItem(REFRESH_TOKEN_KEY, refreshToken);
   },
   clearAuth: (): void => {
     cachedToken = null;
@@ -282,9 +263,6 @@ export const cloudAuthStorage = {
     cloudCacheInitialized = true;
   },
   getAccessToken: (): string | null => cloudAccessToken,
-  setAccessToken: (token: string): void => {
-    cloudAccessToken = token;
-  },
   getRefreshToken: (): string | null => {
     if (!cloudCacheInitialized && !isTauri()) {
       cloudRefreshToken = safeGetItem(CLOUD_REFRESH_TOKEN_KEY);
@@ -292,18 +270,20 @@ export const cloudAuthStorage = {
     }
     return cloudRefreshToken;
   },
-  setRefreshToken: (token: string): void => {
-    cloudRefreshToken = token;
+  setTokens: async (accessToken: string, refreshToken: string): Promise<void> => {
+    cloudAccessToken = accessToken;
+    cloudRefreshToken = refreshToken;
     cloudCacheInitialized = true;
 
     // Unlike authStorage there's no stale-localStorage cleanup on the Tauri
     // path — this key is new and only ever written to localStorage in browsers.
     if (isTauri()) {
-      void persistCloudRefreshToken();
+      // Awaited for the same reason as authStorage.setTokens.
+      await persistCloudRefreshToken();
       return;
     }
 
-    safeSetItem(CLOUD_REFRESH_TOKEN_KEY, token);
+    safeSetItem(CLOUD_REFRESH_TOKEN_KEY, refreshToken);
   },
   clear: (): void => {
     cloudAccessToken = null;
@@ -318,6 +298,27 @@ export const cloudAuthStorage = {
     safeRemoveItem(CLOUD_REFRESH_TOKEN_KEY);
   },
 };
+
+// Cross-tab sync (browser only — the `storage` event fires in every tab except
+// the writer): another tab rotating or clearing tokens must update this tab's
+// in-memory cache, or its next refresh replays a rotated-away token and gets a
+// 401 once the backend's reuse grace window closes.
+if (typeof window !== 'undefined' && !isTauri()) {
+  window.addEventListener('storage', (event) => {
+    if (event.key === AUTH_TOKEN_KEY) {
+      cachedToken = event.newValue;
+    } else if (event.key === REFRESH_TOKEN_KEY) {
+      cachedRefreshToken = event.newValue;
+    } else if (event.key === CLOUD_REFRESH_TOKEN_KEY) {
+      cloudRefreshToken = event.newValue;
+      // Disconnect in another tab must also drop this tab's memory-only access
+      // token — it has no localStorage key of its own to sync through.
+      if (event.newValue === null) {
+        cloudAccessToken = null;
+      }
+    }
+  });
+}
 
 // Per-chat SSE cursor persistence: stores the last-seen seq number in
 // localStorage so stream reconnection can resume from the right point after

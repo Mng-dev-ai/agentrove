@@ -69,6 +69,24 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
                     "Failed to send verification email to %s: %s", user.email, e
                 )
 
+    async def on_after_reset_password(
+        self, user: User, request: Request | None = None
+    ) -> None:
+        # A password reset is the recovery path for a compromised account —
+        # refresh tokens issued under the old password must die with it.
+        # Inline import: core.security imports this module and the service
+        # imports core.security, so a top-level import would be circular.
+        from app.services.refresh_token import RefreshTokenService
+
+        revoked = await RefreshTokenService().revoke_all_tokens(
+            user.id, self.user_db.session
+        )
+        logger.info(
+            "Revoked %s refresh tokens for user %s after password reset",
+            revoked,
+            user.id,
+        )
+
     async def on_after_forgot_password(
         self, user: User, token: str, request: Request | None = None
     ) -> None:

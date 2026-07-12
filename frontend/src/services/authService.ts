@@ -72,8 +72,7 @@ async function signup(data: SignupRequest): Promise<User> {
 
     const loginResponse = await apiClient.postForm<AuthResponse>('/auth/jwt/login', formData);
     const auth = ensureResponse(loginResponse, 'Invalid response from server');
-    authStorage.setToken(auth.access_token);
-    authStorage.setRefreshToken(auth.refresh_token);
+    await authStorage.setTokens(auth.access_token, auth.refresh_token);
 
     return user;
   });
@@ -91,8 +90,7 @@ async function login(data: LoginRequest): Promise<AuthResponse> {
     const response = await apiClient.postForm<AuthResponse>('/auth/jwt/login', formData);
     const payload = ensureResponse(response, 'Invalid response from server');
 
-    authStorage.setToken(payload.access_token);
-    authStorage.setRefreshToken(payload.refresh_token);
+    await authStorage.setTokens(payload.access_token, payload.refresh_token);
     return payload;
   });
 }
