@@ -62,6 +62,7 @@ MARKER_TOOL_PROGRESS_NEW = "MARKER_TOOL_PROGRESS_NEW"
 MARKER_RAW_INPUT_STRING = "MARKER_RAW_INPUT_STRING"
 MARKER_RAW_INPUT_INVALID = "MARKER_RAW_INPUT_INVALID"
 MARKER_PERMISSION = "MARKER_PERMISSION"
+MARKER_ASK_USER_QUESTION = "MARKER_ASK_USER_QUESTION"
 MARKER_CANCEL = "MARKER_CANCEL"
 MARKER_CRASH_MID_PROMPT = "MARKER_CRASH_MID_PROMPT"
 MARKER_TOOL_LEFT_OPEN = "MARKER_TOOL_LEFT_OPEN"
@@ -251,6 +252,8 @@ class FakeAgent:
             return await self._run_cancel_turn(session_id)
         if MARKER_PERMISSION in text:
             return await self._run_permission_turn(session_id)
+        if MARKER_ASK_USER_QUESTION in text:
+            return await self._run_ask_user_question_turn(session_id)
         if MARKER_FS_TERMINAL_STUBS in text:
             await self._call_fs_terminal_stubs(session_id)
         if MARKER_ENTER_PLAN_MODE in text:
@@ -466,6 +469,45 @@ class FakeAgent:
                     raw_output="Permission denied by user",
                 ),
             )
+        await asyncio.sleep(0.05)
+        return PromptResponse(stop_reason="end_turn")
+
+    async def _run_ask_user_question_turn(self, session_id: str) -> PromptResponse:
+        # Mirrors Grok's ask_user_question flow: the question arrives as an
+        # `_x.ai/ask_user_question` extension request (the SDK's ext_method
+        # adds the underscore prefix) while the tool call is still active, and
+        # the client must answer with an AskUserQuestionExtResponse.
+        assert self._client is not None
+        tool_call_id = "tool-ask-user"
+        await self._emit_tool_started(session_id, tool_call_id, "Ask: Pick a color")
+        response = await self._client.ext_method(
+            "x.ai/ask_user_question",
+            {
+                "sessionId": session_id,
+                "toolCallId": tool_call_id,
+                "questions": [
+                    {
+                        "question": "Pick a color",
+                        "options": [
+                            {"label": "Red", "description": "Warm"},
+                            {"label": "Blue", "description": "Cool"},
+                        ],
+                        "multiSelect": False,
+                    }
+                ],
+                "mode": "default",
+            },
+        )
+        log_event({"event": "ask_user_question", "response": response})
+        await self._client.session_update(
+            session_id=session_id,
+            update=ToolCallProgress(
+                session_update="tool_call_update",
+                tool_call_id=tool_call_id,
+                status="completed",
+                raw_output=response,
+            ),
+        )
         await asyncio.sleep(0.05)
         return PromptResponse(stop_reason="end_turn")
 

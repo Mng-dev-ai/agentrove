@@ -1,7 +1,7 @@
 import { PermissionModeSelector } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { ThinkingModeSelector } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
-import { THINKING_MODES_BY_AGENT } from '@/components/chat/thinking-mode-selector/thinkingModes';
+import { getThinkingModesForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import { FastModeSelector } from '@/components/chat/fast-mode-selector/FastModeSelector';
 import { PersonaSelector } from '@/components/chat/persona-selector/PersonaSelector';
 import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
@@ -31,7 +31,11 @@ export function InputControls() {
   const showPersona =
     personas.length > 0 && (!agentKind || PERSONAS_SUPPORTED_AGENTS.has(agentKind));
   const showBranch = !!sandboxId && !!branchesData?.is_git_repo && branchesData.branches.length > 0;
-  const showThinking = agentKind ? THINKING_MODES_BY_AGENT[agentKind].length > 0 : true;
+  // Model-aware: some agents only expose a reasoning dial on specific models
+  // (e.g. Grok 4.5 but not Composer), so the base per-agent list isn't enough.
+  const showThinking = agentKind
+    ? getThinkingModesForAgent(agentKind, state.selectedModelId).length > 0
+    : true;
   const showFastMode = agentKind === 'codex';
 
   return (
