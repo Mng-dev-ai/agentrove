@@ -37,8 +37,7 @@ async function connect(url: string, email: string, password: string): Promise<vo
     throw error;
   }
 
-  cloudAuthStorage.setRefreshToken(auth.refresh_token);
-  cloudAuthStorage.setAccessToken(auth.access_token);
+  await cloudAuthStorage.setTokens(auth.access_token, auth.refresh_token);
   useCloudSettingsStore.getState().setCloud(trimmedUrl, email);
 }
 

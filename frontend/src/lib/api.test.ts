@@ -4,8 +4,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const h = vi.hoisted(() => ({
   getToken: vi.fn<() => string | null>(() => 'access'),
   getRefreshToken: vi.fn<() => string | null>(() => null),
-  setToken: vi.fn(),
-  setRefreshToken: vi.fn(),
+  setTokens: vi.fn(async () => {}),
   onSessionExpired: vi.fn(),
   isCloudChat: vi.fn<(id: string) => boolean>(() => false),
   isCloudSandbox: vi.fn<(id: string) => boolean>(() => false),
@@ -16,14 +15,12 @@ vi.mock('@/utils/storage', () => ({
   authStorage: {
     getToken: h.getToken,
     getRefreshToken: h.getRefreshToken,
-    setToken: h.setToken,
-    setRefreshToken: h.setRefreshToken,
+    setTokens: h.setTokens,
   },
   cloudAuthStorage: {
     getAccessToken: () => null,
     getRefreshToken: () => null,
-    setAccessToken: vi.fn(),
-    setRefreshToken: vi.fn(),
+    setTokens: vi.fn(async () => {}),
     clear: vi.fn(),
   },
 }));
@@ -112,7 +109,7 @@ describe('APIClient 401 handling', () => {
       .mockResolvedValueOnce(json({ ok: true })); // retried request
 
     await expect(apiClient.get('/thing')).resolves.toEqual({ ok: true });
-    expect(h.setToken).toHaveBeenCalledWith('a2');
+    expect(h.setTokens).toHaveBeenCalledWith('a2', 'r2');
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
@@ -131,6 +128,58 @@ describe('APIClient 401 handling', () => {
       .mockResolvedValueOnce(json({ message: 'dead' }, 401)); // refresh -> terminal
 
     await expect(apiClient.get('/thing')).rejects.toThrow('Session expired');
+    expect(h.onSessionExpired).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('getValidToken', () => {
+  // Minimal JWT shape — only the base64url payload's exp claim is read.
+  const jwtWithExp = (expSecs: number) => `h.${btoa(JSON.stringify({ exp: expSecs }))}.s`;
+
+  it('reuses a cached access token that is not near expiry, without refreshing', async () => {
+    const token = jwtWithExp(Math.floor(Date.now() / 1000) + 3600);
+    h.getToken.mockReturnValue(token);
+    h.getRefreshToken.mockReturnValue('refresh-tok');
+
+    await expect(apiClient.getValidToken()).resolves.toBe(token);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refreshes when the cached access token is expired', async () => {
+    h.getToken.mockReturnValue(jwtWithExp(Math.floor(Date.now() / 1000) - 10));
+    h.getRefreshToken.mockReturnValue('refresh-tok');
+    fetchMock.mockResolvedValueOnce(
+      json({ access_token: 'fresh', refresh_token: 'r2', token_type: 'bearer' }),
+    );
+
+    await expect(apiClient.getValidToken()).resolves.toBe('fresh');
+    expect(h.setTokens).toHaveBeenCalledWith('fresh', 'r2');
+  });
+
+  it('refreshes when the cached token is not a decodable JWT', async () => {
+    h.getToken.mockReturnValue('opaque-garbage');
+    h.getRefreshToken.mockReturnValue('refresh-tok');
+    fetchMock.mockResolvedValueOnce(
+      json({ access_token: 'fresh', refresh_token: 'r2', token_type: 'bearer' }),
+    );
+
+    await expect(apiClient.getValidToken()).resolves.toBe('fresh');
+  });
+
+  it('returns the cached token as-is when there is no refresh token', async () => {
+    h.getToken.mockReturnValue('whatever');
+    h.getRefreshToken.mockReturnValue(null);
+
+    await expect(apiClient.getValidToken()).resolves.toBe('whatever');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('tears down the session and returns null when the refresh 401s', async () => {
+    h.getToken.mockReturnValue(null);
+    h.getRefreshToken.mockReturnValue('refresh-tok');
+    fetchMock.mockResolvedValueOnce(json({ message: 'dead' }, 401));
+
+    await expect(apiClient.getValidToken()).resolves.toBeNull();
     expect(h.onSessionExpired).toHaveBeenCalledTimes(1);
   });
 });

@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, delete, or_, select, update
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
@@ -18,6 +18,11 @@ from app.services.db import SessionFactoryType
 from app.services.exceptions import AuthException
 
 logger = logging.getLogger(__name__)
+
+# How long a just-rotated token may still be replayed. Clients can lose the
+# rotation response (network drop, app killed mid-refresh) and retry with the
+# old token — rejecting that would log the device out for a benign retry.
+REUSE_GRACE_SECONDS = 60
 
 
 class RefreshTokenService:
@@ -62,18 +67,14 @@ class RefreshTokenService:
         )
         refresh_token = result.scalar_one_or_none()
 
-        if not refresh_token:
+        if not refresh_token or refresh_token.is_expired:
             raise AuthException("Invalid or expired refresh token")
 
-        if refresh_token.is_revoked:
-            # Revoked token reuse = potential theft; revoke all tokens for this user
-            await self._revoke_all_tokens(refresh_token.user_id, db)
-            await db.commit()
-            raise AuthException("Invalid or expired refresh token")
-
-        if refresh_token.is_expired:
-            refresh_token.revoked_at = datetime.now(timezone.utc)
-            await db.commit()
+        # Reject stale replays per-token only — revoking every session here would
+        # log the user out of all devices over one device's stale token.
+        if refresh_token.revoked_at is not None and not self._replay_within_grace(
+            refresh_token.revoked_at
+        ):
             raise AuthException("Invalid or expired refresh token")
 
         user_result = await db.execute(
@@ -84,7 +85,10 @@ class RefreshTokenService:
         if not user or not user.is_active:
             raise AuthException("Invalid or expired refresh token")
 
-        refresh_token.revoked_at = datetime.now(timezone.utc)
+        # A grace-window replay keeps its original revoked_at — refreshing it
+        # would let repeated replays extend the window indefinitely.
+        if refresh_token.revoked_at is None:
+            refresh_token.revoked_at = datetime.now(timezone.utc)
 
         new_token = generate_refresh_token()
         new_token_hash = hash_refresh_token(new_token)
@@ -103,39 +107,51 @@ class RefreshTokenService:
 
         return user, new_token
 
+    def _replay_within_grace(self, revoked_at: datetime) -> bool:
+        # ORM objects written in this session keep the Python-side value, which
+        # can be naive — UTCDateTime only normalizes on DB read.
+        if revoked_at.tzinfo is None:
+            revoked_at = revoked_at.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) - revoked_at <= timedelta(
+            seconds=REUSE_GRACE_SECONDS
+        )
+
     async def revoke_token(self, token: str, db: AsyncSession) -> bool:
         token_hash = hash_refresh_token(token)
 
         result = await db.execute(
-            select(RefreshToken).where(
-                and_(
+            select(RefreshToken.user_id).where(RefreshToken.token_hash == token_hash)
+        )
+        user_id = result.scalar_one_or_none()
+        if user_id is None:
+            return False
+
+        # Hard-delete rather than mark revoked, and take the user's rotated
+        # predecessors (revoked_at set) with it — a grace-eligible predecessor
+        # left behind could re-mint credentials for up to REUSE_GRACE_SECONDS
+        # after logout.
+        await db.execute(
+            delete(RefreshToken).where(
+                or_(
                     RefreshToken.token_hash == token_hash,
-                    RefreshToken.revoked_at.is_(None),
+                    and_(
+                        RefreshToken.user_id == user_id,
+                        RefreshToken.revoked_at.is_not(None),
+                    ),
                 )
             )
         )
-        refresh_token = result.scalar_one_or_none()
-
-        if not refresh_token:
-            return False
-
-        refresh_token.revoked_at = datetime.now(timezone.utc)
         await db.commit()
 
         return True
 
-    async def _revoke_all_tokens(self, user_id: UUID, db: AsyncSession) -> int:
-        now = datetime.now(timezone.utc)
+    async def revoke_all_tokens(self, user_id: UUID, db: AsyncSession) -> int:
+        # Hard-delete for the same reason as revoke_token — revocation here
+        # (password reset) must take effect immediately, not after the grace.
         result = await db.execute(
-            update(RefreshToken)
-            .where(
-                and_(
-                    RefreshToken.user_id == user_id,
-                    RefreshToken.revoked_at.is_(None),
-                )
-            )
-            .values(revoked_at=now)
+            delete(RefreshToken).where(RefreshToken.user_id == user_id)
         )
+        await db.commit()
         return int(getattr(result, "rowcount", 0))
 
     async def cleanup_expired_and_revoked_tokens(

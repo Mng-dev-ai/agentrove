@@ -46,27 +46,21 @@ const resolveWsBaseUrl = (rawUrl: string): string => {
 interface ClientAuth {
   getToken: () => string | null;
   getRefreshToken: () => string | null;
-  setTokens: (accessToken: string, refreshToken: string) => void;
+  setTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   onSessionExpired: () => void;
 }
 
 const localAuth: ClientAuth = {
   getToken: () => authStorage.getToken(),
   getRefreshToken: () => authStorage.getRefreshToken(),
-  setTokens: (accessToken, refreshToken) => {
-    authStorage.setToken(accessToken);
-    authStorage.setRefreshToken(refreshToken);
-  },
+  setTokens: (accessToken, refreshToken) => authStorage.setTokens(accessToken, refreshToken),
   onSessionExpired: invalidateSessionAndRedirect,
 };
 
 const cloudAuth: ClientAuth = {
   getToken: () => cloudAuthStorage.getAccessToken(),
   getRefreshToken: () => cloudAuthStorage.getRefreshToken(),
-  setTokens: (accessToken, refreshToken) => {
-    cloudAuthStorage.setAccessToken(accessToken);
-    cloudAuthStorage.setRefreshToken(refreshToken);
-  },
+  setTokens: (accessToken, refreshToken) => cloudAuthStorage.setTokens(accessToken, refreshToken),
   // A revoked/expired VPS refresh token can't be recovered silently — drop the
   // cloud credentials so the settings UI reflects a disconnected state.
   onSessionExpired: () => {
@@ -83,6 +77,21 @@ const cloudAuth: ClientAuth = {
 // identity/session store resets. Treat refresh 401 as terminal to break retry loops.
 function shouldInvalidateSession(error: unknown): boolean {
   return error instanceof RefreshTokenError && error.status === 401;
+}
+
+const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
+
+// True when the access token can't be trusted for a new long-lived connection —
+// missing/undecodable claims or an exp within the buffer.
+function accessTokenExpiresSoon(token: string): boolean {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const claims = JSON.parse(atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4)));
+    if (typeof claims.exp !== 'number') return true;
+    return claims.exp * 1000 - Date.now() < ACCESS_TOKEN_EXPIRY_BUFFER_MS;
+  } catch {
+    return true;
+  }
 }
 
 const extractErrorMessage = async (response: Response): Promise<string> => {
@@ -119,10 +128,14 @@ class APIClient {
   }
 
   // For SSE openers that bypass request(): the token rides the URL and the cached
-  // one may be missing (after a restart) or expired (reopening a dead feed), so
-  // mint a fresh one from the refresh token on every open.
+  // one may be missing (after a restart) or expired (reopening a dead feed).
   async getValidToken(): Promise<string | null> {
-    if (!this.auth.getRefreshToken()) return this.auth.getToken();
+    const cached = this.auth.getToken();
+    if (!this.auth.getRefreshToken()) return cached;
+    // Only refresh when the cached token is actually stale — rotating on every
+    // open churns refresh tokens and multiplies the lost-response windows where
+    // a client is left holding a rotated-away token.
+    if (cached && !accessTokenExpiresSoon(cached)) return cached;
     try {
       return (await this.refreshTokenIfNeeded()).access_token;
     } catch (error) {
@@ -167,7 +180,9 @@ class APIClient {
     }
 
     const data: TokenResponse = await response.json();
-    this.auth.setTokens(data.access_token, data.refresh_token);
+    // Awaited: on desktop the persist is a disk write, and returning before it
+    // lands lets an app quit strand the old (rotated-away) token on disk.
+    await this.auth.setTokens(data.access_token, data.refresh_token);
     return data;
   }
 

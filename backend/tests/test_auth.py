@@ -1,11 +1,12 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
 
 import aiosmtplib
 import httpx
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_refresh_token
@@ -325,10 +326,41 @@ async def test_refresh_rotates_refresh_token(
     assert body["token_type"] == "bearer"
 
 
-async def test_refresh_rejects_rotated_token(
+async def test_refresh_allows_replay_within_grace(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
+) -> None:
+    # A client that lost the rotation response retries with the old token —
+    # within the grace window that must mint a working pair, not a 401.
+    await create_user(email="refresh@example.com", username="refreshuser")
+    tokens = await login(email="refresh@example.com")
+    first = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    assert first.status_code == 200
+
+    replay = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+
+    assert replay.status_code == 200
+    replayed_token = replay.json()["refresh_token"]
+    assert replayed_token != tokens["refresh_token"]
+    followup = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": replayed_token},
+    )
+    assert followup.status_code == 200
+
+
+async def test_refresh_rejects_rotated_token_after_grace(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    db_session: AsyncSession,
 ) -> None:
     await create_user(email="refresh@example.com", username="refreshuser")
     tokens = await login(email="refresh@example.com")
@@ -336,6 +368,13 @@ async def test_refresh_rejects_rotated_token(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": tokens["refresh_token"]},
     )
+    # Backdate the rotation past the reuse grace window.
+    await db_session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.token_hash == hash_refresh_token(tokens["refresh_token"]))
+        .values(revoked_at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    )
+    await db_session.commit()
 
     response = await client.post(
         "/api/v1/auth/jwt/refresh",
@@ -344,6 +383,41 @@ async def test_refresh_rejects_rotated_token(
 
     assert response.status_code == 401
     assert response.json()["detail"] == "Invalid or expired refresh token"
+
+
+async def test_refresh_reuse_does_not_revoke_other_sessions(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    db_session: AsyncSession,
+) -> None:
+    # One device replaying a stale token must not log out the user's other
+    # devices — reuse is rejected per-token, never via revoke-all.
+    await create_user(email="multi@example.com", username="multiuser")
+    device_a = await login(email="multi@example.com")
+    device_b = await login(email="multi@example.com")
+    await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": device_a["refresh_token"]},
+    )
+    await db_session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.token_hash == hash_refresh_token(device_a["refresh_token"]))
+        .values(revoked_at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    )
+    await db_session.commit()
+    stale_replay = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": device_a["refresh_token"]},
+    )
+    assert stale_replay.status_code == 401
+
+    response = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": device_b["refresh_token"]},
+    )
+
+    assert response.status_code == 200
 
 
 async def test_refresh_rejects_invalid_token(client: AsyncClient) -> None:
@@ -375,6 +449,34 @@ async def test_logout_revokes_refresh_token(
         json={"refresh_token": tokens["refresh_token"]},
     )
     assert refresh_response.status_code == 401
+
+
+async def test_logout_invalidates_grace_eligible_predecessor(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    # Rotate then log out with the successor within the reuse grace window —
+    # the rotated-away predecessor must not be able to re-mint credentials.
+    await create_user(email="logout@example.com", username="logoutuser")
+    tokens = await login(email="logout@example.com")
+    rotated = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    assert rotated.status_code == 200
+
+    response = await client.post(
+        "/api/v1/auth/jwt/logout",
+        json={"refresh_token": rotated.json()["refresh_token"]},
+    )
+
+    assert response.status_code == 204
+    replay = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    assert replay.status_code == 401
 
 
 async def test_forgot_password_sends_reset_email(
@@ -418,6 +520,34 @@ async def test_reset_password_accepts_valid_token(
         data={"username": "reset@example.com", "password": "newpassword123"},
     )
     assert login_response.status_code == 200
+
+
+async def test_reset_password_revokes_refresh_tokens(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    email_capture: EmailCapture,
+) -> None:
+    # Sessions issued under the old password must not survive a reset.
+    await create_user(email="reset@example.com", username="resetuser")
+    tokens = await login(email="reset@example.com")
+    await client.post(
+        "/api/v1/auth/forgot-password",
+        json={"email": "reset@example.com"},
+    )
+    reset_token = email_capture.password_reset[0]["token"]
+
+    response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": reset_token, "password": "newpassword123"},
+    )
+
+    assert response.status_code == 200
+    refresh_response = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    assert refresh_response.status_code == 401
 
 
 async def test_reset_password_rejects_invalid_token(client: AsyncClient) -> None:
