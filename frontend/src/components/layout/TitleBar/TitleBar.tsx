@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
-import { Search } from 'lucide-react';
-import { useMatch } from 'react-router-dom';
+import { Plus, Search } from 'lucide-react';
+import { useMatch, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -110,6 +110,7 @@ export function DesktopDragRegion() {
 }
 
 export function TitleBar() {
+  const navigate = useNavigate();
   const isChatPage = useMatch('/chat/:chatId');
   const isLandingPage = useMatch('/');
   const showSidebar = isChatPage || isLandingPage;
@@ -161,19 +162,35 @@ export function TitleBar() {
               position="left"
               ariaLabel="Toggle sidebar"
             />
+            {/* Search + new chat only when the sidebar is closed — open, the sidebar
+                already exposes both actions. Landing is the "new tab page". */}
             {!sidebarOpen && (
-              <FloatingTooltip content="Search">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={styles['search-button']}
-                  onClick={() => useUIStore.getState().setCommandMenuOpen(true)}
-                  aria-label="Search"
-                >
-                  <Search className={styles['search-icon']} />
-                </Button>
-              </FloatingTooltip>
+              <>
+                <FloatingTooltip content="Search">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={styles['icon-button']}
+                    onClick={() => useUIStore.getState().setCommandMenuOpen(true)}
+                    aria-label="Search"
+                  >
+                    <Search className={styles['icon-button-glyph']} />
+                  </Button>
+                </FloatingTooltip>
+                <FloatingTooltip content="New chat">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className={styles['icon-button']}
+                    onClick={() => navigate('/')}
+                    aria-label="New chat"
+                  >
+                    <Plus className={styles['icon-button-glyph']} />
+                  </Button>
+                </FloatingTooltip>
+              </>
             )}
           </div>
         )}

@@ -131,26 +131,3 @@
   border-radius: var(--radius-full);
   background-color: var(--theme-text-primary);
 }
-
-.new-tab {
-  @include anim.transition-colors;
-  display: flex;
-  height: var(--space-5);
-  width: var(--space-5);
-  flex-shrink: 0;
-  align-self: center;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-md);
-  color: var(--theme-text-tertiary);
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    color: var(--theme-text-primary);
-  }
-}
-
-.new-tab-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
-}
