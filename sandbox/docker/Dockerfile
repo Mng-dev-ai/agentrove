@@ -68,8 +68,11 @@ RUN curl -fsSL https://opencode.ai/install | bash && \
     mkdir -p /home/user/.local/bin && \
     ln -sf /home/user/.opencode/bin/opencode /home/user/.local/bin/opencode
 
-# Grok Build CLI (installs `grok` to ~/.local/bin, which is already on PATH).
-RUN curl -fsSL https://x.ai/cli/install.sh | bash
+# Grok Build CLI (installs `grok` to ~/.grok/bin; symlink into ~/.local/bin
+# so the ACP binary resolves without modifying PATH).
+RUN curl -fsSL https://x.ai/cli/install.sh | bash && \
+    mkdir -p /home/user/.local/bin && \
+    ln -sf /home/user/.grok/bin/grok /home/user/.local/bin/grok
 
 RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
