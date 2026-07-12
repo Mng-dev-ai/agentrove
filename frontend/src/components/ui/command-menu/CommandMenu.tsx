@@ -143,12 +143,12 @@ export function CommandMenu() {
           <div className={styles.footer}>
             <span className={styles['footer-hint']}>
               {mode === 'branches'
-                ? '↵ Switch branch · Esc to go back'
+                ? '↵ Switch branch · Esc to close'
                 : mode === 'themes'
-                  ? '↵ Set theme · Esc to go back'
+                  ? '↵ Set theme · Esc to close'
                   : isPanelMode(mode)
-                    ? `${modKey}[ or ${modKey}] change filter · Esc to go back`
-                    : `↑↓ Select · ↵ Open · ${modKey}[ or ${modKey}] change filter · Esc to ${mode === 'all' ? 'close' : 'go back'}`}
+                    ? `${modKey}[ or ${modKey}] change filter · Esc to close`
+                    : `↑↓ Select · ↵ Open · ${modKey}[ or ${modKey}] change filter · Esc to close`}
             </span>
           </div>
         )}
