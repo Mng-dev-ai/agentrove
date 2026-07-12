@@ -30,6 +30,7 @@ export const AGENT_OPTIONS: { value: AgentKind; label: string }[] = [
 
 export const GROUP_BY_OPTIONS: { value: SidebarGroupBy; label: string }[] = [
   { value: 'none', label: 'None' },
+  { value: 'date', label: 'Date' },
   { value: 'workspace', label: 'Workspace' },
   { value: 'status', label: 'Status' },
 ];

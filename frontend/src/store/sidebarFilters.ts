@@ -7,7 +7,7 @@ import type { AgentKind } from '@/types/chat.types';
 // running/done/needs-you are session-only stream state that resets on reload.
 export type SidebarStatusFilter = 'unread' | 'running' | 'done' | 'needs-you';
 export type SidebarSourceFilter = 'all' | 'local' | 'cloud';
-export type SidebarGroupBy = 'none' | 'workspace' | 'status';
+export type SidebarGroupBy = 'none' | 'date' | 'workspace' | 'status';
 
 // statuses is an array (not a Set) so the whole object survives JSON
 // persistence in uiStore; it's at most 4 entries.
