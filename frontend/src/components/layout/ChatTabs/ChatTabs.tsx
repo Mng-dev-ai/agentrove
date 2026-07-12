@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
-import { Plus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot, type ChatStatusTone } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -202,16 +202,6 @@ export function ChatTabs() {
           />
         );
       })}
-      {/* Browser-style new-tab button — the landing page is the "new tab page",
-          so + just routes there instead of creating a chat eagerly. */}
-      <Button
-        variant="unstyled"
-        onClick={() => navigate('/')}
-        aria-label="New chat"
-        className={styles['new-tab']}
-      >
-        <Plus className={styles['new-tab-icon']} />
-      </Button>
     </div>
   );
 }
