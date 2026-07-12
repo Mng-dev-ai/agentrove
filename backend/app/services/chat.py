@@ -584,7 +584,9 @@ class ChatService(BaseDbService[Chat]):
         # and destroy the workspace container if no other chats reference it.
         async with self.session_factory() as db:
             result = await db.execute(
-                select(Chat).filter(
+                select(Chat)
+                .options(selectinload(Chat.workspace))
+                .filter(
                     Chat.id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
@@ -601,17 +603,28 @@ class ChatService(BaseDbService[Chat]):
                 )
 
             workspace_id = chat.workspace_id
+            sandbox_id = chat.sandbox_id
+            sandbox = self.sandbox_for_workspace(chat.workspace)
             now = datetime.now(timezone.utc)
             chat.deleted_at = now
 
             sub_thread_result = await db.execute(
-                select(Chat.id).filter(
+                select(Chat.id, Chat.worktree_cwd).filter(
                     Chat.parent_chat_id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
                 )
             )
-            sub_thread_ids = [row[0] for row in sub_thread_result.fetchall()]
+            sub_threads = sub_thread_result.all()
+            sub_thread_ids = [row[0] for row in sub_threads]
+
+            # Only worktrees these chats created themselves — a sub-thread's
+            # inherited worktree_cwd points at the parent's and won't match.
+            owned_worktrees = [
+                cwd
+                for cid, cwd in [(chat.id, chat.worktree_cwd), *sub_threads]
+                if cwd and cwd == GitService.chat_worktree_path(str(cid))
+            ]
 
             if sub_thread_ids:
                 await db.execute(
@@ -641,7 +654,9 @@ class ChatService(BaseDbService[Chat]):
             for sub_id in sub_thread_ids:
                 asyncio.create_task(session_registry.terminate(str(sub_id)))
 
-            # Destroy the workspace container if no chats remain
+            # Destroy the workspace container if no chats remain; the teardown
+            # also removes this chat's worktrees, so only fire standalone
+            # removal when the workspace survives.
             remaining = await db.execute(
                 select(func.count(Chat.id)).filter(
                     Chat.workspace_id == workspace_id,
@@ -662,19 +677,36 @@ class ChatService(BaseDbService[Chat]):
                     if workspace.sandbox_id:
                         ws_sandbox = self.sandbox_for_workspace(workspace)
                         asyncio.create_task(
-                            teardown_workspace_sandbox(workspace.sandbox_id, ws_sandbox)
+                            teardown_workspace_sandbox(
+                                workspace.sandbox_id, ws_sandbox, owned_worktrees
+                            )
                         )
+            elif sandbox_id:
+                git_service = GitService(sandbox)
+                for worktree_cwd in owned_worktrees:
+                    asyncio.create_task(
+                        git_service.remove_worktree(sandbox_id, worktree_cwd)
+                    )
 
     async def delete_all_chats(self, user: User) -> int:
         # Bulk soft-delete all chats, messages, and workspaces for a user,
         # then fire-and-forget session termination and sandbox cleanup.
         async with self.session_factory() as db:
-            chat_query = select(Chat.id).filter(
+            chat_query = select(Chat.id, Chat.workspace_id, Chat.worktree_cwd).filter(
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),
             )
             result = await db.execute(chat_query)
-            chat_ids = [str(row[0]) for row in result.fetchall()]
+            chat_rows = result.all()
+            chat_ids = [str(row[0]) for row in chat_rows]
+
+            # Owned worktrees per workspace, handed to each teardown — host
+            # sandboxes keep the repo files after deletion, so worktrees would
+            # otherwise leak into the user's project.
+            worktrees_by_workspace: dict[UUID, list[str]] = {}
+            for cid, ws_id, cwd in chat_rows:
+                if cwd and cwd == GitService.chat_worktree_path(str(cid)):
+                    worktrees_by_workspace.setdefault(ws_id, []).append(cwd)
 
             ws_result = await db.execute(
                 select(Workspace).filter(
@@ -715,7 +747,11 @@ class ChatService(BaseDbService[Chat]):
                 if ws.sandbox_id:
                     ws_sandbox = self.sandbox_for_workspace(ws)
                     asyncio.create_task(
-                        teardown_workspace_sandbox(ws.sandbox_id, ws_sandbox)
+                        teardown_workspace_sandbox(
+                            ws.sandbox_id,
+                            ws_sandbox,
+                            worktrees_by_workspace.get(ws.id, []),
+                        )
                     )
 
             return len(chat_ids)
