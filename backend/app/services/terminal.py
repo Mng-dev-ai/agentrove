@@ -12,6 +12,7 @@ from fastapi import WebSocket
 
 from app.constants import PTY_INPUT_QUEUE_SIZE, PTY_OUTPUT_QUEUE_SIZE
 from app.services.exceptions import SandboxException
+from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.sandbox_providers.base import SandboxProvider
@@ -349,10 +350,20 @@ terminal_session_registry = TerminalSessionRegistry()
 
 
 async def teardown_workspace_sandbox(
-    sandbox_id: str, sandbox_service: SandboxService
+    sandbox_id: str,
+    sandbox_service: SandboxService,
+    worktree_cwds: list[str],
 ) -> None:
     # Every workspace-sandbox deletion funnels through here so the ordering
     # can't drift: terminals must die while the sandbox still exists (tmux
-    # kill-session runs inside it), then the sandbox itself is deleted.
+    # kill-session runs inside it), then chat worktrees are removed (host
+    # sandboxes keep the repo files after deletion, so worktrees would leak),
+    # then the sandbox itself is deleted.
     await terminal_session_registry.terminate_for_sandbox(sandbox_id)
+    if worktree_cwds:
+        git_service = GitService(sandbox_service)
+        await asyncio.gather(
+            *[git_service.remove_worktree(sandbox_id, cwd) for cwd in worktree_cwds],
+            return_exceptions=True,
+        )
     await sandbox_service.delete_sandbox(sandbox_id)

@@ -1,3 +1,4 @@
+import logging
 import posixpath
 import re
 import shlex
@@ -18,6 +19,8 @@ from app.models.schemas.sandbox import (
 from app.services.exceptions import SandboxException
 from app.services.sandbox import SandboxService
 from app.utils.sandbox import BRANCH_NAME_RE, git_cd_prefix
+
+logger = logging.getLogger(__name__)
 
 
 class Checkpoint(NamedTuple):
@@ -71,11 +74,28 @@ GIT_CREATE_BRANCH_FROM_REMOTE_TEMPLATE = Template(
 # Idempotent: a previous attempt may have created the worktree but failed to
 # persist it; the dir-exists check lets us skip `git worktree add` instead of
 # failing on a duplicate branch or path.
+# The info/exclude entry hides .worktrees/ from the parent checkout — status,
+# ls-files, and rg all honor it, so root chats don't surface worktree contents
+# (phantom changed paths, duplicated search results, file-tree noise). Written
+# best-effort: a failed write must not block worktree creation. `--git-path`
+# resolves through the common git dir, so the entry lands in the file git
+# actually reads even when the workspace is itself a linked worktree
+# (`--absolute-git-dir` would point at the per-worktree admin dir).
 GIT_WORKTREE_ADD_TEMPLATE = Template(
-    "git rev-parse --is-inside-work-tree >/dev/null 2>&1 && "
-    "if [ -e '$worktree_dir/.git' ]; then echo 'exists'; exit 0; fi && "
+    "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
+    "if [ -e '$worktree_dir/.git' ]; then echo 'exists'; exit 0; fi; "
+    'excl="$$(git rev-parse --git-path info/exclude)"; '
+    '{ mkdir -p "$${excl%/*}" && grep -qxF ".worktrees/" "$$excl" '
+    '|| echo ".worktrees/" >> "$$excl"; } 2>/dev/null; '
     "mkdir -p '$base_worktrees_dir' && "
     "git worktree add '$worktree_dir' -b '$branch_name' 2>&1"
+)
+
+# Chat deletion is best-effort cleanup: `remove` without --force refuses when
+# the worktree has uncommitted changes and `-d` refuses when the branch is
+# unmerged, so dirty trees and unmerged work are never destroyed.
+GIT_WORKTREE_REMOVE_TEMPLATE = Template(
+    "git worktree remove '$worktree_dir' 2>&1 && git branch -d '$branch_name' 2>&1"
 )
 
 GIT_DIFF_STAGED_TEMPLATE = Template("git diff$ctx --cached 2>/dev/null")
@@ -589,6 +609,13 @@ class GitService:
             remote_url=remote_url,
         )
 
+    @staticmethod
+    def chat_worktree_path(chat_id: str) -> str:
+        # Worktrees are keyed by the owning chat's short id, so comparing a
+        # chat's worktree_cwd against this doubles as the ownership test on
+        # deletion — a sub-thread's inherited cwd won't match its own id.
+        return posixpath.join(".worktrees", chat_id[:8])
+
     async def create_worktree(
         self,
         sandbox_id: str,
@@ -601,7 +628,7 @@ class GitService:
         # workspace-relative so it slots straight into chat.worktree_cwd.
         short_id = chat_id[:8]
         rel_base_worktrees = posixpath.join(base_cwd, ".worktrees")
-        rel_worktree = posixpath.join(rel_base_worktrees, short_id)
+        rel_worktree = posixpath.join(base_cwd, self.chat_worktree_path(chat_id))
         branch_name = f"worktree-{short_id}"
         git_prefix = self.git_command_prefix(base_cwd)
         cmd = git_prefix + GIT_WORKTREE_ADD_TEMPLATE.substitute(
@@ -621,6 +648,30 @@ class GitService:
         if not error_output:
             error_output = "Worktree mode requires a git workspace"
         raise SandboxException(error_output)
+
+    async def remove_worktree(self, sandbox_id: str, worktree_cwd: str) -> None:
+        # Best-effort: a refusal (dirty worktree, unmerged branch, sandbox
+        # already torn down) just leaves the worktree behind, hidden from the
+        # parent checkout by the info/exclude entry. Runs fire-and-forget from
+        # chat deletion, so failures are logged instead of raised.
+        short_id = posixpath.basename(worktree_cwd)
+        cmd = GIT_DISCOVERY_ENV + GIT_WORKTREE_REMOVE_TEMPLATE.substitute(
+            worktree_dir=worktree_cwd,
+            branch_name=f"worktree-{short_id}",
+        )
+        try:
+            result = await self.sandbox_service.provider.execute_command(
+                sandbox_id, cmd
+            )
+        except (SandboxException, TimeoutError, OSError) as exc:
+            logger.info("Worktree cleanup skipped for %s: %s", worktree_cwd, exc)
+            return
+        if result.exit_code != 0:
+            logger.info(
+                "Worktree cleanup skipped for %s: %s",
+                worktree_cwd,
+                (result.stdout or result.stderr).strip(),
+            )
 
     @staticmethod
     def _validate_branch_name(name: str, label: str = "branch") -> None:

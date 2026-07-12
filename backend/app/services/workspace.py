@@ -29,6 +29,7 @@ from app.models.schemas.workspace import (
 from app.services.acp.adapters import AgentKind
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ErrorCode, WorkspaceException
+from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
@@ -282,11 +283,21 @@ class WorkspaceService(BaseDbService[Workspace]):
             workspace.deleted_at = now
 
             # Soft-delete all chats in this workspace
-            chat_ids_query = select(Chat.id).filter(
+            chat_ids_query = select(Chat.id, Chat.worktree_cwd).filter(
                 Chat.workspace_id == workspace_id, Chat.deleted_at.is_(None)
             )
             chat_ids_result = await db.execute(chat_ids_query)
-            chat_ids = [row[0] for row in chat_ids_result.fetchall()]
+            chat_rows = chat_ids_result.all()
+            chat_ids = [row[0] for row in chat_rows]
+
+            # Owned worktrees only (a sub-thread's inherited cwd won't match
+            # its own id) — teardown removes them before the sandbox goes away,
+            # since host sandboxes keep the repo files after deletion.
+            owned_worktrees = [
+                cwd
+                for cid, cwd in chat_rows
+                if cwd and cwd == GitService.chat_worktree_path(str(cid))
+            ]
 
             await db.execute(
                 update(Chat)
@@ -318,7 +329,9 @@ class WorkspaceService(BaseDbService[Workspace]):
                 )
                 sandbox_service = SandboxService(provider)
                 asyncio.create_task(
-                    teardown_workspace_sandbox(workspace.sandbox_id, sandbox_service)
+                    teardown_workspace_sandbox(
+                        workspace.sandbox_id, sandbox_service, owned_worktrees
+                    )
                 )
 
     async def _clone_git_workspace(

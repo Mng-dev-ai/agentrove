@@ -144,10 +144,14 @@ class SessionRegistry:
 
     @staticmethod
     def _compute_fingerprint(config: AcpSessionConfig) -> str:
-        # cwd is excluded: it drifts during a session when the agent
-        # reports sub-paths via SessionInfoUpdate.
+        # cwd is stable per chat (workspace root or the chat's worktree, never
+        # agent-reported paths), so including it respawns the agent process in
+        # the worktree when worktree mode is enabled mid-chat — otherwise the
+        # reused session keeps editing the workspace root while the UI targets
+        # the worktree. resume_session_id carries context across the respawn.
         fingerprint_dict: dict[str, Any] = {
             "agent_kind": config.agent_kind.value,
+            "cwd": config.cwd,
             "env": config.env,
             "mcp_servers": config.mcp_servers,
             "system_prompt": config.system_prompt,
