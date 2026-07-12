@@ -68,11 +68,19 @@ RUN curl -fsSL https://opencode.ai/install | bash && \
     mkdir -p /home/user/.local/bin && \
     ln -sf /home/user/.opencode/bin/opencode /home/user/.local/bin/opencode
 
-# Grok Build CLI (installs `grok` to ~/.grok/bin; symlink into ~/.local/bin
-# so the ACP binary resolves without modifying PATH).
-RUN curl -fsSL https://x.ai/cli/install.sh | bash && \
-    mkdir -p /home/user/.local/bin && \
-    ln -sf /home/user/.grok/bin/grok /home/user/.local/bin/grok
+# Grok Build CLI — download static binary into ~/.local/bin (already on PATH).
+# Avoid install.sh: it targets ~/.grok/bin and is awkward under non-root USER.
+RUN set -eux; \
+    version="$(curl -fsSL https://x.ai/cli/stable)"; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64|amd64) arch=x86_64 ;; \
+      aarch64|arm64) arch=aarch64 ;; \
+      *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
+    esac; \
+    mkdir -p /home/user/.local/bin; \
+    curl -fsSL "https://x.ai/cli/grok-${version}-linux-${arch}" -o /home/user/.local/bin/grok; \
+    chmod +x /home/user/.local/bin/grok
 
 RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
