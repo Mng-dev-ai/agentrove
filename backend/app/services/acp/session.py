@@ -262,9 +262,8 @@ class AcpSession:
 
     async def set_mode(self, mode_id: str) -> None:
         try:
-            await self._conn.set_session_mode(
-                mode_id=mode_id,
-                session_id=self.acp_session_id,
+            await self._set_mode_on_conn(
+                self._conn, self._agent_kind, self.acp_session_id, mode_id
             )
         except Exception:
             logger.warning("Failed to set ACP mode: %s", mode_id, exc_info=True)
@@ -397,9 +396,11 @@ class AcpSession:
 
             if config.permission_mode and config.permission_mode != "default":
                 try:
-                    await conn.set_session_mode(
-                        mode_id=config.permission_mode,
-                        session_id=acp_session_id,
+                    await cls._set_mode_on_conn(
+                        conn,
+                        config.agent_kind,
+                        acp_session_id,
+                        config.permission_mode,
                     )
                 except Exception:
                     logger.warning(
@@ -472,6 +473,21 @@ class AcpSession:
             agent_kind=config.agent_kind,
             stderr_task=stderr_task,
         )
+
+    @staticmethod
+    async def _set_mode_on_conn(
+        conn: ClientSideConnection,
+        agent_kind: AgentKind,
+        session_id: str,
+        mode_id: str,
+    ) -> None:
+        # Grok silently ignores direct auto <-> always-approve switches (the
+        # TUI gates those behind a confirmation ACP can't answer) but accepts
+        # any transition out of plan, so hop through plan to make the target
+        # mode actually take effect. No turn runs between the two calls.
+        if agent_kind == AgentKind.GROK and mode_id != "plan":
+            await conn.set_session_mode(mode_id="plan", session_id=session_id)
+        await conn.set_session_mode(mode_id=mode_id, session_id=session_id)
 
     @staticmethod
     async def _set_model_on_conn(

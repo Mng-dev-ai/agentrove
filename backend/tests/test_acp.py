@@ -628,18 +628,20 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
 
 
 @pytest.mark.parametrize(
-    "model_id,agent_permission_mode,expect_raises,expect_mapped_mode",
+    "model_id,agent_permission_mode,expect_raises,expect_mapped_modes",
     [
         ("gpt-5.4", "bypassPermissions", True, None),
         (
             "copilot:gpt-5.4",
             "bypassPermissions",
             False,
-            "https://agentclientprotocol.com/protocol/session-modes#agent",
+            ["https://agentclientprotocol.com/protocol/session-modes#agent"],
         ),
-        ("cursor:auto", "bypassPermissions", False, "agent"),
-        ("grok:grok-4.5", "bypassPermissions", False, "always-approve"),
-        ("opencode:opencode/gpt-5-nano", "bypassPermissions", False, "plan"),
+        ("cursor:auto", "bypassPermissions", False, ["agent"]),
+        # Grok mode-sets hop through plan first — direct auto <->
+        # always-approve switches are silently ignored by the CLI.
+        ("grok:grok-4.5", "bypassPermissions", False, ["plan", "always-approve"]),
+        ("opencode:opencode/gpt-5-nano", "bypassPermissions", False, ["plan"]),
     ],
 )
 async def test_chat_permission_mode_unsupported_by_adapter(
@@ -650,7 +652,7 @@ async def test_chat_permission_mode_unsupported_by_adapter(
     model_id: str,
     agent_permission_mode: str,
     expect_raises: bool,
-    expect_mapped_mode: str | None,
+    expect_mapped_modes: list[str] | None,
 ) -> None:
     # "bypassPermissions" is a globally valid PermissionMode literal but isn't
     # in every adapter's own session-mode set: Codex raises (a caller bug must
@@ -679,9 +681,12 @@ async def test_chat_permission_mode_unsupported_by_adapter(
     assert message["stream_status"] == "completed"
     set_modes = fake_agent.events_of("set_session_mode")
     assert set_modes
-    # First mode-set belongs to the chat session — background title generation
-    # opens a second session afterwards (opencode's uses a persona mode).
-    assert set_modes[0]["mode_id"] == expect_mapped_mode
+    assert expect_mapped_modes is not None
+    # Leading mode-sets belong to the chat session — background title
+    # generation opens a second session afterwards (opencode's uses a persona
+    # mode).
+    leading = [m["mode_id"] for m in set_modes[: len(expect_mapped_modes)]]
+    assert leading == expect_mapped_modes
 
 
 async def test_chat_attachments_with_only_native_files_skip_the_note(
