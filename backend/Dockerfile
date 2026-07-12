@@ -40,11 +40,18 @@ RUN curl -fsSL https://opencode.ai/install | bash && \
     cp /root/.opencode/bin/opencode /usr/local/bin/opencode && \
     chmod +x /usr/local/bin/opencode
 
-# Grok Build CLI (installs `grok` to /root/.grok/bin as a symlink into
-# downloads/) — used for the Grok ACP server (`grok agent stdio`).
-# cp -L dereferences so appuser can run the binary without needing /root.
-RUN curl -fsSL https://x.ai/cli/install.sh | bash && \
-    cp -L /root/.grok/bin/grok /usr/local/bin/grok && \
+# Grok Build CLI — used for the Grok ACP server (`grok agent stdio`).
+# Download the static binary directly: install.sh symlinks into /usr/local/bin
+# then our old `cp -L` treats src/dest as the same file and exits 1.
+RUN set -eux; \
+    version="$(curl -fsSL https://x.ai/cli/stable)"; \
+    arch="$(uname -m)"; \
+    case "$arch" in \
+      x86_64|amd64) arch=x86_64 ;; \
+      aarch64|arm64) arch=aarch64 ;; \
+      *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://x.ai/cli/grok-${version}-linux-${arch}" -o /usr/local/bin/grok; \
     chmod +x /usr/local/bin/grok
 
 # Install uv package manager
