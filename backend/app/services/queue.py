@@ -41,6 +41,7 @@ class QueueService:
         permission_mode: str = "bypassPermissions",
         thinking_mode: str | None = None,
         worktree: bool = False,
+        fast_mode: bool = False,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
         attachments: list[dict[str, Any]] | None = None,
     ) -> QueueAddResponse:
@@ -56,6 +57,7 @@ class QueueService:
             "permission_mode": permission_mode,
             "thinking_mode": thinking_mode,
             "worktree": worktree,
+            "fast_mode": fast_mode,
             "selected_persona_name": selected_persona_name,
             "queued_at": queued_at.isoformat(),
             "attachments": attachments,
@@ -77,6 +79,8 @@ class QueueService:
             permission_mode=item["permission_mode"],
             thinking_mode=item["thinking_mode"],
             worktree=item["worktree"],
+            # Older queue entries predate fast_mode; default off.
+            fast_mode=item.get("fast_mode", False),
             selected_persona_name=item["selected_persona_name"],
             queued_at=datetime.fromisoformat(item["queued_at"]),
             attachments=item["attachments"],

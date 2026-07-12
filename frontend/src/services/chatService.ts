@@ -38,6 +38,9 @@ export function buildChatFormData(request: ChatRequest): FormData {
   if (request.worktree) {
     formData.append('worktree', 'true');
   }
+  if (request.fast_mode) {
+    formData.append('fast_mode', 'true');
+  }
   formData.append('selected_persona_name', request.selected_persona_name);
   formData.append('permission_mode', request.permission_mode);
   return formData;

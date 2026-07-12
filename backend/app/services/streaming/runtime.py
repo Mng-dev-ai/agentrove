@@ -824,6 +824,8 @@ class ChatStreamRuntime:
             assistant_message_id=assistant_message_id,
             thinking_mode=queued_msg["thinking_mode"],
             worktree=queued_msg["worktree"],
+            # Older queue entries predate fast_mode.
+            fast_mode=queued_msg.get("fast_mode", False),
             attachments=queued_msg["attachments"],
             selected_persona_name=selected_persona_name,
         )
@@ -1041,6 +1043,7 @@ class ChatStreamRuntime:
                 system_prompt=request.system_prompt,
                 worktree=request.worktree,
                 selected_persona_name=request.selected_persona_name,
+                fast_mode=request.fast_mode,
             )
 
             session, _ = await session_registry.get_or_create(
@@ -1072,12 +1075,17 @@ class ChatStreamRuntime:
                     session_updates.append(
                         session.acp_session.set_mode(config.permission_mode)
                     )
+                if config.fast_mode != session.current_fast_mode:
+                    session_updates.append(
+                        session.acp_session.set_fast_mode(config.fast_mode)
+                    )
                 if session_updates:
                     await asyncio.gather(*session_updates)
                 if config.model:
                     session.current_model = config.model
                 if config.permission_mode:
                     session.current_mode = config.permission_mode
+                session.current_fast_mode = config.fast_mode
 
                 stream_result = StreamResult()
                 stream = ai_service.stream_response(

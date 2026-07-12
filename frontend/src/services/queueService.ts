@@ -1,23 +1,27 @@
 import { resolveChatClient } from '@/lib/api';
 import { ensureResponse, serviceCall } from '@/services/base/BaseService';
 import { DEFAULT_PERSONA, DEFAULT_PERMISSION_MODE } from '@/store/chatSettingsStore';
-import type { PermissionMode } from '@/store/chatSettingsStore';
 import { validateId, validateRequired } from '@/utils/validation';
-import type { QueuedMessage, QueueAddResponse } from '@/types/queue.types';
+import type { QueuedMessage, QueueAddResponse, QueueMessageOptions } from '@/types/queue.types';
 
 async function queueMessage(
   chatId: string,
   content: string,
   modelId: string,
-  permissionMode: PermissionMode = DEFAULT_PERMISSION_MODE,
-  thinkingMode: string | null = null,
-  worktree: boolean = false,
-  selectedPersonaName: string = DEFAULT_PERSONA,
-  files?: File[],
+  options: QueueMessageOptions = {},
 ): Promise<QueueAddResponse> {
   validateId(chatId, 'Chat ID');
   validateRequired(content, 'Content');
   validateRequired(modelId, 'Model ID');
+
+  const {
+    permissionMode = DEFAULT_PERMISSION_MODE,
+    thinkingMode = null,
+    worktree = false,
+    fastMode = false,
+    selectedPersonaName = DEFAULT_PERSONA,
+    files,
+  } = options;
 
   return serviceCall(async () => {
     const formData = new FormData();
@@ -29,6 +33,9 @@ async function queueMessage(
     }
     if (worktree) {
       formData.append('worktree', 'true');
+    }
+    if (fastMode) {
+      formData.append('fast_mode', 'true');
     }
     formData.append('selected_persona_name', selectedPersonaName);
 

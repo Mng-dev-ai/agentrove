@@ -10,6 +10,7 @@ import {
   DEFAULT_PERMISSION_MODE,
   DEFAULT_THINKING_MODE,
   DEFAULT_WORKTREE,
+  DEFAULT_FAST_MODE,
   DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
@@ -102,22 +103,19 @@ export function useInputSubmit({
         selectedModelId,
       );
       const worktree = settings.worktreeByChat[chatId] ?? DEFAULT_WORKTREE;
+      const fastMode = settings.fastModeByChat[chatId] ?? DEFAULT_FAST_MODE;
       const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
       const validPersona = resolvePersona(storedPersona, personas);
       // Queued messages are stored as plain text, so serialize chips here.
       const fullMessage = formatComposerSelections(attachedSelections, messageRef.current.trim());
-      void useMessageQueueStore
-        .getState()
-        .queueMessage(
-          chatId,
-          fullMessage,
-          selectedModelId,
-          permissionMode,
-          thinkingMode,
-          worktree,
-          validPersona,
-          attachedFiles ?? undefined,
-        );
+      void useMessageQueueStore.getState().queueMessage(chatId, fullMessage, selectedModelId, {
+        permissionMode,
+        thinkingMode,
+        worktree,
+        fastMode,
+        selectedPersonaName: validPersona,
+        files: attachedFiles ?? undefined,
+      });
       setMessage('');
       onAttach?.([]);
       if (attachedSelections.length > 0) useUIStore.getState().clearComposerSelections(chatId);

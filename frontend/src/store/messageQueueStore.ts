@@ -1,8 +1,7 @@
 import { create } from 'zustand';
-import type { LocalQueuedMessage } from '@/types/queue.types';
+import type { LocalQueuedMessage, QueueMessageOptions } from '@/types/queue.types';
 import { queueService } from '@/services/queueService';
 import { DEFAULT_PERSONA, DEFAULT_PERMISSION_MODE } from '@/store/chatSettingsStore';
-import type { PermissionMode } from '@/store/chatSettingsStore';
 
 export const EMPTY_QUEUE: LocalQueuedMessage[] = [];
 
@@ -12,11 +11,7 @@ interface MessageQueueState {
     chatId: string,
     content: string,
     modelId: string,
-    permissionMode?: PermissionMode,
-    thinkingMode?: string | null,
-    worktree?: boolean,
-    selectedPersonaName?: string,
-    files?: File[],
+    options?: QueueMessageOptions,
   ) => Promise<string>;
   updateQueuedMessage: (chatId: string, messageId: string, content: string) => Promise<void>;
   removeMessage: (chatId: string, messageId: string) => Promise<void>;
@@ -39,12 +34,17 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
     chatId: string,
     content: string,
     modelId: string,
-    permissionMode: PermissionMode = DEFAULT_PERMISSION_MODE,
-    thinkingMode: string | null = null,
-    worktree: boolean = false,
-    selectedPersonaName: string = DEFAULT_PERSONA,
-    files?: File[],
+    options: QueueMessageOptions = {},
   ): Promise<string> => {
+    const {
+      permissionMode = DEFAULT_PERMISSION_MODE,
+      thinkingMode = null,
+      worktree = false,
+      fastMode = false,
+      selectedPersonaName = DEFAULT_PERSONA,
+      files,
+    } = options;
+
     const currentQueue = get().queues.get(chatId) || [];
     const tempId = crypto.randomUUID();
     const tempMessage: LocalQueuedMessage = {
@@ -55,6 +55,7 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
       permissionMode,
       thinkingMode,
       worktree,
+      fastMode,
       selectedPersonaName,
       queuedAt: Date.now(),
       synced: false,
@@ -68,16 +69,7 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
     });
 
     try {
-      const result = await queueService.queueMessage(
-        chatId,
-        content,
-        modelId,
-        permissionMode,
-        thinkingMode,
-        worktree,
-        selectedPersonaName,
-        files,
-      );
+      const result = await queueService.queueMessage(chatId, content, modelId, options);
 
       set((state) => {
         const nextQueues = new Map(state.queues);
@@ -262,6 +254,7 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
           permissionMode: msg.permission_mode,
           thinkingMode: msg.thinking_mode ?? null,
           worktree: msg.worktree,
+          fastMode: msg.fast_mode,
           selectedPersonaName: msg.selected_persona_name,
           queuedAt: new Date(msg.queued_at).getTime(),
           synced: true,

@@ -2,6 +2,7 @@ import { PermissionModeSelector } from '@/components/chat/permission-mode-select
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { ThinkingModeSelector } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
 import { THINKING_MODES_BY_AGENT } from '@/components/chat/thinking-mode-selector/thinkingModes';
+import { FastModeSelector } from '@/components/chat/fast-mode-selector/FastModeSelector';
 import { PersonaSelector } from '@/components/chat/persona-selector/PersonaSelector';
 import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
 import { BranchSelector } from '@/components/chat/branch-selector/BranchSelector';
@@ -31,6 +32,7 @@ export function InputControls() {
     personas.length > 0 && (!agentKind || PERSONAS_SUPPORTED_AGENTS.has(agentKind));
   const showBranch = !!sandboxId && !!branchesData?.is_git_repo && branchesData.branches.length > 0;
   const showThinking = agentKind ? THINKING_MODES_BY_AGENT[agentKind].length > 0 : true;
+  const showFastMode = agentKind === 'codex';
 
   return (
     <div className={styles['input-controls']} onMouseDown={(e) => e.preventDefault()}>
@@ -52,6 +54,20 @@ export function InputControls() {
             chatId={state.chatId}
             agentKind={agentKind}
             modelId={state.selectedModelId}
+            dropdownPosition={state.dropdownPosition}
+            dropdownAlign="right"
+            disabled={state.isLoading}
+            variant="text"
+          />
+        </>
+      )}
+
+      {showFastMode && (
+        <>
+          <SelectorDot />
+          <FastModeSelector
+            chatId={state.chatId}
+            agentKind={agentKind}
             dropdownPosition={state.dropdownPosition}
             dropdownAlign="right"
             disabled={state.isLoading}

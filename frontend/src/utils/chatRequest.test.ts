@@ -15,6 +15,7 @@ const raw = (over: Partial<Parameters<typeof buildAgentChatFields>[2]> = {}) => 
   permissionMode: 'bypassPermissions' as const,
   thinkingMode: 'high',
   worktree: false,
+  fastMode: false,
   persona: 'Default',
   ...over,
 });
@@ -65,6 +66,15 @@ describe('buildAgentChatFields', () => {
     const off = buildAgentChatFields('claude-x', new Map(), raw({ worktree: false }), []);
     expect(on.worktree).toBe(true);
     expect(off.worktree).toBeUndefined();
+  });
+
+  it('sends fast_mode only for Codex when enabled', () => {
+    const codexOn = buildAgentChatFields('gpt-5.5', new Map(), raw({ fastMode: true }), []);
+    const codexOff = buildAgentChatFields('gpt-5.5', new Map(), raw({ fastMode: false }), []);
+    const claudeOn = buildAgentChatFields('claude-x', new Map(), raw({ fastMode: true }), []);
+    expect(codexOn.fast_mode).toBe(true);
+    expect(codexOff.fast_mode).toBeUndefined();
+    expect(claudeOn.fast_mode).toBeUndefined();
   });
 
   it('keeps a known custom persona and drops an unknown one back to Default', () => {

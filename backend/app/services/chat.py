@@ -1178,6 +1178,7 @@ class ChatService(BaseDbService[Chat]):
                 assistant_message_id=str(assistant_message.id),
                 thinking_mode=request.thinking_mode,
                 worktree=request.worktree,
+                fast_mode=request.fast_mode,
                 attachments=attachments,
                 context_window=model.context_window,
                 selected_persona_name=request.selected_persona_name,
@@ -1223,6 +1224,7 @@ class ChatService(BaseDbService[Chat]):
         thinking_mode: str | None,
         attachments: list[MessageAttachmentDict] | None,
         worktree: bool = False,
+        fast_mode: bool = False,
         context_window: int | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
     ) -> None:
@@ -1256,6 +1258,7 @@ class ChatService(BaseDbService[Chat]):
             assistant_message_id=assistant_message_id,
             thinking_mode=thinking_mode,
             worktree=worktree,
+            fast_mode=fast_mode,
             attachments=stream_attachments,
             selected_persona_name=selected_persona_name,
         )

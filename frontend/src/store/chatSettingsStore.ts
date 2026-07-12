@@ -19,12 +19,15 @@ const DEFAULT_KEY = '__default__';
 export const DEFAULT_PERMISSION_MODE: PermissionMode = 'bypassPermissions';
 export const DEFAULT_THINKING_MODE: string = 'high';
 export const DEFAULT_WORKTREE = false;
+export const DEFAULT_FAST_MODE = false;
 export const DEFAULT_PERSONA = 'Default';
 
 interface ChatSettingsState {
   permissionModeByChat: Record<string, PermissionMode>;
   thinkingModeByChat: Record<string, string>;
   worktreeByChat: Record<string, boolean>;
+  // Codex-only: 1.5x speed service tier. Other agents ignore it.
+  fastModeByChat: Record<string, boolean>;
   // Where a new chat runs: locally (false) or on the remote VPS instance (true).
   // Global, not per-chat — chosen at creation time on the landing composer, and
   // cloud chats live on the VPS so they never get a local chat ID to key by.
@@ -33,6 +36,7 @@ interface ChatSettingsState {
   setPermissionMode: (chatId: string, mode: PermissionMode) => void;
   setThinkingMode: (chatId: string, mode: string) => void;
   setWorktree: (chatId: string, enabled: boolean) => void;
+  setFastMode: (chatId: string, enabled: boolean) => void;
   setRunOnCloud: (enabled: boolean) => void;
   setPersona: (chatId: string, name: string) => void;
   initChatFromDefaults: (chatId: string) => void;
@@ -44,6 +48,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       permissionModeByChat: {},
       thinkingModeByChat: {},
       worktreeByChat: {},
+      fastModeByChat: {},
       runOnCloud: false,
       personaByChat: {},
       setPermissionMode: (chatId, mode) =>
@@ -61,6 +66,10 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         set((state) => ({
           worktreeByChat: { ...state.worktreeByChat, [chatId]: enabled },
         })),
+      setFastMode: (chatId, enabled) =>
+        set((state) => ({
+          fastModeByChat: { ...state.fastModeByChat, [chatId]: enabled },
+        })),
       setRunOnCloud: (enabled) => set({ runOnCloud: enabled }),
       setPersona: (chatId, name) =>
         set((state) => ({
@@ -75,11 +84,16 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         const permission = state.permissionModeByChat[DEFAULT_KEY];
         const thinking = state.thinkingModeByChat[DEFAULT_KEY];
         const worktree = state.worktreeByChat[DEFAULT_KEY];
+        const fastMode = state.fastModeByChat[DEFAULT_KEY];
         const persona = state.personaByChat[DEFAULT_KEY];
         const updates: Partial<
           Pick<
             ChatSettingsState,
-            'permissionModeByChat' | 'thinkingModeByChat' | 'worktreeByChat' | 'personaByChat'
+            | 'permissionModeByChat'
+            | 'thinkingModeByChat'
+            | 'worktreeByChat'
+            | 'fastModeByChat'
+            | 'personaByChat'
           >
         > = {};
         if (permission !== undefined) {
@@ -93,6 +107,9 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         }
         if (worktree !== undefined) {
           updates.worktreeByChat = { ...state.worktreeByChat, [chatId]: worktree };
+        }
+        if (fastMode !== undefined) {
+          updates.fastModeByChat = { ...state.fastModeByChat, [chatId]: fastMode };
         }
         if (persona !== undefined) {
           updates.personaByChat = { ...state.personaByChat, [chatId]: persona };

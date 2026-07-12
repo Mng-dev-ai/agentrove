@@ -22,6 +22,7 @@ import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
   DEFAULT_WORKTREE,
+  DEFAULT_FAST_MODE,
   DEFAULT_PERMISSION_MODE,
   DEFAULT_THINKING_MODE,
   DEFAULT_PERSONA,
@@ -255,6 +256,8 @@ export function LandingPage() {
                   DEFAULT_THINKING_MODE,
                 worktree:
                   chatSettings.worktreeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_WORKTREE,
+                fastMode:
+                  chatSettings.fastModeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_FAST_MODE,
                 persona: chatSettings.personaByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_PERSONA,
               },
               resolvedPersonas ?? [],

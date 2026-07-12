@@ -167,6 +167,8 @@ export function AutomationsSettingsTab() {
         permissionMode: form.permission_mode,
         thinkingMode: form.thinking_mode,
         worktree: form.worktree,
+        // Automations don't expose a Fast mode control yet.
+        fastMode: false,
         persona: form.persona_name,
       },
       personas,
