@@ -16,8 +16,8 @@ import styles from './ViewSwitcher.module.scss';
 type SwitchableView = Exclude<ViewType, 'agent'>;
 
 // Non-agent secondary views, in the order Cursor lays them out: diff (git),
-// editor (file), terminal, secrets.
-const SWITCHABLE_VIEWS: SwitchableView[] = ['diff', 'editor', 'terminal', 'secrets'];
+// editor (file), terminal.
+const SWITCHABLE_VIEWS: SwitchableView[] = ['diff', 'editor', 'terminal'];
 
 // Reuse the command palette's shortcut bindings so the tooltips can't drift from
 // the real keys (⌘⇧E etc.).

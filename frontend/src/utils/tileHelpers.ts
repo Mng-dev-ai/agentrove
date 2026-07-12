@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
-import { Bot, CodeXml, GitBranch, Lock, Terminal } from 'lucide-react';
+import { Bot, CodeXml, GitBranch, Terminal } from 'lucide-react';
 import type { AgentTileId, TileId, SecondaryTileId, ViewType } from '@/types/ui.types';
 
 export const VIEW_LABELS: Record<ViewType, string> = {
@@ -7,7 +7,6 @@ export const VIEW_LABELS: Record<ViewType, string> = {
   diff: 'Diff',
   editor: 'Editor',
   terminal: 'Terminal',
-  secrets: 'Secrets',
 };
 
 // Canonical view → icon map; shared by the pane tabs and the view switcher so the
@@ -17,7 +16,6 @@ export const VIEW_ICONS: Record<ViewType, LucideIcon> = {
   diff: GitBranch,
   editor: CodeXml,
   terminal: Terminal,
-  secrets: Lock,
 };
 
 // The secondary pane is the action target only when it's both focused and bound

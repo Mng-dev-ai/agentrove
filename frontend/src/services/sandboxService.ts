@@ -16,7 +16,6 @@ import type {
   GitRemoteUrlData,
   SearchParams,
   SearchResponse,
-  Secret,
   UpdateFileResult,
 } from '@/types/sandbox.types';
 import { validateRequired } from '@/utils/validation';
@@ -74,51 +73,6 @@ async function updateFile(
     );
 
     return ensureResponse(response, 'Update file operation returned no response');
-  });
-}
-
-async function getSecrets(sandboxId: string): Promise<Secret[]> {
-  validateRequired(sandboxId, 'Sandbox ID');
-
-  return serviceCall(async () => {
-    const response = await resolveSandboxClient(sandboxId).get<{ secrets: Secret[] }>(
-      `/sandbox/${sandboxId}/secrets`,
-    );
-
-    if (!response || !response.secrets) {
-      return [];
-    }
-
-    return response.secrets;
-  });
-}
-
-async function addSecret(sandboxId: string, key: string, value: string): Promise<void> {
-  validateRequired(sandboxId, 'Sandbox ID');
-  validateRequired(key, 'Secret key');
-  validateRequired(value, 'Secret value');
-
-  await serviceCall(async () => {
-    await resolveSandboxClient(sandboxId).post(`/sandbox/${sandboxId}/secrets`, { key, value });
-  });
-}
-
-async function updateSecret(sandboxId: string, key: string, value: string): Promise<void> {
-  validateRequired(sandboxId, 'Sandbox ID');
-  validateRequired(key, 'Secret key');
-  validateRequired(value, 'Secret value');
-
-  await serviceCall(async () => {
-    await resolveSandboxClient(sandboxId).put(`/sandbox/${sandboxId}/secrets/${key}`, { value });
-  });
-}
-
-async function deleteSecret(sandboxId: string, key: string): Promise<void> {
-  validateRequired(sandboxId, 'Sandbox ID');
-  validateRequired(key, 'Secret key');
-
-  await serviceCall(async () => {
-    await resolveSandboxClient(sandboxId).delete(`/sandbox/${sandboxId}/secrets/${key}`);
   });
 }
 
@@ -348,10 +302,6 @@ export const sandboxService = {
   getSandboxFilesMetadata,
   getFileContent,
   updateFile,
-  getSecrets,
-  addSecret,
-  updateSecret,
-  deleteSecret,
   downloadZip,
   getGitDiff,
   getGitChangedPaths,

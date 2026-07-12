@@ -1,20 +1,14 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import (
     get_git_service,
     get_sandbox_service,
     get_search_service,
-    get_user_service,
     validate_sandbox_ownership,
 )
-from app.core.security import get_current_user
-from app.db.session import get_db
-from app.models.db_models.user import User
 from app.models.schemas.sandbox import (
-    AddSecretRequest,
     FileContentResponse,
     FileMetadata,
     GitBranchesResponse,
@@ -33,18 +27,11 @@ from app.models.schemas.sandbox import (
     SearchResponse,
     UpdateFileRequest,
     UpdateFileResponse,
-    UpdateSecretRequest,
-)
-from app.models.schemas.secrets import (
-    MessageResponse,
-    SecretResponse,
-    SecretsListResponse,
 )
 from app.services.exceptions import SandboxException
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.search import SearchService
-from app.services.user import UserService
 from app.utils.sandbox import normalize_relative_path
 
 
@@ -119,79 +106,6 @@ async def update_file_in_sandbox(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
-
-
-@router.get("/{sandbox_id}/secrets", response_model=SecretsListResponse)
-async def get_secrets(
-    sandbox_id: str = Depends(validate_sandbox_ownership),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    user_service: UserService = Depends(get_user_service),
-) -> SecretsListResponse:
-    user_settings = await user_service.get_user_settings(current_user.id, db=db)
-    env_vars = user_settings.custom_env_vars or []
-    return SecretsListResponse(
-        secrets=[SecretResponse(key=ev["key"], value=ev["value"]) for ev in env_vars]
-    )
-
-
-@router.post("/{sandbox_id}/secrets", response_model=MessageResponse)
-async def add_secret(
-    secret_data: AddSecretRequest,
-    sandbox_id: str = Depends(validate_sandbox_ownership),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    user_service: UserService = Depends(get_user_service),
-) -> MessageResponse:
-    user_settings = await user_service.get_user_settings(current_user.id, db=db)
-    env_vars = list(user_settings.custom_env_vars or [])
-    env_vars.append({"key": secret_data.key, "value": secret_data.value})
-    await user_service.update_user_settings(
-        current_user.id, {"custom_env_vars": env_vars}, db=db
-    )
-    return MessageResponse(message=f"Secret {secret_data.key} added successfully")
-
-
-@router.put("/{sandbox_id}/secrets/{key}", response_model=MessageResponse)
-async def update_secret(
-    key: str,
-    secret_data: UpdateSecretRequest,
-    sandbox_id: str = Depends(validate_sandbox_ownership),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    user_service: UserService = Depends(get_user_service),
-) -> MessageResponse:
-    user_settings = await user_service.get_user_settings(current_user.id, db=db)
-    env_vars = list(user_settings.custom_env_vars or [])
-    # Update existing or append new
-    found = False
-    for ev in env_vars:
-        if ev["key"] == key:
-            ev["value"] = secret_data.value
-            found = True
-            break
-    if not found:
-        env_vars.append({"key": key, "value": secret_data.value})
-    await user_service.update_user_settings(
-        current_user.id, {"custom_env_vars": env_vars}, db=db
-    )
-    return MessageResponse(message=f"Secret {key} updated successfully")
-
-
-@router.delete("/{sandbox_id}/secrets/{key}", response_model=MessageResponse)
-async def delete_secret(
-    key: str,
-    sandbox_id: str = Depends(validate_sandbox_ownership),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    user_service: UserService = Depends(get_user_service),
-) -> MessageResponse:
-    user_settings = await user_service.get_user_settings(current_user.id, db=db)
-    env_vars = [ev for ev in (user_settings.custom_env_vars or []) if ev["key"] != key]
-    await user_service.update_user_settings(
-        current_user.id, {"custom_env_vars": env_vars}, db=db
-    )
-    return MessageResponse(message=f"Secret {key} deleted successfully")
 
 
 @router.get("/{sandbox_id}/download-zip")

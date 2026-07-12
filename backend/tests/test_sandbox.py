@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.config import get_settings
 from app.models.db_models.workspace import Workspace
@@ -268,70 +269,6 @@ async def test_download_zip_returns_owned_sandbox_files(
         assert archive.namelist() == ["README.md", "src/app.py"]
         assert archive.read("README.md") == b"Initial readme"
         assert archive.read("src/app.py") == b"print('zip')"
-
-
-async def test_secret_endpoints_update_user_settings(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    initial_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/secrets",
-        headers=headers,
-    )
-    add_response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/secrets",
-        json={"key": "API_TOKEN", "value": "one"},
-        headers=headers,
-    )
-    update_response = await client.put(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/secrets/API_TOKEN",
-        json={"value": "two"},
-        headers=headers,
-    )
-    append_response = await client.put(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/secrets/SECOND_TOKEN",
-        json={"value": "three"},
-        headers=headers,
-    )
-    list_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/secrets",
-        headers=headers,
-    )
-    delete_response = await client.delete(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/secrets/API_TOKEN",
-        headers=headers,
-    )
-    final_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/secrets",
-        headers=headers,
-    )
-
-    assert initial_response.status_code == 200
-    assert initial_response.json() == {"secrets": []}
-    assert add_response.status_code == 200
-    assert add_response.json()["message"] == "Secret API_TOKEN added successfully"
-    assert update_response.status_code == 200
-    assert update_response.json()["message"] == "Secret API_TOKEN updated successfully"
-    assert append_response.status_code == 200
-    assert list_response.status_code == 200
-    assert list_response.json() == {
-        "secrets": [
-            {"key": "API_TOKEN", "value": "two"},
-            {"key": "SECOND_TOKEN", "value": "three"},
-        ]
-    }
-    assert delete_response.status_code == 200
-    assert delete_response.json()["message"] == "Secret API_TOKEN deleted successfully"
-    assert final_response.status_code == 200
-    assert final_response.json() == {
-        "secrets": [{"key": "SECOND_TOKEN", "value": "three"}]
-    }
 
 
 async def test_git_endpoints_propagate_cwd_and_request_fields(
@@ -1458,13 +1395,17 @@ async def test_host_provider_runs_real_git_commands(
         username="hostgit",
     )
 
-    # A custom secret forces SandboxService to pass non-empty envs into
+    # A custom env var forces SandboxService to pass non-empty envs into
     # execute_command, exercising the process_env.update(envs) merge path.
-    secret_response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/secrets",
-        json={"key": "MY_VAR", "value": "hello"},
-        headers=headers,
-    )
+    # Seed via DB (same pattern as the github-token inject test) — PATCH
+    # /settings/ goes through Redis cache invalidation, which host-provider
+    # tests don't wire up.
+    user_settings = await get_user_settings(db_session, workspace.user_id)
+    assert user_settings is not None
+    user_settings.custom_env_vars = [{"key": "MY_VAR", "value": "hello"}]
+    flag_modified(user_settings, "custom_env_vars")
+    await db_session.commit()
+
     branches_response = await client.get(
         f"/api/v1/sandbox/{workspace.sandbox_id}/git/branches", headers=headers
     )
@@ -1487,7 +1428,6 @@ async def test_host_provider_runs_real_git_commands(
         f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata", headers=headers
     )
 
-    assert secret_response.status_code == 200
     assert branches_response.status_code == 200
     assert branches_response.json()["current_branch"] == "main"
     assert branches_response.json()["is_git_repo"] is True

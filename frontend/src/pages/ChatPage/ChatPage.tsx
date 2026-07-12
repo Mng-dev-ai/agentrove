@@ -31,10 +31,6 @@ const EditorPane = lazyNamed(
   () => import('@/components/editor/editor-core/EditorPane'),
   'EditorPane',
 );
-const SecretsView = lazyNamed(
-  () => import('@/components/sandbox/secrets/SecretsView/SecretsView'),
-  'SecretsView',
-);
 const DiffView = lazyNamed(() => import('@/components/sandbox/git/DiffView/DiffView'), 'DiffView');
 const TerminalContainer = lazyNamed(
   () => import('@/components/sandbox/terminal/Container/Container'),
@@ -219,19 +215,12 @@ export function ChatPage() {
       // is handled in renderView's terminal branch, so it's a no-op here.
       const isSecondary = isSecondaryTile(tileId);
       if (isSecondary && !secondaryChatId) return null;
-      const paneChat = isSecondary ? secondaryQuery.data : currentChat;
       const paneChatId = isSecondary ? (secondaryChatId ?? undefined) : chatId;
       switch (tileIdToViewType(tileId)) {
         case 'editor':
           return (
             <Suspense fallback={viewLoadingFallback}>
               <EditorPane chatId={paneChatId} />
-            </Suspense>
-          );
-        case 'secrets':
-          return (
-            <Suspense fallback={viewLoadingFallback}>
-              <SecretsView sandboxId={paneChat?.sandbox_id ?? undefined} />
             </Suspense>
           );
         case 'diff':
@@ -244,7 +233,7 @@ export function ChatPage() {
           return null;
       }
     },
-    [chatId, currentChat, secondaryChatId, secondaryQuery.data?.sandbox_id],
+    [chatId, secondaryChatId],
   );
 
   const renderView = useCallback(

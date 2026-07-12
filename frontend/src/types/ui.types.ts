@@ -63,7 +63,7 @@ export interface ModelSelectionState {
   toggleFavoriteModel: (modelId: string) => void;
 }
 
-export type ViewType = 'agent' | 'diff' | 'editor' | 'terminal' | 'secrets';
+export type ViewType = 'agent' | 'diff' | 'editor' | 'terminal';
 
 // A tile id used to be a bare ViewType string, but split-chat view renders two
 // panes scoped to different chats, so every view has a `:secondary` variant
