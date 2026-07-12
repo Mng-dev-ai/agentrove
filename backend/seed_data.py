@@ -3,10 +3,10 @@ import asyncio
 import os
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.security import get_password_hash
+from app.db.session import SessionLocal, engine
 from app.models.db_models.user import User, UserSettings
 
 
@@ -46,13 +46,9 @@ async def seed_admin(session: AsyncSession) -> None:
 
 
 async def seed_data() -> None:
-    settings = get_settings()
-    engine = create_async_engine(settings.DATABASE_URL, echo=False)
-    async_session = async_sessionmaker(
-        engine, class_=AsyncSession, expire_on_commit=False
-    )
-
-    async with async_session() as session:
+    # Reuse the app engine so seeding runs with the same SQLite pragmas
+    # (foreign keys, WAL) instead of a bare unconfigured connection.
+    async with SessionLocal() as session:
         await seed_admin(session)
         await session.commit()
         print("Seed completed successfully")

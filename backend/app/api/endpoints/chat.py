@@ -296,7 +296,8 @@ async def stream_user_chat_events(
     # isn't parsed as a UUID.
     # `db` is the same cached session the auth chain used; FastAPI keeps yield
     # deps open until the response finishes, so a long-lived SSE connection would
-    # pin its pooled DB connection until disconnect. Auth is done — release it.
+    # pin its DB connection and aiosqlite thread until disconnect. Auth is
+    # done — release it.
     await db.close()
     return EventSourceResponse(
         chat_service.create_chat_events_stream(current_user.id),
@@ -328,8 +329,8 @@ async def stream_user_streams(
     owned = await chat_service.filter_owned_chat_ids(current_user.id, list(requested))
     replay_cursors = {cid: seq for cid, seq in requested.items() if cid in owned}
 
-    # Same rationale as /chats/events: auth is done — release the pooled DB
-    # session so the long-lived SSE connection doesn't pin it until disconnect.
+    # Same rationale as /chats/events: auth is done — release the DB session
+    # so the long-lived SSE connection doesn't pin it until disconnect.
     await db.close()
     return EventSourceResponse(
         chat_service.create_user_streams_feed(current_user.id, replay_cursors),

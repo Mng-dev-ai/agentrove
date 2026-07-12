@@ -6,7 +6,7 @@ from sqlalchemy.engine import Connection
 
 from alembic import context
 from app.db.base_class import Base
-from app.db.sqlite import enable_foreign_keys
+from app.db.sqlite import configure_sqlite
 from app.models.db_models import (  # noqa: F401
     automation,
     chat,
@@ -98,7 +98,7 @@ def do_run_migrations(connection: Connection) -> None:
 def run_migrations_online() -> None:
     sync_url = database_url.replace("sqlite+aiosqlite://", "sqlite://", 1)
     engine = create_engine(sync_url, poolclass=pool.NullPool)
-    enable_foreign_keys(engine)
+    configure_sqlite(engine)
     with engine.connect() as connection:
         do_run_migrations(connection)
     engine.dispose()
