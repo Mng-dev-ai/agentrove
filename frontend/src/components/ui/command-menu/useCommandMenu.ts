@@ -238,11 +238,11 @@ export function useCommandMenu() {
 
       if (isPanelMode(m)) {
         // The embedded panel handles its own typing + click-to-open; don't
-        // hijack Enter/arrows here. Only wire Escape to step back to the All tab.
+        // hijack Enter/arrows here. Only wire Escape to close the menu.
         if (e.key === 'Escape') {
           e.preventDefault();
           e.stopImmediatePropagation();
-          switchFilter('all');
+          close();
         }
         return;
       }
@@ -251,13 +251,7 @@ export function useCommandMenu() {
         case 'Escape':
           e.preventDefault();
           e.stopImmediatePropagation();
-          if (m === 'branches' || m === 'themes') {
-            switchMode('all');
-          } else if (m !== 'all') {
-            switchFilter('all');
-          } else {
-            close();
-          }
+          close();
           break;
         case 'ArrowDown':
           e.preventDefault();
@@ -303,7 +297,6 @@ export function useCommandMenu() {
     handleOpenChatResult,
     handleSelectBranch,
     handleSelectTheme,
-    switchMode,
     switchFilter,
     close,
   ]);
