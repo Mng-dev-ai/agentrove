@@ -6,7 +6,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, inspect
 
 from app.core.config import get_settings
-from app.db.sqlite import enable_foreign_keys
+from app.db.sqlite import configure_sqlite
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ def check_and_run_migrations():
     is_production = settings.ENVIRONMENT.lower() == "production"
 
     engine = create_engine(db_url)
-    enable_foreign_keys(engine)
+    configure_sqlite(engine)
 
     try:
         with engine.connect():

@@ -27,7 +27,7 @@ async def preview_temp_attachment(
         raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     # The file body streams after the handler returns while yield deps stay
     # open — release the auth chain's session so a slow download doesn't pin
-    # a pooled DB connection.
+    # a DB connection (and its aiosqlite thread).
     await db.close()
     return response
 

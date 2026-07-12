@@ -5,18 +5,23 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 
 from app.core.config import get_settings
-from app.db.sqlite import enable_foreign_keys
+from app.db.sqlite import configure_sqlite
 
 settings = get_settings()
 
+# NullPool: SQLite connections are cheap local file opens, and a bounded pool
+# gets exhausted when slow requests (Docker setup, LLM calls) pin connections
+# for their full duration — WAL mode handles the resulting write concurrency.
 engine = create_async_engine(
     settings.DATABASE_URL,
     connect_args={"check_same_thread": False},
     echo=False,
+    poolclass=NullPool,
 )
-enable_foreign_keys(engine.sync_engine)
+configure_sqlite(engine.sync_engine)
 
 SessionLocal = async_sessionmaker(
     engine,

@@ -13,6 +13,7 @@ import uvicorn
 from acp.schema import PermissionOption, ToolCallUpdate
 from fastapi import FastAPI
 from httpx import AsyncClient
+from sqlalchemy import event as sa_event
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
@@ -48,6 +49,19 @@ pytestmark = pytest.mark.anyio
 # Sentinel script step: makes the fake ACP session block forever on this
 # prompt (until the runtime cancels it), simulating a long-running turn.
 BLOCK_FOREVER = object()
+
+
+class ConnectionCounter:
+    # NullPool has no checkedout() — count live DBAPI connections via pool
+    # checkout/checkin events instead, which fire for every pool implementation.
+    def __init__(self) -> None:
+        self.active = 0
+
+    def on_checkout(self, *_: Any) -> None:
+        self.active += 1
+
+    def on_checkin(self, *_: Any) -> None:
+        self.active -= 1
 
 
 @dataclass
@@ -1192,26 +1206,34 @@ async def test_sse_endpoints_release_db_connection_while_streaming(
     )
     chat = await create_chat_row(db_session, user, workspace)
 
-    baseline = engine.pool.checkedout()
-    async with asyncio.timeout(15):
-        sse_client = httpx.AsyncClient(base_url=live_server_url, timeout=10.0)
-        async with (
-            sse_client,
-            sse_client.stream(
-                "GET", "/api/v1/chat/chats/events", headers=headers
-            ) as events_response,
-            sse_client.stream(
-                "GET",
-                "/api/v1/chat/chats/streams",
-                params={"cursors": json.dumps({str(chat.id): 0})},
-                headers=headers,
-            ) as chat_stream_response,
-        ):
-            assert events_response.status_code == 200
-            assert chat_stream_response.status_code == 200
-            # The chat stream's backlog replay briefly opens its own session,
-            # so poll rather than assert instantly. Without the release fix
-            # each open stream pins a connection forever, the count never
-            # returns to baseline, and asyncio.timeout fails the test.
-            while engine.pool.checkedout() > baseline:
-                await asyncio.sleep(0.01)
+    counter = ConnectionCounter()
+    sa_event.listen(engine.sync_engine, "checkout", counter.on_checkout)
+    sa_event.listen(engine.sync_engine, "checkin", counter.on_checkin)
+    try:
+        async with asyncio.timeout(15):
+            sse_client = httpx.AsyncClient(base_url=live_server_url, timeout=10.0)
+            async with (
+                sse_client,
+                sse_client.stream(
+                    "GET", "/api/v1/chat/chats/events", headers=headers
+                ) as events_response,
+                sse_client.stream(
+                    "GET",
+                    "/api/v1/chat/chats/streams",
+                    params={"cursors": json.dumps({str(chat.id): 0})},
+                    headers=headers,
+                ) as chat_stream_response,
+            ):
+                assert events_response.status_code == 200
+                assert chat_stream_response.status_code == 200
+                # The chat stream's backlog replay briefly opens its own session,
+                # so poll rather than assert instantly. Without the release fix
+                # each open stream pins a connection forever, the count never
+                # returns to zero, and asyncio.timeout fails the test.
+                while counter.active > 0:
+                    await asyncio.sleep(0.01)
+    finally:
+        # The engine is module-global — unhook so the counter doesn't leak
+        # into other tests.
+        sa_event.remove(engine.sync_engine, "checkout", counter.on_checkout)
+        sa_event.remove(engine.sync_engine, "checkin", counter.on_checkin)
