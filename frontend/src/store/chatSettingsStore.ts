@@ -9,7 +9,7 @@ type PermissionMode =
   | 'agent'
   | 'autopilot'
   | 'auto'
-  | 'code'
+  | 'always-approve'
   | 'read-only'
   | 'full-access'
   | 'ask'

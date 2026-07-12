@@ -70,9 +70,14 @@ export const CURSOR_PERMISSION_MODES: PermissionModeOption[] = [
 
 export const GROK_PERMISSION_MODES: PermissionModeOption[] = [
   {
-    value: 'code',
-    label: 'Code',
-    description: 'Full tool access, tool calls run without approval prompts',
+    value: 'auto',
+    label: 'Auto',
+    description: 'Approves routine tool calls, asks for risky ones',
+  },
+  {
+    value: 'always-approve',
+    label: 'Always Approve',
+    description: 'Skip all permission prompts',
   },
   {
     value: 'plan',
@@ -108,7 +113,7 @@ const DEFAULT_BY_AGENT: Record<AgentKind, PermissionMode> = {
   codex: 'full-access',
   copilot: 'agent',
   cursor: 'agent',
-  grok: 'code',
+  grok: 'always-approve',
   opencode: 'build',
 };
 

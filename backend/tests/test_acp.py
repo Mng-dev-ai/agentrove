@@ -17,6 +17,7 @@ from app.models.db_models.workspace import Workspace
 from app.services.session_registry import session_registry
 from tests.conftest import LoginClient, UserFactory
 from tests.fake_acp_agent import (
+    MARKER_ASK_USER_QUESTION,
     MARKER_CANCEL,
     MARKER_CRASH_MID_PROMPT,
     MARKER_ENTER_PLAN_MODE,
@@ -43,7 +44,14 @@ from tests.helpers import EndpointCache, create_authenticated_workspace
 pytestmark = pytest.mark.anyio
 
 FAKE_AGENT_SCRIPT = Path(__file__).resolve().parent / "fake_acp_agent.py"
-BINARY_NAMES = ["claude-agent-acp", "codex-acp", "copilot", "cursor-agent", "opencode"]
+BINARY_NAMES = [
+    "claude-agent-acp",
+    "codex-acp",
+    "copilot",
+    "cursor-agent",
+    "grok",
+    "opencode",
+]
 
 DEFAULT_TURN_TEXT = "Hello from the fake agent."
 
@@ -630,6 +638,7 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
             "https://agentclientprotocol.com/protocol/session-modes#agent",
         ),
         ("cursor:auto", "bypassPermissions", False, "agent"),
+        ("grok:grok-4.5", "bypassPermissions", False, "always-approve"),
         ("opencode:opencode/gpt-5-nano", "bypassPermissions", False, "plan"),
     ],
 )
@@ -806,6 +815,70 @@ async def test_chat_permission_response_flow(
     tool = last_tool(message, "tool-permission")
     assert tool["status"] == expect_status.removeprefix("tool_")
     assert tool.get("permission_mode") == expect_permission_mode
+
+
+@pytest.mark.parametrize(
+    "option_id,expect_response",
+    [
+        ("Red", {"outcome": "accepted", "answers": {"Pick a color": "Red"}}),
+        ("", {"outcome": "skip_interview"}),
+    ],
+)
+async def test_chat_ask_user_question_flow(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    option_id: str,
+    expect_response: dict[str, Any],
+) -> None:
+    # Grok's ask_user_question arrives as an ACP extension request and must be
+    # answered with an AskUserQuestionExtResponse: the question is surfaced as
+    # a permission_request whose options are the question's choices, and the
+    # user's selection (or dismissal → skip_interview) becomes the response.
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="grok:grok-4.5")
+
+    send_response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="grok:grok-4.5",
+        prompt=f"{MARKER_ASK_USER_QUESTION} choose",
+    )
+    message_id = send_response.json()["message_id"]
+
+    question_event = await wait_for_message_event(
+        client, headers, message_id=message_id, event_type="permission_request"
+    )
+    payload = question_event["render_payload"]
+    assert payload["tool_name"] == "AskUserQuestion"
+    assert payload["tool_input"] == {"question": "Pick a color"}
+    # Request ids are suffixed per question so they can't collide with the
+    # tool_call_id-keyed permission requests.
+    assert payload["request_id"] == "tool-ask-user:q0"
+    assert [opt["option_id"] for opt in payload["data"]["options"]] == ["Red", "Blue"]
+
+    respond = await client.post(
+        f"/api/v1/chat/chats/{chat['id']}/permissions/{payload['request_id']}/respond",
+        data={"option_id": option_id},
+        headers=headers,
+    )
+    assert respond.status_code == 200, respond.text
+
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=message_id
+    )
+    assert message["stream_status"] == "completed"
+
+    # The fake agent completes the tool with raw_output=<the client's ext
+    # response>, so this message's own tool result is the response the client
+    # returned. Don't assert on the fake-agent log: background title generation
+    # re-runs the marker turn (its prompt embeds the user message) and its
+    # auto-denied question appends a stray skip_interview entry.
+    tool = last_tool(message, "tool-ask-user")
+    assert tool["status"] == "completed"
+    assert tool["result"] == expect_response
 
 
 async def test_chat_cancel_marks_message_interrupted(

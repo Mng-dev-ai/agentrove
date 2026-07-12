@@ -69,6 +69,12 @@ PERMISSION_MODE_BY_OPTION_NAME: dict[str, PermissionMode] = {
     "full access": "full-access",
 }
 
+# Grok delivers its ask_user_question tool as an ACP extension request
+# (`_x.ai/ask_user_question`; the SDK strips the leading underscore). It must
+# be answered with an AskUserQuestionExtResponse — an empty result fails the
+# tool with "missing field `outcome`".
+GROK_ASK_USER_QUESTION_METHOD = "x.ai/ask_user_question"
+
 
 class AcpClientHandler:
     # Implements the ACP client-side handler interface. The ACP SDK calls
@@ -80,7 +86,7 @@ class AcpClientHandler:
         self.agent_kind = agent_kind
         self.event_queue: asyncio.Queue[StreamEvent | object] = asyncio.Queue()
         self._active_tools: dict[str, ToolPayload] = {}
-        self._pending_permissions: dict[str, asyncio.Future[dict[str, Any]]] = {}
+        self._pending_permissions: dict[str, asyncio.Future[str]] = {}
         # Tracks which permission mode the user selected for each tool call,
         # so we can include it in the tool_completed/tool_failed event.
         self._resolved_permissions: dict[str, PermissionMode | None] = {}
@@ -204,17 +210,22 @@ class AcpClientHandler:
         )
         self.event_queue.put_nowait(event)
 
-        future: asyncio.Future[dict[str, Any]] = (
-            asyncio.get_running_loop().create_future()
-        )
-        self._pending_permissions[request_id] = future
+        option_id = await self._wait_for_user_choice(request_id)
+        if option_id:
+            return RequestPermissionResponse(
+                outcome=AllowedOutcome(outcome="selected", option_id=option_id)
+            )
+        return RequestPermissionResponse(outcome=DeniedOutcome(outcome="cancelled"))
 
+    async def _wait_for_user_choice(self, request_id: str) -> str:
+        # Blocks until resolve_permission() delivers the user's selection for
+        # this request; empty string means the user cancelled/dismissed.
+        future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
+        self._pending_permissions[request_id] = future
         try:
-            result = await future
+            return await future
         finally:
             self._pending_permissions.pop(request_id, None)
-
-        return result.get("response")
 
     def resolve_permission(
         self,
@@ -223,8 +234,8 @@ class AcpClientHandler:
         option_id: str = "",
     ) -> bool:
         # Called from the SSE endpoint when the user responds to a permission
-        # request. Unblocks the matching request_permission() awaiter with
-        # either an AllowedOutcome (option selected) or DeniedOutcome (cancelled).
+        # request or user question. Unblocks the matching _wait_for_user_choice()
+        # awaiter; an empty option_id means the request was cancelled.
         future = self._pending_permissions.get(request_id)
         if future is None or future.done():
             return False
@@ -232,13 +243,10 @@ class AcpClientHandler:
         if option_id:
             option_modes = self._permission_option_modes.pop(request_id, {})
             self._resolved_permissions[request_id] = option_modes.get(option_id)
-            outcome = AllowedOutcome(outcome="selected", option_id=option_id)
         else:
             self._permission_option_modes.pop(request_id, None)
-            outcome = DeniedOutcome(outcome="cancelled")
 
-        response = RequestPermissionResponse(outcome=outcome)
-        future.set_result({"response": response})
+        future.set_result(option_id)
         return True
 
     async def read_text_file(
@@ -310,7 +318,47 @@ class AcpClientHandler:
         return KillTerminalResponse()
 
     async def ext_method(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        if method == GROK_ASK_USER_QUESTION_METHOD:
+            return await self._answer_user_question(params)
         return {}
+
+    async def _answer_user_question(self, params: dict[str, Any]) -> dict[str, Any]:
+        # Reuses the permission round trip: each question is forwarded as a
+        # permission_request whose options are the question's choices, so the
+        # existing approval UI collects the answer. Questions go one at a time
+        # since the UI shows a single pending request.
+        tool_call_id = params.get("toolCallId", "")
+        answers: dict[str, str] = {}
+        for index, question in enumerate(params.get("questions") or []):
+            question_text = question.get("question", "")
+            option_dicts = [
+                {
+                    "kind": "allow_once",
+                    "name": opt.get("label", ""),
+                    "option_id": opt.get("label", ""),
+                    "permission_mode": None,
+                }
+                for opt in question.get("options") or []
+            ]
+            request_id = f"{tool_call_id}:q{index}"
+            self.event_queue.put_nowait(
+                StreamEvent(
+                    type="permission_request",
+                    request_id=request_id,
+                    tool_name="AskUserQuestion",
+                    tool_input={"question": question_text},
+                    data={"options": option_dicts},
+                )
+            )
+            selected = await self._wait_for_user_choice(request_id)
+            if not selected:
+                # User dismissed the question — tell Grok to stop interviewing
+                # and proceed with whatever answers it already has.
+                return {"outcome": "skip_interview"}
+            answers[question_text] = selected
+        # The wire format accepts string-or-list answer values; we always send
+        # a single label (multiSelect degrades to picking one option).
+        return {"outcome": "accepted", "answers": answers}
 
     async def ext_notification(self, method: str, params: dict[str, Any]) -> None:
         pass

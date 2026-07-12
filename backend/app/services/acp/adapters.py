@@ -66,11 +66,12 @@ COPILOT_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 # Cursor CLI exposes three ACP session modes (see https://cursor.com/docs/cli/acp).
 CURSOR_SESSION_MODES = frozenset({"agent", "plan", "ask"})
 
-# Grok Build's ACP session modes: `code` is normal full execution, `plan`
-# blocks writes except the session plan file. Grok auto-approves every tool
-# call over ACP stdio (it never sends session/request_permission), so there
-# is no separate ask/approve mode to expose.
-GROK_SESSION_MODES = frozenset({"code", "plan"})
+# Grok Build's ACP session modes (CLI >= 0.2.9x): `auto` is the default —
+# a classifier auto-approves routine tool calls and prompts via
+# session/request_permission for risky ones; `always-approve` skips all
+# prompts; `plan` blocks writes except the session plan file. The old `code`
+# mode was removed upstream (set_mode silently ignores unknown ids).
+GROK_SESSION_MODES = frozenset({"auto", "always-approve", "plan"})
 # Only Grok 4.5 exposes the low/medium/high reasoning-effort dial; Composer
 # ignores it, so the effort launch flag is skipped for other models.
 GROK_VALID_THINKING_MODES = frozenset({"low", "medium", "high"})
@@ -89,7 +90,7 @@ NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
     AgentKind.CODEX: "auto",
     AgentKind.COPILOT: "agent",
     AgentKind.CURSOR: "agent",
-    AgentKind.GROK: "code",
+    AgentKind.GROK: "always-approve",
     AgentKind.OPENCODE: "build",
 }
 
@@ -427,10 +428,9 @@ class GrokAgentAdapter(AgentAdapter):
     # Grok Build (xAI) runs as an ACP server via `grok agent stdio`. Reasoning
     # effort is a launch-only flag (`grok agent --reasoning-effort <tier> stdio`)
     # — there is no ACP method to change it mid-session, so effort changes take
-    # effect through the session fingerprint respawning the process. Grok
-    # auto-approves every tool call over ACP stdio (it never sends
-    # session/request_permission), so its modes (code/plan) are workflow
-    # choices rather than approval policies.
+    # effect through the session fingerprint respawning the process. In `auto`
+    # mode Grok prompts for risky tool calls via session/request_permission
+    # (handled by the shared permission flow); `always-approve` never prompts.
 
     def __init__(self) -> None:
         super().__init__(kind=AgentKind.GROK)
@@ -483,11 +483,11 @@ class GrokAgentAdapter(AgentAdapter):
         )
 
     def map_session_mode(self, permission_mode: str) -> str:
-        # Persisted settings may still carry mode strings from a different
-        # previous agent. Default to Grok's normal code mode — both Grok modes
-        # auto-approve what they allow, so no mapping widens permissions.
+        # Persisted settings may carry mode strings from a different agent or
+        # the legacy Grok `code` mode. Map those to always-approve — it matches
+        # code mode's old behavior of never prompting.
         if permission_mode not in GROK_SESSION_MODES:
-            return "code"
+            return "always-approve"
         return permission_mode
 
     def map_model_id(self, model_id: str) -> str:
