@@ -20,6 +20,9 @@ describe('buildTerminalTheme', () => {
       selectionBackground: 'rgba(0, 0, 0, 0.15)',
       selectionInactiveBackground: 'rgba(0, 0, 0, 0.08)',
     });
+    // Light palettes override the ANSI 16 — the built-ins are dark-background colors.
+    expect(theme?.white).toBe('#555555');
+    expect(theme?.brightYellow).toBe('#b5ba00');
   });
 
   it('uses the dark base surface and dark-mode accents for dark', () => {
@@ -30,6 +33,8 @@ describe('buildTerminalTheme', () => {
       cursorAccent: '#0a0a0a',
       selectionBackground: 'rgba(255, 255, 255, 0.2)',
     });
+    // Dark palettes keep xterm's built-in ANSI defaults.
+    expect(theme?.white).toBeUndefined();
   });
 
   it('derives a dark custom palette from its shared tokens', () => {
