@@ -94,6 +94,17 @@ class AgentroveClient:
         resp = await self.request("GET", "/settings/")
         return resp.json().get("personas") or []
 
+    async def create_persona(self, name: str, content: str) -> dict[str, Any]:
+        # No per-persona endpoint: personas live as a list on user settings, so we
+        # read the current list, append, and PATCH the whole array back.
+        resp = await self.request("GET", "/settings/")
+        personas = resp.json().get("personas") or []
+        if any(p["name"] == name for p in personas):
+            raise AgentroveError(f"A persona named {name!r} already exists.")
+        persona = {"name": name, "content": content}
+        await self.request("PATCH", "/settings/", json={"personas": [*personas, persona]})
+        return persona
+
     async def list_models(self, agent_kind: str | None) -> list[dict[str, Any]]:
         params = {"agent_kind": agent_kind} if agent_kind else None
         resp = await self.request("GET", "/models/", params=params)

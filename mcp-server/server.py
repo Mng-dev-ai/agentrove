@@ -139,6 +139,18 @@ async def list_personas() -> dict[str, Any]:
 
 
 @mcp.tool()
+async def create_persona(name: str, content: str) -> dict[str, Any]:
+    """Create a custom persona usable as send_message's `persona` argument.
+
+    `name` is the unique label you'll pass as `persona` (it must not match an existing
+    persona); `content` is the system prompt that shapes the agent's behavior for turns
+    using this persona. Returns the created persona's name.
+    """
+    persona = await client.create_persona(name, content)
+    return {"persona": {"name": persona["name"]}}
+
+
+@mcp.tool()
 async def send_message(
     prompt: str,
     chat_id: str | None = None,
