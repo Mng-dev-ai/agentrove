@@ -265,6 +265,11 @@
   }
 }
 
+.divider {
+  margin: var(--space-1) var(--space-2);
+  border-top: 1px solid var(--theme-border);
+}
+
 .group-header {
   @include type.type-section-header;
   padding: var(--space-1-5) var(--space-2) var(--space-0-5);
