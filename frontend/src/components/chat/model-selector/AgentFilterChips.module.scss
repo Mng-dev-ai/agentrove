@@ -1,0 +1,51 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.agent-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-bottom: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-1-5) var(--space-2);
+}
+
+.chip {
+  @include type.type-meta(500);
+  @include anim.transition-colors(var(--duration-fast));
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-full);
+  padding: var(--space-0-5) var(--space-2);
+  color: var(--theme-text-secondary);
+
+  // Icon chips: square padding so the pill hugs the icon
+  &--icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-1);
+  }
+
+  @include responsive.hover {
+    border-color: var(--theme-border-hover);
+    color: var(--theme-text-primary);
+  }
+
+  &--active {
+    border-color: var(--theme-text-primary);
+    background-color: var(--theme-text-primary);
+    color: var(--theme-surface);
+
+    // Re-assert over .chip:hover — same specificity, later in source
+    @include responsive.hover {
+      border-color: var(--theme-text-primary);
+      color: var(--theme-surface);
+    }
+  }
+}
+
+.chip-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+}

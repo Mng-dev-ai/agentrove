@@ -2,6 +2,7 @@ import {
   memo,
   ReactElement,
   ReactNode,
+  useEffect,
   useState,
   useRef,
   KeyboardEvent,
@@ -19,7 +20,10 @@ import { fuzzySearch } from '@/utils/fuzzySearch';
 import { stateClasses } from '@/config/stateClasses';
 import styles from './Dropdown.module.scss';
 
-export type DropdownItemType<T> = { type: 'item'; data: T } | { type: 'header'; label: string };
+export type DropdownItemType<T> =
+  | { type: 'item'; data: T }
+  | { type: 'header'; label: string }
+  | { type: 'divider' };
 
 export interface DropdownProps<T> {
   value: T;
@@ -41,7 +45,10 @@ export interface DropdownProps<T> {
   searchPlaceholder?: string;
   searchVariant?: 'boxed' | 'underline';
   selectionStyle?: 'check' | 'accent';
+  // Rendered pinned at the top of the panel, above the search field
+  renderHeader?: () => ReactNode;
   renderFooter?: () => ReactNode;
+  onOpenChange?: (isOpen: boolean) => void;
   triggerVariant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
 }
@@ -69,33 +76,31 @@ function getFilteredGroupedItems<T>(
 ): DropdownItemType<T>[] {
   if (!searchQuery.trim()) return [...items];
 
+  // Search results render flat: a header survives only when its group has matches,
+  // headerless groups keep their matches, and dividers drop.
   const result: DropdownItemType<T>[] = [];
   let currentHeader: string | null = null;
   const pendingItems: T[] = [];
 
-  for (const item of items) {
-    if (item.type === 'header') {
-      if (pendingItems.length > 0 && currentHeader) {
-        const filtered = filterItems(pendingItems, searchQuery);
-        if (filtered.length > 0) {
-          result.push({ type: 'header', label: currentHeader });
-          filtered.forEach((data) => result.push({ type: 'item', data }));
-        }
-      }
-      currentHeader = item.label;
-      pendingItems.length = 0;
-    } else {
-      pendingItems.push(item.data);
-    }
-  }
-
-  if (pendingItems.length > 0 && currentHeader) {
+  const flushGroup = () => {
+    if (pendingItems.length === 0) return;
     const filtered = filterItems(pendingItems, searchQuery);
     if (filtered.length > 0) {
-      result.push({ type: 'header', label: currentHeader });
+      if (currentHeader) result.push({ type: 'header', label: currentHeader });
       filtered.forEach((data) => result.push({ type: 'item', data }));
     }
+    pendingItems.length = 0;
+  };
+
+  for (const item of items) {
+    if (item.type === 'item') {
+      pendingItems.push(item.data);
+    } else {
+      flushGroup();
+      currentHeader = item.type === 'header' ? item.label : null;
+    }
   }
+  flushGroup();
 
   return result;
 }
@@ -131,7 +136,9 @@ const Dropdown = memo(function Dropdown<T>({
   searchPlaceholder = 'Search...',
   searchVariant = 'boxed',
   selectionStyle = 'check',
+  renderHeader,
   renderFooter,
+  onOpenChange,
   triggerVariant = 'default',
   dropdownAlign = 'left',
 }: DropdownProps<T>) {
@@ -146,6 +153,11 @@ const Dropdown = memo(function Dropdown<T>({
       setSearchQuery('');
     }
   }
+
+  // Parent-owned state can't be written from the render check above — notify via effect
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
 
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Escape') {
@@ -216,6 +228,7 @@ const Dropdown = memo(function Dropdown<T>({
             styles[`panel--${dropdownAlign}`],
           )}
         >
+          {renderHeader?.()}
           {searchable && searchVariant === 'boxed' && (
             <div className={styles['search-box']}>
               <div className={styles['search-box-field']}>
@@ -268,6 +281,9 @@ const Dropdown = memo(function Dropdown<T>({
           )}
           <div className={styles.items}>
             {displayItems.map((entry, index) => {
+              if (entry.type === 'divider') {
+                return <div key={`divider-${index}`} role="separator" className={styles.divider} />;
+              }
               if (entry.type === 'header') {
                 return (
                   <div

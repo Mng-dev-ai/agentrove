@@ -31,6 +31,13 @@
   gap: var(--space-2);
 }
 
+.item-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  color: var(--theme-text-tertiary);
+}
+
 .item-tooltip {
   min-width: 0;
   flex: 1;
@@ -39,6 +46,8 @@
 .item-label {
   @include type.type-meta(500);
   @include type.type-overflow;
+  // Spans are inline by default and inline elements ignore overflow/ellipsis
+  display: block;
   color: var(--theme-text-secondary);
 
   &--selected {
