@@ -269,15 +269,18 @@ class AgentService:
         )
 
     async def generate_title(
-        self, prompt: str, model_id: str, user: User, chat: Chat | None = None
+        self, prompt: str, user: User, chat: Chat | None = None
     ) -> str | None:
+        # Titles always run on the user's configured title model (settings),
+        # never the chat's model — no fallback chain.
         try:
+            user_settings = await self._get_user_settings(user.id)
             title = await self._generate_text(
                 GENERATE_TITLE_SYSTEM_PROMPT,
                 "Generate a title for this message:\n<message>\n"
                 + prompt
                 + "\n</message>",
-                model_id,
+                user_settings.title_model_id,
                 user,
                 chat=chat,
             )

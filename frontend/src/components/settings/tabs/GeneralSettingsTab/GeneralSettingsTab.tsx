@@ -8,6 +8,7 @@ import type { UserSettings } from '@/types/user.types';
 import type { Theme } from '@/types/ui.types';
 import { useUIStore } from '@/store/uiStore';
 import { SecretInput } from '@/components/settings/inputs/SecretInput/SecretInput';
+import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { THEMES } from '@/utils/theme';
 import styles from './GeneralSettingsTab.module.scss';
 
@@ -19,6 +20,7 @@ interface GeneralSettingsTabProps {
   onToggleVisibility: (field: ApiFieldKey) => void;
   onDeleteAllChats: () => void;
   onNotificationsEnabledChange: (enabled: boolean) => void;
+  onTitleModelChange: (modelId: string) => void;
 }
 
 function SectionCard({
@@ -104,6 +106,7 @@ export function GeneralSettingsTab({
   onToggleVisibility,
   onDeleteAllChats,
   onNotificationsEnabledChange,
+  onTitleModelChange,
 }: GeneralSettingsTabProps) {
   return (
     <div className={styles.general}>
@@ -139,6 +142,18 @@ export function GeneralSettingsTab({
               checked={settings.notifications_enabled}
               onCheckedChange={onNotificationsEnabledChange}
               aria-label="Notifications"
+            />
+          </div>
+          <div className={styles['pref-row-notif']}>
+            <div className={styles['pref-text']}>
+              <h3 className={styles['setting-title']}>Title Generation Model</h3>
+              <p className={styles['field-desc']}>Model used to generate chat titles.</p>
+            </div>
+            <ModelSelector
+              selectedModelId={settings.title_model_id}
+              onModelChange={onTitleModelChange}
+              compact={false}
+              dropdownAlign="right"
             />
           </div>
         </div>

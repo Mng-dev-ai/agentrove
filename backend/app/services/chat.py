@@ -351,7 +351,7 @@ class ChatService(BaseDbService[Chat]):
 
         # Announce so open browser sessions can show chats created out-of-band
         # (e.g. via the MCP server) without a refresh.
-        await self._publish_user_chat_event(
+        await self.publish_user_chat_event(
             user.id,
             {
                 "kind": "chat_created",
@@ -361,9 +361,8 @@ class ChatService(BaseDbService[Chat]):
 
         return loaded_chat
 
-    async def _publish_user_chat_event(
-        self, user_id: UUID, payload: dict[str, Any]
-    ) -> None:
+    @staticmethod
+    async def publish_user_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
         # Best-effort broadcast on the user's live channel — a missed event only
         # delays the sidebar/tab update until the next normal refetch.
         try:
@@ -536,11 +535,9 @@ class ChatService(BaseDbService[Chat]):
             )
             return result.scalar() or 0
 
-    async def get_title_source(self, chat_id: UUID) -> tuple[str, str] | None:
-        # Title prompt is the first non-empty user message; model is the most
-        # recent one stored on a message (only assistant messages carry it).
-        # Returns None when either is missing. Queried directly so callers don't
-        # need the full message history loaded.
+    async def get_title_source(self, chat_id: UUID) -> str | None:
+        # Title prompt is the first non-empty user message. Queried directly so
+        # callers don't need the full message history loaded.
         async with self.session_factory() as db:
             prompt = (
                 await db.execute(
@@ -556,22 +553,7 @@ class ChatService(BaseDbService[Chat]):
                 )
             ).scalar_one_or_none()
 
-            model_id = (
-                await db.execute(
-                    select(Message.model_id)
-                    .filter(
-                        Message.chat_id == chat_id,
-                        Message.deleted_at.is_(None),
-                        Message.model_id.is_not(None),
-                    )
-                    .order_by(Message.created_at.desc())
-                    .limit(1)
-                )
-            ).scalar_one_or_none()
-
-        if not prompt or not model_id:
-            return None
-        return prompt, model_id
+        return prompt or None
 
     async def get_model_context_window(self, chat_id: UUID) -> int | None:
         last_msg = await self.message_service.get_latest_assistant_message(chat_id)
@@ -1190,7 +1172,7 @@ class ChatService(BaseDbService[Chat]):
 
         # Lets open sessions mark this chat "running" even when the turn was
         # started out-of-band (e.g. via the MCP server) with no client stream.
-        await self._publish_user_chat_event(
+        await self.publish_user_chat_event(
             current_user.id,
             {
                 "kind": "stream_started",

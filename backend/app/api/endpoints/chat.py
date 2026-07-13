@@ -185,15 +185,14 @@ async def generate_chat_title(
 ) -> dict[str, str]:
     # Title from the first user message — same source the automatic
     # background titling uses when a chat starts.
-    source = await chat_service.get_title_source(chat.id)
-    if source is None:
+    prompt = await chat_service.get_title_source(chat.id)
+    if prompt is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Chat has no messages to generate a title from",
         )
-    prompt, model_id = source
 
-    title = await ai_service.generate_title(prompt, model_id, current_user, chat=chat)
+    title = await ai_service.generate_title(prompt, current_user, chat=chat)
     if not title:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
-import { applyCreatedChat } from '@/hooks/queries/useChatQueries';
+import { applyCreatedChat, patchChatInCache } from '@/hooks/queries/useChatQueries';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { queryKeys } from '@/hooks/queries/queryKeys';
@@ -41,6 +41,16 @@ export function useChatEvents(options?: { enabled?: boolean }) {
           logger.error('Chat cache update failed', 'useChatEvents', error),
         );
         useUIStore.getState().openChatTab(parsed.chat.id);
+        return;
+      }
+
+      if (parsed.kind === 'title_updated') {
+        // Backfilled mid-stream by the background titling task — patch caches
+        // directly so the sidebar/tab rename without waiting for a refetch.
+        patchChatInCache(queryClient, parsed.chat_id, (chat) => ({
+          ...chat,
+          title: parsed.title,
+        }));
         return;
       }
 

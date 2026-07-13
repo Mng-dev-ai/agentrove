@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { cloudChatService } from '@/services/cloudChatService';
+import { patchChatInCache } from '@/hooks/queries/useChatQueries';
 import { markCloudChats, markCloudSandboxes } from '@/utils/chatOrigin';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { useUIStore } from '@/store/uiStore';
@@ -54,6 +55,17 @@ export function useCloudChatEvents(options?: { enabled?: boolean }) {
         }
         invalidateCloudLists(queryClient);
         useUIStore.getState().openChatTab(chat.id);
+        return;
+      }
+
+      if (parsed.kind === 'title_updated') {
+        // Patch reaches the single-chat cache (tabs/header); cloud sidebar rows
+        // live in their own list query, so refetch those.
+        patchChatInCache(queryClient, parsed.chat_id, (chat) => ({
+          ...chat,
+          title: parsed.title,
+        }));
+        void queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll });
         return;
       }
 

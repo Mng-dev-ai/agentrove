@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.constants import DEFAULT_TITLE_MODEL_ID, MODELS
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 
 
@@ -34,6 +35,16 @@ class UserSettingsBase(BaseModel):
     personas: list[Persona] | None = None
     stream_actions: list[StreamAction] | None = None
     notifications_enabled: bool = True
+    title_model_id: str = Field(
+        default=DEFAULT_TITLE_MODEL_ID, min_length=1, max_length=128
+    )
+
+    @field_validator("title_model_id")
+    @classmethod
+    def _validate_title_model(cls, value: str) -> str:
+        if value not in MODELS:
+            raise ValueError(f"Unknown model: {value}")
+        return value
 
     @field_validator(
         "custom_env_vars",
