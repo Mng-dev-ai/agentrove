@@ -56,6 +56,7 @@ export interface UserSettings {
   personas: Persona[] | null;
   stream_actions: StreamAction[] | null;
   notifications_enabled: boolean;
+  title_model_id: string;
   created_at: string;
   updated_at: string;
 }

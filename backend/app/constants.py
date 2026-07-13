@@ -21,6 +21,9 @@ REDIS_KEY_CHAT_QUEUE_SEND_NOW: Final[str] = "chat:{chat_id}:queue:send_now"
 
 QUEUE_MESSAGE_TTL_SECONDS: Final[int] = 3600
 
+# Default model for chat title generation — cheap and fast; user-overridable in settings.
+DEFAULT_TITLE_MODEL_ID: Final[str] = "haiku"
+
 SANDBOX_DEFAULT_COMMAND_TIMEOUT: Final[int] = 120
 PTY_OUTPUT_QUEUE_SIZE: Final[int] = 512
 PTY_INPUT_QUEUE_SIZE: Final[int] = 1024

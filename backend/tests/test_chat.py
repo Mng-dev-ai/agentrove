@@ -120,7 +120,7 @@ class AgentServiceOverride:
     def __init__(self) -> None:
         self.calls: list[tuple[str, str, User]] = []
         self.ask_code_calls: list[tuple[str, str, str | None, str, User, Chat]] = []
-        self.title_calls: list[tuple[str, str, User, Chat | None]] = []
+        self.title_calls: list[tuple[str, User, Chat | None]] = []
         self.fail = False
         self.next_title: str | None = "Generated Title"
 
@@ -151,9 +151,9 @@ class AgentServiceOverride:
         return "Answer: " + question
 
     async def generate_title(
-        self, prompt: str, model_id: str, user: User, chat: Chat | None = None
+        self, prompt: str, user: User, chat: Chat | None = None
     ) -> str | None:
-        self.title_calls.append((prompt, model_id, user, chat))
+        self.title_calls.append((prompt, user, chat))
         return self.next_title
 
 
@@ -1408,9 +1408,8 @@ async def test_generate_chat_title_endpoint_covers_success_and_failure_paths(
     assert success_response.json() == {"title": "Generated Title"}
     assert failure_response.status_code == 503
     assert failure_response.json()["detail"] == "Title generation failed"
-    [prompt, model_id, stored_user, stored_chat] = agent_service.title_calls[0]
+    [prompt, stored_user, stored_chat] = agent_service.title_calls[0]
     assert prompt == "Ship the release notes"
-    assert model_id == TEST_MODEL_ID
     assert stored_user.id == user.id
     assert stored_chat is not None
     assert stored_chat.id == chat.id

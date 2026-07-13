@@ -82,7 +82,8 @@ export interface Chat {
 // consumed by useChatEvents (local) and useCloudChatEvents (VPS).
 export type ChatEvent =
   | { kind: 'chat_created'; chat: Chat }
-  | { kind: 'stream_started'; chat_id: string; message_id: string };
+  | { kind: 'stream_started'; chat_id: string; message_id: string }
+  | { kind: 'title_updated'; chat_id: string; title: string };
 
 export interface ChatRequest {
   prompt: string;

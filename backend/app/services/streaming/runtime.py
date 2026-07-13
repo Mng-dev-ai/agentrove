@@ -116,6 +116,12 @@ class ChatStreamRuntime:
         stream: AsyncIterator[StreamEvent],
     ) -> str:
         self._stream = stream
+        # Titling only needs the user's prompt, so it starts alongside the turn
+        # instead of after it — the sidebar shows a real title while streaming.
+        title_task = asyncio.create_task(self._generate_title())
+        self._bg_tasks.add(title_task)
+        title_task.add_done_callback(self._bg_tasks.discard)
+        title_task.add_done_callback(ChatStreamRuntime._on_title_task_done)
         try:
             start_seq = await self.emit_event(
                 "stream_started",
@@ -409,8 +415,6 @@ class ChatStreamRuntime:
         final_content = self.snapshot.content_text
 
         if status == MessageStreamStatus.COMPLETED:
-            title_task = asyncio.create_task(self._generate_title())
-            title_task.add_done_callback(ChatStreamRuntime._on_title_task_done)
             # If there's a queued follow-up message, start it immediately in this
             # same background task chain — the "complete" event is deferred until
             # the entire queue is drained so the client stays in streaming mode.
@@ -652,9 +656,7 @@ class ChatStreamRuntime:
 
         ai_service = AgentService(session_factory=self.session_factory)
         user = User(id=self.chat.user_id)
-        title = await ai_service.generate_title(
-            self.prompt, self.model_id, user, chat=self.chat
-        )
+        title = await ai_service.generate_title(self.prompt, user, chat=self.chat)
         if not title:
             return
         title = title[:255]
@@ -669,6 +671,16 @@ class ChatStreamRuntime:
                 .values(title=title, updated_at=Chat.updated_at)
             )
             await db.commit()
+
+        # Inline import to avoid circular dependency with chat.py.
+        from app.services.chat import ChatService
+
+        # Push the title to open sessions so the sidebar/tab update mid-stream
+        # instead of waiting for the completion refetch.
+        await ChatService.publish_user_chat_event(
+            self.chat.user_id,
+            {"kind": "title_updated", "chat_id": self.chat_id, "title": title},
+        )
 
     @staticmethod
     def _on_title_task_done(task: asyncio.Task[None]) -> None:

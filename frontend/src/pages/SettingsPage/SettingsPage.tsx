@@ -90,6 +90,7 @@ export function SettingsPage() {
         'personas',
         'stream_actions',
         'notifications_enabled',
+        'title_model_id',
       ];
 
       for (const field of fields) {
@@ -165,6 +166,10 @@ export function SettingsPage() {
     void persistSettings((prev) => ({ ...prev, notifications_enabled: enabled })).catch(
       () => undefined,
     );
+  };
+
+  const handleTitleModelChange = (modelId: string) => {
+    void persistSettings((prev) => ({ ...prev, title_model_id: modelId })).catch(() => undefined);
   };
 
   const confirmDeleteAllChats = async () => {
@@ -258,6 +263,7 @@ export function SettingsPage() {
                         onToggleVisibility={toggleFieldVisibility}
                         onDeleteAllChats={handleDeleteAllChats}
                         onNotificationsEnabledChange={handleNotificationsEnabledChange}
+                        onTitleModelChange={handleTitleModelChange}
                       />
                     </div>
                   )}
