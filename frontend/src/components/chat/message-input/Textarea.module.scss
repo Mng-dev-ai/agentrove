@@ -11,7 +11,9 @@
   inset: 0;
   // Fixed viewport cap shared with the textarea (no spacing-scale token for 180px)
   max-height: 180px;
-  overflow-y: auto;
+  // Text soft-wraps, so horizontal scrolling is never meaningful — hiding it
+  // prevents a stray scrollbar from subpixel rounding at fractional zoom levels
+  overflow: hidden auto;
   padding-block: var(--space-1-5);
   line-height: 1.5;
   white-space: pre-wrap;
@@ -34,7 +36,7 @@
   max-height: 180px;
   width: 100%;
   min-height: var(--space-9);
-  overflow-y: auto;
+  overflow: hidden auto;
   padding-block: var(--space-1-5);
   line-height: 1.5;
   background: transparent;
