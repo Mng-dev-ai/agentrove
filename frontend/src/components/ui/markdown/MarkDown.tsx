@@ -1,6 +1,9 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useMemo, useState, memo, useEffect, Suspense } from 'react';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+import { useMemo, memo, Suspense } from 'react';
 import { lazyNamed } from '@/utils/lazyNamed';
 import type { Options } from 'react-markdown';
 import clsx from 'clsx';
@@ -56,9 +59,6 @@ export const MarkDown = memo(function MarkDown({
   streaming = false,
   highlightMentions = false,
 }: MarkDownProps) {
-  const [remarkMathPlugin, setRemarkMathPlugin] = useState<unknown>(null);
-  const [rehypeKatexPlugin, setRehypeKatexPlugin] = useState<unknown>(null);
-
   const blocks = useMemo(
     () =>
       splitVisualizerBlocks(content).flatMap((seg) =>
@@ -72,49 +72,18 @@ export const MarkDown = memo(function MarkDown({
     [content, streaming],
   );
 
+  // Only include the math plugins when the content actually contains math, so
+  // stray `$` characters in ordinary text aren't parsed as TeX.
   const needsMath = useMemo(() => MATH_PATTERN.test(content), [content]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!needsMath || (remarkMathPlugin && rehypeKatexPlugin)) {
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    void Promise.all([
-      import('remark-math'),
-      import('rehype-katex'),
-      import('katex/dist/katex.min.css'),
-    ]).then(([remarkMathModule, rehypeKatexModule]) => {
-      if (cancelled) return;
-      setRemarkMathPlugin(() => remarkMathModule.default);
-      setRehypeKatexPlugin(() => rehypeKatexModule.default);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [needsMath, remarkMathPlugin, rehypeKatexPlugin]);
-
   const remarkPlugins = useMemo(
-    () => [remarkGfm, ...(remarkMathPlugin ? [remarkMathPlugin as never] : [])],
-    [remarkMathPlugin],
+    () => (needsMath ? [remarkGfm, remarkMath] : [remarkGfm]),
+    [needsMath],
   );
   const rehypePlugins = useMemo(
-    () => [
-      ...(highlightMentions ? [rehypeMentionPills] : []),
-      ...(rehypeKatexPlugin ? ([rehypeKatexPlugin] as never[]) : []),
-    ],
-    [rehypeKatexPlugin, highlightMentions],
+    () => [...(highlightMentions ? [rehypeMentionPills] : []), ...(needsMath ? [rehypeKatex] : [])],
+    [needsMath, highlightMentions],
   );
-
-  const mathPluginsLoading = needsMath && (!remarkMathPlugin || !rehypeKatexPlugin);
-
-  if (mathPluginsLoading) {
-    return <div className={clsx(styles['math-loading'], className)}>{content}</div>;
-  }
 
   return (
     <div className={clsx(styles.markdown, className)}>

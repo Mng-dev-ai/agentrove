@@ -6,12 +6,6 @@
   color: var(--theme-text-secondary);
 }
 
-.math-loading {
-  @include type.type-body;
-  white-space: pre-wrap;
-  color: var(--theme-text-secondary);
-}
-
 .viz-fallback {
   display: flex;
   // Fixed placeholder height while the visualizer bundle loads.
