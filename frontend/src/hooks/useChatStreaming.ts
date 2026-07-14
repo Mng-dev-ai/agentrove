@@ -88,6 +88,7 @@ export function useChatStreaming({
   const pendingStopRef = useRef<Set<string>>(new Set());
   const prevChatIdRef = useRef<string | undefined>(chatId);
   const currentMessageIdRef = useRef<string | null>(null);
+  currentMessageIdRef.current = currentMessageId;
 
   const isLoading = streamState === 'loading';
   const isStreaming = streamState === 'streaming';
@@ -291,10 +292,6 @@ export function useChatStreaming({
     },
     [chatId, markStreamIdleAfterAbort, reconcileStreamState, stopStream],
   );
-
-  useEffect(() => {
-    currentMessageIdRef.current = currentMessageId;
-  }, [currentMessageId]);
 
   const handleStop = useCallback(() => {
     if (streamState === 'loading') {

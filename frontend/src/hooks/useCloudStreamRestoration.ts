@@ -15,8 +15,12 @@ export function useCloudStreamRestoration({ enabled }: { enabled: boolean }) {
   useEffect(() => {
     if (!enabled || !cloudUrl) return;
 
+    // A cloudUrl switch mid-flight must not land the old instance's streams;
+    // the re-run restores from the new instance instead.
+    let cancelled = false;
     const restore = async () => {
       const active = await cloudChatService.getActiveStreams();
+      if (cancelled) return;
       for (const stream of active) {
         useStreamStore.getState().addStreamMetadataIfAbsent({
           chatId: stream.chat_id,
@@ -29,5 +33,8 @@ export function useCloudStreamRestoration({ enabled }: { enabled: boolean }) {
     restore().catch((error) => {
       logger.error('Cloud stream restoration failed', 'useCloudStreamRestoration', error);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [enabled, cloudUrl]);
 }
