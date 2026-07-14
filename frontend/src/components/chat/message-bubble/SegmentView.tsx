@@ -1,5 +1,5 @@
 import { memo, Suspense } from 'react';
-import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
+import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import { useSmoothText } from '@/hooks/useSmoothText';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';
@@ -35,11 +35,7 @@ function TextSegment({
   const smoothText = useSmoothText(text, isActive);
   return (
     <div className={styles['text-segment']}>
-      <LazyMarkDown
-        content={smoothText}
-        streaming={isActive}
-        highlightMentions={highlightMentions}
-      />
+      <MarkDown content={smoothText} streaming={isActive} highlightMentions={highlightMentions} />
     </div>
   );
 }

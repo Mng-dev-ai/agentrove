@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ChatInlinePermission } from './ChatInlinePermission';
 import type { PermissionRequest } from '@/types/chat.types';
 
-vi.mock('@/components/ui/markdown/LazyMarkDown', () => ({
-  LazyMarkDown: ({ content }: { content: string }) => <div>{content}</div>,
+vi.mock('@/components/ui/markdown/MarkDown', () => ({
+  MarkDown: ({ content }: { content: string }) => <div>{content}</div>,
 }));
 
 const hooks = vi.hoisted(() => ({

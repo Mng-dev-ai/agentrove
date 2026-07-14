@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import clsx from 'clsx';
 import { Map, Terminal } from 'lucide-react';
-import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
+import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import type { ToolAggregate } from '@/types/tools.types';
 import { MessageActions } from '../../message-bubble/MessageActions';
 import { PermissionApprovalButtons } from '@/components/ui/shared/ApprovalFooter/ApprovalFooter';
@@ -80,7 +80,7 @@ export const ExitPlanModeTool = memo(function ExitPlanModeTool({
           {planContent && (
             <div className={clsx(styles['plan-box'], styles['plan-box--spaced'])}>
               <div className={styles['plan-prose']}>
-                <LazyMarkDown content={planContent} />
+                <MarkDown content={planContent} />
               </div>
             </div>
           )}
@@ -136,7 +136,7 @@ export const ExitPlanModeTool = memo(function ExitPlanModeTool({
           {planContent && (
             <div className={styles['plan-box']}>
               <div className={styles['plan-prose']}>
-                <LazyMarkDown content={planContent} />
+                <MarkDown content={planContent} />
               </div>
             </div>
           )}

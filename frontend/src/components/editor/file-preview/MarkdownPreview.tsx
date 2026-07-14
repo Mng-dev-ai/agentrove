@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { LazyMarkDown } from '@/components/ui/markdown/LazyMarkDown';
+import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import type { FileStructure } from '@/types/file-system.types';
 import { PreviewContainer } from './PreviewContainer';
 import { getDisplayFileName } from './previewUtils';
@@ -23,7 +23,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
       onToggleFullscreen={onToggleFullscreen}
       contentClassName={styles.content}
     >
-      <LazyMarkDown content={file.content} />
+      <MarkDown content={file.content} />
     </PreviewContainer>
   );
 });

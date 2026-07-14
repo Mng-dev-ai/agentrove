@@ -5,11 +5,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToolPermissionInline } from './ToolPermissionInline';
 import type { PermissionRequest } from '@/types/chat.types';
 
-// DetailsList renders diagnostics through the lazy markdown component; swap it
-// for a plain passthrough so the disclosure assertions don't depend on the
-// async chunk resolving.
-vi.mock('@/components/ui/markdown/LazyMarkDown', () => ({
-  LazyMarkDown: ({ content }: { content: string }) => <div>{content}</div>,
+// DetailsList renders diagnostics through the markdown component; swap it for
+// a plain passthrough so the disclosure assertions stay on rendered text.
+vi.mock('@/components/ui/markdown/MarkDown', () => ({
+  MarkDown: ({ content }: { content: string }) => <div>{content}</div>,
 }));
 
 function makeRequest(over: Partial<PermissionRequest> = {}): PermissionRequest {
