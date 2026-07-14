@@ -10,6 +10,7 @@ import { useCommandMenuData } from './useCommandMenuData';
 import { isMainMode, isPanelMode } from './commandMenuModes';
 import {
   COMMAND_TO_MODE,
+  FILTER_SHORTCUT_MAP,
   MAIN_FILTERS,
   executeCommand,
   type CommandItem,
@@ -234,6 +235,17 @@ export function useCommandMenu() {
         const current = MAIN_FILTERS.indexOf(m);
         switchFilter(MAIN_FILTERS[(current + step + MAIN_FILTERS.length) % MAIN_FILTERS.length]);
         return;
+      }
+
+      // ⌘⇧<key> jumps straight to a filter tab, mirroring the global open-on-tab chords.
+      if (isMainMode(m) && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+        const filter = FILTER_SHORTCUT_MAP.get(e.code);
+        if (filter) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          switchFilter(filter);
+          return;
+        }
       }
 
       if (isPanelMode(m)) {
