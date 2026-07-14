@@ -154,7 +154,7 @@ class AgentroveClient:
         permission_mode: str,
         thinking_mode: str | None = None,
         worktree: bool = False,
-        plan_mode: bool = False,
+        fast_mode: bool = False,
         persona: str | None = None,
     ) -> dict[str, Any]:
         # Endpoint reads Form fields; no file upload here so urlencoded form is fine
@@ -165,7 +165,7 @@ class AgentroveClient:
             "model_id": model_id,
             "permission_mode": permission_mode,
             "worktree": worktree,
-            "plan_mode": plan_mode,
+            "fast_mode": fast_mode,
         }
         if thinking_mode:
             data["thinking_mode"] = thinking_mode

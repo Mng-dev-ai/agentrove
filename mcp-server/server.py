@@ -159,7 +159,7 @@ async def send_message(
     model_id: str | None = None,
     thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None,
     worktree: bool = False,
-    plan_mode: bool = False,
+    fast_mode: bool = False,
     persona: str | None = None,
 ) -> dict[str, Any]:
     """Send a prompt to AgentRove and start the agent turn.
@@ -172,8 +172,9 @@ async def send_message(
 
     Per-turn options: thinking_mode sets reasoning effort (values not supported by the
     chosen model fall back to medium); worktree=true runs the turn in an isolated git
-    worktree (its own branch); plan_mode=true runs a read-only planning turn; persona
-    selects a custom persona by name (defaults to the standard persona).
+    worktree (its own branch); fast_mode=true enables Codex's fast mode (ignored by
+    non-Codex agents); persona selects a custom persona by name (defaults to the
+    standard persona).
 
     Returns immediately with chat_id and the streaming message_id. To get the reply, poll
     get_messages and watch that message's stream_status flip from "in_progress" to
@@ -196,7 +197,7 @@ async def send_message(
         permission_mode=permission_mode,
         thinking_mode=thinking_mode,
         worktree=worktree,
-        plan_mode=plan_mode,
+        fast_mode=fast_mode,
         persona=persona,
     )
     return {
