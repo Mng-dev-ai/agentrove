@@ -44,6 +44,20 @@ class LocalHostProvider(SandboxProvider):
     def workspace_root(self) -> str:
         return str(self._workspace)
 
+    @staticmethod
+    def _signal_process_group(pid: int, sig: signal.Signals) -> None:
+        # Valid as a pgid because every process we signal here was spawned
+        # with start_new_session=True, making it its own group leader.
+        try:
+            os.killpg(pid, sig)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            # macOS can return EPERM for a group mid-teardown; fall back to
+            # signaling the leader directly (the pre-group-kill guarantee).
+            with contextlib.suppress(ProcessLookupError):
+                os.kill(pid, sig)
+
     def _resolve_path(self, path: str) -> Path:
         # Turn a relative path from the frontend into an absolute host path,
         # rejecting anything that would escape the workspace via ../ or symlinks.
@@ -68,6 +82,9 @@ class LocalHostProvider(SandboxProvider):
         if envs:
             process_env.update(envs)
 
+        # New process group so a timeout can kill bash *and* its descendants —
+        # killing only bash orphans children (e.g. a hung `python3 <<heredoc`)
+        # to PID 1, where they keep running unsupervised.
         process = await asyncio.create_subprocess_exec(
             "bash",
             "-lc",
@@ -76,6 +93,7 @@ class LocalHostProvider(SandboxProvider):
             env=process_env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
         )
 
         try:
@@ -83,7 +101,7 @@ class LocalHostProvider(SandboxProvider):
                 process.communicate(), timeout=timeout
             )
         except asyncio.TimeoutError:
-            process.kill()
+            self._signal_process_group(process.pid, signal.SIGKILL)
             await process.wait()
             raise TimeoutError(f"Command execution timed out after {timeout}s")
 
@@ -341,11 +359,14 @@ class LocalHostProvider(SandboxProvider):
 
         process = session["process"]
         if process.poll() is None:
-            process.terminate()
+            # Signal the whole process group, not just the shell — its children
+            # would otherwise orphan to PID 1 and keep running. The tmux server
+            # daemonizes into its own session, so tmux persistence is unaffected.
+            self._signal_process_group(process.pid, signal.SIGTERM)
             with contextlib.suppress(subprocess.TimeoutExpired):
                 await asyncio.to_thread(process.wait, 2)
             if process.poll() is None:
-                process.kill()
+                self._signal_process_group(process.pid, signal.SIGKILL)
 
         with contextlib.suppress(OSError):
             os.close(session["master_fd"])

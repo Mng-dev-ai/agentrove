@@ -210,7 +210,10 @@ class Settings(BaseSettings):
     USER_SETTINGS_CACHE_TTL_SECONDS: int = 300
     MODELS_CACHE_TTL_SECONDS: int = 3600
     CONTEXT_USAGE_CACHE_TTL_SECONDS: int = 600
-    CHAT_PROCESS_IDLE_TTL_SECONDS: float = 1800.0
+    # Reaping an idle agent process is lossless — chats persist session_id and
+    # a respawn load_sessions it — so this trades only respawn latency against
+    # the ~500MB each warm session holds (agent CLI + wrapper + MCP server).
+    CHAT_PROCESS_IDLE_TTL_SECONDS: float = 600.0
 
     class Config:
         env_file = ".env"
