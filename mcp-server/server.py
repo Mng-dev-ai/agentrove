@@ -33,7 +33,6 @@ def _automation_summary(a: dict[str, Any]) -> dict[str, Any]:
         "workspace_id": a["workspace_id"],
         "thinking_mode": a["thinking_mode"],
         "worktree": a["worktree"],
-        "plan_mode": a["plan_mode"],
         "persona": a["selected_persona_name"],
         "next_run_at": a["next_run_at"],
         "last_run_at": a["last_run_at"],
@@ -260,7 +259,6 @@ async def create_automation(
     model_id: str | None = None,
     thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None,
     worktree: bool = False,
-    plan_mode: bool = False,
     persona: str | None = None,
     enabled: bool = True,
 ) -> dict[str, Any]:
@@ -271,7 +269,7 @@ async def create_automation(
     Claude, full-access for Codex). cron_expression is a standard 5-field cron string
     evaluated in `timezone` (an IANA name like "America/New_York"). Omit model_id to use
     a Claude model and workspace_id to use the most recently active workspace. Per-run
-    options (thinking_mode, worktree, plan_mode, persona) match send_message. Set
+    options (thinking_mode, worktree, persona) match send_message. Set
     enabled=false to create it paused.
 
     Returns the created automation, including its id and next_run_at.
@@ -287,7 +285,6 @@ async def create_automation(
         "model_id": resolved_model,
         "permission_mode": PERMISSION_MODE_BY_AGENT[agent_kind],
         "worktree": worktree,
-        "plan_mode": plan_mode,
         "enabled": enabled,
     }
     if thinking_mode:
@@ -309,7 +306,6 @@ async def update_automation(
     model_id: str | None = None,
     thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None,
     worktree: bool | None = None,
-    plan_mode: bool | None = None,
     persona: str | None = None,
     enabled: bool | None = None,
 ) -> dict[str, Any]:
@@ -338,8 +334,6 @@ async def update_automation(
         body["thinking_mode"] = thinking_mode
     if worktree is not None:
         body["worktree"] = worktree
-    if plan_mode is not None:
-        body["plan_mode"] = plan_mode
     if persona is not None:
         body["selected_persona_name"] = persona
     if enabled is not None:
