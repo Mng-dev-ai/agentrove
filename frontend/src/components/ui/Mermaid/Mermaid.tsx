@@ -73,6 +73,12 @@ export function Mermaid({ content }: MermaidProps) {
         document.getElementById(`d${id}`)?.remove();
       }
     })();
+
+    // Invalidate the in-flight render on cleanup so it can't set state after
+    // unmount (or after showPreview flipped the effect onto its early-return path).
+    return () => {
+      renderIdRef.current += 1;
+    };
   }, [showPreview, content, theme]);
 
   return (

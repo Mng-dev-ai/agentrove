@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { logger } from '@/utils/logger';
 import { isUploadedImageFile } from '@/utils/fileTypes';
 import { filterChatAttachmentFiles } from '@/utils/file';
@@ -10,7 +10,6 @@ interface UseFileHandlingOptions {
 
 export function useFileHandling({ initialFiles = null, onChange }: UseFileHandlingOptions = {}) {
   const [files, setFiles] = useState<File[]>(initialFiles ?? []);
-  const urlsToCleanupRef = useRef<string[]>([]);
 
   useEffect(() => {
     setFiles(initialFiles ?? []);
@@ -39,7 +38,6 @@ export function useFileHandling({ initialFiles = null, onChange }: UseFileHandli
 
   useEffect(() => {
     const currentUrls = previewUrls.filter((url) => url !== '');
-    urlsToCleanupRef.current = currentUrls;
 
     return () => {
       currentUrls.forEach((url) => {

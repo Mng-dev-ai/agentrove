@@ -142,7 +142,6 @@ export const AttachmentViewer = memo(function AttachmentViewer({
       });
       ownedObjectUrls.clear();
       loadedIds.clear();
-      setImageStates({});
     };
   }, []);
 

@@ -123,10 +123,13 @@ export function useChatScroll({
     if (!container) return;
 
     // Use requestAnimationFrame to ensure DOM has rendered
-    requestAnimationFrame(() => {
+    const raf = requestAnimationFrame(() => {
       container.scrollTop = container.scrollHeight;
       hasInitializedToBottomRef.current = true;
     });
+    // Cancel so a chat switch or unmount can't let the stale frame scroll the
+    // old container and mark the new chat as already initialized.
+    return () => cancelAnimationFrame(raf);
   }, [messages]);
 
   // Prepend anchoring: restore scroll position after older messages are prepended

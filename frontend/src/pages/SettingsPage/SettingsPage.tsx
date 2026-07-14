@@ -73,12 +73,9 @@ export function SettingsPage() {
 
   const [localSettings, setLocalSettings] = useState<UserSettings | null>(settings ?? null);
   const localSettingsRef = useRef<UserSettings | null>(localSettings);
+  localSettingsRef.current = localSettings;
 
   const instantUpdateMutation = useUpdateSettingsMutation();
-
-  useEffect(() => {
-    localSettingsRef.current = localSettings;
-  }, [localSettings]);
 
   const buildChangedPayload = useCallback(
     (current: UserSettings, previous: UserSettings): UserSettingsUpdate => {

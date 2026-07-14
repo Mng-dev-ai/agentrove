@@ -81,7 +81,7 @@ export function useDiffScroll({
         step();
       });
     },
-    [cancelJump, setCollapsedFiles],
+    [cancelJump, paneRef, reviewCollapsedRef, rootRef, setActiveFile, setCollapsedFiles],
   );
 
   // Scope changes must cancel before a stale frame can run against the new diff.
@@ -102,7 +102,7 @@ export function useDiffScroll({
       root.removeEventListener('wheel', cancelJump, { capture: true });
       root.removeEventListener('keydown', cancelKeyboardScroll, { capture: true });
     };
-  }, [cancelJump, showFiles]);
+  }, [cancelJump, rootRef, showFiles]);
 
   // Scrollspy — capture-phase because scroll doesn't bubble and the Virtualizer
   // owns the scroll container. The last header within 32px of the pane top wins,
@@ -139,7 +139,7 @@ export function useDiffScroll({
       root.removeEventListener('scroll', onScroll, { capture: true });
       if (raf) cancelAnimationFrame(raf);
     };
-  }, [showFiles]);
+  }, [paneRef, rootRef, setActiveFile, showFiles]);
 
   return { jumpToFile };
 }

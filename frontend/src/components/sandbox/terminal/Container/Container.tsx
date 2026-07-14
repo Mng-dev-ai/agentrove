@@ -19,53 +19,62 @@ interface TerminalInstance {
   label: string;
 }
 
+function readStoredTerminals(
+  storageKey: string | null,
+  defaultTerminalId: string,
+): { terminals: TerminalInstance[]; activeTerminalId: string } {
+  const defaults = {
+    terminals: [{ id: defaultTerminalId, label: 'Terminal 1' }],
+    activeTerminalId: defaultTerminalId,
+  };
+  if (!storageKey) return defaults;
+  const stored = localStorage.getItem(storageKey);
+  if (!stored) return defaults;
+  try {
+    const parsed = JSON.parse(stored) as {
+      terminals?: TerminalInstance[];
+      activeTerminalId?: string;
+    };
+    const valid = parsed.terminals?.filter((terminal) => terminal.id && terminal.label) ?? [];
+    if (valid.length === 0) return defaults;
+    return {
+      terminals: valid,
+      activeTerminalId:
+        parsed.activeTerminalId && valid.some((terminal) => terminal.id === parsed.activeTerminalId)
+          ? parsed.activeTerminalId
+          : (valid[0]?.id ?? defaultTerminalId),
+    };
+  } catch {
+    // corrupt storage, use defaults
+    return defaults;
+  }
+}
+
 export function Container({ sandboxId, chatId, worktreeCwd, isVisible, panelKey }: ContainerProps) {
   const defaultTerminalId = `terminal-${panelKey}-1`;
   const storageKey = chatId ? terminalStorageKey(chatId, panelKey) : null;
-  const [terminals, setTerminals] = useState<TerminalInstance[]>([
-    { id: defaultTerminalId, label: 'Terminal 1' },
-  ]);
-  const [activeTerminalId, setActiveTerminalId] = useState<string>(defaultTerminalId);
+  const [terminals, setTerminals] = useState<TerminalInstance[]>(
+    () => readStoredTerminals(storageKey, defaultTerminalId).terminals,
+  );
+  const [activeTerminalId, setActiveTerminalId] = useState<string>(
+    () => readStoredTerminals(storageKey, defaultTerminalId).activeTerminalId,
+  );
   const [closingTerminalIds, setClosingTerminalIds] = useState<Set<string>>(() => new Set());
-  const isRestoringRef = useRef(true);
+
+  // Re-restore during render when the storage identity changes (chat/panel
+  // switch): React re-renders before running effects, so the persist effect
+  // below can never observe the new key paired with the old chat's state.
+  const restoreKey = `${storageKey}|${defaultTerminalId}`;
+  const prevRestoreKeyRef = useRef(restoreKey);
+  if (prevRestoreKeyRef.current !== restoreKey) {
+    prevRestoreKeyRef.current = restoreKey;
+    const restored = readStoredTerminals(storageKey, defaultTerminalId);
+    setTerminals(restored.terminals);
+    setActiveTerminalId(restored.activeTerminalId);
+  }
 
   useEffect(() => {
-    isRestoringRef.current = true;
-    const defaultTerminals = [{ id: defaultTerminalId, label: 'Terminal 1' }];
-
-    let nextTerminals = defaultTerminals;
-    let nextActiveId = defaultTerminalId;
-
-    if (storageKey) {
-      const stored = localStorage.getItem(storageKey);
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored) as {
-            terminals?: TerminalInstance[];
-            activeTerminalId?: string;
-          };
-          const valid = parsed.terminals?.filter((terminal) => terminal.id && terminal.label) ?? [];
-          if (valid.length > 0) {
-            nextTerminals = valid;
-            nextActiveId =
-              parsed.activeTerminalId &&
-              valid.some((terminal) => terminal.id === parsed.activeTerminalId)
-                ? parsed.activeTerminalId
-                : (valid[0]?.id ?? defaultTerminalId);
-          }
-        } catch {
-          // corrupt storage, use defaults
-        }
-      }
-    }
-
-    setTerminals(nextTerminals);
-    setActiveTerminalId(nextActiveId);
-    isRestoringRef.current = false;
-  }, [storageKey, defaultTerminalId]);
-
-  useEffect(() => {
-    if (!storageKey || isRestoringRef.current) {
+    if (!storageKey) {
       return;
     }
     localStorage.setItem(storageKey, JSON.stringify({ terminals, activeTerminalId }));

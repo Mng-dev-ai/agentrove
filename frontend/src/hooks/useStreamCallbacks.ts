@@ -110,6 +110,7 @@ export function useStreamCallbacks({
 
   const pendingUserMessageIdRef = useRef<string | null>(null);
   const messagesRef = useRef<Message[]>(messages);
+  messagesRef.current = messages;
   const timerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const buffersRef = useRef<Map<string, StreamContentBuffer>>(new Map());
   const flushTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -250,10 +251,6 @@ export function useStreamCallbacks({
     },
     [queryClient],
   );
-
-  useEffect(() => {
-    messagesRef.current = messages;
-  }, [messages]);
 
   useEffect(() => {
     const flushTimers = flushTimersRef.current;
@@ -728,11 +725,7 @@ export function useStreamCallbacks({
   // intentionally stable (only the stable queryClient in deps) so re-renders
   // don't re-fire the effects that consume them — always dispatch through the
   // freshest closures.
-  useEffect(() => {
-    optionsRef.current = chatId
-      ? { chatId, onEnvelope, onComplete, onError, onQueueProcess }
-      : null;
-  }, [chatId, onEnvelope, onComplete, onError, onQueueProcess]);
+  optionsRef.current = chatId ? { chatId, onEnvelope, onComplete, onError, onQueueProcess } : null;
 
   const startStream = useCallback(
     async (
