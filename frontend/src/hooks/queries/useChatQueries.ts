@@ -78,6 +78,11 @@ export const useInfiniteChatsQuery = (options?: {
     initialPageParam: 1,
     enabled: options?.enabled ?? true,
     gcTime: 1000 * 60 * 1,
+    // The list hydrates from the persisted localStorage snapshot for a fast
+    // first paint; always refetch behind it so chats created out-of-band
+    // (another device, MCP) surface on load even when the snapshot is fresher
+    // than the default staleTime.
+    refetchOnMount: 'always',
   });
 };
 
