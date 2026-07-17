@@ -301,12 +301,7 @@ async def stream_user_chat_events(
     return EventSourceResponse(
         chat_service.create_chat_events_stream(current_user.id),
         headers={
-            # no-transform: compression middlewares (Traefik compress, Caddy
-            # encode) buffer the first ~1KB of a response to decide whether to
-            # compress, which stalls a sparse SSE feed — events sit in the
-            # encoder until keep-alive pings fill the buffer. Both skip
-            # responses marked no-transform. X-Accel-Buffering covers nginx.
-            "Cache-Control": "no-cache, no-transform",
+            "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
@@ -339,12 +334,7 @@ async def stream_user_streams(
     return EventSourceResponse(
         chat_service.create_user_streams_feed(current_user.id, replay_cursors),
         headers={
-            # no-transform: compression middlewares (Traefik compress, Caddy
-            # encode) buffer the first ~1KB of a response to decide whether to
-            # compress, which stalls a sparse SSE feed — events sit in the
-            # encoder until keep-alive pings fill the buffer. Both skip
-            # responses marked no-transform. X-Accel-Buffering covers nginx.
-            "Cache-Control": "no-cache, no-transform",
+            "Cache-Control": "no-cache",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
