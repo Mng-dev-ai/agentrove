@@ -243,16 +243,17 @@ function normalizePositiveInt(value: unknown): number {
   return Math.floor(parsed);
 }
 
-function createChatEventsSource(): EventSource {
+async function createChatEventsSource(): Promise<EventSource> {
   // Local backend only — the VPS feed is opened separately via
   // cloudChatService.createChatEventsSource, against the remote client's auth.
-  const token = apiClient.getToken();
+  // EventSource bypasses APIClient's 401→refresh path and access tokens are
+  // short-lived, so mint a valid token up front instead of using the cached one.
+  const token = await apiClient.getValidToken();
   if (!token) {
     throw new Error('Authentication token required');
   }
 
-  const params = new URLSearchParams();
-  params.append('token', token);
+  const params = new URLSearchParams({ token });
   return new EventSource(`${apiClient.getBaseUrl()}/chat/chats/events?${params.toString()}`);
 }
 

@@ -13,6 +13,8 @@ import type {
   QueryClient,
 } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
+import { cloudChatService } from '@/services/cloudChatService';
+import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { isCloudChat } from '@/utils/chatOrigin';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
@@ -337,15 +339,49 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
   },
 );
 
-export const useDeleteAllChatsMutation = createMutation<void, Error, void>(
-  () => chatService.deleteAllChats(),
-  (queryClient) => {
-    // removeQueries on the prefix ['chats'] also clears chatsSearch entries.
-    queryClient.removeQueries({ queryKey: [queryKeys.chats] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-    useUIStore.getState().cleanupAllChats();
-  },
-);
+// The sidebar presents one merged list, so "delete all" must reach both
+// backends. Each backend's wipe reconciles its own caches as it succeeds: a
+// partial failure is real (e.g. VPS offline) and the successful side's chats
+// are already gone server-side, so the UI must drop them even while the
+// aggregate error still surfaces to the caller.
+export const useDeleteAllChatsMutation = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, void>({
+    mutationFn: async () => {
+      const wipes = [
+        chatService.deleteAllChats().then(() => {
+          // removeQueries on the prefix ['chats'] also clears chatsSearch entries.
+          queryClient.removeQueries({ queryKey: [queryKeys.chats] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+        }),
+      ];
+      const { cloudUrl, connectedEmail } = useCloudSettingsStore.getState();
+      if (connectedEmail) {
+        wipes.push(
+          cloudChatService.deleteAllChats().then(() => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll });
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.cloudWorkspaces(cloudUrl, connectedEmail),
+            });
+          }),
+        );
+      }
+      const results = await Promise.allSettled(wipes);
+      // Tabs/layouts are ephemeral — reset them whenever anything was wiped.
+      if (results.some((result) => result.status === 'fulfilled')) {
+        useUIStore.getState().cleanupAllChats();
+      }
+      const failed = results.find(
+        (result): result is PromiseRejectedResult => result.status === 'rejected',
+      );
+      if (failed) {
+        throw failed.reason instanceof Error
+          ? failed.reason
+          : new Error('Failed to delete all chats');
+      }
+    },
+  });
+};
 
 interface EnhancePromptParams {
   prompt: string;

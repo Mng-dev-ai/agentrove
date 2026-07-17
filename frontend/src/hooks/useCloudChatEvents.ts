@@ -7,6 +7,8 @@ import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { subscribeChatEventsFeed } from '@/utils/chatEventsFeed';
+import { resyncActiveStreams } from '@/utils/activeStreams';
 import { logger } from '@/utils/logger';
 import type { ChatEvent } from '@/types/chat.types';
 
@@ -30,6 +32,11 @@ export function useCloudChatEvents(options?: { enabled?: boolean }) {
 
   useEffect(() => {
     if (!enabled || !cloudUrl) return;
+
+    // Guards in-flight resync snapshots across disconnect/VPS switch — a late
+    // response from the old instance must not register ghost stream indicators
+    // (same generation guard useCloudStreamRestoration uses).
+    let cancelled = false;
 
     const onChatEvent = (event: MessageEvent) => {
       if (!event.data) return;
@@ -85,50 +92,30 @@ export function useCloudChatEvents(options?: { enabled?: boolean }) {
       }
     };
 
-    // Opening is async (mints an access token first), so guard against the
-    // effect being cleaned up before the source resolves.
-    let source: EventSource | undefined;
-    let cancelled = false;
-    let retryTimer: number | undefined;
-
-    const scheduleReopen = () => {
-      if (cancelled) return;
-      retryTimer = window.setTimeout(openFeed, 15_000);
-    };
-
-    const openFeed = () => {
-      cloudChatService
-        .createChatEventsSource()
-        .then((eventSource) => {
-          if (cancelled) {
-            eventSource.close();
-            return;
-          }
-          source = eventSource;
-          source.addEventListener('chat_event', (event: Event) =>
-            onChatEvent(event as MessageEvent),
-          );
-          // EventSource retries transient drops itself (readyState CONNECTING) but
-          // treats HTTP errors as fatal — e.g. 401 once the query-param token
-          // expires. Reopen with a freshly minted token so the feed can't die
-          // silently while the UI looks connected.
-          source.onerror = () => {
-            if (source?.readyState !== EventSource.CLOSED) return;
-            scheduleReopen();
-          };
-        })
-        .catch((error) => {
-          logger.error('Cloud chat events stream failed to open', 'useCloudChatEvents', error);
-          scheduleReopen();
-        });
-    };
-
-    openFeed();
+    const unsubscribe = subscribeChatEventsFeed({
+      createSource: () => cloudChatService.createChatEventsSource(),
+      onChatEvent,
+      // Events published while the feed was down are lost — refetch the cloud
+      // lists so chats created/renamed on the VPS during the gap surface,
+      // refetch active per-chat caches (titles, sub-threads), and re-register
+      // active streams so a missed stream_started still gets its running
+      // indicator (connection-time restoration doesn't re-run).
+      // getActiveStreams also marks the chat IDs cloud-owned before reconnect.
+      onResync: () => {
+        invalidateCloudLists(queryClient);
+        void queryClient.invalidateQueries({ queryKey: ['chat'] });
+        resyncActiveStreams(
+          () => cloudChatService.getActiveStreams(),
+          () => cancelled,
+          'useCloudChatEvents',
+        );
+      },
+      logContext: 'useCloudChatEvents',
+    });
 
     return () => {
       cancelled = true;
-      window.clearTimeout(retryTimer);
-      source?.close();
+      unsubscribe();
     };
   }, [enabled, cloudUrl, queryClient]);
 }

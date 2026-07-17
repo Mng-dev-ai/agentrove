@@ -32,6 +32,11 @@ export interface GitHubPRListResponse {
   items: GitHubPullRequest[];
 }
 
+export interface GitHubCollaborator {
+  login: string;
+  avatar_url: string;
+}
+
 export interface CreatePRRequest {
   owner: string;
   repo: string;

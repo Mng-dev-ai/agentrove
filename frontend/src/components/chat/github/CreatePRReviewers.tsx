@@ -1,8 +1,9 @@
 import { Button } from '@/components/ui/primitives/Button/Button';
+import type { GitHubCollaborator } from '@/types/github.types';
 import styles from './CreatePRReviewers.module.scss';
 
 interface CreatePRReviewersProps {
-  collaborators: Array<{ login: string; avatar_url: string }> | undefined;
+  collaborators: GitHubCollaborator[] | undefined;
   selected: string[];
   onToggle: (login: string) => void;
 }

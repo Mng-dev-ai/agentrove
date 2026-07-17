@@ -22,7 +22,8 @@ export function CreateCommitDialog({ onClose }: CreateCommitDialogProps) {
   const sandboxId = currentChat?.sandbox_id ?? '';
   const worktreeCwd = currentChat?.worktree_cwd ?? undefined;
   const commitMutation = useGitCommitMutation();
-  const generateMessage = useGenerateCommitMessageMutation();
+  // Generation runs on the backend that owns the chat (local or cloud VPS).
+  const generateMessage = useGenerateCommitMessageMutation(currentChat?.id);
 
   const { data: diffData, isPlaceholderData } = useGitDiffQuery(
     sandboxId,

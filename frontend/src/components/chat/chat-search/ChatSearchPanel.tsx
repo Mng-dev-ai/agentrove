@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/primitives/Input/Input';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearchChatsQuery } from '@/hooks/queries/useChatQueries';
+import { useSearchCloudChatsQuery } from '@/hooks/queries/useCloudQueries';
 import type { ChatSearchResult } from '@/types/chat.types';
 import { ChatSearchResultGroup } from './ChatSearchResultGroup';
 import styles from './ChatSearchPanel.module.scss';
@@ -51,7 +52,15 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
     activeInputRef.current?.focus();
   });
 
-  const { data, isFetching, error } = useSearchChatsQuery(debouncedQuery);
+  // Local and cloud chats live on separate backends — search both and merge,
+  // like the sidebar's merged lists. Each source errors independently so a
+  // down VPS doesn't take local search with it.
+  const local = useSearchChatsQuery(debouncedQuery);
+  const cloud = useSearchCloudChatsQuery(debouncedQuery);
+  const isFetching = local.isFetching || cloud.isFetching;
+  const hasLoaded = !!local.data || !!cloud.data;
+  const error = local.error ?? cloud.error;
+  const truncated = !!local.data?.truncated || !!cloud.data?.truncated;
 
   const handleClear = useCallback(() => {
     setQuery('');
@@ -68,16 +77,17 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
     [query, handleClear],
   );
 
-  const { grouped, totalMatches } = useMemo(() => {
-    const results = data?.results ?? [];
+  const { grouped, totalMatches, resultCount } = useMemo(() => {
+    const results = [...(local.data?.results ?? []), ...(cloud.data?.results ?? [])];
     return {
       grouped: groupByWorkspace(results),
       totalMatches: results.reduce((acc, r) => acc + r.match_count, 0),
+      resultCount: results.length,
     };
-  }, [data]);
+  }, [local.data, cloud.data]);
 
   const hasQuery = debouncedQuery.trim().length >= 2;
-  const hasResults = !!data && data.results.length > 0;
+  const hasResults = resultCount > 0;
 
   return (
     <div className={styles['chat-search-panel']}>
@@ -116,20 +126,33 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
           <p className={styles['empty-message']}>Type at least 2 characters to search.</p>
         )}
 
-        {hasQuery && isFetching && !data && (
+        {/* Keep the spinner until something is showable — one source settling
+            empty while the other is still in flight must not blank the panel. */}
+        {hasQuery && isFetching && !hasResults && (
           <div className={styles['loading-message']}>
             <Loader2 className={styles['spin-icon']} />
             Searching...
           </div>
         )}
 
-        {hasQuery && error && (
+        {/* Blocking failure means neither source returned and nothing is still
+            in flight — a source that's still fetching gets its chance first.
+            Once anything loaded, a failed source degrades to a non-blocking
+            incompleteness notice, coherent alongside results or "No results". */}
+        {hasQuery && error && !hasLoaded && !isFetching && (
           <p className={styles['error-message']}>
             {error instanceof Error ? error.message : 'Search failed'}
           </p>
         )}
 
-        {hasQuery && data && !hasResults && !isFetching && (
+        {hasQuery && error && hasLoaded && (
+          <p className={styles['error-message']}>
+            {[local.error && 'local', cloud.error && 'cloud'].filter(Boolean).join(' and ')} search
+            failed — results may be incomplete.
+          </p>
+        )}
+
+        {hasQuery && hasLoaded && !hasResults && !isFetching && (
           <p className={styles['empty-message']}>No results for &ldquo;{debouncedQuery}&rdquo;</p>
         )}
 
@@ -138,10 +161,10 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
             <p className={styles.summary}>
               {isFetching && <Loader2 className={styles['spin-icon']} />}
               <span>
-                {totalMatches} {totalMatches === 1 ? 'result' : 'results'} in {data.results.length}{' '}
-                {data.results.length === 1 ? 'chat' : 'chats'} · {grouped.length}{' '}
+                {totalMatches} {totalMatches === 1 ? 'result' : 'results'} in {resultCount}{' '}
+                {resultCount === 1 ? 'chat' : 'chats'} · {grouped.length}{' '}
                 {grouped.length === 1 ? 'workspace' : 'workspaces'}
-                {data.truncated && ' (truncated)'}
+                {truncated && ' (truncated)'}
               </span>
             </p>
             <div aria-busy={isFetching} className={styles['result-list']}>

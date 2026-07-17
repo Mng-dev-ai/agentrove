@@ -68,8 +68,15 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
 
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
   const { data: diffData } = useGitDiffQuery(sandboxId, 'branch', false, worktreeCwd);
-  const { data: collaborators } = useGitHubCollaboratorsQuery(owner, repo, !!owner && !!repo);
-  const { data: pullsData } = useGitHubPullsQuery(owner, repo, !!owner && !!repo);
+  // GitHub calls run with the credentials of the backend that owns the chat.
+  const chatId = currentChat?.id;
+  const { data: collaborators } = useGitHubCollaboratorsQuery(
+    owner,
+    repo,
+    !!owner && !!repo,
+    chatId,
+  );
+  const { data: pullsData } = useGitHubPullsQuery(owner, repo, !!owner && !!repo, chatId);
 
   const changedFiles = useMemo(
     () => (diffData?.diff ? parseChangedFiles(diffData.diff) : []),
@@ -134,8 +141,8 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
   const selectedModelId = useModelStore((s) =>
     currentChat ? (s.modelByChat[currentChat.id] ?? '') : '',
   );
-  const createPR = useCreatePullRequestMutation();
-  const generateDescription = useGeneratePRDescriptionMutation();
+  const createPR = useCreatePullRequestMutation(chatId);
+  const generateDescription = useGeneratePRDescriptionMutation(chatId);
   const hasDiff = !!diffData?.diff;
   const diffError = diffData?.error;
   const hasModel = !!selectedModelId.trim();

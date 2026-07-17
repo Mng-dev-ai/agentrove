@@ -1,7 +1,7 @@
 import { GitBranch } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
-import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 import { useRunStreamAction } from '@/hooks/useRunStreamAction';
 import styles from './StreamActionsBar.module.scss';
 
@@ -11,7 +11,8 @@ interface StreamActionsBarProps {
 
 export function StreamActionsBar({ chatId }: StreamActionsBarProps) {
   const { data: chat } = useChatQuery(chatId);
-  const { data: settings } = useSettingsQuery();
+  // Stream actions come from the instance that owns the chat (local or cloud VPS).
+  const { data: settings } = useSettingsForChatQuery(chatId);
   const runAction = useRunStreamAction(chat);
 
   const enabledActions = (settings?.stream_actions ?? []).filter((action) => action.enabled);
