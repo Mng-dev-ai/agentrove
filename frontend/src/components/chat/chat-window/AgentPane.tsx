@@ -5,7 +5,7 @@ import { ChatProvider } from '@/contexts/ChatContext';
 import { useChatData } from '@/hooks/useChatData';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
-import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 
 interface AgentPaneProps {
   chatId: string;
@@ -21,7 +21,8 @@ export const AgentPane = memo(function AgentPane({ chatId }: AgentPaneProps) {
     currentChat?.workspace_id,
     chatId,
   );
-  const { data: settings } = useSettingsQuery();
+  // Personas come from the instance that owns the chat (local or cloud VPS).
+  const { data: settings } = useSettingsForChatQuery(chatId);
 
   return (
     <ChatProvider

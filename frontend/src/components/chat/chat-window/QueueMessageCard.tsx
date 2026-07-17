@@ -4,7 +4,8 @@ import { X, Pencil, CornerDownRight, FileText, FileSpreadsheet, Send } from 'luc
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
-import { apiClient } from '@/lib/api';
+import { resolveChatClient } from '@/lib/api';
+import { useChatContext } from '@/hooks/useChatContext';
 import { detectFileType } from '@/utils/fileTypes';
 import { HighlightedText } from '@/components/ui/shared/HighlightedText/HighlightedText';
 import { fetchAttachmentBlob } from '@/utils/file';
@@ -98,6 +99,8 @@ function LocalFilePreview({ file, uploading }: { file: File; uploading: boolean 
 }
 
 function AuthenticatedPreview({ attachment }: { attachment: QueueAttachment }) {
+  // A cloud chat's attachment URLs only exist on the VPS — route like AttachmentViewer.
+  const { chatId } = useChatContext();
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -114,7 +117,7 @@ function AuthenticatedPreview({ attachment }: { attachment: QueueAttachment }) {
           return;
         }
 
-        const blob = await fetchAttachmentBlob(attachment.file_url, apiClient);
+        const blob = await fetchAttachmentBlob(attachment.file_url, resolveChatClient(chatId));
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
         setImageSrc(objectUrl);
@@ -137,7 +140,7 @@ function AuthenticatedPreview({ attachment }: { attachment: QueueAttachment }) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [attachment.file_url, attachment.file_type]);
+  }, [attachment.file_url, attachment.file_type, chatId]);
 
   if (attachment.file_type === 'pdf') {
     return (

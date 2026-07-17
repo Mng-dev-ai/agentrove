@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { logger } from '@/utils/logger';
-import { useStreamStore } from '@/store/streamStore';
+import { registerActiveStreams } from '@/utils/activeStreams';
 import { chatService } from '@/services/chatService';
 
 // Restores local streams in one bulk request — the backend enumerates its
@@ -14,14 +14,7 @@ export function useLocalStreamRestoration({ enabled }: { enabled: boolean }) {
     hasRestoredRef.current = true;
 
     const restore = async () => {
-      const active = await chatService.getActiveStreams();
-      for (const stream of active) {
-        useStreamStore.getState().addStreamMetadataIfAbsent({
-          chatId: stream.chat_id,
-          messageId: stream.message_id,
-          startTime: Date.now(),
-        });
-      }
+      registerActiveStreams(await chatService.getActiveStreams());
     };
 
     restore().catch((error) => {

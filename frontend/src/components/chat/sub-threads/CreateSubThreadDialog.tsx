@@ -22,7 +22,7 @@ import {
 } from '@/components/chat/permission-mode-selector/permissionModes';
 import type { PermissionMode } from '@/store/chatSettingsStore';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
-import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 import { useCreateSubThreadMutation } from '@/hooks/queries/useChatQueries';
 import { useSlashCommandSuggestions } from '@/hooks/useSlashCommandSuggestions';
 import { useChatContext } from '@/hooks/useChatContext';
@@ -47,7 +47,8 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: models = [] } = useModelsQuery({ enabled: isAuthenticated });
-  const { data: settings } = useSettingsQuery({ enabled: isAuthenticated });
+  // A sub-thread runs on the parent's instance — offer that instance's personas.
+  const { data: settings } = useSettingsForChatQuery(parentChat.id, isAuthenticated);
   const personas = settings?.personas ?? [];
 
   const [selectedModelId, setSelectedModelId] = useState('');

@@ -1,8 +1,14 @@
-import { apiClient } from '@/lib/api';
-import { ensureResponse, withAuth, buildQueryString } from '@/services/base/BaseService';
+import { apiClient, resolveChatClient } from '@/lib/api';
+import {
+  ensureResponse,
+  serviceCall,
+  withAuth,
+  buildQueryString,
+} from '@/services/base/BaseService';
 import type {
   GitHubReposResponse,
   GitHubPRListResponse,
+  GitHubCollaborator,
   CreatePRRequest,
   CreatePRResponse,
   GenerateCommitMessageRequest,
@@ -11,6 +17,13 @@ import type {
   GeneratePRDescriptionResponse,
 } from '@/types/github.types';
 
+// Repo search backs local workspace creation (no chat exists yet), so it always
+// targets the local instance and uses withAuth (auth failure = local session
+// dead). Everything else is invoked from a chat's git dialogs and must use the
+// GitHub credentials of the backend that owns the chat — a cloud chat's
+// PRs/commits go through the VPS's GitHub connection. Routed calls use
+// serviceCall like chatService's: withAuth would tear down the LOCAL session on
+// a VPS auth failure, while APIClient already handles per-client expiry.
 async function searchRepositories(
   query: string,
   page: number,
@@ -23,26 +36,39 @@ async function searchRepositories(
   });
 }
 
-async function listPullRequests(owner: string, repo: string): Promise<GitHubPRListResponse> {
-  return withAuth(async () => {
+async function listPullRequests(
+  owner: string,
+  repo: string,
+  chatId?: string,
+): Promise<GitHubPRListResponse> {
+  return serviceCall(async () => {
     const qs = buildQueryString({ owner, repo });
-    const response = await apiClient.get<GitHubPRListResponse>(`/github/pulls${qs}`);
+    const response = await resolveChatClient(chatId).get<GitHubPRListResponse>(
+      `/github/pulls${qs}`,
+    );
     return ensureResponse(response, 'Failed to fetch pull requests');
   });
 }
 
-async function createPullRequest(request: CreatePRRequest): Promise<CreatePRResponse> {
-  return withAuth(async () => {
-    const response = await apiClient.post<CreatePRResponse>('/github/pulls', request);
+async function createPullRequest(
+  request: CreatePRRequest,
+  chatId?: string,
+): Promise<CreatePRResponse> {
+  return serviceCall(async () => {
+    const response = await resolveChatClient(chatId).post<CreatePRResponse>(
+      '/github/pulls',
+      request,
+    );
     return ensureResponse(response, 'Failed to create pull request');
   });
 }
 
 async function generatePRDescription(
   request: GeneratePRDescriptionRequest,
+  chatId?: string,
 ): Promise<GeneratePRDescriptionResponse> {
-  return withAuth(async () => {
-    const response = await apiClient.post<GeneratePRDescriptionResponse>(
+  return serviceCall(async () => {
+    const response = await resolveChatClient(chatId).post<GeneratePRDescriptionResponse>(
       '/github/generate-pr-description',
       request,
     );
@@ -52,9 +78,10 @@ async function generatePRDescription(
 
 async function generateCommitMessage(
   request: GenerateCommitMessageRequest,
+  chatId?: string,
 ): Promise<GenerateCommitMessageResponse> {
-  return withAuth(async () => {
-    const response = await apiClient.post<GenerateCommitMessageResponse>(
+  return serviceCall(async () => {
+    const response = await resolveChatClient(chatId).post<GenerateCommitMessageResponse>(
       '/github/generate-commit-message',
       request,
     );
@@ -65,10 +92,11 @@ async function generateCommitMessage(
 async function getCollaborators(
   owner: string,
   repo: string,
-): Promise<Array<{ login: string; avatar_url: string }>> {
-  return withAuth(async () => {
+  chatId?: string,
+): Promise<GitHubCollaborator[]> {
+  return serviceCall(async () => {
     const qs = buildQueryString({ owner, repo });
-    const response = await apiClient.get<Array<{ login: string; avatar_url: string }>>(
+    const response = await resolveChatClient(chatId).get<GitHubCollaborator[]>(
       `/github/collaborators${qs}`,
     );
     return ensureResponse(response, 'Failed to fetch collaborators');

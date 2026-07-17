@@ -5,6 +5,8 @@ import { applyCreatedChat, patchChatInCache } from '@/hooks/queries/useChatQueri
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { subscribeChatEventsFeed } from '@/utils/chatEventsFeed';
+import { resyncActiveStreams } from '@/utils/activeStreams';
 import { logger } from '@/utils/logger';
 import type { ChatEvent } from '@/types/chat.types';
 
@@ -18,13 +20,9 @@ export function useChatEvents(options?: { enabled?: boolean }) {
   useEffect(() => {
     if (!enabled) return;
 
-    let source: EventSource;
-    try {
-      source = chatService.createChatEventsSource();
-    } catch (error) {
-      logger.error('Chat events stream failed to open', 'useChatEvents', error);
-      return;
-    }
+    // Guards in-flight resync snapshots across teardown (logout flips enabled) —
+    // a late response must not register ghost stream indicators.
+    let cancelled = false;
 
     const onChatEvent = (event: MessageEvent) => {
       if (!event.data) return;
@@ -72,9 +70,30 @@ export function useChatEvents(options?: { enabled?: boolean }) {
       }
     };
 
-    // EventSource handles transient-error reconnects itself; no error handler needed.
-    // Custom event names hit the generic EventTarget overload, which takes Event.
-    source.addEventListener('chat_event', (event: Event) => onChatEvent(event as MessageEvent));
-    return () => source.close();
+    const unsubscribe = subscribeChatEventsFeed({
+      createSource: () => chatService.createChatEventsSource(),
+      onChatEvent,
+      // Events published while the feed was down are lost — refetch the sidebar
+      // lists, refetch active per-chat caches (titles, sub-threads, context
+      // usage — the live path patches those directly), and re-register active
+      // streams so a missed stream_started still gets its running indicator
+      // (startup restoration only runs once).
+      onResync: () => {
+        void queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+        void queryClient.invalidateQueries({ queryKey: ['chat'] });
+        resyncActiveStreams(
+          () => chatService.getActiveStreams(),
+          () => cancelled,
+          'useChatEvents',
+        );
+      },
+      logContext: 'useChatEvents',
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [enabled, queryClient]);
 }

@@ -10,7 +10,7 @@ import type {
   WorkspaceResources,
   UpdateWorkspaceRequest,
 } from '@/types/workspace.types';
-import type { Chat, ChatRequest, CreateChatRequest } from '@/types/chat.types';
+import type { Chat, ChatRequest, ChatSearchResponse, CreateChatRequest } from '@/types/chat.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
 import type { PaginatedChats, PaginatedResponse } from '@/types/api.types';
 
@@ -72,6 +72,20 @@ async function listWorkspaces(): Promise<Workspace[]> {
   });
 }
 
+// Search the VPS's chats — the search panel merges these with local results.
+// Marks returned chat IDs cloud-owned so opening a result routes to the VPS.
+async function searchChats(query: string): Promise<ChatSearchResponse> {
+  return serviceCall(async () => {
+    const queryString = buildQueryString({ q: query });
+    const response = await remoteApiClient.get<ChatSearchResponse>(
+      `/chat/chats/search${queryString}`,
+    );
+    const data = ensureResponse(response, 'Failed to search cloud chats');
+    markCloudChats(data.results.map((result) => result.chat_id));
+    return data;
+  });
+}
+
 async function createChat(data: CreateChatRequest): Promise<Chat> {
   return serviceCall(async () => {
     const response = await remoteApiClient.post<Chat>('/chat/chats', data);
@@ -92,6 +106,14 @@ async function updateWorkspace(
 async function deleteWorkspace(workspaceId: string): Promise<void> {
   await serviceCall(async () => {
     await remoteApiClient.delete(`/workspaces/${workspaceId}`);
+  });
+}
+
+// Cloud half of Settings → "Delete All Chats": the sidebar presents one merged
+// list, so the wipe must reach the VPS's chats too.
+async function deleteAllChats(): Promise<void> {
+  await serviceCall(async () => {
+    await remoteApiClient.delete('/chat/chats/all');
   });
 }
 
@@ -158,7 +180,9 @@ export const cloudChatService = {
   updateWorkspace,
   deleteWorkspace,
   listChats,
+  searchChats,
   createChat,
+  deleteAllChats,
   getWorkspaceResources,
   getSettings,
   startCompletion,

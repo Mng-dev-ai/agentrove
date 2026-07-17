@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { logger } from '@/utils/logger';
-import { useStreamStore } from '@/store/streamStore';
+import { registerActiveStreams } from '@/utils/activeStreams';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { cloudChatService } from '@/services/cloudChatService';
 
@@ -21,13 +21,7 @@ export function useCloudStreamRestoration({ enabled }: { enabled: boolean }) {
     const restore = async () => {
       const active = await cloudChatService.getActiveStreams();
       if (cancelled) return;
-      for (const stream of active) {
-        useStreamStore.getState().addStreamMetadataIfAbsent({
-          chatId: stream.chat_id,
-          messageId: stream.message_id,
-          startTime: Date.now(),
-        });
-      }
+      registerActiveStreams(active);
     };
 
     restore().catch((error) => {

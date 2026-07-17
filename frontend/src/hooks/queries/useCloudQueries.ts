@@ -1,4 +1,4 @@
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, keepPreviousData } from '@tanstack/react-query';
 import { cloudChatService } from '@/services/cloudChatService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
@@ -10,6 +10,7 @@ import type {
 } from '@/types/workspace.types';
 import type { UserSettings } from '@/types/user.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
+import type { ChatSearchResponse } from '@/types/chat.types';
 
 const CLOUD_CHATS_PER_PAGE = 25;
 
@@ -114,6 +115,24 @@ export const useCloudChatsTotalQuery = (enabled: boolean) => {
     select: (data) => data.total,
     enabled: enabled && !!cloudUrl,
     staleTime: 30_000,
+  });
+};
+
+// Cloud twin of useSearchChatsQuery — ChatSearchPanel merges the two result sets
+// like the sidebar merges its lists. Key extends queryKeys.cloudChats so
+// cloudChatsAll invalidations (deletes, renames) prefix-match it.
+export const useSearchCloudChatsQuery = (query: string) => {
+  const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
+  const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
+  const trimmed = query.trim();
+  return useQuery<ChatSearchResponse>({
+    queryKey: [...queryKeys.cloudChats(cloudUrl, connectedEmail), 'search', trimmed] as const,
+    queryFn: () => cloudChatService.searchChats(trimmed),
+    enabled: !!cloudUrl && trimmed.length >= 2,
+    // Placeholder retention only while connected: after disconnect the origin
+    // tracking is cleared, so held-over VPS results would misroute when opened.
+    placeholderData: cloudUrl ? keepPreviousData : undefined,
+    staleTime: 15_000,
   });
 };
 

@@ -22,7 +22,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useChatQuery, markChatViewed } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
-import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { SubThreadDialog } from './SubThreadDialog';
 import styles from './ChatPage.module.scss';
@@ -140,7 +140,9 @@ export function ChatPage() {
   }, [activeViews, currentChat?.sandbox_id, refetchFilesMetadata]);
 
   const workspaces = useWorkspacesList();
-  const { data: settings } = useSettingsQuery();
+  // Routes to the instance that owns the chat so a cloud chat's persona selector
+  // shows the VPS's personas (and sends resolve the selected name against them).
+  const { data: settings } = useSettingsForChatQuery(chatId);
 
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
     currentChat?.workspace_id,
