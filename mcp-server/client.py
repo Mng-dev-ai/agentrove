@@ -90,6 +90,10 @@ class AgentroveClient:
         resp = await self.request("GET", "/chat/chats", params=params)
         return resp.json()
 
+    async def get_chat(self, chat_id: str) -> dict[str, Any]:
+        resp = await self.request("GET", f"/chat/chats/{chat_id}")
+        return resp.json()
+
     async def list_personas(self) -> list[dict[str, Any]]:
         resp = await self.request("GET", "/settings/")
         return resp.json().get("personas") or []

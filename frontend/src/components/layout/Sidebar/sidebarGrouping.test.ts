@@ -19,6 +19,9 @@ function chat(id: string, updatedAt: Date, over: Partial<Chat> = {}): Chat {
     sub_thread_count: 0,
     session_agent_kind: null,
     unread: false,
+    last_model_id: null,
+    last_thinking_mode: null,
+    last_persona_name: null,
     ...over,
   };
 }

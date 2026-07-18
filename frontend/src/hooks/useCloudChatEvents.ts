@@ -82,6 +82,10 @@ export function useCloudChatEvents(options?: { enabled?: boolean }) {
         markCloudChats([parsed.chat_id]);
         useUIStore.getState().openChatTab(parsed.chat_id);
         invalidateCloudLists(queryClient);
+        // The turn also records its model/thinking/persona on the chat — drop
+        // the cached detail so the toolbar seeds from what actually ran
+        // instead of a copy cached before the turn (5-minute staleTime).
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
         // Self-started turns are already tracked via addStream; settled turns
         // are cleaned up by useGlobalStream's orphan pruning.
         useStreamStore.getState().addStreamMetadataIfAbsent({

@@ -508,6 +508,41 @@ async def test_chat_tool_progress_orphan_update_is_a_no_op(
     assert not any(e["tool"]["id"] == "tool-orphan" for e in tool_events(message))
 
 
+async def test_chat_records_last_turn_settings(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    # The chat must record each turn's model/thinking/persona so out-of-band
+    # follow-ups (MCP) and the UI can inherit them instead of their defaults.
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+
+    response = await client.post(
+        "/api/v1/chat/chat",
+        data={
+            "prompt": "hello",
+            "chat_id": chat["id"],
+            "model_id": "sonnet",
+            "permission_mode": "default",
+            "thinking_mode": "low",
+            "selected_persona_name": "Bugbot",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    message_id = response.json()["message_id"]
+    await wait_for_message(client, headers, chat_id=chat["id"], message_id=message_id)
+
+    detail = await client.get(f"/api/v1/chat/chats/{chat['id']}", headers=headers)
+    assert detail.status_code == 200, detail.text
+    body = detail.json()
+    assert body["last_model_id"] == "sonnet"
+    assert body["last_thinking_mode"] == "low"
+    assert body["last_persona_name"] == "Bugbot"
+
+
 async def test_chat_tool_left_active_is_auto_completed_on_finish(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],

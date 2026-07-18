@@ -76,6 +76,9 @@ export interface Chat {
   sub_thread_count: number;
   session_agent_kind: AgentKind | null;
   unread: boolean;
+  last_model_id: string | null;
+  last_thinking_mode: string | null;
+  last_persona_name: string | null;
 }
 
 // Wire contract of the per-user chat lifecycle SSE feed (/chat/chats/events),

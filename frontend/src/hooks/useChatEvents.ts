@@ -60,6 +60,10 @@ export function useChatEvents(options?: { enabled?: boolean }) {
         // lists so the chat surfaces even from outside the loaded pages.
         queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+        // The turn also records its model/thinking/persona on the chat — drop
+        // the cached detail so the toolbar seeds from what actually ran
+        // instead of a copy cached before the turn (5-minute staleTime).
+        queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
         // Self-started turns are already tracked via addStream; settled turns
         // are cleaned up by useGlobalStream's orphan pruning.
         useStreamStore.getState().addStreamMetadataIfAbsent({

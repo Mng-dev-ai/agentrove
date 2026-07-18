@@ -64,6 +64,19 @@ export function ChatSessionOrchestrator({
   const fastMode = useChatSettingsStore(
     (state) => state.fastModeByChat[chatId] ?? DEFAULT_FAST_MODE,
   );
+  // Adopt the server-recorded last-turn settings when this client has no local
+  // choice for the chat — turns started out-of-band (MCP, automations) would
+  // otherwise display and re-send the client defaults instead of what ran.
+  useEffect(() => {
+    if (!currentChat) return;
+    const settings = useChatSettingsStore.getState();
+    if (settings.thinkingModeByChat[chatId] === undefined && currentChat.last_thinking_mode) {
+      settings.setThinkingMode(chatId, currentChat.last_thinking_mode);
+    }
+    if (settings.personaByChat[chatId] === undefined && currentChat.last_persona_name) {
+      settings.setPersona(chatId, currentChat.last_persona_name);
+    }
+  }, [chatId, currentChat]);
   const lastAssistantModelId = useMemo((): string | null | undefined => {
     if (messagesQuery.isLoading) return null;
     for (let i = fetchedMessages.length - 1; i >= 0; i--) {

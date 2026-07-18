@@ -1074,9 +1074,6 @@ class ChatService(BaseDbService[Chat]):
         # persist — open sessions refetch the sidebar on the stream_started
         # broadcast and must already see the new order. Sub-threads bump their
         # parent too, since top-level ordering follows the parent.
-        bump_ids = [chat.id]
-        if chat.parent_chat_id:
-            bump_ids.append(chat.parent_chat_id)
         now = datetime.now(timezone.utc)
         async with self.session_factory() as db:
             if chat.parent_chat_id:
@@ -1093,8 +1090,22 @@ class ChatService(BaseDbService[Chat]):
                     )
                     .values(last_viewed_at=now)
                 )
+                await db.execute(
+                    update(Chat)
+                    .where(Chat.id == chat.parent_chat_id)
+                    .values(updated_at=now)
+                )
+            # Record the turn's settings alongside the bump — the server-side
+            # source of truth that MCP follow-ups and the UI inherit.
             await db.execute(
-                update(Chat).where(Chat.id.in_(bump_ids)).values(updated_at=now)
+                update(Chat)
+                .where(Chat.id == chat.id)
+                .values(
+                    updated_at=now,
+                    last_model_id=request.model_id,
+                    last_thinking_mode=request.thinking_mode,
+                    last_persona_name=request.selected_persona_name,
+                )
             )
             await db.commit()
 

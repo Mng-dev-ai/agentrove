@@ -54,6 +54,11 @@ class Chat(Base):
     parent_chat_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("chats.id", ondelete="SET NULL"), nullable=True
     )
+    # The last turn's settings — server-side source of truth so out-of-band
+    # follow-ups (MCP) and the UI inherit them instead of their own defaults.
+    last_model_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    last_thinking_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    last_persona_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     user = relationship("User", back_populates="chats")
     workspace = relationship("Workspace", back_populates="chats")
