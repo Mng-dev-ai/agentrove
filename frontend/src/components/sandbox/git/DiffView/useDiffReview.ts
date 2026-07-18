@@ -13,6 +13,9 @@ import { hashDiffContent } from './diffView.utils';
 interface UseDiffReviewParams {
   parsedFiles: FileDiffMetadata[];
   scopeKey: string;
+  // True while a scope switch is still serving the previous scope's rows
+  // (keepPreviousData) — parsedFiles and scopeKey disagree until the fetch lands.
+  isPlaceholder: boolean;
   collapsedFiles: Set<string>;
   setCollapsedFiles: Dispatch<SetStateAction<Set<string>>>;
   toggleCollapsed: (name: string) => void;
@@ -28,6 +31,7 @@ interface UseDiffReviewParams {
 export function useDiffReview({
   parsedFiles,
   scopeKey,
+  isPlaceholder,
   collapsedFiles,
   setCollapsedFiles,
   toggleCollapsed,
@@ -109,6 +113,9 @@ export function useDiffReview({
 
   const toggleReviewed = useCallback(
     (name: string) => {
+      // Placeholder rows belong to the previous scope — a ✓ would persist a key
+      // hashed from them under the new scope, which its real diff never matches.
+      if (isPlaceholder) return;
       const key = reviewKeyByFile.get(name);
       if (!key) return;
       const store = useDiffReviewStore.getState();
@@ -137,7 +144,7 @@ export function useDiffReview({
         });
       }
     },
-    [reviewKeyByFile, scopeKey, setCollapsedFiles],
+    [isPlaceholder, reviewKeyByFile, scopeKey, setCollapsedFiles],
   );
 
   return {

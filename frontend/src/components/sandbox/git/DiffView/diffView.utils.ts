@@ -8,10 +8,10 @@ export const DIFF_THEMES = { dark: 'pierre-dark', light: 'pierre-light' } as con
 // on scroll + rAF) and flashes unstyled text or striped buffer regions.
 export const VIRTUALIZER_CONFIG = { overscrollSize: 2500, intersectionObserverMargin: 10000 };
 
+// Label-only rename: `all` stays the wire value — query keys, the scopeKey,
+// and persisted review-✓ state are keyed by it.
 export const DIFF_MODE_OPTIONS = [
-  { value: 'all', label: 'All' },
-  { value: 'staged', label: 'Staged' },
-  { value: 'unstaged', label: 'Unstaged' },
+  { value: 'all', label: 'Uncommitted' },
   { value: 'branch', label: 'Branch' },
 ] satisfies { value: DiffMode; label: string }[];
 
@@ -31,9 +31,7 @@ export const SCROLL_KEYS = new Set([
 ]);
 
 export const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
-  all: 'No changes',
-  staged: 'No staged changes',
-  unstaged: 'No unstaged changes',
+  all: 'No uncommitted changes',
   branch: 'No changes from base branch',
 };
 
@@ -67,11 +65,31 @@ export const computeOverflowMenuPos = (rect: DOMRect) => ({
   ),
 });
 
+// Dir-major path order: a directory's files sort together, before any of its
+// subdirectories' files. The raw patch isn't display-ordered (untracked diffs
+// are appended after the tracked diff), and even git's own path sort splits a
+// directory (`a/sub/x.ts` lands between `a/b.ts` and `a/z.ts`). The sidebar's
+// consecutive dir grouping and its sidebar-order == scroll-order assumption
+// both rely on this ordering.
+export function compareFilePaths(a: string, b: string): number {
+  const dirA = a.slice(0, a.lastIndexOf('/') + 1);
+  const dirB = b.slice(0, b.lastIndexOf('/') + 1);
+  if (dirA !== dirB) return dirA < dirB ? -1 : 1;
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 // Nearest scrollable ancestor, bounded to the diff pane — the Virtualizer owns
-// the scroll container and doesn't expose a ref to it.
+// the scroll container and doesn't expose a ref to it. The overflow style is
+// checked, not just the heights: scrollHeight/clientHeight round to integers,
+// so with fractional layout heights (retina/zoom) a plain flow div can read
+// scrollHeight == clientHeight + 1. Height comparison alone then picks the
+// Virtualizer's content wrapper, where scrollTop writes are silently clamped
+// to 0 and jump-to-file dies without a trace.
 export function findScroller(el: HTMLElement, boundary: HTMLElement | null): HTMLElement | null {
   for (let p = el.parentElement; p && p !== boundary; p = p.parentElement) {
-    if (p.scrollHeight > p.clientHeight) return p;
+    const { overflowY } = getComputedStyle(p);
+    const scrollable = overflowY === 'auto' || overflowY === 'scroll';
+    if (scrollable && p.scrollHeight > p.clientHeight) return p;
   }
   return null;
 }

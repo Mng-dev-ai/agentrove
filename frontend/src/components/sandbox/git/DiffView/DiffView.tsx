@@ -27,6 +27,7 @@ import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
   NARROW_BREAKPOINT,
+  compareFilePaths,
   computeMenuPos,
   computeOverflowMenuPos,
   hashDiffContent,
@@ -183,6 +184,7 @@ const DiffViewContent = memo(function DiffViewContent({
             ? f
             : rebuildWithCollapsedContext(f, parseDiffFromFile),
         )
+        .sort((a, b) => compareFilePaths(a.name, b.name))
     );
   }, [diffContent, diffCacheKey]);
 
@@ -220,6 +222,7 @@ const DiffViewContent = memo(function DiffViewContent({
   } = useDiffReview({
     parsedFiles,
     scopeKey,
+    isPlaceholder: isPlaceholderData,
     collapsedFiles,
     setCollapsedFiles,
     toggleCollapsed,
@@ -295,6 +298,7 @@ const DiffViewContent = memo(function DiffViewContent({
     <DiffFileSidebar
       files={parsedFiles}
       statsByFile={statsByFile}
+      totals={totals}
       activeFile={currentFile}
       onSelectFile={selectFile}
       reviewedFiles={reviewedNames}

@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
 import { CheckCircle2, Circle } from 'lucide-react';
-import type { FileDiffMetadata } from '@pierre/diffs';
+import type { ChangeTypes, FileDiffMetadata } from '@pierre/diffs';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import clsx from 'clsx';
@@ -12,7 +12,8 @@ export interface FileChangeStats {
 }
 
 // Single-letter badges — the sidebar is too narrow for the full status words.
-const SIDEBAR_BADGES: Record<string, { label: string; modifier: string }> = {
+// Plain `change` rows intentionally have none.
+const SIDEBAR_BADGES: Partial<Record<ChangeTypes, { label: string; modifier: string }>> = {
   new: { label: 'N', modifier: styles['badge--new'] },
   deleted: { label: 'D', modifier: styles['badge--deleted'] },
   'rename-pure': { label: 'R', modifier: styles['badge--renamed'] },
@@ -59,18 +60,20 @@ function DirLabel({ dir }: { dir: string }) {
 export const DiffFileSidebar = memo(function DiffFileSidebar({
   files,
   statsByFile,
+  totals,
   activeFile,
   onSelectFile,
   reviewedFiles,
 }: {
   files: FileDiffMetadata[];
   statsByFile: Map<string, FileChangeStats>;
+  totals: FileChangeStats;
   activeFile: string | null;
   onSelectFile: (name: string) => void;
   reviewedFiles: Set<string>;
 }) {
-  // Git emits paths sorted, so same-directory files are contiguous — consecutive
-  // grouping is enough, no tree build needed.
+  // Files arrive dir-major sorted (DiffView's parsedFiles), so a directory's
+  // files are contiguous — consecutive grouping is enough, no tree build needed.
   const groups = useMemo(() => {
     const out: { dir: string; files: FileDiffMetadata[] }[] = [];
     for (const file of files) {
@@ -83,24 +86,16 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
     return out;
   }, [files]);
 
-  const totals = useMemo(() => {
-    let additions = 0;
-    let deletions = 0;
-    statsByFile.forEach((stats) => {
-      additions += stats.additions;
-      deletions += stats.deletions;
-    });
-    return { additions, deletions };
-  }, [statsByFile]);
-
-  // Keep the scrollspy-highlighted row visible as the diff pane scrolls.
+  // Keep the scrollspy-highlighted row visible as the diff pane scrolls. `files`
+  // is a dep too: a refetch can rebuild the list (moving the row) while the
+  // active file stays the same.
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!activeFile) return;
     listRef.current
       ?.querySelector(`[data-sidebar-file="${CSS.escape(activeFile)}"]`)
       ?.scrollIntoView({ block: 'nearest' });
-  }, [activeFile]);
+  }, [activeFile, files]);
 
   return (
     <div className={styles.sidebar}>
@@ -120,7 +115,7 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
             {group.files.map((file) => {
               const isActive = file.name === activeFile;
               const isReviewed = reviewedFiles.has(file.name);
-              const badge = file.type ? SIDEBAR_BADGES[file.type] : undefined;
+              const badge = SIDEBAR_BADGES[file.type];
               const stats = statsByFile.get(file.name);
               return (
                 <FloatingTooltip
