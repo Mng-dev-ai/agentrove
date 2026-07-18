@@ -4,7 +4,11 @@ from app.core.security import get_current_user
 from app.models.db_models.user import User
 from app.models.schemas.ai_model import AIModelResponse
 from app.constants import MODELS
-from app.services.acp.adapters import AgentKind
+from app.services.acp.adapters import (
+    THINKING_MODE_ORDER,
+    AgentKind,
+    valid_thinking_modes,
+)
 
 router = APIRouter()
 
@@ -30,6 +34,10 @@ async def list_models(
             name=info.display_name,
             agent_kind=info.agent_kind,
             context_window=info.context_window,
+            thinking_modes=sorted(
+                valid_thinking_modes(info.agent_kind, mid),
+                key=THINKING_MODE_ORDER.index,
+            ),
         )
         for mid, info in MODELS.items()
         if kind is None or info.agent_kind == kind
