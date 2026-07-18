@@ -42,7 +42,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
   padding: var(--space-1-5) var(--space-2) var(--safe-area-bottom);
+}
+
+.footer-leading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .context-slot {

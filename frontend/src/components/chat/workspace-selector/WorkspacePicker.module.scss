@@ -34,7 +34,13 @@
 
 .trigger-label {
   @include type.type-overflow;
-  max-width: var(--space-64);
+  // Tighter cap on phones: the label keeps the selected workspace visible while
+  // leaving the rest of the footer row room to fit on one line.
+  max-width: var(--space-24);
+
+  @include responsive.media('sm-up') {
+    max-width: var(--space-64);
+  }
 }
 
 .body {

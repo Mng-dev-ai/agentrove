@@ -46,7 +46,7 @@ export const ToggleDropdown = memo(function ToggleDropdown({
         className={styles.trigger}
       >
         {TriggerIcon && <TriggerIcon className={styles['trigger-icon']} />}
-        <span>{selected.label}</span>
+        <span className={styles['trigger-label']}>{selected.label}</span>
         <ChevronDown className={styles.chevron} />
       </Button>
 

@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback, useEffect, ReactNode, Suspense } from 'react';
+import clsx from 'clsx';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -49,6 +50,11 @@ import { useEditorState } from '@/hooks/useEditorState';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
 import { PENDING_NEW_CHAT_KEY, type TileId } from '@/types/ui.types';
 import { tileIdToViewType } from '@/utils/tileHelpers';
+import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
+import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
+import { RecentChats } from './RecentChats';
+import iconDark from '/assets/images/icon-dark.svg';
+import iconLight from '/assets/images/icon-white.svg';
 import styles from './LandingPage.module.scss';
 
 const Editor = lazyNamed(() => import('@/components/editor/editor-core/Editor'), 'Editor');
@@ -64,6 +70,13 @@ const EXAMPLE_PROMPTS = [
   'Refactor this project to use TypeScript',
 ];
 
+function getTimeGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -78,6 +91,20 @@ export function LandingPage() {
 
   const workspaces = useWorkspacesList({ enabled: isAuthenticated });
   const modelMap = useModelMap(isAuthenticated);
+
+  const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
+  // Recents for the "jump back in" section — the merged local + cloud list the
+  // sidebar uses, so both stay consistent. Falls back to example prompts when
+  // there are no chats yet.
+  const { recentChats, workspaceBadgeById, isLoadingChats } = useSidebarChatLists(
+    workspaces,
+    isAuthenticated,
+  );
+  const showRecents = !isLoadingChats && recentChats.length > 0;
+  const greeting = getTimeGreeting();
+  // Usernames are lowercase handles ("michael") — capitalize for the greeting.
+  const username = currentUser?.username ?? '';
+  const greetingName = username && username.charAt(0).toUpperCase() + username.slice(1);
 
   const createChat = useCreateChatMutation();
   const queryClient = useQueryClient();
@@ -341,6 +368,31 @@ export function LandingPage() {
     [navigate],
   );
 
+  // The workspace pickers live in the composer's footer row; preventDefault on
+  // mousedown keeps focus in the textarea, matching InputControls.
+  const composerSelectors = useMemo(
+    () => (
+      <div className={styles['composer-selectors']} onMouseDown={(e) => e.preventDefault()}>
+        {isCloud ? (
+          <CloudWorkspaceSelector
+            selectedWorkspaceId={selectedCloudWorkspaceId}
+            onWorkspaceChange={setSelectedCloudWorkspaceId}
+            disabled={isLoading}
+          />
+        ) : (
+          <WorkspaceSelector
+            selectedWorkspaceId={selectedWorkspaceId}
+            onWorkspaceChange={setSelectedWorkspaceId}
+            enabled={isAuthenticated}
+          />
+        )}
+        <WorktreeToggle disabled={isLoading} />
+        <RunLocationSelector disabled={isLoading} />
+      </div>
+    ),
+    [isCloud, selectedCloudWorkspaceId, selectedWorkspaceId, isLoading, isAuthenticated],
+  );
+
   const sidebarContent = useMemo(() => {
     if (!isAuthenticated) return null;
 
@@ -358,22 +410,22 @@ export function LandingPage() {
           return (
             <div className={styles['agent-view']}>
               <div className={styles['agent-panel']}>
-                <div className={styles['selector-row']}>
-                  {isCloud ? (
-                    <CloudWorkspaceSelector
-                      selectedWorkspaceId={selectedCloudWorkspaceId}
-                      onWorkspaceChange={setSelectedCloudWorkspaceId}
-                      disabled={isLoading}
-                    />
-                  ) : (
-                    <WorkspaceSelector
-                      selectedWorkspaceId={selectedWorkspaceId}
-                      onWorkspaceChange={setSelectedWorkspaceId}
-                      enabled={isAuthenticated}
-                    />
-                  )}
-                  <WorktreeToggle disabled={isLoading} />
-                  <RunLocationSelector disabled={isLoading} />
+                <div className={styles.greeting}>
+                  <img
+                    src={iconDark}
+                    alt="Agentrove"
+                    className={clsx(styles['greeting-logo'], styles['greeting-logo--on-light'])}
+                  />
+                  <img
+                    src={iconLight}
+                    alt="Agentrove"
+                    className={clsx(styles['greeting-logo'], styles['greeting-logo--on-dark'])}
+                  />
+                  <h1 className={styles['greeting-title']}>
+                    {greeting}
+                    {greetingName && `, ${greetingName}`}
+                  </h1>
+                  <p className={styles['greeting-subtitle']}>What are we building today?</p>
                 </div>
 
                 <ChatInput
@@ -388,21 +440,30 @@ export function LandingPage() {
                   onModelChange={selectModel}
                   showTip={false}
                   placeholder="Message Agentrove... (@ to mention, / for commands)"
+                  footerLeading={composerSelectors}
                 />
 
-                <div className={styles['example-prompts']}>
-                  {EXAMPLE_PROMPTS.map((prompt) => (
-                    <Button
-                      key={prompt}
-                      type="button"
-                      variant="unstyled"
-                      onClick={() => setMessage(prompt)}
-                      className={styles['example-prompt']}
-                    >
-                      {prompt}
-                    </Button>
-                  ))}
-                </div>
+                {showRecents ? (
+                  <RecentChats
+                    chats={recentChats}
+                    workspaceBadgeById={workspaceBadgeById}
+                    onChatSelect={handleChatSelect}
+                  />
+                ) : (
+                  <div className={styles['example-prompts']}>
+                    {EXAMPLE_PROMPTS.map((prompt) => (
+                      <Button
+                        key={prompt}
+                        type="button"
+                        variant="unstyled"
+                        onClick={() => setMessage(prompt)}
+                        className={styles['example-prompt']}
+                      >
+                        {prompt}
+                      </Button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -451,20 +512,24 @@ export function LandingPage() {
       attachedFiles,
       handleFileAttach,
       handleNewChat,
-      isAuthenticated,
+      handleChatSelect,
       isLoading,
       message,
       selectModel,
       selectedModelId,
-      selectedWorkspaceId,
-      isCloud,
-      selectedCloudWorkspaceId,
+      composerSelectors,
+      showRecents,
+      recentChats,
+      workspaceBadgeById,
+      greeting,
+      greetingName,
       fileStructure,
       selectedFile,
       setSelectedFile,
       openFiles,
       closeFile,
       selectedSandboxId,
+      isFilesMetadataLoading,
       handleRefresh,
       isRefreshing,
     ],

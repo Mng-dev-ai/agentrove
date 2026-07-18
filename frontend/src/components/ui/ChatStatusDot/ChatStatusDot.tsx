@@ -18,6 +18,14 @@ export function chatStatusTone(flags: {
   return null;
 }
 
+// Human word for each tone, shown in tooltips next to the dot/spinner.
+export const CHAT_STATUS_LABEL: Record<ChatStatusTone, string> = {
+  blocked: 'Needs you',
+  running: 'Running',
+  completed: 'Done',
+  unread: 'Unread',
+};
+
 // Shared status dot for the sidebar rows and the title-bar tabs so both read the
 // same: red (pulsing) = needs you, amber = running, green = done, blue = unread.
 // (Running normally shows the braille spinner; the amber dot is its compact form.)

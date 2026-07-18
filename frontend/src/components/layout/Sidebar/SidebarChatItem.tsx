@@ -4,6 +4,7 @@ import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import {
   ChatStatusDot,
   chatStatusTone,
+  CHAT_STATUS_LABEL,
   type ChatStatusTone,
 } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -17,15 +18,6 @@ import { stateClasses } from '@/config/stateClasses';
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import styles from './SidebarChatItem.module.scss';
-
-// The `status` discriminant (derived per-row below) drives the leading glyph, its
-// dot tone, and its tooltip word — precedence: needs-you > running > done > unread.
-const STATUS_LABEL: Record<ChatStatusTone, string> = {
-  blocked: 'Needs you',
-  running: 'Running',
-  completed: 'Done',
-  unread: 'Unread',
-};
 
 interface SidebarChatItemProps {
   chat: Chat;
@@ -90,7 +82,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   // The main slot shows the spinner for 'running', so it takes no dot there; every
   // other status renders its tone directly.
   const statusTone: ChatStatusTone | null = showSpinner ? null : status;
-  const statusLabel = status ? STATUS_LABEL[status] : null;
+  const statusLabel = status ? CHAT_STATUS_LABEL[status] : null;
   // Mirrors the leading-slot render below — the workspace line indents to stay flush with the title
   const hasLeadingSlot = hasSubThreads || agentKind != null || status != null;
   const statusSlot = hasLeadingSlot ? (

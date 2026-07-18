@@ -37,6 +37,17 @@
   color: var(--theme-text-quaternary);
 }
 
+// Same compact-on-mobile behavior as the Dropdown primitive's triggers: below
+// the sm breakpoint the icon stands in for the label.
+.trigger-label {
+  display: none;
+  min-width: 0;
+
+  @include responsive.media('sm-up') {
+    display: block;
+  }
+}
+
 .chevron {
   height: var(--space-3);
   width: var(--space-3);
