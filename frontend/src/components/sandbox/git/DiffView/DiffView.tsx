@@ -47,7 +47,7 @@ const WORKER_HIGHLIGHTER_OPTIONS: WorkerInitializationRenderOptions = {};
 
 interface DiffViewProps {
   // The chat this tile renders — resolves the sandbox/cwd it diffs and binds it
-  // to jumps so the primary and secondary diff tiles never consume each other's.
+  // to jumps so diff tiles for different chats never consume each other's.
   chatId: string | undefined;
   // Chat-less contexts (the landing page) supply the sandbox directly — diffs run
   // at the workspace root and review comments are disabled (they need a chat).

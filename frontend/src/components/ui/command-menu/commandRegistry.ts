@@ -21,7 +21,7 @@ import { useChatStore } from '@/store/chatStore';
 import { sandboxService } from '@/services/sandboxService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
-import { isSecondaryPaneActive } from '@/utils/tileHelpers';
+import { activeSplitSlot } from '@/utils/tileHelpers';
 import { traverseFileStructure, getFileName } from '@/utils/file';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
 import type { ViewType } from '@/types/ui.types';
@@ -220,14 +220,16 @@ export interface GitTarget {
 }
 
 // Chat-scoped actions (sub-threads) target the pane the user last interacted with —
-// in split view the secondary pane is a different chat. The secondary chat is
-// cache-warm here since it's rendered in the split.
+// in split view a split pane is a different chat. The split chat is cache-warm
+// here since it's rendered in the split.
 function getActiveChat(queryClient: QueryClient): Chat | null {
   const ui = useUIStore.getState();
-  if (isSecondaryPaneActive(ui.activeAgentTile, ui.secondaryChatId) && ui.secondaryChatId) {
+  const slot = activeSplitSlot(ui.activeAgentTile, ui.splitChatIds);
+  const splitChatId = slot ? ui.splitChatIds[slot - 1] : undefined;
+  if (splitChatId) {
     // Don't fall back to the primary chat — acting on the wrong chat is worse than
-    // a no-op if the secondary chat isn't cached yet.
-    return queryClient.getQueryData<Chat>(queryKeys.chat(ui.secondaryChatId)) ?? null;
+    // a no-op if the split chat isn't cached yet.
+    return queryClient.getQueryData<Chat>(queryKeys.chat(splitChatId)) ?? null;
   }
   return useChatStore.getState().currentChat;
 }

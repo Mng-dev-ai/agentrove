@@ -6,6 +6,7 @@ import {
   MIN_SIDEBAR_WIDTH,
   MAX_SIDEBAR_WIDTH,
   DEFAULT_SIDEBAR_WIDTH,
+  migrateUIState,
 } from './uiStore';
 import { THEME_CYCLE } from '@/utils/theme';
 
@@ -20,7 +21,7 @@ beforeEach(() => {
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     openTabs: ['agent:primary'],
     visibleLayout: [['agent:primary']],
-    secondaryChatId: null,
+    splitChatIds: [],
     activeAgentTile: 'agent:primary',
     focusedTile: null,
     layoutsByChat: {},
@@ -145,6 +146,16 @@ describe('openFileInEditor', () => {
     state().openFileInEditor('a.ts', 'c1');
     expect(state().pendingFileOpen).not.toHaveProperty('line');
   });
+
+  it('opens the editor tile for the chat bound to a split slot', () => {
+    state().openChatInSplit('c2');
+    state().openChatInSplit('c3');
+
+    state().openFileInEditor('a.ts', 'c3');
+
+    expect(state().openTabs).toContain('editor:split-2');
+    expect(state().visibleLayout).toEqual([['editor:split-2']]);
+  });
 });
 
 describe('loadWorkspaceForChat', () => {
@@ -198,25 +209,161 @@ describe('cleanupAllChats', () => {
 });
 
 describe('split chat', () => {
-  it('opens a secondary chat side by side and tears it down on close', () => {
+  it('opens up to four chats using the specified agent grids', () => {
     state().openChatInSplit('c2');
-    expect(state().secondaryChatId).toBe('c2');
-    expect(state().visibleLayout).toEqual([['agent:primary', 'agent:secondary']]);
-    expect(state().chatTabs).toContain('c2');
+    expect(state().splitChatIds).toEqual(['c2']);
+    expect(state().visibleLayout).toEqual([['agent:primary', 'agent:split-1']]);
 
-    state().closeSplitChat();
-    expect(state().secondaryChatId).toBeNull();
-    expect(state().openTabs).not.toContain('agent:secondary');
-    expect(state().visibleLayout).toEqual([['agent:primary']]);
-    expect(state().activeAgentTile).toBe('agent:primary');
+    state().openChatInSplit('c3');
+    expect(state().splitChatIds).toEqual(['c2', 'c3']);
+    expect(state().visibleLayout).toEqual([['agent:primary', 'agent:split-1', 'agent:split-2']]);
+
+    state().openChatInSplit('c4');
+    expect(state().splitChatIds).toEqual(['c2', 'c3', 'c4']);
+    expect(state().visibleLayout).toEqual([
+      ['agent:primary', 'agent:split-1'],
+      ['agent:split-2', 'agent:split-3'],
+    ]);
   });
 
-  it('drops a pending jump aimed at the replaced secondary chat', () => {
+  it('does not open a fifth chat', () => {
     state().openChatInSplit('c2');
-    // A jump bound to c2 (the secondary) becomes stale once c2 leaves the split.
+    state().openChatInSplit('c3');
+    state().openChatInSplit('c4');
+    const before = state();
+    state().openChatInSplit('c5');
+    expect(state()).toBe(before);
+    expect(state().chatTabs).not.toContain('c5');
+  });
+
+  it('focuses an existing split chat without duplicating it', () => {
+    state().openChatInSplit('c2');
+    state().openChatInSplit('c3');
+    useUIStore.setState({
+      openTabs: ['agent:primary'],
+      focusedTile: 'agent:primary',
+      activeAgentTile: 'agent:primary',
+    });
+
+    state().openChatInSplit('c2');
+
+    expect(state().splitChatIds).toEqual(['c2', 'c3']);
+    expect(state().focusedTile).toBe('agent:split-1');
+    expect(state().activeAgentTile).toBe('agent:split-1');
+    expect(state().openTabs).toEqual(['agent:primary', 'agent:split-1', 'agent:split-2']);
+    expect(state().visibleLayout).toEqual([['agent:primary', 'agent:split-1', 'agent:split-2']]);
+  });
+
+  it('closes a middle slot and compacts higher tile suffixes', () => {
+    state().openChatInSplit('c2');
+    state().openChatInSplit('c3');
+    state().openChatInSplit('c4');
+    useUIStore.setState({
+      openTabs: [
+        'agent:primary',
+        'agent:split-1',
+        'agent:split-2',
+        'diff:split-2',
+        'agent:split-3',
+        'editor:split-3',
+      ],
+      visibleLayout: [
+        ['agent:primary', 'agent:split-1'],
+        ['diff:split-2', 'agent:split-3', 'editor:split-3'],
+      ],
+      focusedTile: 'editor:split-3',
+      activeAgentTile: 'agent:split-3',
+    });
+
+    state().closeSplitChat('c3');
+
+    expect(state().splitChatIds).toEqual(['c2', 'c4']);
+    expect(state().openTabs).toEqual([
+      'agent:primary',
+      'agent:split-1',
+      'agent:split-2',
+      'editor:split-2',
+    ]);
+    expect(state().visibleLayout).toEqual([
+      ['agent:primary', 'agent:split-1'],
+      ['agent:split-2', 'editor:split-2'],
+    ]);
+    expect(state().focusedTile).toBe('editor:split-2');
+    expect(state().activeAgentTile).toBe('agent:split-2');
+  });
+
+  it('keeps a visible non-agent tile when closing the first of two split chats', () => {
+    state().openChatInSplit('c2');
+    state().openChatInSplit('c3');
+    useUIStore.setState({
+      openTabs: ['agent:primary', 'agent:split-1', 'agent:split-2', 'editor:split-2'],
+      visibleLayout: [['agent:primary', 'agent:split-1', 'editor:split-2']],
+      focusedTile: 'editor:split-2',
+      activeAgentTile: 'agent:split-2',
+    });
+
+    state().closeSplitChat('c2');
+
+    expect(state().splitChatIds).toEqual(['c3']);
+    expect(state().visibleLayout).toEqual([['agent:primary', 'editor:split-1']]);
+    expect(state().focusedTile).toBe('editor:split-1');
+    expect(state().activeAgentTile).toBe('agent:split-1');
+  });
+
+  it('rebuilds the agent grid without changing focus', () => {
+    state().openChatInSplit('c2');
+    state().openChatInSplit('c3');
+    useUIStore.setState({
+      openTabs: ['agent:primary', 'editor:split-2'],
+      visibleLayout: [['editor:split-2']],
+      focusedTile: 'editor:split-2',
+      activeAgentTile: 'agent:split-2',
+    });
+
+    state().rebuildSplitLayout();
+
+    expect(state().openTabs).toEqual([
+      'agent:primary',
+      'editor:split-2',
+      'agent:split-1',
+      'agent:split-2',
+    ]);
+    expect(state().visibleLayout).toEqual([['agent:primary', 'agent:split-1', 'agent:split-2']]);
+    expect(state().focusedTile).toBe('editor:split-2');
+    expect(state().activeAgentTile).toBe('agent:split-2');
+  });
+
+  it('closes all split chats and clears their pending editor jump', () => {
+    state().openChatInSplit('c2');
     state().openFileInEditor('a.ts', 'c2');
     state().closeSplitChat();
+
+    expect(state().splitChatIds).toEqual([]);
+    expect(state().openTabs.some((tile) => tile.includes(':split-'))).toBe(false);
+    expect(state().visibleLayout).toEqual([['agent:primary']]);
+    expect(state().activeAgentTile).toBe('agent:primary');
     expect(state().pendingFileOpen).toBeNull();
+  });
+});
+
+describe('persist migration', () => {
+  it('migrates the legacy split chat and tile suffix to slot one', () => {
+    const legacyChatKey = 'secondary' + 'ChatId';
+    const legacySuffix = ':second' + 'ary';
+    const migrated = migrateUIState(
+      {
+        [legacyChatKey]: 'c2',
+        openTabs: ['agent:primary', `agent${legacySuffix}`, `editor${legacySuffix}`],
+        visibleLayout: [['agent:primary', `agent${legacySuffix}`]],
+      },
+      0,
+    );
+
+    expect(migrated).toEqual({
+      splitChatIds: ['c2'],
+      openTabs: ['agent:primary', 'agent:split-1', 'editor:split-1'],
+      visibleLayout: [['agent:primary', 'agent:split-1']],
+    });
   });
 });
 
@@ -234,6 +381,16 @@ describe('removeTab', () => {
     expect(state().openTabs).not.toContain('editor');
     expect(state().visibleLayout).toEqual([['agent:primary']]);
   });
+
+  it('closes only the chat owned by a split agent tile', () => {
+    state().openChatInSplit('c2');
+    state().openChatInSplit('c3');
+
+    state().removeTab('agent:split-1');
+
+    expect(state().splitChatIds).toEqual(['c3']);
+    expect(state().openTabs).toEqual(['agent:primary', 'agent:split-1']);
+  });
 });
 
 describe('resetWorkspace', () => {
@@ -242,7 +399,7 @@ describe('resetWorkspace', () => {
     state().loadWorkspaceForChat('c1');
     state().resetWorkspace();
     expect(state().visibleLayout).toEqual([['agent:primary']]);
-    expect(state().secondaryChatId).toBeNull();
+    expect(state().splitChatIds).toEqual([]);
     expect(state().currentWorkspaceChatId).toBeNull();
     expect(state().focusedTile).toBeNull();
   });

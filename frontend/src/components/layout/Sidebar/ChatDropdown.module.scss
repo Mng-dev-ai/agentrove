@@ -35,6 +35,10 @@
   }
 }
 
+.split-tooltip {
+  width: 100%;
+}
+
 .menu-item-delete {
   @include type.type-default;
   @include anim.transition-colors;

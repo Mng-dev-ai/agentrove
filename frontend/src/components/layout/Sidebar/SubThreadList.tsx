@@ -122,7 +122,7 @@ const SubThreadRow = memo(function SubThreadRow({
 interface SubThreadListProps {
   parentChatId: string;
   selectedChatId: string | null;
-  secondaryChatId?: string | null;
+  splitChatIds: string[];
   onSelect: (chatId: string) => void;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
   streamingChatIdSet: Set<string>;
@@ -133,7 +133,7 @@ interface SubThreadListProps {
 export const SubThreadList = memo(function SubThreadList({
   parentChatId,
   selectedChatId,
-  secondaryChatId,
+  splitChatIds,
   onSelect,
   onDropdownClick,
   streamingChatIdSet,
@@ -169,7 +169,7 @@ export const SubThreadList = memo(function SubThreadList({
         <SubThreadRow
           key={thread.id}
           thread={thread}
-          isActive={thread.id === selectedChatId || thread.id === secondaryChatId}
+          isActive={thread.id === selectedChatId || splitChatIds.includes(thread.id)}
           isStreaming={streamingChatIdSet.has(thread.id)}
           isBlocked={blockedChatIdSet.has(thread.id)}
           isCompleted={completedChatIdSet.has(thread.id)}

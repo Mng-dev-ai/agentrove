@@ -32,7 +32,7 @@ export function CommandMenu() {
     isMobile,
     listItems,
     leafTileIds,
-    useSecondary,
+    activeSlot,
     handleOpenChatResult,
     handleSelectFile,
     runCommand,
@@ -124,7 +124,7 @@ export function CommandMenu() {
             isMobile={isMobile}
             listItems={listItems}
             leafTileIds={leafTileIds}
-            useSecondary={useSecondary}
+            activeSlot={activeSlot}
             onOpenChat={handleOpenChatResult}
             onSelectFile={handleSelectFile}
             onRunCommand={runCommand}

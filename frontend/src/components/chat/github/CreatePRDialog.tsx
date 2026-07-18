@@ -137,7 +137,7 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
   }
 
   // Resolve the model from the active git chat (modelStore is keyed per chat), not
-  // the primary chat session — in split view this dialog targets the secondary pane.
+  // the primary chat session — in split view this dialog targets the active split pane.
   const selectedModelId = useModelStore((s) =>
     currentChat ? (s.modelByChat[currentChat.id] ?? '') : '',
   );

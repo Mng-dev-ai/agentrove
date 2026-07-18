@@ -5,7 +5,7 @@ import { FloatingTooltip } from '../FloatingTooltip/FloatingTooltip';
 import { HighlightMatch } from '../shared/HighlightMatch/HighlightMatch';
 import { viewTypeToTileId } from '@/utils/tileHelpers';
 import type { ThemeMeta } from '@/utils/theme';
-import type { ViewType, SplitDirection, Theme } from '@/types/ui.types';
+import type { ViewType, SplitDirection, SplitSlot, Theme } from '@/types/ui.types';
 import type { GitBranchesData } from '@/types/sandbox.types';
 import { MenuRow } from './MenuRow';
 import {
@@ -29,7 +29,7 @@ interface CommandMenuListProps {
   // Main mode
   listItems: MenuListItem[];
   leafTileIds: Set<string>;
-  useSecondary: boolean;
+  activeSlot: SplitSlot | null;
   onOpenChat: (id: string) => void;
   onSelectFile: (file: FlatFileItem) => void;
   onRunCommand: (cmd: CommandItem) => void;
@@ -57,7 +57,7 @@ export function CommandMenuList({
   isMobile,
   listItems,
   leafTileIds,
-  useSecondary,
+  activeSlot,
   onOpenChat,
   onSelectFile,
   onRunCommand,
@@ -126,11 +126,11 @@ export function CommandMenuList({
     const cmd = item.command;
     const Icon = cmd.icon;
     // Active/split state is scoped to the pane the user is in: the view counts as
-    // active only if the active pane's target tile (e.g. editor:secondary) is
+    // active only if the active pane's target tile (e.g. editor:split-2) is
     // already on screen, so the split buttons stay available to surface it beside
     // the other panes.
     const isViewActive =
-      cmd.type === 'view' && leafTileIds.has(viewTypeToTileId(cmd.id, useSecondary));
+      cmd.type === 'view' && leafTileIds.has(viewTypeToTileId(cmd.id, activeSlot));
     return (
       <Fragment key={`command-${cmd.id}`}>
         {showHeader && <p className={styles['section-header']}>Actions</p>}

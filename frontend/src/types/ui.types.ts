@@ -65,15 +65,16 @@ export interface ModelSelectionState {
 
 export type ViewType = 'agent' | 'diff' | 'editor' | 'terminal';
 
-// A tile id used to be a bare ViewType string, but split-chat view renders two
-// panes scoped to different chats, so every view has a `:secondary` variant
-// disambiguating the second chat. Primary tile ids match their ViewType (the
-// agent slot is the one exception: 'agent:primary').
-export type AgentTileId = 'agent:primary' | 'agent:secondary';
-export type SecondaryTileId = `${ViewType}:secondary`;
+export const MAX_CHAT_PANES = 4;
+export type SplitSlot = 1 | 2 | 3;
+
+// Split tiles are scoped to one of the three additional chat panes. Primary
+// non-agent tile ids stay bare; the primary agent is the one named exception.
+export type AgentTileId = 'agent:primary' | `agent:split-${SplitSlot}`;
+export type SplitTileId = `${ViewType}:split-${SplitSlot}`;
 export type NonAgentTileId =
   | Exclude<ViewType, 'agent'>
-  | Exclude<SecondaryTileId, 'agent:secondary'>;
+  | Exclude<SplitTileId, `agent:split-${SplitSlot}`>;
 export type TileId = AgentTileId | NonAgentTileId;
 
 // The axis a single split adds along: 'row' = side by side (split right),
@@ -101,17 +102,17 @@ export interface SplitViewState {
   // row sit side by side. [[A]] = full view; [[A, B]] = side by side; [[A], [B]]
   // = stacked; [[A, B], [C]] = A│B over C. Always holds at least one tile.
   visibleLayout: TileId[][];
-  // Secondary chat for split-chat view. Primary chat is always the route param.
-  secondaryChatId: string | null;
+  // Ordered chats in the three additional panes. Primary is always the route param.
+  splitChatIds: string[];
   // The agent pane the user last interacted with — targets pane-scoped actions
   // (e.g. the diff shortcut) at the chat the user is actually in.
   activeAgentTile: AgentTileId;
   // The exact pane the user last touched — drives the focused-tab highlight.
   // Distinct from activeAgentTile, which only tracks the active chat (primary vs
-  // secondary), not the specific tile.
+  // a split slot), not the specific tile.
   focusedTile: TileId | null;
   // Saved tabs per chat, so each chat restores its own workspace when revisited.
-  // Excludes split-chat (:secondary) tiles, which the split effects rebuild.
+  // Excludes split-chat tiles, which the split effects rebuild.
   layoutsByChat: Record<string, WorkspaceLayout>;
   // The open file tabs + active file in each chat's editor — restored when revisiting
   // a chat (EditorPane's selection is lost on unmount) and persisted so a page refresh
@@ -140,11 +141,12 @@ export interface SplitViewActions {
   // Saves the current chat's tabs in place — used when leaving the chat page.
   stashWorkspace: () => void;
   openChatInSplit: (chatId: string) => void;
-  closeSplitChat: () => void;
+  rebuildSplitLayout: () => void;
+  closeSplitChat: (chatId?: string) => void;
   // Shows a tile full (sole visible pane) and focuses it.
   activateTab: (tileId: TileId) => void;
   // Single focus path: records the exact pane (highlights its tab) and scopes the
-  // active chat (primary/secondary) from the tile, so tab and pane clicks agree.
+  // active chat (primary/split slot) from the tile, so tab and pane clicks agree.
   focusTile: (tileId: TileId) => void;
   // Drops a deleted chat's saved workspace tabs, editor tabs, and terminal tab
   // layout so per-chat state doesn't accumulate in localStorage forever.

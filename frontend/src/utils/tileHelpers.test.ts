@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  isSecondaryPaneActive,
-  isSecondaryTile,
+  activeSplitSlot,
+  isSplitTile,
+  splitSlotOfTile,
   tileIdToViewType,
   viewTypeToTileId,
   tileViewKinds,
@@ -12,41 +13,41 @@ import type { ViewType } from '@/types/ui.types';
 
 const ALL_VIEWS: ViewType[] = ['agent', 'diff', 'editor', 'terminal'];
 
-describe('isSecondaryPaneActive', () => {
-  it('is active only when the secondary agent pane is focused and bound to a chat', () => {
-    expect(isSecondaryPaneActive('agent:secondary', 'chat-1')).toBe(true);
+describe('activeSplitSlot', () => {
+  it('returns the focused split slot when it is bound to a chat', () => {
+    expect(activeSplitSlot('agent:split-2', ['chat-1', 'chat-2'])).toBe(2);
   });
 
-  it('is inactive without a bound secondary chat', () => {
-    expect(isSecondaryPaneActive('agent:secondary', null)).toBe(false);
+  it('returns primary when the focused split slot is unbound', () => {
+    expect(activeSplitSlot('agent:split-2', ['chat-1'])).toBeNull();
   });
 
-  it('is inactive when the primary agent pane is focused', () => {
-    expect(isSecondaryPaneActive('agent:primary', 'chat-1')).toBe(false);
+  it('returns primary when the primary agent pane is focused', () => {
+    expect(activeSplitSlot('agent:primary', ['chat-1'])).toBeNull();
   });
 });
 
-describe('isSecondaryTile', () => {
-  it('matches any tile with the :secondary suffix', () => {
-    expect(isSecondaryTile('agent:secondary')).toBe(true);
-    expect(isSecondaryTile('diff:secondary')).toBe(true);
+describe('splitSlotOfTile / isSplitTile', () => {
+  it('parses every supported split suffix', () => {
+    expect(splitSlotOfTile('agent:split-1')).toBe(1);
+    expect(splitSlotOfTile('diff:split-2')).toBe(2);
+    expect(splitSlotOfTile('terminal:split-3')).toBe(3);
+    expect(isSplitTile('diff:split-2')).toBe(true);
   });
 
   it('rejects primary and bare view tiles', () => {
-    expect(isSecondaryTile('agent:primary')).toBe(false);
-    expect(isSecondaryTile('diff')).toBe(false);
+    expect(splitSlotOfTile('agent:primary')).toBeNull();
+    expect(splitSlotOfTile('diff')).toBeNull();
+    expect(isSplitTile('diff')).toBe(false);
   });
 });
 
 describe('tileIdToViewType', () => {
-  it('strips the primary agent suffix back to the view kind', () => {
+  it('strips agent and split suffixes back to the view kind', () => {
     expect(tileIdToViewType('agent:primary')).toBe('agent');
-    expect(tileIdToViewType('agent:secondary')).toBe('agent');
-  });
-
-  it('strips a :secondary suffix off non-agent tiles', () => {
-    expect(tileIdToViewType('diff:secondary')).toBe('diff');
-    expect(tileIdToViewType('terminal:secondary')).toBe('terminal');
+    expect(tileIdToViewType('agent:split-3')).toBe('agent');
+    expect(tileIdToViewType('diff:split-2')).toBe('diff');
+    expect(tileIdToViewType('terminal:split-1')).toBe('terminal');
   });
 
   it('returns a bare primary tile unchanged', () => {
@@ -55,27 +56,23 @@ describe('tileIdToViewType', () => {
 });
 
 describe('viewTypeToTileId', () => {
-  it('maps the agent view to agent:primary regardless of the secondary flag', () => {
-    expect(viewTypeToTileId('agent', false)).toBe('agent:primary');
-    expect(viewTypeToTileId('agent', true)).toBe('agent:primary');
+  it('maps the agent view to agent:primary regardless of the split slot', () => {
+    expect(viewTypeToTileId('agent', null)).toBe('agent:primary');
+    expect(viewTypeToTileId('agent', 3)).toBe('agent:primary');
   });
 
-  it('maps a non-agent primary view to its bare tile id', () => {
-    expect(viewTypeToTileId('diff', false)).toBe('diff');
-  });
-
-  it('maps a non-agent secondary view to the :secondary tile id', () => {
-    expect(viewTypeToTileId('terminal', true)).toBe('terminal:secondary');
+  it('maps primary and split non-agent views', () => {
+    expect(viewTypeToTileId('diff', null)).toBe('diff');
+    expect(viewTypeToTileId('terminal', 2)).toBe('terminal:split-2');
   });
 });
 
 describe('tileViewKinds', () => {
-  it('collapses the two agent panes into a single agent kind, preserving order', () => {
-    expect(tileViewKinds(['agent:primary', 'agent:secondary', 'diff'])).toEqual(['agent', 'diff']);
-  });
-
-  it('dedupes a primary and secondary of the same non-agent view', () => {
-    expect(tileViewKinds(['diff', 'diff:secondary'])).toEqual(['diff']);
+  it('dedupes pane variants while preserving order', () => {
+    expect(tileViewKinds(['agent:primary', 'agent:split-1', 'diff', 'diff:split-2'])).toEqual([
+      'agent',
+      'diff',
+    ]);
   });
 
   it('returns an empty array for no tiles', () => {
