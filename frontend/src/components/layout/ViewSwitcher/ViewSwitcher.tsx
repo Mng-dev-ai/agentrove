@@ -4,18 +4,13 @@ import { Tooltip } from '@/components/ui/Tooltip/Tooltip';
 import { ALL_COMMANDS, formatShortcut } from '@/components/ui/command-menu/commandRegistry';
 import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import {
-  isSecondaryPaneActive,
-  VIEW_ICONS,
-  VIEW_LABELS,
-  viewTypeToTileId,
-} from '@/utils/tileHelpers';
+import { activeSplitSlot, VIEW_ICONS, VIEW_LABELS, viewTypeToTileId } from '@/utils/tileHelpers';
 import type { ViewType } from '@/types/ui.types';
 import styles from './ViewSwitcher.module.scss';
 
 type SwitchableView = Exclude<ViewType, 'agent'>;
 
-// Non-agent secondary views, in the order Cursor lays them out: diff (git),
+// Non-agent views, in the order Cursor lays them out: diff (git),
 // editor (file), terminal.
 const SWITCHABLE_VIEWS: SwitchableView[] = ['diff', 'editor', 'terminal'];
 
@@ -35,13 +30,13 @@ function viewTooltip(view: SwitchableView): string {
 
 export function ViewSwitcher() {
   const activeAgentTile = useUIStore((s) => s.activeAgentTile);
-  const secondaryChatId = useUIStore((s) => s.secondaryChatId);
+  const splitChatIds = useUIStore((s) => s.splitChatIds);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const isMobile = useIsMobile();
 
   // Resolve active state against the exact tile toggleView() will act on, so the
   // highlight (and the close-on-click) tracks the focused pane in split-chat mode.
-  const secondary = isSecondaryPaneActive(activeAgentTile, secondaryChatId);
+  const slot = activeSplitSlot(activeAgentTile, splitChatIds);
   // Views have no tabs, so the highlight means "on screen" — a view kept mounted
   // in the background stays unlit and a click surfaces it instead of closing it.
   const visibleSet = useMemo(() => new Set(visibleLayout.flat()), [visibleLayout]);
@@ -50,7 +45,7 @@ export function ViewSwitcher() {
     <div className={styles['view-switcher']}>
       {SWITCHABLE_VIEWS.map((view) => {
         const Icon = VIEW_ICONS[view];
-        const isActive = visibleSet.has(viewTypeToTileId(view, secondary));
+        const isActive = visibleSet.has(viewTypeToTileId(view, slot));
         return (
           <Tooltip key={view} content={viewTooltip(view)} position="bottom-end">
             <Button

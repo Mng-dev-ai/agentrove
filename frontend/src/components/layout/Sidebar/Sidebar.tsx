@@ -51,7 +51,7 @@ export function Sidebar({
   const activeStreamMetadata = useStreamStore((state) => state.activeStreamMetadata);
   // Chats whose stream finished successfully since last viewed — drives the "Done" badge
   const completedChatIds = useStreamStore((state) => state.completedChatIds);
-  const secondaryChatId = useUIStore((state) => state.secondaryChatId);
+  const splitChatIds = useUIStore((state) => state.splitChatIds);
   const streamingChatIdSet = useMemo(
     () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
     [activeStreamMetadata],
@@ -159,10 +159,10 @@ export function Sidebar({
     if (selectedChatId && completedChatIds.has(selectedChatId)) {
       store.clearCompleted(selectedChatId);
     }
-    if (secondaryChatId && completedChatIds.has(secondaryChatId)) {
-      store.clearCompleted(secondaryChatId);
+    for (const splitChatId of splitChatIds) {
+      if (completedChatIds.has(splitChatId)) store.clearCompleted(splitChatId);
     }
-  }, [selectedChatId, secondaryChatId, completedChatIds]);
+  }, [selectedChatId, splitChatIds, completedChatIds]);
 
   const handleNewChat = useCallback(() => {
     navigate('/');
@@ -181,7 +181,7 @@ export function Sidebar({
 
   const rowProps: ChatRowProps = {
     selectedChatId,
-    secondaryChatId,
+    splitChatIds,
     hoveredChatId: chatActions.hoveredChatId,
     dropdownChatId: chatActions.dropdown?.chat.id ?? null,
     streamingChatIdSet,
@@ -189,7 +189,8 @@ export function Sidebar({
     completedChatIdSet: completedChatIds,
     workspaceBadgeById,
     onChatSelect: chatActions.handleChatSelect,
-    onOpenInSplit: chatActions.canOpenInSplit ? chatActions.handleOpenInSplit : undefined,
+    onOpenInSplit: chatActions.showSplitAffordance ? chatActions.handleOpenInSplit : undefined,
+    canOpenChatInSplit: chatActions.canOpenChatInSplit,
     onDropdownClick: chatActions.handleDropdownClick,
     onWorkspaceBadgeClick: workspaceActions.handleWorkspaceContextMenu,
     onMouseEnter: chatActions.handleChatMouseEnter,

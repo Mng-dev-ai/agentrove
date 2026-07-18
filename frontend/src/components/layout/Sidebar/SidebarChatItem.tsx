@@ -39,6 +39,7 @@ interface SidebarChatItemProps {
   workspaceBadge?: WorkspaceBadge;
   onSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
+  canOpenInSplit?: boolean;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
   onWorkspaceBadgeClick: (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => void;
   onMouseEnter: (chatId: string) => void;
@@ -59,6 +60,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   workspaceBadge,
   onSelect,
   onOpenInSplit,
+  canOpenInSplit = false,
   onDropdownClick,
   onWorkspaceBadgeClick,
   onMouseEnter,
@@ -161,12 +163,16 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           {/* Tooltip wraps only the title, not the icon — so the icon's own status
               tooltip fires on its own hover instead of stacking with this one. */}
           <FloatingTooltip
-            content={onOpenInSplit ? `${chat.title} (Shift-click to open in split)` : chat.title}
+            content={
+              onOpenInSplit && canOpenInSplit
+                ? `${chat.title} (Shift-click to open in split)`
+                : chat.title
+            }
             className={styles['title-tooltip']}
           >
             <Button
               onClick={(e) => {
-                if (e.shiftKey && onOpenInSplit && !isActive) {
+                if (e.shiftKey && onOpenInSplit && canOpenInSplit && !isActive) {
                   e.preventDefault();
                   onOpenInSplit(chat.id);
                   return;

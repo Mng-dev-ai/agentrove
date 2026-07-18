@@ -11,6 +11,7 @@ import {
 } from '@/hooks/queries/useChatQueries';
 import { useToggleSet } from '@/hooks/useToggleSet';
 import { useUIStore } from '@/store/uiStore';
+import { MAX_CHAT_PANES } from '@/types/ui.types';
 import { useChatStore } from '@/store/chatStore';
 import { mutateWithToast, calculateDropdownPosition } from './sidebarHelpers';
 
@@ -50,6 +51,7 @@ export function useSidebarChatActions({
   const updateChat = useUpdateChatMutation();
   const generateChatTitle = useGenerateChatTitleMutation();
   const pinChat = usePinChatMutation();
+  const splitChatIds = useUIStore((state) => state.splitChatIds);
 
   // Auto-expand parent when navigating to a sub-thread from outside the sidebar
   useEffect(() => {
@@ -109,16 +111,25 @@ export function useSidebarChatActions({
     [onChatSelect, isMobile],
   );
 
+  const showSplitAffordance = !isMobile && selectedChatId != null;
+  const canOpenChatInSplit = useCallback(
+    (chatId: string) =>
+      showSplitAffordance &&
+      chatId !== selectedChatId &&
+      (splitChatIds.includes(chatId) || splitChatIds.length < MAX_CHAT_PANES - 1),
+    [selectedChatId, showSplitAffordance, splitChatIds],
+  );
+
   const handleOpenInSplit = useCallback(
     (chatId: string) => {
-      if (isMobile || !selectedChatId) {
+      if (!canOpenChatInSplit(chatId)) {
         onChatSelect(chatId);
         return;
       }
       useUIStore.getState().openChatInSplit(chatId);
       setHoveredChatId(null);
     },
-    [isMobile, onChatSelect, selectedChatId],
+    [canOpenChatInSplit, onChatSelect],
   );
 
   const handleDropdownOpenInSplit = useCallback(
@@ -128,8 +139,8 @@ export function useSidebarChatActions({
     },
     [handleOpenInSplit],
   );
-  const canOpenInSplit = !isMobile && selectedChatId != null;
-  const dropdownCanSplit = canOpenInSplit && dropdown?.chat.id !== selectedChatId;
+  const dropdownShowSplit = showSplitAffordance && dropdown?.chat.id !== selectedChatId;
+  const dropdownCanSplit = !!dropdown?.chat.id && canOpenChatInSplit(dropdown.chat.id);
 
   const handleDeleteChat = useCallback((chatId: string) => {
     setChatToDelete(chatId);
@@ -153,8 +164,10 @@ export function useSidebarChatActions({
         'Failed to delete chat',
       );
       const uiState = useUIStore.getState();
-      if (chatToDelete === selectedChatId || uiState.secondaryChatId === chatToDelete) {
+      if (chatToDelete === selectedChatId) {
         uiState.closeSplitChat();
+      } else if (uiState.splitChatIds.includes(chatToDelete)) {
+        uiState.closeSplitChat(chatToDelete);
       }
       if (chatToDelete === selectedChatId || chatToDelete === selectedChatParentId) {
         navigate('/');
@@ -246,7 +259,9 @@ export function useSidebarChatActions({
     setChatToDelete,
     chatToRename,
     setChatToRename,
-    canOpenInSplit,
+    showSplitAffordance,
+    canOpenChatInSplit,
+    dropdownShowSplit,
     dropdownCanSplit,
     updateChat,
     generateChatTitle,

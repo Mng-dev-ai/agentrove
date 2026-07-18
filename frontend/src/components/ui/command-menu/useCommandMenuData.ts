@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useAuthStore } from '@/store/authStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { isSecondaryPaneActive } from '@/utils/tileHelpers';
+import { activeSplitSlot } from '@/utils/tileHelpers';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
@@ -25,8 +25,8 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   // On-screen tile ids (not deduped view kinds) so the active-state/split
-  // affordances can distinguish a view's primary tile from its `:secondary`
-  // variant. Keyed on visibility, not open membership — views have no tabs, so an
+  // affordances can distinguish a view's primary tile from its split variants.
+  // Keyed on visibility, not open membership — views have no tabs, so an
   // open-but-hidden background tile must stay surfaceable/splittable. Gated on
   // open — layout churn is irrelevant while the always-mounted menu is closed.
   const visibleLayout = useUIStore((s) => (s.commandMenuOpen ? s.visibleLayout : null));
@@ -34,29 +34,25 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
   const primaryCtx = useChatContext();
 
   // File/search/branch actions target the pane the user last interacted with — in
-  // split view the secondary pane is a different chat with its own files/cwd/tiles.
+  // split view each split pane has its own files/cwd/tiles.
   const activeAgentTile = useUIStore((s) =>
     s.commandMenuOpen ? s.activeAgentTile : 'agent:primary',
   );
-  const secondaryChatId = useUIStore((s) => s.secondaryChatId);
-  const useSecondary = isSecondaryPaneActive(activeAgentTile, secondaryChatId);
+  const splitChatIds = useUIStore((s) => s.splitChatIds);
+  const activeSlot = activeSplitSlot(activeAgentTile, splitChatIds);
+  const splitChatId = activeSlot ? splitChatIds[activeSlot - 1] : undefined;
   // Resolve the active pane's chat through the canonical hook, gated on the menu
-  // being open so the always-mounted menu doesn't re-render on pane/secondary
-  // churn while closed. Only used for the secondary pane — the primary reuses the
+  // being open so the always-mounted menu doesn't re-render on pane/split churn
+  // while closed. Only used for a split pane — the primary reuses the
   // chat context directly below (its files/chatId are available there immediately).
   const activeChat = useActiveChat(isOpen);
-  const secondaryChat = useSecondary ? activeChat : undefined;
-  const { fileStructure: secondaryFiles } = useSandboxFiles(
-    secondaryChat ?? undefined,
-    useSecondary ? (secondaryChatId ?? undefined) : undefined,
-  );
+  const splitChat = activeSlot ? activeChat : undefined;
+  const { fileStructure: splitFiles } = useSandboxFiles(splitChat ?? undefined, splitChatId);
 
-  const chatId = useSecondary ? (secondaryChatId ?? undefined) : primaryCtx.chatId;
-  const fileStructure = useSecondary ? secondaryFiles : primaryCtx.fileStructure;
-  const sandboxId = useSecondary ? (secondaryChat?.sandbox_id ?? undefined) : primaryCtx.sandboxId;
-  const worktreeCwd = useSecondary
-    ? (secondaryChat?.worktree_cwd ?? undefined)
-    : primaryCtx.worktreeCwd;
+  const chatId = activeSlot ? splitChatId : primaryCtx.chatId;
+  const fileStructure = activeSlot ? splitFiles : primaryCtx.fileStructure;
+  const sandboxId = activeSlot ? (splitChat?.sandbox_id ?? undefined) : primaryCtx.sandboxId;
+  const worktreeCwd = activeSlot ? (splitChat?.worktree_cwd ?? undefined) : primaryCtx.worktreeCwd;
 
   // Fetch branches whenever the menu is open so we can both render the branches mode and
   // filter the switch-branch command out of the list for chats without a repo. Cache is
@@ -173,7 +169,7 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
     isMobile,
     theme,
     leafTileIds,
-    useSecondary,
+    activeSlot,
     chatId,
     sandboxId,
     worktreeCwd,

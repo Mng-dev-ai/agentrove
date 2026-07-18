@@ -11,7 +11,7 @@ import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useActiveViews } from '@/hooks/useActiveViews';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
 import type { TileId, ViewType } from '@/types/ui.types';
-import { isSecondaryTile, tileIdToViewType } from '@/utils/tileHelpers';
+import { splitSlotOfTile, tileIdToViewType } from '@/utils/tileHelpers';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
@@ -59,42 +59,58 @@ export function ChatPage() {
   const createBranchDialogOpen = useUIStore((s) => s.createBranchDialogOpen);
 
   const activeViews = useActiveViews();
-  const secondaryChatId = useUIStore((s) => s.secondaryChatId);
+  const splitChatIds = useUIStore((s) => s.splitChatIds);
   const isMobile = useIsMobile();
 
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
 
-  // Shares the chat-query cache with AgentPane. Used as error guard
-  // (a deleted secondary chat collapses the split) and tile-label source.
-  const secondaryQuery = useChatQuery(secondaryChatId ?? undefined, {
-    enabled: !!secondaryChatId,
+  // These share AgentPane's chat-query cache and provide each split pane's
+  // sandbox/worktree metadata plus deletion error guards.
+  const splitQuery1 = useChatQuery(splitChatIds[0], {
+    enabled: !!splitChatIds[0],
   });
-  const secondaryQueryIsError = secondaryQuery.isError;
+  const splitQuery2 = useChatQuery(splitChatIds[1], {
+    enabled: !!splitChatIds[1],
+  });
+  const splitQuery3 = useChatQuery(splitChatIds[2], {
+    enabled: !!splitChatIds[2],
+  });
   useEffect(() => {
-    if (secondaryChatId && secondaryQueryIsError) {
-      useUIStore.getState().closeSplitChat();
+    if (splitChatIds[0] && splitQuery1.isError) {
+      useUIStore.getState().closeSplitChat(splitChatIds[0]);
+    } else if (splitChatIds[1] && splitQuery2.isError) {
+      useUIStore.getState().closeSplitChat(splitChatIds[1]);
+    } else if (splitChatIds[2] && splitQuery3.isError) {
+      useUIStore.getState().closeSplitChat(splitChatIds[2]);
     }
-  }, [secondaryChatId, secondaryQueryIsError]);
+  }, [splitChatIds, splitQuery1.isError, splitQuery2.isError, splitQuery3.isError]);
 
   // Each chat keeps its own tabs: restore them on entry, stash them on leave.
   // Must run before the split-rebuild effect below — on mount it restores the
   // primary-only layout, and the split-rebuild then reapplies a persisted
-  // secondary split on top. Reversed, the restore would wipe the rebuilt split.
+  // split layout on top. Reversed, the restore would wipe the rebuilt split.
   useMountEffect(() => {
     if (chatId) useUIStore.getState().loadWorkspaceForChat(chatId);
     return () => useUIStore.getState().stashWorkspace();
   });
 
-  // The split layout isn't persisted; rebuild it on refresh and when returning to desktop.
+  // A chat switch can restore a primary-only stash while split ids remain bound.
+  // Rebuild only when an agent tile is missing so normal compaction and user-
+  // activated full-screen views keep their layout and focus.
   useEffect(() => {
-    if (secondaryChatId === chatId) {
-      useUIStore.getState().closeSplitChat();
+    if (chatId && splitChatIds.includes(chatId)) {
+      useUIStore.getState().closeSplitChat(chatId);
       return;
     }
-    if (!isMobile && secondaryChatId) {
-      useUIStore.getState().openChatInSplit(secondaryChatId);
+    if (!isMobile && splitChatIds.length > 0) {
+      const ui = useUIStore.getState();
+      const expectedAgentTiles = ['agent:split-1', 'agent:split-2', 'agent:split-3'] as const;
+      const isAgentTileMissing = splitChatIds.some(
+        (_, index) => !ui.openTabs.includes(expectedAgentTiles[index]),
+      );
+      if (isAgentTileMissing) ui.rebuildSplitLayout();
     }
-  }, [chatId, isMobile, secondaryChatId]);
+  }, [chatId, isMobile, splitChatIds]);
 
   const queryClient = useQueryClient();
   // Opening a chat in either pane marks it seen — stamps last_viewed_at
@@ -103,11 +119,13 @@ export function ChatPage() {
     if (chatId) void markChatViewed(queryClient, chatId);
   }, [chatId, queryClient]);
   useEffect(() => {
-    // On mobile the split isn't rebuilt, so the secondary chat is off-screen
-    // even though the store still holds its id — don't stamp it as seen.
+    // On mobile the split isn't rebuilt, so split chats are off-screen even
+    // though the store still holds their ids — don't stamp them as seen.
     // Returning to desktop re-runs this and stamps as the pane reappears.
-    if (secondaryChatId && !isMobile) void markChatViewed(queryClient, secondaryChatId);
-  }, [secondaryChatId, isMobile, queryClient]);
+    if (!isMobile) {
+      for (const splitChatId of splitChatIds) void markChatViewed(queryClient, splitChatId);
+    }
+  }, [splitChatIds, isMobile, queryClient]);
 
   const { fileStructure, refetchFilesMetadata } = useSandboxFiles(currentChat, chatId);
 
@@ -160,9 +178,9 @@ export function ChatPage() {
     const ui = useUIStore.getState();
     // Restore the chat's own saved tabs (stashing the outgoing chat's first).
     if (chatId) ui.loadWorkspaceForChat(chatId);
-    // Switching into a chat that's currently the secondary pane collapses the split.
-    if (ui.secondaryChatId === chatId) {
-      ui.closeSplitChat();
+    // Switching into a chat that's currently in a split pane closes that pane.
+    if (chatId && ui.splitChatIds.includes(chatId)) {
+      ui.closeSplitChat(chatId);
     }
     useUIStore.setState({
       pendingFileOpen: null,
@@ -209,15 +227,15 @@ export function ChatPage() {
   const renderNonTerminalView = useCallback(
     (tileId: TileId, isVisible: boolean): ReactNode => {
       if (tileId === 'agent:primary') return <ChatComponent />;
-      if (tileId === 'agent:secondary') {
-        if (!secondaryChatId) return null;
-        return <AgentPane chatId={secondaryChatId} />;
+      const slot = splitSlotOfTile(tileId);
+      const splitChatId = slot ? splitChatIds[slot - 1] : undefined;
+      if (tileIdToViewType(tileId) === 'agent') {
+        return splitChatId ? <AgentPane chatId={splitChatId} /> : null;
       }
-      // Secondary tiles render the second chat's own sandbox/cwd. The terminal
+      // Split tiles render their chat's own sandbox/cwd. The terminal
       // is handled in renderView's terminal branch, so it's a no-op here.
-      const isSecondary = isSecondaryTile(tileId);
-      if (isSecondary && !secondaryChatId) return null;
-      const paneChatId = isSecondary ? (secondaryChatId ?? undefined) : chatId;
+      if (slot && !splitChatId) return null;
+      const paneChatId = splitChatId ?? chatId;
       switch (tileIdToViewType(tileId)) {
         case 'editor':
           return (
@@ -235,23 +253,25 @@ export function ChatPage() {
           return null;
       }
     },
-    [chatId, secondaryChatId],
+    [chatId, splitChatIds],
   );
 
   const renderView = useCallback(
     (tileId: TileId, isVisible: boolean): ReactNode => {
-      const isSecondary = isSecondaryTile(tileId);
-      const isTerminal = tileId === 'terminal' || tileId === 'terminal:secondary';
-      // The secondary terminal runs in the second chat's sandbox; the hidden
-      // terminals kept alive in other slots stay on the primary chat.
-      const terminalSandboxId = isSecondary
-        ? (secondaryQuery.data?.sandbox_id ?? undefined)
+      const slot = splitSlotOfTile(tileId);
+      const splitChatId = slot ? splitChatIds[slot - 1] : undefined;
+      const splitChat = slot
+        ? [splitQuery1.data, splitQuery2.data, splitQuery3.data][slot - 1]
+        : undefined;
+      const isTerminal = tileIdToViewType(tileId) === 'terminal';
+      const terminalSandboxId = slot
+        ? (splitChat?.sandbox_id ?? undefined)
         : currentChat?.sandbox_id;
-      const terminalChatId = isSecondary ? (secondaryChatId ?? undefined) : currentChat?.id;
+      const terminalChatId = slot ? splitChatId : currentChat?.id;
       // Worktree chats get their shell spawned inside the worktree so the
       // terminal matches what the agent/editor/diff views operate on.
-      const terminalWorktreeCwd = isSecondary
-        ? (secondaryQuery.data?.worktree_cwd ?? undefined)
+      const terminalWorktreeCwd = slot
+        ? (splitChat?.worktree_cwd ?? undefined)
         : (currentChat?.worktree_cwd ?? undefined);
       return (
         <div
@@ -282,9 +302,10 @@ export function ChatPage() {
     [
       currentChat,
       renderNonTerminalView,
-      secondaryChatId,
-      secondaryQuery.data?.sandbox_id,
-      secondaryQuery.data?.worktree_cwd,
+      splitChatIds,
+      splitQuery1.data,
+      splitQuery2.data,
+      splitQuery3.data,
     ],
   );
 

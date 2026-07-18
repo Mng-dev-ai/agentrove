@@ -14,7 +14,7 @@ import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
-import { isSecondaryTile } from '@/utils/tileHelpers';
+import { splitSlotOfTile } from '@/utils/tileHelpers';
 import { stateClasses } from '@/config/stateClasses';
 import styles from './ChatTabs.module.scss';
 
@@ -118,7 +118,7 @@ export function ChatTabs() {
   // location directly instead of relying on route params.
   const routedChatId = useMatch('/chat/:chatId')?.params.chatId;
   const chatTabs = useUIStore((s) => s.chatTabs);
-  const secondaryChatId = useUIStore((s) => s.secondaryChatId);
+  const splitChatIds = useUIStore((s) => s.splitChatIds);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const activeStreamMetadata = useStreamStore((s) => s.activeStreamMetadata);
   // Shared with the sidebar: marked by the stream service on successful
@@ -126,18 +126,19 @@ export function ChatTabs() {
   const completedChatIds = useStreamStore((s) => s.completedChatIds);
   const pendingRequests = usePermissionStore((s) => s.pendingRequests);
 
-  // Chats with a pane on screen: secondary tiles belong to the split chat, all
-  // others to the routed chat. Derived from the layout, not secondaryChatId —
+  // Chats with a pane on screen: split tiles belong to their bound chat, all
+  // others to the routed chat. Derived from the layout, not splitChatIds —
   // a split chat hidden behind a full-screen primary view is off screen, so its
   // tab must drop the active highlight.
   const visibleChatIds = useMemo(() => {
     const ids = new Set<string>();
     for (const tileId of visibleLayout.flat()) {
-      const owner = isSecondaryTile(tileId) ? secondaryChatId : routedChatId;
+      const slot = splitSlotOfTile(tileId);
+      const owner = slot ? splitChatIds[slot - 1] : routedChatId;
       if (owner) ids.add(owner);
     }
     return ids;
-  }, [visibleLayout, routedChatId, secondaryChatId]);
+  }, [visibleLayout, routedChatId, splitChatIds]);
 
   const streamingChatIdSet = useMemo(
     () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
@@ -165,7 +166,7 @@ export function ChatTabs() {
       const ui = useUIStore.getState();
       // Closing the split chat's tab also tears the split down — a closed tab
       // means "out of the working set", not just "hide the tab".
-      if (ui.secondaryChatId === chatId) ui.closeSplitChat();
+      if (ui.splitChatIds.includes(chatId)) ui.closeSplitChat(chatId);
       const tabs = ui.chatTabs;
       const index = tabs.indexOf(chatId);
       ui.closeChatTab(chatId);

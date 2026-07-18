@@ -8,7 +8,7 @@ import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/
 
 // Self-contained editor for a chat, rendered once per pane in split view. It
 // owns its file data and selection so each pane tracks its own chat (mirrors
-// how AgentPane wraps the secondary chat).
+// how AgentPane wraps split chats).
 export const EditorPane = memo(function EditorPane({ chatId }: { chatId: string | undefined }) {
   // Chat switches remount this pane with the lazy chunk already cached, so the
   // heavy editor subtree (pierre tree model, Monaco) would mount inside the

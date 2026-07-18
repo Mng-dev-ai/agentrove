@@ -8,7 +8,7 @@ import { SubThreadList } from './SubThreadList';
 // re-listing a dozen props.
 export interface ChatRowProps {
   selectedChatId: string | null;
-  secondaryChatId: string | null;
+  splitChatIds: string[];
   hoveredChatId: string | null;
   dropdownChatId: string | null;
   streamingChatIdSet: Set<string>;
@@ -17,6 +17,7 @@ export interface ChatRowProps {
   workspaceBadgeById: Map<string, WorkspaceBadge>;
   onChatSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
+  canOpenChatInSplit: (chatId: string) => boolean;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
   onWorkspaceBadgeClick: (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => void;
   onMouseEnter: (chatId: string) => void;
@@ -29,7 +30,7 @@ export interface ChatRowProps {
 export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatRowProps }) {
   const {
     selectedChatId,
-    secondaryChatId,
+    splitChatIds,
     hoveredChatId,
     dropdownChatId,
     streamingChatIdSet,
@@ -38,6 +39,7 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
     workspaceBadgeById,
     onChatSelect,
     onOpenInSplit,
+    canOpenChatInSplit,
     onDropdownClick,
     onWorkspaceBadgeClick,
     onMouseEnter,
@@ -52,7 +54,7 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
       <SidebarChatItem
         chat={chat}
         isSelected={chat.id === selectedChatId}
-        isActive={chat.id === selectedChatId || chat.id === secondaryChatId}
+        isActive={chat.id === selectedChatId || splitChatIds.includes(chat.id)}
         isHovered={hoveredChatId === chat.id}
         isDropdownOpen={dropdownChatId === chat.id}
         isChatStreaming={streamingChatIdSet.has(chat.id)}
@@ -61,6 +63,7 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
         workspaceBadge={workspaceBadgeById.get(chat.workspace_id)}
         onSelect={onChatSelect}
         onOpenInSplit={onOpenInSplit}
+        canOpenInSplit={canOpenChatInSplit(chat.id)}
         onDropdownClick={onDropdownClick}
         onWorkspaceBadgeClick={onWorkspaceBadgeClick}
         onMouseEnter={onMouseEnter}
@@ -72,7 +75,7 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
         <SubThreadList
           parentChatId={chat.id}
           selectedChatId={selectedChatId}
-          secondaryChatId={secondaryChatId}
+          splitChatIds={splitChatIds}
           onSelect={onChatSelect}
           onDropdownClick={onDropdownClick}
           streamingChatIdSet={streamingChatIdSet}
