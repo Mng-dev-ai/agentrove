@@ -207,11 +207,22 @@ async def send_message(
     non-Codex agents); persona selects a custom persona by name (defaults to the
     standard persona).
 
+    Follow-up turns (chat_id given) inherit the chat's previous model_id, thinking_mode
+    and persona when you omit them — pass a value only to change it for this turn.
+
     Returns immediately with chat_id and the streaming message_id. To get the reply, poll
     get_messages and watch that message's stream_status flip from "in_progress" to
     "completed". The turn runs unattended — it uses the model's full-execution permission
     mode (e.g. bypassPermissions for Claude, full-access for Codex).
     """
+    if chat_id is not None:
+        # Follow-up: default omitted settings to the chat's previous turn so a
+        # bare send_message(chat_id=...) continues with the same model/persona/
+        # effort instead of silently switching to the global defaults.
+        chat = await client.get_chat(chat_id)
+        model_id = model_id or chat.get("last_model_id")
+        thinking_mode = thinking_mode or chat.get("last_thinking_mode")
+        persona = persona or chat.get("last_persona_name")
     resolved_model, agent_kind = await client.resolve_model(model_id)
     permission_mode = PERMISSION_MODE_BY_AGENT[agent_kind]
     if chat_id is None:

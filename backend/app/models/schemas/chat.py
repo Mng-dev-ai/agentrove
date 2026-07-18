@@ -91,6 +91,9 @@ class Chat(ChatBase):
     sub_thread_count: int = 0
     session_agent_kind: str | None = None
     unread: bool = False
+    last_model_id: str | None = None
+    last_thinking_mode: str | None = None
+    last_persona_name: str | None = None
 
 
 class ContextUsage(BaseModel):
