@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { stateClasses } from '@/config/stateClasses';
 import { FileUploadDialog } from '@/components/ui/FileUploadDialog/FileUploadDialog';
@@ -39,17 +39,20 @@ export interface InputProps {
   chatId?: string;
   showLoadingSpinner?: boolean;
   disabled?: boolean;
+  // Extra selectors rendered on the left of the footer row (landing page's
+  // workspace/worktree/run-location pickers); chats leave this empty.
+  footerLeading?: ReactNode;
 }
 
 export const Input = memo(function Input(props: InputProps) {
   return (
     <InputProvider {...props}>
-      <InputLayout />
+      <InputLayout footerLeading={props.footerLeading} />
     </InputProvider>
   );
 });
 
-function InputLayout() {
+function InputLayout({ footerLeading }: { footerLeading?: ReactNode }) {
   const { state, actions, meta } = useInputContext();
 
   const shouldShowAttachedPreview =
@@ -130,8 +133,11 @@ function InputLayout() {
       </div>
 
       <div className={styles['footer-row']}>
-        <div className={styles['context-slot']}>
-          {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
+        <div className={styles['footer-leading']}>
+          {footerLeading}
+          <div className={styles['context-slot']}>
+            {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
+          </div>
         </div>
         <InputControls />
       </div>
