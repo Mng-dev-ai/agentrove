@@ -14,6 +14,9 @@
 .chip {
   @include type.type-meta(500);
   @include anim.transition-colors(var(--duration-fast));
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-full);
   padding: var(--space-0-5) var(--space-2);
@@ -21,9 +24,6 @@
 
   // Icon chips: square padding so the pill hugs the icon
   &--icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
     padding: var(--space-1);
   }
 

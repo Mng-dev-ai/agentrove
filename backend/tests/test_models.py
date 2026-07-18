@@ -36,7 +36,18 @@ async def test_list_models_returns_registered_models(
         "name": MODELS["haiku"].display_name,
         "agent_kind": MODELS["haiku"].agent_kind.value,
         "context_window": MODELS["haiku"].context_window,
+        "thinking_modes": ["low", "medium", "high", "max"],
     } in body
+    by_id = {item["model_id"]: item for item in body}
+    assert by_id["claude-fable-5"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    ]
+    assert by_id["grok:grok-4.5"]["thinking_modes"] == ["low", "medium", "high"]
+    assert by_id["cursor:auto"]["thinking_modes"] == []
 
 
 async def test_list_models_filters_by_agent_kind(

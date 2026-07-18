@@ -17,6 +17,7 @@ PERMISSION_MODE_BY_AGENT = {
     "codex": "full-access",
     "copilot": "autopilot",
     "cursor": "agent",
+    "grok": "always-approve",
     "opencode": "build",
 }
 
@@ -65,18 +66,25 @@ async def list_workspaces() -> dict[str, Any]:
 
 @mcp.tool()
 async def list_models(
-    agent_kind: Literal["claude", "codex", "copilot", "cursor", "opencode"] | None = None,
+    agent_kind: Literal["claude", "codex", "copilot", "cursor", "grok", "opencode"] | None = None,
 ) -> dict[str, Any]:
     """List available AI models, optionally filtered by agent_kind.
 
-    Each entry has model_id, name and agent_kind. Pass a model_id as `model_id` to
-    send_message to use it; otherwise a Claude model is used. An instance can expose
-    many models, so filter by agent_kind to narrow the list.
+    Each entry has model_id, name, agent_kind and thinking_modes — the reasoning-effort
+    tiers the model accepts for send_message's thinking_mode, ordered lowest to highest
+    (empty when the model has no reasoning dial; unsupported values fall back to medium).
+    Pass a model_id as `model_id` to send_message to use it; otherwise a Claude model is
+    used. An instance can expose many models, so filter by agent_kind to narrow the list.
     """
     models = await client.list_models(agent_kind)
     return {
         "models": [
-            {"model_id": m["model_id"], "name": m["name"], "agent_kind": m["agent_kind"]}
+            {
+                "model_id": m["model_id"],
+                "name": m["name"],
+                "agent_kind": m["agent_kind"],
+                "thinking_modes": m.get("thinking_modes", []),
+            }
             for m in models
         ]
     }
@@ -147,6 +155,29 @@ async def create_persona(name: str, content: str) -> dict[str, Any]:
     """
     persona = await client.create_persona(name, content)
     return {"persona": {"name": persona["name"]}}
+
+
+@mcp.tool()
+async def update_persona(name: str, content: str) -> dict[str, Any]:
+    """Replace an existing persona's system prompt.
+
+    `name` must match an existing persona (see list_personas); `content` fully replaces
+    its current system prompt. Chats already streaming keep the prompt they started with;
+    new turns pick up the updated one. Returns the updated persona's name.
+    """
+    persona = await client.update_persona(name, content)
+    return {"persona": {"name": persona["name"]}}
+
+
+@mcp.tool()
+async def delete_persona(name: str) -> dict[str, Any]:
+    """Delete a custom persona permanently.
+
+    `name` must match an existing persona (see list_personas). Chats that used it keep
+    their history, but new turns can no longer select it. Returns {"deleted": true}.
+    """
+    await client.delete_persona(name)
+    return {"deleted": True}
 
 
 @mcp.tool()

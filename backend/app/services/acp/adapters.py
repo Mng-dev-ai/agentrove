@@ -106,6 +106,35 @@ PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
 )
 
 
+THINKING_MODE_ORDER = ("low", "medium", "high", "xhigh", "max", "ultra")
+
+
+def valid_thinking_modes(agent_kind: AgentKind, model_id: str) -> frozenset[str]:
+    # The thinking tiers a model actually accepts; empty means the model has no
+    # reasoning-effort dial (thinking_mode is ignored for it).
+    if agent_kind is AgentKind.CLAUDE:
+        return (
+            CLAUDE_XHIGH_VALID_THINKING_MODES
+            if model_id in CLAUDE_XHIGH_MODEL_IDS
+            else CLAUDE_VALID_THINKING_MODES
+        )
+    if agent_kind is AgentKind.CODEX:
+        if model_id in CODEX_ULTRA_MODEL_IDS:
+            return CODEX_ULTRA_VALID_THINKING_MODES
+        if model_id in CODEX_MAX_MODEL_IDS:
+            return CODEX_MAX_VALID_THINKING_MODES
+        return CODEX_VALID_THINKING_MODES
+    if agent_kind is AgentKind.COPILOT:
+        return COPILOT_VALID_THINKING_MODES
+    if agent_kind is AgentKind.GROK:
+        return (
+            GROK_VALID_THINKING_MODES
+            if model_id in GROK_REASONING_MODEL_IDS
+            else frozenset()
+        )
+    return frozenset()
+
+
 def coerce_thinking_mode(mode: str | None, valid_modes: frozenset[str]) -> str:
     # Normalises the UI's named thinking tier to one the agent actually accepts,
     # falling back to "medium" for None or unrecognised values.
@@ -229,14 +258,10 @@ class ClaudeAgentAdapter(AgentAdapter):
 
         # Claude exposes thinking budget as the "effort" session config option,
         # applied post-handshake via set_config_option; the UI's named tiers
-        # are passed through directly as effort level IDs. `xhigh` is only
-        # valid for selected Claude models, so others keep the narrower tier set.
-        valid_modes = (
-            CLAUDE_XHIGH_VALID_THINKING_MODES
-            if model_id in CLAUDE_XHIGH_MODEL_IDS
-            else CLAUDE_VALID_THINKING_MODES
+        # are passed through directly as effort level IDs.
+        reasoning_effort = coerce_thinking_mode(
+            thinking_mode, valid_thinking_modes(AgentKind.CLAUDE, model_id)
         )
-        reasoning_effort = coerce_thinking_mode(thinking_mode, valid_modes)
 
         return SessionConfig(
             meta=meta,
@@ -290,15 +315,9 @@ class CodexAgentAdapter(AgentAdapter):
         thinking_mode: str | None,
         permission_mode: str,
     ) -> SessionConfig:
-        # GPT-5.6 adds `max` (and `ultra` on Sol/Terra); older Codex models
-        # keep the narrower tier set.
-        if model_id in CODEX_ULTRA_MODEL_IDS:
-            valid_modes = CODEX_ULTRA_VALID_THINKING_MODES
-        elif model_id in CODEX_MAX_MODEL_IDS:
-            valid_modes = CODEX_MAX_VALID_THINKING_MODES
-        else:
-            valid_modes = CODEX_VALID_THINKING_MODES
-        reasoning_effort = coerce_thinking_mode(thinking_mode, valid_modes)
+        reasoning_effort = coerce_thinking_mode(
+            thinking_mode, valid_thinking_modes(AgentKind.CODEX, model_id)
+        )
 
         # Codex config rides on the CODEX_CONFIG launch env var and the model
         # ID, not session meta.
@@ -348,7 +367,7 @@ class CopilotCliAdapter(AgentAdapter):
 
         # Copilot ACP exposes reasoning effort as a CLI/ACP value directly.
         reasoning_effort = coerce_thinking_mode(
-            thinking_mode, COPILOT_VALID_THINKING_MODES
+            thinking_mode, valid_thinking_modes(AgentKind.COPILOT, model_id)
         )
 
         return SessionConfig(
@@ -468,10 +487,9 @@ class GrokAgentAdapter(AgentAdapter):
             else:
                 meta["rules"] = system_prompt
 
+        grok_modes = valid_thinking_modes(AgentKind.GROK, model_id)
         reasoning_effort = (
-            coerce_thinking_mode(thinking_mode, GROK_VALID_THINKING_MODES)
-            if model_id in GROK_REASONING_MODEL_IDS
-            else None
+            coerce_thinking_mode(thinking_mode, grok_modes) if grok_modes else None
         )
 
         return SessionConfig(

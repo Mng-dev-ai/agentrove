@@ -105,6 +105,24 @@ class AgentroveClient:
         await self.request("PATCH", "/settings/", json={"personas": [*personas, persona]})
         return persona
 
+    async def update_persona(self, name: str, content: str) -> dict[str, Any]:
+        resp = await self.request("GET", "/settings/")
+        personas = resp.json().get("personas") or []
+        persona = next((p for p in personas if p["name"] == name), None)
+        if persona is None:
+            raise AgentroveError(f"No persona named {name!r} exists.")
+        persona["content"] = content
+        await self.request("PATCH", "/settings/", json={"personas": personas})
+        return persona
+
+    async def delete_persona(self, name: str) -> None:
+        resp = await self.request("GET", "/settings/")
+        personas = resp.json().get("personas") or []
+        remaining = [p for p in personas if p["name"] != name]
+        if len(remaining) == len(personas):
+            raise AgentroveError(f"No persona named {name!r} exists.")
+        await self.request("PATCH", "/settings/", json={"personas": remaining})
+
     async def list_models(self, agent_kind: str | None) -> list[dict[str, Any]]:
         params = {"agent_kind": agent_kind} if agent_kind else None
         resp = await self.request("GET", "/models/", params=params)
