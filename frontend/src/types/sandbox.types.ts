@@ -21,7 +21,8 @@ export interface UpdateFileResult {
   message: string;
 }
 
-export type DiffMode = 'all' | 'staged' | 'unstaged' | 'branch';
+// `all` = uncommitted changes (worktree + index vs HEAD); shown as "Uncommitted".
+export type DiffMode = 'all' | 'branch';
 
 export interface GitDiffData {
   diff: string;

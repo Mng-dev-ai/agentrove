@@ -98,25 +98,25 @@ GIT_WORKTREE_REMOVE_TEMPLATE = Template(
     "git worktree remove '$worktree_dir' 2>&1 && git branch -d '$branch_name' 2>&1"
 )
 
-GIT_DIFF_STAGED_TEMPLATE = Template("git diff$ctx --cached 2>/dev/null")
-GIT_DIFF_UNSTAGED_TEMPLATE = Template("git diff$ctx 2>/dev/null;$untracked")
 # "all" mode: try `git diff HEAD` first (combined staged+unstaged in one pass);
-# falls back to separate staged + unstaged when HEAD doesn't exist (initial
-# commit).
+# falls back to diffing against the empty tree when HEAD doesn't exist (unborn
+# branch) — same combined view, whereas running `--cached` and the plain diff
+# back-to-back emits a staged-then-modified file twice and downstream parsing
+# keys files by path. `hash-object -t tree /dev/null` yields the empty-tree id
+# for the repo's object format (the stock pre-commit-hook idiom).
 GIT_DIFF_ALL_TEMPLATE = Template(
-    "{ git diff$ctx HEAD 2>/dev/null"
-    " || { git diff$ctx --cached 2>/dev/null; git diff$ctx 2>/dev/null; }; };"
+    "git diff$ctx HEAD 2>/dev/null"
+    " || git diff$ctx $$(git hash-object -t tree /dev/null) 2>/dev/null;"
     "$untracked"
 )
 # Default context (no -U flag): restore resets --hard to base_head before
 # applying, and changed-files builds its temp index from exactly base_head, so
 # the patch base is always byte-identical — full-file context would only bloat
 # every checkpoint row stored in the DB.
+# No unborn-HEAD fallback (unlike GIT_DIFF_ALL_TEMPLATE): the checkpoint probe
+# already required a resolvable HEAD before this diff runs.
 GIT_CHECKPOINT_DIFF_ALL_TEMPLATE = Template(
-    "{ git diff --binary HEAD 2>/dev/null"
-    " || { git diff --binary --cached 2>/dev/null; "
-    "git diff --binary 2>/dev/null; }; };"
-    "$untracked"
+    "git diff --binary HEAD 2>/dev/null;$untracked"
 )
 GIT_UNTRACKED_DIFF_TEMPLATE = Template(
     " git ls-files --others --exclude-standard -z"
@@ -226,7 +226,7 @@ class GitService:
     async def get_diff(
         self,
         sandbox_id: str,
-        mode: Literal["all", "staged", "unstaged", "branch"] = "all",
+        mode: Literal["all", "branch"] = "all",
         full_context: bool = False,
         cwd: str | None = None,
     ) -> GitDiffResponse:
@@ -245,12 +245,6 @@ class GitService:
 
         if mode == "branch":
             cmd = GIT_DIFF_BRANCH_TEMPLATE.substitute(ctx=ctx)
-        elif mode == "staged":
-            cmd = GIT_DIFF_STAGED_TEMPLATE.substitute(ctx=ctx)
-        elif mode == "unstaged":
-            cmd = GIT_DIFF_UNSTAGED_TEMPLATE.substitute(
-                ctx=ctx, untracked=untracked_diff
-            )
         else:
             cmd = GIT_DIFF_ALL_TEMPLATE.substitute(ctx=ctx, untracked=untracked_diff)
 

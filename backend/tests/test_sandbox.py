@@ -284,8 +284,7 @@ async def test_git_endpoints_propagate_cwd_and_request_fields(
     sandbox_id = workspace.sandbox_id
 
     diff_response = await client.get(
-        f"/api/v1/sandbox/{sandbox_id}/git/diff"
-        "?mode=staged&full_context=true&cwd=packages/api",
+        f"/api/v1/sandbox/{sandbox_id}/git/diff?full_context=true&cwd=packages/api",
         headers=headers,
     )
     branches_response = await client.get(
@@ -341,7 +340,7 @@ async def test_git_endpoints_propagate_cwd_and_request_fields(
         )
         for command in commands
     )
-    assert any("git diff -U99999 --cached" in command for command in commands)
+    assert any("git diff -U99999 HEAD" in command for command in commands)
     assert any("git for-each-ref" in command for command in commands)
     assert any("git checkout 'feature'" in command for command in commands)
     assert any("git commit -m 'Update API'" in command for command in commands)
@@ -550,7 +549,7 @@ async def test_git_diff_not_a_repo(
     }
 
 
-async def test_git_diff_unstaged_and_branch_success_modes(
+async def test_git_diff_default_and_branch_success_modes(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
@@ -564,10 +563,6 @@ async def test_git_diff_unstaged_and_branch_success_modes(
     default_mode_response = await client.get(
         f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff", headers=headers
     )
-    unstaged_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff?mode=unstaged",
-        headers=headers,
-    )
     branch_response = await client.get(
         f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff?mode=branch",
         headers=headers,
@@ -575,8 +570,6 @@ async def test_git_diff_unstaged_and_branch_success_modes(
 
     assert default_mode_response.status_code == 200
     assert default_mode_response.json()["is_git_repo"] is True
-    assert unstaged_response.status_code == 200
-    assert unstaged_response.json()["is_git_repo"] is True
     assert branch_response.status_code == 200
     assert branch_response.json()["is_git_repo"] is True
 
@@ -1410,8 +1403,7 @@ async def test_host_provider_runs_real_git_commands(
         f"/api/v1/sandbox/{workspace.sandbox_id}/git/branches", headers=headers
     )
     diff_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff?mode=unstaged",
-        headers=headers,
+        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff", headers=headers
     )
     remote_response = await client.get(
         f"/api/v1/sandbox/{workspace.sandbox_id}/git/remote-url", headers=headers
@@ -1447,6 +1439,55 @@ async def test_host_provider_runs_real_git_commands(
         "type": "file",
         "is_binary": False,
     } in metadata_files
+
+
+async def test_git_diff_unborn_head_emits_each_file_once(
+    tmp_path: Path,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    # Real git against a repo with no commits: `git diff HEAD` fails, so "all"
+    # mode falls back to diffing the worktree against the empty tree. The old
+    # `--cached` + plain-diff fallback emitted a staged-then-modified file
+    # twice, which downstream parsing (keyed by path) can't represent.
+    workspace_dir = tmp_path / "unborn-workspace"
+    workspace_dir.mkdir()
+    subprocess.run(
+        ["git", "-c", "init.defaultBranch=main", "init", "-q"],
+        cwd=workspace_dir,
+        check=True,
+    )
+    (workspace_dir / "app.py").write_text("print('v1')\n")
+    subprocess.run(["git", "add", "."], cwd=workspace_dir, check=True)
+    (workspace_dir / "app.py").write_text("print('v1')\nprint('v2')\n")
+    (workspace_dir / "notes.txt").write_text("untracked\n")
+
+    headers, workspace = await create_host_workspace(
+        db_session,
+        create_user,
+        login,
+        workspace_dir,
+        email="unborn@example.com",
+        username="unborn",
+    )
+
+    response = await client.get(
+        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff", headers=headers
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["is_git_repo"] is True
+    assert body["has_changes"] is True
+    diff = body["diff"]
+    # One section per file: the staged-then-modified file exactly once, with
+    # combined worktree content, plus the untracked file.
+    assert diff.count("diff --git a/app.py b/app.py") == 1
+    assert "print('v2')" in diff
+    assert "diff --git a/notes.txt b/notes.txt" in diff
+    assert diff.count("diff --git") == 2
 
 
 async def test_git_endpoint_injects_github_token_env(

@@ -243,6 +243,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:opencode-go/glm-5.2": ModelInfo(
         "GLM-5.2 (Opencode Go)", AgentKind.OPENCODE, 1_000_000
     ),
+    "opencode:opencode-go/grok-4.5": ModelInfo(
+        "Grok 4.5 (Opencode Go)", AgentKind.OPENCODE, 500_000
+    ),
     "opencode:opencode-go/hy3-preview": ModelInfo(
         "Hy3 Preview (Opencode Go)", AgentKind.OPENCODE, 256_000
     ),
@@ -254,6 +257,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:opencode-go/kimi-k2.7-code": ModelInfo(
         "Kimi K2.7 Code (Opencode Go)", AgentKind.OPENCODE, 262_144
+    ),
+    "opencode:opencode-go/kimi-k3": ModelInfo(
+        "Kimi K3 (Opencode Go)", AgentKind.OPENCODE, 1_048_576
     ),
     "opencode:opencode-go/mimo-v2-omni": ModelInfo(
         "MiMo V2 Omni (Opencode Go)", AgentKind.OPENCODE, 262_144

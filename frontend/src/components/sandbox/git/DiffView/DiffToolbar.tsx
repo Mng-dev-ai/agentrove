@@ -151,11 +151,10 @@ export function DiffToolbar({
       {!isNarrow && showFiles && (
         <div className={styles.progress}>
           <div className={styles['progress-track']}>
+            {/* showFiles guarantees parsedFiles is non-empty. */}
             <div
               className={styles['progress-fill']}
-              style={{
-                width: `${parsedFiles.length > 0 ? (reviewedCount / parsedFiles.length) * 100 : 0}%`,
-              }}
+              style={{ width: `${(reviewedCount / parsedFiles.length) * 100}%` }}
             />
           </div>
           <span className={styles['progress-label']}>
