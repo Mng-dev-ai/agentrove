@@ -402,7 +402,7 @@ export function LandingPage() {
                     {greeting}
                     {greetingName && `, ${greetingName}`}
                   </h1>
-                  <p className={styles['greeting-subtitle']}>What are we building today?</p>
+                  <p className={styles['greeting-subtitle']}>What should we build today?</p>
                 </div>
 
                 {composerSelectors}
