@@ -95,8 +95,10 @@ services:
       api:
         condition: service_healthy
     environment:
-      - SERVICE_FQDN_WEB_80
-      - SERVICE_URL_WEB
+      # Coolify renames api → api-pr-N; nginx proxies to this hostname.
+      API_HOST: ${SERVICE_NAME_API:-api}
+      SERVICE_FQDN_WEB_80: ${SERVICE_FQDN_WEB_80:-}
+      SERVICE_URL_WEB: ${SERVICE_URL_WEB:-}
     expose:
       - "80"
     healthcheck:
