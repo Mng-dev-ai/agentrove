@@ -20,6 +20,22 @@ RUN apt-get update && apt-get install -y \
     ripgrep \
     ca-certificates \
     gnupg \
+    file \
+    vim \
+    nano \
+    wget \
+    less \
+    tree \
+    fd-find \
+    procps \
+    psmisc \
+    lsof \
+    rsync \
+    patch \
+    iproute2 \
+    netcat-openbsd \
+    dnsutils \
+    && ln -sf "$(command -v fdfind)" /usr/local/bin/fd \
     && add-apt-repository -y ppa:deadsnakes/ppa \
     && apt-get update \
     && apt-get install -y python3.12 python3.12-venv python3.12-dev \

@@ -8,8 +8,8 @@ import styles from './MessageTrail.module.scss';
 // Cap preview text so a huge message doesn't dump megabytes into the DOM
 const PREVIEW_MAX_CHARS = 200;
 const TICK_SPACING_PX = 12;
-// Width of the centered message column (lg:max-w-4xl = 56rem)
-const MESSAGE_COLUMN_MAX_PX = 896;
+// Width of the centered message column (Chat.module.scss .column max-width: 67.2rem)
+const MESSAGE_COLUMN_MAX_PX = 67.2 * 16;
 const MIN_GUTTER_PX = 40;
 const ACTIVE_VIEWPORT_FRACTION = 0.4;
 
