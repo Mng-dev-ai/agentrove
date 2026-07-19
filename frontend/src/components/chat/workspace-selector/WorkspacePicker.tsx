@@ -92,7 +92,6 @@ export function WorkspacePicker({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search workspaces…"
-                  autoFocus
                   className={styles['search-input']}
                 />
                 {searchQuery && (
