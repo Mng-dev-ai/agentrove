@@ -139,6 +139,19 @@ ALLOWED_ORIGINS=https://yourdomain.com \
 docker compose -f docker-compose-production.yml up -d --build
 ```
 
+### Coolify / reverse proxy
+
+Point Coolify at the `web` service (port 80). Set:
+
+| Variable | Example |
+| --- | --- |
+| `APP_URL` | `https://yourdomain.com` |
+| `ALLOWED_ORIGINS` | `https://yourdomain.com` |
+| `SECRET_KEY` | 32+ char secret |
+| `TRUSTED_PROXY_HOSTS` | `*` (default in production compose) |
+
+If `/admin` loads as plain unstyled HTML (blue links, no layout), the API is generating `http://` URLs for SQLAdmin CSS/JS while the page is `https://`. Rebuild with the production compose above so nginx forwards Coolify's `X-Forwarded-Proto` and the API trusts the proxy.
+
 ## Stack
 
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS, Monaco, xterm.js

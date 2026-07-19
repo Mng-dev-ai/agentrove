@@ -54,6 +54,10 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost,http://127.0.0.1}
       BASE_URL: ${APP_URL:-http://localhost}
       FRONTEND_URL: ${APP_URL:-http://localhost}
+      # Coolify/Traefik (and the web nginx container) sit in front of the API.
+      # Without this, ProxyHeadersMiddleware ignores X-Forwarded-Proto and
+      # SQLAdmin emits http:// asset URLs on an https:// page (unstyled admin).
+      TRUSTED_PROXY_HOSTS: ${TRUSTED_PROXY_HOSTS:-*}
     networks:
       - default
       - sandbox
