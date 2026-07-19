@@ -58,7 +58,13 @@ class UserAdmin(ModelView, model=User):
         "updated_at": _format_datetime,
     }
 
-    form_excluded_columns = ["chats", "settings", "hashed_password"]
+    form_excluded_columns = [
+        "chats",
+        "settings",
+        "workspaces",
+        "refresh_tokens",
+        "hashed_password",
+    ]
 
     async def scaffold_form(self, rules: list[str] | None = None) -> type[Form]:
         # This sqladmin version has no form_extra_fields support, so graft the
@@ -78,9 +84,13 @@ class UserAdmin(ModelView, model=User):
     async def on_model_change(
         self, data: dict[str, Any], model: User, is_created: bool, request: Request
     ) -> None:
-        if "password" in data and data["password"]:
-            data["hashed_password"] = get_password_hash(data["password"])
-            del data["password"]
+        # Always strip password from form data — it is not a model column.
+        # Leaving an empty password in data makes SQLAdmin crash with
+        # "'NoneType' object has no attribute 'nullable'" when it looks up
+        # the column on the mapper.
+        password = data.pop("password", None)
+        if password:
+            data["hashed_password"] = get_password_hash(password)
         await super().on_model_change(data, model, is_created, request)
 
     name = "User"

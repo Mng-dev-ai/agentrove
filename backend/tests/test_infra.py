@@ -297,6 +297,64 @@ async def test_admin_create_user_hashes_grafted_password_field(
     assert verify_password("freshpass123", created.hashed_password)
 
 
+async def test_admin_edit_user_username_without_password(
+    monkeypatch: pytest.MonkeyPatch,
+    db_session: AsyncSession,
+) -> None:
+    # Empty password field is not a model column; leaving it in form data
+    # previously crashed SQLAdmin with "'NoneType' object has no attribute
+    # 'nullable'" on update.
+    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
+    admin_user = User(
+        email="edit-admin@example.com",
+        username="editadmin",
+        hashed_password=get_password_hash("adminpass123"),
+        is_active=True,
+        is_verified=True,
+        is_superuser=True,
+    )
+    target_user = User(
+        email="edit-target@example.com",
+        username="edittarget",
+        hashed_password=get_password_hash("targetpass123"),
+        is_active=True,
+        is_verified=True,
+        is_superuser=False,
+    )
+    db_session.add_all([admin_user, target_user])
+    await db_session.commit()
+    target_id = str(target_user.id)
+    original_hash = target_user.hashed_password
+
+    application = create_application()
+    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as test_client:
+        await test_client.post(
+            "/admin/login",
+            data={"username": "edit-admin@example.com", "password": "adminpass123"},
+            follow_redirects=False,
+        )
+        edit_response = await test_client.post(
+            f"/admin/user/edit/{target_id}",
+            data={
+                "email": "edit-target@example.com",
+                "username": "renamedtarget",
+                "password": "",
+                "is_active": "on",
+                "is_verified": "on",
+            },
+            follow_redirects=False,
+        )
+
+    assert edit_response.status_code == 302, edit_response.text
+
+    await db_session.refresh(target_user)
+    assert target_user.username == "renamedtarget"
+    assert target_user.hashed_password == original_hash
+
+
 class AsyncCallRecorder:
     # Awaitable stand-in for lifespan collaborators; counts invocations so a
     # test can assert shutdown wiring without running the real teardown.
