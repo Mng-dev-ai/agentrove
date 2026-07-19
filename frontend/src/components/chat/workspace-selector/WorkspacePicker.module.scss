@@ -2,6 +2,7 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/state-classes' as state;
 
 .trigger {
   @include anim.transition-colors;
@@ -40,6 +41,13 @@
 
   @include responsive.media('sm-up') {
     max-width: var(--space-64);
+  }
+
+  // Composer footer overflowed: back to the phone cap — unlike the other
+  // triggers this one keeps its label, since which project the message runs
+  // in is the state worth seeing.
+  :global(.#{state.$state-compact}) & {
+    max-width: var(--space-24);
   }
 }
 

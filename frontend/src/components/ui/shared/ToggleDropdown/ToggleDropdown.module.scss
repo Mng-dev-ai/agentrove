@@ -2,6 +2,7 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/state-classes' as state;
 @use '@/styles/globals/zlayer' as z;
 
 .toggle-dropdown {
@@ -37,14 +38,19 @@
   color: var(--theme-text-quaternary);
 }
 
-// Same compact-on-mobile behavior as the Dropdown primitive's triggers: below
-// the sm breakpoint the icon stands in for the label.
+// Same compact behavior as the Dropdown primitive's triggers: the icon stands
+// in for the label below the sm breakpoint, or when the composer footer row is
+// in the compact state because the labeled row overflowed.
 .trigger-label {
   display: none;
   min-width: 0;
 
   @include responsive.media('sm-up') {
     display: block;
+  }
+
+  :global(.#{state.$state-compact}) & {
+    display: none;
   }
 }
 

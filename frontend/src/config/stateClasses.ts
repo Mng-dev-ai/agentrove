@@ -19,6 +19,7 @@ export const stateClasses = {
   EXPANDED: 'is-expanded',
   PENDING: 'is-pending',
   CURRENT: 'is-current',
+  COMPACT: 'is-compact',
 } as const;
 
 export type StateClass = (typeof stateClasses)[keyof typeof stateClasses];
