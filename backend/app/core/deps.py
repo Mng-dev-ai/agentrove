@@ -183,11 +183,13 @@ async def get_skill_service(
     current_user: User = Depends(get_current_user),
     workspace_service: WorkspaceService = Depends(get_workspace_service),
 ) -> SkillService:
-    # Skills live under each workspace's .{agent}/skills dir, so scope discovery
-    # to the selected workspace rather than a single global root that, in cloud
-    # mode, holds no skills.
+    # Two tiers: the selected workspace's .{agent}/skills dirs, layered over
+    # the owner's agent home — the same HOME host-mode agents run with.
     workspace = await workspace_service.get_workspace(workspace_id, current_user)
-    return SkillService(workspace_path=Path(workspace.workspace_path))
+    return SkillService(
+        workspace_path=Path(workspace.workspace_path),
+        user_id=str(workspace.user_id),
+    )
 
 
 def get_attachment_service() -> AttachmentService:

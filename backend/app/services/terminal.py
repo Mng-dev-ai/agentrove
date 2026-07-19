@@ -58,6 +58,7 @@ class TerminalSessionRecord:
                     self.cwd,
                     on_data=self._enqueue_output,
                     on_exit=self._schedule_pty_exit,
+                    user_id=self.user_id,
                 )
                 self.input_queue = asyncio.Queue(maxsize=PTY_INPUT_QUEUE_SIZE)
                 self.input_task = asyncio.create_task(self._input_worker(self.pty_id))

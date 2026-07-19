@@ -19,9 +19,9 @@ SKILL_MD_FILENAME = "SKILL.md"
 
 
 class SkillService:
-    def __init__(self, workspace_path: Path | None = None) -> None:
+    def __init__(self, workspace_path: Path | None = None, *, user_id: str) -> None:
         self.paths_by_source, self.readonly_paths = self._build_paths_by_source(
-            workspace_path
+            workspace_path, user_id
         )
 
     @staticmethod
@@ -38,9 +38,16 @@ class SkillService:
     @staticmethod
     def _build_paths_by_source(
         workspace_path: Path | None,
+        user_id: str,
     ) -> tuple[dict[str, list[Path]], set[Path]]:
-        # Desktop mode reads from the user's home dir, server mode from STORAGE_PATH.
-        base = Path.home() if settings.DESKTOP_MODE else Path(settings.STORAGE_PATH)
+        # The global tier roots at the HOME the user's agents actually run
+        # with — real home on desktop, per-user agent home on web — so the UI
+        # lists exactly the skills agents can load.
+        base = (
+            Path.home()
+            if settings.DESKTOP_MODE
+            else Path(settings.get_agent_home_dir(user_id))
+        )
         ns = SkillService._namespace_paths
 
         # .{name}/skills namespaces each agent searches. Codex/Copilot/Cursor share

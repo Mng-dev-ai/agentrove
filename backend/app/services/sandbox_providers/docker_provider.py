@@ -388,10 +388,12 @@ class LocalDockerProvider(SandboxProvider):
         cwd: str,
         on_data: PtyDataCallbackType,
         on_exit: PtyExitCallbackType,
+        user_id: str = "",
     ) -> str:
         # Spawn a PTY-attached shell inside the container via docker exec.
         # Tries tmux for session persistence across WebSocket reconnections,
-        # falls back to bare bash if tmux is not installed.
+        # falls back to bare bash if tmux is not installed. `user_id` is
+        # unused: the container's HOME is fixed at image build time.
         container = await self._get_container(sandbox_id)
         session_id = str(uuid.uuid4())
 

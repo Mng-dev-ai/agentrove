@@ -81,6 +81,9 @@ class AcpSessionConfig:
     sandbox_id: str
     sandbox_provider: SandboxProviderType
     cwd: str
+    # Owner of the chat's workspace — keys the per-user agent home that
+    # host-mode processes get as HOME in web mode.
+    user_id: str
     agent_kind: AgentKind = AgentKind.CLAUDE
     env: dict[str, str] = field(default_factory=dict)
     mcp_servers: list[dict[str, Any]] = field(default_factory=list)
@@ -604,20 +607,20 @@ class AcpSession:
         # Start from the host environment so auth tokens, proxy vars,
         # TLS settings, and tool paths are available to the agent process.
         env = dict(os.environ)
-        if config.sandbox_id:
-            host_base = settings.get_host_sandbox_base_dir()
-            host_home = f"{host_base}/{config.sandbox_id}"
+        if config.sandbox_id and not settings.DESKTOP_MODE:
+            # Web mode: HOME is the per-user agent home, shared by every
+            # workspace of the user, so CLI logins/MCP/skills are configured
+            # once — not once per workspace.
+            home = settings.get_agent_home_dir(config.user_id)
+            Path(home).mkdir(parents=True, exist_ok=True)
             # Rewrite virtual sandbox paths (/home/user/...) in env values to
-            # the real host sandbox directory. GIT_ASKPASS is exempt by design:
-            # in host mode it already points at a real API-filesystem path.
+            # the real home. GIT_ASKPASS is exempt by design: in host mode it
+            # already points at a real API-filesystem path.
             for key, val in config.env.items():
-                env[key] = val.replace(SANDBOX_HOME_DIR, host_home)
-            # Web mode: override HOME so the agent uses the sandbox dir.
-            # Desktop mode keeps the real host location so existing auth resolves.
-            if not settings.DESKTOP_MODE:
-                Path(host_home).mkdir(parents=True, exist_ok=True)
-                env["HOME"] = host_home
+                env[key] = val.replace(SANDBOX_HOME_DIR, home)
+            env["HOME"] = home
         else:
+            # Desktop mode keeps the real host env/HOME so existing auth resolves.
             env.update(config.env)
         # Launch env carries runtime-resolved values (e.g. Codex's CODEX_CONFIG
         # with an absolute instructions path), so it skips the sandbox-path rewrite.

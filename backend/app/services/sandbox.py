@@ -90,6 +90,7 @@ class SandboxService:
         cwd: str,
         on_data: PtyDataCallbackType,
         on_exit: PtyExitCallbackType,
+        user_id: str = "",
     ) -> str:
         return await self.provider.create_pty(
             sandbox_id,
@@ -99,6 +100,7 @@ class SandboxService:
             cwd,
             on_data=on_data,
             on_exit=on_exit,
+            user_id=user_id,
         )
 
     async def send_pty_input(

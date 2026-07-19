@@ -156,6 +156,7 @@ class FakeSandboxProvider(SandboxProvider):
         cwd: str,
         on_data: PtyDataCallbackType,
         on_exit: PtyExitCallbackType,
+        user_id: str = "",
     ) -> str:
         return "pty-1"
 

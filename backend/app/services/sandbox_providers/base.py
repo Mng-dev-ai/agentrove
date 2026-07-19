@@ -146,17 +146,29 @@ class SandboxProvider:
         cwd: str,
         on_data: PtyDataCallbackType,
         on_exit: PtyExitCallbackType,
+        user_id: str = "",
     ) -> str:
         # Returns the new PTY session id. `cwd` is workspace-relative; ""
         # means the provider's default start dir. `on_exit` fires when the
         # PTY stream ends on its own (shell exit, container gone) — never on
-        # kill_pty's own cancellation.
+        # kill_pty's own cancellation. `user_id` keys the per-user agent home
+        # used as HOME in web host mode (unused by Docker — container HOME is
+        # fixed).
         raise NotImplementedError
 
     @staticmethod
-    def build_pty_shell_command(tmux_session: str, fallback_shell: str) -> str:
+    def build_pty_shell_command(
+        tmux_session: str,
+        fallback_shell: str,
+        session_env: dict[str, str] | None = None,
+    ) -> str:
         # Shared tmux launch for every provider's PTY, falling back to a bare
-        # shell when tmux isn't installed. history-limit and the smcup@/rmcup@
+        # shell when tmux isn't installed. session_env entries are passed with
+        # new-session -e: the tmux server is shared per OS user and hands its
+        # own (first-start) environment to new shells, so vars like the
+        # per-user agent HOME must be pinned at the session level — the
+        # spawning client's env never reaches shells on an existing server.
+        # history-limit and the smcup@/rmcup@
         # override precede new -A: they only apply to panes/clients created
         # after they're set (tmux applies them fine with no server running).
         # smcup@/rmcup@ keep tmux off the alternate screen so output lands in
@@ -169,11 +181,15 @@ class SandboxProvider:
         # forwards mouse-mode requests from inner TUIs. set-clipboard plus the
         # Ms override forward inner-app/copy-mode copies as OSC 52 to the
         # frontend clipboard addon.
+        env_flags = "".join(
+            f" -e {shlex.quote(key + '=' + value)}"
+            for key, value in (session_env or {}).items()
+        )
         return (
             "command -v tmux >/dev/null && "
             "tmux set -g history-limit 10000"
             " \\; set -as terminal-overrides ',xterm-256color:smcup@:rmcup@:indn@'"
-            f" \\; new -A -s {shlex.quote(tmux_session)}"
+            f" \\; new -A{env_flags} -s {shlex.quote(tmux_session)}"
             " \\; set -g status off"
             " \\; set -g mouse off"
             " \\; set -s set-clipboard on"

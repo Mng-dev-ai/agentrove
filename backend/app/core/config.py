@@ -192,6 +192,15 @@ class Settings(BaseSettings):
             return self.HOST_SANDBOX_BASE_DIR
         return f"{self.STORAGE_PATH.rstrip('/')}/host-sandboxes"
 
+    def get_agent_home_dir(self, user_id: str) -> str:
+        # Per-user HOME for host-provider agents and terminal PTYs in web mode.
+        # One dir per user — not per sandbox — so CLI logins (claude/codex),
+        # MCP registrations, and skills are configured once and shared across
+        # every workspace, matching desktop mode where the real $HOME plays
+        # this role. Kept under the persistent storage volume so logins
+        # survive restarts. Desktop mode never resolves this.
+        return f"{self.STORAGE_PATH.rstrip('/')}/agent-homes/{user_id}"
+
     # Security Headers Configuration
     ENABLE_SECURITY_HEADERS: bool = True
     HSTS_MAX_AGE: int = 31536000

@@ -232,6 +232,7 @@ class LocalHostProvider(SandboxProvider):
         cwd: str,
         on_data: PtyDataCallbackType,
         on_exit: PtyExitCallbackType,
+        user_id: str = "",
     ) -> str:
         # Spawn a PTY-attached shell in the workspace directory (or a
         # workspace-relative cwd, e.g. a chat's worktree). Tries tmux
@@ -248,13 +249,19 @@ class LocalHostProvider(SandboxProvider):
         )
 
         env = os.environ.copy()
+        session_env: dict[str, str] = {}
         if sandbox_id and not settings.DESKTOP_MODE:
-            host_home = Path(settings.get_host_sandbox_base_dir()) / sandbox_id
-            host_home.mkdir(parents=True, exist_ok=True)
-            env["HOME"] = str(host_home)
+            # Same per-user HOME as spawned agents, so `claude login` etc. run
+            # from the terminal lands where every workspace's agent reads it.
+            # Pinned via tmux session env too — the process env alone is lost
+            # when the session lands on an already-running tmux server.
+            host_home = settings.get_agent_home_dir(user_id)
+            Path(host_home).mkdir(parents=True, exist_ok=True)
+            env["HOME"] = host_home
+            session_env["HOME"] = host_home
         env["TERM"] = TERMINAL_TYPE
         shell = env.get("SHELL", "/bin/bash")
-        cmd = self.build_pty_shell_command(tmux_session, shell)
+        cmd = self.build_pty_shell_command(tmux_session, shell, session_env)
         process = await asyncio.to_thread(
             subprocess.Popen,
             ["bash", "-lc", cmd],
