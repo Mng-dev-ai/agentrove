@@ -18,7 +18,9 @@ RUN apt-get update && \
     gosu docker-cli \
     build-essential \
     openssh-client \
-    gh ripgrep fd-find jq less tree unzip tmux && \
+    gh ripgrep fd-find jq less tree unzip tmux \
+    file vim nano wget procps psmisc lsof rsync patch \
+    iproute2 netcat-openbsd dnsutils && \
     ln -s "$(command -v fdfind)" /usr/local/bin/fd && \
     curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \

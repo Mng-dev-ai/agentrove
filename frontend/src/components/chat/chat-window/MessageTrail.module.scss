@@ -20,7 +20,15 @@
 }
 
 .trail-rail {
+  pointer-events: auto;
   position: relative;
+  width: var(--space-6);
+
+  @include responsive.hover {
+    .tick--inactive-compact {
+      background-color: colors.theme-color('text-quaternary', 0.5);
+    }
+  }
 }
 
 .trail-item {
@@ -87,7 +95,7 @@
 
   &--inactive-compact {
     width: var(--space-1-5);
-    background-color: colors.theme-color('text-quaternary', 0.5);
+    background-color: colors.theme-color('text-quaternary', 0.25);
   }
 }
 
