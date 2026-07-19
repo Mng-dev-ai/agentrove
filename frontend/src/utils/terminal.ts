@@ -67,9 +67,11 @@ export const buildSearchDecorations = (palette: Palette): ISearchDecorationOptio
 
 // Terminal tab layouts live in their own localStorage entries outside the zustand
 // persist blob. The key scheme is owned here so the Container's writes and the
-// uiStore's delete-time sweeps can't silently drift apart.
-export const terminalStorageKey = (chatId: string, panelKey: string): string =>
-  `terminal:${chatId}:${panelKey}`;
+// uiStore's delete-time sweeps can't silently drift apart. The scope is a chat id,
+// or a `landing-<sandboxId>` scope for pre-chat terminals (those are only swept by
+// the clear-all path).
+export const terminalStorageKey = (scope: string, panelKey: string): string =>
+  `terminal:${scope}:${panelKey}`;
 
 export function clearTerminalStorage(chatId?: string): void {
   // Sweep one chat's entries, or every chat's when chatId is omitted.
