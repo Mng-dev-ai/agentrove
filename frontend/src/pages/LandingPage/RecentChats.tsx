@@ -6,6 +6,7 @@ import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { formatRelativeTime } from '@/utils/date';
 import { stripMarkdownTitle } from '@/utils/format';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
+import { Cloud } from 'lucide-react';
 import {
   ChatStatusDot,
   chatStatusTone,
@@ -26,6 +27,7 @@ export interface RecentChatsProps {
 
 export function RecentChats({ chats, workspaceBadgeById, onChatSelect }: RecentChatsProps) {
   const activeStreamMetadata = useStreamStore((state) => state.activeStreamMetadata);
+  const lastToolTitleByChatId = useStreamStore((state) => state.lastToolTitleByChatId);
   const completedChatIds = useStreamStore((state) => state.completedChatIds);
   // Empty queues are deleted from the store, so every remaining key is a chat
   // blocked on a plan/question/permission answer.
@@ -63,9 +65,11 @@ export function RecentChats({ chats, workspaceBadgeById, onChatSelect }: RecentC
               ) : null}
             </span>
           );
-          const meta = [workspaceBadgeById.get(chat.workspace_id)?.name, modelLabel(chat)]
-            .filter(Boolean)
-            .join(' · ');
+          const workspaceBadge = workspaceBadgeById.get(chat.workspace_id);
+          const meta = [workspaceBadge?.name, modelLabel(chat)].filter(Boolean).join(' · ');
+          const baseTitle = stripMarkdownTitle(chat.title);
+          const title =
+            status === 'running' ? (lastToolTitleByChatId.get(chat.id) ?? baseTitle) : baseTitle;
           return (
             <Button
               key={chat.id}
@@ -80,8 +84,14 @@ export function RecentChats({ chats, workspaceBadgeById, onChatSelect }: RecentC
                 statusSlot
               )}
               <span className={styles.text}>
-                <span className={styles.title}>{stripMarkdownTitle(chat.title)}</span>
-                <span className={styles.meta}>{meta}</span>
+                <span className={styles.title}>{title}</span>
+                <span className={styles.meta}>
+                  {/* Same source of truth as SidebarChatItem's cloud marker. */}
+                  {workspaceBadge?.isCloud && (
+                    <Cloud size={12} aria-label="Cloud" className={styles['cloud-icon']} />
+                  )}
+                  {meta}
+                </span>
               </span>
               <span className={styles.time}>{formatRelativeTime(chat.updated_at)}</span>
             </Button>

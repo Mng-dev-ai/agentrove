@@ -5,6 +5,7 @@ interface StreamState {
   activeStreams: Map<string, ActiveStream>;
   streamIdByChatMessage: Map<string, string>;
   activeStreamMetadata: StreamMetadata[];
+  lastToolTitleByChatId: Map<string, string>;
   completedChatIds: Set<string>;
   markCompleted: (chatId: string) => void;
   clearCompleted: (chatId: string) => void;
@@ -20,6 +21,7 @@ interface StreamState {
   ) => void;
   updateStreamMessageId: (chatId: string, oldMessageId: string, newMessageId: string) => void;
   abortStream: (streamId: string) => void;
+  setLastToolTitle: (chatId: string, title: string) => void;
   removeStreamMetadata: (chatId: string) => void;
   addStreamMetadata: (metadata: StreamMetadata) => void;
   addStreamMetadataIfAbsent: (metadata: StreamMetadata) => void;
@@ -57,6 +59,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
   activeStreams: new Map<string, ActiveStream>(),
   streamIdByChatMessage: new Map<string, string>(),
   activeStreamMetadata: [],
+  lastToolTitleByChatId: new Map<string, string>(),
   // Chats whose stream finished successfully since the user last viewed them —
   // drives the sidebar "Done" badge until the chat is opened.
   completedChatIds: new Set<string>(),
@@ -113,10 +116,16 @@ export const useStreamStore = create<StreamState>((set, get) => ({
       const hasOtherStreamsForChat = Array.from(nextStreams.values()).some(
         (item) => item.chatId === stream.chatId && item.isActive,
       );
+      let nextLastToolTitles = state.lastToolTitleByChatId;
+      if (!hasOtherStreamsForChat) {
+        nextLastToolTitles = new Map(state.lastToolTitleByChatId);
+        nextLastToolTitles.delete(stream.chatId);
+      }
 
       return {
         activeStreams: nextStreams,
         streamIdByChatMessage: nextIndex,
+        lastToolTitleByChatId: nextLastToolTitles,
         activeStreamMetadata: hasOtherStreamsForChat
           ? state.activeStreamMetadata
           : removeStreamMetadataEntry(state.activeStreamMetadata, stream.chatId),
@@ -171,9 +180,14 @@ export const useStreamStore = create<StreamState>((set, get) => ({
       nextIndex.delete(getChatMessageKey(chatId, oldMessageId));
       nextIndex.set(getChatMessageKey(chatId, newMessageId), streamId);
 
+      // The new turn hasn't run a tool yet — the previous turn's title is stale.
+      const nextLastToolTitles = new Map(state.lastToolTitleByChatId);
+      nextLastToolTitles.delete(chatId);
+
       return {
         activeStreams: nextStreams,
         streamIdByChatMessage: nextIndex,
+        lastToolTitleByChatId: nextLastToolTitles,
         activeStreamMetadata: upsertStreamMetadata(state.activeStreamMetadata, {
           chatId: stream.chatId,
           messageId: newMessageId,
@@ -185,6 +199,14 @@ export const useStreamStore = create<StreamState>((set, get) => ({
 
   abortStream: (streamId: string) => {
     get().removeStream(streamId);
+  },
+
+  setLastToolTitle: (chatId: string, title: string) => {
+    set((state) => {
+      const next = new Map(state.lastToolTitleByChatId);
+      next.set(chatId, title);
+      return { lastToolTitleByChatId: next };
+    });
   },
 
   removeStreamMetadata: (chatId: string) => {
@@ -200,9 +222,13 @@ export const useStreamStore = create<StreamState>((set, get) => ({
         }
       }
 
+      const nextLastToolTitles = new Map(state.lastToolTitleByChatId);
+      nextLastToolTitles.delete(chatId);
+
       return {
         activeStreams: nextStreams,
         streamIdByChatMessage: nextIndex,
+        lastToolTitleByChatId: nextLastToolTitles,
         activeStreamMetadata: removeStreamMetadataEntry(state.activeStreamMetadata, chatId),
       };
     });
