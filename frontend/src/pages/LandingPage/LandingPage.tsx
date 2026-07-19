@@ -494,12 +494,16 @@ export function LandingPage() {
             </Suspense>
           );
         case 'terminal':
-          // No chatId — pre-chat terminal tabs aren't persisted; the shell
-          // spawns at the workspace root.
+          // Pre-chat, so tab layout persists per sandbox (the backend PTYs are
+          // keyed by sandbox + terminal id); the shell spawns at the workspace
+          // root. Toggling the view off removes the tile from openTabs and
+          // unmounts this container, so restore-on-mount is what keeps tabs
+          // and their live sessions across toggles.
           return (
             <Suspense fallback={viewLoadingFallback}>
               <TerminalContainer
                 sandboxId={selectedSandboxId}
+                storageScope={selectedSandboxId ? `landing-${selectedSandboxId}` : undefined}
                 isVisible={isVisible}
                 panelKey={`tile-${tileId}`}
               />

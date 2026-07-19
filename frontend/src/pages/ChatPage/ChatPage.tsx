@@ -284,7 +284,7 @@ export function ChatPage() {
             <Suspense fallback={viewLoadingFallback}>
               <TerminalContainer
                 sandboxId={terminalSandboxId}
-                chatId={terminalChatId}
+                storageScope={terminalChatId}
                 worktreeCwd={terminalWorktreeCwd}
                 // Only fit/focus the terminal when its tile is actually on screen —
                 // a background tab is mounted but hidden (zero-size container).

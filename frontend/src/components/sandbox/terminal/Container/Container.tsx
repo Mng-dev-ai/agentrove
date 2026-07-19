@@ -8,7 +8,9 @@ import styles from './Container.module.scss';
 
 export interface ContainerProps {
   sandboxId?: string;
-  chatId?: string;
+  /** Identity the tab layout persists under (chat id, or a landing-page scope).
+      Without it tabs reset on every mount. */
+  storageScope?: string;
   worktreeCwd?: string;
   isVisible: boolean;
   panelKey: string;
@@ -50,9 +52,15 @@ function readStoredTerminals(
   }
 }
 
-export function Container({ sandboxId, chatId, worktreeCwd, isVisible, panelKey }: ContainerProps) {
+export function Container({
+  sandboxId,
+  storageScope,
+  worktreeCwd,
+  isVisible,
+  panelKey,
+}: ContainerProps) {
   const defaultTerminalId = `terminal-${panelKey}-1`;
-  const storageKey = chatId ? terminalStorageKey(chatId, panelKey) : null;
+  const storageKey = storageScope ? terminalStorageKey(storageScope, panelKey) : null;
   const [terminals, setTerminals] = useState<TerminalInstance[]>(
     () => readStoredTerminals(storageKey, defaultTerminalId).terminals,
   );
