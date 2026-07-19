@@ -132,6 +132,12 @@ async def create_real_workspace(
     return headers, body["id"], body["workspace_path"]
 
 
+def agent_home_for(workspace_path: str) -> Path:
+    # Workspaces live under STORAGE_PATH/workspaces/<user_id>/..., so the
+    # owner's id — which keys the per-user agent home — is the parent dir name.
+    return Path(get_settings().get_agent_home_dir(Path(workspace_path).parent.name))
+
+
 def write_skill_md(skill_dir: Path, description: str, body: str = "Body text") -> None:
     skill_dir.mkdir(parents=True, exist_ok=True)
     (skill_dir / "SKILL.md").write_text(
@@ -415,16 +421,17 @@ async def test_real_skill_service_rejects_readonly_cursor_builtin_update(
     real_sandbox: None,
     real_skill_service: None,
 ) -> None:
-    headers, workspace_id, _path = await create_real_workspace(
+    headers, workspace_id, workspace_path = await create_real_workspace(
         client,
         create_user,
         login,
         email="real-skill-readonly@example.com",
         username="realskillro",
     )
-    settings = get_settings()
     skill_name = f"builtin-{uuid4().hex[:8]}"
-    builtin_dir = Path(settings.STORAGE_PATH) / ".cursor" / "skills-cursor" / skill_name
+    builtin_dir = (
+        agent_home_for(workspace_path) / ".cursor" / "skills-cursor" / skill_name
+    )
     write_skill_md(builtin_dir, "Cursor built-in skill")
 
     response = await client.put(
@@ -604,10 +611,18 @@ async def test_real_skill_service_discovers_enabled_claude_plugin_skills(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    # Server mode resolves the plugin config under STORAGE_PATH, not the
-    # process home dir — point it at the per-test tmp dir.
+    # Server mode resolves the plugin config under the owner's agent home —
+    # isolate under the per-test tmp dir, and create the workspace first since
+    # the agent home is keyed by the owner's user id.
     monkeypatch.setattr(get_settings(), "STORAGE_PATH", str(tmp_path))
-    claude_dir = tmp_path / ".claude"
+    headers, workspace_id, workspace_path = await create_real_workspace(
+        client,
+        create_user,
+        login,
+        email="real-skill-plugin@example.com",
+        username="realskillplugin",
+    )
+    claude_dir = agent_home_for(workspace_path) / ".claude"
     claude_dir.mkdir(parents=True)
     enabled_install = tmp_path / "enabled-install"
     write_skill_md(enabled_install / "skills" / "pluginskill", "Plugin skill")
@@ -636,14 +651,6 @@ async def test_real_skill_service_discovers_enabled_claude_plugin_skills(
         encoding="utf-8",
     )
 
-    headers, workspace_id, _path = await create_real_workspace(
-        client,
-        create_user,
-        login,
-        email="real-skill-plugin@example.com",
-        username="realskillplugin",
-    )
-
     response = await client.get(
         "/api/v1/skills", params={"workspace_id": workspace_id}, headers=headers
     )
@@ -663,8 +670,8 @@ async def test_real_skill_service_returns_no_plugin_skills_without_settings_file
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    # Server mode resolves the plugin config under STORAGE_PATH, not the
-    # process home dir — point it at the per-test tmp dir.
+    # Server mode resolves the plugin config under the owner's agent home
+    # (below STORAGE_PATH) — point it at the per-test tmp dir.
     monkeypatch.setattr(get_settings(), "STORAGE_PATH", str(tmp_path))
 
     headers, workspace_id, _path = await create_real_workspace(
@@ -694,23 +701,22 @@ async def test_real_skill_service_skips_malformed_plugin_settings_json(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    # Server mode resolves the plugin config under STORAGE_PATH, not the
-    # process home dir — point it at the per-test tmp dir.
+    # Server mode resolves the plugin config under the owner's agent home —
+    # workspace first, since the agent home is keyed by the owner's user id.
     monkeypatch.setattr(get_settings(), "STORAGE_PATH", str(tmp_path))
-    claude_dir = tmp_path / ".claude"
-    claude_dir.mkdir(parents=True)
-    (claude_dir / "settings.json").write_text("{not valid json", encoding="utf-8")
-    plugins_dir = claude_dir / "plugins"
-    plugins_dir.mkdir()
-    (plugins_dir / "installed_plugins.json").write_text("{}", encoding="utf-8")
-
-    headers, workspace_id, _path = await create_real_workspace(
+    headers, workspace_id, workspace_path = await create_real_workspace(
         client,
         create_user,
         login,
         email="real-skill-badjson@example.com",
         username="realskillbadjson",
     )
+    claude_dir = agent_home_for(workspace_path) / ".claude"
+    claude_dir.mkdir(parents=True)
+    (claude_dir / "settings.json").write_text("{not valid json", encoding="utf-8")
+    plugins_dir = claude_dir / "plugins"
+    plugins_dir.mkdir()
+    (plugins_dir / "installed_plugins.json").write_text("{}", encoding="utf-8")
 
     response = await client.get(
         "/api/v1/skills", params={"workspace_id": workspace_id}, headers=headers
@@ -728,10 +734,17 @@ async def test_real_skill_service_skips_plugin_discovery_without_enabled_plugins
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    # Server mode resolves the plugin config under STORAGE_PATH, not the
-    # process home dir — point it at the per-test tmp dir.
+    # Server mode resolves the plugin config under the owner's agent home —
+    # workspace first, since the agent home is keyed by the owner's user id.
     monkeypatch.setattr(get_settings(), "STORAGE_PATH", str(tmp_path))
-    claude_dir = tmp_path / ".claude"
+    headers, workspace_id, workspace_path = await create_real_workspace(
+        client,
+        create_user,
+        login,
+        email="real-skill-noenabled@example.com",
+        username="realskillnoenabled",
+    )
+    claude_dir = agent_home_for(workspace_path) / ".claude"
     claude_dir.mkdir(parents=True)
     (claude_dir / "settings.json").write_text(
         json.dumps({"enabledPlugins": {}}), encoding="utf-8"
@@ -740,14 +753,6 @@ async def test_real_skill_service_skips_plugin_discovery_without_enabled_plugins
     plugins_dir.mkdir()
     (plugins_dir / "installed_plugins.json").write_text(
         json.dumps({"plugins": {}}), encoding="utf-8"
-    )
-
-    headers, workspace_id, _path = await create_real_workspace(
-        client,
-        create_user,
-        login,
-        email="real-skill-noenabled@example.com",
-        username="realskillnoenabled",
     )
 
     response = await client.get(

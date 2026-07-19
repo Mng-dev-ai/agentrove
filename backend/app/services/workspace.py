@@ -268,8 +268,10 @@ class WorkspaceService(BaseDbService[Workspace]):
     ) -> WorkspaceResources:
         # Thread-offloaded: SkillService walks the filesystem synchronously.
         workspace = await self.get_workspace(workspace_id, user)
-        workspace_path = Path(workspace.workspace_path)
-        skill_service = SkillService(workspace_path=workspace_path)
+        skill_service = SkillService(
+            workspace_path=Path(workspace.workspace_path),
+            user_id=str(workspace.user_id),
+        )
 
         return await asyncio.to_thread(self._build_workspace_resources, skill_service)
 

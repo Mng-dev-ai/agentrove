@@ -141,6 +141,7 @@ class AgentService:
 
         return await self._build_acp_config(
             user_settings=user_settings,
+            user_id=str(user.id),
             agent_kind=agent_kind,
             permission_mode=permission_mode,
             model_id=model_id,
@@ -386,6 +387,7 @@ class AgentService:
         # AcpSessionConfig skips the adapter and sends neither.
         config = await self._build_acp_config(
             user_settings=user_settings,
+            user_id=str(user.id),
             agent_kind=agent_kind,
             permission_mode=NORMAL_SESSION_MODE[agent_kind],
             model_id=model_id,
@@ -476,6 +478,7 @@ class AgentService:
         self,
         *,
         user_settings: UserSettings,
+        user_id: str,
         agent_kind: AgentKind,
         permission_mode: PermissionMode,
         model_id: str,
@@ -524,6 +527,7 @@ class AgentService:
             sandbox_id=sandbox_id,
             sandbox_provider=sandbox_provider,
             cwd=cwd,
+            user_id=user_id,
             agent_kind=agent_kind,
             env=env,
             mcp_servers=self._build_mcp_server_configs(chat_id),
