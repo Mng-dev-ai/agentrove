@@ -1,12 +1,32 @@
 #!/bin/sh
 
 ensure_docker_network() {
-    if [ -S /var/run/docker.sock ]; then
-        NETWORK_NAME="${DOCKER_NETWORK:-agentrove-sandbox-net}"
-        if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
-            echo "Creating Docker network: $NETWORK_NAME"
-            docker network create "$NETWORK_NAME" 2>/dev/null || true
-        fi
+    if [ ! -S /var/run/docker.sock ]; then
+        return
+    fi
+
+    NETWORK_NAME="${DOCKER_NETWORK:-}"
+    if [ -z "$NETWORK_NAME" ]; then
+        # Prefer the compose "sandbox" network this container is already on so
+        # production and Coolify PR previews stay isolated without a fixed name.
+        CONTAINER_ID="$(hostname)"
+        NETWORK_NAME="$(
+            docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$CONTAINER_ID" 2>/dev/null \
+                | grep -E 'sandbox' \
+                | head -n 1 \
+                || true
+        )"
+    fi
+    if [ -z "$NETWORK_NAME" ]; then
+        NETWORK_NAME="agentrove-sandbox-net"
+    fi
+
+    export DOCKER_NETWORK="$NETWORK_NAME"
+    if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
+        echo "Creating Docker network: $NETWORK_NAME"
+        docker network create "$NETWORK_NAME" 2>/dev/null || true
+    else
+        echo "Using Docker network: $NETWORK_NAME"
     fi
 }
 
