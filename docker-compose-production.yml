@@ -63,11 +63,11 @@ services:
       DOCKER_NETWORK: ${DOCKER_NETWORK:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       PYTHONUNBUFFERED: "1"
-      # Prefer Coolify SERVICE_URL_WEB so PR previews get the right origin without
+      # Prefer Coolify SERVICE_URL_WEB_80 so PR previews get the right origin without
       # hardcoding production APP_URL into preview env.
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-${SERVICE_URL_WEB:-http://localhost,http://127.0.0.1}}
-      BASE_URL: ${APP_URL:-${SERVICE_URL_WEB:-http://localhost}}
-      FRONTEND_URL: ${APP_URL:-${SERVICE_URL_WEB:-http://localhost}}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-${SERVICE_URL_WEB_80:-http://localhost,http://127.0.0.1}}
+      BASE_URL: ${APP_URL:-${SERVICE_URL_WEB_80:-http://localhost}}
+      FRONTEND_URL: ${APP_URL:-${SERVICE_URL_WEB_80:-http://localhost}}
       # Coolify/Traefik (and the web nginx container) sit in front of the API.
       # Without this, ProxyHeadersMiddleware ignores X-Forwarded-Proto and
       # SQLAdmin emits http:// asset URLs on an https:// page (unstyled admin).
@@ -97,8 +97,7 @@ services:
     environment:
       # Coolify renames api → api-pr-N; nginx proxies to this hostname.
       API_HOST: ${SERVICE_NAME_API:-api}
-      SERVICE_FQDN_WEB_80: ${SERVICE_FQDN_WEB_80:-}
-      SERVICE_URL_WEB: ${SERVICE_URL_WEB:-}
+      SERVICE_URL_WEB_80: ${SERVICE_URL_WEB_80:-}
     expose:
       - "80"
     healthcheck:
