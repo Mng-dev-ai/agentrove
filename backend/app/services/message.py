@@ -60,8 +60,7 @@ class MessageService(BaseDbService[Message]):
         session_id: str | None = None,
         stream_status: MessageStreamStatus | None = None,
     ) -> Message:
-        # Assistant messages start empty and get populated by the streaming
-        # pipeline via update_message_snapshot; user messages go in whole.
+        # Assistants start empty (stream fills via update_message_snapshot); users go in whole.
         async with self.session_factory() as db:
             if role == MessageRole.ASSISTANT:
                 content_text = ""

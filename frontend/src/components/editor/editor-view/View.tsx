@@ -24,12 +24,10 @@ import { isPreviewableFile, isHtmlFile } from '@/utils/fileTypes';
 import toast from 'react-hot-toast';
 import styles from './View.module.scss';
 
-// The content area's mutually-exclusive modes — a single union so an illegal
-// combination (e.g. preview+diff) can't be represented.
+// Single union so illegal combos (e.g. preview+diff) can't be represented.
 type ViewMode = 'code' | 'preview' | 'diff';
 
-// Previewable types open in preview; HTML opens raw (its preview is opt-in
-// via the toggle).
+// Previewable → preview; HTML stays raw (preview is opt-in via the toggle).
 function defaultViewMode(file: FileStructure | null): ViewMode {
   return file && isPreviewableFile(file) && !isHtmlFile(file) ? 'preview' : 'code';
 }
@@ -112,7 +110,6 @@ export const View = memo(function View({
       ? fileContentData.content
       : undefined;
 
-  // Per-file unsaved drafts, the dirty set, and the close-confirm flow live in this hook.
   const {
     currentContent,
     displayContent,
@@ -273,7 +270,6 @@ export const View = memo(function View({
   const prevViewModeRef = useRef(viewMode);
   const prevFilePathRef = useRef(selectedFile?.path);
 
-  // Reset fullscreen when the mode or file changes
   if (prevViewModeRef.current !== viewMode || prevFilePathRef.current !== selectedFile?.path) {
     const fileChanged = prevFilePathRef.current !== selectedFile?.path;
     const enteredDiff = prevViewModeRef.current !== 'diff' && viewMode === 'diff';
@@ -282,10 +278,8 @@ export const View = memo(function View({
     if (isPreviewFullscreen) {
       setIsPreviewFullscreen(false);
     }
-    // Sole inline-chat reset: mode toggles and file switches all remount
-    // Content, so the widget's captured editor would go stale either way.
+    // Mode/file changes remount Content — clear inline chat so it doesn't hold a disposed editor.
     if (inlineChat !== null) setInlineChat(null);
-    // Each file opens in its own default mode (preview for previewable types).
     if (fileChanged) {
       setViewMode(defaultViewMode(selectedFile));
     }

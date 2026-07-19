@@ -5,7 +5,6 @@ import { getAgentKindForModelId, type ChatRequest, type Model } from '@/types/ch
 import type { PermissionMode } from '@/store/chatSettingsStore';
 import type { Persona } from '@/types/user.types';
 
-// Raw toolbar settings before agent coercion.
 interface RawChatSettings {
   permissionMode: PermissionMode;
   thinkingMode: string;
@@ -19,9 +18,7 @@ type AgentChatFields = Pick<
   'permission_mode' | 'thinking_mode' | 'worktree' | 'fast_mode' | 'selected_persona_name'
 >;
 
-// Coerce raw toolbar settings into the agent-specific ChatRequest fields. Shared
-// so local (useMessageActions) and cloud (landing) runs start with identical
-// behavior — the coercion rules can't drift between the two paths.
+// Shared coercion so local and cloud runs can't drift on agent-specific fields.
 export function buildAgentChatFields(
   selectedModelId: string,
   modelMap: Map<string, Model>,

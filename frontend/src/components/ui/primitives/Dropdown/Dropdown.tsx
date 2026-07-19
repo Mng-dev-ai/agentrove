@@ -45,7 +45,6 @@ export interface DropdownProps<T> {
   searchPlaceholder?: string;
   searchVariant?: 'boxed' | 'underline';
   selectionStyle?: 'check' | 'accent';
-  // Rendered pinned at the top of the panel, above the search field
   renderHeader?: () => ReactNode;
   renderFooter?: () => ReactNode;
   onOpenChange?: (isOpen: boolean) => void;

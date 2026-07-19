@@ -8,8 +8,7 @@ import styles from './Container.module.scss';
 
 export interface ContainerProps {
   sandboxId?: string;
-  /** Identity the tab layout persists under (chat id, or a landing-page scope).
-      Without it tabs reset on every mount. */
+  /** Persist key (chat id or landing scope). Without it tabs reset every mount. */
   storageScope?: string;
   worktreeCwd?: string;
   isVisible: boolean;
@@ -69,9 +68,7 @@ export function Container({
   );
   const [closingTerminalIds, setClosingTerminalIds] = useState<Set<string>>(() => new Set());
 
-  // Re-restore during render when the storage identity changes (chat/panel
-  // switch): React re-renders before running effects, so the persist effect
-  // below can never observe the new key paired with the old chat's state.
+  // Restore during render on identity change — effects run too late (would persist old state).
   const restoreKey = `${storageKey}|${defaultTerminalId}`;
   const prevRestoreKeyRef = useRef(restoreKey);
   if (prevRestoreKeyRef.current !== restoreKey) {

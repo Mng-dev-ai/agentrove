@@ -41,7 +41,6 @@ const DIFF_OPTIONS = {
 } as const;
 
 export interface DiffContentProps {
-  // HEAD version of the file; undefined until the baseline query resolves.
   original: string | undefined;
   modified: string;
   language: string;

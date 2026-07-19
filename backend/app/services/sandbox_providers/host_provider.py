@@ -46,8 +46,7 @@ class LocalHostProvider(SandboxProvider):
 
     @staticmethod
     def _signal_process_group(pid: int, sig: signal.Signals) -> None:
-        # Valid as a pgid because every process we signal here was spawned
-        # with start_new_session=True, making it its own group leader.
+        # start_new_session=True makes the pid its own process-group leader.
         try:
             os.killpg(pid, sig)
         except ProcessLookupError:
@@ -59,8 +58,7 @@ class LocalHostProvider(SandboxProvider):
                 os.kill(pid, sig)
 
     def _resolve_path(self, path: str) -> Path:
-        # Turn a relative path from the frontend into an absolute host path,
-        # rejecting anything that would escape the workspace via ../ or symlinks.
+        # Resolve relative paths; reject ../ and symlink escapes of the workspace.
         if path.startswith("/"):
             raise SandboxException(f"Path must be relative: {path}")
         resolved = (self._workspace / path).resolve()
@@ -75,8 +73,6 @@ class LocalHostProvider(SandboxProvider):
         envs: dict[str, str] | None = None,
         timeout: int = SANDBOX_DEFAULT_COMMAND_TIMEOUT,
     ) -> CommandResult:
-        # Run a shell command in the workspace directory via a login shell,
-        # merging any caller-provided env vars into the host environment.
         workspace_dir_str = str(self._workspace)
         process_env = os.environ.copy()
         if envs:
@@ -117,8 +113,6 @@ class LocalHostProvider(SandboxProvider):
         path: str,
         content: str | bytes,
     ) -> None:
-        # Write a file to the workspace, creating parent directories as needed.
-        # Path is validated by _resolve_path to prevent escaping the workspace.
         resolved = self._resolve_path(path)
         resolved.parent.mkdir(parents=True, exist_ok=True)
         payload = content.encode("utf-8") if isinstance(content, str) else content
@@ -129,7 +123,7 @@ class LocalHostProvider(SandboxProvider):
 
     @staticmethod
     def _write_temp_file(payload: bytes) -> str:
-        # Write through the fd mkstemp already opened — no close-and-reopen.
+        # Write via the fd mkstemp opened (no close-and-reopen race).
         fd, path = tempfile.mkstemp(prefix="agentrove-codex-", suffix=".md")
         with os.fdopen(fd, "wb") as f:
             f.write(payload)
@@ -140,8 +134,6 @@ class LocalHostProvider(SandboxProvider):
         sandbox_id: str,
         path: str,
     ) -> FileContent:
-        # Read a file from the workspace, returning base64 for binary files
-        # and UTF-8 text for everything else.
         resolved = self._resolve_path(path)
         if not resolved.exists() or not resolved.is_file():
             raise SandboxException(f"File not found: {path}")
@@ -150,9 +142,7 @@ class LocalHostProvider(SandboxProvider):
         content, is_binary = self.encode_file_content(path, content_bytes)
         return FileContent(path=path, content=content, type="file", is_binary=is_binary)
 
-    # Directories to skip in the os.walk fallback (non-git repos).
-    # Mirrors the most common .gitignore entries to avoid returning
-    # thousands of files from dependency/build directories.
+    # os.walk skip list (non-git) — mirrors common .gitignore entries.
     WALK_SKIP_DIRS = frozenset(
         {
             ".git",
@@ -174,8 +164,6 @@ class LocalHostProvider(SandboxProvider):
 
     @staticmethod
     def _walk_files(base_dir: Path) -> list[FileMetadata]:
-        # Fallback for non-git directories. Skips common build/dependency
-        # directories to avoid returning thousands of irrelevant files.
         items: list[FileMetadata] = []
         for root, dirnames, filenames in os.walk(base_dir, topdown=True):
             dirnames[:] = [
@@ -206,8 +194,7 @@ class LocalHostProvider(SandboxProvider):
         sandbox_id: str,
         path: str = "",
     ) -> list[FileMetadata]:
-        # Use git ls-files for repos — handles .gitignore, global excludes,
-        # and .git/info/exclude natively. Falls back to os.walk for non-git dirs.
+        # git ls-files honors ignore rules; os.walk for non-git dirs.
         rel = normalize_relative_path(path)
         target_dir = self._workspace if not rel else self._resolve_path(rel)
 
@@ -234,14 +221,10 @@ class LocalHostProvider(SandboxProvider):
         on_exit: PtyExitCallbackType,
         user_id: str = "",
     ) -> str:
-        # Spawn a PTY-attached shell in the workspace directory (or a
-        # workspace-relative cwd, e.g. a chat's worktree). Tries tmux
-        # for session persistence across WebSocket reconnections, falls back
-        # to the user's default shell if tmux is not installed.
+        # tmux for reconnect persistence; default shell if missing.
         session_id = str(uuid.uuid4())
         master_fd, slave_fd = pty.openpty()
-        # Set initial terminal size so the shell starts with the correct
-        # dimensions (struct winsize: rows, cols, xpixel, ypixel).
+        # struct winsize: rows, cols, xpixel, ypixel.
         fcntl.ioctl(
             slave_fd,
             termios.TIOCSWINSZ,
@@ -297,8 +280,6 @@ class LocalHostProvider(SandboxProvider):
         on_data: PtyDataCallbackType,
         on_exit: PtyExitCallbackType,
     ) -> None:
-        # Continuously read PTY output and forward to the WebSocket via on_data.
-        # Runs as a background task until the process exits or kill_pty cancels it.
         try:
             while True:
                 chunk = await asyncio.to_thread(os.read, master_fd, 4096)
@@ -306,7 +287,6 @@ class LocalHostProvider(SandboxProvider):
                     break
                 await on_data(chunk)
         except asyncio.CancelledError:
-            # kill_pty tearing us down — the owner already knows.
             return
         except OSError as e:
             # On Linux the master fd raises EIO instead of returning EOF when
@@ -320,7 +300,6 @@ class LocalHostProvider(SandboxProvider):
         pty_id: str,
         data: bytes,
     ) -> None:
-        # Forward user keystrokes from the WebSocket to the PTY shell.
         session = self.get_pty_session(sandbox_id, pty_id)
         if not session:
             return
@@ -332,7 +311,6 @@ class LocalHostProvider(SandboxProvider):
         pty_id: str,
         size: PtySize,
     ) -> None:
-        # Update the PTY window size and signal the shell to redraw.
         session = self.get_pty_session(sandbox_id, pty_id)
         if not session:
             return
@@ -354,8 +332,6 @@ class LocalHostProvider(SandboxProvider):
         sandbox_id: str,
         pty_id: str,
     ) -> None:
-        # Tear down a PTY session: cancel the reader task, terminate the
-        # shell process (SIGTERM then SIGKILL), close the fd, and remove tracking.
         session = self.get_pty_session(sandbox_id, pty_id)
         if not session:
             return

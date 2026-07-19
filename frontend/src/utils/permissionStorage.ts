@@ -7,14 +7,8 @@ export function filterOptions(
   return options.filter((o) => o.kind.startsWith(prefix));
 }
 
-// Tracks resolved permission requests by their stream sequence so that
-// permission events the backend replays after `after_seq` (page refresh,
-// reconnect from a stale cursor) are not re-shown once the user has already
-// answered them. Keyed by `${chatId}:${seq}` rather than request_id: seq is
-// monotonic per chat and unique per emission, so a new request in a later turn
-// is never blocked even when a provider reuses tool-call ids. Persisted across
-// reloads (that is the whole point — the in-memory queue is empty on refresh)
-// and capped to bound storage.
+// Resolved permission seqs so SSE replays after refresh don't re-show them.
+// Keyed by chatId:seq (not request_id) — providers may reuse tool-call ids.
 const RESOLVED_PERMISSIONS_KEY = 'agentrove_resolved_permission_seqs';
 const MAX_RESOLVED_PERMISSIONS = 200;
 
@@ -42,7 +36,7 @@ export function addResolvedPermission(chatId: string, seq: number): void {
     }
     localStorage.setItem(RESOLVED_PERMISSIONS_KEY, JSON.stringify(resolved));
   } catch {
-    // Ignore localStorage errors
+    // localStorage unavailable/full
   }
 }
 

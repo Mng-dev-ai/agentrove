@@ -3,9 +3,8 @@ import type { ISearchDecorationOptions } from '@xterm/addon-search';
 import type { Palette } from '@/types/ui.types';
 import { CUSTOM_PALETTE_TOKENS, DARK_PALETTES } from '@/utils/theme';
 
-// xterm paints its own canvas background, so it can't read the surface-secondary CSS
-// var. Custom palettes derive bg/fg from the shared tokens; light/dark are the base
-// shades (mirrored from globals.css).
+// xterm paints its own canvas, so it can't read surface-secondary CSS vars.
+// Light/dark shades mirrored from globals.css; custom palettes use shared tokens.
 const BASE_SURFACE = {
   light: { background: '#f9f9f9', foreground: '#27272a' },
   dark: { background: '#141414', foreground: '#e4e4e7' },
@@ -17,9 +16,8 @@ function paletteSurface(palette: Palette): { background: string; foreground: str
   return { background: t.surfaceSecondary, foreground: t.textPrimary };
 }
 
-// xterm's built-in ANSI 16 defaults assume a dark background — on a light canvas,
-// white/bright-white and yellow output (git, ls, prompts) is near-invisible. Light
-// palettes get VS Code Light+'s re-tuned set; dark palettes keep the built-ins.
+// Built-in ANSI 16 assumes dark bg — light canvas makes white/yellow near-invisible.
+// Light palettes use VS Code Light+; dark keeps xterm defaults.
 const LIGHT_ANSI = {
   black: '#000000',
   red: '#cd3131',
@@ -65,16 +63,12 @@ export const buildSearchDecorations = (palette: Palette): ISearchDecorationOptio
   };
 };
 
-// Terminal tab layouts live in their own localStorage entries outside the zustand
-// persist blob. The key scheme is owned here so the Container's writes and the
-// uiStore's delete-time sweeps can't silently drift apart. The scope is a chat id,
-// or a `landing-<sandboxId>` scope for pre-chat terminals (those are only swept by
-// the clear-all path).
+// Key scheme owned here so Container writes and uiStore delete sweeps can't drift.
+// Scope is a chat id, or `landing-<sandboxId>` for pre-chat terminals (clear-all only).
 export const terminalStorageKey = (scope: string, panelKey: string): string =>
   `terminal:${scope}:${panelKey}`;
 
 export function clearTerminalStorage(chatId?: string): void {
-  // Sweep one chat's entries, or every chat's when chatId is omitted.
   const prefix = chatId ? `terminal:${chatId}:` : 'terminal:';
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const key = localStorage.key(i);

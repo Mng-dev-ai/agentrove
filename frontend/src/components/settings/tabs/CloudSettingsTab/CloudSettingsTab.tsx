@@ -43,8 +43,7 @@ function SetupStep({ step, children }: { step: number; children: React.ReactNode
 }
 
 export function CloudSettingsTab() {
-  // Connects the desktop to a remote AgentRove (VPS) instance so chats can run
-  // there with "Cloud" execution mode. Connection state is client-side only.
+  // Client-side only connection state for a remote AgentRove (VPS) instance.
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
   const isConnected = !!connectedEmail;

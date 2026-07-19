@@ -10,27 +10,19 @@ interface UseGlobalStreamOptions {
 
 const STREAM_PRUNE_INTERVAL_MS = 5000;
 
-// Re-check liveness immediately before removing — a live EventSource may have
-// attached (user opened/reconnected the sub-thread) while the status request was
-// in flight, and removeStreamMetadata would tear it down. Such streams self-clean
-// via removeStream on completion, so skip them.
+// Re-check before remove — an EventSource may attach while the status request is in flight.
 function pruneIfStillOrphan(chatId: string, markDone: boolean): void {
   const store = useStreamStore.getState();
   if (!store.getStreamByChat(chatId)) {
     store.removeStreamMetadata(chatId);
-    // Orphan streams have no EventSource, so no complete envelope ever fires —
-    // the confirmed-settled prune is their only Done signal. A failed status
-    // probe is a cleanup guess, not evidence the turn completed, so it doesn't
-    // earn the badge.
+    // Orphans have no complete envelope; only confirmed-settled prune earns the Done badge
+    // (a failed status probe is a guess, not evidence of completion).
     if (markDone) store.markCompleted(chatId);
   }
 }
 
-// Reconciles the in-memory stream store with the server, pruning metadata whose
-// backend task has settled so the UI stops showing stale "streaming" indicators.
-// Runs on an interval (not just at mount) because background sub-threads — e.g.
-// stream actions — register metadata without opening a client EventSource, so
-// the normal removeStream cleanup never fires for them.
+// Interval reconcile: background sub-threads register metadata without an EventSource,
+// so removeStream never fires for them — prune settled orphans so indicators clear.
 export function useGlobalStream(options?: UseGlobalStreamOptions) {
   const hasPrunedRef = useRef(false);
   const enabled = options?.enabled ?? true;
@@ -41,10 +33,7 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
 
     const pruneStaleStreams = async () => {
       const store = useStreamStore.getState();
-      // Only reconcile orphan metadata (no live EventSource). Entries with an
-      // active stream self-clean via removeStream on the completion event —
-      // pruning them here would tear down a live foreground stream at its
-      // completion boundary.
+      // Only orphans — pruning a live EventSource would tear down a foreground stream.
       const orphans = store.activeStreamMetadata.filter(
         (meta) => !store.getStreamByChat(meta.chatId),
       );

@@ -7,8 +7,7 @@ export interface QueueMessageAttachment {
   filename?: string;
 }
 
-// Toolbar + attachment payload for queueMessage — named fields avoid a growing
-// positional boolean list (worktree/fastMode after files).
+// Named options for queueMessage (avoids a growing positional boolean list).
 export interface QueueMessageOptions {
   permissionMode?: PermissionMode;
   thinkingMode?: string | null;

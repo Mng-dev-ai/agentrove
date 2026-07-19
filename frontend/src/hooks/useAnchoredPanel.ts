@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-// Fixed-position panel anchored to a trigger, rendered via portal so it escapes
-// overflow-clipping ancestors (e.g. an overflow-x-auto toolbar — CSS clips both
-// axes). useDropdown can't cover this: it only handles outside-click for
-// panels positioned inside their trigger's stacking context.
+// Portal-anchored panel that escapes overflow-clipping ancestors (useDropdown can't).
 export function useAnchoredPanel(
   computePos: (triggerRect: DOMRect) => { top: number; left: number },
 ) {

@@ -19,8 +19,7 @@ function applyZoom(zoom: number) {
 }
 
 export function useDesktopZoom() {
-  // Cmd/Ctrl +/-/0 zoom the webview — Tauri has no built-in zoom shortcuts,
-  // and zoom doesn't survive restarts, so the stored level is reapplied on mount.
+  // Tauri has no built-in zoom; reapply stored level on mount.
   useMountEffect(() => {
     if (!isDesktopApp()) return;
 

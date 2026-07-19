@@ -24,7 +24,7 @@ export function useCommandMenu() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!(e.ctrlKey || e.metaKey) || !e.shiftKey) return;
 
-      // Cmd/Ctrl+Shift+P toggles the command menu (skip inside Monaco/xterm which have their own command palette)
+      // Skip Monaco/xterm — they own their own command palette.
       if (e.code === 'KeyP') {
         if (isEmbeddedEditor(e.target)) return;
         e.preventDefault();

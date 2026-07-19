@@ -29,8 +29,7 @@ const MarkdownBlock = memo(function MarkdownBlock({
   remarkPlugins,
   rehypePlugins,
 }: MarkdownBlockProps) {
-  // Memoized per block so a streaming message only re-parses its growing tail
-  // block each flush; completed blocks keep identical props and bail out.
+  // Per-block memo: streaming only re-parses the growing tail block each flush.
   return (
     <ReactMarkdown
       remarkPlugins={remarkPlugins}
@@ -45,11 +44,9 @@ const MarkdownBlock = memo(function MarkdownBlock({
 interface MarkDownProps {
   content: string;
   className?: string;
-  // True only while this content is actively receiving stream output — block
-  // splitting trades cross-block references for cheap incremental re-parses,
-  // so static content parses as one document.
+  // While streaming, split blocks for cheap incremental re-parse (breaks cross-block refs).
   streaming?: boolean;
-  // Render @mention and leading /command tokens as pills — user messages only.
+  // @mention /command pills — user messages only.
   highlightMentions?: boolean;
 }
 

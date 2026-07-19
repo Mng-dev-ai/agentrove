@@ -18,8 +18,7 @@ interface InlineAskPanelProps {
   onClose: () => void;
 }
 
-// One-off ask panel over a selection — hosted by the editor's Monaco content
-// widget and the chat page's selection overlay.
+// Selection ask panel — Monaco content widget or chat-page selection overlay.
 export function InlineAskPanel({ chatId, selection, inputRef, onClose }: InlineAskPanelProps) {
   const [question, setQuestion] = useState('');
   const { selectedModelId } = useChatSessionState();

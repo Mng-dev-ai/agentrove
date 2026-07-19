@@ -29,9 +29,7 @@ class UTCDateTime(TypeDecorator[datetime]):
     def process_result_value(
         self, value: datetime | None, _dialect: Dialect
     ) -> datetime | None:
-        # SQLite drops tzinfo on read, returning naive datetimes that serialize
-        # without a UTC marker and get misread as local time by clients — assume
-        # UTC for naive values so timestamps carry an explicit offset.
+        # SQLite returns naive datetimes; treat as UTC so clients get an offset.
         if value is None:
             return None
         if value.tzinfo is None:

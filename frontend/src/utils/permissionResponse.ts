@@ -7,9 +7,7 @@ function isExpiredRequestError(error: unknown): boolean {
   return (error as ApiError)?.status === 404;
 }
 
-// Wraps a permission service call with standard loading/error/cleanup behavior:
-// on success or 404 (expired), clears the pending state; on other errors, sets
-// the provided error message.
+// Loading/error wrapper: success or 404 clears pending; other errors set message.
 export async function executePermissionResponse(
   serviceFn: () => Promise<void>,
   opts: {
@@ -27,9 +25,7 @@ export async function executePermissionResponse(
     return 'success';
   } catch (err) {
     if (isExpiredRequestError(err)) {
-      // This request is already gone on the backend (timeout/session moved on),
-      // so clear the local pending state but let the caller decide whether any
-      // success-only UI transitions should still happen.
+      // Expired on backend — clear local pending; caller decides success-only UI.
       opts.clearRequest();
       return 'expired';
     } else {
@@ -41,9 +37,7 @@ export async function executePermissionResponse(
   return 'error';
 }
 
-// Called once a request has been answered (or found already-expired). Records
-// the resolved seq so a replayed permission event is not re-shown after a
-// refresh/reconnect, then drops the request from the in-memory queue.
+// Record resolved seq (blocks SSE replay after refresh) and drop from the queue.
 export function clearPermissionRequest(chatId: string, requestId: string, seq: number): void {
   addResolvedPermission(chatId, seq);
   usePermissionStore.getState().resolvePermissionRequest(chatId, requestId);

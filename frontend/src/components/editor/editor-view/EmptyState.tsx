@@ -10,8 +10,7 @@ export interface EmptyStateProps {
 }
 
 export const EmptyState = memo(function EmptyState({
-  // `theme` is retained on the public API but the surface token is now theme-aware,
-  // so the background no longer needs the resolved theme.
+  // `theme` kept on the public API; surface token is theme-aware now.
   onToggleFileTree,
   isFileTreeCollapsed = false,
 }: EmptyStateProps) {

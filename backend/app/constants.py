@@ -138,9 +138,8 @@ MODELS: dict[str, ModelInfo] = {
     "opus": ModelInfo("Opus", AgentKind.CLAUDE, 1_000_000),
     "haiku": ModelInfo("Haiku", AgentKind.CLAUDE, 200_000),
     "claude-fable-5": ModelInfo("Fable 5", AgentKind.CLAUDE, 1_000_000),
-    # GPT-5.6 supports 1M context via the model_context_window override in
-    # ~/.codex/config.toml (Codex's registry defaults to 372k without it).
-    # Codex's live-reported window takes precedence over these fallbacks anyway.
+    # 1M via model_context_window in ~/.codex/config.toml (registry default 372k).
+    # Live-reported window still wins over these fallbacks.
     "gpt-5.6-sol": ModelInfo("GPT 5.6 Sol", AgentKind.CODEX, 1_050_000),
     "gpt-5.6-terra": ModelInfo("GPT 5.6 Terra", AgentKind.CODEX, 1_050_000),
     "gpt-5.6-luna": ModelInfo("GPT 5.6 Luna", AgentKind.CODEX, 1_050_000),
@@ -1531,17 +1530,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
 }
 
-# Built-in slash commands exposed to the frontend per agent kind.
-# Claude commands sourced from the Claude SDK's supportedCommands()
-# (Claude Code ~2.1.206+), filtered by what claude-agent-acp exposes via
-# ACP (excludes cost, keybindings-help, login, logout, output-style:new,
-# release-notes, todos, and local-only commands like context, heapdump,
-# extra-usage). Also omit TUI/session chrome that AgentRove already covers
-# or that only affects the Claude CLI UI (model, effort, fast, config, mcp,
-# color, rename, usage, usage-credits). User/plugin skills are discovered at
-# runtime, not listed here.
-# Codex commands sourced from codex-acp's built-in command list (excludes
-# logout — signing out of Codex from a chat autocomplete is too easy to hit).
+# Built-in slash commands per agent kind for the frontend. Claude/Codex lists
+# are filtered ACP-exposed subsets (not full CLI/TUI chrome); skills are runtime.
+# Codex omits logout — too easy to hit from chat autocomplete.
 BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
     AgentKind.CLAUDE: [
         {
@@ -1786,13 +1777,10 @@ BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
             "description": "Enable all permissions for the session",
         },
     ],
-    # Cursor's slash commands live in its TUI client, not the ACP server, so
-    # cursor-agent treats them as prompt text rather than commands.
+    # Cursor slash commands are TUI-only; ACP would treat them as prompt text.
     AgentKind.CURSOR: [],
-    # Grok's ACP server advertises its commands (compact, session-info, user
-    # skills, ...) via availableCommands, so we rely on runtime discovery.
+    # Grok advertises commands via availableCommands — runtime discovery only.
     AgentKind.GROK: [],
-    # OpenCode's slash commands live in its TUI; the ACP server surfaces only
-    # user-defined commands, so we rely on runtime discovery.
+    # OpenCode slash commands are TUI-only; ACP surfaces user-defined ones.
     AgentKind.OPENCODE: [],
 }

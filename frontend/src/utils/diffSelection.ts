@@ -18,11 +18,7 @@ function rowMatches(row: DiffRow, lineNumber: number, side: SelectionSide | unde
 
 function buildUnifiedRows(file: FileDiffMetadata): DiffRow[] {
   const rows: DiffRow[] = [];
-  // Context gaps between hunks are only addressable when the line arrays hold
-  // complete file bodies (line number N ↔ index N-1). DiffView's
-  // rebuildWithCollapsedContext (re-diff from full contents) guarantees this
-  // for every rendered diff; partial patches can't expand gaps, so skipping
-  // them is safe.
+  // Gaps need full file bodies (N ↔ index N-1); DiffView re-diffs guarantee this.
   const fullBodies = file.hunks.every(
     (h) =>
       h.additionLineIndex === h.additionStart - 1 && h.deletionLineIndex === h.deletionStart - 1,
@@ -90,8 +86,7 @@ function buildUnifiedRows(file: FileDiffMetadata): DiffRow[] {
   return rows;
 }
 
-// Selected lines of a diff as unified-diff text (`-`/`+`/space prefixes).
-// Returns null when the range doesn't resolve against the file's hunks.
+// Unified-diff text for a selection; null if the range misses the hunks.
 export function getSelectedDiffText(
   file: FileDiffMetadata,
   range: SelectedLineRange,

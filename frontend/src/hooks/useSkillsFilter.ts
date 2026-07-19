@@ -19,7 +19,6 @@ export function useSkillsFilter(items: CustomSkill[], workspaceId: string | unde
     setSearchQuery('');
   }
 
-  // Only offer chips for sources actually present in the current skills.
   const availableSources = useMemo<string[]>(() => {
     const present = new Set<string>();
     for (const skill of items) {

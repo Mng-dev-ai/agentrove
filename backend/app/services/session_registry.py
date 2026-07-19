@@ -32,11 +32,7 @@ class ChatSession:
     last_used_at: float = field(default_factory=time.monotonic)
 
 
-# In-process registry of active ACP sessions keyed by chat_id. A single
-# session is reused across consecutive messages in the same chat so the
-# agent keeps its conversation context. Sessions are fingerprinted by
-# config — if the user changes model provider, env vars, MCP servers, etc.,
-# the old session is torn down and a fresh one is created.
+# In-process ACP sessions by chat_id. Fingerprint changes (model/env/MCP/etc.) tear down and recreate.
 class SessionRegistry:
     def __init__(self) -> None:
         self._sessions: dict[str, ChatSession] = {}

@@ -9,14 +9,10 @@ interface UseMessageCacheParams {
   queryClient: QueryClient;
 }
 
-// Direct query-cache mutators for messages. These write into the react-query
-// infinite-query pages structure (pages[].items[]) so that optimistic UI updates
-// (streaming content, new messages, deletions) are visible without a refetch.
-// Scoped to the current chatId — callers needing cross-chat writes must use
-// queryClient directly with the target chatId.
+// Optimistic message writes into the infinite-query pages for the current chatId only
+// (cross-chat callers must use queryClient + target chatId directly).
 export function useMessageCache({ chatId, queryClient }: UseMessageCacheParams) {
-  // Uses unshift into page 0 so newest messages match the backend's DESC
-  // ordering. Optionally prepends the paired user message when both arrive together.
+  // unshift into page 0 matches backend DESC ordering.
   const addMessageToCache = useCallback(
     (message: Message, userMessage?: Message) => {
       if (!chatId) return;

@@ -12,8 +12,7 @@ import { getAgentKindForModelId } from '@/types/chat.types';
 import type { Chat } from '@/types/chat.types';
 import type { StreamAction } from '@/types/user.types';
 
-// Spawns a stream action as a sub-thread: creates the sub-thread, fires its
-// turn server-side, then navigates to the new chat so the user lands on it.
+// Spawns a stream action as a sub-thread, starts the turn server-side, then navigates there.
 export function useRunStreamAction(parentChat: Chat | undefined) {
   const navigate = useNavigate();
   const createSubThread = useCreateSubThreadMutation(parentChat?.id ?? '');
@@ -62,8 +61,7 @@ export function useRunStreamAction(parentChat: Chat | undefined) {
         });
 
         toast.success(`Started "${action.label}"`);
-        // Land on the sub-thread — navigating also adds its tab to the title
-        // bar via loadWorkspaceForChat.
+        // Navigation also adds the tab via loadWorkspaceForChat.
         navigate(`/chat/${newChat.id}`);
       } catch (error) {
         toast.error(error instanceof Error ? error.message : `Failed to start "${action.label}"`);

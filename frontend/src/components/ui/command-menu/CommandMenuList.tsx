@@ -26,7 +26,6 @@ interface CommandMenuListProps {
   query: string;
   trimmedQuery: string;
   isMobile: boolean;
-  // Main mode
   listItems: MenuListItem[];
   leafTileIds: Set<string>;
   activeSlot: SplitSlot | null;
@@ -34,13 +33,11 @@ interface CommandMenuListProps {
   onSelectFile: (file: FlatFileItem) => void;
   onRunCommand: (cmd: CommandItem) => void;
   onSplit: (viewId: ViewType, direction: SplitDirection) => void;
-  // Branches mode
   filteredBranches: string[];
   branchesData: GitBranchesData | undefined;
   sandboxId: string | undefined;
   checkoutPending: boolean;
   onSelectBranch: (branch: string) => void;
-  // Themes mode
   filteredThemes: ThemeMeta[];
   theme: Theme;
   onSelectTheme: (value: Theme) => void;

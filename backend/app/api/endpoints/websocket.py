@@ -38,11 +38,8 @@ async def terminal_websocket(
     websocket: WebSocket,
     sandbox_id: str,
 ) -> None:
-    # Client protocol: after accept, the first frame must be an auth message
-    # (handled by wait_for_websocket_auth). Subsequent frames are either raw
-    # bytes (forwarded to the PTY stdin) or JSON control messages
-    # (init / refresh / resize / close / detach). A 30s receive-timeout drives a
-    # server→client ping so idle connections keep NAT/LB state alive.
+    # After accept: first frame = auth; then raw PTY stdin or JSON control
+    # (init/refresh/resize/close/detach). 30s receive timeout → keepalive ping.
     await websocket.accept()
 
     user = await wait_for_websocket_auth(websocket)
@@ -55,9 +52,7 @@ async def terminal_websocket(
         return
     provider_type, workspace_path = access
 
-    # Workspace-relative start dir for the shell — a worktree-backed chat
-    # passes its worktree_cwd so the terminal lands in the worktree, not the
-    # shared workspace root.
+    # worktree_cwd lands the shell in a worktree-backed chat's tree, not root.
     try:
         cwd = normalize_relative_path(websocket.query_params.get("cwd"))
     except ValueError:
@@ -84,8 +79,7 @@ async def terminal_websocket(
                 try:
                     await websocket.send_text(json.dumps({"type": WS_MSG_PING}))
                 except (RuntimeError, OSError):
-                    # Ping hit a dead connection — exit so `finally` detaches
-                    # instead of the error propagating out of the endpoint.
+                    # Dead peer: break so finally detaches instead of raising.
                     break
                 continue
 
@@ -137,11 +131,8 @@ async def terminal_websocket(
                 )
 
             elif data_type == WS_MSG_REFRESH:
-                # Client-requested repaint after its xterm is open and sized —
-                # a reattach with an unchanged size emits nothing on its own,
-                # and repainting at init time can land on a connection that a
-                # racing reconnect is about to replace. Goes through tmux, not
-                # the pane's stdin: a foreground TUI would swallow injected keys.
+                # Client-driven repaint once xterm is sized (not at init — race
+                # with reconnect). Via tmux, not pane stdin (TUI would swallow keys).
                 await session.refresh_tmux_client()
 
             elif data_type == WS_MSG_RESIZE:
@@ -172,8 +163,7 @@ async def terminal_websocket(
         try:
             await websocket.close()
         except RuntimeError:
-            # Already closed server-side (attach() takeover or PTY exit) —
-            # starlette raises on a second close.
+            # Already closed (attach takeover / PTY exit); second close raises.
             pass
         except OSError as exc:
             if exc.errno != errno.EPIPE:

@@ -64,8 +64,7 @@ export function ChatPage() {
 
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
 
-  // These share AgentPane's chat-query cache and provide each split pane's
-  // sandbox/worktree metadata plus deletion error guards.
+  // Share AgentPane's chat-query cache; also drive split close-on-error.
   const splitQuery1 = useChatQuery(splitChatIds[0], {
     enabled: !!splitChatIds[0],
   });
@@ -85,18 +84,13 @@ export function ChatPage() {
     }
   }, [splitChatIds, splitQuery1.isError, splitQuery2.isError, splitQuery3.isError]);
 
-  // Each chat keeps its own tabs: restore them on entry, stash them on leave.
-  // Must run before the split-rebuild effect below — on mount it restores the
-  // primary-only layout, and the split-rebuild then reapplies a persisted
-  // split layout on top. Reversed, the restore would wipe the rebuilt split.
+  // Restore/stash per chat. Must run before split-rebuild below (else restore wipes it).
   useMountEffect(() => {
     if (chatId) useUIStore.getState().loadWorkspaceForChat(chatId);
     return () => useUIStore.getState().stashWorkspace();
   });
 
-  // A chat switch can restore a primary-only stash while split ids remain bound.
-  // Rebuild only when an agent tile is missing so normal compaction and user-
-  // activated full-screen views keep their layout and focus.
+  // Rebuild only if an agent tile is missing — keep compaction / full-screen layouts.
   useEffect(() => {
     if (chatId && splitChatIds.includes(chatId)) {
       useUIStore.getState().closeSplitChat(chatId);
@@ -113,15 +107,12 @@ export function ChatPage() {
   }, [chatId, isMobile, splitChatIds]);
 
   const queryClient = useQueryClient();
-  // Opening a chat in either pane marks it seen — stamps last_viewed_at
-  // server-side and drops the sidebar unread dot.
+  // Marks seen (last_viewed_at + clears sidebar unread).
   useEffect(() => {
     if (chatId) void markChatViewed(queryClient, chatId);
   }, [chatId, queryClient]);
   useEffect(() => {
-    // On mobile the split isn't rebuilt, so split chats are off-screen even
-    // though the store still holds their ids — don't stamp them as seen.
-    // Returning to desktop re-runs this and stamps as the pane reappears.
+    // Mobile keeps split ids but doesn't show panes — don't mark those seen.
     if (!isMobile) {
       for (const splitChatId of splitChatIds) void markChatViewed(queryClient, splitChatId);
     }
@@ -158,8 +149,7 @@ export function ChatPage() {
   }, [activeViews, currentChat?.sandbox_id, refetchFilesMetadata]);
 
   const workspaces = useWorkspacesList();
-  // Routes to the instance that owns the chat so a cloud chat's persona selector
-  // shows the VPS's personas (and sends resolve the selected name against them).
+  // Cloud chats resolve personas against the VPS settings list.
   const { data: settings } = useSettingsForChatQuery(chatId);
 
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
@@ -176,9 +166,7 @@ export function ChatPage() {
   if (prevChatIdForResetRef.current !== chatId) {
     prevChatIdForResetRef.current = chatId;
     const ui = useUIStore.getState();
-    // Restore the chat's own saved tabs (stashing the outgoing chat's first).
     if (chatId) ui.loadWorkspaceForChat(chatId);
-    // Switching into a chat that's currently in a split pane closes that pane.
     if (chatId && ui.splitChatIds.includes(chatId)) {
       ui.closeSplitChat(chatId);
     }
@@ -188,9 +176,7 @@ export function ChatPage() {
       createCommitDialogOpen: false,
       createPRDialogOpen: false,
       createBranchDialogOpen: false,
-      // Ephemeral pane pointers don't belong to the new chat — a same-id tile in
-      // its split must not inherit chat A's focus. activeAgentTile (the coarse
-      // pointer) resets with focus so the two stay consistent.
+      // Don't inherit prior chat's focus onto a same-id split tile.
       focusedTile: null,
       activeAgentTile: 'agent:primary',
     });
@@ -203,7 +189,6 @@ export function ChatPage() {
     [navigate],
   );
 
-  // Sidebar is always available on chat pages — it holds navigation, settings, and logout
   const sidebarContent = useMemo(() => {
     return (
       <Sidebar
@@ -232,8 +217,7 @@ export function ChatPage() {
       if (tileIdToViewType(tileId) === 'agent') {
         return splitChatId ? <AgentPane chatId={splitChatId} /> : null;
       }
-      // Split tiles render their chat's own sandbox/cwd. The terminal
-      // is handled in renderView's terminal branch, so it's a no-op here.
+      // Terminal branch lives in renderView; missing split chat → empty.
       if (slot && !splitChatId) return null;
       const paneChatId = splitChatId ?? chatId;
       switch (tileIdToViewType(tileId)) {
@@ -268,16 +252,14 @@ export function ChatPage() {
         ? (splitChat?.sandbox_id ?? undefined)
         : currentChat?.sandbox_id;
       const terminalChatId = slot ? splitChatId : currentChat?.id;
-      // Worktree chats get their shell spawned inside the worktree so the
-      // terminal matches what the agent/editor/diff views operate on.
+      // Spawn shell in worktree so terminal matches agent/editor/diff cwd.
       const terminalWorktreeCwd = slot
         ? (splitChat?.worktree_cwd ?? undefined)
         : (currentChat?.worktree_cwd ?? undefined);
       return (
         <div
           className={styles.tile}
-          // Record focus on any interaction so shortcuts and the active tab both
-          // track the pane in use (focusTile derives the chat from the tile).
+          // focusTile keeps shortcuts + tab highlight on the pane in use.
           onPointerDownCapture={() => useUIStore.getState().focusTile(tileId)}
         >
           <div className={isTerminal ? styles.fill : styles.hidden}>
@@ -286,8 +268,7 @@ export function ChatPage() {
                 sandboxId={terminalSandboxId}
                 storageScope={terminalChatId}
                 worktreeCwd={terminalWorktreeCwd}
-                // Only fit/focus the terminal when its tile is actually on screen —
-                // a background tab is mounted but hidden (zero-size container).
+                // Background tiles are mounted but zero-size — only fit when visible.
                 isVisible={isTerminal && isVisible}
                 panelKey={`tile-${tileId}`}
               />

@@ -364,9 +364,7 @@ async def test_create_workspace_clones_https_repo_with_github_token(
     workspace_sandbox: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Desktop mode ignores the stored PAT and uses host git credentials instead —
-    # force server mode so this test exercises the GIT_ASKPASS token path
-    # regardless of the DESKTOP_MODE value inherited from the host shell.
+    # Force server mode so GIT_ASKPASS/PAT path is tested (not host git creds).
     monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
     await create_user(email="git-https@example.com", username="githttps")
     tokens = await login(email="git-https@example.com")

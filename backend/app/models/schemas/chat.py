@@ -107,8 +107,7 @@ class ChatCompletionResponse(BaseModel):
     message_id: UUID
     last_seq: int = 0
     checkpoint_id: UUID | None = None
-    # Set when this turn bound the chat to a worktree — lets the client update
-    # branch/terminal UI immediately instead of waiting for the stream config event.
+    # Set when this turn bound a worktree — client can update UI without waiting.
     worktree_cwd: str | None = None
 
 
@@ -119,8 +118,7 @@ class EnhancePromptResponse(BaseModel):
 class AskCodeRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=10000)
     code: str = Field(..., min_length=1, max_length=100000)
-    # Location fields exist only for editor code selections — chat-page text
-    # selections have no file identity and omit them.
+    # Editor selections only — chat-page text selections omit file identity.
     file_path: str | None = Field(None, min_length=1, max_length=1024)
     language: str | None = Field(None, min_length=1, max_length=64)
     start_line: int | None = Field(None, ge=1)
@@ -171,8 +169,7 @@ class PermissionRespondResponse(BaseModel):
 class ChatSearchMatch(BaseModel):
     message_id: UUID
     role: MessageRole
-    # Pre-split snippet so the frontend doesn't need to slice by char offsets —
-    # Python codepoint indices and JS UTF-16 units disagree on non-BMP chars.
+    # Pre-split: Python codepoints vs JS UTF-16 disagree on non-BMP offsets.
     snippet_before: str
     snippet_match: str
     snippet_after: str

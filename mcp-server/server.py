@@ -7,11 +7,8 @@ from client import DEFAULT_API_URL, AgentroveClient, AgentroveError
 
 mcp = FastMCP("agentrove")
 
-# Each agent's unattended (no-prompt, full-execution) session mode. The backend
-# rejects modes that don't belong to the target agent (e.g. Codex only accepts
-# auto/read-only/full-access), so the mode must match the model's agent kind.
-# Canonical valid modes live in backend adapters.py (*_SESSION_MODES); this thin
-# HTTP client can't import them, so the unattended tier is mirrored here.
+# Unattended full-execution mode per agent. Backend rejects cross-agent modes;
+# mirrored here because this HTTP client can't import adapters.*_SESSION_MODES.
 PERMISSION_MODE_BY_AGENT = {
     "claude": "bypassPermissions",
     "codex": "full-access",
@@ -216,9 +213,7 @@ async def send_message(
     mode (e.g. bypassPermissions for Claude, full-access for Codex).
     """
     if chat_id is not None:
-        # Follow-up: default omitted settings to the chat's previous turn so a
-        # bare send_message(chat_id=...) continues with the same model/persona/
-        # effort instead of silently switching to the global defaults.
+        # Inherit last turn's model/persona/effort when omitted (not globals).
         chat = await client.get_chat(chat_id)
         model_id = model_id or chat.get("last_model_id")
         thinking_mode = thinking_mode or chat.get("last_thinking_mode")
@@ -261,7 +256,7 @@ async def get_messages(
     Use the returned next_cursor with a follow-up call to page through older messages.
     """
     page = await client.get_messages(chat_id, limit=limit, cursor=cursor)
-    # Backend returns newest-first; flip to chronological for readability
+    # Backend is newest-first; reverse for chronological readability.
     messages = [
         {
             "id": m["id"],

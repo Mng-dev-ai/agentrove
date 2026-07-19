@@ -49,8 +49,7 @@ const removeStreamMetadataEntry = (metadata: StreamMetadata[], chatId: string): 
   metadata.filter((item) => item.chatId !== chatId);
 
 const shutdownStream = (stream: ActiveStream) => {
-  // The shared multiplexed connection (streamConnection) reconciles against the
-  // store, so dropping the entry is enough — no per-stream socket to close.
+  // Multiplexed connection reconciles from the store — no per-stream socket.
   stream.isActive = false;
   stream.callbacks = undefined;
 };
@@ -60,8 +59,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
   streamIdByChatMessage: new Map<string, string>(),
   activeStreamMetadata: [],
   lastToolTitleByChatId: new Map<string, string>(),
-  // Chats whose stream finished successfully since the user last viewed them —
-  // drives the sidebar "Done" badge until the chat is opened.
+  // Successful finishes since last view — sidebar "Done" badge until opened.
   completedChatIds: new Set<string>(),
 
   markCompleted: (chatId: string) => {
@@ -170,8 +168,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
       const stream = state.activeStreams.get(streamId);
       if (!stream) return state;
 
-      // A message-id swap only happens on queue handoff — the stream is reused for a
-      // new assistant turn, so restart the clock (thinking timer, cancel duration).
+      // Queue handoff reuses the stream for a new turn — restart thinking/cancel clocks.
       const updatedStream = { ...stream, messageId: newMessageId, startTime: Date.now() };
       const nextStreams = new Map(state.activeStreams);
       nextStreams.set(streamId, updatedStream);
@@ -180,7 +177,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
       nextIndex.delete(getChatMessageKey(chatId, oldMessageId));
       nextIndex.set(getChatMessageKey(chatId, newMessageId), streamId);
 
-      // The new turn hasn't run a tool yet — the previous turn's title is stale.
+      // Previous turn's tool title is stale for the new turn.
       const nextLastToolTitles = new Map(state.lastToolTitleByChatId);
       nextLastToolTitles.delete(chatId);
 
@@ -243,8 +240,7 @@ export const useStreamStore = create<StreamState>((set, get) => ({
   },
 
   addStreamMetadataIfAbsent: (metadata: StreamMetadata) => {
-    // Unlike addStreamMetadata's upsert, an already-tracked chat keeps its entry —
-    // restoration and event feeds must not reset a live stream's startTime.
+    // Keep existing entries so restoration doesn't reset a live startTime.
     set((state) =>
       state.activeStreamMetadata.some((item) => item.chatId === metadata.chatId)
         ? state

@@ -29,8 +29,7 @@ export interface Message {
   checkpoint_id: string | null;
 }
 
-// ACP plan entry — each plan event carries the complete list, replacing the
-// previous plan state rather than appending to it.
+// Plan events replace the whole list (not append).
 export interface PlanEntry {
   content: string;
   status: 'pending' | 'in_progress' | 'completed';
@@ -81,8 +80,7 @@ export interface Chat {
   last_persona_name: string | null;
 }
 
-// Wire contract of the per-user chat lifecycle SSE feed (/chat/chats/events),
-// consumed by useChatEvents (local) and useCloudChatEvents (VPS).
+// /chat/chats/events SSE — useChatEvents (local) / useCloudChatEvents (VPS).
 export type ChatEvent =
   | { kind: 'chat_created'; chat: Chat }
   | { kind: 'stream_started'; chat_id: string; message_id: string }
@@ -159,8 +157,7 @@ export function getAgentKindForModelId(modelId: string | null | undefined): Agen
     return 'claude';
   }
   if (CODEX_MODEL_IDS.has(modelId)) return 'codex';
-  // Copilot, Cursor, and OpenCode models use a prefix convention — detect by
-  // convention instead of maintaining a duplicate static set.
+  // Prefix convention for copilot/cursor/grok/opencode (avoids a second static set).
   if (modelId.startsWith('copilot:')) return 'copilot';
   if (modelId.startsWith('cursor:')) return 'cursor';
   if (modelId.startsWith('grok:')) return 'grok';
@@ -186,9 +183,6 @@ export interface PermissionRequest {
   tool_name: string;
   tool_input: Record<string, unknown>;
   options: PermissionOption[];
-  // Monotonic stream sequence of the originating envelope. Used to dedupe
-  // replayed permission events (the backend persists and re-streams them after
-  // `after_seq` on reconnect/refresh) without relying on request_id, which some
-  // providers reuse across turns.
+  // Envelope seq for dedupe on reconnect (request_id can be reused across turns).
   seq: number;
 }

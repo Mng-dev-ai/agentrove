@@ -2,9 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 interface CloudSettingsState {
-  // VPS origin (e.g. https://vps.example.com), without the /api/v1 suffix.
+  // VPS origin without /api/v1 (e.g. https://vps.example.com).
   cloudUrl: string;
-  // Email the desktop is connected to the VPS as — display only.
+  // Display-only connected email.
   connectedEmail: string | null;
   setCloud: (url: string, email: string) => void;
   clearCloud: () => void;

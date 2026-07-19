@@ -128,9 +128,7 @@ const DARK_THEME: monaco.editor.IStandaloneThemeData = {
   },
 };
 
-// Custom palettes reuse the light/dark syntax rules and only re-skin the surfaces,
-// so the editor canvas matches the themed chrome instead of staying white/black.
-// surface = editor.background; widget = suggest/widget popup background.
+// Reuse light/dark syntax; re-skin surfaces so canvas matches chrome (not white/black).
 function skin(
   base: monaco.editor.IStandaloneThemeData,
   tokens: PaletteTokens,
@@ -163,7 +161,6 @@ function skin(
   };
 }
 
-// editor canvas = surfaceSecondary; suggest/widget popup = the deeper surface.
 const CUSTOM_THEMES = Object.fromEntries(
   (Object.keys(CUSTOM_PALETTE_TOKENS) as CustomPalette[]).map((p) => {
     const tokens = CUSTOM_PALETTE_TOKENS[p];
@@ -181,7 +178,6 @@ const THEME_DATA: Record<Palette, monaco.editor.IStandaloneThemeData> = {
 export function useEditorTheme() {
   const resolvedTheme = useResolvedTheme();
   const rawTheme = useUIStore((s) => s.theme);
-  // Only `system` needs resolving; every other theme is itself a palette
   const palette: Palette = rawTheme === 'system' ? resolvedTheme : rawTheme;
   const themeName = `custom-${palette}`;
 
@@ -193,8 +189,7 @@ export function useEditorTheme() {
         monaco.editor.defineTheme(`custom-${name}`, data);
       }
 
-      // Monaco runs in the browser without the repo's tsconfig/node_modules, so semantic
-      // diagnostics mark valid imports and React types as missing. Keep syntax checks only.
+      // Browser Monaco has no repo tsconfig — semantic diagnostics false-flag imports/React types.
       monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({
         noSemanticValidation: true,
         noSuggestionDiagnostics: true,

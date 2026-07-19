@@ -193,9 +193,7 @@ class RaisingMessageService:
 
 
 class StreamStatusServiceOverride:
-    # Wraps a real Chat row (so get_chat succeeds) while forcing the
-    # in-progress-message lookup to fail, isolating the endpoint's
-    # SQLAlchemyError branch from the ChatException branch.
+    # Real Chat row + failing in-progress lookup → SQLAlchemyError branch.
     def __init__(self, chat: Chat, exc: Exception) -> None:
         self._chat = chat
         self.message_service = RaisingMessageService(exc)

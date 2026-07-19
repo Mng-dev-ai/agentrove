@@ -91,14 +91,12 @@ describe('QueueMessageCard', () => {
   it('saves an edit on Enter and abandons it on Escape', () => {
     const { onEdit } = renderCard({ content: 'first' });
 
-    // Enter commits.
     fireEvent.click(screen.getByLabelText('Edit message'));
     let input = screen.getByLabelText('Edit message') as HTMLInputElement;
     fireEvent.change(input, { target: { value: 'committed' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onEdit).toHaveBeenCalledWith('msg-1', 'committed');
 
-    // Escape discards: the original preview is restored and no further edit fires.
     onEdit.mockReset();
     fireEvent.click(screen.getByLabelText('Edit message'));
     input = screen.getByLabelText('Edit message') as HTMLInputElement;

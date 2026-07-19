@@ -29,17 +29,11 @@ class SandboxProvider:
 
     @property
     def workspace_root(self) -> str:
-        # Absolute path of the file-tree root inside whichever namespace the
-        # provider operates in (container path for Docker, host path for
-        # local). Callers need this to translate between cwd-relative and
-        # workspace-relative paths (e.g. mapping search results back to
-        # file-tree entries).
+        # Container path (Docker) or host path (local); used to ground relative paths.
         raise NotImplementedError
 
     def resolve_workspace_path(self, rel_path: str | None) -> str:
-        # Workspace-relative path → runtime-absolute path. Used for agent cwd,
-        # file reads/writes, and list-files targets — any path the app hands
-        # to runtime that needs grounding in the provider's workspace root.
+        # Workspace-relative → runtime-absolute under this provider's root.
         rel = normalize_relative_path(rel_path)
         return posixpath.join(self.workspace_root, rel) if rel else self.workspace_root
 
@@ -63,9 +57,7 @@ class SandboxProvider:
         provider_type: SandboxProviderType | str,
         workspace_path: str | None = None,
     ) -> "SandboxProvider":
-        # Factory that returns the appropriate provider (Docker or Host)
-        # based on the configured sandbox type.
-        # Inline import to avoid circular dependency — both providers import from base.
+        # Inline import avoids circular dependency (providers import base).
         from app.services.sandbox_providers.docker_provider import (
             DockerConfig,
             LocalDockerProvider,
@@ -116,10 +108,7 @@ class SandboxProvider:
         raise NotImplementedError
 
     async def write_temp_file(self, sandbox_id: str, content: str) -> str:
-        # Write content to a unique temp path OUTSIDE the workspace and return its
-        # runtime-absolute path (host tempdir for local, container /tmp for
-        # Docker). Used for the Codex model_instructions_file so the file never
-        # lands in the user's project workspace.
+        # Temp path outside the workspace (Codex model_instructions_file must not pollute the project).
         raise NotImplementedError
 
     async def read_file(
@@ -134,7 +123,7 @@ class SandboxProvider:
         sandbox_id: str,
         path: str = "",
     ) -> list[FileMetadata]:
-        # `path` is workspace-relative. Empty string means the workspace root.
+        # path is workspace-relative; "" = workspace root.
         raise NotImplementedError
 
     async def create_pty(
@@ -148,12 +137,8 @@ class SandboxProvider:
         on_exit: PtyExitCallbackType,
         user_id: str = "",
     ) -> str:
-        # Returns the new PTY session id. `cwd` is workspace-relative; ""
-        # means the provider's default start dir. `on_exit` fires when the
-        # PTY stream ends on its own (shell exit, container gone) — never on
-        # kill_pty's own cancellation. `user_id` keys the per-user agent home
-        # used as HOME in web host mode (unused by Docker — container HOME is
-        # fixed).
+        # cwd workspace-relative ("" = default). on_exit is natural exit only, not kill_pty.
+        # user_id keys per-user agent HOME in web host mode (unused by Docker).
         raise NotImplementedError
 
     @staticmethod
@@ -218,13 +203,11 @@ class SandboxProvider:
 
     @staticmethod
     def parse_git_ls_files(git_output: str) -> list[FileMetadata]:
-        # Build file metadata from git ls-files -z output. Derives directories
-        # from file paths since git only tracks files.
+        # git only tracks files — synthesize parent directories from paths.
         items: list[FileMetadata] = []
         seen_dirs: set[str] = set()
 
         for rel_path in filter(None, git_output.split("\0")):
-            # Add parent directories that haven't been seen yet.
             parts = rel_path.split("/")
             for i in range(1, len(parts)):
                 dir_rel = "/".join(parts[:i])
@@ -246,8 +229,6 @@ class SandboxProvider:
 
     @staticmethod
     def encode_file_content(path: str, content_bytes: bytes) -> tuple[str, bool]:
-        # Return file content as a string — base64-encoded for binary files,
-        # UTF-8 decoded for text files.
         is_binary = Path(path).suffix.lstrip(".").lower() in SANDBOX_BINARY_EXTENSIONS
         if is_binary:
             content = base64.b64encode(content_bytes).decode("utf-8")
@@ -258,7 +239,6 @@ class SandboxProvider:
     def get_pty_session(
         self, sandbox_id: str, session_id: str
     ) -> dict[str, Any] | None:
-        # Look up a PTY session from the in-memory tracking dict.
         return self._pty_sessions.get(sandbox_id, {}).get(session_id)
 
     def register_pty_session(
@@ -267,8 +247,7 @@ class SandboxProvider:
         self._pty_sessions.setdefault(sandbox_id, {})[session_id] = session_data
 
     def cleanup_pty_session_tracking(self, sandbox_id: str, session_id: str) -> None:
-        # Remove a PTY session from tracking. Cleans up the parent dict
-        # when the last session for a sandbox is removed.
+        # Drop empty sandbox keys after the last session is removed.
         sandbox_sessions = self._pty_sessions.get(sandbox_id)
         if not sandbox_sessions:
             return
@@ -278,8 +257,7 @@ class SandboxProvider:
             self._pty_sessions.pop(sandbox_id, None)
 
     async def cleanup(self) -> None:
-        # Tear down all active PTY sessions. Subclasses call super().cleanup()
-        # then handle their own resources (e.g. Docker client).
+        # Subclasses call super() then free their own resources.
         for sandbox_id in list(self._pty_sessions.keys()):
             for session_id in list(self._pty_sessions[sandbox_id].keys()):
                 try:

@@ -60,8 +60,7 @@ logger = logging.getLogger(__name__)
 
 TERMINAL_STREAM_EVENT_TYPES = frozenset({"cancelled", "complete", "error"})
 
-# Snippet windowing for chat message search results — keep some context before
-# the match so the user sees what surrounds it without ballooning the payload.
+# Context chars kept before a search match in snippets.
 SEARCH_SNIPPET_CONTEXT_BEFORE = 30
 SEARCH_SNIPPET_MAX_LENGTH = 160
 # Safety cap on rows fetched for a single search — prevents a common query
@@ -81,8 +80,6 @@ class ChatService(BaseDbService[Chat]):
 
     @staticmethod
     def sandbox_for_workspace(workspace: Workspace) -> SandboxService:
-        # Create a short-lived SandboxService bound to the workspace's
-        # provider and container — used for file ops and cleanup.
         provider = SandboxProvider.create_provider(
             workspace.sandbox_provider, workspace_path=workspace.workspace_path
         )
@@ -95,10 +92,7 @@ class ChatService(BaseDbService[Chat]):
         workspace_id: UUID | None = None,
         pinned: bool | None = None,
     ) -> PaginatedResponse[ChatSchema]:
-        # Paginated list of non-deleted top-level chats (sub-threads excluded),
-        # pinned first, then by most recent.
-        # When workspace_id is provided, results are scoped to that workspace only.
-        # When pinned is provided, results are filtered to pinned (True) or unpinned (False).
+        # Top-level chats only; pinned first, then recency. Optional workspace/pinned filters.
         if pagination is None:
             pagination = PaginationParams()
 
@@ -167,12 +161,7 @@ class ChatService(BaseDbService[Chat]):
         limit: int = 50,
         per_chat_limit: int = 5,
     ) -> ChatSearchResponse:
-        # Searches plain-text message bodies (content_text) across all of the
-        # user's non-deleted chats and workspaces. Order: most recent matching
-        # message first; then in Python we group per-chat, capping matches per
-        # chat and total chats. The frontend further groups results by workspace
-        # for display. Caller is expected to pass a non-empty trimmed query.
-        # +1 lookahead lets us flag truncation when more chats exist than the cap
+        # content_text search across the user's chats; group/cap in Python. +1 lookahead for truncation
         chat_cap = limit + 1
 
         async with self.session_factory() as db:
@@ -201,7 +190,6 @@ class ChatService(BaseDbService[Chat]):
             result = await db.execute(stmt)
             rows = result.all()
 
-        # Group by chat in insertion order (which is desc by created_at).
         grouped: dict[UUID, ChatSearchResult] = {}
         # Hitting the SQL cap means there may be older matches we never saw —
         # report truncation even if the per-chat / chat-cap loop never trips.
@@ -255,9 +243,7 @@ class ChatService(BaseDbService[Chat]):
 
     @staticmethod
     def _build_snippet(content: str, query_lower: str) -> tuple[str, str, str]:
-        # Slide a window around the first match so long messages don't bloat
-        # the payload. Returns (before, match, after) — pre-split so consumers
-        # don't need to reason about codepoint vs UTF-16 indices.
+        # Window around first match; pre-split so consumers ignore codepoint vs UTF-16.
         idx = content.lower().find(query_lower)
         if idx < 0:
             # Shouldn't happen since the SQL filter matched, but fall back to head.
@@ -375,9 +361,7 @@ class ChatService(BaseDbService[Chat]):
             logger.warning("Failed to publish %s user chat event", payload.get("kind"))
 
     async def get_sub_threads(self, chat_id: UUID, user: User) -> list[Chat]:
-        # Returns ORM objects — sub_thread_count defaults to 0 in ChatSchema,
-        # which is correct since nesting is limited to one level (sub-threads
-        # cannot have their own sub-threads).
+        # sub_thread_count defaults to 0 (nesting is one level only).
         async with self.session_factory() as db:
             parent_exists = await db.execute(
                 select(Chat.id).filter(
@@ -409,8 +393,7 @@ class ChatService(BaseDbService[Chat]):
     async def get_active_streams(
         self, user: User, chat_ids: list[UUID]
     ) -> list[ActiveStreamStatus]:
-        # Bulk startup discovery: one ownership query for all runtime-active chats,
-        # then resolve the in-progress message per surviving chat (rarely more than a few).
+        # One ownership query for runtime-active chats, then in-progress message per survivor.
         async with self.session_factory() as db:
             result = await db.execute(
                 select(Chat.id).filter(
@@ -440,7 +423,6 @@ class ChatService(BaseDbService[Chat]):
     async def update_chat(
         self, chat_id: UUID, chat_update: ChatUpdate, user: User
     ) -> Chat:
-        # Update title and/or pin state for a chat owned by the user.
         async with self.session_factory() as db:
             result = await db.execute(
                 select(Chat)
@@ -481,10 +463,7 @@ class ChatService(BaseDbService[Chat]):
             return chat
 
     async def get_chat(self, chat_id: UUID, user: User) -> Chat:
-        # Fetch a single chat with its workspace eagerly loaded (sandbox_id reads it).
-        # Messages aren't loaded here — the Chat schema has no message field; the
-        # paginated /messages endpoint serves the visible history. sub_thread_count
-        # is computed only by callers that serialize it (see count_sub_threads).
+        # Workspace eager-loaded for sandbox_id; messages via /messages. sub_thread_count is caller-side.
         async with self.session_factory() as db:
             query = (
                 select(Chat)
@@ -536,8 +515,7 @@ class ChatService(BaseDbService[Chat]):
             return result.scalar() or 0
 
     async def get_title_source(self, chat_id: UUID) -> str | None:
-        # Title prompt is the first non-empty user message. Queried directly so
-        # callers don't need the full message history loaded.
+        # First non-empty user message — avoids loading full history for titles.
         async with self.session_factory() as db:
             prompt = (
                 await db.execute(
@@ -562,8 +540,6 @@ class ChatService(BaseDbService[Chat]):
         return MODELS[last_msg.model_id].context_window
 
     async def delete_chat(self, chat_id: UUID, user: User) -> None:
-        # Soft-delete a chat and its messages, terminate the active session,
-        # and destroy the workspace container if no other chats reference it.
         async with self.session_factory() as db:
             result = await db.execute(
                 select(Chat)
@@ -671,8 +647,6 @@ class ChatService(BaseDbService[Chat]):
                     )
 
     async def delete_all_chats(self, user: User) -> int:
-        # Bulk soft-delete all chats, messages, and workspaces for a user,
-        # then fire-and-forget session termination and sandbox cleanup.
         async with self.session_factory() as db:
             chat_query = select(Chat.id, Chat.workspace_id, Chat.worktree_cwd).filter(
                 Chat.user_id == user.id,
@@ -741,7 +715,6 @@ class ChatService(BaseDbService[Chat]):
     async def get_chat_messages(
         self, chat_id: UUID, user: User, cursor: str | None = None, limit: int = 20
     ) -> CursorPaginatedResponse[MessageSchema]:
-        # Cursor-paginated message list — verify ownership then delegate to MessageService.
         async with self.session_factory() as db:
             result = await db.execute(
                 select(
@@ -855,10 +828,7 @@ class ChatService(BaseDbService[Chat]):
         chat_id: UUID,
         after_seq: int,
     ) -> AsyncIterator[dict[str, Any]]:
-        # Catch-up mechanism for SSE reconnection: when a client reconnects
-        # (network blip, page refresh) it sends the last seq it saw, and this
-        # method pages through all persisted events after that seq so the
-        # client doesn't miss anything before switching to live Redis pub/sub.
+        # SSE reconnection catch-up: page events after the client's last seq, then live pub/sub.
         page_size = 5000
         cursor = after_seq
 
@@ -907,9 +877,7 @@ class ChatService(BaseDbService[Chat]):
         kind: str,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
-        # Canonical builder for the SSE envelope shape sent to the frontend.
-        # The live path in _stream_live_user_envelopes constructs the same
-        # {id, event, data} shape directly from pre-serialized envelope JSON.
+        # SSE envelope shape; live path builds the same {id, event, data} from pre-serialized JSON.
         return {
             "id": str(seq),
             "event": StreamEventKind.STREAM.value,
@@ -1063,10 +1031,6 @@ class ChatService(BaseDbService[Chat]):
         request: ChatRequest,
         current_user: User,
     ) -> ChatCompletionResult:
-        # Main entry point for a user sending a message: validates keys, saves
-        # the user message and an empty assistant message, uploads any attached
-        # files to the sandbox, then kicks off the background stream task.
-        # Returns the IDs the frontend needs to connect to the SSE stream.
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(request.chat_id, current_user)
 
@@ -1221,9 +1185,7 @@ class ChatService(BaseDbService[Chat]):
         context_window: int | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
     ) -> None:
-        # Package the chat state into a ChatStreamRequest and kick off the
-        # background streaming task. Separate method so tests can override it
-        # to run synchronously without the background task machinery.
+        # Extracted so tests can override and run the stream synchronously.
         stream_attachments = (
             [dict(item) for item in attachments] if attachments else None
         )

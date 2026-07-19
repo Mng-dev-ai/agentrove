@@ -183,8 +183,7 @@ async def generate_chat_title(
     ai_service: AgentService = Depends(get_agent_service),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> dict[str, str]:
-    # Title from the first user message — same source the automatic
-    # background titling uses when a chat starts.
+    # Same source as automatic background titling on chat start.
     prompt = await chat_service.get_title_source(chat.id)
     if prompt is None:
         raise HTTPException(
@@ -208,8 +207,7 @@ async def ask_about_code(
     current_user: User = Depends(get_current_user),
     ai_service: AgentService = Depends(get_agent_service),
 ) -> dict[str, str]:
-    # Editor inline chat: one-off Q&A about a code selection — no chat turn or
-    # message rows; the chat only supplies workspace context and access control.
+    # Inline editor Q&A — no turn/message rows; chat is for workspace access only.
     try:
         answer = await ai_service.answer_code_question(
             request.question,
@@ -248,8 +246,7 @@ async def search_chats(
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> ChatSearchResponse:
-    # Strip and re-validate so whitespace-only queries (e.g. "  ") don't bypass
-    # min_length and reach the DB as an empty %LIKE% that matches everything.
+    # Whitespace-only would bypass min_length and match everything via %LIKE%.
     stripped = q.strip()
     if len(stripped) < 2:
         raise HTTPException(
@@ -273,9 +270,7 @@ async def get_active_streams(
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> list[ActiveStreamStatus]:
-    # Bulk variant of /chats/{chat_id}/status: the runtime registry already knows
-    # every active chat, so startup restoration needs one call instead of a
-    # per-chat (and per-sub-thread) polling fan-out.
+    # Bulk status: one registry read instead of per-chat/sub-thread polling.
     active_ids = ChatStreamRuntime.active_chat_ids()
     if not active_ids:
         return []
@@ -290,13 +285,8 @@ async def stream_user_chat_events(
     chat_service: ChatService = Depends(get_chat_service),
     db: AsyncSession = Depends(get_db),
 ) -> EventSourceResponse:
-    # Global per-user feed of chat lifecycle events (chats created / turns started
-    # out-of-band, e.g. via MCP). Declared before /chats/{chat_id} so "events"
-    # isn't parsed as a UUID.
-    # `db` is the same cached session the auth chain used; FastAPI keeps yield
-    # deps open until the response finishes, so a long-lived SSE connection would
-    # pin its DB connection and aiosqlite thread until disconnect. Auth is
-    # done — release it.
+    # Before /chats/{chat_id} so "events" isn't parsed as a UUID. Release the
+    # auth-chain DB session — FastAPI keeps yield deps open for the SSE lifetime.
     await db.close()
     return EventSourceResponse(
         chat_service.create_chat_events_stream(current_user.id),
@@ -315,10 +305,8 @@ async def stream_user_streams(
     chat_service: ChatService = Depends(get_chat_service),
     db: AsyncSession = Depends(get_db),
 ) -> EventSourceResponse:
-    # Single multiplexed SSE feed carrying every active stream for the user —
-    # envelopes self-route client-side via chatId, so N streaming chats share one
-    # connection instead of exhausting the browser's per-origin HTTP/1.1 pool.
-    # `cursors` is a JSON object of chat id -> last seen seq for backlog replay.
+    # Multiplexed SSE for all active streams (chatId-routed client-side) so N
+    # chats share one connection. `cursors`: chat id -> last seen seq for replay.
     try:
         requested = parse_stream_cursors(cursors)
     except ValueError as e:
@@ -328,8 +316,7 @@ async def stream_user_streams(
     owned = await chat_service.filter_owned_chat_ids(current_user.id, list(requested))
     replay_cursors = {cid: seq for cid, seq in requested.items() if cid in owned}
 
-    # Same rationale as /chats/events: auth is done — release the DB session
-    # so the long-lived SSE connection doesn't pin it until disconnect.
+    # Same as /chats/events: release DB session before long-lived SSE.
     await db.close()
     return EventSourceResponse(
         chat_service.create_user_streams_feed(current_user.id, replay_cursors),
@@ -397,9 +384,7 @@ async def get_chat_context_usage(
             cache_key = REDIS_KEY_CHAT_CONTEXT_USAGE.format(chat_id=str(chat_id))
             cached = await cache.get(cache_key)
             if cached:
-                # Cache entries are written by the backend with all fields
-                # present. If a payload is partial or malformed, raise so this
-                # endpoint falls back to DB data.
+                # Partial/malformed cache payloads must raise so we fall back to DB.
                 data = json.loads(cached)
                 return ContextUsage(
                     tokens_used=int(data["tokens_used"]),
@@ -447,7 +432,6 @@ async def mark_chat_viewed(
     _chat: Chat = Depends(ensure_chat_access),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> None:
-    # Stamps the read marker the sidebar's unread indicator is computed from.
     await chat_service.mark_chat_viewed(chat_id)
 
 
@@ -488,10 +472,8 @@ async def get_stream_status(
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> dict[str, Any]:
-    # In-memory gate first: every open chat polls this endpoint on a short
-    # interval, but a stream is almost never live. Short-circuit inactive polls
-    # before any chat/message DB query so the bursts don't drain the connection
-    # pool. Ownership is validated only on the rare active path below.
+    # Poll-hot path: short-circuit inactive chats before any DB hit; ownership
+    # is checked only when a stream is actually live.
     if not ChatStreamRuntime.has_active_chat(str(chat_id)):
         return INACTIVE_TASK_RESPONSE.copy()
 
@@ -582,8 +564,7 @@ async def cancel_stream(
     ) and not await chat_service.has_cancelable_pending_start(chat_id):
         return
 
-    # Stop can arrive after the assistant row exists but before the runtime task
-    # starts; the registry carries that pending cancel into the task.
+    # Cancel may race the runtime task start; registry holds a pending flag.
     await session_registry.cancel_generation(str(chat_id))
 
 
@@ -736,9 +717,7 @@ async def send_now_queued_message(
         )
 
     if ChatStreamRuntime.has_active_chat(str(chat_id)):
-        # Cancel the active generation so the runtime picks up the
-        # send-now flag immediately instead of waiting for the agent
-        # to finish its current turn.
+        # Cancel so send-now is picked up without waiting for the current turn.
         await session_registry.cancel_generation(str(chat_id))
     else:
         try:

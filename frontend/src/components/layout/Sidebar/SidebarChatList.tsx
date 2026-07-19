@@ -26,8 +26,6 @@ interface SidebarChatListProps {
   onLoadMore: () => void;
 }
 
-// Scrollable body of the sidebar: pinned + recents sections, the filter menu,
-// empty/no-match states, and the paginated "Load more" control.
 export function SidebarChatList({
   scrollContainerRef,
   isLoadingChats,
@@ -65,8 +63,7 @@ export function SidebarChatList({
             </div>
           )}
 
-          {/* Header always renders — it anchors the filter menu, which must stay
-              reachable when active filters empty the list */}
+          {/* Header always renders so the filter menu stays reachable when filters empty the list. */}
           <div>
             <div className={styles['recents-header']}>
               <span className={styles['section-title']}>Recents</span>
@@ -88,7 +85,7 @@ export function SidebarChatList({
                 ))}
               </div>
             ) : !hasVisibleContent ? (
-              // Filters only narrow loaded pages — Load more below can still surface matches
+              // Filters only narrow loaded pages — Load more may still surface matches.
               <div className={styles['no-match']}>
                 <p className={styles['no-match-text']}>No chats match the current filters</p>
                 <Button
@@ -101,8 +98,7 @@ export function SidebarChatList({
               </div>
             ) : null}
           </div>
-          {/* Outside the Recents block: when a loaded cloud page holds only pinned
-              chats, Recents is empty but more pages may still exist. */}
+          {/* Outside Recents: a cloud page of only pinned chats still needs Load more. */}
           {hasMore && (
             <Button
               variant="unstyled"

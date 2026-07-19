@@ -10,8 +10,7 @@ function getSelectionSnippet(ed: monacoNs.editor.ICodeEditor): EditorCodeSelecti
   if (!selection || selection.isEmpty() || !model) return null;
   let text = model.getValueInRange(selection);
   let endLine = selection.endLineNumber;
-  // Full-line drag selections end at column 1 of the line below — don't
-  // count that empty line in the range label or the snippet.
+  // Full-line drag ends at col 1 of the next line — exclude that empty line.
   if (endLine > selection.startLineNumber && selection.endColumn === 1) {
     endLine -= 1;
     text = text.slice(0, -1);
@@ -31,16 +30,14 @@ export function attachAddSelectionToChat(
   editor: monacoNs.editor.IStandaloneCodeEditor,
   context: EditorNavigationContext,
 ): void {
-  // Registered per editor instance (disposed with it) rather than globally —
-  // the action reads chatId from the pane's mutable context object, so chat
-  // swaps on an already-mounted editor route to the right chat.
+  // Per-editor (not global): action reads chatId from mutable pane context on chat swap.
   editor.addAction({
     id: 'agentrove.addSelectionToChat',
     label: 'Add Selection to Chat',
     contextMenuGroupId: '0_chat',
     contextMenuOrder: 1,
     keybindings: [m.KeyMod.CtrlCmd | m.KeyCode.KeyL],
-    // Without a selection Cmd+L falls through to Monaco's default line-select.
+    // Without selection Cmd+L is Monaco's line-select.
     precondition: 'editorHasSelection',
     run: (ed) => {
       const snippet = getSelectionSnippet(ed);
@@ -56,8 +53,7 @@ export function attachAskAboutSelection(
   editor: monacoNs.editor.IStandaloneCodeEditor,
   onOpen: (selection: EditorCodeSelection) => void,
 ): void {
-  // Cmd+I mirrors VS Code's inline chat trigger; the pane owning the editor
-  // renders the widget, so this action only reports the captured selection.
+  // Cmd+I like VS Code inline chat; pane owns the widget — action only reports selection.
   editor.addAction({
     id: 'agentrove.askAboutSelection',
     label: 'Ask About Selection',

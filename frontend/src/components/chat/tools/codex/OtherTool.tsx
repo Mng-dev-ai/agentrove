@@ -14,7 +14,6 @@ import styles from './OtherTool.module.scss';
 interface ImageGenerationOutput {
   status?: string;
   revisedPrompt?: string | null;
-  // Base64-encoded PNG of the generated image.
   result?: string;
   savedPath?: string | null;
 }

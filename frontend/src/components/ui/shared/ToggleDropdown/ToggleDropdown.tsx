@@ -15,9 +15,8 @@ interface ToggleDropdownProps {
   options: readonly [ToggleDropdownOption, ToggleDropdownOption];
   value: boolean;
   onSelect: (value: boolean) => void;
-  // Fixed trigger icon; a per-option icon takes precedence when provided.
   icon?: ComponentType<SVGProps<SVGSVGElement>>;
-  // CSS width for the panel (e.g. '8rem'), not a class name
+  // CSS length for the panel (e.g. '8rem'), not a class name
   width: string;
   disabled?: boolean;
 }
@@ -30,8 +29,7 @@ export const ToggleDropdown = memo(function ToggleDropdown({
   width,
   disabled = false,
 }: ToggleDropdownProps) {
-  // Compact two-option dropdown for the landing composer toolbar. Hand-styled to
-  // match the adjacent workspace selector trigger, not the Dropdown primitive.
+  // Hand-styled for the landing composer (not Dropdown) to match the workspace selector.
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const selected = options[value ? 1 : 0];
   const TriggerIcon = selected.icon ?? icon;

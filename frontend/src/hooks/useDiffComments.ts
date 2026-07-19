@@ -19,14 +19,11 @@ function normalizeSelection(range: SelectedLineRange): SelectedLineRange {
   return { start: range.end, end: range.start, side: range.side, endSide: range.endSide };
 }
 
-// Diff-view review comments: one line selection at a time across all files;
-// `composing` flips on when the drag ends, which opens the composer. Submits
-// attach the selection + comment to the chat input as an editor-selection chip.
+// Diff review comments → editor-selection chip on the chat input. `composing` opens on drag end.
 export function useDiffComments(chatId: string | undefined, cwd: string | undefined) {
   const [pendingComment, setPendingComment] = useState<PendingDiffComment | null>(null);
 
-  // Raw (anchor-order) range during the drag — it matches the library's own
-  // representation, so the equality guards inside the manager stay effective.
+  // Keep raw anchor-order during drag so the library's equality guards stay effective.
   const handleSelectionChange = useCallback((fileName: string, range: SelectedLineRange | null) => {
     setPendingComment(range ? { fileName, range, composing: false } : null);
   }, []);

@@ -17,9 +17,7 @@ import styles from './CreateWorkspaceFooter.module.scss';
 
 type CreationMode = 'none' | 'menu' | 'empty' | 'git';
 
-// Creation flows for local workspaces: empty, local folder (desktop only), and
-// git clone (browse GitHub repos when a token is configured, otherwise paste a URL).
-// onCreated selects the new workspace and dismisses the picker.
+// Local empty / folder (desktop) / git-clone creation; onCreated selects and dismisses.
 export function CreateWorkspaceFooter({ onCreated }: { onCreated: (id: string) => void }) {
   const isDesktop = isDesktopApp();
   const { data: settings } = useSettingsQuery({ enabled: true });

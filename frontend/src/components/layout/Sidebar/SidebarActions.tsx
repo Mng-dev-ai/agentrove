@@ -7,7 +7,6 @@ interface SidebarActionsProps {
   onOpenSearch: () => void;
 }
 
-// Sidebar header controls: start a new thread or open the command-menu search.
 export function SidebarActions({ onNewChat, onOpenSearch }: SidebarActionsProps) {
   return (
     <div className={styles.actions}>

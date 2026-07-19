@@ -17,13 +17,8 @@ import type {
   GeneratePRDescriptionResponse,
 } from '@/types/github.types';
 
-// Repo search backs local workspace creation (no chat exists yet), so it always
-// targets the local instance and uses withAuth (auth failure = local session
-// dead). Everything else is invoked from a chat's git dialogs and must use the
-// GitHub credentials of the backend that owns the chat — a cloud chat's
-// PRs/commits go through the VPS's GitHub connection. Routed calls use
-// serviceCall like chatService's: withAuth would tear down the LOCAL session on
-// a VPS auth failure, while APIClient already handles per-client expiry.
+// Repo search is local-only (no chat yet) → withAuth. Chat git ops route by
+// chat ownership via serviceCall (withAuth would kill local session on VPS 401).
 async function searchRepositories(
   query: string,
   page: number,

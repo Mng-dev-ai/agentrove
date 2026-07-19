@@ -1,16 +1,12 @@
 import re
 
-# Guard against shell injection in branch names and workspace-relative cwd
-# paths passed to exec.
+# Reject shell-injectable branch names / cwd paths passed to exec.
 BRANCH_NAME_RE = re.compile(r"^[\w./-]+$")
 
 
 def normalize_relative_path(path: str | None) -> str:
-    # Empty / None / "." / "./" all mean the workspace root. Rejecting absolute
-    # paths, `..` escapes, and quote/control characters protects the
-    # single-quoted `cd` prefix built in git_cd_prefix from breaking out while
-    # still allowing normal repo filenames like @scoped packages or names with
-    # punctuation.
+    # Empty/None/"."/"./" = workspace root. Reject abs/`..`/quotes/controls so
+    # the single-quoted `cd` in git_cd_prefix can't break out.
     if path is None:
         return ""
     if path.startswith("/"):

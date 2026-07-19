@@ -145,15 +145,12 @@ export const SidebarChatItem = memo(function SidebarChatItem({
       onMouseEnter={() => onMouseEnter(chat.id)}
       onMouseLeave={onMouseLeave}
     >
-      {/* Right padding reserves room for the timestamp/dropdown so long titles
-          truncate before reaching them. */}
+      {/* Pad for timestamp/dropdown so long titles truncate before them. */}
       <div className={styles['title-col']}>
         <div className={styles['title-row']}>
-          {/* One leading slot keeps all row titles flush: caret on hover/expand,
-              otherwise the provider icon + a persistent status dot (or spinner). */}
+          {/* Single leading slot keeps titles flush (caret vs icon+status). */}
           {leadingIcon}
-          {/* Tooltip wraps only the title, not the icon — so the icon's own status
-              tooltip fires on its own hover instead of stacking with this one. */}
+          {/* Tooltip on title only — icon has its own status tooltip. */}
           <FloatingTooltip
             content={
               onOpenInSplit && canOpenInSplit
@@ -183,15 +180,14 @@ export const SidebarChatItem = memo(function SidebarChatItem({
               >
                 {stripMarkdownTitle(chat.title)}
               </span>
-              {/* Resting hint that sub-threads exist; the caret conveys it on hover/expand */}
+              {/* Resting sub-thread hint; caret covers this on hover/expand. */}
               {hasSubThreads && !isHovered && !isSubThreadsExpanded && (
                 <CornerDownRight className={styles['subthread-hint']} />
               )}
             </Button>
           </FloatingTooltip>
         </div>
-        {/* Clicking the badge opens the workspace context menu (new thread, rename,
-            delete) — the flat list has no group headers to hang those actions on. */}
+        {/* Badge opens workspace menu (flat list has no group headers for those actions). */}
         {workspaceBadge && (
           <Button
             variant="unstyled"
@@ -210,8 +206,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         )}
       </div>
 
-      {/* Right slot shows the timestamp — status now lives on the leading
-          dot/spinner. Hides on hover to reveal the dropdown. */}
+      {/* Timestamp; hides on hover for the dropdown. Status is on the leading icon. */}
       <span
         className={clsx(
           styles.timestamp,

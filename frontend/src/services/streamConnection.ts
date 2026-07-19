@@ -12,30 +12,23 @@ interface StreamConnectionHandlers {
 
 interface ManagedConnection {
   source: EventSource | null;
-  // Chats whose backlog the current EventSource replayed at open — a chat
-  // needing replay that isn't in here forces a reopen with fresh cursors.
+  // Chats replayed at open; missing chat forces reopen with fresh cursors.
   replayedChatIds: Set<string>;
   retryAttempts: number;
   retryTimer: ReturnType<typeof setTimeout> | null;
   stableTimer: ReturnType<typeof setTimeout> | null;
-  // Bumped on every (re)open/teardown so in-flight async opens self-cancel.
+  // Bumped on (re)open/teardown so in-flight async opens self-cancel.
   generation: number;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 15000;
-// How long a connection must stay open before its retry budget resets — an
-// instant reset on `open` would let a feed that 200s then immediately dies
-// (e.g. Redis down) loop forever without ever tripping the failure path.
+// Stay open this long before resetting retry budget (avoids open→die loops).
 const CONNECTION_STABLE_MS = 15000;
 
-// Owns the single multiplexed SSE connection per API host (local + cloud). The
-// server forwards every stream envelope for the user over one connection, so N
-// streaming chats no longer hold N sockets — browsers cap HTTP/1.1 at 6 per
-// origin, which froze all other requests once ~6 chats streamed concurrently.
-// Lifecycle is store-driven: the connection opens when a client's first active
-// stream registers in streamStore and closes when its last one is removed.
+// One multiplexed SSE per API host (browsers cap ~6 HTTP/1.1 sockets per origin).
+// Opens when streamStore has active streams; closes when the last is removed.
 class StreamConnectionManager {
   private connections = new Map<StreamApiClient, ManagedConnection>();
   private handlers: StreamConnectionHandlers | null = null;
@@ -45,15 +38,12 @@ class StreamConnectionManager {
     useStreamStore.subscribe(() => this.reconcile());
   }
 
-  // Force the next connection for this chat's host to include it in the replay
-  // cursor set — reopens a live connection, since an already-open feed only
-  // carries events published after it connected.
+  // Reopen if needed so this chat is in the replay cursor set.
   requestReplay(chatId: string): void {
     const client = resolveChatClient(chatId);
     const connection = this.connections.get(client);
     if (!connection) {
-      // reconcile() (triggered by the stream registration) opens it with this
-      // chat's cursor included; nothing to force.
+      // reconcile() will open with this chat's cursor; nothing to force.
       return;
     }
     if (!connection.replayedChatIds.has(chatId)) {
@@ -70,10 +60,7 @@ class StreamConnectionManager {
         this.teardown(client, connection);
         continue;
       }
-      // Replay membership is per registered stream, not per connection lifetime:
-      // once a chat's stream ends, a later turn in it must be able to force a
-      // replay again — its send-window events arrive before the new stream
-      // registers and would otherwise never be recovered.
+      // Drop ended streams from replay set so a later turn can force replay again.
       for (const chatId of connection.replayedChatIds) {
         if (!activeChatIds.has(chatId)) {
           connection.replayedChatIds.delete(chatId);
@@ -101,8 +88,7 @@ class StreamConnectionManager {
   }
 
   private buildCursors(chatIds: Set<string>): Record<string, number> {
-    // chatStorage cursors advance on every processed envelope, so they are the
-    // freshest resume point; 0 (no cursor) means replay the chat from the start.
+    // chatStorage is the freshest resume point; 0 means replay from start.
     const cursors: Record<string, number> = {};
     for (const chatId of chatIds) {
       const stored = Number(chatStorage.getEventId(chatId) || 0);
@@ -129,8 +115,7 @@ class StreamConnectionManager {
     }
 
     const generation = this.resetSocket(connection);
-    // Snapshot cursors synchronously so a requestReplay racing the token fetch
-    // sees exactly which chats this open will replay.
+    // Sync snapshot so a requestReplay racing token fetch sees this open's set.
     const cursors = this.buildCursors(chatIds);
     connection.replayedChatIds = new Set(chatIds);
 
@@ -149,17 +134,13 @@ class StreamConnectionManager {
     cursors: Record<string, number>,
     chatIds: Set<string>,
   ): Promise<void> {
-    // The connection is long-lived and reopens after failures, so the cached
-    // token may be expired — mint a fresh one on every open.
+    // Mint fresh token every open — long-lived feed may outlive the cached one.
     const token = await client.getValidToken();
     if (this.connections.get(client) !== connection || connection.generation !== generation) {
       return;
     }
     if (!token) {
-      // Session is dead (getValidToken already tore it down) — fail the streams
-      // instead of retrying an unauthenticatable feed forever. Use the open-time
-      // chat set: cloud session expiry clears the cloud-origin registry, so a
-      // recompute here would resolve those chats to the local client and miss them.
+      // Use open-time chat set — cloud expiry clears origin registry mid-flight.
       this.failClient(client, connection, chatIds);
       return;
     }
@@ -187,9 +168,7 @@ class StreamConnectionManager {
         clearTimeout(connection.stableTimer);
         connection.stableTimer = null;
       }
-      // Don't let EventSource auto-reconnect: its URL carries the cursors from
-      // open time, so chats subscribed since then would lose the outage window.
-      // Reopening ourselves rebuilds cursors from fresh chatStorage state.
+      // Manual reopen with fresh cursors — EventSource auto-reconnect uses stale URL.
       source.close();
       connection.source = null;
       this.scheduleReconnect(client, connection);
@@ -219,9 +198,7 @@ class StreamConnectionManager {
     affectedChatIds?: Set<string>,
   ): void {
     const chatIds = affectedChatIds ?? this.activeChatIdsByClient().get(client);
-    // Kill the socket but keep the map entry while the failure callback removes
-    // streams — each removal triggers reconcile, and a missing entry would
-    // immediately reopen a doomed connection mid-loop.
+    // Keep map entry while failing streams so reconcile doesn't reopen mid-loop.
     this.resetSocket(connection);
     if (chatIds && chatIds.size > 0) {
       this.handlers?.onConnectionFailure([...chatIds]);
@@ -234,7 +211,7 @@ class StreamConnectionManager {
     this.connections.delete(client);
   }
 
-  // Bumping the generation strands any in-flight connect() for this connection.
+  // Bump generation to strand any in-flight connect().
   private resetSocket(connection: ManagedConnection): number {
     connection.generation += 1;
     if (connection.retryTimer) {

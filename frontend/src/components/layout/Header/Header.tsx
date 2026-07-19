@@ -13,7 +13,7 @@ export interface HeaderProps {
 }
 
 function ThemeToggleButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
-  // Show the current theme's icon (matches the profile menu); the title names what's next.
+  // Icon is the current theme (matches profile menu); tooltip names the next.
   const Icon = getThemeMeta(theme).icon;
   const next = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
   return (
@@ -54,10 +54,9 @@ export function Header({ isAuthPage = false }: HeaderProps) {
   const theme = useUIStore((state) => state.theme);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
-  // Pages with their own nav + UserProfileMenu — no Header needed
+  // Sidebar pages use TitleBar + Sidebar footer instead of Header.
   const isSidebarPage = isChatPage || isLandingPage || isSettingsPage;
 
-  // Sidebar pages have controls in TitleBar + Sidebar footer — no header needed
   if (!isAuthPage && isAuthenticated && isSidebarPage) return null;
 
   return (

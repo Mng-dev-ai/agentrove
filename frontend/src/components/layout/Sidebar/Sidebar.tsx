@@ -224,7 +224,7 @@ export function Sidebar({
           onLoadMore={loadMore}
         />
 
-        {/* User profile — fixed at sidebar bottom; always rendered so settings/logout are accessible even if the user query is loading or failed */}
+        {/* Always render footer so settings/logout work even if the user query fails. */}
         <div className={styles.footer}>
           <UserProfileMenu
             displayName={userDisplayName}

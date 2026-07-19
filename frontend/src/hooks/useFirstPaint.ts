@@ -2,10 +2,8 @@ import { useState } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
 
 export function useFirstPaint(): boolean {
-  // False for the mounting render, true right after first paint. Heavy views
-  // return a fallback for that one render so a navigation's commit paints
-  // immediately instead of blocking on their subtree; hooks above the early
-  // return still run, so data fetching starts during the deferred frame.
+  // False on mount, true after first paint — heavy views can fallback one frame so nav paints
+  // immediately while hooks above the early-return still start fetches.
   const [hasPainted, setHasPainted] = useState(false);
   useMountEffect(() => setHasPainted(true));
   return hasPainted;

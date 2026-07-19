@@ -13,8 +13,6 @@ interface SidebarOverlaysProps {
   cloudWorkspaces: Workspace[] | undefined;
 }
 
-// Portaled sidebar overlay layer: the chat/workspace context menus and the
-// delete/rename modals they drive.
 export function SidebarOverlays({
   chat,
   workspace,

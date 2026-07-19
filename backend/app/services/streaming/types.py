@@ -25,9 +25,7 @@ StreamEventType = Literal[
     "plan",
 ]
 MAX_AUDIT_STRING_LENGTH = 4096
-# The agent embeds prompt suggestions as an XML tag at the end of its response.
-# This regex extracts them so they can be sent as a structured event and stripped
-# from the visible assistant text.
+# Extract trailing XML prompt suggestions for a structured event (strip from visible text).
 PROMPT_SUGGESTIONS_RE = re.compile(
     r"<prompt_suggestions>\s*(.*?)\s*</prompt_suggestions>",
     re.DOTALL,
@@ -85,9 +83,7 @@ class StreamEvent(TypedDict, total=False):
     suggestions: list[str]
 
 
-# Accumulates stream events during a generation so the runtime can persist
-# a complete snapshot to DB periodically (for SSE reconnection catch-up)
-# without replaying the entire event history each time.
+# Snapshot buffer for periodic DB persist (SSE catch-up without full history replay).
 @dataclass
 class StreamSnapshotAccumulator:
     events: list[dict[str, Any]] = field(default_factory=list)
@@ -156,9 +152,7 @@ class StreamEnvelope:
 
     @staticmethod
     def sanitize_payload(value: Any) -> Any:
-        # Recursively redact sensitive keys (tokens, passwords) and truncate
-        # long strings with a sha256 hash for traceability. Used to build the
-        # audit_payload stored alongside the render_payload in message_events.
+        # Redact secrets and hash-truncate long strings for message_events audit_payload.
         if isinstance(value, dict):
             redacted: dict[str, Any] = {}
             for key, nested in value.items():

@@ -11,8 +11,7 @@ interface DiffCommentComposerProps {
   onCancel: () => void;
 }
 
-// Inline comment card rendered as a pierre line annotation under the selected
-// diff lines — mirrors the editor InlineChatWidget's frosted-card look.
+// Pierre line annotation under selected lines; frosted-card look matches InlineChatWidget.
 export function DiffCommentComposer({ lineLabel, onSubmit, onCancel }: DiffCommentComposerProps) {
   const [comment, setComment] = useState('');
   const trimmed = comment.trim();

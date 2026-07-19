@@ -28,9 +28,7 @@ interface FindInChatProps {
   scrollerRef: RefObject<HTMLDivElement | null>;
 }
 
-// In-chat find bar (⌘F): matches rendered message text via the CSS Custom Highlight
-// API — markdown splits content across arbitrary DOM nodes, so highlighting through
-// the registry avoids wrapping <mark> elements inside React-owned DOM.
+// ⌘F over rendered messages via CSS Custom Highlight (avoids <mark> in React-owned DOM).
 export const FindInChat = memo(function FindInChat({ messages, scrollerRef }: FindInChatProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');

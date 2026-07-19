@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 
-// Holds a local draft so typing doesn't fire a mutation per keystroke.
-// Re-syncs from savedValue on external updates; persists only when the value changed on blur.
+// Local draft so typing isn't a mutation per keystroke; persists on blur only if changed.
 export function useDraftField(savedValue: string, onPersist: (value: string) => void) {
   const [draft, setDraft] = useState(savedValue);
   const prevSavedRef = useRef(savedValue);

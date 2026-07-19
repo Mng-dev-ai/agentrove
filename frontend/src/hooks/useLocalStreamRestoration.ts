@@ -3,9 +3,7 @@ import { logger } from '@/utils/logger';
 import { registerActiveStreams } from '@/utils/activeStreams';
 import { chatService } from '@/services/chatService';
 
-// Restores local streams in one bulk request — the backend enumerates its
-// in-process stream registry, so no per-chat or per-sub-thread status fan-out
-// is needed no matter how many chats or sub-threads exist.
+// One bulk restore against the backend's in-process registry — no per-chat status fan-out.
 export function useLocalStreamRestoration({ enabled }: { enabled: boolean }) {
   const hasRestoredRef = useRef(false);
 

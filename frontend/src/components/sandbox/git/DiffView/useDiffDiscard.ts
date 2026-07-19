@@ -12,8 +12,6 @@ interface UseDiffDiscardParams {
   cwd: string | undefined;
 }
 
-// Discard/restore actions (single file + all) against HEAD, plus the confirm
-// dialog state each one opens.
 export function useDiffDiscard({ sandboxId, cwd }: UseDiffDiscardParams) {
   const [discardTarget, setDiscardTarget] = useState<FileDiffMetadata | null>(null);
   const [discardAllOpen, setDiscardAllOpen] = useState(false);

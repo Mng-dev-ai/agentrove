@@ -1,14 +1,11 @@
 import { buildHighlightSegments } from '@/utils/mentionParser';
 
-// Canonical highlight for @mention and /command tokens. Also consumed by
-// MarkDown's rehype transform, which builds hast nodes and can't render
-// this component — so it's a global class (defined in styles/app.scss),
-// not a CSS module.
+// Global class (styles/app.scss) so MarkDown's hast transform can reuse it.
 export const MENTION_PILL_CLASSNAME = 'mention-pill';
 
 interface HighlightedTextProps {
   text: string;
-  // The input backdrop overrides this because its styles live in a CSS module.
+  // Input backdrop overrides this (its styles are CSS-module scoped).
   tokenClassName?: string;
 }
 

@@ -3,9 +3,7 @@ import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { SidebarChatItem } from './SidebarChatItem';
 import { SubThreadList } from './SubThreadList';
 
-// Selection + handler bundle every chat row needs, threaded through the pinned and
-// recent sections unchanged. Kept as one object so sections forward it instead of
-// re-listing a dozen props.
+// Bundle row handlers/state so pinned and recent sections forward one object.
 export interface ChatRowProps {
   selectedChatId: string | null;
   splitChatIds: string[];
@@ -26,7 +24,6 @@ export interface ChatRowProps {
   onToggleSubThreads: (chatId: string) => void;
 }
 
-// One chat row: the item plus its expanded sub-thread list.
 export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatRowProps }) {
   const {
     selectedChatId,

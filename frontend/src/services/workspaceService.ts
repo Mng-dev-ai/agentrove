@@ -41,8 +41,7 @@ async function deleteWorkspace(workspaceId: string): Promise<void> {
   });
 }
 
-// chatId routes by the owning chat: a cloud chat's workspace lives on the VPS, so
-// its skills/slash-commands must come from there, not the local backend.
+// chatId routes to the owning backend (cloud chat skills live on the VPS).
 async function getWorkspaceResources(
   workspaceId: string,
   chatId?: string,

@@ -47,10 +47,8 @@ const isEmptyBotPlaceholder = (msg?: Message) =>
   (!msg?.content_render?.events || msg.content_render.events.length === 0) &&
   !msg.content_text;
 
-// Exposes two layers: `sendMessage` opens the SSE stream and injects the
-// assistant placeholder into state; `handleMessageSend` is the form-level
-// wrapper that validates input size, creates the optimistic user message,
-// and rolls it back on failure.
+// `sendMessage` opens the SSE stream + injects the assistant placeholder;
+// `handleMessageSend` validates, optimistically inserts the user message, and rolls back on failure.
 export function useMessageActions({
   chatId,
   selectedModelId,
@@ -146,7 +144,6 @@ export function useMessageActions({
           checkpoint_id: checkpointId,
         };
 
-        // Replace a trailing empty placeholder if present, otherwise append.
         setMessages((prev) => {
           const lastMessage = prev[prev.length - 1];
           if (isEmptyBotPlaceholder(lastMessage)) {

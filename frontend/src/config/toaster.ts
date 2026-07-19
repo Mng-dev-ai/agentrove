@@ -1,14 +1,11 @@
 import type { ToasterProps } from 'react-hot-toast';
 
-// Surface via the global .app-toast class (styles/app.scss) so every palette
-// re-themes toasts; react-hot-toast owns the DOM, so no CSS module can reach it.
+// Global .app-toast (app.scss) — rht owns the DOM so CSS modules can't theme it.
 const toastSurfaceClass = 'app-toast';
 
 export const toasterConfig: ToasterProps = {
   position: 'top-right',
-  // Push toasts below the iOS status-bar/notch inset (env() is 0 on web/desktop).
-  // The +1rem is just the gap below that inset — it does NOT account for the
-  // TitleBar height, so on chat screens toasts still sit partly over the bar.
+  // Below safe-area inset (+1rem gap). Does not clear TitleBar height on chat screens.
   containerStyle: {
     top: 'calc(env(safe-area-inset-top) + 1rem)',
   },

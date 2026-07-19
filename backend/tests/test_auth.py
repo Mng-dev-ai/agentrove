@@ -744,9 +744,7 @@ async def test_register_blocks_disposable_email_using_stale_cache_when_refetch_f
     settings_override: SettingsOverride,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Pre-populate the cache but with a timestamp older than the TTL, so a
-    # refetch is attempted; when it fails, the stale (still non-empty) cache
-    # is served instead of an empty set.
+    # Stale non-empty cache past TTL: refetch fails → serve stale, not empty.
     monkeypatch.setattr(EmailService, "_disposable_domains_cache", {"mailinator.com"})
     monkeypatch.setattr(
         EmailService,

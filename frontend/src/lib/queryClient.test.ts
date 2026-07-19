@@ -5,8 +5,7 @@ import { persistOptions } from './queryClient';
 
 const shouldPersist = persistOptions.dehydrateOptions!.shouldDehydrateQuery!;
 
-// Builds a real, successful Query for `key` so defaultShouldDehydrateQuery (which
-// gates on status === 'success') passes and only the key-matching branch decides.
+// Successful Query so defaultShouldDehydrateQuery passes; then key-matching decides.
 function query(key: readonly unknown[]): Query {
   const client = new QueryClient();
   client.setQueryData(key, { ok: true });

@@ -93,7 +93,7 @@ class MaintenanceService:
                     )
             except Exception:
                 logger.exception("Maintenance job %s crashed", job.name)
-            # Sleep until the next interval, but wake immediately on shutdown.
+            # Interval sleep; wake immediately on shutdown.
             try:
                 await asyncio.wait_for(
                     self._stop_event.wait(),

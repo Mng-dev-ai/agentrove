@@ -43,8 +43,7 @@ const AutomationEditDialog = lazyNamed(
   'AutomationEditDialog',
 );
 
-// An automation belongs to one backend; onCloud tags each row with its origin
-// so edits/deletes/runs route back to it.
+// onCloud tags origin so edits/deletes/runs hit the owning backend.
 interface AutomationListItem {
   automation: Automation;
   onCloud: boolean;

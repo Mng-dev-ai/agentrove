@@ -9,8 +9,7 @@ export const VIEW_LABELS: Record<ViewType, string> = {
   terminal: 'Terminal',
 };
 
-// Canonical view → icon map; shared by the pane tabs and the view switcher so the
-// glyph for a kind (diff, terminal…) stays identical in both places.
+// Shared by pane tabs and the view switcher so glyphs stay identical.
 export const VIEW_ICONS: Record<ViewType, LucideIcon> = {
   agent: Bot,
   diff: GitBranch,
@@ -30,8 +29,7 @@ export function isSplitTile(tileId: TileId): tileId is SplitTileId {
   return splitSlotOfTile(tileId) !== null;
 }
 
-// A split pane is the action target only when it's both focused and bound to a
-// chat — otherwise everything resolves to the primary pane.
+// Action target is a split pane only when focused and bound to a chat.
 export function activeSplitSlot(
   activeAgentTile: AgentTileId,
   splitChatIds: string[],
@@ -40,29 +38,24 @@ export function activeSplitSlot(
   return slot && splitChatIds[slot - 1] ? slot : null;
 }
 
-// Maps a stored tile id back to its ViewType for label/render lookups.
-// Both pane suffixes ('agent:primary', '<view>:split-N') strip to the view.
+// Both 'agent:primary' and '<view>:split-N' strip to the view kind.
 export function tileIdToViewType(tileId: TileId): ViewType {
   const colon = tileId.indexOf(':');
   return (colon === -1 ? tileId : tileId.slice(0, colon)) as ViewType;
 }
 
-// Maps a ViewType to its canonical primary tile id. The agent slot is special:
-// "the agent view" always means agent:primary; split agents are only created
-// by the split-chat affordance.
+// Agent always means agent:primary; split agents come only from split-chat.
 function viewTypeToPrimaryTile(view: ViewType): TileId {
   return view === 'agent' ? 'agent:primary' : view;
 }
 
-// Maps a (view, pane) pair to its tile id. Agent always maps to the primary slot;
-// split agent tiles are created only by the split-chat affordance.
+// Agent always maps to the primary slot (split agents only via split-chat).
 export function viewTypeToTileId(view: ViewType, slot: SplitSlot | null): TileId {
   if (slot && view !== 'agent') return `${view}:split-${slot}`;
   return viewTypeToPrimaryTile(view);
 }
 
-// Deduped view kinds for a set of tiles, preserving order. Two agent panes
-// collapse to a single 'agent' entry.
+// Deduped view kinds, order-preserving (two agent panes → one 'agent').
 export function tileViewKinds(tiles: TileId[]): ViewType[] {
   return Array.from(new Set(tiles.map(tileIdToViewType)));
 }

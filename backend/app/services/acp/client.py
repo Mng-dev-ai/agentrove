@@ -35,8 +35,7 @@ from app.services.streaming.types import StreamEvent, StreamEventType, ToolPaylo
 
 logger = logging.getLogger(__name__)
 
-# Placed on event_queue to signal that the ACP prompt has finished
-# (either completed or errored) so consumers know to stop reading.
+# Sentinel on event_queue when the ACP prompt finishes (success or error).
 _SENTINEL = object()
 
 # Valid ACP option_ids that match our PermissionMode literals directly.
@@ -54,8 +53,7 @@ VALID_PERMISSION_MODES: set[str] = {
     "ask",
 }
 
-# Normalizes human-readable option names (e.g. "Accept Edits") to our
-# PermissionMode literals when the option_id doesn't match directly.
+# Human option labels → PermissionMode when option_id isn't already a literal.
 PERMISSION_MODE_BY_OPTION_NAME: dict[str, PermissionMode] = {
     "default": "default",
     "accept edits": "acceptEdits",
@@ -77,28 +75,22 @@ GROK_ASK_USER_QUESTION_METHOD = "x.ai/ask_user_question"
 
 
 class AcpClientHandler:
-    # Implements the ACP client-side handler interface. The ACP SDK calls
-    # methods on this class as the agent emits events (text chunks, tool calls,
-    # permission requests, usage updates). Each method translates the ACP event
-    # into a StreamEvent and enqueues it for the SSE layer to forward to the frontend.
+    # ACP client handler: SDK events → StreamEvent on event_queue for SSE.
 
     def __init__(self, agent_kind: AgentKind) -> None:
         self.agent_kind = agent_kind
         self.event_queue: asyncio.Queue[StreamEvent | object] = asyncio.Queue()
         self._active_tools: dict[str, ToolPayload] = {}
         self._pending_permissions: dict[str, asyncio.Future[str]] = {}
-        # Tracks which permission mode the user selected for each tool call,
-        # so we can include it in the tool_completed/tool_failed event.
+        # Permission mode chosen per tool call (for tool_completed/failed events).
         self._resolved_permissions: dict[str, PermissionMode | None] = {}
-        # Maps request_id → {option_id → permission_mode} so resolve_permission
-        # can look up the mode that request_permission already derived.
+        # request_id → option_id → permission_mode (filled in request_permission).
         self._permission_option_modes: dict[str, dict[str, PermissionMode | None]] = {}
         self.total_cost_usd: float = 0.0
         self.usage: dict[str, int] | None = None
-        # Set to True during load_session to suppress replayed history events.
+        # Suppress replayed history events during load_session.
         self.muted: bool = False
 
-    # Required by ACP Client protocol interface
     def on_connect(self, conn: Any) -> None:
         pass
 
@@ -169,9 +161,7 @@ class AcpClientHandler:
         tool_call: ToolCallUpdate,
         **kwargs: Any,
     ) -> RequestPermissionResponse:
-        # Called by the ACP SDK when the agent wants to perform a gated action
-        # (file write, shell command, etc.). We forward the options to the
-        # frontend as a permission_request event and block until the user responds.
+        # Emit permission_request and block until the user responds via SSE.
         request_id = tool_call.tool_call_id
         tool_name = self._extract_tool_name(tool_call)
         tool_input = self._extract_raw_input(tool_call.raw_input)
@@ -218,8 +208,7 @@ class AcpClientHandler:
         return RequestPermissionResponse(outcome=DeniedOutcome(outcome="cancelled"))
 
     async def _wait_for_user_choice(self, request_id: str) -> str:
-        # Blocks until resolve_permission() delivers the user's selection for
-        # this request; empty string means the user cancelled/dismissed.
+        # Empty option_id means cancelled/dismissed.
         future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
         self._pending_permissions[request_id] = future
         try:
@@ -233,9 +222,7 @@ class AcpClientHandler:
         *,
         option_id: str = "",
     ) -> bool:
-        # Called from the SSE endpoint when the user responds to a permission
-        # request or user question. Unblocks the matching _wait_for_user_choice()
-        # awaiter; an empty option_id means the request was cancelled.
+        # Unblock _wait_for_user_choice; empty option_id = cancelled.
         future = self._pending_permissions.get(request_id)
         if future is None or future.done():
             return False
@@ -257,9 +244,7 @@ class AcpClientHandler:
         line: int | None = None,
         **kwargs: Any,
     ) -> ReadTextFileResponse:
-        # ACP protocol stubs — the agent binary handles file I/O and terminal
-        # operations internally. These no-op implementations satisfy the ACP
-        # client interface contract without duplicating sandbox logic here.
+        # Agent owns file/terminal I/O; no-ops satisfy the ACP client interface.
         return ReadTextFileResponse(content="", line_count=0)
 
     async def write_text_file(
@@ -417,10 +402,7 @@ class AcpClientHandler:
         return StreamEvent(type="tool_started", tool=payload)
 
     def _map_tool_call_progress(self, tc: ToolCallProgress) -> StreamEvent | None:
-        # Handles both in-progress updates and terminal states (completed/failed).
-        # ACP may send multiple progress events per tool call — e.g. Codex's
-        # fetch tool sends title updates as it navigates pages. We track
-        # accumulated state in _active_tools and only re-emit when something changed.
+        # Multiple progress events per tool possible; re-emit only when title/input changes.
         status = tc.status
 
         existing = self._active_tools.get(tc.tool_call_id)

@@ -26,11 +26,9 @@ interface ChatSettingsState {
   permissionModeByChat: Record<string, PermissionMode>;
   thinkingModeByChat: Record<string, string>;
   worktreeByChat: Record<string, boolean>;
-  // Codex-only: 1.5x speed service tier. Other agents ignore it.
+  // Codex-only 1.5x tier; other agents ignore it.
   fastModeByChat: Record<string, boolean>;
-  // Where a new chat runs: locally (false) or on the remote VPS instance (true).
-  // Global, not per-chat — chosen at creation time on the landing composer, and
-  // cloud chats live on the VPS so they never get a local chat ID to key by.
+  // Global landing-composer choice (cloud chats have no local id to key by).
   runOnCloud: boolean;
   personaByChat: Record<string, string>;
   setPermissionMode: (chatId: string, mode: PermissionMode) => void;
@@ -75,10 +73,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         set((state) => ({
           personaByChat: { ...state.personaByChat, [chatId]: name },
         })),
-      // Copies the __default__ settings to a newly created chat so the user's
-      // toolbar defaults (permission mode, thinking, worktree, persona) carry
-      // over without requiring explicit selection each time. Only reached for
-      // local chats — cloud chats live on the VPS and aren't seeded here.
+      // Seed a new local chat from __default__ toolbar settings (not used for cloud).
       initChatFromDefaults: (chatId) => {
         const state = get();
         const permission = state.permissionModeByChat[DEFAULT_KEY];

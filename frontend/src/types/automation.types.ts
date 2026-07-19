@@ -37,8 +37,7 @@ export interface AutomationCreateRequest {
 
 export type AutomationUpdateRequest = Partial<AutomationCreateRequest>;
 
-// Snapshot of every inputbar setting an automation replays when its schedule
-// fires — the edit-dialog form state shared between the tab and the dialog.
+// Inputbar settings an automation replays; shared edit-dialog form shape.
 export interface AutomationForm {
   name: string;
   prompt: string;

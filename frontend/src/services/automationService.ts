@@ -7,8 +7,7 @@ import type {
   AutomationUpdateRequest,
 } from '@/types/automation.types';
 
-// Automations live on whichever backend runs them — the local instance or the
-// connected cloud VPS (same API shape) — so every call routes by onCloud.
+// Route by onCloud — same API shape on local and VPS.
 function clientFor(onCloud: boolean) {
   return onCloud ? remoteApiClient : apiClient;
 }
@@ -56,7 +55,6 @@ async function runAutomation(automationId: string, onCloud: boolean): Promise<{ 
       `/automations/${automationId}/run`,
     );
     const payload = ensureResponse(response, 'Failed to run automation');
-    // A cloud run's chat lives on the VPS — register it so opening it routes there.
     if (onCloud) {
       markCloudChats([payload.chat_id]);
     }

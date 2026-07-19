@@ -29,13 +29,10 @@ interface FloatingTooltipProps {
   className?: string;
 }
 
-// Themed replacement for the native title attribute. Unlike Tooltip (pure CSS,
-// absolute), it renders position:fixed so triggers inside overflow-y-auto lists
-// (e.g. the sidebar) don't clip the bubble or add phantom scroll space.
+// Fixed-position title replacement — unlike CSS Tooltip, won't clip inside overflow lists.
 export function FloatingTooltip({ content, children, className }: FloatingTooltipProps) {
   const [position, setPosition] = useState<TooltipPosition | null>(null);
-  // Tracks the whole hover interaction (show delay + visible) so the scroll
-  // listener can also cancel a pending show timer, not just an open tooltip
+  // Covers show delay + visible so scroll can cancel a pending show, not just an open tip.
   const [hovering, setHovering] = useState(false);
   const triggerRef = useRef<HTMLDivElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);

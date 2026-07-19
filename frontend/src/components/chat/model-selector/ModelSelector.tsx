@@ -42,7 +42,7 @@ export const ModelSelector = memo(function ModelSelector({
   // effect and persist models[0] before the owner derives the model from history.
   const { data: models = [], isLoading } = useModelsQuery({ enabled: isAuthenticated });
   const favoriteModelIds = useModelStore((state) => state.favoriteModelIds);
-  // Panel-local agent filter driven by the chip row; null = all agents.
+
   const [agentFilter, setAgentFilter] = useState<AgentKind | null>(null);
 
   const filteredModels = useMemo(
@@ -160,12 +160,10 @@ export const ModelSelector = memo(function ModelSelector({
               aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
               aria-pressed={isFavorite}
               onClick={(event) => {
-                // Stop the row's onClick from selecting the model when the star is clicked.
                 event.stopPropagation();
                 useModelStore.getState().toggleFavoriteModel(model.model_id);
               }}
               onKeyDown={(event) => {
-                // Keep the row's Enter/Space handler from firing in addition to this button's.
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.stopPropagation();
                 }

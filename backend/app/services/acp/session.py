@@ -76,7 +76,7 @@ CODEX_FAST_MODE_OFF = "off"
 
 @dataclass
 class AcpSessionConfig:
-    # Everything needed to spawn an ACP agent process and create a session.
+    # Config to spawn an ACP agent and open a session.
     # Built by AgentService._build_acp_config() from chat/user/model state.
     sandbox_id: str
     sandbox_provider: SandboxProviderType
@@ -103,10 +103,7 @@ class AcpSessionConfig:
 
 
 class AcpSession:
-    # Manages the lifecycle of a single ACP agent process: spawns the binary
-    # (via Docker exec or direct host subprocess), negotiates the ACP handshake,
-    # creates or resumes a session, and provides methods to send prompts,
-    # change models/modes, cancel, and tear down cleanly.
+    # One ACP agent process per chat: spawn, handshake, prompt, teardown.
 
     def __init__(
         self,
@@ -604,8 +601,7 @@ class AcpSession:
     async def _spawn_host(config: AcpSessionConfig) -> asyncio.subprocess.Process:
         launch = AcpSession._build_launch_config(config)
 
-        # Start from the host environment so auth tokens, proxy vars,
-        # TLS settings, and tool paths are available to the agent process.
+        # Inherit host env (auth, proxy, TLS, PATH).
         env = dict(os.environ)
         if config.sandbox_id and not settings.DESKTOP_MODE:
             # Web mode: HOME is the per-user agent home, shared by every

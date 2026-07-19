@@ -16,8 +16,7 @@ import styles from './AttachmentViewer.module.scss';
 interface AttachmentViewerProps {
   attachments: MessageAttachment[];
   uploadingAttachmentIds?: string[];
-  // Routes attachment fetch/download to the chat's backend — cloud messages carry
-  // relative /api/v1/attachments URLs that only resolve on the owning VPS.
+  // Routes fetch/download to the chat's backend (cloud relative URLs need the VPS).
   chatId?: string;
 }
 
@@ -29,7 +28,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
   chatId,
 }: AttachmentViewerProps) {
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({});
-  // Index into imageAttachments of the image currently shown in the lightbox; null means closed.
+  // Lightbox index into imageAttachments; null = closed.
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const loadedIdsRef = useRef<Set<string>>(new Set());
   const ownedObjectUrlsRef = useRef<Set<string>>(new Set());

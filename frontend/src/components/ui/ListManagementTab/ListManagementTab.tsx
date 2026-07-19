@@ -6,8 +6,7 @@ import { Plus, Loader2, LucideIcon, Edit2, Trash2 } from 'lucide-react';
 import { logger } from '@/utils/logger';
 import styles from './ListManagementTab.module.scss';
 
-// Delay-reveal spinner: starts at opacity 0, fades in after 300ms; forwards keeps
-// it visible when the animation ends
+// Delay-reveal spinner (300ms); forwards keeps it visible after the animation.
 const SPINNER_STYLE: CSSProperties = { animationDelay: '300ms', animationFillMode: 'forwards' };
 
 interface ListManagementTabProps<T> {
@@ -25,7 +24,6 @@ interface ListManagementTabProps<T> {
   onEdit?: (index: number) => void;
   onDelete: (index: number) => void | Promise<void>;
   renderItem: (item: T, index: number) => ReactNode;
-  // Extra controls rendered before the edit/delete buttons (e.g. an enable toggle)
   renderItemActions?: (item: T, index: number) => ReactNode;
   footerContent?: ReactNode;
   logContext: string;

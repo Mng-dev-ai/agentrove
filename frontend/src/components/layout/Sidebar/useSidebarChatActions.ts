@@ -25,8 +25,6 @@ interface UseSidebarChatActionsParams {
   onDeleteChat?: (chatId: string) => void;
 }
 
-// Owns per-chat state (hover, dropdown, delete/rename targets, sub-thread
-// expansion) and every chat mutation handler for the sidebar.
 export function useSidebarChatActions({
   selectedChatId,
   selectedChatParentId,

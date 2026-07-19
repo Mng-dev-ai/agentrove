@@ -28,7 +28,6 @@ export function SendButton({
   const showSpinnerIcon = showLoadingSpinner && status === 'loading';
   const showStopIcon = !showSpinnerIcon && isActive;
 
-  // Spinner, stop and ready share the inverted "filled" look; idle stays a muted pill.
   const isPrimary = showSpinnerIcon || showStopIcon || hasMessage;
   let ariaLabel: string;
   let icon: React.ReactNode;

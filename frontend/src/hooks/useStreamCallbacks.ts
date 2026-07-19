@@ -36,11 +36,7 @@ import {
 } from '@/hooks/stream/messageUpdates';
 import { envelopeToRenderEvent, extractPayloadData } from '@/hooks/stream/envelopeTranslation';
 
-// Batching window for streaming content updates. Envelopes arrive at token-level
-// granularity (~10-50ms apart); flushing on every token would thrash React state
-// and the query cache. 50ms keeps the text cadence smooth (~20 updates/sec) —
-// affordable because memoized markdown blocks and segments mean each flush only
-// re-renders the growing tail of the message.
+// Token envelopes arrive ~10-50ms apart; 50ms batching (~20/s) avoids thrashing React/cache.
 const STREAM_FLUSH_INTERVAL_MS = 50;
 
 interface UseStreamCallbacksParams {
@@ -78,10 +74,7 @@ interface UseStreamCallbacksResult {
   setPendingUserMessageId: (id: string | null) => void;
 }
 
-// Core streaming pipeline: receives raw SSE envelopes, buffers renderable
-// content per stream, and flushes batched updates to React state and the query
-// cache on a coalescing timer. Also owns the start/replay/stop lifecycle
-// and the terminal handlers (complete, error, queue continuation).
+// SSE pipeline: buffer envelopes, flush on a coalescing timer, own start/replay/stop + terminal handlers.
 export function useStreamCallbacks({
   messages,
   chatId,
@@ -156,10 +149,7 @@ export function useStreamCallbacks({
     return envelopes ?? [];
   }, []);
 
-  // Writes the buffer's collected tokens to React state (live chat) and/or
-  // the query cache (so navigating away and back preserves progress). Only touches
-  // React state when the session's chat is on screen — off-screen streams still
-  // write to the cache so content isn't lost on chat switch.
+  // Live state only when on-screen; always can write cache so off-screen progress survives switches.
   const flushBufferedContent = useCallback(
     (streamId: string, { writeToCache }: { writeToCache: boolean }) => {
       const buffer = buffersRef.current.get(streamId);
@@ -181,8 +171,7 @@ export function useStreamCallbacks({
     [setMessages, queryClient],
   );
 
-  // Coalescing timer: only one pending flush per stream. Multiple envelopes arriving
-  // within the same window are batched into a single flushBufferedContent call.
+  // One pending flush timer per stream.
   const scheduleContentFlush = useCallback(
     (streamId: string) => {
       if (flushTimersRef.current.has(streamId)) {
@@ -199,9 +188,7 @@ export function useStreamCallbacks({
     [flushBufferedContent],
   );
 
-  // Returns (or creates) the content buffer for a stream. On first call for a
-  // given streamId, seeds the buffer from the message's existing content so that
-  // reconnections append to prior content rather than starting from blank.
+  // Seed from existing message content so reconnections append rather than blank.
   const ensureBuffer = useCallback(
     (
       streamId: string,
@@ -220,10 +207,7 @@ export function useStreamCallbacks({
         return existing;
       }
 
-      // Seed from the on-screen message (fast path) or the query cache (off-screen chat).
-      // Fall back to the cache when the on-screen lookup misses: right after a chat
-      // switch an envelope can arrive before the remounted view has populated
-      // messages state, and seeding empty would truncate the in-progress message.
+      // Cache fallback: post-switch envelopes can arrive before messages state is populated.
       let seedEvents: AssistantStreamEvent[] = [];
       let seedText = '';
       const existingMessage =
@@ -242,8 +226,7 @@ export function useStreamCallbacks({
         messageId,
         lastSeq: seq,
         chatId: streamChatId,
-        // The chat query is warm here (the stream was just started/replayed from
-        // it); resolving at completion time instead could miss after gc eviction.
+        // Resolve now while chat query is warm — completion-time resolve can miss after gc.
         sandboxId: queryClient.getQueryData<Chat>(queryKeys.chat(streamChatId))?.sandbox_id,
       });
 
@@ -262,8 +245,7 @@ export function useStreamCallbacks({
       timerIdsRef.current.forEach(clearTimeout);
       timerIdsRef.current = [];
 
-      // Flush any pending content to the query cache before clearing,
-      // so content already cursor-acked in chatStorage is not lost on unmount.
+      // Flush pending content so cursor-acked progress isn't lost on unmount.
       for (const [streamId, timer] of flushTimers.entries()) {
         clearTimeout(timer);
         const buffer = buffers.get(streamId);
@@ -289,10 +271,7 @@ export function useStreamCallbacks({
     [onPendingUserMessageIdChange],
   );
 
-  // Central dispatch for every envelope arriving from the EventSource. Handles
-  // side-effect-only events (permissions, system metadata, plan mode transitions)
-  // inline, then delegates renderable content (text, thinking, tools) to the
-  // buffer → scheduleContentFlush pipeline for batched UI updates.
+  // Side-effect kinds inline; renderable content → buffer + coalesced flush.
   const onEnvelope = useCallback(
     (envelope: StreamEnvelope) => {
       if (pendingStopRef.current.has(envelope.messageId)) {
@@ -302,13 +281,11 @@ export function useStreamCallbacks({
         return;
       }
 
-      // First envelope for a message clears the optimistic "sending…" indicator.
       if (pendingUserMessageIdRef.current && chatId === chatIdRef.current) {
         setPendingUserMessageId(null);
       }
 
-      // Permission requests are dispatched directly to the modal system and
-      // never accumulate into the message content — early return skips the pipeline.
+      // Permissions go to the modal, not message content.
       if (envelope.kind === 'permission_request' && onPermissionRequest) {
         const payload = envelope.payload as Record<string, unknown>;
         const request_id = typeof payload.request_id === 'string' ? payload.request_id : undefined;
@@ -367,8 +344,7 @@ export function useStreamCallbacks({
           useChatSettingsStore.getState().setPermissionMode(chatId, 'plan');
         } else if (tool?.name === 'ExitPlanMode' && chatId) {
           if (tool.permission_mode) {
-            // The backend's ExitPlanMode tool emits one of the known PermissionMode
-            // values; the payload types it as a plain string.
+            // Payload types as string; backend emits a known PermissionMode.
             useChatSettingsStore
               .getState()
               .setPermissionMode(chatId, tool.permission_mode as PermissionMode);
@@ -409,11 +385,7 @@ export function useStreamCallbacks({
     ],
   );
 
-  // Terminal handler for a finished stream. Flushes any buffered content,
-  // clears per-stream session state, marks the message as completed/interrupted,
-  // and triggers post-stream side effects (notifications, file metadata refresh,
-  // usage/context invalidation). Runs for both on-screen and off-screen chats
-  // so the cache stays consistent, but only resets UI state for the active chat.
+  // Terminal complete: flush, clear session, side effects. Cache always; UI state only if active chat.
   const onComplete = useCallback(
     (
       messageId?: string,
@@ -424,7 +396,6 @@ export function useStreamCallbacks({
       const resolvedStreamId = streamId ?? findStreamIdByMessage(messageId);
       const isCancelled = terminalKind === 'cancelled';
       const isCurrentChat = chatId === chatIdRef.current;
-      // Capture before clearStreamSession deletes it
       const session = resolvedStreamId
         ? streamSessionsRef.current.get(resolvedStreamId)
         : undefined;
@@ -435,13 +406,11 @@ export function useStreamCallbacks({
         flushBufferedContent(resolvedStreamId, { writeToCache: true });
       }
 
-      // Session cleanup is stateless and safe for any chat; always run it.
       clearStreamSession(resolvedStreamId);
 
       const targetChatId = sessionChatId ?? chatId;
 
-      // Cache finalization must run even for off-screen chats so returning
-      // to the chat within the staleTime window doesn't show a stuck message.
+      // Finalize cache even off-screen so return within staleTime isn't stuck.
       if (messageId) {
         pendingStopRef.current.delete(messageId);
         pendingStopEnvelopesRef.current.delete(messageId);
@@ -449,9 +418,7 @@ export function useStreamCallbacks({
           ...message,
           active_stream_id: null,
           stream_status: isCancelled ? 'interrupted' : 'completed',
-          // Backend records the run duration at the terminal snapshot and ships
-          // it on the complete event, so the rollup shows the real time without
-          // waiting for a refetch. Older messages persisted before this carry null.
+          // Prefer complete-event duration so the rollup shows real time without refetch.
           duration_ms: durationMs ?? message.duration_ms,
         });
         if (targetChatId) {
@@ -464,49 +431,35 @@ export function useStreamCallbacks({
         }
       }
 
-      // Invalidate the chat-search cache regardless of whether the completed
-      // stream belongs to the on-screen chat — otherwise off-screen completions
-      // (background turns) leave search results stale for up to staleTime.
+      // Off-screen completions would leave search stale for up to staleTime.
       queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
 
-      // Chat metadata (title, updated_at, context usage) is mutated server-side
-      // during the turn, so it must refresh even when the completion lands while
-      // the user is viewing another chat.
+      // Server mutates title/updated_at/context during the turn — refresh even if off-screen.
       if (targetChatId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.chat(targetChatId), exact: true });
       }
 
-      // Sandbox state (files, branches) is mutated server-side during the turn,
-      // so refresh it even when the completion lands off-screen — the long-lived
-      // file caches would otherwise serve stale content when the user returns to
-      // that chat. Cancelled runs still leave real file/branch side effects, so
-      // this is not kind-gated — only the notification below is.
+      // Refresh sandbox caches even off-screen (incl. cancelled — real file/branch effects).
       const targetSandboxId =
         sessionSandboxId ?? (isCurrentChat ? currentChat?.sandbox_id : undefined);
       if (targetSandboxId) {
         queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.filesMetadataAll(targetSandboxId),
         });
-        // Reset, not remove — remove doesn't refetch active observers, so an
-        // open editor file would keep showing the pre-turn content.
+        // reset (not remove) so open editors refetch; remove leaves stale buffers.
         queryClient.resetQueries({
           queryKey: queryKeys.sandbox.fileContentAll(targetSandboxId),
         });
-        // Agent may have switched/created a branch during the turn (e.g. `git checkout -b`),
-        // so refresh the branch list to keep the UI in sync with HEAD.
         queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.gitBranchesAll(targetSandboxId),
         });
-        // The turn's file edits change git state (and the agent may have
-        // committed mid-turn) — refresh diff, baselines, and change indicators.
         void invalidateGitState(queryClient, targetSandboxId);
       }
 
       if (!isCurrentChat) return;
 
-      // The turn bumped updated_at at initiation and the user watched it finish —
-      // re-stamp the read marker so a later sidebar refetch doesn't flag it unread.
-      // Sub-thread completions routed through this pane weren't being viewed; skip.
+      // Re-stamp read so initiation's updated_at bump doesn't re-flag unread.
+      // Skip sub-threads routed through this pane that weren't being viewed.
       if (targetChatId && targetChatId === chatId) {
         void markChatViewed(queryClient, targetChatId);
       }
@@ -527,8 +480,7 @@ export function useStreamCallbacks({
           queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
           queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
         }
-        // Context usage aggregation runs as a background task after the stream
-        // completes; 6s gives it time to finish before we refetch.
+        // Aggregation is a post-stream background task — wait before refetch.
         timerIdsRef.current.push(
           setTimeout(() => {
             queryClient.invalidateQueries({ queryKey: queryKeys.contextUsage(chatId) });
@@ -567,10 +519,7 @@ export function useStreamCallbacks({
 
       const targetChatId = sessionChatId ?? chatId;
 
-      // Mark the assistant message as failed instead of removing it —
-      // the user message and assistant message are already persisted in
-      // the DB by the time the SSE error event arrives. Mirror the backend's
-      // persisted snapshot update here so the live UI matches a refreshed chat.
+      // Don't remove — already persisted; mirror backend snapshot so live UI matches refresh.
       if (assistantMessageId) {
         const markFailed = buildFailedMessageUpdate(streamError);
         if (targetChatId) {
@@ -585,8 +534,7 @@ export function useStreamCallbacks({
 
       if (!isCurrentChat) return;
 
-      // Same read re-stamp as onComplete — a watched failure is still seen
-      // activity, and the initiation bump would otherwise flag the chat unread.
+      // Same read re-stamp as onComplete (watched failure is still seen activity).
       if (targetChatId && targetChatId === chatId) {
         void markChatViewed(queryClient, targetChatId);
       }
@@ -611,9 +559,7 @@ export function useStreamCallbacks({
     ],
   );
 
-  // Handles queue continuation — when the backend picks up a queued follow-up
-  // message, this injects the new user+assistant message pair into both the cache
-  // and React state, and flushes any stale sessions from the previous turn.
+  // Backend picked up a queued follow-up: inject the new pair and flush prior-turn sessions.
   const onQueueProcess = useCallback(
     (data: QueueProcessingData) => {
       if (!chatId) return;
@@ -680,10 +626,7 @@ export function useStreamCallbacks({
         checkpoint_id: data.checkpointId,
       };
 
-      // Cache updates must run even for off-screen chats so returning
-      // within the staleTime window shows the queued continuation messages.
-      // Batch both messages into a single setQueryData call to avoid double
-      // cache churn and subscriber notifications.
+      // Cache even off-screen; single setQueryData for both msgs to avoid double churn.
       queryClient.setQueryData(
         queryKeys.messages(chatId),
         (oldData: { pages: PaginatedMessages[]; pageParams: unknown[] } | undefined) => {
@@ -706,8 +649,7 @@ export function useStreamCallbacks({
 
       setMessages((prev) => [...prev, userMessage, assistantMessage]);
       setCurrentMessageId(data.assistantMessageId);
-      // Anchor the queued turn to the top like a normal send — Chat's anchor
-      // handshake keys off the pending user message id.
+      // Anchor handshake keys off pending user message id (same as normal send).
       setPendingUserMessageId(data.userMessageId);
     },
     [
@@ -721,10 +663,7 @@ export function useStreamCallbacks({
     ],
   );
 
-  // Stash the latest callbacks in a ref so startStream/replayStream — which are
-  // intentionally stable (only the stable queryClient in deps) so re-renders
-  // don't re-fire the effects that consume them — always dispatch through the
-  // freshest closures.
+  // startStream/replayStream stay stable (queryClient-only deps); dispatch via freshest closures.
   optionsRef.current = chatId ? { chatId, onEnvelope, onComplete, onError, onQueueProcess } : null;
 
   const startStream = useCallback(
@@ -748,9 +687,7 @@ export function useStreamCallbacks({
       };
 
       const result = await streamService.startStream(streamOptions);
-      // A first worktree turn creates the worktree during the send request —
-      // patch the cache now so branch/terminal/editor UI switches immediately
-      // instead of waiting for the stream config event.
+      // First worktree turn creates during send — patch now so UI doesn't wait for config event.
       if (result.worktreeCwd) {
         patchChatWorktreeCwd(queryClient, currentOptions.chatId, result.worktreeCwd);
       }

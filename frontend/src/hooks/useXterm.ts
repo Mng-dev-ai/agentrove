@@ -10,10 +10,7 @@ import { buildTerminalTheme } from '@/utils/terminal';
 import type { TerminalSize } from '@/types/sandbox.types';
 import type { Palette } from '@/types/ui.types';
 
-// Write-only OSC 52: an OSC 52 query ('?') from a sandbox process must not be
-// able to read the user's clipboard back through the PTY — tmux copy-mode
-// only needs the write direction. navigator.clipboard is undefined in
-// non-secure contexts (self-hosted plain-http), so degrade to a silent no-op.
+// Write-only OSC 52 — sandbox must not read clipboard via PTY; silent no-op without secure clipboard.
 const WRITE_ONLY_CLIPBOARD: IClipboardProvider = {
   readText: () => Promise.resolve(''),
   writeText: (selection, text) =>
@@ -39,16 +36,14 @@ interface UseXtermReturn {
 
 export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): UseXtermReturn => {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  // Assigned only after open() succeeds, so consumers (fit, theme, writes)
-  // never touch a terminal whose renderer doesn't exist yet.
+  // Set only after open() succeeds — consumers must not touch a missing renderer.
   const terminalRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const searchAddonRef = useRef<SearchAddon | null>(null);
   const [isReady, setIsReady] = useState(false);
   const [initAttempt, setInitAttempt] = useState(0);
 
-  // Route callbacks/theme through refs so the open-once effect and the stable
-  // fitTerminal don't re-run (tearing down the terminal) on parent re-renders.
+  // Refs so open-once / stable fitTerminal don't re-run (and tear down) on re-render.
   const onDataRef = useRef(onData);
   const onFitRef = useRef(onFit);
   const modeRef = useRef(mode);
@@ -57,8 +52,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
   modeRef.current = mode;
 
   const hasInitializedRef = useRef(false);
-  // Once created, keep the terminal alive through visibility toggles so a
-  // hidden tab doesn't lose its scrollback.
+  // Stay alive through visibility toggles so hidden tabs keep scrollback.
   const shouldInitialize = hasInitializedRef.current || isVisible;
 
   const fitTerminal = useCallback((): TerminalSize | null => {
@@ -68,8 +62,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
       return null;
     }
 
-    // proposeDimensions returns undefined/NaN while the wrapper has no size
-    // (hidden tab, mid-layout) — skip instead of resizing to a garbage grid.
+    // Skip zero-size wrappers — would resize to a garbage grid.
     const proposed = fitAddon.proposeDimensions();
     if (!proposed || !Number.isFinite(proposed.rows) || !Number.isFinite(proposed.cols)) {
       return null;
@@ -91,8 +84,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
       return undefined;
     }
 
-    // Opening xterm into a zero-size element makes the renderer measure a
-    // broken cell grid — wait for the wrapper to gain real dimensions first.
+    // Wait for real dimensions — open into zero-size measures a broken cell grid.
     const rect = container.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) {
       const observer = new ResizeObserver((entries) => {
@@ -117,12 +109,11 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
         import('@xterm/addon-search'),
       ]);
 
-      // Wait for the Nerd Font before first paint so the renderer measures
-      // cell dimensions against the real glyphs, not the fallback (cold load).
+      // Measure cells against Nerd Font glyphs, not the cold-load fallback.
       try {
         await document.fonts?.load('12px "JetBrainsMono Nerd Font"');
       } catch {
-        // Font unavailable — open anyway; text falls back to monospace.
+        // Open anyway; text falls back to monospace.
       }
 
       if (cancelled || !container.isConnected) {
@@ -130,15 +121,12 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
       }
 
       xterm = new Terminal({
-        // The search addon's match decorations use registerDecoration, which
-        // xterm still gates as a proposed API.
+        // Search decorations use registerDecoration (still a proposed API).
         allowProposedApi: true,
-        // tmux attaches without the alternate screen (smcup@ override), so this
-        // buffer is the scroll/search history — sized to tmux's history-limit.
+        // No alternate screen (tmux smcup@) — this is scroll/search history.
         scrollback: 10000,
         fontSize: 14,
-        // Nerd Font primary so PUA icon glyphs (eza/ls icons, Starship prompt
-        // symbols) render; generic monospace is only a last-resort fallback.
+        // Nerd Font for PUA icons; monospace only as last-resort fallback.
         fontFamily: '"JetBrainsMono Nerd Font", monospace',
         theme: buildTerminalTheme(modeRef.current),
       });
@@ -146,10 +134,8 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
       xterm.loadAddon(fitAddon);
       const searchAddon = new SearchAddon();
       xterm.loadAddon(searchAddon);
-      // OSC 52 → system clipboard: inner apps (vim, keyboard copy-mode) copy
-      // through tmux's set-clipboard/Ms path and must reach navigator.clipboard.
+      // OSC 52 write path for vim/tmux copy-mode → navigator.clipboard.
       xterm.loadAddon(new ClipboardAddon(undefined, WRITE_ONLY_CLIPBOARD));
-      // Registered once for the terminal's lifetime; dispose() cleans it up.
       xterm.onData((data) => onDataRef.current(data));
       xterm.open(container);
 
@@ -159,8 +145,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
       terminalRef.current = xterm;
       setIsReady(true);
     })().catch((error: unknown) => {
-      // Chunk-load or open() failure — the overlay stays on "Initializing",
-      // and remounting the tab retries from scratch.
+      // Overlay stays on "Initializing"; remount retries from scratch.
       logger.error('Terminal initialization failed', 'useXterm', error);
     });
 
@@ -184,8 +169,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
     terminal.options.theme = buildTerminalTheme(mode);
 
     if (isVisible) {
-      // Refit after the theme swap settles — palette changes can nudge cell
-      // metrics via the renderer's measured styles.
+      // Palette can nudge cell metrics; refit after theme swap settles.
       const frame = requestAnimationFrame(() => {
         fitTerminal();
       });
@@ -225,7 +209,6 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
 
     if (isVisible) {
       scheduleFit();
-      // Late font loads change glyph metrics — refit once everything settled.
       void document.fonts?.ready.then(() => {
         if (!cancelled) {
           fitTerminal();

@@ -8,8 +8,7 @@ import type { PermissionRequest } from '@/types/chat.types';
 import { logger } from '@/utils/logger';
 
 const NOTIFICATION_DURATION_MS = 10_000;
-// Recently-sent permission request IDs — checked before firing an OS notification
-// to prevent duplicates when SSE envelopes replay on reconnection.
+// Dedup OS notifications when SSE envelopes replay on reconnect.
 const NOTIFIED_PERMISSION_REQUESTS = new Set<string>();
 
 function buildPermissionNotification(request: PermissionRequest): { title: string; body: string } {

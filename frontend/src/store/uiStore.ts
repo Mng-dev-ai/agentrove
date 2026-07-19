@@ -36,7 +36,7 @@ interface PendingFileOpen {
   path: string;
   chatId: string | undefined;
   line?: number;
-  // Re-opens can repeat the same path/line after the user scrolls away.
+  // Bumps so re-opening the same path/line still focuses after scroll-away.
   nonce: number;
 }
 
@@ -46,11 +46,11 @@ export interface EditorCodeSelection {
   endLine: number;
   languageId: string;
   text: string;
-  // Set by diff-view review comments; serialized under the code block at send time.
+  // Diff-view review comment; serialized under the code block at send.
   comment?: string;
 }
 
-// Text selected from rendered chat messages — no file/line identity.
+// Chat message selection — no file/line identity.
 export interface ChatTextSelection {
   kind: 'chat';
   text: string;
@@ -63,13 +63,12 @@ type UIStoreState = ThemeState &
   Pick<UIActions, 'setSidebarOpen' | 'setSidebarWidth'> &
   SplitViewState &
   SplitViewActions & {
-    // Sidebar chat-list filters — persisted so a reload keeps the narrowed view
+    // Persisted so reload keeps the narrowed sidebar view.
     sidebarFilters: SidebarFilters;
     setSidebarFilters: (filters: SidebarFilters) => void;
     commandMenuOpen: boolean;
     setCommandMenuOpen: (open: boolean) => void;
-    // Set by `executeCommand` when a mode-switching command (search, files, branches)
-    // reopens the menu, then consumed and cleared by CommandMenu on next open.
+    // Mode-switch commands set this; CommandMenu consumes it on next open.
     pendingMenuMode: MenuMode | null;
     setPendingMenuMode: (mode: MenuMode | null) => void;
     subThreadDialogOpen: boolean;
@@ -80,27 +79,20 @@ type UIStoreState = ThemeState &
     setCreateBranchDialogOpen: (open: boolean) => void;
     createCommitDialogOpen: boolean;
     setCreateCommitDialogOpen: (open: boolean) => void;
-    // `chatId` binds the open/jump to its chat so only that chat's editor tile
-    // claims it (the primary and split editors share these store fields).
-    // `undefined` is the chat-less landing editor, which exposes workspace files
-    // before any chat exists.
+    // chatId binds the jump to one editor tile; undefined = landing editor.
     pendingFileOpen: PendingFileOpen | null;
     openFileInEditor: (path: string, chatId: string | undefined, line?: number) => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
-    // Editor snippets / chat-text selections attached to a chat's input as
-    // removable chips (VS Code "add selection to chat") — serialized into the
-    // prompt only at send time.
+    // Selection chips for a chat's input; serialized into the prompt at send.
     composerSelectionsByChat: Record<string, ComposerSelection[]>;
     addComposerSelection: (chatId: string, selection: ComposerSelection) => void;
     removeComposerSelection: (chatId: string, index: number) => void;
     clearComposerSelections: (chatId: string) => void;
-    // Sandbox of the workspace selected on the landing page. Lets context-less
-    // consumers (the global git shortcuts) resolve a target before a chat exists.
+    // Landing workspace sandbox for git shortcuts before a chat exists.
     workspaceSandboxId: string | null;
     setWorkspaceSandboxId: (sandboxId: string | null) => void;
-    // Working set of chats shown as title-bar tabs — only explicitly opened
-    // chats, ordered by open time; the sidebar remains the full archive.
+    // Title-bar working set (explicitly opened); sidebar is the full archive.
     chatTabs: string[];
     openChatTab: (chatId: string) => void;
     closeChatTab: (chatId: string) => void;
@@ -124,7 +116,6 @@ function splitSlotAt(index: number): SplitSlot {
   return 3;
 }
 
-// Which agent chat a tile belongs to.
 function agentTileFor(tileId: TileId): AgentTileId {
   const slot = splitSlotOfTile(tileId);
   return slot ? splitAgentTile(slot) : 'agent:primary';
@@ -154,25 +145,21 @@ function rebuildSplitGrid(
   };
 }
 
-// Drops tiles from the layout, removing any row left empty.
 function filterLayout(layout: TileId[][], keep: (tileId: TileId) => boolean): TileId[][] {
   return layout.map((row) => row.filter(keep)).filter((row) => row.length > 0);
 }
 
-// Appends a tile to the last row (side-by-side split).
 function appendToLastRow(layout: TileId[][], tileId: TileId): TileId[][] {
   if (layout.length === 0) return [[tileId]];
   return layout.map((row, i) => (i === layout.length - 1 ? [...row, tileId] : row));
 }
 
-// Last tile in layout order — the fallback focus target after a removal.
 function lastVisibleTile(layout: TileId[][]): TileId {
   const flat = layout.flat();
   return flat[flat.length - 1];
 }
 
-// The per-chat tabs we persist exclude transient split-chat tiles. Guards
-// against an all-split layout collapsing to empty.
+// Persist without split-chat tiles so an all-split layout can't collapse empty.
 function ownTabs(openTabs: TileId[], visibleLayout: TileId[][]): WorkspaceLayout {
   const layout = filterLayout(visibleLayout, (t) => !isSplitTile(t));
   return {
@@ -181,17 +168,14 @@ function ownTabs(openTabs: TileId[], visibleLayout: TileId[][]): WorkspaceLayout
   };
 }
 
-// The editor jump is chat-bound; a jump for a chat that's going away (its pane
-// closed/replaced) is stale and would otherwise fire in the wrong tile.
+// Drop jumps for a chat whose pane is going away (would fire in the wrong tile).
 function clearJumpsForChat(state: UIStoreState, chatId: string | null): Partial<UIStoreState> {
   const cleared: Partial<UIStoreState> = {};
   if (state.pendingFileOpen?.chatId === chatId) cleared.pendingFileOpen = null;
   return cleared;
 }
 
-// A pending jump can't survive its own tile being closed. Only the tile that
-// would have claimed it clears it: a split tile owns its bound chat, and the
-// primary owns chats not bound to any split slot.
+// Only the tile that would claim the jump clears it (split owns its chat; primary owns the rest).
 function clearJumpsForTile(state: UIStoreState, tileId: TileId): Partial<UIStoreState> {
   if (tileIdToViewType(tileId) !== 'editor') return {};
   const jump = state.pendingFileOpen;
@@ -339,8 +323,7 @@ export const useUIStore = create<UIStoreState>()(
           },
           openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
         });
-        // Editor already on screen (possibly in a split) — keep the layout and just
-        // focus it; activateTab would collapse the split to a full-view editor.
+        // Already visible — focus only; activateTab would collapse a split.
         if (state.visibleLayout.flat().includes(tileId)) get().focusTile(tileId);
         else get().activateTab(tileId);
       },
@@ -366,18 +349,13 @@ export const useUIStore = create<UIStoreState>()(
 
       focusTile: (tileId) => {
         if (get().focusedTile === tileId) return;
-        // Single focus path for both tab and pane clicks. activeAgentTile is the
-        // coarsening of focusedTile (primary vs split chat). It stays a separate
-        // field because focusedTile is nullable (no interaction yet) while the ~6
-        // imperative coarse readers need an always-defined value — collapsing would
-        // scatter `?? 'agent:primary'` fallbacks across all of them.
+        // activeAgentTile is always-defined coarsening of nullable focusedTile.
         set({ focusedTile: tileId, activeAgentTile: agentTileFor(tileId) });
       },
 
       toggleView: (view, toggle) => {
         const state = get();
-        // Agent is the base view and is never torn down to nothing; toggling it
-        // just closes any split chat or re-focuses the primary pane.
+        // Agent is never torn down; toggle closes split or re-focuses primary.
         if (view === 'agent') {
           if (toggle && state.splitChatIds.length > 0) get().closeSplitChat();
           else get().activateTab('agent:primary');
@@ -385,13 +363,11 @@ export const useUIStore = create<UIStoreState>()(
         }
         const slot = activeSplitSlot(state.activeAgentTile, state.splitChatIds);
         const tileId = viewTypeToTileId(view, slot);
-        // Mobile shows one view; re-tapping the on-screen view returns to agent.
+        // Mobile: one view; re-tap returns to agent.
         if (!isDesktop()) {
           const target =
             toggle && state.visibleLayout[0]?.[0] === tileId ? 'agent:primary' : tileId;
-          // Keep agent:primary open even when a non-agent view fills the screen, so
-          // the Agent command/icon can always switch back to it (activateTab guards
-          // on openTabs membership).
+          // Keep agent:primary in openTabs so activateTab can switch back.
           set({
             openTabs: target === 'agent:primary' ? ['agent:primary'] : ['agent:primary', target],
             visibleLayout: [[target]],
@@ -401,8 +377,7 @@ export const useUIStore = create<UIStoreState>()(
           return;
         }
         if (state.openTabs.includes(tileId)) {
-          // Views have no tabs, so toggle keys on visibility: an on-screen view
-          // closes; one kept mounted in the background resurfaces instead.
+          // Toggle by visibility: on-screen closes; background resurfaces.
           if (toggle && state.visibleLayout.flat().includes(tileId)) get().removeTab(tileId);
           else get().activateTab(tileId);
         } else {
@@ -415,8 +390,7 @@ export const useUIStore = create<UIStoreState>()(
         const state = get();
         const slot = activeSplitSlot(state.activeAgentTile, state.splitChatIds);
         const tileId = viewTypeToTileId(view, slot);
-        // Already on screen — just focus it, don't duplicate it into the layout.
-        // Otherwise 'row' adds it beside the last row, 'column' starts a new row.
+        // Already visible → focus only; else row = beside last, column = new row.
         const visibleLayout = state.visibleLayout.flat().includes(tileId)
           ? state.visibleLayout
           : direction === 'row'
@@ -432,7 +406,7 @@ export const useUIStore = create<UIStoreState>()(
 
       removeTab: (tileId) => {
         const state = get();
-        // The base agent tab can't be closed; a split agent tears down its chat pane.
+        // agent:primary can't close; split agent tears down its chat pane.
         if (tileId === 'agent:primary' || !state.openTabs.includes(tileId)) return;
         const splitSlot = splitSlotOfTile(tileId);
         if (tileIdToViewType(tileId) === 'agent' && splitSlot) {
@@ -441,9 +415,7 @@ export const useUIStore = create<UIStoreState>()(
         }
         const openTabs = state.openTabs.filter((t) => t !== tileId);
         let visibleLayout = filterLayout(state.visibleLayout, (t) => t !== tileId);
-        // Never leave an empty viewport — closing a full-screen view lands back on
-        // its own chat's agent pane, not whatever background view happened to
-        // be opened last.
+        // Never empty the viewport — fall back to this chat's agent pane.
         if (visibleLayout.length === 0) {
           const owner = agentTileFor(tileId);
           visibleLayout = [[openTabs.includes(owner) ? owner : 'agent:primary']];
@@ -453,7 +425,6 @@ export const useUIStore = create<UIStoreState>()(
           visibleLayout,
           ...clearJumpsForTile(state, tileId),
         };
-        // If the focused tile went away, re-aim at a surviving visible pane.
         if (state.focusedTile === tileId) {
           const next = lastVisibleTile(visibleLayout);
           patch.focusedTile = next;
@@ -462,8 +433,7 @@ export const useUIStore = create<UIStoreState>()(
         set(patch);
       },
 
-      // Resets to a single agent view AND tears down any split chat.
-      // Detaches from any chat so the next chat entry restores its own tabs.
+      // Single agent view, no split; detaches so the next chat restores its tabs.
       resetWorkspace: () =>
         set({
           openTabs: ['agent:primary'],
@@ -476,12 +446,10 @@ export const useUIStore = create<UIStoreState>()(
 
       loadWorkspaceForChat: (chatId) => {
         const state = get();
-        // Visiting a chat adds it to the title-bar working set — runs before the
-        // early return so a rehydrated same-chat entry still keeps its tab.
+        // Before early-return so same-chat rehydrate still keeps the title tab.
         get().openChatTab(chatId);
         if (state.currentWorkspaceChatId === chatId) return;
         const layoutsByChat = { ...state.layoutsByChat };
-        // Stash the chat we're leaving before swapping in the new one's tabs.
         if (state.currentWorkspaceChatId) {
           layoutsByChat[state.currentWorkspaceChatId] = ownTabs(
             state.openTabs,
@@ -521,19 +489,14 @@ export const useUIStore = create<UIStoreState>()(
           editorByChat,
           layoutsByChat,
           chatTabs: state.chatTabs.filter((id) => id !== chatId),
-          // Deleting the on-screen chat navigates away after this runs, and
-          // ChatPage's unmount stash would write the deleted entry right back —
-          // null the live pointer so that stash no-ops (same resurrection guard
-          // as cleanupAllChats).
+          // Null live pointer so ChatPage unmount stash can't resurrect the deleted chat.
           ...(state.currentWorkspaceChatId === chatId ? { currentWorkspaceChatId: null } : {}),
         });
         clearTerminalStorage(chatId);
       },
 
       cleanupAllChats: () => {
-        // The live workspace (openTabs, currentWorkspaceChatId, split) may still
-        // reference a deleted chat — without the reset, the next
-        // loadWorkspaceForChat would stash it right back into layoutsByChat.
+        // Reset first so the next loadWorkspaceForChat can't re-stash deleted chats.
         get().resetWorkspace();
         set({ editorByChat: {}, layoutsByChat: {}, chatTabs: [] });
         clearTerminalStorage();
@@ -551,8 +514,7 @@ export const useUIStore = create<UIStoreState>()(
           return;
         }
         if (state.splitChatIds.length >= MAX_CHAT_PANES - 1) return;
-        // A chat opened in split joins the working set — it stays reachable from
-        // the tab strip after the split closes.
+        // Join working set so the chat stays in the tab strip after split closes.
         get().openChatTab(chatId);
         const splitChatIds = [...state.splitChatIds, chatId];
         const resetFocus: Pick<UIStoreState, 'activeAgentTile' | 'focusedTile'> = {
@@ -633,27 +595,19 @@ export const useUIStore = create<UIStoreState>()(
         theme: state.theme,
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,
-        // Status filters read session-only stream state that's empty at mount —
-        // persisting them would rehydrate a view that can't match anything.
-        // Only the durable dimensions (agent/source/workspace) survive reloads.
+        // Status filters are session-only (empty at mount) — don't persist them.
         sidebarFilters: { ...state.sidebarFilters, statuses: [] },
         splitChatIds: state.splitChatIds,
-        // Persist the live workspace so a refresh restores the active view/tabs.
-        // currentWorkspaceChatId must rehydrate too: loadWorkspaceForChat
-        // early-returns when it matches the route chat, leaving this layout intact
-        // instead of resetting to the default agent view.
+        // Live workspace + currentWorkspaceChatId so refresh doesn't reset layout.
         openTabs: state.openTabs,
         visibleLayout: state.visibleLayout,
         currentWorkspaceChatId: state.currentWorkspaceChatId,
-        // Persist each chat's open files + active file so a refresh reopens what
-        // the user had open, instead of rehydrating to an empty editor.
         editorByChat: state.editorByChat,
         chatTabs: state.chatTabs,
       }),
       version: 1,
       migrate: migrateUIState,
-      // Backfill filter fields added after a user first persisted state (e.g.
-      // groupBy) — the default shallow merge would rehydrate them as undefined.
+      // Backfill new filter fields (e.g. groupBy) the shallow merge would leave undefined.
       merge: (persisted, current) => {
         const stored = persisted as Partial<UIStoreState> | undefined;
         return {

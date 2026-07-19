@@ -4,11 +4,7 @@ import { registerActiveStreams } from '@/utils/activeStreams';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { cloudChatService } from '@/services/cloudChatService';
 
-// Restores active VPS streams in one bulk request — the cloud instance runs the
-// same backend as local, so its registry-backed active-streams endpoint covers
-// every chat and sub-thread without a per-chat status fan-out. Runs once per
-// connection (keyed by cloudUrl); streams started while the app is open arrive
-// live via useCloudChatEvents.
+// Bulk restore active VPS streams once per connection; live starts go via useCloudChatEvents.
 export function useCloudStreamRestoration({ enabled }: { enabled: boolean }) {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
 

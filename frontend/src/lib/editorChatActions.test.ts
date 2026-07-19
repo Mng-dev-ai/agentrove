@@ -8,8 +8,7 @@ vi.mock('@/store/uiStore', () => ({
 
 import { attachAddSelectionToChat, attachAskAboutSelection } from './editorChatActions';
 
-// Minimal Monaco keybinding stand-in — the action factory only reads these to
-// build its keybinding array.
+// Keybinding constants the action factory reads.
 const monaco = { KeyMod: { CtrlCmd: 1 }, KeyCode: { KeyL: 2, KeyI: 3 } };
 
 interface FakeSelection {
@@ -20,8 +19,7 @@ interface FakeSelection {
   endColumn: number;
 }
 
-// Builds a fake editor plus a handle to invoke whatever action the module
-// registers, mimicking Monaco firing the command.
+// Fake editor + handle to invoke the registered action.
 function makeEditor(opts: {
   selection: FakeSelection | null;
   value?: string;

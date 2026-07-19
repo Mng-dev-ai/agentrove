@@ -4,13 +4,10 @@ import type { TileId } from '@/types/ui.types';
 import styles from './WorkspaceSplit.module.scss';
 
 interface WorkspaceSplitProps {
-  // All open tabs — every one is mounted so background panes keep their state.
+  // Every open tab is mounted so background panes keep state.
   openTabs: TileId[];
-  // Rows of on-screen tiles: rows stack vertically, tiles in a row sit side by side.
   visibleLayout: TileId[][];
-  // `isVisible` tells the renderer whether this tile is currently on screen — a
-  // background tab is mounted but hidden, so visibility-driven effects (terminal
-  // fit/focus) must not fire for it.
+  // isVisible false for mounted-but-hidden tabs (skip terminal fit/focus, etc.).
   renderView: (tileId: TileId, isVisible: boolean) => ReactNode;
 }
 
@@ -30,10 +27,8 @@ function lcm(a: number, b: number): number {
   return (a * b) / gcd(a, b);
 }
 
-// Flat split via CSS grid: every open tab renders in a stable position (no remount
-// when it moves between visible and background, or between rows); only its grid
-// placement and `display` change. Rows share a column grid sized to the LCM of the
-// row lengths so tiles in differently-sized rows stay equal-width within their row.
+// Stable CSS-grid positions (no remount when visibility/row changes). Column count
+// is LCM of row lengths so tiles stay equal-width within each row.
 export function WorkspaceSplit({ openTabs, visibleLayout, renderView }: WorkspaceSplitProps) {
   const { placements, rows, cols } = useMemo(() => {
     const rowCount = visibleLayout.length;
@@ -65,7 +60,6 @@ export function WorkspaceSplit({ openTabs, visibleLayout, renderView }: Workspac
       {openTabs.map((tileId) => {
         const p = placements.get(tileId);
         if (!p) {
-          // Mounted but off-screen — kept alive so its state survives.
           return (
             <div key={tileId} className={styles['tile-hidden']}>
               {renderView(tileId, false)}

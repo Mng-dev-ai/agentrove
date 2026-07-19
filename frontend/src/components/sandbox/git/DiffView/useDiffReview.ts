@@ -19,15 +19,11 @@ interface UseDiffReviewParams {
   collapsedFiles: Set<string>;
   setCollapsedFiles: Dispatch<SetStateAction<Set<string>>>;
   toggleCollapsed: (name: string) => void;
-  // Files we collapsed because they were marked reviewed. Owned by the parent
-  // (its scope-reset clears it) and shared with the scroll hook, so it's passed
-  // in rather than created here.
+  // Parent-owned (scope-reset clears it); shared with the scroll hook.
   reviewCollapsedRef: RefObject<Set<string>>;
 }
 
-// GitHub-style "Viewed" tracking: which files are marked reviewed, plus the
-// collapse ownership that mirrors it (auto-collapse on review, reopen on
-// un-review / content-invalidation) without fighting the user's manual choices.
+// GitHub-style "Viewed" + auto-collapse that yields to the user's manual toggles.
 export function useDiffReview({
   parsedFiles,
   scopeKey,

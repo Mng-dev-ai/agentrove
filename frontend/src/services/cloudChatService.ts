@@ -14,14 +14,10 @@ import type { Chat, ChatRequest, ChatSearchResponse, CreateChatRequest } from '@
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
 import type { PaginatedChats, PaginatedResponse } from '@/types/api.types';
 
-// Log into the VPS and persist its refresh token. The remote client mints
-// access tokens from it on demand, so the desktop stays connected across restarts.
+// Log into the VPS and persist its refresh token for reconnect across restarts.
 async function connect(url: string, email: string, password: string): Promise<void> {
-  // Store the URL slash-trimmed — consumers compose paths like `${cloudUrl}/chat/{id}`.
   const trimmedUrl = trimTrailingSlash(url);
-  // The login must hit the new host, but a failed attempt while connected to
-  // another VPS must not leave remoteApiClient pointed at a URL that never
-  // authenticated — existing cloud chats would misroute until reconnect/reload.
+  // On failed login, restore previous URL so existing cloud chats don't misroute.
   const previousUrl = useCloudSettingsStore.getState().cloudUrl;
   setCloudApiBaseUrl(trimmedUrl);
   const formData = new FormData();
@@ -47,9 +43,7 @@ function disconnect(): void {
   useCloudSettingsStore.getState().clearCloud();
 }
 
-// List chats on the VPS and register their chat + sandbox IDs as cloud-owned so
-// chatService and sandboxService route their reads, status checks, SSE streams,
-// stops, files, git, and terminal back to the VPS.
+// List VPS chats and mark chat/sandbox IDs cloud-owned for routing.
 async function listChats(params?: { page?: number; per_page?: number }): Promise<PaginatedChats> {
   return serviceCall(async () => {
     const queryString = buildQueryString(params);
@@ -65,15 +59,13 @@ async function listWorkspaces(): Promise<Workspace[]> {
   return serviceCall(async () => {
     const response = await remoteApiClient.get<PaginatedResponse<Workspace>>('/workspaces');
     const workspaces = ensureResponse(response, 'Failed to load cloud workspaces').items;
-    // Register sandbox IDs as cloud-owned so per-sandbox calls (git, files,
-    // terminal) route to the VPS, not the local backend.
+    // Mark sandboxes cloud-owned so git/files/terminal hit the VPS.
     markCloudSandboxes(workspaces.map((ws) => ws.sandbox_id).filter((id): id is string => !!id));
     return workspaces;
   });
 }
 
-// Search the VPS's chats — the search panel merges these with local results.
-// Marks returned chat IDs cloud-owned so opening a result routes to the VPS.
+// Search VPS chats (merged with local in the panel); mark results cloud-owned.
 async function searchChats(query: string): Promise<ChatSearchResponse> {
   return serviceCall(async () => {
     const queryString = buildQueryString({ q: query });
@@ -109,17 +101,14 @@ async function deleteWorkspace(workspaceId: string): Promise<void> {
   });
 }
 
-// Cloud half of Settings → "Delete All Chats": the sidebar presents one merged
-// list, so the wipe must reach the VPS's chats too.
+// Cloud half of "Delete All Chats" (sidebar merges local + VPS).
 async function deleteAllChats(): Promise<void> {
   await serviceCall(async () => {
     await remoteApiClient.delete('/chat/chats/all');
   });
 }
 
-// Fetch a VPS workspace's skills and builtin slash-commands. The landing
-// composer needs these before a chat exists, so there's no chatId to route by —
-// call the VPS directly instead of going through resolveChatClient.
+// Landing composer needs skills before a chat exists — call VPS directly.
 async function getWorkspaceResources(workspaceId: string): Promise<WorkspaceResources> {
   return serviceCall(async () => {
     const response = await remoteApiClient.get<WorkspaceResources>(
@@ -129,9 +118,7 @@ async function getWorkspaceResources(workspaceId: string): Promise<WorkspaceReso
   });
 }
 
-// Fetch VPS user settings. Only personas are consumed from the landing page —
-// the local settings (env vars, GitHub token, etc.) are separate. The VPS runs
-// the same backend, so the endpoint shape matches.
+// VPS settings (landing uses personas); same endpoint shape as local backend.
 async function getSettings(): Promise<UserSettings> {
   return serviceCall(async () => {
     const response = await remoteApiClient.get<UserSettings>('/settings/');
@@ -139,17 +126,14 @@ async function getSettings(): Promise<UserSettings> {
   });
 }
 
-// Start the run on the VPS. The desktop doesn't consume the stream — the VPS
-// owns and persists it.
+// Start a VPS run; the VPS owns the stream (desktop doesn't consume it).
 async function startCompletion(request: ChatRequest): Promise<void> {
   await serviceCall(async () => {
     await remoteApiClient.postForm('/chat/chat', buildChatFormData(request));
   });
 }
 
-// Bulk snapshot of every active stream on the VPS — the same registry-backed
-// endpoint local restoration uses, so no per-chat status fan-out. Marks the chat
-// IDs cloud-owned so reconnects and status checks route back to the VPS.
+// Bulk active-stream snapshot; mark chat IDs cloud-owned for reconnect routing.
 async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
   return serviceCall(async () => {
     const response = await remoteApiClient.get<ActiveStreamSnapshot[]>(
@@ -161,9 +145,7 @@ async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
   });
 }
 
-// Per-user chat lifecycle SSE feed from the VPS — the cloud twin of
-// chatService.createChatEventsSource. Async because EventSource bypasses
-// APIClient's 401→refresh path, so the token must be minted up front.
+// VPS chat lifecycle SSE. Mint token up front — EventSource skips 401 refresh.
 async function createChatEventsSource(): Promise<EventSource> {
   const token = await remoteApiClient.getValidToken();
   if (!token) {

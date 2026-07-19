@@ -82,7 +82,6 @@ class GitCommitRequest(BaseModel):
 
 class GitRestoreFileRequest(BaseModel):
     file_path: str = Field(..., min_length=1, max_length=4096)
-    # Pre-rename path, when the change is a rename; None otherwise.
     old_path: str | None = Field(default=None, min_length=1, max_length=4096)
     cwd: str | None = None
 
@@ -113,6 +112,5 @@ class SearchFileResult(BaseModel):
 
 class SearchResponse(BaseModel):
     results: list[SearchFileResult]
-    # True when either per-file or total match caps were hit — the UI should
-    # show a "showing first N" hint so the user knows there's more.
+    # Caps hit — UI should show a "showing first N" hint.
     truncated: bool

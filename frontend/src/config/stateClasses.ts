@@ -1,5 +1,4 @@
 // TS mirror of src/styles/globals/_state-classes.scss — keep the two in sync.
-// Usage: clsx(styles['chat-row'], isSelected && stateClasses.SELECTED)
 export const stateClasses = {
   HOVER: 'is-hover',
   ACTIVE: 'is-active',

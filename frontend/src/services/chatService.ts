@@ -16,8 +16,7 @@ import type { CursorPaginationParams, PaginatedChats, PaginatedMessages } from '
 import type { ComposerSelection } from '@/store/uiStore';
 
 export function buildChatFormData(request: ChatRequest): FormData {
-  // Single encoding of the /chat/chat multipart contract — shared with
-  // cloudChatService so new fields can't silently drift between local and cloud.
+  // Shared with cloudChatService so multipart fields can't drift.
   const formData = new FormData();
   formData.append('prompt', request.prompt);
 
@@ -66,8 +65,7 @@ async function createCompletion(
 
       const payload = ensureResponse(taskResponse, 'Failed to start chat completion');
 
-      // Seed the replay cursor for the multiplexed feed: events published before
-      // the shared connection (re)opens are recovered by replaying after last_seq.
+      // Seed multiplexed-feed cursor so events before (re)open can be replayed.
       const storedSeq = normalizePositiveInt(chatStorage.getEventId(payload.chat_id));
       const providedSeq = normalizePositiveInt(payload.last_seq);
       if (providedSeq > storedSeq) {
@@ -84,9 +82,7 @@ async function createCompletion(
   );
 }
 
-// Fires a turn server-side without opening a client EventSource — used to start
-// background sub-threads (e.g. stream actions). The server runs the turn as a
-// background task; the client reconnects to the stream when the chat is opened.
+// Server-side turn without a client EventSource (background sub-threads).
 async function startCompletion(request: ChatRequest): Promise<{ messageId: string }> {
   validateRequired(request.prompt, 'Prompt');
 
@@ -111,8 +107,7 @@ async function checkChatStatus(chatId: string): Promise<{
 }
 
 async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
-  // Local backend only — its runtime registry covers every local chat and
-  // sub-thread, so startup restoration needs a single request.
+  // Local registry only — one request covers every local chat/sub-thread.
   return serviceCall(async () => {
     const streams = await apiClient.get<ActiveStreamSnapshot[]>('/chat/chats/active-streams');
     return streams ?? [];
@@ -173,8 +168,7 @@ async function getChat(chatId: string): Promise<Chat> {
   return serviceCall(async () => {
     const response = await resolveChatClient(chatId).get<Chat>(`/chat/chats/${chatId}`);
     const chat = ensureResponse(response, 'Failed to fetch chat');
-    // Register a cloud chat's sandbox so its files/git/terminal route to the VPS
-    // even on a cold deep-link, before the sidebar list has run.
+    // Deep-link: mark sandbox cloud-owned before the sidebar list has run.
     if (isCloudChat(chatId)) {
       markCloudSandboxes([chat.sandbox_id]);
     }
@@ -184,9 +178,7 @@ async function getChat(chatId: string): Promise<Chat> {
 
 async function createChat(data: CreateChatRequest): Promise<Chat> {
   return serviceCall(async () => {
-    // A sub-thread inherits its parent's backend — route to the cloud VPS when the
-    // parent lives there, then mark the child (and its sandbox) cloud-owned so its
-    // turns, files, and terminal follow it instead of falling back to local.
+    // Sub-thread inherits parent backend; mark child cloud-owned when parent is.
     const parentChatId = data.parent_chat_id;
     const response = await resolveChatClient(parentChatId).post<Chat>('/chat/chats', data);
     const chat = ensureResponse(response, 'Failed to create chat');
@@ -244,10 +236,7 @@ function normalizePositiveInt(value: unknown): number {
 }
 
 async function createChatEventsSource(): Promise<EventSource> {
-  // Local backend only — the VPS feed is opened separately via
-  // cloudChatService.createChatEventsSource, against the remote client's auth.
-  // EventSource bypasses APIClient's 401→refresh path and access tokens are
-  // short-lived, so mint a valid token up front instead of using the cached one.
+  // Local only (VPS uses cloudChatService). Mint token — EventSource skips 401 refresh.
   const token = await apiClient.getValidToken();
   if (!token) {
     throw new Error('Authentication token required');
@@ -264,8 +253,6 @@ async function getSubThreads(chatId: string): Promise<Chat[]> {
       `/chat/chats/${chatId}/sub-threads`,
     );
     const subThreads = ensureResponse(response, 'Failed to fetch sub-threads');
-    // A cloud parent's sub-threads live on the VPS too — register them so opening
-    // one routes its stream/files/terminal to the cloud, not local.
     if (isCloudChat(chatId)) {
       markCloudChats(subThreads.map((chat) => chat.id));
       markCloudSandboxes(subThreads.map((chat) => chat.sandbox_id));
@@ -333,7 +320,7 @@ async function askAboutCode(
   validateRequired(modelId, 'Model ID');
 
   return serviceCall(async () => {
-    // Chat-text selections have no file identity — the location fields stay unset.
+    // Chat-text selections have no file/line — leave location fields unset.
     const location =
       'kind' in selection
         ? {}
@@ -369,8 +356,7 @@ async function generateChatTitle(chatId: string): Promise<string> {
   });
 }
 
-// Keyed by messageId but lives on whichever backend owns the chat, so callers
-// thread chatId through purely for routing.
+// chatId is routing-only; the checkpoint is keyed by messageId on that backend.
 async function restoreMessageCheckpoint(
   chatId: string | undefined,
   messageId: string,

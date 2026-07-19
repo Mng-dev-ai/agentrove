@@ -26,7 +26,6 @@ export const BranchSelector = memo(function BranchSelector({
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
   const checkoutBranch = useCheckoutBranchMutation();
 
-  // Pin current branch at top with a divider separating it from the rest
   const groupedItems = useMemo<DropdownItemType<string>[]>(() => {
     if (!branchesData) return [];
     const current = branchesData.current_branch;

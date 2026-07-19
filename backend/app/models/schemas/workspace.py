@@ -53,7 +53,6 @@ class Workspace(BaseModel):
 
 class WorkspaceResources(BaseModel):
     skills: list[CustomSkill] = Field(default_factory=list)
-    # Keyed by agent kind ("claude", "codex")
     builtin_slash_commands: dict[str, list[BuiltinSlashCommand]] = Field(
         default_factory=dict
     )

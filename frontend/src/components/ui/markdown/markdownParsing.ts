@@ -6,22 +6,17 @@ import { MENTION_PILL_CLASSNAME } from '../shared/HighlightedText/HighlightedTex
 
 export const MATH_PATTERN = /(^|[^\\])(\$[^$\n]+\$|\$\$[\s\S]*?\$\$|\\\(|\\\[)/;
 
-// Matches an unclosed ```visualizer block at the end of streaming content.
-// Captures the partial content so it can be rendered as a live preview.
+// Unclosed ```visualizer at stream end — partial body for live preview.
 const UNCLOSED_VISUALIZER_RE = /```visualizer\n([\s\S]*)$/;
 
-// Matches just the opening fence without any content yet (no newline after "visualizer").
+// Opening fence only (no newline after "visualizer").
 const OPENING_VISUALIZER_RE = /```visualizer$/;
 
-// Matches a complete ```visualizer ... ``` block.
 const CLOSED_VISUALIZER_RE = /```visualizer\n([\s\S]*?)```/g;
 
-// Matches a line that can safely start a new markdown block. Indented lines,
-// list items, and blockquote lines must stay attached to the previous block —
-// splitting a loose list or nested content would change how it renders.
+// Safe to start a new block; indented/list/blockquote lines must stay attached.
 const SAFE_BLOCK_START_RE = /^(?![ \t]|[-*+] |\d+[.)] |>)\S/;
-// Captures the fence marker and any trailing info string separately — closing
-// a fence requires matching the opening marker, not just any 3+ fence chars.
+// Fence marker + info string separate — closer must match opener, not any 3+ fence.
 const CODE_FENCE_LINE_RE = /^\s*(`{3,}|~{3,})(.*)$/;
 const MATH_FENCE_LINE_RE = /^\s*\$\$\s*$/;
 
@@ -38,10 +33,8 @@ export const createImageAttachment = (url: string, alt?: string): MessageAttachm
   };
 };
 
-// Split content into segments: markdown text and visualizer blocks.
-// Completed blocks are rendered with stable keys outside react-markdown so they
-// survive parent re-renders during streaming without iframe remount.
-// Unclosed visualizer fences (still streaming) are rendered as live previews.
+// Split md vs visualizer blocks; completed visualizers stay keyed outside react-markdown
+// so streaming parent re-renders don't remount iframes.
 export function splitVisualizerBlocks(raw: string): MarkdownSegment[] {
   const segments: MarkdownSegment[] = [];
   let lastIndex = 0;
@@ -55,14 +48,13 @@ export function splitVisualizerBlocks(raw: string): MarkdownSegment[] {
 
   const remainder = raw.slice(lastIndex);
 
-  // Check for an unclosed visualizer fence with partial content (live preview)
   const unclosedMatch = remainder.match(UNCLOSED_VISUALIZER_RE);
   if (unclosedMatch) {
     const before = remainder.slice(0, unclosedMatch.index);
     if (before) segments.push({ type: 'md', content: before });
     if (unclosedMatch[1]) segments.push({ type: 'visualizer', content: unclosedMatch[1] });
   } else if (OPENING_VISUALIZER_RE.test(remainder)) {
-    // Just the opening fence, no content yet — strip it from markdown
+    // Opening fence only — strip it from markdown
     const before = remainder.replace(OPENING_VISUALIZER_RE, '');
     if (before) segments.push({ type: 'md', content: before });
   } else {
@@ -72,12 +64,8 @@ export function splitVisualizerBlocks(raw: string): MarkdownSegment[] {
   return segments;
 }
 
-// Split markdown into block-level chunks at blank lines outside code/math
-// fences. Streaming only appends text, so completed chunks stay byte-identical
-// across flushes and their memoized renderers skip re-parsing entirely.
-// Blocks parse in isolation, breaking cross-block reference links/footnotes —
-// so this only runs on actively streaming content; static renders and the
-// final parse at stream end get full document semantics.
+// Chunk at blank lines outside fences so streaming keeps completed blocks byte-identical
+// (memo skips re-parse). Isolation breaks cross-block refs — only use while streaming.
 export function splitMarkdownBlocks(md: string): string[] {
   const lines = md.split('\n');
   const blocks: string[] = [];
@@ -125,7 +113,7 @@ export function splitMarkdownBlocks(md: string): string[] {
 }
 
 function buildMentionPillNodes(value: string): ElementContent[] | null {
-  // Null when the text holds no tokens so the caller can keep the original node.
+  // null → caller keeps the original node (no tokens)
   const segments = buildHighlightSegments(value);
   if (!segments.some((segment) => segment.isToken)) return null;
   return segments.map((segment) =>

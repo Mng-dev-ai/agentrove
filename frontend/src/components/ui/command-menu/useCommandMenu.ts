@@ -104,7 +104,6 @@ export function useCommandMenu() {
   useEffect(() => {
     if (isOpen) {
       previousFocusRef.current = document.activeElement;
-      // switchMode also focuses the right input for the target mode.
       const ui = useUIStore.getState();
       switchMode(ui.pendingMenuMode ?? 'all');
       ui.setPendingMenuMode(null);
@@ -126,7 +125,6 @@ export function useCommandMenu() {
     [close, queryClient, navigate, sandboxId, worktreeCwd],
   );
 
-  // Commands either dispatch an action or switch the menu into a sub-mode/filter.
   const runCommand = useCallback(
     (cmd: CommandItem) => {
       const nextMode = COMMAND_TO_MODE[cmd.id];

@@ -13,11 +13,7 @@ interface UseContextUsageStateResult {
   updateContextUsage: (data: ContextUsage, chatId?: string) => void;
 }
 
-// Three sources feed token usage, each arriving at different times:
-// (1) the chat object's cached `context_token_usage` for instant display on
-// navigation, (2) the dedicated context-usage query for accurate numbers
-// after load, and (3) live SSE system envelopes during streaming via
-// `updateContextUsage`. Whichever writes last wins.
+// Token usage from chat cache (nav), context-usage query (load), or live SSE — last write wins.
 export function useContextUsageState(
   chatId: string | undefined,
   currentChat: Chat | undefined,
@@ -59,8 +55,7 @@ export function useContextUsageState(
     setTokensUsed(contextUsageData.tokens_used);
   }, [chatId, contextUsageData]);
 
-  // Called from SSE system envelopes during streaming. Ignores updates for
-  // off-screen chats so token counts don't bleed across chat switches.
+  // Ignore off-screen chat updates so counts don't bleed across switches.
   const updateContextUsage = useCallback((data: ContextUsage, incomingChatId?: string) => {
     if (incomingChatId && incomingChatId !== currentChatIdRef.current) {
       return;

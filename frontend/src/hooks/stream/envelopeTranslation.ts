@@ -10,9 +10,7 @@ export function extractPayloadData(
     : undefined;
 }
 
-// Side-effect-only envelope kinds (system, permission_request) are handled
-// upstream in onEnvelope — this function only converts content-bearing kinds
-// into the AssistantStreamEvent shape consumed by the buffer.
+// Content-bearing kinds only; system/permission_request are handled in onEnvelope.
 export function envelopeToRenderEvent(envelope: StreamEnvelope): AssistantStreamEvent | null {
   const payload = envelope.payload as Record<string, unknown>;
 

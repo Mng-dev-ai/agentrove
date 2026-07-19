@@ -99,10 +99,7 @@ def real_sandbox(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture
 def real_skill_service(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
-    # The autouse fake_skill_service fixture above overrides get_skill_service
-    # for every test in this module. Real SkillService also branches on
-    # DESKTOP_MODE — force server mode so the global skill dir resolves under
-    # STORAGE_PATH regardless of DESKTOP_MODE leaking from the host shell env.
+    # Force server mode so global skills resolve under STORAGE_PATH.
     monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
     del app.dependency_overrides[get_skill_service]
 
@@ -611,9 +608,7 @@ async def test_real_skill_service_discovers_enabled_claude_plugin_skills(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    # Server mode resolves the plugin config under the owner's agent home —
-    # isolate under the per-test tmp dir, and create the workspace first since
-    # the agent home is keyed by the owner's user id.
+    # Plugin config under owner agent home — create workspace first (user id).
     monkeypatch.setattr(get_settings(), "STORAGE_PATH", str(tmp_path))
     headers, workspace_id, workspace_path = await create_real_workspace(
         client,

@@ -53,9 +53,7 @@ TRANSPORT_FATAL_TYPES = (
     OSError,
 )
 
-# Events that contribute to the accumulated message snapshot (text, tools, etc.).
-# These are buffered and flushed in batches rather than persisted one-by-one,
-# unlike control events (stream_started, complete, error) which go to DB immediately.
+# Snapshot-contributing events (text/tools/etc.) — batched; control events persist immediately.
 SNAPSHOT_EVENT_KINDS = frozenset(
     {
         "assistant_text",
@@ -71,9 +69,7 @@ SNAPSHOT_EVENT_KINDS = frozenset(
 
 
 class ChatStreamRuntime:
-    # Class-level registry of in-process background stream tasks, keyed by task
-    # so we can track which chats are actively streaming, await them on shutdown,
-    # and prevent duplicate streams for the same chat.
+    # Background stream tasks by asyncio.Task — track chats, await shutdown, block duplicates.
     _background_task_chat_ids: dict[asyncio.Task[str], str] = {}
 
     def __init__(
@@ -361,10 +357,7 @@ class ChatStreamRuntime:
                 )
 
     async def _flush_snapshot(self, *, force: bool) -> None:
-        # Debounced persistence: batch buffered events and snapshot to DB at most
-        # every 200ms or 24 events, whichever comes first. This avoids a DB write
-        # per token while keeping the persisted state reasonably fresh for SSE
-        # reconnection catch-up.
+        # Debounce DB writes (max every 200ms or 24 events) for SSE catch-up freshness.
         if not self.assistant_message_id:
             return
         if not force:
@@ -390,8 +383,7 @@ class ChatStreamRuntime:
         stream_result: StreamResult,
         stream_status: MessageStreamStatus,
     ) -> int | None:
-        # Returns the persisted run duration so the terminal event can carry it
-        # to the live client without waiting for a refetch.
+        # Persist duration so the terminal event can carry it without a refetch.
         if not self.assistant_message_id:
             return None
         await self._flush_event_buffer()
@@ -429,10 +421,7 @@ class ChatStreamRuntime:
                     apply_snapshot=False,
                 )
         elif status == MessageStreamStatus.INTERRUPTED:
-            # Close the stream generator before starting the send-now
-            # replacement. This ensures the old prompt_task is fully
-            # cancelled (and its handler.finish() sentinel already fired)
-            # before the new prompt begins on the same shared handler.
+            # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
             await self._close_stream()
             if await self._process_next_queued(
                 send_now_only=True, prior_duration_ms=duration_ms
@@ -531,7 +520,7 @@ class ChatStreamRuntime:
                 model_id=next_msg["model_id"],
                 stream_status=MessageStreamStatus.IN_PROGRESS,
             )
-            # Inline import to avoid circular dependency with chat.py.
+            # Avoid circular import with chat.py.
             from app.services.chat import ChatService
 
             checkpoint_id = await ChatService.create_checkpoint_for_message(
@@ -672,7 +661,7 @@ class ChatStreamRuntime:
             )
             await db.commit()
 
-        # Inline import to avoid circular dependency with chat.py.
+        # Avoid circular import with chat.py.
         from app.services.chat import ChatService
 
         # Push the title to open sessions so the sidebar/tab update mid-stream
@@ -883,7 +872,7 @@ class ChatStreamRuntime:
                 if not chat:
                     raise AgentException(f"Chat {chat_id} not found for idle send-now")
 
-            # Inline import to avoid circular dependency with chat.py.
+            # Avoid circular import with chat.py.
             from app.services.chat import ChatService
 
             await ChatService.create_checkpoint_for_message(

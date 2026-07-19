@@ -20,8 +20,6 @@ interface UseInputSuggestionsOptions {
   agentKind: AgentKind;
 }
 
-// Slash-command and @mention suggestion dropdowns, plus the shared token-insertion
-// path that replaces the active `/` or `@` query with the chosen value.
 export function useInputSuggestions({
   message,
   cursorPosition,

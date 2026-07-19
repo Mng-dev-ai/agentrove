@@ -62,7 +62,6 @@ export function WorkspaceItem({
   const showBranchSelector = showBranches && branchesData?.is_git_repo === true;
   const branches = branchesData?.branches ?? EMPTY_BRANCHES;
 
-  // Pin current branch at top so it's always visible without scrolling
   const currentBranch = branchesData?.current_branch;
   const sortedBranches = useMemo(() => {
     const searchLower = branchSearch.toLowerCase();
@@ -166,7 +165,6 @@ export function WorkspaceItem({
                       <div className={styles['branch-rows']}>
                         {sortedBranches.map((branch, index) => {
                           const isCurrent = branch === branchesData.current_branch;
-                          // Divider after pinned current branch to visually separate it
                           const showDivider = isCurrent && index === 0 && sortedBranches.length > 1;
                           return (
                             <div key={branch}>

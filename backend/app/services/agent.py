@@ -198,10 +198,7 @@ class AgentService:
         event_queue: asyncio.Queue[StreamEvent | object],
         prompt_task: asyncio.Task[None],
     ) -> AsyncIterator[StreamEvent]:
-        # Yield events from the queue while the prompt task is running. Uses
-        # asyncio.wait so we notice if the prompt task finishes (or fails) while
-        # we're blocked waiting for the next event. Once the prompt task completes,
-        # drain any remaining queued events until the sentinel.
+        # asyncio.wait so a finished/failed prompt is noticed while blocked on the queue; then drain to sentinel.
         get_event: asyncio.Task[StreamEvent | object] | None = None
         try:
             while True:

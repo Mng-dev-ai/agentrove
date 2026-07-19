@@ -12,6 +12,6 @@ export const FILTER_LABELS: Record<MainFilter, string> = {
 export const isMainMode = (mode: MenuMode): mode is MainFilter =>
   (MAIN_FILTERS as MenuMode[]).includes(mode);
 
-// Panel filters swap the unified list for an embedded search panel with its own input.
+// Panel filters swap the list for an embedded search panel with its own input.
 export const isPanelMode = (mode: MenuMode): mode is 'messages' | 'grep' =>
   mode === 'messages' || mode === 'grep';

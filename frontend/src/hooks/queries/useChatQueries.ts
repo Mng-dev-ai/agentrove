@@ -27,17 +27,13 @@ import { queryKeys } from './queryKeys';
 const CHATS_PER_PAGE = 25;
 const GLOBAL_WORKSPACE_SENTINEL = 'all';
 
-// Matches the global (non-workspace-scoped, unpinned) infinite chats query.
-// Key shape: [chats, 'infinite', perPage, workspaceId, pinned]
-//   — index 3 = GLOBAL_WORKSPACE_SENTINEL for unscoped queries
-//   — index 4 = null for unpinned (true for pinned-only)
+// Global infinite chats: key[3]=GLOBAL_WORKSPACE_SENTINEL, key[4]=null (unpinned).
 function isGlobalChatsQuery(query: Query): boolean {
   const key = query.queryKey;
   return key.length >= 5 && key[3] === GLOBAL_WORKSPACE_SENTINEL && key[4] === null;
 }
 
-// Cloud chats live in a separate query the local infinite-chats cache patches don't touch.
-// Centralized so a new chat mutation can't silently forget to refresh the cloud sidebar.
+// Cloud sidebar is a separate query local infinite-chats patches don't touch.
 function invalidateCloudChats(queryClient: QueryClient, chatId: string) {
   if (isCloudChat(chatId)) {
     queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll });
@@ -78,10 +74,7 @@ export const useInfiniteChatsQuery = (options?: {
     initialPageParam: 1,
     enabled: options?.enabled ?? true,
     gcTime: 1000 * 60 * 1,
-    // The list hydrates from the persisted localStorage snapshot for a fast
-    // first paint; always refetch behind it so chats created out-of-band
-    // (another device, MCP) surface on load even when the snapshot is fresher
-    // than the default staleTime.
+    // Snapshot hydrates first paint; always refetch so out-of-band creates surface.
     refetchOnMount: 'always',
   });
 };
@@ -142,17 +135,13 @@ export const useContextUsageQuery = (
   });
 };
 
-// Shared by the create-chat mutation and the chat_created SSE feed — both must
-// patch the same caches. The prepend dedups by id because both paths fire for a
-// chat created in this session (mutation onSuccess + its own broadcast event);
-// the second pass's redundant invalidations are the accepted cost of keeping
-// the backend broadcast unconditional — don't "fix" it by suppressing them.
+// Shared by create-chat mutation + chat_created SSE. Dedup by id — both paths fire
+// for local creates; second-pass invalidations are intentional (don't suppress).
 export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat): Promise<void> {
   queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
 
   if (newChat.parent_chat_id) {
-    // Workspaces too: creating a sub-thread bumps the parent's updated_at,
-    // which drives workspace ordering/last-activity.
+    // Sub-thread create bumps parent updated_at (workspace ordering).
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.subThreads(newChat.parent_chat_id) }),
       queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] }),
@@ -185,9 +174,7 @@ export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat):
   queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
 }
 
-// Canonical "patch one chat everywhere" — applies the same updater to the
-// single-chat query and every infinite chats list, so callers can't update
-// one cache and silently miss the other.
+// Patch single-chat query + every infinite chats list together.
 export function patchChatInCache(
   queryClient: QueryClient,
   chatId: string,
@@ -209,9 +196,7 @@ export function patchChatInCache(
   );
 }
 
-// Optimistically clears the unread flag in every cache the chat appears in,
-// then stamps the server-side read marker. Best-effort fire-and-forget: it
-// never rejects — a failed stamp just resurfaces the dot on the next refetch.
+// Optimistic unread clear + server stamp; fire-and-forget (failed stamp resurfaces on refetch).
 export async function markChatViewed(queryClient: QueryClient, chatId: string): Promise<void> {
   patchChatInCache(queryClient, chatId, (chat) =>
     chat.unread ? { ...chat, unread: false } : chat,
@@ -261,8 +246,6 @@ export const useUpdateChatMutation = createMutation<
     );
 
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-    // Search results embed the chat title, so a rename leaves a stale title
-    // visible until the search query is refetched.
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
     invalidateCloudChats(queryClient, updatedChat.id);
 
@@ -279,10 +262,7 @@ export const usePinChatMutation = createMutation<Chat, Error, { chatId: string; 
   (queryClient, updatedChat) => {
     queryClient.setQueryData(queryKeys.chat(updatedChat.id), updatedChat);
 
-    // Invalidate all chat caches: global (pinned section needs re-sort and may need
-    // to include a chat that wasn't in the cache) and workspace-scoped (pinning/unpinning
-    // changes pinned_at and updated_at, which affects backend sort order).
-    // Also invalidate workspaces since last_chat_at may have changed.
+    // Pin changes sort (pinned_at/updated_at) and may move chats into/out of cached pages.
     queryClient.invalidateQueries({
       queryKey: [queryKeys.chats, 'infinite'],
     });
@@ -309,9 +289,7 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
       },
     );
 
-    // Single scan of all ['chat', ...] entries to:
-    // 1. Find the parent of the deleted chat (if it's a sub-thread)
-    // 2. Clean up caches for child sub-threads (if deleting a parent)
+    // One pass: find parent if sub-thread, clean child caches if deleting a parent.
     let parentId = queryClient.getQueryData<Chat>(queryKeys.chat(chatId))?.parent_chat_id;
     const allCachedEntries = queryClient.getQueriesData<Chat | Chat[]>({ queryKey: ['chat'] });
     for (const [key, data] of allCachedEntries) {
@@ -344,18 +322,14 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
   },
 );
 
-// The sidebar presents one merged list, so "delete all" must reach both
-// backends. Each backend's wipe reconciles its own caches as it succeeds: a
-// partial failure is real (e.g. VPS offline) and the successful side's chats
-// are already gone server-side, so the UI must drop them even while the
-// aggregate error still surfaces to the caller.
+// Wipe both backends; drop successful side's caches even if the other fails (partial wipe is real).
 export const useDeleteAllChatsMutation = () => {
   const queryClient = useQueryClient();
   return useMutation<void, Error, void>({
     mutationFn: async () => {
       const wipes = [
         chatService.deleteAllChats().then(() => {
-          // removeQueries on the prefix ['chats'] also clears chatsSearch entries.
+          // Prefix ['chats'] also clears chatsSearch.
           queryClient.removeQueries({ queryKey: [queryKeys.chats] });
           queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
         }),
@@ -372,7 +346,6 @@ export const useDeleteAllChatsMutation = () => {
         );
       }
       const results = await Promise.allSettled(wipes);
-      // Tabs/layouts are ephemeral — reset them whenever anything was wiped.
       if (results.some((result) => result.status === 'fulfilled')) {
         useUIStore.getState().cleanupAllChats();
       }
@@ -415,8 +388,7 @@ export const useCreateSubThreadMutation = (parentChatId: string) => {
         queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces }),
       ]);
-      // A cloud parent lives in the cloud sidebar list, not the local infinite query —
-      // refetch it so the parent's bumped sub_thread_count unlocks the expand control.
+      // Cloud parent isn't in local infinite query — refresh so sub_thread_count unlocks expand.
       invalidateCloudChats(queryClient, parentChatId);
     },
   });

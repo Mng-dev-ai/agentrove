@@ -6,16 +6,12 @@ import {
 } from '@/hooks/queries/useCloudQueries';
 import type { Workspace } from '@/types/workspace.types';
 
-// The workspace a chat belongs to, shown as a badge on the row; cloud workspaces
-// live on the connected VPS and get a cloud icon. Identified by chat.workspace_id.
 export interface WorkspaceBadge {
   name: string;
   isCloud: boolean;
 }
 
-// Sidebar chat data: local and cloud chats live on separate backends, so three
-// queries (local pinned, local unpinned, cloud) are merged client-side into the
-// Pinned and Recents lists, with one loadMore advancing both paginated sources.
+// Merge local pinned/unpinned + cloud into Pinned/Recents; one loadMore advances both pages.
 export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = true) {
   const { data: pinnedChatsData } = useInfiniteChatsQuery({ pinned: true, enabled });
   const {

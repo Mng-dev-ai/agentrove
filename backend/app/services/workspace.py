@@ -284,7 +284,6 @@ class WorkspaceService(BaseDbService[Workspace]):
             now = datetime.now(timezone.utc)
             workspace.deleted_at = now
 
-            # Soft-delete all chats in this workspace
             chat_ids_query = select(Chat.id, Chat.worktree_cwd).filter(
                 Chat.workspace_id == workspace_id, Chat.deleted_at.is_(None)
             )
@@ -307,7 +306,6 @@ class WorkspaceService(BaseDbService[Workspace]):
                 .values(deleted_at=now)
             )
 
-            # Soft-delete messages in those chats
             if chat_ids:
                 await db.execute(
                     update(Message)
@@ -320,11 +318,9 @@ class WorkspaceService(BaseDbService[Workspace]):
 
             await db.commit()
 
-            # Terminate sessions for all chats
             for cid in chat_ids:
                 asyncio.create_task(session_registry.terminate(str(cid)))
 
-            # Destroy the container using the workspace's actual provider
             if workspace.sandbox_id:
                 provider = SandboxProvider.create_provider(
                     workspace.sandbox_provider, workspace_path=workspace.workspace_path

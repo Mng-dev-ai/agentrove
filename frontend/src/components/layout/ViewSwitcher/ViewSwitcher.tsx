@@ -10,12 +10,9 @@ import styles from './ViewSwitcher.module.scss';
 
 type SwitchableView = Exclude<ViewType, 'agent'>;
 
-// Non-agent views, in the order Cursor lays them out: diff (git),
-// editor (file), terminal.
 const SWITCHABLE_VIEWS: SwitchableView[] = ['diff', 'editor', 'terminal'];
 
-// Reuse the command palette's shortcut bindings so the tooltips can't drift from
-// the real keys (⌘⇧E etc.).
+// Same shortcut bindings as the command palette so tooltips can't drift.
 const VIEW_SHORTCUTS = new Map<ViewType, string>(
   ALL_COMMANDS.flatMap((cmd) =>
     cmd.type === 'view' ? [[cmd.id, formatShortcut(cmd.shortcut)] as const] : [],
@@ -34,11 +31,9 @@ export function ViewSwitcher() {
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const isMobile = useIsMobile();
 
-  // Resolve active state against the exact tile toggleView() will act on, so the
-  // highlight (and the close-on-click) tracks the focused pane in split-chat mode.
+  // Active state matches the tile toggleView() will act on (focused split pane).
   const slot = activeSplitSlot(activeAgentTile, splitChatIds);
-  // Views have no tabs, so the highlight means "on screen" — a view kept mounted
-  // in the background stays unlit and a click surfaces it instead of closing it.
+  // Highlight = on screen; background-mounted views stay unlit (click surfaces).
   const visibleSet = useMemo(() => new Set(visibleLayout.flat()), [visibleLayout]);
 
   return (
@@ -50,9 +45,7 @@ export function ViewSwitcher() {
           <Tooltip key={view} content={viewTooltip(view)} position="bottom-end">
             <Button
               variant="unstyled"
-              // Left-click toggles the view full; shift-click or right-click
-              // opens it beside the active pane (with no view tabs, these and
-              // the command palette are the only split gestures).
+              // Left-click toggles full; shift/right-click splits beside the active pane.
               onClick={(e) => {
                 if (e.shiftKey && !isMobile) {
                   useUIStore.getState().addViewToSplit(view, 'row');

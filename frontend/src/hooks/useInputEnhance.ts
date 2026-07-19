@@ -9,8 +9,6 @@ interface UseInputEnhanceOptions {
   hasMessage: boolean;
 }
 
-// Prompt enhancement: fire the enhance mutation, swap the enhanced text in, and
-// refocus the textarea with the caret at the end.
 export function useInputEnhance({
   setMessage,
   textareaRef,

@@ -301,9 +301,7 @@ async def test_admin_edit_user_username_without_password(
     monkeypatch: pytest.MonkeyPatch,
     db_session: AsyncSession,
 ) -> None:
-    # Empty password field is not a model column; leaving it in form data
-    # previously crashed SQLAdmin with "'NoneType' object has no attribute
-    # 'nullable'" on update.
+    # Empty password left in form data crashed SQLAdmin on column.nullable.
     monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
     admin_user = User(
         email="edit-admin@example.com",

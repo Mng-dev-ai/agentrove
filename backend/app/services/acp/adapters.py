@@ -36,10 +36,7 @@ NATIVE_FILE_TYPES: dict[AgentKind, frozenset[str]] = {
 }
 
 
-# Maps UI permission modes to codex-acp session mode IDs. Each mode bundles
-# an approval policy and sandbox policy inside the adapter: "agent" =
-# on-request approvals + workspace write, "agent-full-access" = no approvals
-# + full disk/network access.
+# UI permission mode → codex-acp session mode (each bundles approval + sandbox policy).
 CODEX_SESSION_MODES: dict[str, str] = {
     "auto": "agent",
     "read-only": "read-only",
@@ -81,10 +78,7 @@ GROK_REASONING_MODEL_IDS = frozenset({"grok:grok-4.5"})
 # restricts edits to `.opencode/plans/*.md`, `build` has full tool access.
 OPENCODE_SESSION_MODES = frozenset({"build", "plan"})
 
-# Each agent's normal (full-execution) session mode. Used for permission-
-# irrelevant background calls — one-shot text generation makes no tool calls, so
-# we just need a mode the adapter accepts (Codex rejects unknown modes) and that
-# isn't a plan/read-only mode that could distort the response.
+# Full-execution mode per agent for unattended one-shots (Codex rejects unknown modes; avoid plan/read-only).
 NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
     AgentKind.CLAUDE: "default",
     AgentKind.CODEX: "auto",
@@ -94,13 +88,7 @@ NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
     AgentKind.OPENCODE: "build",
 }
 
-# Agents that can have their base system prompt replaced by a persona.
-# Claude/Codex expose a first-class mechanism (ACP _meta.systemPrompt for
-# Claude; model_instructions_file via CODEX_CONFIG for Codex). OpenCode uses a custom
-# primary agent injected through OPENCODE_CONFIG_CONTENT. Grok documents
-# session/new _meta.systemPromptOverride/rules in its ACP docs. Cursor and
-# Copilot ignore system prompt replacement over ACP, so personas would have
-# no effect.
+# Agents that support persona system-prompt replacement over ACP (Cursor/Copilot ignore it).
 PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
     {AgentKind.CLAUDE, AgentKind.CODEX, AgentKind.GROK, AgentKind.OPENCODE}
 )
@@ -110,8 +98,7 @@ THINKING_MODE_ORDER = ("low", "medium", "high", "xhigh", "max", "ultra")
 
 
 def valid_thinking_modes(agent_kind: AgentKind, model_id: str) -> frozenset[str]:
-    # The thinking tiers a model actually accepts; empty means the model has no
-    # reasoning-effort dial (thinking_mode is ignored for it).
+    # Accepted thinking tiers; empty = no effort dial (thinking_mode ignored).
     if agent_kind is AgentKind.CLAUDE:
         return (
             CLAUDE_XHIGH_VALID_THINKING_MODES
@@ -136,16 +123,14 @@ def valid_thinking_modes(agent_kind: AgentKind, model_id: str) -> frozenset[str]
 
 
 def coerce_thinking_mode(mode: str | None, valid_modes: frozenset[str]) -> str:
-    # Normalises the UI's named thinking tier to one the agent actually accepts,
-    # falling back to "medium" for None or unrecognised values.
+    # Clamp UI thinking tier to one the agent accepts (default medium).
     return mode if mode in valid_modes else "medium"
 
 
 def build_system_prompt_meta(
     system_prompt: str | None, is_full_replace: bool
 ) -> dict[str, Any]:
-    # Builds the _meta systemPrompt payload shared by Claude and Copilot:
-    # a plain string replaces the default prompt; {"append": ...} appends to it.
+    # Claude/Copilot _meta systemPrompt: str replaces; {"append": ...} appends.
     if not system_prompt:
         return {}
     if is_full_replace:
@@ -155,14 +140,12 @@ def build_system_prompt_meta(
 
 @dataclass(frozen=True)
 class PermissionConfig:
-    # ACP session mode ID sent via set_session_mode() after session creation.
     session_mode: str
 
 
 @dataclass(frozen=True)
 class LaunchConfig:
-    # Everything needed to spawn the agent process: the binary to exec,
-    # CLI flags to pass, and launch-only env vars (e.g. Codex's CODEX_CONFIG).
+    # Spawn recipe: binary, CLI flags, launch-only env (e.g. CODEX_CONFIG).
     binary: str
     cli_args: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
@@ -170,9 +153,7 @@ class LaunchConfig:
 
 @dataclass(frozen=True)
 class SessionConfig:
-    # Everything needed to configure the ACP session: env overrides to
-    # inject before spawning, metadata for new_session/load_session,
-    # mapped reasoning effort, and the permission model.
+    # Session config: env overrides, session meta, effort, permission mode.
     meta: dict[str, Any] = field(default_factory=dict)
     env_overrides: dict[str, str] = field(default_factory=dict)
     reasoning_effort: str | None = None
@@ -182,10 +163,7 @@ class SessionConfig:
 
 
 class AgentAdapter(ABC):
-    # Each agent binary (claude-agent-acp, codex-acp) speaks ACP over stdio but
-    # differs in CLI flags, env vars, session metadata, and permission models.
-    # Adapters encapsulate those differences so the rest of the codebase works
-    # with a uniform AcpSessionConfig regardless of which agent is running.
+    # Per-agent ACP differences (flags/env/meta/permissions) behind a uniform AcpSessionConfig.
 
     def __init__(self, kind: AgentKind) -> None:
         self.kind = kind
@@ -215,14 +193,11 @@ class AgentAdapter(ABC):
 
     @abstractmethod
     def map_session_mode(self, permission_mode: str) -> str:
-        # Maps a UI permission mode string to the ACP session mode ID.
-        # Used mid-stream for plan-mode transitions where only the mode
-        # string is needed, not the full SessionConfig.
+        # UI permission mode → ACP session mode id (plan-mode transitions).
         raise NotImplementedError
 
     def map_model_id(self, model_id: str) -> str:
-        # Translates the internal model registry key (e.g., "copilot:claude-sonnet-4.6")
-        # to the model ID the ACP agent expects. Default: passthrough.
+        # Registry key → agent model id (default passthrough).
         return model_id
 
 
@@ -238,7 +213,7 @@ class ClaudeAgentAdapter(AgentAdapter):
         instructions_file_path: str | None = None,
         reasoning_effort: str | None = None,
     ) -> LaunchConfig:
-        # Claude doesn't use CLI args — all config is via env vars and session meta.
+        # Config via env + session meta only (no CLI args).
         return LaunchConfig(binary="claude-agent-acp")
 
     def build_session_config(
@@ -271,7 +246,6 @@ class ClaudeAgentAdapter(AgentAdapter):
         )
 
     def map_session_mode(self, permission_mode: str) -> str:
-        # Claude session modes are a direct passthrough from the UI.
         return permission_mode
 
 
@@ -287,10 +261,7 @@ class CodexAgentAdapter(AgentAdapter):
         instructions_file_path: str | None = None,
         reasoning_effort: str | None = None,
     ) -> LaunchConfig:
-        # codex-acp ignores CLI args entirely — customization goes through the
-        # CODEX_CONFIG env var, a JSON object merged into the Codex session
-        # config. Approval/sandbox policy and reasoning effort no longer belong
-        # here: modes bundle approval+sandbox, and effort rides on the model ID.
+        # codex-acp uses CODEX_CONFIG only; modes bundle approval/sandbox, effort is on the model ID.
         config: dict[str, Any] = {}
         if system_prompt:
             if system_prompt_is_full_replace and instructions_file_path:
@@ -319,8 +290,7 @@ class CodexAgentAdapter(AgentAdapter):
             thinking_mode, valid_thinking_modes(AgentKind.CODEX, model_id)
         )
 
-        # Codex config rides on the CODEX_CONFIG launch env var and the model
-        # ID, not session meta.
+        # Config via CODEX_CONFIG + model ID, not session meta.
         return SessionConfig(
             reasoning_effort=reasoning_effort,
             permission=PermissionConfig(
@@ -337,9 +307,7 @@ class CodexAgentAdapter(AgentAdapter):
 
 
 class CopilotCliAdapter(AgentAdapter):
-    # Copilot CLI reuses the same ACP transport, but its ACP session modes and
-    # reasoning controls differ from Claude. Keep that mapping explicit here so
-    # we only send values the Copilot ACP server actually advertises.
+    # Copilot modes/reasoning differ from Claude — only send advertised values.
 
     def __init__(self) -> None:
         super().__init__(kind=AgentKind.COPILOT)
@@ -365,7 +333,6 @@ class CopilotCliAdapter(AgentAdapter):
     ) -> SessionConfig:
         meta = build_system_prompt_meta(system_prompt, system_prompt_is_full_replace)
 
-        # Copilot ACP exposes reasoning effort as a CLI/ACP value directly.
         reasoning_effort = coerce_thinking_mode(
             thinking_mode, valid_thinking_modes(AgentKind.COPILOT, model_id)
         )
@@ -387,17 +354,12 @@ class CopilotCliAdapter(AgentAdapter):
         return COPILOT_SESSION_MODE_IDS[permission_mode]
 
     def map_model_id(self, model_id: str) -> str:
-        # Internal keys use "copilot:" prefix to namespace; the CLI expects
-        # the raw model name (e.g., "claude-sonnet-4.6" not "copilot:claude-sonnet-4.6").
+        # Strip "copilot:" namespace for the CLI.
         return model_id.removeprefix("copilot:")
 
 
 class CursorAgentAdapter(AgentAdapter):
-    # Cursor CLI runs as an ACP server via `cursor-agent acp` and speaks the
-    # same ACP transport as Claude/Codex/Copilot. Unlike the others, Cursor
-    # bakes reasoning effort into the model ID itself (e.g. `-low`, `-high`,
-    # `-thinking-max`), so there is no separate thinking-mode CLI flag or env
-    # var — the UI's thinking selector is hidden for this adapter.
+    # Cursor bakes effort into the model ID (`-low`/`-high`/…); no separate thinking flag.
 
     def __init__(self) -> None:
         super().__init__(kind=AgentKind.CURSOR)
@@ -438,18 +400,12 @@ class CursorAgentAdapter(AgentAdapter):
         return permission_mode
 
     def map_model_id(self, model_id: str) -> str:
-        # Internal keys use the "cursor:" prefix to namespace models in the
-        # shared registry; the CLI expects the raw Cursor model name.
+        # Strip "cursor:" namespace for the CLI.
         return model_id.removeprefix("cursor:")
 
 
 class GrokAgentAdapter(AgentAdapter):
-    # Grok Build (xAI) runs as an ACP server via `grok agent stdio`. Reasoning
-    # effort is a launch-only flag (`grok agent --reasoning-effort <tier> stdio`)
-    # — there is no ACP method to change it mid-session, so effort changes take
-    # effect through the session fingerprint respawning the process. In `auto`
-    # mode Grok prompts for risky tool calls via session/request_permission
-    # (handled by the shared permission flow); `always-approve` never prompts.
+    # Effort is launch-only (`--reasoning-effort`); mid-session changes respawn via fingerprint.
 
     def __init__(self) -> None:
         super().__init__(kind=AgentKind.GROK)
@@ -509,18 +465,12 @@ class GrokAgentAdapter(AgentAdapter):
         return permission_mode
 
     def map_model_id(self, model_id: str) -> str:
-        # Internal keys use "grok:" prefix to namespace; the CLI expects the
-        # raw model ID (e.g. "grok-4.5" not "grok:grok-4.5").
+        # Strip "grok:" namespace for the CLI.
         return model_id.removeprefix("grok:")
 
 
 class OpencodeAgentAdapter(AgentAdapter):
-    # OpenCode CLI runs as an ACP server via `opencode acp` and speaks the same
-    # ACP transport as the other adapters. OpenCode's "primary agents" (build,
-    # plan) map to ACP session modes; reasoning effort is controlled per-model
-    # by the underlying provider (opencode itself doesn't expose a uniform
-    # reasoning dial via ACP), so there's no separate thinking-mode control —
-    # the UI's thinking selector is hidden for this adapter.
+    # Primary agents map to session modes; no uniform ACP reasoning dial (thinking UI hidden).
 
     def __init__(self) -> None:
         super().__init__(kind=AgentKind.OPENCODE)
@@ -597,9 +547,7 @@ class OpencodeAgentAdapter(AgentAdapter):
         return permission_mode
 
     def map_model_id(self, model_id: str) -> str:
-        # Internal keys use "opencode:" prefix to namespace; opencode expects
-        # the raw provider/model ID (e.g. "openai/gpt-5.4" not
-        # "opencode:openai/gpt-5.4").
+        # Strip "opencode:" namespace for the CLI.
         return model_id.removeprefix("opencode:")
 
 

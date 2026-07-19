@@ -54,8 +54,7 @@ class Chat(Base):
     parent_chat_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("chats.id", ondelete="SET NULL"), nullable=True
     )
-    # The last turn's settings — server-side source of truth so out-of-band
-    # follow-ups (MCP) and the UI inherit them instead of their own defaults.
+    # Last turn settings — source of truth for MCP/UI follow-ups.
     last_model_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     last_thinking_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     last_persona_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -86,8 +85,7 @@ class Chat(Base):
 
     @property
     def unread(self) -> bool:
-        # Activity since the user last opened the chat — updated_at advances on
-        # turn initiation, so out-of-band turns (automations, MCP) flag unread.
+        # updated_at advances on turn start, so automations/MCP flag unread.
         return self.last_viewed_at is None or self.updated_at > self.last_viewed_at
 
     @property
@@ -124,7 +122,7 @@ class Chat(Base):
             session_id=data.get("session_id"),
             session_agent_kind=data.get("session_agent_kind"),
         )
-        # Stash sandbox fields for streaming runtime (workspace not loaded from DB)
+        # Stash sandbox fields for streaming (workspace not loaded from DB).
         sandbox_id = data.get("sandbox_id")
         if sandbox_id is None:
             raise ValueError("Missing sandbox_id in chat data")
@@ -132,8 +130,7 @@ class Chat(Base):
         chat._workspace_path = data.get("workspace_path")
         sandbox_provider = data.get("sandbox_provider")
         if sandbox_provider is None:
-            # Stream resumes must preserve the original provider instead of
-            # silently switching to Docker when the serialized chat is invalid.
+            # Don't silently fall back to Docker on bad serialized chat data.
             raise ValueError("Missing sandbox_provider in chat data")
         chat._sandbox_provider = sandbox_provider
         chat.worktree_cwd = data.get("worktree_cwd")
@@ -177,7 +174,7 @@ class Message(Base):
     total_cost_usd: Mapped[float | None] = mapped_column(
         Float, nullable=True, default=0.0, server_default="0.0"
     )
-    # Total wall-clock run time, recorded once at the terminal snapshot.
+    # Wall-clock ms, written once with the terminal snapshot.
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     stream_status: Mapped[MessageStreamStatus] = mapped_column(
         SQLAlchemyEnum(

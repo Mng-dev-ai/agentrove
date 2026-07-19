@@ -74,7 +74,6 @@ export function DiffToolbar({
 
   return (
     <div className={styles.toolbar}>
-      {/* Scope cluster — refresh + which changes to show. */}
       <FloatingTooltip content="Refresh diff" className={styles['tooltip-inline']}>
         <Button
           onClick={onRefetch}
@@ -96,7 +95,7 @@ export function DiffToolbar({
         className={styles.segmented}
       />
 
-      {/* Narrow tiles collapse the sidebar into this file switcher. */}
+      {/* Narrow: sidebar collapses into this file switcher. */}
       {isNarrow && showFiles && currentFile && (
         <>
           <Button
@@ -138,16 +137,14 @@ export function DiffToolbar({
         </>
       )}
 
-      {/* Wide: diffstat sits beside the scope. Narrow: it's pushed right,
-          next to the overflow menu (rendered after the spacer below). */}
+      {/* Wide: diffstat beside scope; narrow: after spacer, next to overflow. */}
       {!isNarrow && diffstat}
 
       <div className={styles.spacer} />
 
       {isNarrow && diffstat}
 
-      {/* Review progress — a glanceable "how far through this diff am I".
-          Hidden on narrow tiles where the toolbar is already tight. */}
+      {/* Review progress — hidden on narrow where the toolbar is tight. */}
       {!isNarrow && showFiles && (
         <div className={styles.progress}>
           <div className={styles['progress-track']}>
@@ -163,8 +160,7 @@ export function DiffToolbar({
         </div>
       )}
 
-      {/* Diff style stays inline on wide (the primary always-on preference);
-          narrow tucks it into the overflow menu to save room. */}
+      {/* Diff style inline on wide; narrow tucks it into the overflow menu. */}
       {!isNarrow && (
         <SegmentedControl
           options={DIFF_STYLE_OPTIONS}
@@ -175,9 +171,7 @@ export function DiffToolbar({
         />
       )}
 
-      {/* Secondary actions (collapse/discard, plus diff style on narrow)
-          live in one overflow menu instead of cryptic toolbar icons. On
-          wide it only exists when there are files to act on. */}
+      {/* Overflow: collapse/discard (+ diff style on narrow). Wide only when files exist. */}
       {(isNarrow || showFiles) && (
         <>
           <Button

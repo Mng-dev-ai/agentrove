@@ -57,7 +57,6 @@ class LocalDockerProvider(SandboxProvider):
         return f"{self.config.user_home}/workspace"
 
     async def _get_docker(self) -> aiodocker.Docker:
-        # Lazily create the aiodocker client on first use.
         if self._docker is None:
             try:
                 if self.config.host:
@@ -70,8 +69,7 @@ class LocalDockerProvider(SandboxProvider):
 
     @staticmethod
     def _parse_mem_limit(mem_str: str) -> int:
-        # Convert human-readable memory strings (e.g. "4g", "512m") to bytes
-        # for Docker's Memory host config field.
+        # "4g"/"512m" → bytes for Docker Memory.
         mem_str = mem_str.strip().lower()
         if not mem_str:
             return 0
@@ -81,9 +79,7 @@ class LocalDockerProvider(SandboxProvider):
         return int(mem_str)
 
     async def _get_container(self, sandbox_id: str) -> Any:
-        # Central entry point for all container operations. Reconnects to
-        # the container if it's not in the local cache, and restarts it
-        # if it has exited (e.g. idle timeout, OOM kill).
+        # Reconnect if uncached; restart if the container has exited.
         if sandbox_id not in self._containers:
             connected = await self.connect_sandbox(sandbox_id)
             if not connected:
@@ -100,8 +96,6 @@ class LocalDockerProvider(SandboxProvider):
         sandbox_id: str,
         workspace_path: str | None = None,
     ) -> Any:
-        # Build and start a sandbox container with port bindings, resource
-        # limits, and an optional host workspace bind mount.
         docker = await self._get_docker()
 
         host_config: dict[str, Any] = {
@@ -117,8 +111,6 @@ class LocalDockerProvider(SandboxProvider):
         if self.config.pids_limit > 0:
             host_config["PidsLimit"] = self.config.pids_limit
 
-        # Bind mount the host workspace into the container so the sandbox
-        # has access to the project files.
         workspace_mount_dir = f"{self.config.user_home}/workspace"
         if workspace_path:
             workspace_dir = Path(workspace_path).expanduser().resolve()
@@ -146,7 +138,6 @@ class LocalDockerProvider(SandboxProvider):
         return container
 
     async def create_sandbox(self, workspace_path: str | None = None) -> str:
-        # Generate a short unique ID, spin up a container, and cache the handle.
         sandbox_id = str(uuid.uuid4())[:12]
         container = await self._create_container(
             sandbox_id, workspace_path=workspace_path
@@ -155,8 +146,7 @@ class LocalDockerProvider(SandboxProvider):
         return sandbox_id
 
     async def _get_container_by_id(self, sandbox_id: str) -> Any | None:
-        # Look up an existing container by name from the Docker daemon
-        # when it's not in the in-memory cache (e.g. after API restart).
+        # Daemon lookup when missing from the in-memory cache (e.g. after API restart).
         docker = await self._get_docker()
         try:
             return await docker.containers.get(
@@ -166,11 +156,8 @@ class LocalDockerProvider(SandboxProvider):
             return None
 
     async def connect_sandbox(self, sandbox_id: str) -> bool:
-        # Reconnect to an existing container — checks the in-memory cache first,
-        # evicts if stopped, then looks up by name from the Docker daemon.
         if sandbox_id in self._containers:
             container = self._containers[sandbox_id]
-            # Check the container's live status via the Docker API.
             info = await container.show()
             status: str = info.get("State", {}).get("Status", "")
             if status == DOCKER_STATUS_RUNNING:
@@ -185,8 +172,6 @@ class LocalDockerProvider(SandboxProvider):
         return False
 
     async def delete_sandbox(self, sandbox_id: str) -> None:
-        # Stop and remove the container, then clear it from the cache.
-        # No-op if the container doesn't exist.
         container = self._containers.get(sandbox_id)
 
         if not container:
@@ -214,7 +199,7 @@ class LocalDockerProvider(SandboxProvider):
     ) -> list[FileMetadata]:
         target_path = self.resolve_workspace_path(path)
 
-        # Try git ls-files — handles .gitignore natively.
+        # Prefer git ls-files so .gitignore is honored.
         git_result = await self.execute_command(
             sandbox_id,
             f"cd {shlex.quote(target_path)} && {GIT_LS_FILES_CMD}",
@@ -223,7 +208,7 @@ class LocalDockerProvider(SandboxProvider):
         if git_result.exit_code == 0 and git_result.stdout:
             return SandboxProvider.parse_git_ls_files(git_result.stdout)
 
-        # Fallback: simple find for non-git directories.
+        # Non-git fallback.
         find_command = (
             f"find {shlex.quote(target_path)} -mindepth 1 -printf '%P\\0%y\\0'"
         )
@@ -232,11 +217,9 @@ class LocalDockerProvider(SandboxProvider):
 
     @staticmethod
     def _parse_find_output(find_output: str) -> list[FileMetadata]:
-        # Fallback for non-git directories — parses null-delimited pairs
-        # (path, type) from GNU find's -printf '%P\0%y\0'.
+        # Parse GNU find -printf '%P\0%y\0' pairs.
         items: list[FileMetadata] = []
         parts = find_output.split("\0")
-        # Pairs: [path, type, path, type, ...]
         for i in range(0, len(parts) - 1, 2):
             file_path = parts[i]
             file_type = parts[i + 1]
@@ -258,7 +241,6 @@ class LocalDockerProvider(SandboxProvider):
         return items
 
     async def _collect_exec_output(self, exec_obj: Any) -> tuple[int, str]:
-        # Read all output from a Docker exec stream, then inspect for the exit code.
         stream = exec_obj.start()
         output_parts: list[bytes] = []
         try:
@@ -284,8 +266,7 @@ class LocalDockerProvider(SandboxProvider):
         envs: dict[str, str] | None = None,
         timeout: int = SANDBOX_DEFAULT_COMMAND_TIMEOUT,
     ) -> CommandResult:
-        # Run a command inside the container via Docker exec. stderr is empty
-        # because aiodocker merges stdout/stderr into a single stream.
+        # aiodocker merges stdout/stderr, so stderr is always empty.
         container = await self._get_container(sandbox_id)
         env_list = [f"{k}={v}" for k, v in (envs or {}).items()]
 
@@ -310,8 +291,7 @@ class LocalDockerProvider(SandboxProvider):
 
     @staticmethod
     def _build_file_tar(filename: str, content_bytes: bytes) -> bytes:
-        # Docker's put_archive API requires a tar stream — we create a single-file
-        # tar in memory with uid/gid 1000 (the sandbox "user" account).
+        # put_archive needs a tar; uid/gid 1000 is the sandbox user.
         tar_stream = io.BytesIO()
         with tarfile.open(fileobj=tar_stream, mode="w") as tar:
             info = tarfile.TarInfo(name=filename)
@@ -357,7 +337,7 @@ class LocalDockerProvider(SandboxProvider):
         sandbox_id: str,
         path: str,
     ) -> FileContent:
-        # Docker's get_archive returns a tar — extract the first member's content.
+        # get_archive returns a tar; take the first member.
         container = await self._get_container(sandbox_id)
         normalized_path = self.resolve_workspace_path(path)
 
@@ -390,10 +370,7 @@ class LocalDockerProvider(SandboxProvider):
         on_exit: PtyExitCallbackType,
         user_id: str = "",
     ) -> str:
-        # Spawn a PTY-attached shell inside the container via docker exec.
-        # Tries tmux for session persistence across WebSocket reconnections,
-        # falls back to bare bash if tmux is not installed. `user_id` is
-        # unused: the container's HOME is fixed at image build time.
+        # tmux for reconnect persistence; bare bash if missing. user_id unused (fixed container HOME).
         container = await self._get_container(sandbox_id)
         session_id = str(uuid.uuid4())
 
@@ -440,9 +417,6 @@ class LocalDockerProvider(SandboxProvider):
         on_data: PtyDataCallbackType,
         on_exit: PtyExitCallbackType,
     ) -> None:
-        # Background task that continuously reads container exec output
-        # and forwards it to the WebSocket callback. Exits when the
-        # stream closes (read_out returns None) or the task is cancelled.
         try:
             while True:
                 msg = await stream.read_out()
@@ -450,7 +424,6 @@ class LocalDockerProvider(SandboxProvider):
                     break
                 await on_data(msg.data)
         except asyncio.CancelledError:
-            # kill_pty tearing us down — the owner already knows.
             return
         except Exception as e:
             # A dead exec stream (container restarted/removed) is also a
@@ -464,8 +437,6 @@ class LocalDockerProvider(SandboxProvider):
         pty_id: str,
         data: bytes,
     ) -> None:
-        # Forward user keystrokes from the WebSocket to the container's
-        # exec stream (stdin). Silently drops input if the session is gone.
         session = self.get_pty_session(sandbox_id, pty_id)
         if not session:
             return
@@ -478,8 +449,7 @@ class LocalDockerProvider(SandboxProvider):
         pty_id: str,
         size: PtySize,
     ) -> None:
-        # Resize the container's PTY when the frontend terminal viewport changes.
-        # Docker rejects zero dimensions, so clamp to at least 1.
+        # Docker rejects zero dimensions — clamp to at least 1.
         session = self.get_pty_session(sandbox_id, pty_id)
         if not session:
             return
@@ -491,9 +461,7 @@ class LocalDockerProvider(SandboxProvider):
         sandbox_id: str,
         pty_id: str,
     ) -> None:
-        # Tear down a PTY session: cancel the reader task, close the exec
-        # stream, then remove tracking. Best-effort — ignores errors since
-        # the stream or container may already be gone.
+        # Best-effort teardown — stream/container may already be gone.
         session = self.get_pty_session(sandbox_id, pty_id)
         if not session:
             return
@@ -513,8 +481,6 @@ class LocalDockerProvider(SandboxProvider):
         self.cleanup_pty_session_tracking(sandbox_id, pty_id)
 
     async def cleanup(self) -> None:
-        # Tear down all PTY sessions (via base class) then close the
-        # aiodocker client connection to the Docker daemon.
         await super().cleanup()
         if self._docker:
             await self._docker.close()

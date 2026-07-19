@@ -190,9 +190,7 @@ async def test_get_settings_returns_legacy_plaintext_github_token(
 ) -> None:
     user = await create_user(email="legacy-token@example.com", username="legacytoken")
     tokens = await login(email="legacy-token@example.com")
-    # Raw SQL bypasses the EncryptedString bind, simulating a pre-encryption
-    # legacy row so decrypt_value raises InvalidToken and the type falls
-    # back to returning the stored value as-is.
+    # Raw SQL legacy ciphertext → InvalidToken → return stored value as-is.
     await db_session.execute(
         text(
             "UPDATE user_settings SET github_personal_access_token = :token "

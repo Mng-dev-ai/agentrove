@@ -67,16 +67,14 @@ class UserAdmin(ModelView, model=User):
     ]
 
     async def scaffold_form(self, rules: list[str] | None = None) -> type[Form]:
-        # This sqladmin version has no form_extra_fields support, so graft the
-        # password field onto the scaffolded form — without it, creating a user
-        # fails on the NOT NULL hashed_password column.
+        # No form_extra_fields in this sqladmin; graft password or create fails
+        # on NOT NULL hashed_password.
         form: type[Form] = await super().scaffold_form(rules)
         form.password = PasswordField("Password")
         return form
 
     def _url_for_delete(self, request: Request, obj: Any) -> str:
-        # SQLAdmin renders absolute delete URLs; proxied admin pages need
-        # same-origin AJAX so browser requests keep flowing through /admin.
+        # Absolute delete URLs break under proxy; keep AJAX same-origin /admin.
         query_params = urlencode({"pks": get_object_identifier(obj)})
         url = urlsplit(str(request.url_for("admin:delete", identity=self.identity)))
         return f"{url.path}?{query_params}"
@@ -84,10 +82,8 @@ class UserAdmin(ModelView, model=User):
     async def on_model_change(
         self, data: dict[str, Any], model: User, is_created: bool, request: Request
     ) -> None:
-        # Always strip password from form data — it is not a model column.
-        # Leaving an empty password in data makes SQLAdmin crash with
-        # "'NoneType' object has no attribute 'nullable'" when it looks up
-        # the column on the mapper.
+        # Not a model column — empty password left in data crashes SQLAdmin
+        # looking up column.nullable on the mapper.
         password = data.pop("password", None)
         if password:
             data["hashed_password"] = get_password_hash(password)

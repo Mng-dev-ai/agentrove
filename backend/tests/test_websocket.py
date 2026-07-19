@@ -55,10 +55,7 @@ async def wait_until(predicate: Callable[[], bool], timeout: float = 2.0) -> Non
 
 
 class LiveFakeWebSocket:
-    # Unlike FakeWebSocket (a static frame list), this queues frames so a
-    # test can push auth/control/input frames while the endpoint coroutine
-    # is already running as a background task — needed to interleave PTY
-    # output arriving mid-connection with client frames.
+    # Queueable frames while the endpoint runs as a task (interleave PTY out).
     def __init__(
         self,
         query_params: dict[str, str] | None = None,
@@ -110,10 +107,7 @@ class LiveFakeWebSocket:
 
 
 class FakePtySandboxProvider(SandboxProvider):
-    # Real TerminalSessionRegistry/TerminalSessionRecord run against this —
-    # unlike FakeSandboxProvider (static pty-1 id, no on_data callback
-    # tracking), this records every pty lifecycle call and lets tests drive
-    # PTY output by invoking the registered on_data callback directly.
+    # Records pty lifecycle; tests drive output via the registered on_data.
     def __init__(self) -> None:
         self._workspace_root = "/tmp/agentrove-pty-test"
         self._pty_sessions: dict[str, dict[str, Any]] = {}
@@ -181,10 +175,7 @@ class FakePtySandboxProvider(SandboxProvider):
 
 
 class FailingPtySandboxProvider(FakePtySandboxProvider):
-    # Exercises SandboxService's own error handling (send_pty_input /
-    # resize_pty_session / cleanup_pty_session) — every pty operation is
-    # attempted (recorded) and then raises, so the terminal session must
-    # keep running instead of crashing the websocket connection.
+    # Every pty op raises after recording — session must keep the WS up.
     async def send_pty_input(self, sandbox_id: str, pty_id: str, data: bytes) -> None:
         self.sent_inputs.append((sandbox_id, pty_id, data))
         raise RuntimeError("send failed")
@@ -512,9 +503,7 @@ async def test_terminal_websocket_real_session_lifecycle(
     login: LoginClient,
     pty_provider: FakePtySandboxProvider,
 ) -> None:
-    # Runs the real TerminalSessionRegistry/TerminalSessionRecord against
-    # FakePtySandboxProvider — attach, input queueing, resize, PTY output
-    # forwarding, and terminate (pty kill + tmux kill-session).
+    # Real registry/record against FakePtySandboxProvider (full pty lifecycle).
     headers, _user, workspace = await create_authenticated_workspace(
         db_session,
         create_user,
@@ -644,9 +633,7 @@ async def test_terminal_websocket_concurrent_inits_share_one_pty(
     login: LoginClient,
     pty_provider: FakePtySandboxProvider,
 ) -> None:
-    # A page refresh can race two connections into the same session record —
-    # ensure_started must serialize so only one PTY/tmux client is spawned
-    # and the second connection reattaches instead.
+    # Two connections racing ensure_started: one PTY, second reattaches.
     headers, _user, workspace = await create_authenticated_workspace(
         db_session,
         create_user,
@@ -831,9 +818,7 @@ async def test_terminal_websocket_new_attach_closes_stale_websocket(
     assert first_ws.close_code == 1000
     assert len(pty_provider.created_ptys) == 1
 
-    # The first task's own receive loop is still parked on `receive()` since
-    # our fake doesn't simulate a real disconnect — detach it manually so
-    # the test ends deterministically instead of waiting for the ping timeout.
+    # Fake has no real disconnect — detach manually (don't wait for ping).
     first_ws.push_text(json.dumps({"type": WS_MSG_DETACH}))
     await asyncio.wait_for(first_task, timeout=2.0)
 
@@ -870,9 +855,7 @@ async def test_terminal_websocket_output_queue_drops_oldest_when_full(
     websocket.push_text(json.dumps({"type": WS_MSG_DETACH}))
     await asyncio.wait_for(task, timeout=2.0)
 
-    # Fill the output queue (PTY_OUTPUT_QUEUE_SIZE) well past capacity while
-    # nobody is attached to drain it — must drop the oldest entries rather
-    # than block or grow unbounded.
+    # Overflow PTY_OUTPUT_QUEUE_SIZE unattached — drop oldest, don't block.
     on_data = pty_provider.on_data_callbacks[pty_id]
     for i in range(PTY_OUTPUT_QUEUE_SIZE + 20):
         await on_data(f"{i}\n".encode())
@@ -902,10 +885,7 @@ async def test_terminal_websocket_survives_provider_pty_errors(
     login: LoginClient,
     failing_pty_provider: FailingPtySandboxProvider,
 ) -> None:
-    # SandboxService.send_pty_input/resize_pty_session/cleanup_pty_session
-    # each catch provider errors and log rather than propagate — the
-    # terminal connection must keep working through input, resize, and a
-    # clean close even when every underlying pty call fails.
+    # Pty ops catch provider errors — WS must survive input/resize/close.
     headers, _user, workspace = await create_authenticated_workspace(
         db_session,
         create_user,
@@ -948,11 +928,7 @@ async def test_terminal_websocket_ignores_malformed_frames_and_handles_disconnec
     login: LoginClient,
     pty_provider: FakePtySandboxProvider,
 ) -> None:
-    # Malformed control frames (no text/bytes key, non-dict JSON, dict with
-    # no "type") must be silently skipped, and an abrupt client disconnect
-    # (WebSocketDisconnect from receive()) must be handled gracefully rather
-    # than propagating out of the endpoint — including a close() that itself
-    # raises a non-EPIPE OSError during the best-effort final close.
+    # Bad control frames skipped; WebSocketDisconnect + failing close handled.
     headers, _user, workspace = await create_authenticated_workspace(
         db_session,
         create_user,
@@ -982,9 +958,7 @@ async def test_terminal_websocket_ignores_malformed_frames_and_handles_disconnec
 
     await asyncio.wait_for(task, timeout=2.0)
 
-    # Session stayed alive through the junk frames — only one pty, never
-    # torn down by a bad frame — and the final close was attempted despite
-    # raising.
+    # Junk frames: one pty kept; final close still attempted despite raise.
     assert len(pty_provider.created_ptys) == 1
     assert websocket.close_code == 1000
 
@@ -995,9 +969,7 @@ async def test_terminal_websocket_pty_exit_drops_session_and_reconnect_starts_fr
     login: LoginClient,
     pty_provider: FakePtySandboxProvider,
 ) -> None:
-    # A PTY that dies on its own (shell `exit`, sandbox restart) must tear
-    # down the record and close the attached client — the next connect starts
-    # a fresh PTY instead of silently "reattaching" to the dead one.
+    # Dead PTY tears down the record; next connect starts a fresh one.
     headers, _user, workspace = await create_authenticated_workspace(
         db_session,
         create_user,
@@ -1144,9 +1116,7 @@ async def test_terminal_websocket_ping_send_failure_detaches_cleanly(
     login: LoginClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # The keepalive ping is what discovers a silently-dead connection — its
-    # send failure must detach the session and end the endpoint cleanly
-    # instead of propagating out of the handler.
+    # Keepalive ping send failure detaches cleanly (no raise out of handler).
     headers, _user, workspace = await create_authenticated_workspace(
         db_session,
         create_user,

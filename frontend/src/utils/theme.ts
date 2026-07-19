@@ -35,7 +35,6 @@ import type { Palette, Theme } from '@/types/ui.types';
 import type { PaletteDef, PaletteKey } from '@/styles/palettes';
 import { PALETTES } from '@/styles/palettes';
 
-// Palettes that aren't the plain light/dark base — each re-skins the base surfaces.
 export type CustomPalette = Exclude<Palette, 'light' | 'dark'>;
 
 export interface ThemeMeta {
@@ -44,9 +43,7 @@ export interface ThemeMeta {
   icon: LucideIcon;
 }
 
-// Single source for theme presentation and cycle order. A custom palette's colors +
-// light/dark base live in src/styles/palettes.ts (see DARK_PALETTES). Themes are picked
-// from the command menu's theme sub-mode, not per-theme chords (see commandRegistry).
+// Theme presentation + cycle order. Palette colors live in src/styles/palettes.ts.
 export const THEMES: ThemeMeta[] = [
   { value: 'dark', label: 'Dark', icon: Moon },
   { value: 'light', label: 'Light', icon: Sun },
@@ -85,23 +82,16 @@ const THEME_BY_VALUE = Object.fromEntries(THEMES.map((t) => [t.value, t])) as Re
   ThemeMeta
 >;
 
-// Fall back to the default theme if a persisted value no longer matches a known
-// theme — callers read `.icon` straight off the result and would otherwise crash.
+// Stale persisted themes fall back so callers reading `.icon` don't crash.
 export const getThemeMeta = (theme: Theme): ThemeMeta =>
   THEME_BY_VALUE[theme] ?? THEME_BY_VALUE.dark;
 
-// Order the quick-toggle (header / profile menu) steps through.
 export const THEME_CYCLE: Theme[] = THEMES.map((t) => t.value);
 
-// palettes.ts declares PaletteKey locally (it must stay alias-free for the Node/vite
-// tsconfig), so guard it against the Theme-derived CustomPalette here, where both are in
-// scope. Typing the PaletteKey-derived keys as CustomPalette[] forces the two unions to
-// match: a stray palette key fails this assignment; a theme missing its palette data fails
-// the PALETTES[p] lookups below.
+// PaletteKey (alias-free for vite/node tsconfig) must match CustomPalette here.
 const CUSTOM_PALETTE_KEYS: CustomPalette[] = Object.keys(PALETTES) as PaletteKey[];
 
-// Palettes that ride the dark base (body `dark` class + the *-dark token vars). The
-// `dark` mode has no override block; every dark custom palette is read from PALETTES.
+// Dark base (body `dark` class + *-dark tokens). Custom darks come from PALETTES.
 export const DARK_PALETTES: ReadonlySet<Palette> = new Set<Palette>([
   'dark',
   ...CUSTOM_PALETTE_KEYS.filter((p) => PALETTES[p].base === 'dark'),
@@ -109,7 +99,7 @@ export const DARK_PALETTES: ReadonlySet<Palette> = new Set<Palette>([
 
 export interface PaletteTokens {
   surface: string; // deepest/page background
-  surfaceSecondary: string; // raised surface (editor + terminal canvas)
+  surfaceSecondary: string; // raised (editor + terminal canvas)
   surfaceTertiary: string;
   textPrimary: string;
   textSecondary: string;
@@ -125,9 +115,7 @@ const toTokens = (def: PaletteDef): PaletteTokens => ({
   textTertiary: def.textTertiary,
 });
 
-// The surface/text subset of PALETTES that Monaco, xterm, and the VisualWidget iframe
-// need as hex — they can't read the CSS vars. Same source as the generated CSS, so the
-// two can't drift.
+// Hex tokens for Monaco/xterm/VisualWidget (they can't read CSS vars).
 export const CUSTOM_PALETTE_TOKENS = Object.fromEntries(
   CUSTOM_PALETTE_KEYS.map((p) => [p, toTokens(PALETTES[p])]),
 ) as Record<CustomPalette, PaletteTokens>;

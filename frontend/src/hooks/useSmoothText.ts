@@ -12,19 +12,13 @@ const MAX_TICK_DELTA_MS = 100;
 const HIGH_SURROGATE_RE = /[\uD800-\uDBFF]/;
 
 export function useSmoothText(text: string, animate: boolean): string {
-  // Stream flushes grow `text` in multi-word chunks; this reveals it at a
-  // backlog-proportional rate so it reads word-by-word like a typewriter.
-  // When `animate` is false the input passes through untouched.
-  // Text present at mount shows immediately — reconnect/navigation mounts an
-  // in-progress stream with buffered output, and replaying it from blank would
-  // hide content the user already saw. Only post-mount appends animate.
+  // Init to full length so reconnect/nav mounts show buffered content immediately;
+  // only post-mount appends animate.
   const [visibleCount, setVisibleCount] = useState(text.length);
   const visibleCountRef = useRef(visibleCount);
   const textRef = useRef(text);
   textRef.current = text;
 
-  // Snap to the full text the moment animation stops (stream finished or the
-  // segment is no longer the tail) so nothing stays hidden.
   if (!animate && visibleCountRef.current !== text.length) {
     visibleCountRef.current = text.length;
     setVisibleCount(text.length);
