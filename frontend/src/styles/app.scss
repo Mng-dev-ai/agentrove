@@ -60,15 +60,15 @@
 }
 
 // Monaco peek widget (go-to-definition / references): monaco's CSS sets no
-// font-size on the results tree, so it inherits the page's 16px root font while
-// the editor renders at 12px. Pin the widget chrome to the editor scale and pad
+// font-size on the results tree, so it inherits the page's root font while
+// the editor renders at 14px. Pin the widget chrome to the editor scale and pad
 // labels away from the fixed-width twistie chevron.
 .monaco-editor .peekview-widget .head .peekview-title {
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .monaco-editor .reference-zone-widget .ref-tree {
-  font-size: 12px;
+  font-size: 14px;
 
   .monaco-tl-contents {
     padding-left: 3px;

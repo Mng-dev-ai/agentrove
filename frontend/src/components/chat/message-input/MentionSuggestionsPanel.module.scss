@@ -14,7 +14,7 @@
 }
 
 .file-name {
-  @include type.type-mono(0.75rem, 1.25);
+  @include type.type-mono(0.9rem, 1.25);
   color: var(--theme-text-secondary);
 
   &--active {

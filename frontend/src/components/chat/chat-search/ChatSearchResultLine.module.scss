@@ -12,7 +12,7 @@
   padding: var(--space-0-5) var(--space-1-5);
   text-align: left;
   // TODO(refactor): leading-5 (1.25rem) overrides type-meta's default line-height; no token for a standalone leading value
-  line-height: 1.25rem;
+  line-height: 1.5rem;
   color: var(--theme-text-secondary);
 
   @include responsive.hover {

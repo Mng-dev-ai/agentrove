@@ -136,7 +136,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
         // tmux attaches without the alternate screen (smcup@ override), so this
         // buffer is the scroll/search history — sized to tmux's history-limit.
         scrollback: 10000,
-        fontSize: 12,
+        fontSize: 14,
         // Nerd Font primary so PUA icon glyphs (eza/ls icons, Starship prompt
         // symbols) render; generic monospace is only a last-resort fallback.
         fontFamily: '"JetBrainsMono Nerd Font", monospace',

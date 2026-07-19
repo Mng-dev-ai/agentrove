@@ -2,7 +2,7 @@
 @use '@/styles/globals/colors' as colors;
 
 .diff {
-  @include type.type-mono(0.625rem, 1.625);
+  @include type.type-mono(0.75rem, 1.625);
   max-height: var(--space-48);
   overflow: auto;
 }

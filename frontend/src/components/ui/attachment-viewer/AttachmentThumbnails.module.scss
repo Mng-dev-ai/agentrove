@@ -107,7 +107,7 @@
 
 .icon-label {
   // TODO(refactor): no 8px type token — file-type badge kept at a fixed size.
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.25;
   color: var(--theme-text-tertiary);
 }
@@ -133,7 +133,7 @@
 
 .error-label {
   // TODO(refactor): no 8px type token — error badge kept at a fixed size.
-  font-size: 8px;
+  font-size: 10px;
   color: var(--theme-text-tertiary);
 }
 

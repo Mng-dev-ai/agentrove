@@ -3,7 +3,7 @@
 .files {
   max-height: var(--space-48);
   overflow: auto;
-  @include type.type-mono(0.625rem, 1.625);
+  @include type.type-mono(0.75rem, 1.625);
   color: var(--theme-text-tertiary);
 
   :global([data-theme='dark']) & {

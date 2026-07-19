@@ -23,7 +23,7 @@ const DIFF_OPTIONS = {
   padding: { top: 8, bottom: 8 },
   automaticLayout: true,
   fontFamily: MONACO_FONT_FAMILY,
-  fontSize: 12,
+  fontSize: 14,
   lineHeight: 1.5,
   renderLineHighlight: 'none',
   scrollbar: {

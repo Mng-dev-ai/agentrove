@@ -9,7 +9,7 @@
 
 .item-content {
   // Relaxed line-height preserved from the old leading-relaxed on a mono preview
-  @include type.type-mono(0.625rem, 1.625);
+  @include type.type-mono(0.75rem, 1.625);
   @include type.type-lineclamp(3);
   color: var(--theme-text-quaternary);
 }
