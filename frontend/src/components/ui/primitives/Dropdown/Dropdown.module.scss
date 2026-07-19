@@ -66,16 +66,10 @@
     color: currentColor;
   }
 
-  // compactOnMobile: the icon stands in for the label only below the sm breakpoint,
-  // or whenever an ancestor (the composer footer row) is in the compact state
-  // because the labeled row overflowed.
+  // compactOnMobile: the icon stands in for the label only below the sm breakpoint
   &--responsive {
     @include responsive.media('sm-up') {
       display: none;
-    }
-
-    :global(.#{state.$state-compact}) & {
-      display: block;
     }
   }
 }
@@ -88,10 +82,6 @@
 
     @include responsive.media('sm-up') {
       display: block;
-    }
-
-    :global(.#{state.$state-compact}) & {
-      display: none;
     }
   }
 
@@ -127,10 +117,6 @@
 
     @include responsive.media('sm-up') {
       display: block;
-    }
-
-    :global(.#{state.$state-compact}) & {
-      display: none;
     }
   }
 }

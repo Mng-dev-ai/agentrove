@@ -1,4 +1,4 @@
-import { memo, useRef, type ReactNode } from 'react';
+import { memo } from 'react';
 import clsx from 'clsx';
 import { stateClasses } from '@/config/stateClasses';
 import { FileUploadDialog } from '@/components/ui/FileUploadDialog/FileUploadDialog';
@@ -16,7 +16,6 @@ import { InputSuggestionsPanel } from './InputSuggestionsPanel';
 import { ContextUsageIndicator } from './ContextUsageIndicator';
 import { InputProvider } from './InputProvider';
 import { useInputContext } from '@/hooks/useInputContext';
-import { useOverflowCompact } from '@/hooks/useOverflowCompact';
 import type { ContextUsageInfo } from './ContextUsageIndicator';
 import styles from './Input.module.scss';
 
@@ -40,24 +39,18 @@ export interface InputProps {
   chatId?: string;
   showLoadingSpinner?: boolean;
   disabled?: boolean;
-  // Extra selectors rendered on the left of the footer row (landing page's
-  // workspace/worktree/run-location pickers); chats leave this empty.
-  footerLeading?: ReactNode;
 }
 
 export const Input = memo(function Input(props: InputProps) {
   return (
     <InputProvider {...props}>
-      <InputLayout footerLeading={props.footerLeading} />
+      <InputLayout />
     </InputProvider>
   );
 });
 
-function InputLayout({ footerLeading }: { footerLeading?: ReactNode }) {
+function InputLayout() {
   const { state, actions, meta } = useInputContext();
-  // Collapses the footer's labels to icons when the labeled row would wrap.
-  const footerRowRef = useRef<HTMLDivElement>(null);
-  const isFooterCompact = useOverflowCompact(footerRowRef);
 
   const shouldShowAttachedPreview =
     state.hasAttachments &&
@@ -136,15 +129,9 @@ function InputLayout({ footerLeading }: { footerLeading?: ReactNode }) {
         </div>
       </div>
 
-      <div
-        ref={footerRowRef}
-        className={clsx(styles['footer-row'], isFooterCompact && stateClasses.COMPACT)}
-      >
-        <div className={styles['footer-leading']}>
-          {footerLeading}
-          <div className={styles['context-slot']}>
-            {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
-          </div>
+      <div className={styles['footer-row']}>
+        <div className={styles['context-slot']}>
+          {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
         </div>
         <InputControls />
       </div>
