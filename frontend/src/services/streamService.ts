@@ -154,8 +154,7 @@ class StreamService {
         content: payload.content,
         modelId: payload.model_id,
         attachments: payload.attachments,
-        // The handoff envelope is emitted by the finishing stream, so its
-        // messageId is the prior turn's assistant message.
+        // Handoff comes from the finishing stream — messageId is the prior turn.
         priorMessageId: envelope.messageId,
         priorDurationMs:
           typeof payload.prior_duration_ms === 'number' ? payload.prior_duration_ms : null,
@@ -168,10 +167,7 @@ class StreamService {
     if (!parsed?.chatId) return;
     const chatId = parsed.chatId;
 
-    // The multiplexed feed carries every stream of the user, including chats with
-    // no client-side stream registered (e.g. background sub-threads). Those must
-    // be ignored entirely — marking their seqs seen or advancing the chatStorage
-    // cursor would make a later replay of that chat skip its content.
+    // Ignore unregistered chats (e.g. sub-threads) — advancing their cursor would skip content on later replay.
     const currentStream = useStreamStore.getState().getStreamByChat(chatId);
     if (!currentStream) return;
     const streamId = currentStream.id;
@@ -190,9 +186,7 @@ class StreamService {
       chatStorage.setEventId(chatId, String(seq));
     }
 
-    // Queue handoff events are fully owned by maybeHandleQueueEvent — routing them
-    // on to onEnvelope would clear the pending id onQueueProcess just set for the
-    // queued turn's anchor, and nothing downstream consumes this kind anyway.
+    // Handoff is owned by maybeHandleQueueEvent — onEnvelope would clear its pending id.
     if (parsed.kind === 'queue_processing') {
       this.maybeHandleQueueEvent(parsed, chatId);
       return;
@@ -203,8 +197,7 @@ class StreamService {
       return;
     }
 
-    // Feeds the landing-page "last tool call" title; after the active-message
-    // guard so replayed envelopes for a stale turn can't overwrite it.
+    // Landing "last tool" title — after active-message guard so stale turns don't overwrite.
     if (
       parsed.kind === 'tool_started' &&
       parsed.payload.tool &&
@@ -224,7 +217,7 @@ class StreamService {
       const durationMs =
         typeof parsed.payload?.duration_ms === 'number' ? parsed.payload.duration_ms : null;
       useStreamStore.getState().removeStream(streamId);
-      // Cancelled turns skip the sidebar "Done" badge — only a successful finish earns it
+      // Only successful finish earns the sidebar "Done" badge.
       if (parsed.kind === 'complete') {
         useStreamStore.getState().markCompleted(chatId);
       }
@@ -243,8 +236,7 @@ class StreamService {
     }
   }
 
-  // Invoked when the shared connection gives up reconnecting — every stream
-  // riding it is unreachable, so fail them all like a fatal transport error.
+  // Shared connection gave up — fail every stream on it.
   private failStreamsForChats(chatIds: string[]): void {
     for (const chatId of chatIds) {
       const stream = useStreamStore.getState().getStreamByChat(chatId);
@@ -267,11 +259,7 @@ class StreamService {
     useStreamStore.getState().abortStream(stream.id);
   }
 
-  // Registering the stream opens the shared connection if it isn't already, and
-  // the replay request covers the already-open case — events published before
-  // this registration (send request window, pre-reconnect backlog) would
-  // otherwise be dropped, since an open feed only replays chats from its
-  // open-time cursors. The resume point is the chat's chatStorage cursor.
+  // Register + requestReplay so pre-registration events aren't dropped on an open feed.
   private registerAndReplay(
     chatId: string,
     messageId: string,
@@ -314,9 +302,7 @@ class StreamService {
   }
 
   async replayStream(options: StreamReconnectOptions): Promise<string> {
-    // A from-zero replay rebuilds the whole message, so the dedup window must
-    // not swallow the re-sent seqs. The actual resume point comes from the
-    // chatStorage cursor the reconnect flow wrote before calling this.
+    // From-zero replay must not have the dedup window swallow re-sent seqs.
     if (!options.afterSeq || options.afterSeq <= 0) {
       this.recentSeqByChat.delete(options.chatId);
     }

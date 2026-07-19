@@ -3,8 +3,6 @@ import clsx from 'clsx';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import styles from './AsciiSpinner.module.scss';
 
-// Braille frames give a smooth terminal-style spin — the CLI-agent aesthetic,
-// shown in place of a chat's icon while its agent is working.
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 const FRAME_INTERVAL_MS = 80;
 

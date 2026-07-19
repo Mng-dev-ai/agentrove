@@ -40,9 +40,7 @@ export interface ViewContentAreaProps {
   onTogglePreviewFullscreen: () => void;
 }
 
-// The editor pane's mutually-exclusive content modes (loading overlay, inline chat
-// widget, diff, code editor, preview). Split out of View so View owns the file/draft
-// state while this component owns only the presentation of that state.
+// Presentation of View modes (diff/code/preview/inline chat); View owns file/draft state.
 export function ViewContentArea({
   isLoadingContent,
   viewMode,

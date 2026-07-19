@@ -45,8 +45,7 @@ export function ResetPasswordPage() {
     password: false,
     confirmPassword: false,
   });
-  // The reset token is fully owned by the URL, so deriving it avoids a mount-only sync effect
-  // and keeps the invalid-token state tied to the actual query string.
+  // Token is URL-owned — derive so invalid state tracks the query string (no sync effect).
   const token = searchParams.get('token');
   const tokenError = token ? null : 'Invalid or missing reset token';
 

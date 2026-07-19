@@ -58,7 +58,7 @@ export function SettingsPage() {
   const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
   const userDisplayName = currentUser?.username || currentUser?.email || '';
   const logoutMutation = useLogout();
-  // Honor a deep-link tab (e.g. the "Connect a cloud instance" CTA → Cloud tab).
+  // Deep-link tab from location.state (e.g. Cloud CTA).
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const requested = (location.state as { tab?: TabKey } | null)?.tab;
     return requested && requested in TAB_LABELS ? requested : 'general';
@@ -92,8 +92,7 @@ export function SettingsPage() {
 
       for (const field of fields) {
         if (JSON.stringify(current[field]) !== JSON.stringify(previous[field])) {
-          // Indexing UserSettingsUpdate by a union key collapses the assignment target
-          // to the intersection of the value types (undefined); cast past it.
+          // Union-key index → value type collapses to undefined; cast past it.
           payload[field] = (current[field] ?? null) as never;
         }
       }
@@ -201,8 +200,7 @@ export function SettingsPage() {
     );
   }
 
-  // Covers both first load (no settings yet) and the one render where settings has resolved but the
-  // syncing effect hasn't populated localSettings yet.
+  // First load, or the frame before the sync effect copies settings → localSettings.
   if (!settings || !localSettings) {
     return (
       <div className={styles['status-screen']}>
@@ -231,7 +229,6 @@ export function SettingsPage() {
           onToggleNav={() => setMobileNavOpen(!mobileNavOpen)}
         />
 
-        {/* Main content area */}
         <div className={styles.content}>
           <div className={styles['content-inner']}>
             {errorMessage && (

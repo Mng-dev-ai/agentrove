@@ -77,13 +77,9 @@ class StorageService:
         file_url = AttachmentURL.build_temp_preview_url(relative_file_path)
 
         if sandbox_id and file_type not in NATIVE_FILE_TYPES[agent_kind]:
-            # Attachments are advertised to the agent as readable from the
-            # sandbox, so fail the upload if the sandbox copy is unavailable.
-            # Skip the write when the agent consumes this file type inline
-            # (base64-embedded in the ACP prompt) — the sandbox copy would be
-            # dead data and, in desktop mode, would pollute the user's workspace.
-            # Pass a relative filename so both providers resolve it under the
-            # workspace dir (absolute paths are rejected by Host).
+            # Fail if sandbox copy unavailable (agent reads from sandbox).
+            # Skip write for inline ACP types (dead data; pollutes desktop workspaces).
+            # Relative filename so both providers resolve under workspace (Host rejects abs).
             await self.sandbox_service.provider.write_file(
                 sandbox_id=sandbox_id, path=unique_filename, content=contents
             )

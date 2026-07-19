@@ -10,8 +10,7 @@ interface WorkspaceContextMenuProps {
   onDelete: () => void;
 }
 
-// Fixed-position context menu for a workspace badge: new thread, rename, delete.
-// The flat chat list has no group headers to hang these actions on.
+// Flat list has no group headers — badge menu holds new thread / rename / delete.
 export function WorkspaceContextMenu({
   ref,
   position,

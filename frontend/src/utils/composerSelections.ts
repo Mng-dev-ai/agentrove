@@ -3,11 +3,9 @@ import type { ComposerSelection } from '@/store/uiStore';
 const BACKTICK_RUN = /`+/g;
 
 export function formatComposerSelections(selections: ComposerSelection[], message: string): string {
-  // Chips are UI-only; at send time the selections ride in the prompt as
-  // fenced blocks above the user's text.
+  // Chips are UI-only; at send, selections become fenced blocks above the message.
   const blocks = selections.map((s) => {
-    // Snippets can contain ``` (Markdown, nested fences) which would close a
-    // bare fence early — use one longer than the longest run in the text.
+    // Fence longer than any run in the text so nested ``` can't close early.
     const longestRun =
       s.text.match(BACKTICK_RUN)?.reduce((max, run) => Math.max(max, run.length), 0) ?? 0;
     const fence = '`'.repeat(Math.max(3, longestRun + 1));

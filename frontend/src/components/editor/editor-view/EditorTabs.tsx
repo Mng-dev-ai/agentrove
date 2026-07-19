@@ -37,7 +37,6 @@ export const EditorTabs = memo(function EditorTabs({
       {openFiles.map((file) => {
         const isActive = file.path === selectedPath;
         const name = getFileName(file.path);
-        // A dirty tab shows the unsaved dot at rest, swapped for the close button on hover.
         const showDot = dirtyPaths.has(file.path);
         return (
           <div key={file.path} className={clsx(styles.tab, isActive && styles['tab--active'])}>

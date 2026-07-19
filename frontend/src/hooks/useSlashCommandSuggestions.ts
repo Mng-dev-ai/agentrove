@@ -25,7 +25,6 @@ export const useSlashCommandSuggestions = ({
   const allCommands = useMemo(() => {
     const builtins = builtinSlashCommands[agentKind];
 
-    // Custom skills filtered to match the active agent kind
     const skillCommands: SlashCommand[] = customSkills
       .filter((skill) => skill.sources.includes(agentKind))
       .map((skill) => ({

@@ -58,12 +58,8 @@ function AppContent() {
     retry: false,
   });
 
-  // NOTE: This effect intentionally syncs auth state via useEffect rather than deriving during
-  // render (rerender-derived-state-no-effect). The persisted Zustand store provides an optimistic
-  // cached isAuthenticated on first load to prevent flash of unauthenticated content, then this
-  // effect corrects it after the user query resolves. Moving to render-time derivation would
-  // require calling an external store setter during render, which re-triggers subscribers
-  // synchronously and risks cascading updates.
+  // Sync auth via effect (not render): Zustand is optimistic on first paint; correcting after
+  // the user query must not set external store state during render (cascading updates).
   useEffect(() => {
     if (hasToken && user) {
       useAuthStore.getState().setAuthenticated(true);
@@ -156,7 +152,7 @@ function AppContent() {
   );
 }
 
-// The window starts hidden (visible:false) on every shell — reveal it once the shell is ready.
+// Window starts hidden (visible:false); call once the shell can talk to a backend.
 function revealAppWindow() {
   getCurrentWindow()
     .show()
@@ -166,7 +162,7 @@ function revealAppWindow() {
 export default function App() {
   const resolvedTheme = useResolvedTheme();
   const theme = useUIStore((state) => state.theme);
-  // Ready = the shell can talk to a backend: web/mobile immediately, desktop after the sidecar port resolves
+  // Web/mobile ready immediately; desktop waits for sidecar port.
   const [shellReady, setShellReady] = useState(!isTauri());
   const [desktopError, setDesktopError] = useState<string | null>(null);
   const [authHydrated, setAuthHydrated] = useState(false);
@@ -183,13 +179,10 @@ export default function App() {
       .finally(() => {
         if (cancelled) return;
         useAuthStore.getState().setAuthenticated(!!authStorage.getToken());
-        // Drop the cloud connection if its refresh token didn't hydrate —
-        // otherwise the UI shows a connected state we can't use.
+        // No hydrated refresh token → drop cloud UI state and origin routing IDs.
         const cloud = useCloudSettingsStore.getState();
         if (cloud.connectedEmail && !cloudAuthStorage.getRefreshToken()) {
           cloud.clearCloud();
-          // Drop persisted cloud origin IDs too — otherwise stale IDs keep routing
-          // through remoteApiClient after the UI shows cloud as disconnected.
           clearCloudOrigins();
         }
         setAuthHydrated(true);
@@ -202,7 +195,7 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', resolvedTheme);
-    // data-palette drives the per-theme CSS-var overrides (dim/sepia); base modes have no override block
+    // data-palette selects CSS-var overrides; light/dark/system have no override block.
     document.documentElement.setAttribute('data-palette', theme);
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
@@ -216,11 +209,9 @@ export default function App() {
   }, [resolvedTheme, theme]);
 
   useMountEffect(() => {
-    // Mobile has no local sidecar — the backend URL is baked in at build time
-    // (.env.mobile), so just mark ready and skip the desktop backend startup.
+    // Mobile: backend URL is build-time (.env.mobile); no sidecar port wait.
     if (isMobileApp()) {
       setShellReady(true);
-      // Mobile has no backend-port step to trigger the reveal — show it directly.
       revealAppWindow();
       return;
     }
@@ -258,7 +249,7 @@ export default function App() {
 
   useDesktopZoom();
 
-  // Cmd+R / Ctrl+R reloads the webview — Tauri release builds disable this by default
+  // Tauri release builds disable Cmd/Ctrl+R reload by default.
   useMountEffect(() => {
     if (!isTauri()) return;
 
@@ -275,7 +266,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handler);
   });
 
-  // Open external links in the system browser — Tauri doesn't handle target="_blank" natively
+  // Tauri doesn't open target="_blank" in the system browser by itself.
   useMountEffect(() => {
     if (!isTauri()) return;
 
@@ -318,7 +309,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Toaster {...toasterConfig} />
-      {/* Root boundary — a render crash anywhere in the route tree must not white-screen the shell */}
       <ErrorBoundary>
         <AppContent />
       </ErrorBoundary>

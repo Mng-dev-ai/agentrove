@@ -6,15 +6,11 @@ from sqlalchemy.engine import Engine
 
 def _set_pragmas(dbapi_connection: Any, _: Any) -> None:
     cursor = dbapi_connection.cursor()
-    # SQLite ignores FK constraints unless PRAGMA foreign_keys=ON is set per
-    # connection — required for ondelete CASCADE / SET NULL to be enforced.
+    # Per-connection: SQLite ignores FKs unless this is ON (CASCADE/SET NULL).
     cursor.execute("PRAGMA foreign_keys=ON")
-    # WAL lets readers and the writer proceed concurrently — the engine uses
-    # NullPool (one connection per session), so without WAL concurrent sessions
-    # would serialize behind the rollback journal's exclusive lock.
+    # WAL: NullPool means one conn per session; without WAL writers serialize.
     cursor.execute("PRAGMA journal_mode=WAL")
-    # Wait for a busy writer instead of failing fast with "database is locked"
-    # (the driver default is 5s, too short for bursts of stream-snapshot writes).
+    # Default 5s busy timeout is too short under stream-snapshot write bursts.
     cursor.execute("PRAGMA busy_timeout=30000")
     cursor.close()
 

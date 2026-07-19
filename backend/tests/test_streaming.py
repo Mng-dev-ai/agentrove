@@ -74,9 +74,7 @@ class PermissionStep:
 
 
 class FakeAcpSession:
-    # Duck-types AcpSession's public surface (session.py) so AgentService and
-    # SessionRegistry drive it exactly like a real ACP subprocess session,
-    # without ever spawning one.
+    # Duck-types AcpSession so AgentService/SessionRegistry run without spawn.
     def __init__(
         self,
         scripts: list[list[Any]],
@@ -210,9 +208,7 @@ def acp_factory(monkeypatch: pytest.MonkeyPatch) -> FakeAcpSessionFactory:
 @pytest.fixture
 def streaming_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
     cache = EndpointCache()
-    # cache_connection is imported by value into each of these modules, so the
-    # global patch in utils.cache doesn't reach them — patch every call site
-    # that the send/stream/queue pipeline actually uses.
+    # cache_connection is import-by-value — patch each call site, not utils.cache.
     monkeypatch.setattr(chat_endpoint, "cache_connection", cache.connect)
     monkeypatch.setattr(deps, "cache_connection", cache.connect)
     monkeypatch.setattr(chat_service_module, "cache_connection", cache.connect)
@@ -309,9 +305,7 @@ async def test_send_message_streams_full_turn_and_persists_final_snapshot(
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
-    # session_id pre-set so this turn isn't treated as "new chat" — keeps the
-    # test focused on the main-turn pipeline instead of also needing a second
-    # scripted session for background title generation.
+    # Pre-set session_id so this isn't a "new chat" (avoids title-gen session).
     chat = await create_chat_row(db_session, user, workspace, session_id="resumed-1")
 
     tool_payload = {
@@ -363,9 +357,7 @@ async def test_send_message_streams_full_turn_and_persists_final_snapshot(
     assert status_response.status_code == 200
     assert status_response.json()["has_active_task"] is False
 
-    # Terminal-event persistence: the pre-completion buffered events are wiped
-    # by the final snapshot, but the "complete" control event is emitted after
-    # that cleanup, so exactly one row should remain.
+    # Snapshot wipes buffered events; "complete" after cleanup leaves one row.
     terminal_events_response = await client.get(
         f"/api/v1/chat/messages/{message_id}/events", headers=headers
     )
@@ -659,10 +651,7 @@ async def test_stream_failure_marks_message_failed_and_emits_bootstrap_error(
     assert events[-1]["type"] == "assistant_text"
     assert "Error: boom" in events[-1]["text"]
 
-    # emit_bootstrap_error's own terminal snapshot save deletes the "error"
-    # MessageEvent row it just inserted (same terminal-cleanup path as any
-    # other stream_status transition), so no rows survive for a reconnect —
-    # only the content_render text carries the error after completion.
+    # Terminal snapshot deletes the error MessageEvent; only content_render remains.
     error_events_response = await client.get(
         f"/api/v1/chat/messages/{message_id}/events", headers=headers
     )
@@ -682,9 +671,7 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     )
     chat = await create_chat_row(db_session, user, workspace, session_id="resumed-6")
 
-    # Two scripts on the SAME fake session: the fingerprint (model, mode,
-    # persona, system prompt) is identical across both turns, so the runtime
-    # reuses the one ACP session instead of creating a second one.
+    # Same fingerprint across turns → one ACP session reused, not two.
     first_script = [StreamEvent(type="assistant_text", text="First turn done")]
     second_script = [StreamEvent(type="assistant_text", text="Second turn done")]
     acp_factory.queue(
@@ -736,9 +723,7 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     )
     assert second_user is not None
 
-    # The handoff event on the first message survives (it's emitted after the
-    # terminal-snapshot cleanup) and no "complete" event fires for turn one —
-    # completion is deferred to the drained follow-up turn.
+    # Handoff survives snapshot; turn-one "complete" deferred to follow-up.
     first_events_response = await client.get(
         f"/api/v1/chat/messages/{first_message_id}/events", headers=headers
     )
@@ -995,9 +980,7 @@ async def test_stream_with_no_events_raises_and_marks_message_failed(
     )
     chat = await create_chat_row(db_session, user, workspace, session_id="resumed-13")
 
-    # An empty script finishes the ACP prompt without emitting a single
-    # stream event — the runtime must treat that as a hard failure rather
-    # than silently completing.
+    # Empty ACP script (no stream events) must hard-fail, not silent complete.
     acp_factory.queue(FakeAcpSession([[]], session_id="resumed-13"))
 
     result = await send_message(client, headers, chat)
@@ -1033,9 +1016,7 @@ async def test_mid_stream_system_event_updates_chat_session_id(
         StreamEvent(type="system", data={"session_id": "pivoted-session"}),
         StreamEvent(type="assistant_text", text="Pivoted"),
     ]
-    # acp_session_id stays "resumed-14" (the resumed id) — the pivot is
-    # signalled purely through the mid-stream "system" event payload, as a
-    # provider would when it hands off to a new underlying session.
+    # Pivot via mid-stream "system" event; acp_session_id stays resumed id.
     acp_factory.queue(FakeAcpSession([script], session_id="resumed-14"))
 
     await send_message(client, headers, chat)
@@ -1081,9 +1062,7 @@ async def test_send_message_with_worktree_persists_cwd_and_emits_system_event(
         headers=headers,
     )
     assert response.status_code == 200
-    # AgentService.ensure_worktree_cwd resolves the cwd (and persists it)
-    # before the background stream even starts, so this is already set by
-    # the time initiate_chat_completion responds.
+    # worktree_cwd is resolved/persisted before the stream task starts.
     assert response.json()["worktree_cwd"] is not None
 
     await run_background_task(chat.id)
@@ -1098,9 +1077,7 @@ async def test_send_message_with_worktree_persists_cwd_and_emits_system_event(
 
 @pytest_asyncio.fixture
 async def live_server_url(app: FastAPI) -> AsyncIterator[str]:
-    # httpx's ASGITransport buffers the whole response before returning, so an
-    # unbounded SSE body can never be read through it — live-stream tests need
-    # a real socket server.
+    # ASGITransport buffers whole body — live SSE needs a real socket server.
     config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="error")
     server = uvicorn.Server(config)
     serve_task = asyncio.create_task(server.serve())
@@ -1178,9 +1155,7 @@ async def test_stream_sse_replays_backlog_then_delivers_live_events(
                 REDIS_KEY_USER_STREAMS_LIVE.format(user_id=user.id), live_envelope
             )
 
-            # The multiplexed feed stays open across terminal events (other
-            # chats may still be streaming), so read exactly one live event
-            # instead of draining until server-side close.
+            # Feed stays open; read one live event, don't drain to close.
             async for line in lines:
                 if line.startswith("data:"):
                     envelopes.append(json.loads(line.removeprefix("data:").strip()))
@@ -1196,11 +1171,7 @@ async def test_sse_endpoints_release_db_connection_while_streaming(
     streaming_cache: EndpointCache,
     live_server_url: str,
 ) -> None:
-    # Regression: FastAPI holds the get_db yield dependency open until the
-    # response completes, so an open SSE connection used to pin the auth
-    # chain's pooled DB connection for its whole lifetime — a handful of open
-    # tabs exhausted the default 5+10 pool and every request then timed out at
-    # auth. The SSE handlers must release the session before streaming starts.
+    # Regression: SSE must release get_db before stream or tabs pin the pool.
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
@@ -1226,10 +1197,7 @@ async def test_sse_endpoints_release_db_connection_while_streaming(
             ):
                 assert events_response.status_code == 200
                 assert chat_stream_response.status_code == 200
-                # The chat stream's backlog replay briefly opens its own session,
-                # so poll rather than assert instantly. Without the release fix
-                # each open stream pins a connection forever, the count never
-                # returns to zero, and asyncio.timeout fails the test.
+                # Backlog replay opens a brief session — poll for pool drain.
                 while counter.active > 0:
                     await asyncio.sleep(0.01)
     finally:

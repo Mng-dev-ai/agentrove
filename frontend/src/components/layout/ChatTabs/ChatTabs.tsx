@@ -36,31 +36,25 @@ interface ChatTabProps {
 }
 
 function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: ChatTabProps) {
-  // Shares the chat-query cache with the sidebar and panes; only the title is read.
   const chatQuery = useChatQuery(chatId);
-  // Only a confirmed 404 (chat gone on the backend) closes the tab — transient
-  // network/auth failures must not wipe the persisted working set.
+  // Close only on confirmed 404 — transient network/auth errors must not wipe tabs.
   const isChatGone = (chatQuery.error as (Error & { status?: number }) | null)?.status === 404;
   useEffect(() => {
     if (isChatGone) useUIStore.getState().closeChatTab(chatId);
   }, [isChatGone, chatId]);
 
   const title = chatQuery.data?.title ? stripMarkdownTitle(chatQuery.data.title) : '…';
-  // Streaming renders the braille spinner separately; blocked/completed are
-  // already ChatStatusTone values, so they map straight to a dot.
+  // Streaming uses AsciiSpinner; blocked/completed map straight to ChatStatusDot.
   const statusDotTone: ChatStatusTone | null = status && status !== 'streaming' ? status : null;
   const agentKind = useChatAgentKind(chatId, chatQuery.data?.session_agent_kind);
 
   return (
     <div
-      // Middle-click closes, matching browser/editor tab conventions.
+      // Middle-click closes (browser/editor tab convention).
       onAuxClick={(e) => {
         if (e.button === 1) onClose(chatId);
       }}
-      // Full height so the label centers on the title bar's optical line (with
-      // the traffic lights / sidebar controls); only the underline hugs the edge.
-      // The underline indicator marks the active tab — no fill, so the strip
-      // stays a single flat band.
+      // Full height centers the label on the title bar; underline-only active state.
       className={clsx(styles['chat-tab'], isActive && stateClasses.ACTIVE)}
     >
       <FloatingTooltip
@@ -73,12 +67,9 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
           aria-current={isCurrent ? 'page' : undefined}
           className={styles['tab-select']}
         >
-          {/* The status glyph claims the icon slot while a status is live; at rest
-              the chat's provider glyph (Claude, Codex…) matches the sidebar. */}
           {status === 'streaming' ? (
             <AsciiSpinner className={styles['tab-spinner']} />
           ) : statusDotTone ? (
-            // h-3 w-3 box centers the 8px dot in the provider icon's footprint
             <ChatStatusDot tone={statusDotTone} className={styles['tab-status-dot']} />
           ) : (
             agentKind && (
@@ -88,8 +79,7 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
           <span className={styles['tab-title']}>{title}</span>
         </Button>
       </FloatingTooltip>
-      {/* focus-visible keeps the hidden close button perceivable for keyboard
-          users — it stays in the tab order even while opacity-0. */}
+      {/* Close stays focusable (opacity-0) so keyboard users can still reach it. */}
       <Button
         variant="unstyled"
         onClick={() => onClose(chatId)}
@@ -107,29 +97,21 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   );
 }
 
-// Title-bar chat tabs — the working set of open chats (the sidebar stays the
-// full archive). Each tab is also the chat's agent-view tab: clicking the
-// current chat's tab surfaces the agent pane. A live status icon fed by the
-// global stream and permission stores keeps background chats glanceable.
+// Working-set tabs (sidebar is the archive); re-clicking the current chat surfaces the agent pane.
 export function ChatTabs() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  // TitleBar renders outside the /chat/:chatId route element, so match the
-  // location directly instead of relying on route params.
+  // TitleBar sits outside /chat/:chatId, so read the route from the location.
   const routedChatId = useMatch('/chat/:chatId')?.params.chatId;
   const chatTabs = useUIStore((s) => s.chatTabs);
   const splitChatIds = useUIStore((s) => s.splitChatIds);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const activeStreamMetadata = useStreamStore((s) => s.activeStreamMetadata);
-  // Shared with the sidebar: marked by the stream service on successful
-  // completion, cleared by the sidebar when the chat is viewed.
+  // Marked on stream success; sidebar clears when the chat is viewed.
   const completedChatIds = useStreamStore((s) => s.completedChatIds);
   const pendingRequests = usePermissionStore((s) => s.pendingRequests);
 
-  // Chats with a pane on screen: split tiles belong to their bound chat, all
-  // others to the routed chat. Derived from the layout, not splitChatIds —
-  // a split chat hidden behind a full-screen primary view is off screen, so its
-  // tab must drop the active highlight.
+  // From layout (not splitChatIds): a split chat under a full-screen primary is off-screen.
   const visibleChatIds = useMemo(() => {
     const ids = new Set<string>();
     for (const tileId of visibleLayout.flat()) {
@@ -152,8 +134,7 @@ export function ChatTabs() {
         navigate(`/chat/${chatId}`);
         return;
       }
-      // The chat tab doubles as the agent tab — re-clicking it surfaces the
-      // agent pane: focus it if already on screen, otherwise bring it up full.
+      // Re-clicking the current chat surfaces the agent pane.
       const ui = useUIStore.getState();
       if (ui.visibleLayout.flat().includes('agent:primary')) ui.focusTile('agent:primary');
       else ui.activateTab('agent:primary');
@@ -164,14 +145,12 @@ export function ChatTabs() {
   const handleClose = useCallback(
     (chatId: string) => {
       const ui = useUIStore.getState();
-      // Closing the split chat's tab also tears the split down — a closed tab
-      // means "out of the working set", not just "hide the tab".
+      // Closed tab leaves the working set — tear down its split too.
       if (ui.splitChatIds.includes(chatId)) ui.closeSplitChat(chatId);
       const tabs = ui.chatTabs;
       const index = tabs.indexOf(chatId);
       ui.closeChatTab(chatId);
       if (chatId !== routedChatId) return;
-      // Land on the neighbor tab (next, else previous), or back on the landing page.
       const remaining = tabs.filter((id) => id !== chatId);
       const next = remaining[Math.min(index, remaining.length - 1)];
       navigate(next ? `/chat/${next}` : '/');

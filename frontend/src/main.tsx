@@ -1,18 +1,15 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-// Global token/reset layer must load before the component tree so module CSS
-// always comes later in the cascade and wins specificity ties against resets
+// Global tokens/resets before component CSS so modules win cascade ties.
 import './styles/app.scss';
 import App from './App.tsx';
-// Build-time-generated `data-palette` override blocks (see vite.config.ts).
+// Build-time palette CSS overrides (vite.config.ts).
 import 'virtual:palette-overrides.css';
 import { queryClient, persistOptions } from './lib/queryClient';
 import { isMobileApp } from './utils/platform';
 
-// iOS WebKit zooms into any focused input with font-size < 16px. The app's dense
-// type scale (text-xs/sm) would trigger it on every input tap, so lock the scale
-// in the native shell. Web keeps the default viewport so pinch-zoom still works.
+// iOS WebKit zooms inputs with font-size < 16px; lock scale in the native shell only.
 if (isMobileApp()) {
   document
     .querySelector('meta[name="viewport"]')

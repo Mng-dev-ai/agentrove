@@ -183,7 +183,6 @@ class SkillService:
         return list(by_path.values())
 
     def get_files(self, source: str, skill_name: str) -> list[SkillFileEntry]:
-        # Text files are returned as-is, binary files as base64-encoded strings.
         skill_dir = self._find_skill_dir(source, skill_name)
         if skill_dir is None:
             raise FileNotFoundError(f"Skill '{skill_name}' not found")

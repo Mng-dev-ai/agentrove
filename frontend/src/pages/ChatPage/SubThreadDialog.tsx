@@ -2,11 +2,9 @@ import { useUIStore } from '@/store/uiStore';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { CreateSubThreadDialog } from '@/components/chat/sub-threads/CreateSubThreadDialog';
 
-// Mount-gated wrapper (matches the git dialogs' pattern) so useActiveChat's
-// pane subscriptions don't re-render the whole page on every pane switch.
+// Mount-gated (like git dialogs) so useActiveChat doesn't re-render the whole page.
 export function SubThreadDialog() {
-  // Sub-threads branch off the pane the user is in — in split view that's the
-  // split chat when it's the active pane.
+  // Parent is the focused pane's chat (split chat when that pane is active).
   const parentChat = useActiveChat();
   if (!parentChat || parentChat.parent_chat_id) return null;
   return (

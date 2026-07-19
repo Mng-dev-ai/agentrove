@@ -17,9 +17,7 @@ interface EmptyStateProps {
   message: string;
 }
 
-// Stable empty fallback so a loading/undefined `skills` doesn't yield a new `[]`
-// each render — a fresh reference retriggers useSkillsFilter's render-phase setState
-// (via availableSources' useMemo) into an infinite loop while the query is in flight.
+// Stable [] — a fresh array each render loops useSkillsFilter's render-phase setState.
 const EMPTY_SKILLS: CustomSkill[] = [];
 
 function EmptyState({ icon: Icon, message }: EmptyStateProps) {
@@ -34,8 +32,7 @@ function EmptyState({ icon: Icon, message }: EmptyStateProps) {
 export function SkillsSettingsTab() {
   const workspaces = useWorkspacesList();
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>();
-  // Skills are per-workspace, so default to the first workspace until the user
-  // picks another instead of tracking selection in a sync effect.
+  // Default to first workspace without a sync effect.
   const workspaceId = selectedWorkspaceId ?? workspaces[0]?.id;
 
   const { data: skills, isLoading, refetch } = useSkillsQuery(workspaceId);

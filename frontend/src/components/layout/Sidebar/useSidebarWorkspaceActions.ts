@@ -23,8 +23,6 @@ interface UseSidebarWorkspaceActionsParams {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
-// Owns workspace-badge context-menu state plus workspace/cloud thread, rename,
-// and delete handlers for the sidebar.
 export function useSidebarWorkspaceActions({
   selectedChatId,
   selectedChatWorkspaceId,

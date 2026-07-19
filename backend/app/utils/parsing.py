@@ -3,8 +3,7 @@ from uuid import UUID
 
 
 def parse_stream_cursors(value: str | None) -> dict[UUID, int]:
-    # Query-param JSON object of chat id -> last seen seq, used by the multiplexed
-    # SSE feed to decide which chats need backlog replay and from where.
+    # Query JSON: chat id -> last seen seq for multiplexed SSE backlog replay.
     if not value:
         return {}
     try:

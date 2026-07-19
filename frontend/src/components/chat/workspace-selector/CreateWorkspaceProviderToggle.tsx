@@ -2,7 +2,6 @@ import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './CreateWorkspaceProviderToggle.module.scss';
 
-// Sandbox provider picker shared by the empty-workspace and git-clone creation forms.
 export function CreateWorkspaceProviderToggle({
   value,
   onChange,

@@ -51,7 +51,6 @@ export const ToolCard = memo(function ToolCard({
           (React.isValidElement(error) ? (
             error
           ) : (
-            // Multiline error output belongs inside the collapsible body alongside normal results
             <pre className={toolText['error-pre']}>{error}</pre>
           ))}
       </div>

@@ -53,14 +53,11 @@ export interface ActionCommandItem {
 
 export type CommandItem = ViewCommandItem | ActionCommandItem;
 
-// Main-mode filter tabs; ⌘[/⌘] cycle through them in this order. Chats/Files match
-// titles/filenames in the unified list; Messages/Grep host the content-search panels
-// (chat messages / file contents) — named so they don't read as duplicates of Chats/Files.
+// Main-mode filter tabs (⌘[/⌘] cycle). Messages/Grep are content search, not Chats/Files.
 export type MainFilter = 'all' | 'chats' | 'messages' | 'files' | 'grep' | 'actions';
 export const MAIN_FILTERS: MainFilter[] = ['all', 'chats', 'messages', 'files', 'grep', 'actions'];
 
-// Sub-modes (branch picker, theme picker) replace the whole menu surface; main
-// filters only narrow the unified list or swap in a search panel.
+// Sub-modes replace the whole surface; main filters narrow the list or swap a panel.
 export type MenuMode = MainFilter | 'branches' | 'themes';
 
 export interface FlatFileItem {
@@ -68,16 +65,14 @@ export interface FlatFileItem {
   name: string;
 }
 
-// Loaded chat lists (instant title fuzzy match) normalized to one display shape;
-// message-content search lives in the Messages tab, not here.
+// Title fuzzy-match rows; message-content search is the Messages tab.
 export interface ChatRowItem {
   id: string;
   title: string;
   workspaceName?: string;
 }
 
-// One flat list drives both keyboard navigation and rendering of the sectioned
-// main-mode results, so their ordering can never diverge.
+// One list for keyboard nav and sectioned rendering so order can't diverge.
 export type MenuListItem =
   | { kind: 'chat'; chat: ChatRowItem }
   | { kind: 'file'; file: FlatFileItem }

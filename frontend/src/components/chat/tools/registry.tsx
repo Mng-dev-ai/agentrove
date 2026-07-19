@@ -70,7 +70,6 @@ const opencodeToolLoaders: Record<string, ToolModuleLoader> = {
 };
 
 const toolLoaders: Record<string, ToolModuleLoader> = {
-  // Claude Code tools
   Agent: () => import('./claude/AgentTool').then((m) => ({ default: m.AgentTool })),
   WebSearch: () => import('./claude/WebSearch').then((m) => ({ default: m.WebSearch })),
   TodoWrite: () => import('./claude/TodoWrite').then((m) => ({ default: m.TodoWrite })),
@@ -93,7 +92,6 @@ const toolLoaders: Record<string, ToolModuleLoader> = {
   ExitPlanMode: () =>
     import('./claude/PlanModeTool').then((m) => ({ default: m.ExitPlanModeTool })),
 
-  // Codex tools (lowercase kind values from ACP)
   execute: codexShellLoader,
   search: () => import('./codex/SearchTool').then((m) => ({ default: m.SearchTool })),
   read: () => import('./codex/ReadTool').then((m) => ({ default: m.ReadTool })),
@@ -119,10 +117,7 @@ const getOrCreateLazy = (key: string, loader: ToolModuleLoader) => {
 };
 
 export const getToolComponent = (toolName: string, agentKind?: AgentKind): ToolComponent => {
-  // Copilot and Cursor both speak the lowercase ACP kinds (execute/read/edit/
-  // fetch) that Codex uses, but emit different rawInput/rawOutput shapes.
-  // Route each agent's tools to its own renderers before falling through to
-  // the Codex/Claude table.
+  // Same ACP kind names across agents, different rawInput/rawOutput — prefer agent-specific loaders.
   if (agentKind === 'codex' && codexToolLoaders[toolName]) {
     return getOrCreateLazy(`codex:${toolName}`, codexToolLoaders[toolName]);
   }

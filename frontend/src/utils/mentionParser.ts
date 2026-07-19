@@ -3,10 +3,8 @@ export interface HighlightSegment {
   isToken: boolean;
 }
 
-// @mention or /command preceded by start-of-string or whitespace — mirrors
-// parseTokenQuery's boundary rule, so anything the suggestion panels can insert
-// also pills. Paths containing spaces truncate at the space, same as the
-// unquoted mention insertion. One regex keeps the ranges position-sorted.
+// Boundary rule mirrors parseTokenQuery so suggestion inserts also pill.
+// Paths with spaces truncate at the space (same as unquoted insertion).
 const TOKEN_REGEX = /(^|\s)([@/]\S+)/g;
 
 interface TokenQueryResult {
@@ -28,8 +26,6 @@ export const parseTokenQuery = (
   cursorPosition: number,
   trigger: '@' | '/',
 ): TokenQueryResult => {
-  // In-progress token at the cursor: trigger char at start-of-string or after
-  // whitespace, with no whitespace between it and the cursor.
   const textBeforeCursor = message.slice(0, cursorPosition);
   const lastTriggerIndex = textBeforeCursor.lastIndexOf(trigger);
 
@@ -65,8 +61,7 @@ export const insertToken = (
   startPos: number,
   endPos: number,
 ): { text: string; cursor: number } => {
-  // Replaces the in-progress [startPos, endPos) token with the selected value;
-  // the trailing space closes the suggestion query so the panel dismisses.
+  // Trailing space closes the suggestion query so the panel dismisses.
   const before = message.slice(0, startPos);
   const after = message.slice(endPos);
   const separator = after.startsWith(' ') ? '' : ' ';
@@ -77,7 +72,6 @@ export const insertToken = (
 };
 
 export const getHighlightTokenRanges = (message: string): Array<[number, number]> => {
-  // [start, end) offsets of @file mention and /command tokens.
   const tokenRanges: Array<[number, number]> = [];
 
   for (const match of message.matchAll(TOKEN_REGEX)) {
@@ -89,8 +83,7 @@ export const getHighlightTokenRanges = (message: string): Array<[number, number]
 };
 
 export const buildHighlightSegments = (message: string): HighlightSegment[] => {
-  // Split text into plain/token runs so callers can render pills behind the
-  // tokens without altering the raw value.
+  // Plain/token runs so callers can render pills without altering the raw value.
   const tokenRanges = getHighlightTokenRanges(message);
 
   const segments: HighlightSegment[] = [];

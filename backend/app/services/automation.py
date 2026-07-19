@@ -22,7 +22,7 @@ from app.services.exceptions import AutomationException, ErrorCode
 
 logger = logging.getLogger(__name__)
 
-# Fields whose change invalidates the previously computed next_run_at.
+# Changing these invalidates the cached next_run_at.
 SCHEDULE_FIELDS = frozenset({"cron_expression", "timezone", "enabled"})
 
 

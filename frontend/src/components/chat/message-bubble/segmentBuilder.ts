@@ -79,11 +79,7 @@ const statusMap: Record<'tool_started' | 'tool_completed' | 'tool_failed', ToolE
   tool_failed: 'failed',
 };
 
-// Context object passed through tool processing functions to maintain state
-// - toolMap: Quick lookup of tools by ID for parent-child linking
-// - pendingChildren: Queue for child tools that arrive before their parent (out-of-order events)
-// - segmentIndexByToolId: Maps tool IDs to their position in segments array for O(1) updates
-// - segments: The output array being built
+// pendingChildren holds tools whose parent_id arrived before the parent tool event.
 interface ProcessToolEventContext {
   toolMap: Map<string, ToolAggregate>;
   pendingChildren: Map<string, ToolAggregate[]>;
@@ -106,9 +102,6 @@ const updateSegmentTool = (
   }
 };
 
-// Recursively updates all ancestors when a child tool changes.
-// When a nested tool updates, its parent's children array must reflect the change,
-// and that parent's parent must also update, continuing up the chain.
 const updateParentChain = (
   childAggregate: ToolAggregate,
   toolMap: Map<string, ToolAggregate>,
@@ -151,9 +144,6 @@ const createToolAggregate = (
   children: [],
 });
 
-// Attaches any children that arrived before this parent tool was created.
-// Tool events can arrive out of order (child before parent), so we queue
-// orphaned children in pendingChildren and attach them when the parent arrives.
 const attachPendingChildren = (
   aggregate: ToolAggregate,
   pendingChildren: Map<string, ToolAggregate[]>,
@@ -169,8 +159,6 @@ const attachPendingChildren = (
   return updated;
 };
 
-// Links a child tool to its parent. If the parent exists, adds child to its children array.
-// If the parent hasn't arrived yet, queues the child in pendingChildren for later attachment.
 const addChildToParent = (
   child: ToolAggregate,
   parentId: string,
@@ -222,8 +210,7 @@ const removeFromPreviousParent = (
   }
 };
 
-// Removes a tool from the root-level segments array when it becomes a child of another tool.
-// After removal, shifts all subsequent segment indices down by 1 to maintain correct mappings.
+// Drop from root segments when reparented; reindex so later O(1) updates stay correct.
 const removeToolFromRootSegments = (
   toolId: string,
   segmentIndexByToolId: Map<string, number>,
@@ -235,7 +222,6 @@ const removeToolFromRootSegments = (
   segments.splice(rootIndex, 1);
   segmentIndexByToolId.delete(toolId);
 
-  // Shift indices for all segments after the removed one
   segmentIndexByToolId.forEach((idx, id) => {
     if (idx > rootIndex) {
       segmentIndexByToolId.set(id, idx - 1);
@@ -243,10 +229,7 @@ const removeToolFromRootSegments = (
   });
 };
 
-// Handles reassignment of a tool's parent when the parent_id changes mid-stream.
-// This can happen when the backend corrects tool hierarchy. The function:
-// 1. Removes the tool from its previous parent's children (if any)
-// 2. Either adds it to the new parent or promotes it to root level
+// Backend can correct parent_id mid-stream — re-home under the new parent or promote to root.
 const handleParentChange = (
   aggregate: ToolAggregate,
   incomingParentId: string | null,
@@ -331,8 +314,6 @@ const processExistingTool = (
   }
 };
 
-// Main entry point for processing tool events. Routes to either processNewTool
-// (first time seeing this tool ID) or processExistingTool (updating status/result).
 const processToolEvent = (
   event: Extract<AssistantStreamEvent, { type: 'tool_started' | 'tool_completed' | 'tool_failed' }>,
   context: ProcessToolEventContext,
@@ -350,9 +331,7 @@ const processToolEvent = (
   }
 };
 
-// Transforms a flat array of stream events into structured segments for rendering.
-// Handles text batching, tool hierarchy construction (including out-of-order events),
-// and produces segments of type: text, thinking, tool, or review.
+// Flat stream events → text/thinking/tool/plan/suggestions segments (incl. out-of-order tool parents).
 export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] => {
   const segments: MessageSegment[] = [];
   const toolMap = new Map<string, ToolAggregate>();

@@ -106,8 +106,7 @@ class SandboxService:
     async def send_pty_input(
         self, sandbox_id: str, pty_session_id: str, data: bytes
     ) -> None:
-        # Forward user keystrokes to the PTY; if the write fails the session
-        # is likely dead, so clean it up rather than leaving a zombie.
+        # Clean up on write failure so a dead session isn't left as a zombie.
         try:
             await self.provider.send_pty_input(sandbox_id, pty_session_id, data)
         except Exception as e:

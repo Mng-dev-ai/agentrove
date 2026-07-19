@@ -29,10 +29,9 @@ export function RecentChats({ chats, workspaceBadgeById, onChatSelect }: RecentC
   const activeStreamMetadata = useStreamStore((state) => state.activeStreamMetadata);
   const lastToolTitleByChatId = useStreamStore((state) => state.lastToolTitleByChatId);
   const completedChatIds = useStreamStore((state) => state.completedChatIds);
-  // Empty queues are deleted from the store, so every remaining key is a chat
-  // blocked on a plan/question/permission answer.
+  // Empty queues are dropped; remaining keys = blocked on plan/question/permission.
   const pendingRequests = usePermissionStore((state) => state.pendingRequests);
-  // Recents only render when authenticated, so the models query is safe to enable.
+  // Recents only mount when authenticated.
   const modelMap = useModelMap();
 
   const streamingChatIds = useMemo(
@@ -48,8 +47,7 @@ export function RecentChats({ chats, workspaceBadgeById, onChatSelect }: RecentC
       <div className={styles.header}>Jump back in</div>
       <div className={styles.list}>
         {chats.slice(0, MAX_RECENT_CHATS).map((chat) => {
-          // Same tone precedence as the sidebar rows and chat tabs; no chat is
-          // open on the landing page, so unread is never suppressed here.
+          // Same tone order as sidebar/tabs; no open chat, so unread is never suppressed.
           const status = chatStatusTone({
             blocked: pendingRequests.has(chat.id),
             streaming: streamingChatIds.has(chat.id),

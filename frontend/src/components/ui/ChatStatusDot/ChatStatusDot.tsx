@@ -3,8 +3,7 @@ import styles from './ChatStatusDot.module.scss';
 
 export type ChatStatusTone = 'blocked' | 'running' | 'completed' | 'unread';
 
-// Precedence for a chat's status tone (shared by the sidebar rows and sub-threads):
-// needs-you > running > done > unread. Running normally renders the spinner, not a dot.
+// Precedence: needs-you > running > done > unread (running uses the spinner, not a dot).
 export function chatStatusTone(flags: {
   blocked: boolean;
   streaming: boolean;
@@ -18,7 +17,6 @@ export function chatStatusTone(flags: {
   return null;
 }
 
-// Human word for each tone, shown in tooltips next to the dot/spinner.
 export const CHAT_STATUS_LABEL: Record<ChatStatusTone, string> = {
   blocked: 'Needs you',
   running: 'Running',
@@ -26,9 +24,7 @@ export const CHAT_STATUS_LABEL: Record<ChatStatusTone, string> = {
   unread: 'Unread',
 };
 
-// Shared status dot for the sidebar rows and the title-bar tabs so both read the
-// same: red (pulsing) = needs you, amber = running, green = done, blue = unread.
-// (Running normally shows the braille spinner; the amber dot is its compact form.)
+// red+ping=needs you, amber=running (compact; usually spinner), green=done, blue=unread
 const TONE_STYLE: Record<ChatStatusTone, { tone: ChatStatusTone; ping: boolean }> = {
   blocked: { tone: 'blocked', ping: true },
   running: { tone: 'running', ping: false },
@@ -36,8 +32,7 @@ const TONE_STYLE: Record<ChatStatusTone, { tone: ChatStatusTone; ping: boolean }
   unread: { tone: 'unread', ping: false },
 };
 
-// className positions the whole dot (e.g. absolute corner overlay, or a sizing box
-// to center it); ringClassName punches it out from an icon it overlays.
+// ringClassName punches the dot out from an overlayed icon.
 export function ChatStatusDot({
   tone,
   className,
@@ -50,8 +45,7 @@ export function ChatStatusDot({
   const { tone: toneKey, ping } = TONE_STYLE[tone];
   return (
     <span className={clsx(styles['chat-status-dot'], className)}>
-      {/* Inner box owns the ping's positioning context so the ring stays dot-sized
-          regardless of how the outer span is positioned. */}
+      {/* Inner box sizes the ping/ring independent of outer positioning. */}
       <span className={styles['dot-inner']}>
         {ping && <span className={clsx(styles.ping, styles[`dot--${toneKey}`])} />}
         <span className={clsx(styles['dot-ring'], ringClassName, styles[`dot--${toneKey}`])} />

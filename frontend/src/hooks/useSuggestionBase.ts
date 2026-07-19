@@ -7,11 +7,8 @@ interface UseSuggestionBaseOptions<T> {
   onSelect: (item: T) => void;
 }
 
-// Shared keyboard-navigation logic for suggestion dropdowns (mentions, slash
-// commands). Manages highlighted index, arrow/enter/tab/escape key handling,
-// and wrapping. Consumers provide the filtered suggestions list and an onSelect
-// callback; this hook returns a stable handleKeyDown that integrates via refs
-// so it never causes the input to re-mount.
+// Keyboard nav for suggestion dropdowns. handleKeyDown is stable (empty deps) and
+// reads via refs so consumers don't remount the input when the list changes.
 export const useSuggestionBase = <T>({
   suggestions,
   hasSuggestions,
@@ -24,7 +21,6 @@ export const useSuggestionBase = <T>({
   const onSelectRef = useRef(onSelect);
   const highlightedIndexRef = useRef(highlightedIndex);
 
-  // Reset/clamp highlighted index when suggestions change
   if (suggestionsRef.current !== suggestions || hasSuggestionsRef.current !== hasSuggestions) {
     if (!hasSuggestions) {
       if (highlightedIndex !== 0) setHighlightedIndex(0);
@@ -33,7 +29,6 @@ export const useSuggestionBase = <T>({
     }
   }
 
-  // Always sync refs for handleKeyDown callback access
   suggestionsRef.current = suggestions;
   hasSuggestionsRef.current = hasSuggestions;
   onSelectRef.current = onSelect;

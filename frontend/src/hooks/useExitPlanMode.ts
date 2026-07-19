@@ -8,9 +8,7 @@ export function useExitPlanMode(chatId: string | undefined) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // The ExitPlanMode request renders in its own tool card, independent of the
-  // inline permission prompt, so pick it out of the queue wherever it sits
-  // rather than only checking the head.
+  // Own tool card — find anywhere in the queue, not only the head.
   const pendingRequest = usePermissionStore((state) => {
     if (!chatId) return null;
     const queue = state.pendingRequests.get(chatId);

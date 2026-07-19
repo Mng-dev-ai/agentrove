@@ -17,14 +17,13 @@ class AgentroveClient:
         self._http = httpx.AsyncClient(base_url=self._base_url, timeout=60.0)
         self._access_token: str | None = None
         self._refresh_token: str | None = None
-        # Cached model list so send_message doesn't re-fetch on every call
         self._models_cache: list[dict[str, Any]] | None = None
 
     async def aclose(self) -> None:
         await self._http.aclose()
 
     async def _login(self) -> None:
-        # fastapi-users JWT login expects OAuth2 form fields (username = email)
+        # fastapi-users JWT login: OAuth2 form (username = email).
         resp = await self._http.post(
             "/auth/jwt/login",
             data={"username": self._email, "password": self._password},
@@ -59,7 +58,7 @@ class AgentroveClient:
         if self._access_token is None:
             await self._login()
         resp = await self._send(method, path, **kwargs)
-        # Access tokens are short-lived (15 min) — on expiry, refresh or re-login and retry once
+        # Short-lived access token: on 401, refresh/re-login and retry once.
         if resp.status_code == 401:
             if not await self._refresh():
                 await self._login()
@@ -99,8 +98,7 @@ class AgentroveClient:
         return resp.json().get("personas") or []
 
     async def create_persona(self, name: str, content: str) -> dict[str, Any]:
-        # No per-persona endpoint: personas live as a list on user settings, so we
-        # read the current list, append, and PATCH the whole array back.
+        # No per-persona API — personas are a settings list; read-modify-PATCH.
         resp = await self.request("GET", "/settings/")
         personas = resp.json().get("personas") or []
         if any(p["name"] == name for p in personas):
@@ -133,8 +131,7 @@ class AgentroveClient:
         return resp.json()
 
     async def resolve_model(self, model_id: str | None) -> tuple[str, str]:
-        # Returns (model_id, agent_kind). agent_kind drives the per-agent permission
-        # mode, so it must come from the model registry, not be assumed.
+        # agent_kind must come from the registry (drives permission mode).
         if self._models_cache is None:
             resp = await self.request("GET", "/models/")
             self._models_cache = resp.json()
@@ -142,7 +139,6 @@ class AgentroveClient:
         if not models:
             raise AgentroveError("No models available.")
         if model_id is None:
-            # Default to a Claude model when present, otherwise the first listed
             chosen = next((m for m in models if m["agent_kind"] == "claude"), models[0])
         else:
             chosen = next((m for m in models if m["model_id"] == model_id), None)
@@ -162,7 +158,7 @@ class AgentroveClient:
             "model_id": model_id,
             "workspace_id": workspace_id,
         }
-        # Sub-thread: the backend overrides workspace_id with the parent's workspace
+        # Backend overrides workspace_id with the parent's for sub-threads.
         if parent_chat_id:
             body["parent_chat_id"] = parent_chat_id
         resp = await self.request("POST", "/chat/chats", json=body, expected=(201,))
@@ -179,8 +175,7 @@ class AgentroveClient:
         fast_mode: bool = False,
         persona: str | None = None,
     ) -> dict[str, Any]:
-        # Endpoint reads Form fields; no file upload here so urlencoded form is fine
-        # (httpx serializes bools to "true"/"false", which FastAPI parses back)
+        # Form endpoint (no files); httpx bools "true"/"false" parse in FastAPI.
         data: dict[str, Any] = {
             "prompt": prompt,
             "chat_id": chat_id,

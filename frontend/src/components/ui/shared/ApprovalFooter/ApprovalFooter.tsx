@@ -5,8 +5,7 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import type { PermissionOption } from '@/types/chat.types';
 import styles from './ApprovalFooter.module.scss';
 
-// Generic, agent-agnostic subtitles keyed by option kind — reinforces the
-// server-provided title with a plain-English outcome line.
+// Agent-agnostic outcome lines that reinforce the server-provided title.
 const KIND_SUBTITLES: Record<PermissionOption['kind'], string> = {
   allow_once: 'Proceed with this request.',
   allow_always: "Allow and don't ask again.",
@@ -36,9 +35,7 @@ export function PermissionApprovalButtons({
 }: PermissionApprovalButtonsProps) {
   const sortedAllow = sortByPriority(allowOptions, ALLOW_PRIORITY);
   const sortedReject = sortByPriority(rejectOptions, REJECT_PRIORITY);
-  // Only show "Allow" / "Reject" group labels when the user has to choose
-  // between multiple options in a group; a single-option footer (e.g. plan
-  // mode) doesn't need the extra visual grouping.
+  // Group labels only when there's a real Allow/Reject choice (skip single-option plan mode).
   const showGroupLabels = sortedAllow.length + sortedReject.length > 2;
   const primaryAllowId = sortedAllow[0]?.option_id ?? null;
 

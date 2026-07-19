@@ -34,8 +34,7 @@ def build_system_prompt_for_chat(
     selected_persona_name: str = DEFAULT_PERSONA_NAME,
 ) -> str:
     persona_content = ""
-    # Only apply the persona for agents whose adapter can replace the base
-    # prompt; others silently drop replacement instructions over ACP.
+    # Persona only for adapters that can replace the base prompt over ACP.
     if (
         agent_kind in PERSONAS_SUPPORTED_AGENTS
         and selected_persona_name != DEFAULT_PERSONA_NAME

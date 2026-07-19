@@ -25,8 +25,7 @@ class _RequestIdSend:
         self.start_time = time.perf_counter()
 
     async def __call__(self, message: Message) -> None:
-        # Stamp headers and log at response start — SSE responses never
-        # complete, so waiting for the response end would never log them.
+        # Log at response start — SSE bodies never complete.
         if message["type"] == "http.response.start":
             process_time = time.perf_counter() - self.start_time
             headers = MutableHeaders(scope=message)
@@ -52,14 +51,12 @@ class RequestIdMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        # Pure ASGI on purpose: BaseHTTPMiddleware buffers streaming responses
-        # and deadlocks never-ending EventSourceResponse (SSE) bodies.
+        # Pure ASGI: BaseHTTPMiddleware buffers streams and deadlocks SSE.
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
         request_id = Headers(scope=scope).get("X-Request-ID") or str(uuid.uuid4())
-        # Request.state is backed by scope["state"], so handlers and exception
-        # handlers keep reading request.state.request_id unchanged.
+        # Request.state is scope["state"], so handlers still see request_id.
         scope.setdefault("state", {})["request_id"] = request_id
         await self.app(scope, receive, _RequestIdSend(send, scope, request_id))
 
@@ -92,8 +89,7 @@ class SecurityHeadersMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        # Pure ASGI on purpose: BaseHTTPMiddleware buffers streaming responses
-        # and deadlocks never-ending EventSourceResponse (SSE) bodies.
+        # Pure ASGI: BaseHTTPMiddleware buffers streams and deadlocks SSE.
         if scope["type"] != "http" or not settings.ENABLE_SECURITY_HEADERS:
             await self.app(scope, receive, send)
             return

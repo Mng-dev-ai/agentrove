@@ -52,17 +52,12 @@ export function StreamActionEditDialog({
   onActionChange,
 }: StreamActionEditDialogProps) {
   const { data: models = [] } = useModelsQuery();
-  // Builtin slash commands are static per agent, so any workspace's resources
-  // surface the same set. Custom skills are intentionally excluded — stream actions
-  // are global and run in the clicked chat's workspace, where a skill suggested here
-  // may not exist; builtins are valid everywhere.
+  // Builtins only — stream actions are global and the clicked chat may lack a custom skill.
   const workspaces = useWorkspacesList();
   const { data: resources } = useWorkspaceResourcesQuery(workspaces[0]?.id);
   const builtinSlashCommands = resources?.builtin_slash_commands ?? EMPTY_BUILTIN_COMMANDS;
 
-  // Form-state init: seed new actions and actions whose saved model left the
-  // registry — ModelSelector no longer commits one, and save requires a model_id.
-  // Effect, not render-phase seeding: onActionChange writes parent-owned state.
+  // Seed model when missing/left registry. Effect: onActionChange writes parent state.
   useEffect(() => {
     if (models.length > 0 && !models.some((m) => m.model_id === action.model_id)) {
       onActionChange('model_id', models[0].model_id);

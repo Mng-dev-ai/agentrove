@@ -16,18 +16,13 @@ interface UsePermissionRequestReturn {
   handleReject: (optionId: string) => Promise<void>;
 }
 
-// Manages the tool-permission approval flow for a single chat. Reads the
-// pending request from the global permission store, sends approve/reject
-// responses to the backend, and auto-dismisses 404s (expired requests where
-// the backend already timed out or the stream moved on).
+// Tool-permission approval for one chat; 404s (expired/timed-out requests) auto-dismiss.
 export function usePermissionRequest(chatId: string | undefined): UsePermissionRequestReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { data: settings } = useSettingsQuery();
 
-  // Surface the head of this chat's permission queue. Selecting only this
-  // chat's queue avoids re-renders from other chats' permission changes; we
-  // process requests one at a time in FIFO order.
+  // Select only this chat's queue so other chats' permission changes don't re-render us.
   const pendingRequest = usePermissionStore((state) => {
     if (!chatId) return null;
     const queue = state.pendingRequests.get(chatId);
@@ -35,8 +30,7 @@ export function usePermissionRequest(chatId: string | undefined): UsePermissionR
   });
   const prevRequestIdRef = useRef(pendingRequest?.request_id);
 
-  // Clear stale error when a new permission request arrives, so errors from
-  // a previous request don't bleed into the new approval dialog.
+  // Don't bleed a previous request's error into the next dialog.
   if (prevRequestIdRef.current !== pendingRequest?.request_id) {
     prevRequestIdRef.current = pendingRequest?.request_id;
     if (error !== null) setError(null);

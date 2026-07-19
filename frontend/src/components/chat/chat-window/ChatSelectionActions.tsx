@@ -32,8 +32,7 @@ interface ChatSelectionActionsProps {
   scrollerRef: RefObject<HTMLDivElement | null>;
 }
 
-// Floating "Add to chat" / "Ask" actions over text selected in rendered chat
-// messages — the chat-page counterpart of the editor's selection actions.
+// Chat-page counterpart of the editor selection actions ("Add to chat" / "Ask").
 export const ChatSelectionActions = memo(function ChatSelectionActions({
   chatId,
   scrollerRef,

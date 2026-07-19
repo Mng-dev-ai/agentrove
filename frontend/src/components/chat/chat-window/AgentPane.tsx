@@ -11,9 +11,7 @@ interface AgentPaneProps {
   chatId: string;
 }
 
-// Each instance subscribes to its own messages query and SSE stream via
-// useChatStreaming inside ChatSessionOrchestrator. Streaming demuxes by
-// envelope.chatId so two panes can stream concurrently.
+// Own messages query + SSE via ChatSessionOrchestrator; demux by envelope.chatId for split panes.
 export const AgentPane = memo(function AgentPane({ chatId }: AgentPaneProps) {
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
   const { fileStructure } = useSandboxFiles(currentChat, chatId);

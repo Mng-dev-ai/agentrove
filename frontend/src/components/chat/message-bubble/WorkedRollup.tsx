@@ -10,8 +10,7 @@ interface WorkedRollupProps {
   children: React.ReactNode;
 }
 
-// Collapses the tool/thinking trace of a completed turn behind a single header,
-// so the transcript leads with the final answer and the work expands on demand.
+// Completed-turn tool/thinking trace behind one header so the final answer leads.
 export function WorkedRollup({ durationMs, children }: WorkedRollupProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   // Older messages persisted before duration tracking have no duration_ms.
@@ -27,7 +26,6 @@ export function WorkedRollup({ durationMs, children }: WorkedRollupProps) {
         className={styles['rollup-button']}
       >
         <span>{label}</span>
-        {/* Disclosure chevron: points right when collapsed, rotates down when open. */}
         <ChevronRight
           className={clsx(
             styles['rollup-chevron'],

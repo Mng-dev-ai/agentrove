@@ -86,8 +86,7 @@ export function useInputSubmit({
     if (disabled) return;
 
     if (isStreaming && hasContent && chatId) {
-      // Mirror the send path's model guard — queueMessage is fire-and-forget
-      // and the draft is cleared below, so a rejected queue call loses the message.
+      // Fire-and-forget queue + clear draft — guard model or the message is lost.
       if (!selectedModelId) {
         toast.error('Please select an AI model');
         return;
@@ -106,7 +105,6 @@ export function useInputSubmit({
       const fastMode = settings.fastModeByChat[chatId] ?? DEFAULT_FAST_MODE;
       const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
       const validPersona = resolvePersona(storedPersona, personas);
-      // Queued messages are stored as plain text, so serialize chips here.
       const fullMessage = formatComposerSelections(attachedSelections, messageRef.current.trim());
       void useMessageQueueStore.getState().queueMessage(chatId, fullMessage, selectedModelId, {
         permissionMode,

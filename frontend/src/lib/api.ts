@@ -40,9 +40,7 @@ const resolveWsBaseUrl = (rawUrl: string): string => {
   return trimTrailingSlash(normalized.toString());
 };
 
-// Auth source for an APIClient instance. The local client reads/writes the
-// shared authStorage; the remote (VPS) client uses cloudAuthStorage so the two
-// instances authenticate independently and don't clobber each other's tokens.
+// Per-client auth store: local vs VPS so tokens don't clobber each other.
 interface ClientAuth {
   getToken: () => string | null;
   getRefreshToken: () => string | null;
@@ -61,28 +59,23 @@ const cloudAuth: ClientAuth = {
   getToken: () => cloudAuthStorage.getAccessToken(),
   getRefreshToken: () => cloudAuthStorage.getRefreshToken(),
   setTokens: (accessToken, refreshToken) => cloudAuthStorage.setTokens(accessToken, refreshToken),
-  // A revoked/expired VPS refresh token can't be recovered silently — drop the
-  // cloud credentials so the settings UI reflects a disconnected state.
+  // Expired VPS refresh can't recover silently — clear cloud so UI shows disconnected.
   onSessionExpired: () => {
     cloudAuthStorage.clear();
-    // Drop persisted cloud origin IDs too, matching manual disconnect — otherwise
-    // stale IDs keep routing to the (now-gone) VPS and can misroute links after
-    // reconnecting to a different VPS/account.
+    // Match manual disconnect: drop origin IDs so stale routing can't hit a dead VPS.
     clearCloudOrigins();
     useCloudSettingsStore.getState().clearCloud();
   },
 };
 
-// Desktop reinstalls can leave stale refresh tokens in local storage while the backend
-// identity/session store resets. Treat refresh 401 as terminal to break retry loops.
+// Desktop reinstall can leave a stale refresh token after backend identity reset; 401 is terminal.
 function shouldInvalidateSession(error: unknown): boolean {
   return error instanceof RefreshTokenError && error.status === 401;
 }
 
 const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
 
-// True when the access token can't be trusted for a new long-lived connection —
-// missing/undecodable claims or an exp within the buffer.
+// Missing/undecodable claims or exp within buffer → don't open long-lived connections on it.
 function accessTokenExpiresSoon(token: string): boolean {
   try {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
@@ -121,26 +114,21 @@ class APIClient {
     return this.baseURL;
   }
 
-  // Exposes the client's own token so callers (e.g. the SSE query-param) don't
-  // re-derive the client↔token-store pairing already encoded in `auth`.
+  // Prefer this over guessing which store pairs with the client (e.g. SSE query param).
   getToken(): string | null {
     return this.auth.getToken();
   }
 
-  // For SSE openers that bypass request(): the token rides the URL and the cached
-  // one may be missing (after a restart) or expired (reopening a dead feed).
+  // For SSE openers that bypass request(): may need a refresh after restart / dead feed.
   async getValidToken(): Promise<string | null> {
     const cached = this.auth.getToken();
     if (!this.auth.getRefreshToken()) return cached;
-    // Only refresh when the cached token is actually stale — rotating on every
-    // open churns refresh tokens and multiplies the lost-response windows where
-    // a client is left holding a rotated-away token.
+    // Don't rotate on every open — churns refresh tokens and can strand clients mid-rotation.
     if (cached && !accessTokenExpiresSoon(cached)) return cached;
     try {
       return (await this.refreshTokenIfNeeded()).access_token;
     } catch (error) {
-      // Mirror request(): a terminal refresh failure means the session is dead —
-      // tear it down instead of letting SSE reopen loops retry it forever.
+      // Terminal refresh failure: tear down so SSE reopen loops don't retry forever.
       if (shouldInvalidateSession(error)) {
         this.auth.onSessionExpired();
         return null;
@@ -180,8 +168,7 @@ class APIClient {
     }
 
     const data: TokenResponse = await response.json();
-    // Awaited: on desktop the persist is a disk write, and returning before it
-    // lands lets an app quit strand the old (rotated-away) token on disk.
+    // Await: desktop persist is disk; quit mid-write can leave the rotated-away token.
     await this.auth.setTokens(data.access_token, data.refresh_token);
     return data;
   }
@@ -255,8 +242,7 @@ class APIClient {
           throw error;
         }
       }
-      // 401 with no refresh token — session is unusable, so tear it down rather
-      // than leave the UI looking connected.
+      // 401 without refresh → session dead; don't leave UI looking connected.
       this.auth.onSessionExpired();
       throw new Error('Session expired');
     }
@@ -320,42 +306,34 @@ class APIClient {
   }
 }
 
-// Desktop has no VITE_* env (the real backend port is injected at runtime via
-// setApiPort); fall back to the local default so the initial URL is well-formed.
+// Desktop has no VITE_* (port via setApiPort); default keeps the initial URL valid.
 let API_BASE_URL: string = resolveHttpBaseUrl(
   import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8081/api/v1',
 );
 export let WS_BASE_URL: string = resolveWsBaseUrl(
   import.meta.env.VITE_WS_URL ?? 'ws://localhost:8081/api/v1/ws',
 );
-// Cloud WS origin, set alongside the cloud HTTP base so sandbox terminals on the
-// VPS connect to the right host. Empty until a VPS is connected.
+// VPS WS for cloud sandbox terminals; empty until a VPS is connected.
 let CLOUD_WS_BASE_URL = '';
 
 export const apiClient = new APIClient(API_BASE_URL, localAuth);
 
-// Second client pointed at the user's remote VPS instance for cloud-run chats.
-// The persisted cloud settings hydrate synchronously, so the saved VPS is wired
-// up at startup and cloud chats work without re-connecting after a restart.
+// Cloud-run client; cloud settings hydrate sync so a saved VPS works after restart.
 export const remoteApiClient = new APIClient('', cloudAuth);
 const savedCloudUrl = useCloudSettingsStore.getState().cloudUrl;
 if (savedCloudUrl) setCloudApiBaseUrl(savedCloudUrl);
 
-// Route a per-chat request to the backend that owns the chat: the cloud VPS if
-// the chat was created there, otherwise the local instance.
+// Local vs VPS by chat origin.
 export function resolveChatClient(chatId: string | undefined): APIClient {
   return chatId && isCloudChat(chatId) ? remoteApiClient : apiClient;
 }
 
-// Same routing for per-sandbox calls (files, git, search).
+// Local vs VPS by sandbox origin (files, git, search).
 export function resolveSandboxClient(sandboxId: string | undefined): APIClient {
   return sandboxId && isCloudSandbox(sandboxId) ? remoteApiClient : apiClient;
 }
 
-// Terminal WebSockets bypass APIClient, so resolve the base URL for the
-// backend that owns the sandbox. Tokens are minted per-connect via
-// resolveSandboxClient(...).getValidToken() — the cached cloud access token
-// is memory-only and missing right after a page reload.
+// Terminals bypass APIClient; mint tokens via getValidToken() (cloud access is memory-only).
 export function resolveSandboxWs(sandboxId: string): string {
   return isCloudSandbox(sandboxId) ? CLOUD_WS_BASE_URL : WS_BASE_URL;
 }

@@ -6,13 +6,9 @@ import { useEditorState } from '@/hooks/useEditorState';
 import { useFirstPaint } from '@/hooks/useFirstPaint';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
 
-// Self-contained editor for a chat, rendered once per pane in split view. It
-// owns its file data and selection so each pane tracks its own chat (mirrors
-// how AgentPane wraps split chats).
+// Per-pane editor: owns its file data/selection so each split tracks its own chat.
 export const EditorPane = memo(function EditorPane({ chatId }: { chatId: string | undefined }) {
-  // Chat switches remount this pane with the lazy chunk already cached, so the
-  // heavy editor subtree (pierre tree model, Monaco) would mount inside the
-  // navigation's commit and block its first paint for seconds on large workspaces.
+  // Defer heavy mount past navigation paint (lazy chunk is already cached on chat switch).
   const hasPainted = useFirstPaint();
 
   const { data: currentChat } = useChatQuery(chatId);

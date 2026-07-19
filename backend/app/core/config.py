@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "AI Generation API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
-    ENVIRONMENT: str = "development"  # "development" or "production"
+    ENVIRONMENT: str = "development"
     REQUIRE_EMAIL_VERIFICATION: bool = False
     REGISTRATION_DISABLED: bool = False
 
@@ -81,9 +81,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def apply_desktop_defaults(self) -> "Settings":
-        # Desktop (Tauri) mode redirects the SQLite DB and storage path to a
-        # platform-specific user data dir, and adds Tauri origins so the
-        # webview can reach the local API.
+        # Desktop (Tauri): redirect DB/storage to the OS user-data dir and allow
+        # the webview origin.
         if not self.DESKTOP_MODE:
             return self
         data_dir = _desktop_data_dir()
@@ -119,19 +118,18 @@ class Settings(BaseSettings):
             return f"{secret_key}_session"
         return None
 
-    MAX_UPLOAD_SIZE: int = 5 * 1024 * 1024  # 5MB max file size
+    MAX_UPLOAD_SIZE: int = 5 * 1024 * 1024
     ALLOWED_IMAGE_TYPES: list[str] = [
         "image/jpeg",
         "image/png",
         "image/gif",
         "image/webp",
-    ]  # That's what Claude supports for now
+    ]  # Claude-supported image MIME types
     ALLOWED_FILE_TYPES: list[str] = ALLOWED_IMAGE_TYPES + [
         "application/pdf",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ]
 
-    # Email configuration
     MAIL_USERNAME: str = "apikey"
     MAIL_PASSWORD: str | None = None
     MAIL_FROM: str = "noreply@agentrove.pro"
@@ -141,30 +139,23 @@ class Settings(BaseSettings):
     MAIL_STARTTLS: bool = True
     MAIL_SSL_TLS: bool = False
 
-    # Email validation settings
     BLOCK_DISPOSABLE_EMAILS: bool = True
 
-    # Logging configuration
     LOG_LEVEL: str = "INFO"
 
-    # Git configuration
     GIT_AUTHOR_NAME: str = ""
     GIT_AUTHOR_EMAIL: str = ""
-    # Resolved once at startup so host-provider subprocesses (which override
-    # HOME to the sandbox dir) still read the real user's global git config
-    # and GPG keyring for commit signing.
+    # Resolved at startup so host-provider subprocesses (HOME overridden to the
+    # sandbox) still use the real user's global git config and GPG keyring.
     GIT_CONFIG_GLOBAL: str = str(Path.home() / ".gitconfig")
     GNUPGHOME: str = str(Path.home() / ".gnupg")
 
-    # Agentrove chat MCP server — exposes its chat tools to spawned agents via a
-    # stdio MCP server (mcp-server/server.py, bundled next to the backend). Opt-in
-    # and only wired with credentials. The server logs into this same backend
-    # (reached at BASE_URL), so it needs a user's email/password.
+    # Opt-in stdio MCP server (mcp-server/server.py); needs credentials to log
+    # into this backend at BASE_URL.
     AGENTROVE_MCP_ENABLED: bool = False
     AGENTROVE_MCP_EMAIL: str | None = None
     AGENTROVE_MCP_PASSWORD: str | None = None
 
-    # Docker Sandbox configuration
     DOCKER_IMAGE: str = "ghcr.io/mng-dev-ai/agentrove-sandbox:latest"
     DOCKER_NETWORK: str = "agentrove-sandbox-net"
     DOCKER_HOST: str | None = None
@@ -173,7 +164,6 @@ class Settings(BaseSettings):
     DOCKER_CPU_QUOTA: int = 200000
     DOCKER_PIDS_LIMIT: int = 512
 
-    # Host Sandbox configuration
     HOST_SANDBOX_BASE_DIR: str | None = None
     HOST_PREVIEW_BASE_URL: str = "http://localhost"
 
@@ -193,15 +183,10 @@ class Settings(BaseSettings):
         return f"{self.STORAGE_PATH.rstrip('/')}/host-sandboxes"
 
     def get_agent_home_dir(self, user_id: str) -> str:
-        # Per-user HOME for host-provider agents and terminal PTYs in web mode.
-        # One dir per user — not per sandbox — so CLI logins (claude/codex),
-        # MCP registrations, and skills are configured once and shared across
-        # every workspace, matching desktop mode where the real $HOME plays
-        # this role. Kept under the persistent storage volume so logins
-        # survive restarts. Desktop mode never resolves this.
+        # Web-mode per-user HOME (not per sandbox) so CLI logins/MCP/skills are
+        # shared across workspaces and survive restarts. Desktop uses real $HOME.
         return f"{self.STORAGE_PATH.rstrip('/')}/agent-homes/{user_id}"
 
-    # Security Headers Configuration
     ENABLE_SECURITY_HEADERS: bool = True
     HSTS_MAX_AGE: int = 31536000
     HSTS_INCLUDE_SUBDOMAINS: bool = True
@@ -212,16 +197,14 @@ class Settings(BaseSettings):
     REFERRER_POLICY: str = "strict-origin-when-cross-origin"
     PERMISSIONS_POLICY: str = "geolocation=(), microphone=(), camera=()"
 
-    # TTL Configuration (in seconds)
     BACKGROUND_CHAT_SHUTDOWN_TIMEOUT_SECONDS: float = 30.0
     DISPOSABLE_DOMAINS_CACHE_TTL_SECONDS: int = 3600
 
     USER_SETTINGS_CACHE_TTL_SECONDS: int = 300
     MODELS_CACHE_TTL_SECONDS: int = 3600
     CONTEXT_USAGE_CACHE_TTL_SECONDS: int = 600
-    # Reaping an idle agent process is lossless — chats persist session_id and
-    # a respawn load_sessions it — so this trades only respawn latency against
-    # the ~500MB each warm session holds (agent CLI + wrapper + MCP server).
+    # Idle reaping is lossless (session_id persists); trades respawn latency
+    # for ~500MB per warm session (agent CLI + wrapper + MCP server).
     CHAT_PROCESS_IDLE_TTL_SECONDS: float = 600.0
 
     class Config:

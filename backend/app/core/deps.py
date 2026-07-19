@@ -34,10 +34,8 @@ from app.utils.cache import CacheError, cache_connection
 
 logger = logging.getLogger(__name__)
 
-# Providers cached for the process lifetime — creating one per request pays
-# aiodocker client setup plus a container-inspect round-trip before any real
-# work on every sandbox operation. Keyed by workspace path so host providers
-# with different roots don't collide.
+# Process-lifetime cache: per-request providers pay aiodocker setup + inspect.
+# Keyed by workspace path so host roots don't collide.
 sandbox_provider_cache: dict[tuple[str, str | None], SandboxProvider] = {}
 
 
@@ -124,8 +122,7 @@ async def get_sandbox_service(
             detail="sandbox_id is required",
         )
 
-    # Sandbox-scoped routes must use the provider persisted with that
-    # workspace so requests never hit the wrong backend.
+    # Use the provider stored on this workspace — never the default backend.
     query = select(Workspace.sandbox_provider, Workspace.workspace_path).where(
         Workspace.sandbox_id == sandbox_id,
         Workspace.user_id == user.id,
@@ -183,8 +180,7 @@ async def get_skill_service(
     current_user: User = Depends(get_current_user),
     workspace_service: WorkspaceService = Depends(get_workspace_service),
 ) -> SkillService:
-    # Two tiers: the selected workspace's .{agent}/skills dirs, layered over
-    # the owner's agent home — the same HOME host-mode agents run with.
+    # Workspace .{agent}/skills over the owner's agent home (host-mode HOME).
     workspace = await workspace_service.get_workspace(workspace_id, current_user)
     return SkillService(
         workspace_path=Path(workspace.workspace_path),

@@ -69,8 +69,7 @@ const safeRemoveItem = (key: string): void => {
   }
 };
 
-// Singleton promise — ensures only one Tauri store load is in flight at a time.
-// Cleared on failure so the next call retries rather than returning a stale rejection.
+// One Tauri store load in flight; cleared on failure so the next call retries.
 let desktopStorePromise: Promise<AuthStoreBackend | null> | null = null;
 
 async function getDesktopAuthStore(): Promise<AuthStoreBackend | null> {
@@ -137,10 +136,8 @@ function initTokenCacheFromLocalStorage(): void {
   tokenCacheInitialized = true;
 }
 
-// Dual-backend auth token storage: uses the Tauri secure store on desktop and
-// localStorage in the browser. An in-memory cache (`cachedToken`) avoids async
-// reads on the hot path (every API request reads the token synchronously via
-// `getToken()`). Writes propagate to the backing store asynchronously.
+// Tauri secure store on desktop, localStorage in browser. In-memory cache for
+// sync getToken() on the API hot path; writes go to the backing store async.
 export const authStorage = {
   hydrate: async (): Promise<void> => {
     if (tokenCacheInitialized) {
@@ -185,8 +182,7 @@ export const authStorage = {
     tokenCacheInitialized = true;
 
     if (isTauri()) {
-      // Awaited so refresh rotation can't complete before the new token hits
-      // disk — a quit mid-persist would strand the old (rotated-away) one.
+      // Await so refresh rotation can't finish before the new token hits disk.
       await persistDesktopAuthState();
       safeRemoveItem(AUTH_TOKEN_KEY);
       safeRemoveItem(REFRESH_TOKEN_KEY);
@@ -213,10 +209,7 @@ export const authStorage = {
   },
 };
 
-// Remote (VPS) auth: the desktop talks to a second AgentRove instance for
-// cloud-run chats. Only the long-lived refresh token is persisted (in the same
-// secure backing store as local auth, under a distinct key) — the short-lived
-// access token is kept in memory and re-minted via the VPS refresh endpoint.
+// VPS auth: only the refresh token is persisted; access token stays in memory.
 let cloudAccessToken: string | null = null;
 let cloudRefreshToken: string | null = null;
 let cloudCacheInitialized = false;
@@ -275,10 +268,8 @@ export const cloudAuthStorage = {
     cloudRefreshToken = refreshToken;
     cloudCacheInitialized = true;
 
-    // Unlike authStorage there's no stale-localStorage cleanup on the Tauri
-    // path — this key is new and only ever written to localStorage in browsers.
+    // No localStorage cleanup on Tauri — this key is only written in browsers.
     if (isTauri()) {
-      // Awaited for the same reason as authStorage.setTokens.
       await persistCloudRefreshToken();
       return;
     }
@@ -299,10 +290,8 @@ export const cloudAuthStorage = {
   },
 };
 
-// Cross-tab sync (browser only — the `storage` event fires in every tab except
-// the writer): another tab rotating or clearing tokens must update this tab's
-// in-memory cache, or its next refresh replays a rotated-away token and gets a
-// 401 once the backend's reuse grace window closes.
+// Cross-tab: another tab rotating tokens must update this tab's memory cache
+// or the next refresh replays a rotated-away token after the grace window.
 if (typeof window !== 'undefined' && !isTauri()) {
   window.addEventListener('storage', (event) => {
     if (event.key === AUTH_TOKEN_KEY) {
@@ -311,8 +300,7 @@ if (typeof window !== 'undefined' && !isTauri()) {
       cachedRefreshToken = event.newValue;
     } else if (event.key === CLOUD_REFRESH_TOKEN_KEY) {
       cloudRefreshToken = event.newValue;
-      // Disconnect in another tab must also drop this tab's memory-only access
-      // token — it has no localStorage key of its own to sync through.
+      // Access token is memory-only — drop it when another tab disconnects.
       if (event.newValue === null) {
         cloudAccessToken = null;
       }
@@ -320,10 +308,7 @@ if (typeof window !== 'undefined' && !isTauri()) {
   });
 }
 
-// Per-chat SSE cursor persistence: stores the last-seen seq number in
-// localStorage so stream reconnection can resume from the right point after
-// a page refresh. Entries are pruned to MAX_CHAT_EVENT_ID_ENTRIES (500) by
-// evicting the lowest seq values to prevent unbounded localStorage growth.
+// Per-chat SSE last-seq for resume after refresh; pruned to bound storage.
 export const chatStorage = {
   getEventId: (chatId: string): string | null =>
     safeGetItem(`${CHAT_EVENT_ID_PREFIX}${chatId}${CHAT_EVENT_ID_SUFFIX}`),

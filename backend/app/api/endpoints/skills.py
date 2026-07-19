@@ -17,8 +17,7 @@ async def list_skills(
     current_user: User = Depends(get_current_user),
     skill_service: SkillService = Depends(get_skill_service),
 ) -> list[CustomSkillDict]:
-    # SkillService does blocking filesystem walks — offload so the event loop
-    # (including active streams) isn't stalled. Matches workspace.py.
+    # Blocking FS walks — offload so streams on the event loop aren't stalled.
     return await asyncio.to_thread(skill_service.list_all)
 
 

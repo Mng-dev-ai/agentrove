@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 
-// Debounced copy of a fast-changing string (search inputs). Empty values flush
-// immediately so clearing a search resets results without waiting out the delay.
+// Empty values flush immediately so clearing search doesn't wait out the delay.
 export function useDebouncedValue(value: string, delayMs: number): string {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {

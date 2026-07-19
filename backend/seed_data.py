@@ -46,8 +46,7 @@ async def seed_admin(session: AsyncSession) -> None:
 
 
 async def seed_data() -> None:
-    # Reuse the app engine so seeding runs with the same SQLite pragmas
-    # (foreign keys, WAL) instead of a bare unconfigured connection.
+    # App engine so seed gets the same SQLite pragmas (FK, WAL) as runtime.
     async with SessionLocal() as session:
         await seed_admin(session)
         await session.commit()

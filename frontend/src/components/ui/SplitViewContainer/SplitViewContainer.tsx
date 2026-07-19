@@ -16,12 +16,7 @@ export const SplitViewContainer = memo(function SplitViewContainer({
   const focusedTile = useUIStore((state) => state.focusedTile);
   const isMobile = useIsMobile();
 
-  // Mobile shows exactly one pane regardless of the stored layout — collapse a
-  // multi-pane split (e.g. carried over from a desktop session that resized down)
-  // to the focused tile, falling back to the first visible one. Render-only, so
-  // the split returns intact when the viewport grows back. The store also owns
-  // mobile semantics (uiStore.toggleView accumulates tabs differently on mobile);
-  // this collapse only governs what's painted.
+  // Mobile paints one pane (focused, else first). Render-only — store layout stays intact.
   const layout = useMemo(() => {
     if (!isMobile) return visibleLayout;
     const flat = visibleLayout.flat();

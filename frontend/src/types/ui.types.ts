@@ -37,8 +37,7 @@ export type Theme =
   | 'linear'
   | 'lobster';
 export type ResolvedTheme = 'light' | 'dark';
-// Active palette with `system` resolved away — used where concrete per-theme colors
-// are built outside CSS (Monaco/xterm can't read CSS vars). Theme = Palette | 'system'.
+// Palette = Theme without `system`; for Monaco/xterm which can't read CSS vars.
 export type Palette = Exclude<Theme, 'system'>;
 
 type MentionType = 'file';
@@ -68,8 +67,7 @@ export type ViewType = 'agent' | 'diff' | 'editor' | 'terminal';
 export const MAX_CHAT_PANES = 4;
 export type SplitSlot = 1 | 2 | 3;
 
-// Split tiles are scoped to one of the three additional chat panes. Primary
-// non-agent tile ids stay bare; the primary agent is the one named exception.
+// Split tiles use :split-N; primary non-agent tiles stay bare (agent:primary is the exception).
 export type AgentTileId = 'agent:primary' | `agent:split-${SplitSlot}`;
 export type SplitTileId = `${ViewType}:split-${SplitSlot}`;
 export type NonAgentTileId =
@@ -77,88 +75,65 @@ export type NonAgentTileId =
   | Exclude<SplitTileId, `agent:split-${SplitSlot}`>;
 export type TileId = AgentTileId | NonAgentTileId;
 
-// The axis a single split adds along: 'row' = side by side (split right),
-// 'column' = stacked below (split bottom).
+// 'row' = side by side; 'column' = stacked below.
 export type SplitDirection = 'row' | 'column';
 
-// A chat's saved workspace tabs — what's restored when the chat is revisited.
+// Restored when the chat is revisited.
 export interface WorkspaceLayout {
   openTabs: TileId[];
   visibleLayout: TileId[][];
 }
 
-// Per-chat editor pane state: the open file tabs (in strip order) and the active one.
 export interface EditorPaneState {
   open: string[];
   selected: string | null;
 }
 
 export interface SplitViewState {
-  // Every open view. Always holds at least 'agent:primary'. Views have no tab
-  // strip: an open-but-hidden tile stays mounted in the background (preserving
-  // editor/terminal state) until the switcher surfaces or closes it.
+  // Always includes at least 'agent:primary'. Hidden open tiles stay mounted (editor/terminal state).
   openTabs: TileId[];
-  // The on-screen layout as rows of tiles: rows stack vertically, tiles within a
-  // row sit side by side. [[A]] = full view; [[A, B]] = side by side; [[A], [B]]
-  // = stacked; [[A, B], [C]] = A│B over C. Always holds at least one tile.
+  // Rows of tiles (stack vertically; tiles in a row sit side by side). Always ≥1 tile.
   visibleLayout: TileId[][];
-  // Ordered chats in the three additional panes. Primary is always the route param.
+  // Chats in the three additional panes; primary is the route param.
   splitChatIds: string[];
-  // The agent pane the user last interacted with — targets pane-scoped actions
-  // (e.g. the diff shortcut) at the chat the user is actually in.
+  // Last-interacted agent pane — pane-scoped shortcuts (e.g. diff) target this chat.
   activeAgentTile: AgentTileId;
-  // The exact pane the user last touched — drives the focused-tab highlight.
-  // Distinct from activeAgentTile, which only tracks the active chat (primary vs
-  // a split slot), not the specific tile.
+  // Exact last-touched pane (tab highlight). Unlike activeAgentTile, not just primary vs split slot.
   focusedTile: TileId | null;
-  // Saved tabs per chat, so each chat restores its own workspace when revisited.
-  // Excludes split-chat tiles, which the split effects rebuild.
+  // Per-chat saved tabs; excludes split-chat tiles (rebuild effects restore those).
   layoutsByChat: Record<string, WorkspaceLayout>;
-  // The open file tabs + active file in each chat's editor — restored when revisiting
-  // a chat (EditorPane's selection is lost on unmount) and persisted so a page refresh
-  // reopens them. Keyed by chat id (or a landing-editor sentinel for the chat-less
-  // landing page).
+  // Per-chat editor tabs; EditorPane loses selection on unmount, so this is persisted.
+  // Keyed by chat id (or landing-editor sentinel when no chat).
   editorByChat: Record<string, EditorPaneState>;
-  // Which chat the live openTabs/visibleLayout belong to — drives save-on-switch.
+  // Which chat owns live openTabs/visibleLayout (save-on-switch).
   currentWorkspaceChatId: string | null;
 }
 
 export interface SplitViewActions {
-  // Shows a view full screen, or — when toggling — closes it if already on
-  // screen. Scoped to the active agent pane so shortcuts hit the chat the user is in.
+  // Full-screen toggle for a view on the active agent pane.
   toggleView: (view: ViewType, toggle: boolean) => void;
-  // Opens a view (if needed) and adds it to the on-screen layout: 'row' beside
-  // the last row, 'column' as a new row below.
   addViewToSplit: (view: ViewType, direction: SplitDirection) => void;
-  // Closes a view, dropping it from the open and visible sets.
   removeTab: (tileId: TileId) => void;
-  // Resets the workspace to a single agent view and tears down any split chat
-  // (used by the landing page). Detaches the live layout from any chat.
+  // Single agent view; tears down split chats (landing page).
   resetWorkspace: () => void;
-  // Saves the outgoing chat's tabs and restores the incoming chat's (defaulting
-  // to a lone agent view). Called on chat navigation.
+  // Stash outgoing + restore incoming chat tabs (chat navigation).
   loadWorkspaceForChat: (chatId: string) => void;
-  // Saves the current chat's tabs in place — used when leaving the chat page.
+  // Persist current tabs (leaving the chat page).
   stashWorkspace: () => void;
   openChatInSplit: (chatId: string) => void;
   rebuildSplitLayout: () => void;
   closeSplitChat: (chatId?: string) => void;
-  // Shows a tile full (sole visible pane) and focuses it.
   activateTab: (tileId: TileId) => void;
-  // Single focus path: records the exact pane (highlights its tab) and scopes the
-  // active chat (primary/split slot) from the tile, so tab and pane clicks agree.
+  // Sets focusedTile + activeAgentTile so tab and pane clicks stay consistent.
   focusTile: (tileId: TileId) => void;
-  // Drops a deleted chat's saved workspace tabs, editor tabs, and terminal tab
-  // layout so per-chat state doesn't accumulate in localStorage forever.
+  // Drop deleted chat's workspace/editor/terminal state so localStorage doesn't grow forever.
   cleanupChat: (chatId: string) => void;
   cleanupAllChats: () => void;
 }
 
 export interface UIState {
   currentChat: Chat | null;
-  // Per-chat one-shot attachments. Cleared after the first message for that
-  // chat ships. The PENDING_NEW_CHAT_KEY sentinel holds files attached before
-  // the chat id exists; landing page promotes them once the chat is created.
+  // One-shot per chat; cleared after first send. PENDING_NEW_CHAT_KEY holds pre-create attaches.
   attachedFilesByChat: Record<string, File[]>;
   sidebarOpen: boolean;
   sidebarWidth: number;

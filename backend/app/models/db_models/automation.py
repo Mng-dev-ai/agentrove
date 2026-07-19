@@ -42,8 +42,7 @@ class Automation(Base):
         String(100), default="Default", server_default="Default", nullable=False
     )
     cron_expression: Mapped[str] = mapped_column(String(128), nullable=False)
-    # IANA zone the cron is evaluated in, so "daily at 9am" tracks the user's
-    # local time (and DST) rather than the server clock.
+    # IANA zone for cron so "daily at 9am" follows user local time/DST.
     timezone: Mapped[str] = mapped_column(
         String(64), default="UTC", server_default="UTC", nullable=False
     )

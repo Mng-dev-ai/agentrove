@@ -1,5 +1,4 @@
-// Builds/parses the restricted cron shapes the automation schedule UI offers.
-// Anything the parser doesn't recognize round-trips through the 'custom' mode.
+// Restricted cron shapes for the automation schedule UI; unknown → 'custom'.
 
 export type ScheduleFrequency = 'hourly' | 'daily' | 'weekly' | 'monthly' | 'custom';
 

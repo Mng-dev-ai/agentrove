@@ -14,22 +14,17 @@ import { detectLanguage } from '@/utils/file';
 type Monaco = typeof import('monaco-editor');
 
 export interface EditorNavigationContext {
-  // The owning pane mutates these fields in place on prop changes (chat swap,
-  // worktree cwd) — the claim holds the object, not a snapshot, so listeners
-  // attached at mount keep routing with current values without remounting.
+  // Pane mutates in place (chat/cwd); claim holds the object so mount-time listeners stay current.
   sandboxId: string | undefined;
   chatId: string | undefined;
-  // Worktree chats operate in a subdirectory; searches must be scoped to it so
-  // results don't leak from the base checkout or sibling worktrees.
+  // Scope searches to worktree cwd so results don't leak from the base checkout.
   cwd: string | undefined;
 }
 
-// Peek previews resolve models by URI, so every result file needs a live model;
-// cap how many files get hydrated per lookup to bound fetches and memory.
+// Cap hydrations per lookup — peek needs a live model per hit.
 const MAX_RESULT_FILES = 30;
 
-// Chats in one workspace share a sandbox, so sandbox alone can't route a jump —
-// the pane the user is interacting with claims the context via editor listeners.
+// Shared sandbox across chats: the interacting pane claims context via listeners.
 let activeContext: EditorNavigationContext | null = null;
 
 let installed = false;
@@ -38,9 +33,7 @@ export function attachEditorNavigationContext(
   editor: monacoNs.editor.IStandaloneCodeEditor,
   context: EditorNavigationContext,
 ): void {
-  // Mouse-move claims cover ctrl+hover in a not-yet-focused split pane; the
-  // focus listener covers keyboard-invoked navigation (F12). Listeners are
-  // disposed with the editor, and the next interacted pane overwrites the claim.
+  // Mouse-move: ctrl+hover in unfocused split; focus: F12. Next pane overwrites claim.
   activeContext = context;
   editor.onDidFocusEditorText(() => {
     activeContext = context;
@@ -53,10 +46,8 @@ export function attachEditorNavigationContext(
 function contextForResource(
   uri: monacoNs.Uri,
 ): { sandboxId: string; chatId: string | undefined; cwd: string | undefined } | null {
-  // Editor models are `sandbox://{sandboxId}/{workspace-relative path}` (View.tsx).
-  // A mismatch means the model belongs to a pane that never claimed a context
-  // (diff views, the chat-less 'workspace' placeholder) — not navigable.
-  // Snapshot the fields: the claimed object mutates as pane props change.
+  // Models are sandbox://{sandboxId}/path (View.tsx). Mismatch / no claim → not navigable.
+  // Snapshot fields: the claimed object mutates with pane props.
   if (!activeContext) return null;
   const { sandboxId, chatId, cwd } = activeContext;
   if (!sandboxId || uri.scheme !== 'sandbox' || uri.authority !== sandboxId) return null;
@@ -67,8 +58,7 @@ async function searchQuietly(
   sandboxId: string,
   params: SearchParams,
 ): Promise<SearchFileResult[] | null> {
-  // A toast per failed hover/jump would be noisy; on error Monaco just shows
-  // its own "no definition found" affordance.
+  // Fail quietly — Monaco already shows "no definition found".
   try {
     const response = await sandboxService.searchInFiles(sandboxId, params);
     return response.results;
@@ -83,8 +73,7 @@ async function ensureModel(
   sandboxId: string,
   filePath: string,
 ): Promise<monacoNs.editor.ITextModel | null> {
-  // Hydrate missing models through the file-content query so the cache is
-  // already warm when the user actually opens the target file.
+  // Hydrate via file-content query so cache is warm if the user opens the file.
   const uri = m.Uri.parse(`sandbox://${sandboxId}/${filePath}`);
   const existing = m.editor.getModel(uri);
   if (existing) return existing;
@@ -94,7 +83,7 @@ async function ensureModel(
       queryFn: () => sandboxService.getFileContent(sandboxId, filePath),
     });
     if (data.is_binary) return null;
-    // Re-check after the await: a concurrent lookup may have created it first.
+    // Concurrent lookup may have created the model while we awaited.
     return (
       m.editor.getModel(uri) ?? m.editor.createModel(data.content, detectLanguage(filePath), uri)
     );
@@ -120,10 +109,9 @@ async function resolveLocations(
     const model = models[i];
     if (!model) return;
     for (const match of file.matches) {
-      // The model can be shorter than the on-disk hit (stale hydration, drafts).
+      // Model can be shorter than on-disk hit (stale hydration, drafts).
       if (match.line_number > model.getLineCount()) continue;
-      // Backend line_text is lstripped/windowed for the search sidebar, so its
-      // offsets aren't real columns — locate the symbol in the live model line.
+      // Backend line_text is lstripped/windowed — locate symbol in the live line.
       const column = model.getLineContent(match.line_number).search(wordPattern);
       locations.push({
         uri: model.uri,
@@ -140,13 +128,11 @@ async function resolveLocations(
 }
 
 export function setupEditorNavigation(m: Monaco): void {
-  // Providers are Monaco-global while the editor remounts per file, so install
-  // once and resolve per-call context from the claiming pane + model URI.
+  // Providers are global; editor remounts per file — install once, resolve context per call.
   if (installed) return;
   installed = true;
 
-  // Monaco calls this when a jump targets a resource the current editor isn't
-  // showing (single cross-file definition, or picking an entry in a peek).
+  // Cross-file jump / peek pick when the target isn't the current editor resource.
   m.editor.registerEditorOpener({
     openCodeEditor: (_source, resource, selectionOrPosition) => {
       const context = contextForResource(resource);

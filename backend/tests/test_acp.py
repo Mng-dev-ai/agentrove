@@ -63,9 +63,7 @@ PDF_BYTES = b"%PDF-1.4\n%fake\n"
 
 @pytest.fixture(scope="session")
 def acp_bin_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    # Wrapper executables named after each real agent binary so the real
-    # AcpSession._spawn_host() PATH lookup resolves to our fake ACP agent
-    # regardless of which adapter/model a test exercises.
+    # PATH wrappers so AcpSession._spawn_host resolves to the fake agent.
     bin_dir = tmp_path_factory.mktemp("acp-fake-bin")
     launcher = (
         f"#!{sys.executable}\n"
@@ -96,10 +94,7 @@ class FakeAgentHandle:
         return [e for e in self.events() if e.get("event") == event]
 
     def main_turn_prompts(self) -> list[dict[str, Any]]:
-        # A chat's first turn also triggers background title generation, an
-        # independent ACP session/prompt through this same fake agent binary
-        # — filter its "Generate a title..." prompt out when a test wants the
-        # actual chat turn's prompt event.
+        # Filter background title-gen prompts out of the fake agent log.
         return [
             e
             for e in self.events_of("prompt")
@@ -122,10 +117,7 @@ def fake_agent(
 
 @pytest.fixture(autouse=True)
 def pin_ambient_settings() -> Iterator[None]:
-    # A developer's own shell/.env can export real AGENTROVE_MCP_* creds and
-    # DESKTOP_MODE=true for the desktop app; Settings() picks those up
-    # regardless of bootstrap.py, so pin a deterministic web-mode baseline
-    # here. The tests that care about MCP/desktop-mode override explicitly.
+    # Pin web-mode baseline — shell/.env may export real MCP/desktop settings.
     settings = get_settings()
     original = (
         settings.AGENTROVE_MCP_ENABLED,
@@ -172,9 +164,7 @@ async def auth_workspace(
     headers, _user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
-    # AcpSession._spawn_host() uses this as the subprocess cwd — it must exist
-    # on disk for both the fake agent spawn and the (best-effort, no-op here)
-    # git checkpoint probe.
+    # Spawn cwd must exist (agent + best-effort git checkpoint probe).
     Path(workspace.workspace_path).mkdir(parents=True, exist_ok=True)
     return headers, workspace
 
@@ -259,13 +249,7 @@ async def wait_for_message(
 
 
 async def _settle_background_chat_work(timeout: float = 5.0) -> None:
-    # A chat's first turn kicks off background title generation — a second,
-    # independent ACP round trip through the same fake agent — as a detached
-    # asyncio task the API doesn't expose a "done" signal for. Left running,
-    # it can still be spawning/writing after the test returns, racing the next
-    # test's autouse database fixture (which drops all tables). Everything
-    # runs in-process on this same event loop (ASGITransport, no real
-    # network), so waiting out whatever tasks are still pending is exact.
+    # Drain pending title-gen tasks so they don't race the next test's DB drop.
     pending = [
         t
         for t in asyncio.all_tasks()
@@ -330,9 +314,7 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
     fake_agent: FakeAgentHandle,
     model_id: str,
 ) -> None:
-    # Drives client.py + session.py + adapters.py for real: spawns the fake
-    # agent over stdio, does the ACP handshake, creates a session, streams a
-    # full turn back, and tears the process down — once per adapter kind.
+    # Real stdio ACP path through client/session/adapters, per agent kind.
     headers, _user, _workspace = await create_authenticated_workspace(
         db_session,
         create_user,
@@ -549,9 +531,7 @@ async def test_chat_tool_left_active_is_auto_completed_on_finish(
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
 ) -> None:
-    # A tool that never receives a terminal update but whose turn otherwise
-    # ends normally exercises AcpClientHandler.finish(prompt_completed=True)'s
-    # leftover-active-tool auto-close, distinct from the prompt-failure path.
+    # Tool never terminals — finish(prompt_completed=True) auto-closes it.
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
 
@@ -580,9 +560,7 @@ async def test_chat_agent_calls_fs_and_terminal_stubs_without_error(
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
 ) -> None:
-    # The client implements ACP's fs/terminal methods as no-op stubs (the
-    # sandbox handles file/terminal I/O directly) — drive every one of them
-    # from the agent side and confirm the turn still completes cleanly.
+    # Agent-side calls to fs/terminal no-ops must still complete the turn.
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
 
@@ -607,9 +585,7 @@ async def test_chat_non_text_content_chunks_produce_no_events(
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
 ) -> None:
-    # AgentMessageChunk/AgentThoughtChunk/UserMessageChunk all map to None in
-    # client.py when their content block isn't text — image content must not
-    # add any extra assistant_text/assistant_thinking events.
+    # Non-text content blocks map to None — no extra text/thinking events.
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
 
@@ -637,10 +613,7 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
 ) -> None:
-    # AgentService._get_plan_mode_transition() reacts to a completed
-    # "EnterPlanMode" tool by calling adapter.map_session_mode() and
-    # session.set_mode() mid-turn — the only caller of Claude's
-    # map_session_mode() passthrough (build_session_config never uses it).
+    # Completed EnterPlanMode → map_session_mode + set_mode mid-turn.
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
 
@@ -689,10 +662,7 @@ async def test_chat_permission_mode_unsupported_by_adapter(
     expect_raises: bool,
     expect_mapped_modes: list[str] | None,
 ) -> None:
-    # "bypassPermissions" is a globally valid PermissionMode literal but isn't
-    # in every adapter's own session-mode set: Codex raises (a caller bug must
-    # fail loudly), Copilot/Cursor/OpenCode fall back to their normal mode so
-    # an agent switch never silently widens permissions.
+    # Cross-agent bypassPermissions: Codex raises; others fall back safely.
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id=model_id)
 
@@ -717,9 +687,7 @@ async def test_chat_permission_mode_unsupported_by_adapter(
     set_modes = fake_agent.events_of("set_session_mode")
     assert set_modes
     assert expect_mapped_modes is not None
-    # Leading mode-sets belong to the chat session — background title
-    # generation opens a second session afterwards (opencode's uses a persona
-    # mode).
+    # Leading mode-sets are the chat session; title-gen opens another later.
     leading = [m["mode_id"] for m in set_modes[: len(expect_mapped_modes)]]
     assert leading == expect_mapped_modes
 
@@ -730,9 +698,7 @@ async def test_chat_attachments_with_only_native_files_skip_the_note(
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
 ) -> None:
-    # _build_attachment_note() returns "" when every attachment is natively
-    # embeddable — no sandbox-path note is needed. Codex only treats images
-    # as native, so a single image-only upload exercises that empty branch.
+    # Codex image-only: all native → empty attachment note.
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
 
@@ -765,9 +731,7 @@ async def test_chat_native_pdf_attachment_is_embedded_not_noted(
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
 ) -> None:
-    # Claude treats pdf as natively embeddable (unlike Codex) — this drives
-    # _build_attachment_blocks()'s EmbeddedResourceContentBlock/BlobResourceContents
-    # branch instead of the sandbox-note path.
+    # Claude PDF is native embed → EmbeddedResource/Blob path, not sandbox note.
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
 
@@ -872,10 +836,7 @@ async def test_chat_ask_user_question_flow(
     option_id: str,
     expect_response: dict[str, Any],
 ) -> None:
-    # Grok's ask_user_question arrives as an ACP extension request and must be
-    # answered with an AskUserQuestionExtResponse: the question is surfaced as
-    # a permission_request whose options are the question's choices, and the
-    # user's selection (or dismissal → skip_interview) becomes the response.
+    # Grok ask_user_question ext → permission_request; answer is the response.
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="grok:grok-4.5")
 
@@ -911,11 +872,7 @@ async def test_chat_ask_user_question_flow(
     )
     assert message["stream_status"] == "completed"
 
-    # The fake agent completes the tool with raw_output=<the client's ext
-    # response>, so this message's own tool result is the response the client
-    # returned. Don't assert on the fake-agent log: background title generation
-    # re-runs the marker turn (its prompt embeds the user message) and its
-    # auto-denied question appends a stray skip_interview entry.
+    # Tool raw_output is the client's ext response; skip fake-agent log (title-gen noise).
     tool = last_tool(message, "tool-ask-user")
     assert tool["status"] == "completed"
     assert tool["result"] == expect_response
@@ -989,9 +946,7 @@ async def test_chat_resume_after_session_eviction_mutes_replayed_history(
     # hands back the same fixed id, which load_session() below must be handed.
     session_id = NEW_SESSION_ID
 
-    # Simulate the in-process session being evicted (idle timeout / restart) —
-    # the next turn must go through AcpSession.create() with resume_session_id
-    # set, exercising the real load_session() path instead of session reuse.
+    # Evict in-process session so next turn uses create(resume_session_id).
     await session_registry.terminate(chat["id"])
     monkeypatch.setenv("FAKE_ACP_SCENARIO", "load_session_replay")
 
@@ -1024,9 +979,7 @@ async def test_chat_mid_session_model_and_mode_switch_survives_config_errors(
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Codex's env doesn't vary by model, so the in-process session is reused
-    # across a model/permission_mode change — the only way to reach
-    # AcpSession.set_model()/set_mode() (as opposed to the create()-time calls).
+    # Codex reuses session across model/mode change → hits set_model/set_mode.
     monkeypatch.setenv("FAKE_ACP_SCENARIO", "config_error")
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")

@@ -1,12 +1,6 @@
-// Tracks which chat IDs and sandbox IDs live on the cloud VPS rather than the
-// local instance, so chatService and sandboxService can route per-chat and
-// per-sandbox API calls (reads, status, SSE, files, git, terminal) to the
-// backend that owns them. Single-user app: IDs are unique across the two
-// backends, so flat sets are enough — no need to namespace by origin.
-//
-// Persisted to localStorage and hydrated synchronously at module load: a reload
-// or a direct deep-link to /chat/:id must resolve origin before the chat and
-// sandbox queries fire, otherwise they would fall back to the local backend.
+// Cloud-owned chat/sandbox IDs for routing API calls to the VPS.
+// Flat sets are enough (single-user; IDs unique across backends).
+// Hydrated sync at load so deep-links don't fall back to the local backend.
 const CHATS_KEY = 'cloud-chat-ids';
 const SANDBOXES_KEY = 'cloud-sandbox-ids';
 
@@ -59,7 +53,6 @@ export function isCloudSandbox(id: string): boolean {
   return cloudSandboxIds.has(id);
 }
 
-// Reset all cloud-origin tracking — called on VPS disconnect.
 export function clearCloudOrigins(): void {
   cloudChatIds.clear();
   cloudSandboxIds.clear();

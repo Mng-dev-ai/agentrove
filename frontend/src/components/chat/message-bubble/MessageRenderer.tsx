@@ -65,10 +65,7 @@ export const MessageRenderer = memo(function MessageRenderer({
   const agentTools = React.useMemo(
     () =>
       segments.reduce<ToolAggregate[]>((acc, seg) => {
-        // Collect subagent-spawning tools across agents so the expand-modal
-        // sibling list works for all of them: Claude's `Agent`, opencode's
-        // `task`. Codex/Copilot/Cursor don't surface subagent spawns as
-        // named tool calls.
+        // Claude `Agent` / opencode `task` — expand-modal sibling list (others don't surface spawns).
         if (seg.kind === 'tool' && (seg.tool.name === 'Agent' || seg.tool.name === 'task')) {
           acc.push(seg.tool);
         }
@@ -77,9 +74,7 @@ export const MessageRenderer = memo(function MessageRenderer({
     [segments],
   );
 
-  // Split a completed turn at its last tool/thinking/plan segment: everything
-  // up to it is the collapsible work trace, everything after is the final
-  // answer. While streaming, the trace stays empty so the live work renders flat.
+  // Completed turns: collapsible work trace ends at last tool/thinking/plan; streaming stays flat.
   const { traceSegments, tailSegments } = React.useMemo(() => {
     if (isStreaming) return { traceSegments: [], tailSegments: segments };
     let traceEnd = -1;

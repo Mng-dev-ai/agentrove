@@ -12,7 +12,6 @@ interface SettingsMobileNavProps {
   onToggleNav: () => void;
 }
 
-// Mobile top bar + dropdown for settings nav
 export function SettingsMobileNav({
   activeTab,
   onTabChange,
@@ -22,7 +21,7 @@ export function SettingsMobileNav({
 }: SettingsMobileNavProps) {
   return (
     <>
-      {/* pt folds in the iOS top inset (no TitleBar on settings) — env() is 0 on web, so pt stays 0.625rem there */}
+      {/* bar CSS folds in safe-area-inset-top (0 on web; no TitleBar on settings). */}
       <div className={styles.bar}>
         <Button
           onClick={onBack}

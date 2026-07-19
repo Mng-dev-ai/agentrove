@@ -37,8 +37,7 @@ export const useWorkspacesQuery = (
   });
 };
 
-// Memoize the items array so a missing `data` doesn't yield a new `[]` reference
-// each render — keeps downstream useMemo/useEffect deps stable.
+// Stable [] when data is missing — avoids new-ref churn for downstream deps.
 export const useWorkspacesList = (
   options?: Partial<UseQueryOptions<PaginatedResponse<Workspace>>>,
 ): Workspace[] => {

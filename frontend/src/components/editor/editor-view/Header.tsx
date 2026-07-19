@@ -25,8 +25,7 @@ export interface HeaderProps {
   onTogglePreview?: (showPreview: boolean) => void;
   showDiff?: boolean;
   onToggleDiff?: () => void;
-  // Whether the file has uncommitted or unsaved changes — shows the dot on the
-  // Changes toggle so users can tell the diff view has content before opening it.
+  // Dot on Changes when there are uncommitted or unsaved edits.
   hasChanges?: boolean;
   hasUnsavedChanges?: boolean;
   isSaving?: boolean;

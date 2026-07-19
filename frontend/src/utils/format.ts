@@ -23,8 +23,7 @@ export function formatNumberCompact(num: number): string {
   return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
 }
 
-// Strips paired markdown delimiters while preserving content between them —
-// uses matched pairs so isolated chars (e.g. underscores in `my_var`) aren't mangled
+// Matched pairs only so isolated chars (e.g. underscores in my_var) stay intact.
 export function stripMarkdownTitle(title: string): string {
   return title
     .replace(/\*{1,2}(.+?)\*{1,2}/g, '$1')

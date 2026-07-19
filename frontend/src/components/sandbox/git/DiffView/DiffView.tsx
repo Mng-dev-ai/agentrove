@@ -46,21 +46,16 @@ const WORKER_POOL_OPTIONS: WorkerPoolOptions = {
 const WORKER_HIGHLIGHTER_OPTIONS: WorkerInitializationRenderOptions = {};
 
 interface DiffViewProps {
-  // The chat this tile renders — resolves the sandbox/cwd it diffs and binds it
-  // to jumps so diff tiles for different chats never consume each other's.
+  // Binds sandbox/cwd and jump targeting so multi-chat tiles don't cross-talk.
   chatId: string | undefined;
-  // Chat-less contexts (the landing page) supply the sandbox directly — diffs run
-  // at the workspace root and review comments are disabled (they need a chat).
+  // Landing page supplies sandbox directly (workspace root; no review comments).
   sandboxId?: string;
-  // Whether this tile is currently on screen — background tiles stay mounted, so
-  // visibility is how we know the user just switched to the diff view.
+  // Background tiles stay mounted — visibility detects a switch onto this view.
   isVisible: boolean;
 }
 
 export const DiffView = memo(function DiffView(props: DiffViewProps) {
-  // Chat switches remount this tile with the lazy chunk already cached, so patch
-  // parsing + pierre diff rendering would mount inside the navigation's commit
-  // and block its first paint (same deferral as EditorPane).
+  // Defer heavy mount past navigation paint (same pattern as EditorPane).
   const hasPainted = useFirstPaint();
 
   if (!hasPainted) return viewLoadingFallback;
@@ -76,12 +71,11 @@ const DiffViewContent = memo(function DiffViewContent({
   const { data: chat } = useChatQuery(chatId);
   const sandboxId = chat?.sandbox_id ?? workspaceSandboxId;
   const cwd = chat?.worktree_cwd ?? undefined;
-  // Files render expanded by default (continuous review scroll) — track the
-  // exceptions the user collapsed instead of the ones they opened.
+  // Expanded by default; set tracks user-collapsed exceptions.
   const [collapsedFiles, toggleCollapsed, setCollapsedFiles] = useToggleSet<string>();
   const [mode, setMode] = useState<DiffMode>('all');
   const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
-  // Scrollspy target — the file whose diff currently tops the pane.
+  // Scrollspy: file whose diff currently tops the pane.
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [isNarrow, setIsNarrow] = useState(false);
   const {

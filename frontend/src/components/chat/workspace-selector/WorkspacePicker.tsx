@@ -12,14 +12,11 @@ interface WorkspacePickerProps {
   workspaces: Workspace[];
   selectedWorkspaceId: string | null;
   onSelect: (id: string) => void;
-  // Shows "Loading…" in the trigger while the workspace list is in flight (cloud).
   isLoading?: boolean;
-  // Disables the trigger when there's nothing to pick yet (cloud loading/empty).
   triggerDisabled?: boolean;
-  // Local-only git branch sub-row on each item; cloud workspaces have no reachable sandbox.
+  // Local only — cloud workspaces have no reachable sandbox for branch switching.
   showBranches: boolean;
-  // Creation flows rendered below the list (local only). Receives `close` so a
-  // freshly-created workspace can dismiss the modal.
+  // Local creation flows; receives `close` so a new workspace can dismiss the modal.
   footer?: (close: () => void) => ReactNode;
 }
 

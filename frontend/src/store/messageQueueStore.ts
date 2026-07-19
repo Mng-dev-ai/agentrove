@@ -23,10 +23,8 @@ interface MessageQueueState {
   cleanupChat: (chatId: string) => void;
 }
 
-// Optimistic message queue: messages are added locally with a temp ID, then
-// synced to the server. If the server returns a real ID, the temp ID is swapped
-// in-place. Network errors leave the message as unsynced. fetchQueue merges
-// server state with any unsynced locals so nothing is lost across page refreshes.
+// Optimistic queue: temp IDs swap in-place on sync; network errors stay unsynced.
+// fetchQueue merges server state with unsynced locals across refreshes.
 export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
   queues: new Map<string, LocalQueuedMessage[]>(),
 
@@ -153,9 +151,7 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
     }
   },
 
-  // Asks the backend to immediately process this queued message instead of
-  // waiting for the stream to finish. Sets a 30s timeout guard to reset the
-  // sendingNow flag in case the request hangs without a response.
+  // Process now instead of waiting for the stream; 30s guard resets sendingNow.
   sendNow: async (chatId: string, messageId: string): Promise<boolean> => {
     const queue = get().queues.get(chatId) || [];
     const message = queue.find((m) => m.id === messageId);
@@ -233,8 +229,7 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
     });
   },
 
-  // Fetches the server-side queue and merges it with any unsynced local messages.
-  // Server messages replace their local counterparts; unsynced locals are appended.
+  // Server messages win; unsynced locals without a server counterpart are kept.
   fetchQueue: async (chatId: string) => {
     try {
       const serverMessages = await queueService.getQueue(chatId);

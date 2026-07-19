@@ -4,10 +4,7 @@ import { patchChatInCache } from '@/hooks/queries/useChatQueries';
 import type { Message } from '@/types/chat.types';
 import type { PaginatedMessages } from '@/types/api.types';
 
-// Cross-chat cache mutators: unlike the hook-scoped useMessageCache (which
-// closes over the currently viewed chatId), these target a specific chat by
-// explicit parameter — needed when off-screen streams flush or finalize into
-// a chat the user has navigated away from.
+// Explicit chatId (unlike useMessageCache) — needed when off-screen streams flush.
 export function updateMessageInCacheForChat(
   queryClient: QueryClient,
   chatId: string,

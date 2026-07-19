@@ -9,8 +9,7 @@ import type {
   AutomationUpdateRequest,
 } from '@/types/automation.types';
 
-// Each automation is owned by one backend, so mutations carry onCloud and
-// invalidate only that backend's list.
+// Invalidate only the backend that owns the automation.
 function invalidateAutomations(queryClient: QueryClient, onCloud: boolean) {
   if (onCloud) {
     const { cloudUrl, connectedEmail } = useCloudSettingsStore.getState();
@@ -29,8 +28,7 @@ export const useAutomationsQuery = () =>
     staleTime: 30_000,
   });
 
-// Keyed by cloudUrl + connectedEmail so switching instance or account never
-// serves the previous connection's cached list.
+// Keyed by instance + account so switches don't serve stale cache.
 export const useCloudAutomationsQuery = (enabled: boolean) => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
@@ -77,8 +75,6 @@ export const useRunAutomationMutation = createMutation<
 >(
   ({ automationId, onCloud }) => automationService.runAutomation(automationId, onCloud),
   (queryClient, _data, variables) => {
-    // Refresh last_run_at on the list, plus the sidebar chats of the backend
-    // the run landed on.
     invalidateAutomations(queryClient, variables.onCloud);
     if (variables.onCloud) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll });

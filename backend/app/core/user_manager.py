@@ -72,10 +72,8 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     async def on_after_reset_password(
         self, user: User, request: Request | None = None
     ) -> None:
-        # A password reset is the recovery path for a compromised account —
-        # refresh tokens issued under the old password must die with it.
-        # Inline import: core.security imports this module and the service
-        # imports core.security, so a top-level import would be circular.
+        # Reset implies compromise — kill refresh tokens from the old password.
+        # Inline import avoids circular import with core.security.
         from app.services.refresh_token import RefreshTokenService
 
         revoked = await RefreshTokenService().revoke_all_tokens(

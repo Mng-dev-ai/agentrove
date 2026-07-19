@@ -118,7 +118,6 @@ export function TitleBar() {
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
 
   const hasContent = IS_MACOS_DESKTOP || (isAuthenticated && showSidebar);
-  // Don't render an empty bar when there are no controls to show
   if (!hasContent) return null;
 
   // Uses native startDragging API — data-tauri-drag-region doesn't work on frameless windows in Tauri v2
@@ -143,9 +142,7 @@ export function TitleBar() {
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Left section — same secondary surface as the main band. While the sidebar is
-          open it doubles as the sidebar's header strip (border-r, no hairline below so
-          it merges into the sidebar); when closed the band's hairline runs to the edge. */}
+      {/* When docked, merges into the sidebar header (border-r, no hairline). */}
       <div
         className={clsx(
           styles.left,
@@ -162,8 +159,7 @@ export function TitleBar() {
               position="left"
               ariaLabel="Toggle sidebar"
             />
-            {/* Search + new chat only when the sidebar is closed — open, the sidebar
-                already exposes both actions. Landing is the "new tab page". */}
+            {/* Search/new chat only when sidebar is closed (it already has both). */}
             {!sidebarOpen && (
               <>
                 <FloatingTooltip content="Search">
@@ -195,23 +191,17 @@ export function TitleBar() {
           </div>
         )}
 
-        {/* Spacing after traffic lights when no sidebar controls are shown */}
+        {/* Spacer after traffic lights when sidebar controls are absent. */}
         {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className={styles.spacer} />}
       </div>
 
-      {/* Main content area — a secondary-surface band with a hairline below, which
-          the active chat tab's underline indicator crosses. Chat tabs (the open
-          working set) sit on the left; the view switcher stays pinned right. */}
       <div className={styles.band}>
         <div className={styles['tabs-area']}>
-          {/* Auth gate: on macOS desktop the bar renders even when logged out, and
-              persisted chatTabs would fire protected chat queries (and self-close
-              on the resulting 401s, wiping the working set). */}
+          {/* Auth gate: macOS desktop still renders the bar logged out; without this,
+              persisted chatTabs would hit protected queries and 401-self-close. */}
           {isAuthenticated && (isChatPage || isLandingPage) && <ChatTabs />}
         </div>
-        {/* Views have no tabs — the switcher is the only affordance to open and
-            close them, so landing (which renders every view against the selected
-            workspace's sandbox) needs it too. */}
+        {/* No per-view tabs — switcher opens/closes views (landing needs it too). */}
         {(isChatPage || isLandingPage) && <ViewSwitcher />}
       </div>
     </div>

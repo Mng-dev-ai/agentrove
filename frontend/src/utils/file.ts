@@ -96,8 +96,7 @@ export function findFileInStructure(
   return undefined;
 }
 
-// Tool paths are absolute (/home/user/project/src/foo.ts), tree paths are relative (src/foo.ts).
-// Try the exact path first, then progressively strip leading segments to find a match.
+// Tool paths are absolute; tree paths relative — strip leading segments until match.
 export function findFileByToolPath(
   items: FileStructure[],
   toolPath: string,
@@ -206,8 +205,7 @@ const createDirectoryPath = (
 };
 
 export function buildFileStructureFromSandboxFiles(sandboxFiles: FileMetadata[]): FileStructure[] {
-  // The metadata listing carries paths/types only — file content is fetched
-  // per-file on demand, so tree nodes always start with empty content.
+  // Listing is paths/types only — content is fetched on demand.
   const fileStructure: FileStructure[] = [];
   const pathToFile: Map<string, FileStructure> = new Map();
 

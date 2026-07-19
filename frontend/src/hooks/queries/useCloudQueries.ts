@@ -14,8 +14,7 @@ import type { ChatSearchResponse } from '@/types/chat.types';
 
 const CLOUD_CHATS_PER_PAGE = 25;
 
-// Keyed by cloudUrl + connectedEmail so switching instance or account never
-// serves the previous connection's cached list.
+// Keyed by cloudUrl + connectedEmail so instance/account switches don't serve stale cache.
 export const useCloudWorkspacesQuery = (enabled: boolean) => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
@@ -27,8 +26,7 @@ export const useCloudWorkspacesQuery = (enabled: boolean) => {
   });
 };
 
-// Rename/delete a VPS workspace. cloudUrl + connectedEmail are read at cache-update
-// time so the invalidation targets the same instance/account the query is keyed by.
+// Read cloudUrl/email at invalidate time so the key matches the active instance.
 export const useCloudUpdateWorkspaceMutation = createMutation<
   Workspace,
   Error,
@@ -51,16 +49,12 @@ export const useCloudDeleteWorkspaceMutation = createMutation<void, Error, strin
       queryClient.invalidateQueries({
         queryKey: queryKeys.cloudWorkspaces(cloudUrl, connectedEmail),
       }),
-      // Prefix-invalidate every project's cloud chats — the deleted workspace's
-      // chats are gone server-side and the sidebar list must drop them.
       queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll }),
     ]);
   },
 );
 
-// VPS workspace skills and builtin slash-commands for the landing composer
-// before a chat exists. Keyed by cloudUrl + connectedEmail + workspaceId so
-// switching instance or account never serves the previous connection's cache.
+// Landing composer resources before a chat exists; keyed by instance + account + workspace.
 export const useCloudWorkspaceResourcesQuery = (
   workspaceId: string | undefined,
   enabled: boolean,
@@ -75,9 +69,7 @@ export const useCloudWorkspaceResourcesQuery = (
   });
 };
 
-// VPS user settings. Only personas are consumed on the landing page — local
-// settings (env vars, GitHub token, etc.) are separate. Keyed by cloudUrl +
-// connectedEmail so switching instance or account never serves stale cache.
+// VPS settings (landing uses personas only). Keyed by instance + account.
 export const useCloudSettingsQuery = (enabled: boolean) => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
@@ -89,8 +81,7 @@ export const useCloudSettingsQuery = (enabled: boolean) => {
   });
 };
 
-// Chats currently running on the VPS — the settings tab shows the count in its
-// connection overview. Polled so the number stays live while the tab is open.
+// Polled active VPS stream count for settings connection overview.
 export const useCloudActiveStreamsQuery = (enabled: boolean) => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
@@ -103,9 +94,7 @@ export const useCloudActiveStreamsQuery = (enabled: boolean) => {
   });
 };
 
-// Total chat count across all VPS workspaces for the settings connection
-// overview. per_page 1 keeps the payload minimal — only `total` is consumed.
-// Key extends queryKeys.cloudChats so existing invalidations prefix-match it.
+// Settings total only — per_page 1. Key under cloudChats so invalidations prefix-match.
 export const useCloudChatsTotalQuery = (enabled: boolean) => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
@@ -118,9 +107,7 @@ export const useCloudChatsTotalQuery = (enabled: boolean) => {
   });
 };
 
-// Cloud twin of useSearchChatsQuery — ChatSearchPanel merges the two result sets
-// like the sidebar merges its lists. Key extends queryKeys.cloudChats so
-// cloudChatsAll invalidations (deletes, renames) prefix-match it.
+// Cloud twin of useSearchChatsQuery; key under cloudChats for prefix invalidations.
 export const useSearchCloudChatsQuery = (query: string) => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);
@@ -129,19 +116,13 @@ export const useSearchCloudChatsQuery = (query: string) => {
     queryKey: [...queryKeys.cloudChats(cloudUrl, connectedEmail), 'search', trimmed] as const,
     queryFn: () => cloudChatService.searchChats(trimmed),
     enabled: !!cloudUrl && trimmed.length >= 2,
-    // Placeholder retention only while connected: after disconnect the origin
-    // tracking is cleared, so held-over VPS results would misroute when opened.
+    // No placeholder after disconnect — held-over VPS rows would misroute when opened.
     placeholderData: cloudUrl ? keepPreviousData : undefined,
     staleTime: 15_000,
   });
 };
 
-// Cloud chats across all VPS projects, paginated like the local sidebar list. The
-// queryFn registers returned IDs as cloud-owned (markCloudChats), so opening one
-// routes its messages/status/SSE to the VPS. New chats and runs arrive live via
-// the cloud events feed (useCloudChatEvents); the poll is a safety net for
-// changes the feed doesn't carry (titles, deletes, other-device edits). Key
-// extends queryKeys.cloudChats so the LandingPage invalidation prefix-matches it.
+// Paginated VPS chats; queryFn markCloudChats for routing. Poll safety-nets non-feed changes.
 export const useInfiniteCloudChatsQuery = (enabled: boolean = true) => {
   const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
   const connectedEmail = useCloudSettingsStore((state) => state.connectedEmail);

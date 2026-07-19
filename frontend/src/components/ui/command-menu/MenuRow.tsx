@@ -11,13 +11,11 @@ export interface MenuRowProps {
   onActivate: (index: number, e: ReactMouseEvent) => void;
   onSelect: () => void;
   disabled?: boolean;
-  // Controls rendered outside the option button (shortcut hint, split buttons).
   trailing?: ReactNode;
   children: ReactNode;
 }
 
-// Shared row shell — active highlight, synthetic-hover guard, option semantics.
-// Only the button content (and optional trailing controls) differ per row type.
+// Shared row shell: active highlight, synthetic-hover guard, option semantics.
 export function MenuRow({
   id,
   index,

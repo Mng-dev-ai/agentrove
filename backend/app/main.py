@@ -53,8 +53,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await maintenance_service.stop()
         await ChatStreamRuntime.stop_background_chats()
         await session_registry.terminate_all()
-        # Kill terminal PTYs and their tmux sessions — host-provider shells
-        # would otherwise keep running after the app exits.
+        # Host-provider shells keep running after exit unless PTYs/tmux die.
         await terminal_session_registry.terminate_all()
         await engine.dispose()
 

@@ -17,11 +17,10 @@ settings = get_settings()
 class AttachmentService:
     def __init__(self, message_service: MessageService) -> None:
         self._message_service = message_service
-        # Pre-resolve once so per-request path checks can compare against a canonical base
+        # Canonical base for per-request path checks.
         self._storage_base = Path(settings.STORAGE_PATH).resolve()
 
     async def get_temp_preview(self, path: str, user_id: UUID) -> FileResponse:
-        # Serves temp files uploaded during message composition before they're persisted as attachments
         user_temp_base = (self._storage_base / "temp" / str(user_id)).resolve()
         # resolve() normalises ".." segments so path-traversal attacks can't escape the user's temp dir
         file_path = (self._storage_base / path).resolve()
@@ -61,8 +60,6 @@ class AttachmentService:
     async def _get_attachment_with_path(
         self, attachment_id: UUID, user_id: UUID, db: AsyncSession
     ) -> tuple[MessageAttachment, Path]:
-        # Loads an attachment from DB and resolves its on-disk path, enforcing ownership
-        # and path-traversal safety before returning both to the caller
         attachment = await self._message_service.get_attachment(attachment_id, db)
 
         if not attachment:
@@ -72,7 +69,6 @@ class AttachmentService:
                 status_code=404,
             )
 
-        # Attachments belong to a chat which belongs to a user — verify the chain
         if attachment.message.chat.user_id != user_id:
             raise AttachmentException(
                 "Access denied",

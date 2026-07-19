@@ -80,11 +80,8 @@ export function AutomationEditDialog({
   const workspaces = form.onCloud ? cloudWorkspaces : localWorkspaces;
   const personas = form.onCloud ? cloudPersonas : localPersonas;
 
-  // Form-state init: seed new automations and ones whose saved model left the
-  // registry — ModelSelector no longer commits one, and save requires a model_id.
-  // Effect, not render-phase seeding: onChange writes parent-owned state.
-  // Never reseed an existing cloud automation: the VPS model registry can lag
-  // the local one, and a silent swap here would persist the wrong model on save.
+  // Seed model when missing/left registry. Effect (onChange writes parent state).
+  // Never reseed cloud edits — VPS registry lag would silently swap the model on save.
   useEffect(() => {
     if (isEditing && form.onCloud) return;
     if (models.length > 0 && !models.some((m) => m.model_id === form.model_id)) {
@@ -92,10 +89,8 @@ export function AutomationEditDialog({
     }
   }, [models, form.model_id, form.onCloud, isEditing, onChange]);
 
-  // Same for the workspace — also re-seeds when toggling local/cloud, since the
-  // selected workspace only exists on one backend. Unlike the model effect this
-  // needs no cloud-edit guard: workspaces are queried from the owning backend,
-  // so a missing id means the workspace was deleted, not a registry skew.
+  // Workspace only exists on one backend; re-seed on local/cloud toggle. No cloud-edit
+  // guard — workspaces come from the owning backend, so missing id means deleted.
   useEffect(() => {
     if (workspaces.length > 0 && !workspaces.some((w) => w.id === form.workspace_id)) {
       onChange('workspace_id', workspaces[0].id);

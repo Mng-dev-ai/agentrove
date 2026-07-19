@@ -133,8 +133,7 @@ class QueueService:
         return next_msg
 
     async def mark_send_now(self, chat_id: str, message_id: str) -> bool:
-        # Flag a queued message for immediate processing — the runtime checks this
-        # key to skip the normal queue order and process this message next.
+        # Runtime checks this key to skip normal queue order.
         key = self._queue_key(chat_id)
         queue = await self._read_queue(key)
         if not any(item["id"] == message_id for item in queue):
@@ -169,8 +168,7 @@ class QueueService:
         return target
 
     async def requeue_message(self, chat_id: str, message_data: dict[str, Any]) -> None:
-        # Re-insert at the front so it's retried next — used when processing fails
-        # and the message shouldn't be lost.
+        # Front of queue so a failed process is retried next.
         key = self._queue_key(chat_id)
         queue = await self._read_queue(key)
         queue.insert(0, message_data)

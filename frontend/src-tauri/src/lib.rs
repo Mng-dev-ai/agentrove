@@ -1,8 +1,7 @@
 #[cfg(desktop)]
 mod desktop;
 
-// Entry point for every platform. Mobile (iOS/Android) calls this through the
-// generated `tauri::mobile_entry_point`; desktop calls it from main.rs.
+// Shared entry: mobile via tauri::mobile_entry_point; desktop from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(desktop)]
@@ -10,9 +9,7 @@ pub fn run() {
         desktop::run();
     }
 
-    // Mobile has no local backend sidecar — the frontend talks to a remote
-    // backend whose URL is baked in at build time (.env.mobile). So we only wire
-    // up the plugins that work on mobile and let the webview load the app.
+    // Mobile has no local sidecar — remote backend URL is build-time (.env.mobile).
     #[cfg(mobile)]
     {
         tauri::Builder::default()

@@ -8,8 +8,6 @@ interface UseInputAttachmentsOptions {
   onAttach?: (files: File[]) => void;
 }
 
-// File preview URLs, attach/remove/draw operations, drag-and-drop, and paste —
-// everything that turns dropped/pasted/selected files into chat attachments.
 export function useInputAttachments({ attachedFiles, onAttach }: UseInputAttachmentsOptions) {
   const { previewUrls } = useFileHandling({
     initialFiles: attachedFiles,

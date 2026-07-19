@@ -30,8 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_fernet_key() -> bytes:
-    # Derive a 32-byte Fernet key from SECRET_KEY via SHA-256 so we don't
-    # require users to set a separate Fernet-formatted key.
+    # Fernet key derived from SECRET_KEY so users need not set a separate one.
     key_bytes = hashlib.sha256(settings.SECRET_KEY.encode()).digest()
     return base64.urlsafe_b64encode(key_bytes)
 
@@ -87,9 +86,7 @@ async def get_user_from_token(token: str, db: AsyncSession) -> User | None:
 
 
 async def get_current_user(
-    # Accepts auth via either the standard Bearer header (resolved by
-    # fastapi-users into `user`) or a `?token=` query param for SSE/WebSocket
-    # endpoints where the browser can't set custom headers.
+    # Bearer (via fastapi-users) or ?token= for SSE/WebSocket (no custom headers).
     token_query: str | None = Query(None, alias="token"),
     user: User | None = Depends(optional_current_active_user),
     db: AsyncSession = Depends(get_db),
@@ -138,9 +135,7 @@ async def authenticate_websocket_user(token: str) -> User | None:
 async def wait_for_websocket_auth(
     websocket: WebSocket, timeout: float = 10.0
 ) -> User | None:
-    # WebSocket connections can't send headers after the handshake, so the
-    # client sends a JSON auth message as the first frame. This waits for
-    # that message and validates the token.
+    # First frame must be JSON auth — WS can't send headers after the handshake.
     try:
         message = await asyncio.wait_for(websocket.receive(), timeout=timeout)
         data = json.loads(message["text"])
@@ -162,11 +157,8 @@ async def resolve_websocket_sandbox_access(
     sandbox_id: str,
     user: User,
 ) -> tuple[SandboxProviderType, str] | None:
-    # Verifies the sandbox belongs to the authenticated user and resolves its
-    # provider type + workspace path. Closes the WS with a SANDBOX_NOT_FOUND
-    # code on failure and returns None so the caller can short-circuit. Lives
-    # here rather than as a FastAPI Depends because the WebSocket handshake
-    # requires accept→auth→access ordering that Depends can't enforce.
+    # Not a Depends: WS needs accept→auth→access ordering. On failure close
+    # with SANDBOX_NOT_FOUND and return None.
     async with SessionLocal() as db:
         query = select(Workspace.sandbox_provider, Workspace.workspace_path).where(
             Workspace.sandbox_id == sandbox_id,

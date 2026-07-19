@@ -143,8 +143,7 @@ fn spawn_backend(
     let backend_bin = resolve_backend_binary(app_handle);
     let mut backend_path = std::env::var("PATH").unwrap_or_default();
     if let Some(home) = dirs::home_dir() {
-        // OpenCode installs to ~/.opencode/bin on macOS and updates shell rc
-        // files, but the desktop backend gets an explicit PATH from Tauri.
+        // OpenCode lives in ~/.opencode/bin; Tauri gives the backend an explicit PATH.
         backend_path.push_str(&format!(":{}/.opencode/bin", home.display()));
         backend_path.push_str(&format!(":{}/.local/bin", home.display()));
     }
@@ -201,8 +200,6 @@ fn build_tray(app: &tauri::App) -> tauri::Result<()> {
         .icon(app.default_window_icon().unwrap().clone())
         .tooltip("Agentrove")
         .menu(&menu)
-        // Click the tray to open the menu (standard macOS menu-bar behavior);
-        // "Show Agentrove" brings the window back.
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => show_main_window(app),
             "quit" => app.exit(0),
@@ -231,17 +228,15 @@ pub fn run() {
         .manage(backend_port.clone())
         .invoke_handler(tauri::generate_handler![get_backend_port])
         .on_window_event(|window, event| {
-            // Closing the window hides it to the tray; the app keeps running.
-            // Real exit goes through the tray "Quit" item (app.exit), which bypasses this.
+            // Close = hide to tray; real exit is tray Quit (app.exit bypasses this).
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
                 let _ = window.hide();
             }
         })
         .setup(move |app| {
-            // The window stays titled (overlay title bar in tauri.conf.json) so minimize works —
-            // borderless windows can't miniaturize on macOS. Hide the native traffic lights here
-            // since the frontend renders custom ones.
+            // Keep a titled overlay bar so minimize works (borderless can't on macOS);
+            // hide native traffic lights — frontend draws custom ones.
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
                 if let Ok(ns_window) = window.ns_window() {

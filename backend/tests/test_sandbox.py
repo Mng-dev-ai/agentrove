@@ -45,9 +45,7 @@ pytestmark = pytest.mark.anyio
 
 
 class ScriptedSandboxProvider(FakeSandboxProvider):
-    # Extends FakeSandboxProvider with per-test scripted command responses and
-    # optional forced exceptions — helpers.py can't be edited, so error-path
-    # coverage (git/search failures, provider errors) lives here instead.
+    # Scripted responses/exceptions (helpers.py not editable for error paths).
     def __init__(self) -> None:
         super().__init__()
         self.command_overrides: list[tuple[str, CommandResult]] = []
@@ -1280,9 +1278,7 @@ async def test_host_provider_serves_real_files_from_disk(
     create_user: UserFactory,
     login: LoginClient,
 ) -> None:
-    # Exercises the real LocalHostProvider (no fake) against real files on
-    # disk inside the pytest tmp dir — file read/write, os.walk fallback for
-    # non-git dirs, WALK_SKIP_DIRS pruning, and the symlink-escape guard.
+    # Real LocalHostProvider on tmp disk (walk fallback, skip dirs, symlink guard).
     workspace_dir = tmp_path / "workspace"
     workspace_dir.mkdir()
     (workspace_dir / "README.md").write_text("real readme")
@@ -1367,9 +1363,7 @@ async def test_host_provider_runs_real_git_commands(
         ["git", "config", "user.name", "Test"], cwd=workspace_dir, check=True
     )
     (workspace_dir / "app.py").write_text("print('v1')\n")
-    # Two nested tracked files under the same dir so `git ls-files` output
-    # exercises both the parent-directory synthesis and the seen_dirs dedup
-    # branch in SandboxProvider.parse_git_ls_files.
+    # Nested tracked files exercise parent-dir synthesis + seen_dirs dedup.
     (workspace_dir / "src").mkdir()
     (workspace_dir / "src" / "nested.py").write_text("print('nested')\n")
     (workspace_dir / "src" / "other.py").write_text("print('other')\n")
@@ -1388,11 +1382,7 @@ async def test_host_provider_runs_real_git_commands(
         username="hostgit",
     )
 
-    # A custom env var forces SandboxService to pass non-empty envs into
-    # execute_command, exercising the process_env.update(envs) merge path.
-    # Seed via DB (same pattern as the github-token inject test) — PATCH
-    # /settings/ goes through Redis cache invalidation, which host-provider
-    # tests don't wire up.
+    # Seed custom env via DB (not PATCH — Redis invalidation not wired here).
     user_settings = await get_user_settings(db_session, workspace.user_id)
     assert user_settings is not None
     user_settings.custom_env_vars = [{"key": "MY_VAR", "value": "hello"}]
@@ -1413,9 +1403,7 @@ async def test_host_provider_runs_real_git_commands(
         json={"message": "v2"},
         headers=headers,
     )
-    # After the commit the tree is clean, so `git ls-files` succeeds and
-    # list_files takes the git-tracked-files branch instead of the os.walk
-    # fallback exercised by test_host_provider_serves_real_files_from_disk.
+    # Clean tree → list_files uses git ls-files, not os.walk fallback.
     metadata_response = await client.get(
         f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata", headers=headers
     )
@@ -1448,10 +1436,7 @@ async def test_git_diff_unborn_head_emits_each_file_once(
     create_user: UserFactory,
     login: LoginClient,
 ) -> None:
-    # Real git against a repo with no commits: `git diff HEAD` fails, so "all"
-    # mode falls back to diffing the worktree against the empty tree. The old
-    # `--cached` + plain-diff fallback emitted a staged-then-modified file
-    # twice, which downstream parsing (keyed by path) can't represent.
+    # No commits: "all" diffs empty tree (old fallback double-emitted paths).
     workspace_dir = tmp_path / "unborn-workspace"
     workspace_dir.mkdir()
     subprocess.run(
@@ -1498,11 +1483,7 @@ async def test_git_endpoint_injects_github_token_env(
     fake_provider: FakeSandboxProvider,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # SandboxService.build_env_vars only injects GITHUB_TOKEN/GIT_ASKPASS when
-    # a github_personal_access_token is configured AND DESKTOP_MODE is off —
-    # seed both directly (no endpoint here sets a token) then confirm the
-    # env reaches the provider exec call. Mirrors conftest's SettingsOverride
-    # pattern for toggling settings outside the HTTP boundary.
+    # PAT + server mode injects GITHUB_TOKEN/GIT_ASKPASS into provider env.
     monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1536,9 +1517,7 @@ async def test_download_zip_includes_binary_files(
     headers, _user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
-    # write_file always stores is_binary=False on FakeSandboxProvider — set
-    # the FileContent directly with is_binary=True so list_files/
-    # generate_zip_download take the base64-decode branch.
+    # Force is_binary=True (write_file always stores False on the fake).
     provider.files["logo.zip"] = FileContent(
         path="logo.zip",
         content=base64.b64encode(b"binary-bytes").decode(),

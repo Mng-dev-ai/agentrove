@@ -8,6 +8,5 @@ class AIModelResponse(BaseModel):
     name: str
     agent_kind: AgentKind
     context_window: int | None = None
-    # Supported reasoning-effort tiers, ordered lowest to highest; empty when
-    # the model has no reasoning dial (thinking_mode is ignored for it).
+    # Effort tiers low→high; empty means no dial (thinking_mode ignored).
     thinking_modes: list[str] = []

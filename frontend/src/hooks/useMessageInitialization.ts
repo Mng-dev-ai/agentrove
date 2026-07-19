@@ -18,10 +18,7 @@ interface UseMessageInitializationParams {
   setInitialPrompt: (prompt: string) => void;
 }
 
-// Normalizes fetched messages (attachment file types, default fields) and
-// seeds local state. Also handles the "initial prompt" flow where a new chat
-// is created from a route param or navigation state — injects a synthetic
-// user message so the chat starts without waiting for the first API round-trip.
+// Normalize fetched messages into local state; inject synthetic user msg for route initial prompts.
 export function useMessageInitialization({
   fetchedMessages,
   chatId,
@@ -40,8 +37,7 @@ export function useMessageInitialization({
   useEffect(() => {
     if (!fetchedMessages || !chatId || isLoading || wasAborted) return;
 
-    // Skip reprocessing during streaming to preserve attachment references and prevent image flashing,
-    // but always allow initialization when switching to a different chat
+    // Skip reprocess while streaming (attachment refs / image flash), but re-init on chat switch.
     if (isStreaming && initializedChatRef.current === chatId) return;
 
     const normalizedMessages = fetchedMessages.map((msg: Message) => {

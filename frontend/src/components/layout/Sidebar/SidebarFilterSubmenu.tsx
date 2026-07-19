@@ -7,8 +7,6 @@ import type { SidebarFilters, SidebarGroupBy, SidebarStatusFilter } from '@/stor
 import type { AgentKind } from '@/types/chat.types';
 import styles from './SidebarFilterSubmenu.module.scss';
 
-// Category flyouts: hovering (or clicking, for touch) a root row opens its
-// option list beside the panel.
 export type FilterCategory = 'status' | 'agent' | 'source' | 'workspace' | 'groupBy';
 
 export const STATUS_OPTIONS: { value: SidebarStatusFilter; label: string }[] = [
@@ -41,7 +39,6 @@ interface WorkspaceOption {
   isCloud: boolean;
 }
 
-// Option row in a category flyout: label left, check right when selected.
 function FilterOptionRow({
   selected,
   onSelect,

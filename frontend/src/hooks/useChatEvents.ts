@@ -10,9 +10,7 @@ import { resyncActiveStreams } from '@/utils/activeStreams';
 import { logger } from '@/utils/logger';
 import type { ChatEvent } from '@/types/chat.types';
 
-// Subscribes to the backend's per-user chat lifecycle SSE feed so chats created
-// and turns started out-of-band (e.g. by agents via the MCP server) surface
-// live — sidebar entry, chat tab, and running indicator — without a refresh.
+// Per-user chat lifecycle SSE: out-of-band creates/turns (MCP, agents) surface live.
 export function useChatEvents(options?: { enabled?: boolean }) {
   const enabled = options?.enabled ?? true;
   const queryClient = useQueryClient();
@@ -43,8 +41,7 @@ export function useChatEvents(options?: { enabled?: boolean }) {
       }
 
       if (parsed.kind === 'title_updated') {
-        // Backfilled mid-stream by the background titling task — patch caches
-        // directly so the sidebar/tab rename without waiting for a refetch.
+        // Mid-stream title backfill — patch caches so sidebar/tab rename without refetch.
         patchChatInCache(queryClient, parsed.chat_id, (chat) => ({
           ...chat,
           title: parsed.title,
@@ -53,19 +50,14 @@ export function useChatEvents(options?: { enabled?: boolean }) {
       }
 
       if (parsed.kind === 'stream_started') {
-        // Turns started out-of-band on existing chats emit no chat_created,
-        // so the running chat must join the tab strip here.
+        // Out-of-band turns on existing chats skip chat_created — open the tab here.
         useUIStore.getState().openChatTab(parsed.chat_id);
-        // The turn bumps updated_at ordering server-side — refetch the sidebar
-        // lists so the chat surfaces even from outside the loaded pages.
+        // Server bumps updated_at — refetch so chats outside loaded pages surface.
         queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-        // The turn also records its model/thinking/persona on the chat — drop
-        // the cached detail so the toolbar seeds from what actually ran
-        // instead of a copy cached before the turn (5-minute staleTime).
+        // Drop cached detail so toolbar seeds model/thinking/persona from this turn.
         queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
-        // Self-started turns are already tracked via addStream; settled turns
-        // are cleaned up by useGlobalStream's orphan pruning.
+        // Self-starts already have addStream; settled orphans pruned by useGlobalStream.
         useStreamStore.getState().addStreamMetadataIfAbsent({
           chatId: parsed.chat_id,
           messageId: parsed.message_id,
@@ -77,11 +69,7 @@ export function useChatEvents(options?: { enabled?: boolean }) {
     const unsubscribe = subscribeChatEventsFeed({
       createSource: () => chatService.createChatEventsSource(),
       onChatEvent,
-      // Events published while the feed was down are lost — refetch the sidebar
-      // lists, refetch active per-chat caches (titles, sub-threads, context
-      // usage — the live path patches those directly), and re-register active
-      // streams so a missed stream_started still gets its running indicator
-      // (startup restoration only runs once).
+      // Missed events while feed was down — refetch lists/caches and re-register streams.
       onResync: () => {
         void queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
         void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });

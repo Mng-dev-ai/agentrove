@@ -13,8 +13,6 @@ interface CloudWorkspaceSelectorProps {
   disabled?: boolean;
 }
 
-// Shown on the landing composer when running on cloud: pick a workspace that
-// exists on the VPS, or prompt the user to connect a cloud instance first.
 export function CloudWorkspaceSelector({
   selectedWorkspaceId,
   onWorkspaceChange,

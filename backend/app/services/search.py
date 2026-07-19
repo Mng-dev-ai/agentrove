@@ -47,11 +47,7 @@ class SearchService:
         max_file_matches: int = DEFAULT_MAX_FILE_MATCHES,
         max_total_matches: int = DEFAULT_MAX_TOTAL_MATCHES,
     ) -> SearchResponse:
-        # Runs `rg --json` in the sandbox and parses the stream into
-        # SearchFileResult groups. Relies on rg's default .gitignore-aware
-        # filtering so users don't get matches from node_modules, dist, etc.
-        # Result paths are normalized to workspace-root-relative form so they
-        # line up with the frontend file tree.
+        # rg --json (gitignore-aware); paths normalized to workspace-root-relative.
         rel_cwd = normalize_relative_path(cwd)
         cd_prefix = f"cd '{rel_cwd}' && " if rel_cwd else ""
 
@@ -94,8 +90,7 @@ class SearchService:
         max_file_matches: int,
         path_prefix: str,
     ) -> SearchResponse:
-        # rg --json emits one object per line: "begin"/"match"/"end"/"summary".
-        # We only care about "match" — the others are redundant for our UI.
+        # Only "match" lines matter for the UI.
         results: list[SearchFileResult] = []
         file_index: dict[str, int] = {}
         total_matches = 0

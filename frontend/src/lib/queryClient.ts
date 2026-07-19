@@ -15,9 +15,7 @@ export const queryClient = new QueryClient({
   },
 });
 
-// Persist only what the first paint needs (sidebar chat lists, workspaces, current user) —
-// messages, diffs, and file contents would blow past the localStorage quota, and settings
-// must stay out: its payload carries secrets (GitHub PAT, custom env vars).
+// First-paint only (chats, workspaces, user). Skip messages/diffs (quota) and settings (secrets).
 function shouldPersistQuery(query: Query): boolean {
   if (!defaultShouldDehydrateQuery(query)) return false;
   const key = query.queryKey;
@@ -33,7 +31,6 @@ export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
     key: 'agentrove-query-cache',
   }),
   dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
-  // Bump when a persisted query's response shape changes — stale snapshots are dropped.
-  // v2: purges v1 snapshots that briefly persisted the settings payload (contains secrets).
+  // Bump on response-shape changes. v2 purges v1 that briefly cached settings (secrets).
   buster: 'v2',
 };

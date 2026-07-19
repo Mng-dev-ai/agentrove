@@ -13,7 +13,6 @@ interface SettingsSidebarNavProps {
   onSignOut: () => void;
 }
 
-// Vertical settings navigation — desktop
 export function SettingsSidebarNav({
   activeTab,
   onTabChange,

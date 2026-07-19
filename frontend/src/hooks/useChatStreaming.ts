@@ -61,10 +61,7 @@ interface UseChatStreamingResult {
   streamState: StreamState;
 }
 
-// Top-level hook that wires together the streaming pipeline for a single chat view.
-// Composes useStreamCallbacks (envelope processing), useStreamReconnect (resume on
-// navigation), useMessageActions (send/stop), and useInputState (draft persistence).
-// Returns the full set of state and handlers consumed by the chat UI components.
+// Per-chat streaming pipeline: useStreamCallbacks, useStreamReconnect, useMessageActions, useInputState.
 export function useChatStreaming({
   chatId,
   currentChat,
@@ -133,9 +130,7 @@ export function useChatStreaming({
     onPendingUserMessageIdChange: setPendingUserMessageIdState,
   });
 
-  // Keep the global stream store's callbacks in sync with the latest hook closures.
-  // Streams outlive individual renders, so without this the store would dispatch
-  // events through stale callbacks that close over outdated chatId/messages.
+  // Streams outlive renders — keep store callbacks pointed at the latest closures.
   useEffect(() => {
     if (!chatId) return;
 
@@ -197,9 +192,6 @@ export function useChatStreaming({
     }
   }, [chatId]);
 
-  // Subscribes to the stream store and mirrors active-stream presence into
-  // local React state (streamState, currentMessageId). This is the bridge
-  // between the global EventSource lifecycle and the per-chat UI indicators.
   useEffect(() => {
     if (!chatId) return;
 
@@ -255,10 +247,7 @@ export function useChatStreaming({
     setPendingUserMessageId(null);
   }, [setPendingUserMessageId]);
 
-  // Sends stop requests for one or all active streams in the current chat.
-  // Immediately marks the UI as idle (optimistic) and tracks pending stops
-  // so active stream presence does not flip the UI back to streaming while
-  // the stop request is in flight.
+  // Track pending stops so store presence doesn't flip UI back to streaming mid-flight.
   const stopActiveStreams = useCallback(
     async (messageId?: string) => {
       const pendingIds = new Set<string>();
@@ -345,7 +334,6 @@ export function useChatStreaming({
         draftFiles,
       );
       if (!result?.success) {
-        // Send failed or was rejected (validation toast) — restore the draft.
         setInputMessageWithRef(draftMessage);
         setInputFiles(draftFiles);
         if (chatId) {

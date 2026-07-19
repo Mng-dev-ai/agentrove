@@ -10,13 +10,11 @@ const EMPTY_PATHS: string[] = [];
 // same store map as real chats (cleared on landing mount — see LandingPage).
 const LANDING_KEY = '__landing_editor__';
 
-// Append a path to the open-tab list, preserving order and de-duping.
 function openPath(open: string[], path: string): string[] {
   return open.includes(path) ? open : [...open, path];
 }
 
-// Remove a tab. When the active tab closes, selection falls back to its right
-// neighbor, then its left, then nothing; otherwise selection is unchanged.
+// Active tab close → right neighbor, else left, else null.
 function closeTab(open: string[], closed: string, selected: string | null): EditorPaneState {
   const idx = open.indexOf(closed);
   const next = open.filter((p) => p !== closed);
@@ -30,43 +28,31 @@ export function useEditorState(
   fileStructure: FileStructure[],
 ) {
   const [isRefreshing, setIsRefreshing] = useState(false);
-  // Both the chat editor and the landing editor stash their selection/tabs in the
-  // store keyed by chat id (or LANDING_KEY) — selection survives EditorPane unmount,
-  // and switching chatId reads a different entry so files can't bleed across chats.
+  // Store-keyed selection survives EditorPane unmount; per-chat keys prevent bleed.
   const key = chatId ?? LANDING_KEY;
   const entry = useUIStore((s) => s.editorByChat[key]);
   const selectedFilePath = entry?.selected ?? null;
   const openFilePaths = entry?.open ?? EMPTY_PATHS;
 
-  // Resolve a stored path to a tree file, falling back to a stub so a file opened
-  // before the tree loads (e.g. a tool's "open in editor") still renders.
+  // Stub fallback so "open in editor" before the tree loads still renders.
   const resolveFile = useCallback(
     (path: string): FileStructure =>
       findFileByToolPath(fileStructure, path) ?? { path, type: 'file', content: '' },
     [fileStructure],
   );
 
-  // Derived from the stashed path + fileStructure (no re-seed effect needed): the
-  // derivation recomputes when the tree loads, and pending editor opens write the
-  // path directly via setSelectedFile. Not gated on the tree being loaded — the
-  // stub fallback lets the file-content fetch run in parallel with the slow
-  // metadata listing instead of serializing behind it.
+  // Not gated on tree load — stub lets file-content fetch run in parallel with metadata.
   const selectedFile = useMemo(() => {
     if (!selectedFilePath) return null;
     return resolveFile(selectedFilePath);
   }, [selectedFilePath, resolveFile]);
 
-  // The open tabs, resolved in stored order. Tabs only track which files are open;
-  // View holds the active buffer and preserves per-file unsaved drafts across tab
-  // switches/closes within the session.
   const openFiles = useMemo(() => openFilePaths.map(resolveFile), [openFilePaths, resolveFile]);
 
   const setSelectedFile = useCallback(
     (file: FileStructure | null) => {
       useUIStore.setState((s) => {
         if (!file) {
-          // Deselect drops the whole entry — active file and tabs (landing's reset/switch).
-          // No-op when the key was never present (the common case for the mount reset).
           if (!(key in s.editorByChat)) return {};
           const next = { ...s.editorByChat };
           delete next[key];
@@ -84,14 +70,11 @@ export function useEditorState(
     [key],
   );
 
-  // Closing a tab drops it and, if it was active, re-aims selection at a neighbor.
-  // (A dirty tab is confirmed in View before this runs, and its draft discarded there.)
   const closeFile = useCallback(
     (path: string) => {
       useUIStore.setState((s) => {
         const cur = s.editorByChat[key];
         if (!cur || !cur.open.includes(path)) return {};
-        // Selection and tabs update atomically — no chance of the two drifting apart.
         return {
           editorByChat: { ...s.editorByChat, [key]: closeTab(cur.open, path, cur.selected) },
         };

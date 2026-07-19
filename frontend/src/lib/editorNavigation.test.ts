@@ -16,16 +16,16 @@ vi.mock('@/services/sandboxService', () => ({
 vi.mock('@/lib/queryClient', () => ({
   queryClient: { fetchQuery: (...a: unknown[]) => fetchQuery(...a) },
 }));
-// Avoid pulling the file util's react-hot-toast import chain into the node run.
+// Avoid file util → react-hot-toast import chain in the node run.
 vi.mock('@/utils/file', () => ({ detectLanguage: () => 'plaintext' }));
 
-// Fresh module per test so the module-level activeContext/installed reset.
+// Fresh module per test (module-level activeContext/installed).
 async function load() {
   vi.resetModules();
   return import('./editorNavigation');
 }
 
-// Minimal Monaco stand-in capturing the handlers the module registers.
+// Monaco stand-in capturing registered handlers.
 function makeMonaco() {
   const models = new Map<string, FakeModel>();
   let opener: OpenerHandler;

@@ -26,8 +26,7 @@ export const useFileContentQuery = (
     queryKey: queryKeys.sandbox.fileContent(sandboxId, filePath),
     queryFn: () => sandboxService.getFileContent(sandboxId!, filePath!),
     enabled: !!sandboxId && !!filePath,
-    // The editor unmounts on every chat switch; outlive the default 2-minute gc
-    // so returning to a chat reopens its files from cache instead of refetching.
+    // Editor unmounts on chat switch; outlive default 2m gc so reopen hits cache.
     gcTime: 1000 * 60 * 30,
     ...options,
   });
@@ -42,8 +41,7 @@ export const useFilesMetadataQuery = (
     queryKey: queryKeys.sandbox.filesMetadata(sandboxId, cwd),
     queryFn: () => sandboxService.getSandboxFilesMetadata(sandboxId!, cwd),
     enabled: !!sandboxId,
-    // The listing is the slow sandbox call in the editor's reopen path; keep it
-    // cached across chat switches (ChatPage refetches it when the editor re-activates).
+    // Slow listing on reopen — keep across chat switches.
     gcTime: 1000 * 60 * 30,
     ...options,
   });
@@ -70,9 +68,7 @@ export const useUpdateFileMutation = createMutation<UpdateFileResult, Error, Upd
   },
 );
 
-// Every query derived from git state (diff content, per-file HEAD baselines,
-// change indicators) — git actions must refresh them together; one forgotten
-// key leaves the diff view or indicators stale.
+// All git-derived caches — refresh together or diff/indicators go stale.
 export const invalidateGitState = (queryClient: QueryClient, sandboxId: string) =>
   Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
@@ -89,8 +85,7 @@ export const useGitBranchesQuery = (
     queryKey: queryKeys.sandbox.gitBranches(sandboxId, cwd),
     queryFn: () => sandboxService.getGitBranches(sandboxId!, cwd),
     enabled: !!sandboxId && enabled,
-    // Branches can change out-of-band (terminal `git checkout`, external tools), so refetch on
-    // window focus with a short stale window to pick those up without aggressive polling.
+    // Out-of-band branch changes (terminal/external) — focus refetch, short stale.
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -104,9 +99,7 @@ export const useCheckoutBranchMutation = () => {
     onSuccess: async (data, variables) => {
       if (!data.success) return;
       await Promise.all([
-        // Checkout rewrites file contents wholesale; reset (not remove — remove
-        // doesn't refetch active observers) so an open editor file reloads from
-        // the new branch instead of keeping the old branch's buffer.
+        // reset (not remove) so open editors refetch the new branch's content.
         queryClient.resetQueries({
           queryKey: queryKeys.sandbox.fileContentAll(variables.sandboxId),
         }),
@@ -139,22 +132,18 @@ export const useGitDiffQuery = (
   });
 };
 
-// Repo-relative paths with uncommitted changes — powers change indicators
-// without fetching diff content.
+// Uncommitted paths for change indicators (no full diff).
 export const useGitChangedPathsQuery = (sandboxId: string | undefined, cwd?: string) => {
   return useQuery({
     queryKey: queryKeys.sandbox.gitChangedPaths(sandboxId, cwd),
     queryFn: () => sandboxService.getGitChangedPaths(sandboxId!, cwd),
     enabled: !!sandboxId,
-    // The working tree changes out-of-band (terminal commands, external tools),
-    // so refetch on window focus with a short stale window like branches do.
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
 };
 
-// The committed (HEAD) version of a single file — the diff baseline the editor
-// compares the working buffer against.
+// HEAD content of a file — editor diff baseline.
 export const useGitFileBaselineQuery = (
   sandboxId: string | undefined,
   path: string | undefined,
@@ -165,8 +154,7 @@ export const useGitFileBaselineQuery = (
     queryKey: queryKeys.sandbox.gitFileBaseline(sandboxId, path, cwd),
     queryFn: () => sandboxService.getGitFileBaseline(sandboxId!, path!, cwd),
     enabled: !!sandboxId && !!path,
-    // HEAD only moves on explicit git actions (which invalidate this key); the
-    // short stale window still picks up out-of-band terminal commits on re-toggle.
+    // Invalidated on git actions; short stale still picks up terminal commits on re-toggle.
     staleTime: 30_000,
     ...options,
   });
@@ -241,7 +229,6 @@ export const useSearchInFilesQuery = (
       params.exclude,
     ),
     queryFn: () => sandboxService.searchInFiles(sandboxId!, params),
-    // Require at least 2 chars so we don't fire a giant match set on first keystroke.
     enabled: !!sandboxId && params.query.trim().length >= 2,
     placeholderData: keepPreviousData,
     staleTime: 15_000,
@@ -249,11 +236,8 @@ export const useSearchInFilesQuery = (
   });
 };
 
-// Diff paths are cwd-relative while the editor caches workspace-root-relative
-// paths (e.g. `.worktrees/<id>/src/App.tsx`), so targeting a specific
-// `fileContent` key would miss worktree entries. Invalidate the whole
-// file-content space under this sandbox instead. Restore doesn't move HEAD,
-// so gitFileBaselineAll is deliberately not refreshed here.
+// Diff paths are cwd-relative; editor caches are workspace-root-relative — invalidate all
+// fileContent under this sandbox. Restore doesn't move HEAD, so skip gitFileBaselineAll.
 export const invalidateAfterGitRestore = (queryClient: QueryClient, sandboxId: string) =>
   Promise.all([
     queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),

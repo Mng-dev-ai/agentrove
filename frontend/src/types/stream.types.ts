@@ -35,8 +35,7 @@ export interface QueueProcessingData {
   content: string;
   modelId: string;
   attachments?: MessageAttachment[];
-  // The handoff suppresses the prior turn's complete event, so its persisted
-  // run duration rides along here for the "Worked for X" rollup label.
+  // Handoff suppresses prior complete; duration rides here for "Worked for X".
   priorMessageId: string;
   priorDurationMs: number | null;
 }
@@ -44,13 +43,11 @@ export interface QueueProcessingData {
 export interface ApiStreamResponse {
   messageId: string;
   checkpointId: string | null;
-  // Set when this turn bound the chat to a worktree — created server-side
-  // during the send request, before any stream event arrives.
+  // Set server-side on send when this turn binds a worktree (before stream events).
   worktreeCwd: string | null;
 }
 
-// Envelopes arrive over the shared multiplexed connection (streamConnection)
-// and route here via envelope.chatId — a stream entry no longer owns a socket.
+// Multiplexed via streamConnection + envelope.chatId (no per-stream socket).
 export interface ActiveStream {
   id: string;
   chatId: string;
@@ -76,7 +73,7 @@ export interface StreamMetadata {
   startTime: number;
 }
 
-// Wire shape of GET /chat/chats/active-streams — one entry per running turn.
+// GET /chat/chats/active-streams — one entry per running turn.
 export interface ActiveStreamSnapshot {
   chat_id: string;
   message_id: string;

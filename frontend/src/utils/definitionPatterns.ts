@@ -1,19 +1,13 @@
-// Grep-based go-to-definition: per-language regex templates that match only
-// definition sites of a symbol, never call sites. The backend runs them through
-// ripgrep (Rust regex — no lookarounds), so alternatives anchor with \b instead.
-
+// Go-to-definition regexes: definition sites only. Ripgrep has no lookarounds — use \b.
 const SYMBOL = '__SYMBOL__';
-// Global matcher for SYMBOL so we can swap in the escaped identifier without
-// relying on String.prototype.replaceAll (target lib is below es2021). Using
-// .replace with a /g regex preserves replaceAll's replacement-string ($) semantics.
+// /g replace (not replaceAll) — target lib < es2021; keeps $ replacement semantics.
 const SYMBOL_RE = /__SYMBOL__/g;
 
 const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/g;
 
 interface LanguageQuery {
   patterns: string[];
-  // Restricts the search to the language's file family so definition keywords
-  // appearing in docs or other languages don't produce junk hits.
+  // Language file globs so keywords in other languages don't produce junk hits.
   include?: string;
 }
 

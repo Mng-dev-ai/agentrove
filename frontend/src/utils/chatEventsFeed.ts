@@ -2,14 +2,9 @@ import { logger } from '@/utils/logger';
 
 const REOPEN_DELAY_MS = 15_000;
 
-// Keeps a per-user chat lifecycle SSE feed alive. EventSource retries transient
-// drops itself but treats HTTP errors as fatal (readyState CLOSED) — e.g. a 401
-// once the query-param token expires — so fatal closes reopen with a freshly
-// minted token via `createSource`. The backend feed is a pub/sub relay with no
-// replay, so events published during a gap are gone: any successful open that
-// follows a failure (native retry, fatal-close reopen, or a failed first
-// attempt) calls `onResync` so the subscriber can refetch what it missed.
-// Returns a cleanup that cancels retries and closes the feed.
+// Chat lifecycle SSE: EventSource retries transients but treats HTTP errors
+// (e.g. expired query-param token) as fatal CLOSED — reopen via createSource.
+// No server-side replay, so successful open after any failure calls onResync.
 export function subscribeChatEventsFeed(options: {
   createSource: () => Promise<EventSource>;
   onChatEvent: (event: MessageEvent) => void;
@@ -44,8 +39,7 @@ export function subscribeChatEventsFeed(options: {
           }
         };
         source.onerror = () => {
-          // Any error marks a potential gap — including transient drops the
-          // EventSource retries natively without reaching the CLOSED branch.
+          // Gaps include transient drops retried natively (never hit CLOSED).
           needsResync = true;
           if (source?.readyState !== EventSource.CLOSED) return;
           scheduleReopen();

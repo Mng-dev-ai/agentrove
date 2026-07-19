@@ -75,9 +75,8 @@ class AutomationUpdate(BaseModel):
 
 
 class Automation(BaseModel):
-    # Standalone read model (not AutomationBase) so responses skip the input
-    # validators and stored rows survive later write-rule drift — mirrors the
-    # Workspace schema pattern.
+    # Read model (not AutomationBase): skip write validators so stored rows
+    # survive later rule drift — same pattern as Workspace.
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID

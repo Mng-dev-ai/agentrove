@@ -23,10 +23,7 @@ interface UseStreamReconnectParams {
   replayStream: (messageId: string, afterSeq?: number) => Promise<string>;
 }
 
-// On chat entry (navigation, page refresh), polls the server for an active task,
-// resolves the replay cursor from the highest of (server last_seq, local chatStorage
-// seq, message last_seq), then replays the SSE stream from that point so the UI
-// catches up without re-fetching the full history.
+// On chat entry: poll active task, resume SSE from max(server/local/message seq).
 export function useStreamReconnect({
   chatId,
   fetchedMessages,
@@ -84,16 +81,13 @@ export function useStreamReconnect({
         const existingMessage = messages.find((msg) => msg.id === targetMessageId);
         const messageExists = existingMessage != null;
 
-        // Pick the highest known seq across three sources: server status, local
-        // storage (persisted across page refreshes), and the message's own cursor.
-        // Whichever is highest is the safest point to resume from without duplicates.
+        // Resume from max(server, local storage, message cursor) to avoid duplicates.
         const reconnectSeq = status.last_seq ?? existingMessage?.last_seq ?? 0;
         const storedSeqRaw = chatStorage.getEventId(chatId);
         const storedSeq = storedSeqRaw ? Number(storedSeqRaw) : Number.NaN;
         const normalizedStoredSeq = Number.isFinite(storedSeq) && storedSeq > 0 ? storedSeq : 0;
         const normalizedReconnectSeq = reconnectSeq > 0 ? reconnectSeq : 0;
-        // If the active assistant message is absent locally, start replay from 0 so
-        // we rebuild the full message instead of resuming from a truncated cursor.
+        // Missing local message → replay from 0 (truncated cursor would drop content).
         const replayAfterSeq = messageExists
           ? Math.max(normalizedStoredSeq, normalizedReconnectSeq)
           : 0;
@@ -103,9 +97,7 @@ export function useStreamReconnect({
           chatStorage.removeEventId(chatId);
         }
 
-        // If the message isn't in the local cache yet (e.g., it was created while
-        // the user was on a different chat), inject a placeholder so the replay
-        // pipeline has a target message to write content into.
+        // Placeholder so replay has a target when the message was created off-screen.
         if (!messageExists) {
           const placeholderMessage: Message = {
             id: targetMessageId,
@@ -127,9 +119,7 @@ export function useStreamReconnect({
           setMessages((prev) => [...prev, placeholderMessage]);
         }
 
-        // Replay registers the stream on the shared connection and cannot fail
-        // synchronously — a connection that ultimately gives up routes through
-        // the stream's onError callback (message marked failed, UI reset there).
+        // Failures surface via onError (no sync throw from shared connection register).
         await replayStream(targetMessageId, replayAfterSeq);
       } catch (checkError) {
         logger.error('Active task check failed', 'useStreamReconnect', checkError);

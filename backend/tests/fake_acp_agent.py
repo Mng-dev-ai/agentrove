@@ -49,9 +49,7 @@ SCENARIO = os.environ.get("FAKE_ACP_SCENARIO", "normal")
 LOG_PATH = os.environ.get("FAKE_ACP_LOG")
 NEW_SESSION_ID = "fake-acp-session-1"
 
-# Per-turn behavior is picked by looking for one of these markers inside the
-# prompt text the real client sent — lets one fake binary cover every branch
-# in client.py/session.py without spawning a different process per case.
+# Prompt markers select per-turn behavior so one fake covers all branches.
 MARKER_TOOL_DIFF = "MARKER_TOOL_DIFF"
 MARKER_TOOL_TEXT_RESULT = "MARKER_TOOL_TEXT_RESULT"
 MARKER_TOOL_CODEX_ERROR = "MARKER_TOOL_CODEX_ERROR"
@@ -241,11 +239,7 @@ class FakeAgent:
         )
 
         if MARKER_CRASH_MID_PROMPT in text:
-            # A hard os._exit() here would leave the client's pending prompt()
-            # request unresolved forever (the ACP SDK's receive loop doesn't
-            # reject in-flight requests on a clean EOF) — a real agent crash
-            # would wedge the turn. Erroring the request instead exercises the
-            # same finish(prompt_completed=False) path deterministically.
+            # Don't os._exit — pending prompt() would hang; error the request.
             await self._emit_tool_started(session_id, "tool-crash", "Doing risky work")
             raise RuntimeError("simulated mid-prompt agent failure")
         if MARKER_CANCEL in text:
@@ -262,9 +256,7 @@ class FakeAgent:
         return await self._run_default_turn(session_id, text)
 
     async def _call_fs_terminal_stubs(self, session_id: str) -> None:
-        # Exercises every ACP client-side stub in client.py — real agents call
-        # these for file/terminal access; ours never needs to, so drive them
-        # directly to prove the no-op implementations satisfy the protocol.
+        # Drive client.py fs/terminal no-op stubs to prove protocol compliance.
         assert self._client is not None
         client = self._client
         try:
@@ -345,10 +337,7 @@ class FakeAgent:
         await client.ext_notification("agentrove.debug_note", {"probe": True})
 
     async def _run_enter_plan_mode_turn(self, session_id: str) -> PromptResponse:
-        # AgentService._get_plan_mode_transition() only fires on a completed
-        # tool literally named EnterPlanMode — reachable only through the
-        # adapter's map_session_mode(), which Claude's build_session_config()
-        # never calls directly (it passes permission_mode straight through).
+        # EnterPlanMode tool completion is the only path to map_session_mode().
         assert self._client is not None
         await self._client.session_update(
             session_id=session_id,
@@ -407,10 +396,7 @@ class FakeAgent:
             pass
         finally:
             self._cancel_events.pop(session_id, None)
-        # Let already-scheduled notification-processing tasks land before
-        # the response resolves the client's pending prompt() future — the
-        # ACP SDK dispatches notifications as fire-and-forget tasks, so a
-        # response arriving right behind them can race ahead undelivered.
+        # Yield so fire-and-forget notifications land before prompt() resolves.
         await asyncio.sleep(0.05)
         return PromptResponse(stop_reason="cancelled")
 
@@ -426,9 +412,7 @@ class FakeAgent:
             PermissionOption(
                 kind="reject_once", name="Reject", option_id="reject-once"
             ),
-            # A resolvable mode (unlike reject-once) that the "user" can still
-            # pick and have the underlying command go on to fail — covers
-            # tool_failed with a *resolved* permission_mode in client.py.
+            # Resolvable mode then fail — tool_failed with resolved permission.
             PermissionOption(kind="allow_always", name="Plan", option_id="plan"),
         ]
         response = await self._client.request_permission(
@@ -473,10 +457,7 @@ class FakeAgent:
         return PromptResponse(stop_reason="end_turn")
 
     async def _run_ask_user_question_turn(self, session_id: str) -> PromptResponse:
-        # Mirrors Grok's ask_user_question flow: the question arrives as an
-        # `_x.ai/ask_user_question` extension request (the SDK's ext_method
-        # adds the underscore prefix) while the tool call is still active, and
-        # the client must answer with an AskUserQuestionExtResponse.
+        # Grok ask_user_question via ext_method (SDK adds `_` prefix).
         assert self._client is not None
         tool_call_id = "tool-ask-user"
         await self._emit_tool_started(session_id, tool_call_id, "Ask: Pick a color")
@@ -543,9 +524,7 @@ class FakeAgent:
             ),
         )
         if MARKER_IMAGE_CONTENT in text:
-            # Non-text content on these three chunk kinds maps to None in
-            # client.py (_map_agent_message/_map_agent_thought/_map_user_message)
-            # — no event should reach the frontend for any of them.
+            # Non-text on message/thought/user chunks maps to None — no FE event.
             image_block = ImageContentBlock(
                 type="image", data=TINY_PNG_BASE64, mimeType="image/png"
             )
@@ -618,10 +597,7 @@ class FakeAgent:
             ),
         )
         if MARKER_RAW_INPUT_STRING not in text and MARKER_RAW_INPUT_INVALID not in text:
-            # A later raw_input change (as opposed to the one on the initial
-            # ToolCallStart) is a distinct client.py code path in
-            # _map_tool_call_progress — cover it whenever the raw-input-on-start
-            # variants above aren't the thing being asserted on.
+            # Progress-time raw_input (distinct from ToolCallStart path).
             await client.session_update(
                 session_id=session_id,
                 update=ToolCallProgress(
@@ -654,9 +630,7 @@ class FakeAgent:
 
         await self._emit_tool_started(session_id, "tool-secondary", "Running a command")
         if MARKER_TOOL_LEFT_OPEN in text:
-            # Never sent a terminal update for tool-secondary — it's still
-            # "active" when finish(prompt_completed=True) runs below, exercising
-            # the leftover-tool auto-complete branch in client.py.
+            # Leave tool-secondary active for finish()'s leftover auto-complete.
             pass
         elif MARKER_TOOL_TEXT_ERROR in text:
             await client.session_update(
@@ -754,10 +728,7 @@ class FakeAgent:
             )
             return
         if MARKER_TOOL_EMPTY_RESULT in text or MARKER_TOOL_START_DIFF in text:
-            # No raw_output, no diff/text content — _extract_tool_result falls
-            # all the way through to its empty-content "return None" fallback.
-            # For START_DIFF the diffs captured from the ToolCallStart must
-            # survive this bare terminal update (Codex edit shape).
+            # Empty terminal update → _extract_tool_result None; START_DIFF keeps start diffs.
             await self._client.session_update(
                 session_id=session_id,
                 update=ToolCallProgress(
@@ -781,10 +752,7 @@ class FakeAgent:
 async def main() -> None:
     reader, writer = await stdio_streams()
     agent = FakeAgent()
-    # listening=False + explicit listen() below — the constructor's default
-    # (listening=True) would start its own receive-loop task, racing this one
-    # for the same stdin reader ("readuntil() called while another coroutine
-    # is already waiting for incoming data").
+    # listening=False: default True races a second receive loop on stdin.
     conn = AgentSideConnection(
         agent, writer, reader, listening=False, use_unstable_protocol=True
     )

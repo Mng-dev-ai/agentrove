@@ -11,9 +11,7 @@ type ChatStoreType = Pick<UIState, 'currentChat' | 'attachedFilesByChat'> &
     | 'promoteAttachedFiles'
   >;
 
-// Per-chat one-shot attachment slot. Files attached pre-send (landing page or
-// the "open in split" affordance) live here keyed by chatId; the orchestrator
-// consumes and clears its slot after the first message ships.
+// Pre-send attachments keyed by chatId; cleared after the first message ships.
 export const useChatStore = create<ChatStoreType>((set) => ({
   currentChat: null,
   attachedFilesByChat: {},

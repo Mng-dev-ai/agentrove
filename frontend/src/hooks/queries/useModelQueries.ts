@@ -34,9 +34,7 @@ export const useModelSelection = (options?: {
 
   const storedModelId = useModelStore((state) => state.modelByChat[chatId] ?? '');
 
-  // Models valid for this chat — restricted to the locked provider once the
-  // session kind is known; stale entries (retired ids, wrong-kind values
-  // persisted by old versions) count as invalid.
+  // Locked provider once session kind is known; stale/wrong-kind ids are invalid.
   const candidates = useMemo(
     () => (lockedAgentKind ? models.filter((m) => m.agent_kind === lockedAgentKind) : models),
     [models, lockedAgentKind],
@@ -44,15 +42,13 @@ export const useModelSelection = (options?: {
 
   const storedIsValid = candidates.some((m) => m.model_id === storedModelId);
 
-  // Expose invalid stored values as empty so a stale cross-provider selection
-  // can't be submitted while the real model is still resolving from history;
-  // pass stored through until the registry loads (nothing to validate yet).
+  // Empty while invalid so a stale cross-provider id can't be submitted mid-resolve.
   const selectedModelId = models.length === 0 || storedIsValid ? storedModelId : '';
 
   useEffect(() => {
     if (candidates.length === 0 || storedIsValid) return;
 
-    // Still loading initial model from message history — wait before defaulting
+    // null = still loading history; don't default yet.
     if (initialModelId === null) return;
 
     const fallback =
@@ -75,8 +71,7 @@ export const useModelSelection = (options?: {
   return { selectedModelId, selectedModel, selectModel };
 };
 
-// `/models/` is auth-protected — public-route callers must gate; default-on
-// keeps authenticated callers unchanged.
+// `/models/` is auth-protected — public callers must pass enabled=false.
 export function useModelMap(enabled: boolean = true): Map<string, Model> {
   const { data: models } = useModelsQuery({ enabled });
   return useMemo(

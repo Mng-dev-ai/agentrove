@@ -15,9 +15,7 @@ interface UseChatScrollParams {
   fetchNextPage: () => void;
 }
 
-// Owns the message scroller's stick-to-bottom, top-pagination, and send-anchor
-// behavior. Kept as a single hook so Chat can consume the refs/state without
-// re-deriving the delicate scroll bookkeeping.
+// Stick-to-bottom, top-pagination, and send-anchor for the message scroller.
 export function useChatScroll({
   chatId,
   messages,
@@ -38,7 +36,6 @@ export function useChatScroll({
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   const turnRef = useRef<HTMLDivElement | null>(null);
-  // Send id whose anchor scroll hasn't run yet, and whether the animation is in flight
   const anchorTurnRef = useRef<string | null>(null);
   const anchoringRef = useRef(false);
   const anchorTargetRef = useRef(0);
@@ -115,14 +112,13 @@ export function useChatScroll({
     lastScrollTopRef.current = scrollTop;
   }, []);
 
-  // Initial scroll to bottom when messages first load
   useEffect(() => {
     if (hasInitializedToBottomRef.current || messages.length === 0) return;
 
     const container = scrollerRef.current;
     if (!container) return;
 
-    // Use requestAnimationFrame to ensure DOM has rendered
+    // rAF so layout has committed before measuring scrollHeight.
     const raf = requestAnimationFrame(() => {
       container.scrollTop = container.scrollHeight;
       hasInitializedToBottomRef.current = true;
@@ -132,7 +128,7 @@ export function useChatScroll({
     return () => cancelAnimationFrame(raf);
   }, [messages]);
 
-  // Prepend anchoring: restore scroll position after older messages are prepended
+  // Keep viewport stable when older pages prepend above the fold.
   useLayoutEffect(() => {
     const prevHeight = prevScrollHeightRef.current;
     if (prevHeight === null) return;

@@ -12,9 +12,8 @@ from app.db.sqlite import configure_sqlite
 
 settings = get_settings()
 
-# NullPool: SQLite connections are cheap local file opens, and a bounded pool
-# gets exhausted when slow requests (Docker setup, LLM calls) pin connections
-# for their full duration — WAL mode handles the resulting write concurrency.
+# NullPool: cheap SQLite opens; a bounded pool exhausts under long Docker/LLM
+# holds. WAL covers the resulting write concurrency.
 engine = create_async_engine(
     settings.DATABASE_URL,
     connect_args={"check_same_thread": False},

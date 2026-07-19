@@ -93,16 +93,14 @@ export function LandingPage() {
   const modelMap = useModelMap(isAuthenticated);
 
   const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
-  // Recents for the "jump back in" section — the merged local + cloud list the
-  // sidebar uses, so both stay consistent. Falls back to example prompts when
-  // there are no chats yet.
+  // Same merged local+cloud list as the sidebar (empty → example prompts).
   const { recentChats, workspaceBadgeById, isLoadingChats } = useSidebarChatLists(
     workspaces,
     isAuthenticated,
   );
   const showRecents = !isLoadingChats && recentChats.length > 0;
   const greeting = getTimeGreeting();
-  // Usernames are lowercase handles ("michael") — capitalize for the greeting.
+  // Handles are lowercase — capitalize for the greeting.
   const username = currentUser?.username ?? '';
   const greetingName = username && username.charAt(0).toUpperCase() + username.slice(1);
 
@@ -119,9 +117,7 @@ export function LandingPage() {
   const initialWorkspaceId = routeState?.workspaceId ?? null;
   const initialCloudWorkspaceId = routeState?.cloudWorkspaceId ?? null;
   const initialMessage = routeState?.initialMessage ?? null;
-  // Keyed on location.key, not the target ID: React Router mints a fresh key on
-  // every navigation, so re-clicking the same workspace's "new thread" re-consumes
-  // the target and re-applies its run location even after a manual toggle.
+  // location.key (not target id) so re-clicking the same "new thread" re-applies it.
   const consumedNavKeyRef = useRef<string | null>(null);
 
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
@@ -129,16 +125,14 @@ export function LandingPage() {
   const isCloud = useChatSettingsStore((state) => state.runOnCloud);
   const [selectedCloudWorkspaceId, setSelectedCloudWorkspaceId] = useState<string | null>(null);
 
-  // Default the local workspace once the list loads or the current pick goes stale.
+  // Default local workspace when list loads or current pick is gone.
   useEffect(() => {
     if (!workspaces.length) return;
     if (selectedWorkspaceId && workspaces.some((ws) => ws.id === selectedWorkspaceId)) return;
     setSelectedWorkspaceId(workspaces[0].id);
   }, [workspaces, selectedWorkspaceId]);
 
-  // Consume the sidebar "new thread" target once per navigation: preselect its
-  // workspace and flip the run location to match (cloud target → cloud, local →
-  // local). Keyed on location.key so re-clicking the same workspace re-applies it.
+  // One-shot per navigation: preselect workspace + match run location (cloud/local).
   useEffect(() => {
     if (location.key === consumedNavKeyRef.current) return;
     consumedNavKeyRef.current = location.key;
@@ -156,9 +150,7 @@ export function LandingPage() {
     setMessage(initialMessage);
   }
 
-  // Skills and slash-commands are per-instance. Local runs fetch from the local
-  // backend; cloud runs fetch from the VPS so its skills/commands appear in the
-  // landing composer before a chat exists.
+  // Skills/commands are per-instance — VPS list for cloud before a chat exists.
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
     selectedWorkspaceId ?? undefined,
     undefined,
@@ -172,15 +164,12 @@ export function LandingPage() {
   );
   const resolvedWorkspaceResources = isCloud ? cloudWorkspaceResources : workspaceResources;
 
-  // Personas are per-instance — fetch from the VPS for cloud runs so the
-  // persona selector shows the VPS's personas and chat creation resolves the
-  // selected persona against the VPS's list.
+  // Personas are per-instance — VPS list for cloud so create resolves against it.
   const { data: settings } = useSettingsQuery({ enabled: isAuthenticated });
   const { data: cloudSettings } = useCloudSettingsQuery(isAuthenticated && isCloud);
   const resolvedPersonas = isCloud ? cloudSettings?.personas : settings?.personas;
 
-  // Resolve the sandbox for both local and cloud so the editor, @file mentions,
-  // and branch selector route to the backend that owns the workspace.
+  // Sandbox for editor/@file/branch on the backend that owns the workspace.
   const { data: cloudWorkspaces } = useCloudWorkspacesQuery(isAuthenticated && isCloud);
   const selectedSandboxId = isCloud
     ? cloudWorkspaces?.find((ws) => ws.id === selectedCloudWorkspaceId)?.sandbox_id
@@ -202,17 +191,12 @@ export function LandingPage() {
   const { selectedFile, setSelectedFile, isRefreshing, handleRefresh, openFiles, closeFile } =
     useEditorState(refetchFilesMetadata, undefined, fileStructure);
 
-  // The landing editor's selection/tabs live under a shared store key (not component
-  // state), so reset them when the chosen sandbox changes and on mount — otherwise a
-  // prior session's tabs would linger. An effect (not a render-phase store write) keeps
-  // the external-store mutation off the render path.
+  // Landing editor tabs are store-backed — clear on sandbox change (effect, not render).
   useEffect(() => {
     setSelectedFile(null);
   }, [selectedSandboxId, setSelectedFile]);
 
-  // Publish the selected workspace's sandbox so the context-less global git
-  // shortcuts resolve a target on landing; clear it on unmount so it can't leak
-  // into a later chat with no sandbox of its own.
+  // Global git shortcuts need a sandbox on landing; clear on leave so it doesn't leak.
   useEffect(() => {
     useUIStore.getState().setWorkspaceSandboxId(selectedSandboxId ?? null);
     return () => useUIStore.getState().setWorkspaceSandboxId(null);
@@ -220,8 +204,7 @@ export function LandingPage() {
 
   useMountEffect(() => {
     useChatStore.getState().setCurrentChat(null);
-    // Reset to the agent (workspace selector) view — a stale split layout from a prior chat
-    // would otherwise persist into the landing screen.
+    // Drop a prior chat's split layout so it doesn't stick on landing.
     useUIStore.getState().resetWorkspace();
   });
 
@@ -265,7 +248,7 @@ export function LandingPage() {
             model_id: selectedModelId,
             workspace_id: selectedCloudWorkspaceId,
           });
-          // Coerce toolbar defaults like useMessageActions so cloud matches local.
+          // Same toolbar default coercion as useMessageActions (cloud matches local).
           await cloudChatService.startCompletion({
             prompt: trimmedPrompt,
             chat_id: newChat.id,
@@ -294,9 +277,7 @@ export function LandingPage() {
           setMessage('');
           useChatStore.getState().setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, []);
 
-          // Register the chat as cloud-owned and refresh the sidebar's cloud chats
-          // and workspaces so the new chat appears and its project re-sorts to the
-          // top by last_chat_at — the merged sidebar list orders local + cloud together.
+          // Origin + invalidate so sidebar lists re-sort by last_chat_at.
           markCloudChats([newChat.id]);
           const cloud = useCloudSettingsStore.getState();
           void Promise.all([
@@ -310,9 +291,7 @@ export function LandingPage() {
 
           useModelStore.getState().selectModel(newChat.id, selectedModelId);
           useChatSettingsStore.getState().initChatFromDefaults(newChat.id);
-          // Run is already started on the VPS — open the chat without an
-          // initialPrompt so the page reconnects to the live stream instead of
-          // firing a second turn.
+          // Completion already started — navigate without initialPrompt (no second turn).
           navigate(`/chat/${newChat.id}`);
         } catch (error) {
           toast.error(error instanceof Error ? error.message : 'Failed to start cloud chat');
@@ -486,19 +465,14 @@ export function LandingPage() {
             </Suspense>
           );
         case 'diff':
-          // No chat yet — the sandbox comes from the selected workspace, so the
-          // diff runs at the workspace root and review comments are disabled.
+          // Pre-chat: workspace sandbox root; review comments off (no chatId).
           return (
             <Suspense fallback={viewLoadingFallback}>
               <DiffView chatId={undefined} sandboxId={selectedSandboxId} isVisible={isVisible} />
             </Suspense>
           );
         case 'terminal':
-          // Pre-chat, so tab layout persists per sandbox (the backend PTYs are
-          // keyed by sandbox + terminal id); the shell spawns at the workspace
-          // root. Toggling the view off removes the tile from openTabs and
-          // unmounts this container, so restore-on-mount is what keeps tabs
-          // and their live sessions across toggles.
+          // storageScope by sandbox (PTY keys); unmount on toggle — restore-on-mount keeps sessions.
           return (
             <Suspense fallback={viewLoadingFallback}>
               <TerminalContainer

@@ -9,10 +9,9 @@ interface DesktopUpdateState {
   releaseNotes: string | null;
   releaseDate: string | null;
   downloadedBytes: number;
-  // null when the server didn't send Content-Length
+  // null when the server omitted Content-Length
   totalBytes: number | null;
   errorMessage: string | null;
-  // Downloads and installs the staged update. Set when check() finds an update.
   triggerInstall: (() => Promise<void>) | null;
 }
 
