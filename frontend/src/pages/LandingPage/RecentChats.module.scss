@@ -82,6 +82,15 @@
   color: var(--theme-text-tertiary);
 }
 
+// Kept inline (not flex on .meta) so type-overflow's ellipsis still applies
+// to the meta text; inline-block overrides the global `svg { display: block }`
+// reset, and vertical-align seats the icon on the text line.
+.cloud-icon {
+  display: inline-block;
+  vertical-align: -0.125em;
+  margin-right: var(--space-1);
+}
+
 .time {
   @include type.type-meta;
   color: var(--theme-text-quaternary);

@@ -18,6 +18,7 @@ beforeEach(() => {
     activeStreams: new Map(),
     streamIdByChatMessage: new Map(),
     activeStreamMetadata: [],
+    lastToolTitleByChatId: new Map(),
     completedChatIds: new Set(),
   });
 });
@@ -68,12 +69,14 @@ describe('removeStream', () => {
   it('shuts down the stream and drops it from every index', () => {
     const stream = makeStream('s1', 'c1', 'm1');
     useStreamStore.getState().addStream(stream);
+    useStreamStore.getState().setLastToolTitle('c1', 'Reading');
     useStreamStore.getState().removeStream('s1');
 
     const state = useStreamStore.getState();
     expect(state.getStream('s1')).toBeUndefined();
     expect(state.getStreamByChatAndMessage('c1', 'm1')).toBeUndefined();
     expect(state.activeStreamMetadata).toEqual([]);
+    expect(state.lastToolTitleByChatId.has('c1')).toBe(false);
     expect(stream.isActive).toBe(false);
     expect(stream.callbacks).toBeUndefined();
   });
@@ -81,9 +84,11 @@ describe('removeStream', () => {
   it('keeps chat metadata while another active stream remains for the chat', () => {
     useStreamStore.getState().addStream(makeStream('s1', 'c1', 'm1'));
     useStreamStore.getState().addStream(makeStream('s2', 'c1', 'm2'));
+    useStreamStore.getState().setLastToolTitle('c1', 'Reading');
     useStreamStore.getState().removeStream('s2');
     // s1 is still active for c1, so its rollup metadata must survive.
     expect(useStreamStore.getState().activeStreamMetadata).toHaveLength(1);
+    expect(useStreamStore.getState().lastToolTitleByChatId.get('c1')).toBe('Reading');
   });
 
   it('drops chat metadata when the only remaining sibling stream is inactive', () => {
@@ -148,6 +153,7 @@ describe('updateStreamMessageId', () => {
     vi.setSystemTime(new Date('2020-01-01T00:00:05Z'));
     const stream = makeStream('s1', 'c1', 'old');
     useStreamStore.getState().addStream(stream);
+    useStreamStore.getState().setLastToolTitle('c1', 'Reading');
 
     useStreamStore.getState().updateStreamMessageId('c1', 'old', 'new');
     const state = useStreamStore.getState();
@@ -160,6 +166,9 @@ describe('updateStreamMessageId', () => {
     expect(state.activeStreamMetadata).toEqual([
       { chatId: 'c1', messageId: 'new', startTime: now },
     ]);
+    // Handoff = a new assistant turn on the same stream — the previous turn's
+    // tool title must not leak into it.
+    expect(state.lastToolTitleByChatId.has('c1')).toBe(false);
     vi.useRealTimers();
   });
 
@@ -178,6 +187,8 @@ describe('removeStreamMetadata', () => {
     useStreamStore.getState().addStream(s1);
     useStreamStore.getState().addStream(s2);
     useStreamStore.getState().addStream(other);
+    useStreamStore.getState().setLastToolTitle('c1', 'Reading');
+    useStreamStore.getState().setLastToolTitle('c2', 'Writing');
 
     useStreamStore.getState().removeStreamMetadata('c1');
     const state = useStreamStore.getState();
@@ -185,6 +196,8 @@ describe('removeStreamMetadata', () => {
     expect(state.getStream('s2')).toBeUndefined();
     expect(state.getStream('s3')).toBe(other);
     expect(state.activeStreamMetadata.map((m) => m.chatId)).toEqual(['c2']);
+    expect(state.lastToolTitleByChatId.has('c1')).toBe(false);
+    expect(state.lastToolTitleByChatId.get('c2')).toBe('Writing');
   });
 });
 

@@ -1,6 +1,7 @@
 import { useStreamStore } from '@/store/streamStore';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import type { ChatRequest } from '@/types/chat.types';
+import type { ToolEventPayload } from '@/types/tools.types';
 import type {
   ActiveStream,
   ApiStreamResponse,
@@ -200,6 +201,20 @@ class StreamService {
     const isForActiveMessage = parsed.messageId === currentStream.messageId;
     if (!isForActiveMessage) {
       return;
+    }
+
+    // Feeds the landing-page "last tool call" title; after the active-message
+    // guard so replayed envelopes for a stale turn can't overwrite it.
+    if (
+      parsed.kind === 'tool_started' &&
+      parsed.payload.tool &&
+      typeof parsed.payload.tool === 'object'
+    ) {
+      const tool = parsed.payload.tool as ToolEventPayload;
+      const toolTitle = tool.title || tool.name;
+      if (toolTitle) {
+        useStreamStore.getState().setLastToolTitle(chatId, toolTitle);
+      }
     }
 
     currentStream.callbacks?.onEnvelope?.(parsed);
