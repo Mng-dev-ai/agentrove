@@ -12,6 +12,12 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      default:
+        # Coolify renames services to redis-pr-N on preview deploys; keep the
+        # stable "redis" DNS name so REDIS_URL and other clients still resolve.
+        aliases:
+          - redis
 
   sandbox-setup:
     image: docker:27-cli
@@ -47,7 +53,7 @@ services:
     environment:
       ENVIRONMENT: production
       DATABASE_URL: sqlite+aiosqlite:////data/agentrove/storage/agentrove.db
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://${SERVICE_NAME_REDIS:-redis}:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY to a 32+ character value before starting production}
       SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:-}
       STORAGE_PATH: /data/agentrove/storage
@@ -67,8 +73,12 @@ services:
       # SQLAdmin emits http:// asset URLs on an https:// page (unstyled admin).
       TRUSTED_PROXY_HOSTS: ${TRUSTED_PROXY_HOSTS:-*}
     networks:
-      - default
-      - sandbox
+      default:
+        aliases:
+          - api
+      sandbox:
+        aliases:
+          - api
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
       interval: 10s
