@@ -52,8 +52,6 @@ vi.mock('react-hot-toast', () => ({
 
 // Heavy composer sub-trees that don't participate in submit/queue logic.
 vi.mock('./InputControls', () => ({ InputControls: () => null }));
-// Layout measurement (ResizeObserver/document.fonts) — meaningless in jsdom.
-vi.mock('@/hooks/useOverflowCompact', () => ({ useOverflowCompact: () => false }));
 vi.mock('@/components/ui/FileUploadDialog/FileUploadDialog', () => ({
   FileUploadDialog: () => null,
 }));

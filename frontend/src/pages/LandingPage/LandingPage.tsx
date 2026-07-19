@@ -368,11 +368,9 @@ export function LandingPage() {
     [navigate],
   );
 
-  // The workspace pickers live in the composer's footer row; preventDefault on
-  // mousedown keeps focus in the textarea, matching InputControls.
   const composerSelectors = useMemo(
     () => (
-      <div className={styles['composer-selectors']} onMouseDown={(e) => e.preventDefault()}>
+      <div className={styles['selector-row']}>
         {isCloud ? (
           <CloudWorkspaceSelector
             selectedWorkspaceId={selectedCloudWorkspaceId}
@@ -428,6 +426,8 @@ export function LandingPage() {
                   <p className={styles['greeting-subtitle']}>What are we building today?</p>
                 </div>
 
+                {composerSelectors}
+
                 <ChatInput
                   message={message}
                   setMessage={setMessage}
@@ -440,7 +440,6 @@ export function LandingPage() {
                   onModelChange={selectModel}
                   showTip={false}
                   placeholder="Message Agentrove... (@ to mention, / for commands)"
-                  footerLeading={composerSelectors}
                 />
 
                 {showRecents ? (

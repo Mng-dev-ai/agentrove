@@ -3,8 +3,4 @@
   min-width: 0;
   align-items: center;
   gap: var(--space-1);
-  // No-op while the footer fits on one line (space-between already pins the
-  // controls right); when the row wraps, this keeps them right-aligned on their
-  // own line instead of stranding them at the left edge.
-  margin-left: auto;
 }

@@ -74,13 +74,23 @@
   color: var(--theme-text-tertiary);
 }
 
-.composer-selectors {
+.selector-row {
   @include z.z('raised');
   position: relative;
+  // The picker triggers carry 4px of their own bottom padding; 2px more makes
+  // the visual gap to the composer match the footer's 6px (padding-top, whose
+  // text triggers have no padding of their own).
+  margin-bottom: var(--space-0-5);
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  flex-wrap: wrap;
+  padding-left: var(--space-4);
+  padding-right: var(--space-4);
+
+  @include responsive.media('sm-up') {
+    padding-left: var(--space-6);
+    padding-right: var(--space-6);
+  }
 }
 
 .example-prompts {
