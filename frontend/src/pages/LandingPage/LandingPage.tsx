@@ -442,27 +442,29 @@ export function LandingPage() {
                   placeholder="Message Agentrove... (@ to mention, / for commands)"
                 />
 
-                {showRecents ? (
-                  <RecentChats
-                    chats={recentChats}
-                    workspaceBadgeById={workspaceBadgeById}
-                    onChatSelect={handleChatSelect}
-                  />
-                ) : (
-                  <div className={styles['example-prompts']}>
-                    {EXAMPLE_PROMPTS.map((prompt) => (
-                      <Button
-                        key={prompt}
-                        type="button"
-                        variant="unstyled"
-                        onClick={() => setMessage(prompt)}
-                        className={styles['example-prompt']}
-                      >
-                        {prompt}
-                      </Button>
-                    ))}
-                  </div>
-                )}
+                <div className={styles['panel-below']}>
+                  {showRecents ? (
+                    <RecentChats
+                      chats={recentChats}
+                      workspaceBadgeById={workspaceBadgeById}
+                      onChatSelect={handleChatSelect}
+                    />
+                  ) : (
+                    <div className={styles['example-prompts']}>
+                      {EXAMPLE_PROMPTS.map((prompt) => (
+                        <Button
+                          key={prompt}
+                          type="button"
+                          variant="unstyled"
+                          onClick={() => setMessage(prompt)}
+                          className={styles['example-prompt']}
+                        >
+                          {prompt}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           );
