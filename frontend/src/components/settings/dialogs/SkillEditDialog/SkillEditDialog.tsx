@@ -21,7 +21,7 @@ const EDITOR_OPTIONS = {
   padding: { top: 8, bottom: 8 },
   automaticLayout: true,
   fontFamily: MONACO_FONT_FAMILY,
-  fontSize: 12,
+  fontSize: 14,
   scrollbar: {
     useShadows: false,
     vertical: 'auto',

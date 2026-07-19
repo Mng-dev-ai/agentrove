@@ -6,7 +6,7 @@
   // TODO(refactor): old `rounded` (0.25rem) has no radius token (sm 0.125 / md 0.375)
   border-radius: var(--radius-sm);
   padding: var(--space-1-5) var(--space-2);
-  @include type.type-mono(0.75rem, 1rem);
+  @include type.type-mono(0.9rem, 1.2rem);
   color: var(--theme-text-secondary);
   // subtle inset surface — black overlay on light, white overlay on dark
   background-color: rgb(0 0 0 / 0.05);

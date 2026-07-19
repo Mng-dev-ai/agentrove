@@ -50,7 +50,7 @@
 .title {
   display: block;
   // TODO(refactor): no spacing token for 28rem (old max-w-md); scale skips 24rem→32rem
-  max-width: 28rem;
+  max-width: 33.6rem;
   @include type.type-meta;
   @include type.type-overflow;
   color: var(--theme-text-tertiary);

@@ -9,7 +9,7 @@
 .command {
   white-space: pre-wrap;
   word-break: break-all;
-  @include type.type-mono(0.625rem, 1.625);
+  @include type.type-mono(0.75rem, 1.625);
   color: var(--theme-text-secondary);
 
   :global([data-theme='dark']) & {

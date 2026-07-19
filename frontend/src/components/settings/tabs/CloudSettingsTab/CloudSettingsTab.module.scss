@@ -30,7 +30,7 @@
 }
 
 .url {
-  @include type.type-mono(0.75rem, 1rem, 500);
+  @include type.type-mono(0.9rem, 1.2rem, 500);
   @include type.type-overflow;
   min-width: 0;
   color: var(--theme-text-primary);

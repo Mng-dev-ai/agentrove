@@ -18,7 +18,7 @@
 .slide-card {
   margin-inline: auto;
   // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token — kept as a raw rem value
-  max-width: 56rem;
+  max-width: 67.2rem;
   min-height: var(--space-96);
   border-radius: var(--radius-lg);
   background-color: var(--theme-surface);

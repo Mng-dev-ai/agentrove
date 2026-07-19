@@ -63,7 +63,7 @@
 }
 
 .headline {
-  @include type.type(0.75rem, 1.625);
+  @include type.type(0.9rem, 1.625);
   margin-bottom: var(--space-3);
   color: var(--theme-text-primary);
 }

@@ -46,7 +46,7 @@
 }
 
 .code {
-  @include type.type-mono(0.75rem, 1rem);
+  @include type.type-mono(0.9rem, 1.2rem);
   color: var(--theme-text-primary);
 }
 
