@@ -38,6 +38,30 @@
   }
 }
 
+.logo {
+  height: var(--space-7);
+  width: var(--space-7);
+  margin: 0 auto var(--space-3);
+
+  // Two variants swap by theme — the dark glyph shows on light surfaces and
+  // vice versa, same convention as the landing greeting and message avatars.
+  &--on-light {
+    display: block;
+
+    :global([data-theme='dark']) & {
+      display: none;
+    }
+  }
+
+  &--on-dark {
+    display: none;
+
+    :global([data-theme='dark']) & {
+      display: block;
+    }
+  }
+}
+
 .title {
   @include type.type-page-title;
   @include anim.fade-in;
