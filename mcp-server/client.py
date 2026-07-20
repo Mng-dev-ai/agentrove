@@ -55,14 +55,22 @@ class AgentroveClient:
     async def request(
         self, method: str, path: str, *, expected: tuple[int, ...] = (200,), **kwargs: Any
     ) -> httpx.Response:
-        if self._access_token is None:
-            await self._login()
-        resp = await self._send(method, path, **kwargs)
-        # Short-lived access token: on 401, refresh/re-login and retry once.
-        if resp.status_code == 401:
-            if not await self._refresh():
+        try:
+            if self._access_token is None:
                 await self._login()
             resp = await self._send(method, path, **kwargs)
+            # Short-lived access token: on 401, refresh/re-login and retry once.
+            if resp.status_code == 401:
+                if not await self._refresh():
+                    await self._login()
+                resp = await self._send(method, path, **kwargs)
+        except httpx.HTTPError as e:
+            # Transport errors (e.g. ConnectTimeout) often str() to "" — name the
+            # exception class and target URL so tool errors stay diagnosable.
+            raise AgentroveError(
+                f"Cannot reach the AgentRove API at {self._base_url}: "
+                f"{type(e).__name__}: {e}"
+            ) from e
         if resp.status_code not in expected:
             raise AgentroveError(f"{method} {path} -> {resp.status_code}: {resp.text}")
         return resp
