@@ -1,8 +1,10 @@
 import asyncio
 import logging
+import os
 import sys
 from collections.abc import AsyncIterator
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Any, cast
 from uuid import UUID
 
@@ -445,15 +447,27 @@ class AgentService:
         return env
 
     @staticmethod
-    def _build_mcp_server_configs(chat_id: str | None) -> list[dict[str, Any]]:
+    def _build_mcp_server_configs(
+        chat_id: str | None, sandbox_provider: SandboxProviderType
+    ) -> list[dict[str, Any]]:
         # Opt-in: hand the agent Agentrove's own chat tools over a stdio MCP server.
         # Skipped unless enabled with credentials — the server logs into this backend.
         if not settings.AGENTROVE_MCP_ENABLED:
             return []
         if not (settings.AGENTROVE_MCP_EMAIL and settings.AGENTROVE_MCP_PASSWORD):
             return []
+        if sandbox_provider is SandboxProviderType.HOST:
+            # Host-provider agents share this process's network namespace, but the
+            # public BASE_URL is often unreachable from inside the deployment
+            # (hairpin NAT), so point the MCP server at the local uvicorn instead.
+            # Web mode listens on ${PORT:-8080}; desktop derives its port from a
+            # loopback BASE_URL (desktop/entry.py).
+            port = os.environ.get("PORT") or urlparse(settings.BASE_URL).port or 8080
+            api_base = f"http://127.0.0.1:{port}"
+        else:
+            api_base = settings.BASE_URL
         env = {
-            "AGENTROVE_API_URL": f"{settings.BASE_URL}{settings.API_V1_STR}",
+            "AGENTROVE_API_URL": f"{api_base}{settings.API_V1_STR}",
             "AGENTROVE_EMAIL": settings.AGENTROVE_MCP_EMAIL,
             "AGENTROVE_PASSWORD": settings.AGENTROVE_MCP_PASSWORD,
         }
@@ -527,7 +541,7 @@ class AgentService:
             user_id=user_id,
             agent_kind=agent_kind,
             env=env,
-            mcp_servers=self._build_mcp_server_configs(chat_id),
+            mcp_servers=self._build_mcp_server_configs(chat_id, sandbox_provider),
             model=model_id,
             permission_mode=session_config.permission.session_mode,
             resume_session_id=session_id,
