@@ -481,10 +481,8 @@ class AcpSession:
         session_id: str,
         mode_id: str,
     ) -> None:
-        # Grok silently ignores direct auto <-> always-approve switches (the
-        # TUI gates those behind a confirmation ACP can't answer) but accepts
-        # any transition out of plan, so hop through plan to make the target
-        # mode actually take effect. No turn runs between the two calls.
+        # Stable Grok ignores set_mode; always-approve is enforced at launch.
+        # Keep the plan hop in case ACP modes return; no turn runs between calls.
         if agent_kind == AgentKind.GROK and mode_id != "plan":
             await conn.set_session_mode(mode_id="plan", session_id=session_id)
         await conn.set_session_mode(mode_id=mode_id, session_id=session_id)
@@ -553,6 +551,7 @@ class AcpSession:
             system_prompt_is_full_replace=config.system_prompt_is_full_replace,
             instructions_file_path=config.codex_instructions_file_path,
             reasoning_effort=config.reasoning_effort,
+            permission_mode=config.permission_mode,
         )
 
     @staticmethod
