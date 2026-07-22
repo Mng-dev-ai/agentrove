@@ -4,6 +4,7 @@ import os
 import sys
 import time
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.db_models.workspace import Workspace
+from app.services.acp.adapters import AgentKind, GrokAgentAdapter
+from app.services.acp.session import AcpSessionConfig
+from app.services.sandbox_providers import SandboxProviderType
 from app.services.session_registry import session_registry
 from tests.conftest import LoginClient, UserFactory
 from tests.fake_acp_agent import (
@@ -59,6 +63,60 @@ DEFAULT_TURN_TEXT = "Hello from the fake agent."
 # content_type, not on parsing the file itself.
 PNG_BYTES = bytes.fromhex("89504e470d0a1a0a0000000d49484452")
 PDF_BYTES = b"%PDF-1.4\n%fake\n"
+
+
+@pytest.mark.parametrize(
+    "permission_mode,reasoning_effort,expected_args",
+    [
+        ("always-approve", None, ["agent", "--always-approve", "stdio"]),
+        (
+            "always-approve",
+            "low",
+            ["agent", "--always-approve", "--reasoning-effort", "low", "stdio"],
+        ),
+        ("auto", None, ["agent", "stdio"]),
+        ("plan", None, ["agent", "stdio"]),
+        (None, None, ["agent", "stdio"]),
+        ("bypassPermissions", None, ["agent", "--always-approve", "stdio"]),
+    ],
+)
+def test_grok_launch_args_apply_always_approve_flag(
+    permission_mode: str | None,
+    reasoning_effort: str | None,
+    expected_args: list[str],
+) -> None:
+    launch = GrokAgentAdapter().build_launch_config(
+        system_prompt=None,
+        system_prompt_is_full_replace=False,
+        reasoning_effort=reasoning_effort,
+        permission_mode=permission_mode,
+    )
+
+    assert launch.cli_args == expected_args
+
+
+@pytest.mark.parametrize(
+    "agent_kind,expect_equal",
+    [(AgentKind.GROK, False), (AgentKind.CLAUDE, True)],
+)
+def test_permission_mode_only_changes_grok_session_fingerprint(
+    agent_kind: AgentKind,
+    expect_equal: bool,
+) -> None:
+    auto = AcpSessionConfig(
+        sandbox_id="sandbox",
+        sandbox_provider=SandboxProviderType.HOST,
+        cwd="/workspace",
+        user_id="user",
+        agent_kind=agent_kind,
+        permission_mode="auto",
+    )
+    always_approve = replace(auto, permission_mode="always-approve")
+
+    fingerprints_equal = session_registry._compute_fingerprint(
+        auto
+    ) == session_registry._compute_fingerprint(always_approve)
+    assert fingerprints_equal is expect_equal
 
 
 @pytest.fixture(scope="session")

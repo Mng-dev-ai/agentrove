@@ -63,11 +63,10 @@ COPILOT_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 # Cursor CLI exposes three ACP session modes (see https://cursor.com/docs/cli/acp).
 CURSOR_SESSION_MODES = frozenset({"agent", "plan", "ask"})
 
-# Grok Build's ACP session modes (CLI >= 0.2.9x): `auto` is the default —
-# a classifier auto-approves routine tool calls and prompts via
-# session/request_permission for risky ones; `always-approve` skips all
-# prompts; `plan` blocks writes except the session plan file. The old `code`
-# mode was removed upstream (set_mode silently ignores unknown ids).
+# Current stable Grok advertises no ACP session modes and silently ignores
+# set_mode ids. `always-approve` uses the launch flag; `auto` keeps the CLI's
+# default classifier behavior (routine calls pass, risky ones prompt); `plan`
+# stays for the set_mode plan-hop and revives if ACP modes return.
 GROK_SESSION_MODES = frozenset({"auto", "always-approve", "plan"})
 # Only Grok 4.5 exposes the low/medium/high reasoning-effort dial; Composer
 # ignores it, so the effort launch flag is skipped for other models.
@@ -176,6 +175,7 @@ class AgentAdapter(ABC):
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
         reasoning_effort: str | None = None,
+        permission_mode: str | None = None,
     ) -> LaunchConfig:
         raise NotImplementedError
 
@@ -212,6 +212,7 @@ class ClaudeAgentAdapter(AgentAdapter):
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
         reasoning_effort: str | None = None,
+        permission_mode: str | None = None,
     ) -> LaunchConfig:
         # Config via env + session meta only (no CLI args).
         return LaunchConfig(binary="claude-agent-acp")
@@ -260,6 +261,7 @@ class CodexAgentAdapter(AgentAdapter):
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
         reasoning_effort: str | None = None,
+        permission_mode: str | None = None,
     ) -> LaunchConfig:
         # codex-acp uses CODEX_CONFIG only; modes bundle approval/sandbox, effort is on the model ID.
         config: dict[str, Any] = {}
@@ -319,6 +321,7 @@ class CopilotCliAdapter(AgentAdapter):
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
         reasoning_effort: str | None = None,
+        permission_mode: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary="copilot", cli_args=["--acp", "--stdio"])
 
@@ -371,6 +374,7 @@ class CursorAgentAdapter(AgentAdapter):
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
         reasoning_effort: str | None = None,
+        permission_mode: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary="cursor-agent", cli_args=["acp"])
 
@@ -405,7 +409,7 @@ class CursorAgentAdapter(AgentAdapter):
 
 
 class GrokAgentAdapter(AgentAdapter):
-    # Effort is launch-only (`--reasoning-effort`); mid-session changes respawn via fingerprint.
+    # Effort and permission mode are launch-baked; changes respawn via fingerprint.
 
     def __init__(self) -> None:
         super().__init__(kind=AgentKind.GROK)
@@ -417,9 +421,15 @@ class GrokAgentAdapter(AgentAdapter):
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
         reasoning_effort: str | None = None,
+        permission_mode: str | None = None,
     ) -> LaunchConfig:
         # Agent-level flags must precede the `stdio` subcommand.
         cli_args = ["agent"]
+        if (
+            permission_mode is not None
+            and self.map_session_mode(permission_mode) == "always-approve"
+        ):
+            cli_args.append("--always-approve")
         if reasoning_effort:
             cli_args.extend(["--reasoning-effort", reasoning_effort])
         cli_args.append("stdio")
@@ -482,6 +492,7 @@ class OpencodeAgentAdapter(AgentAdapter):
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
         reasoning_effort: str | None = None,
+        permission_mode: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary="opencode", cli_args=["acp"])
 

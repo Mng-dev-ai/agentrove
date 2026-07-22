@@ -51,6 +51,7 @@ VALID_PERMISSION_MODES: set[str] = {
     "read-only",
     "full-access",
     "ask",
+    "always-approve",
 }
 
 # Human option labels → PermissionMode when option_id isn't already a literal.
@@ -65,6 +66,7 @@ PERMISSION_MODE_BY_OPTION_NAME: dict[str, PermissionMode] = {
     "auto": "auto",
     "read only": "read-only",
     "full access": "full-access",
+    "always approve": "always-approve",
 }
 
 # Grok delivers its ask_user_question tool as an ACP extension request
