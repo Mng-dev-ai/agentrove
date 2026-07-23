@@ -717,7 +717,14 @@ async def send_now_queued_message(
         )
 
     chat_id_str = str(chat_id)
-    if ChatStreamRuntime.has_active_chat(chat_id_str):
+    active_at_entry = ChatStreamRuntime.has_active_chat(chat_id_str)
+    logger.info(
+        "Send-now for chat %s message %s: active_chat=%s",
+        chat_id_str,
+        message_id,
+        active_at_entry,
+    )
+    if active_at_entry:
         try:
             if await ChatStreamRuntime.try_steer_send_now(
                 chat_id=chat_id_str,
@@ -735,11 +742,15 @@ async def send_now_queued_message(
 
     if ChatStreamRuntime.has_active_chat(chat_id_str):
         # Cancel so send-now is picked up without waiting for the current turn.
+        logger.info("Send-now for chat %s: cancelling active generation", chat_id_str)
         await session_registry.cancel_generation(chat_id_str)
     else:
         try:
-            await ChatStreamRuntime.process_send_now_idle(
+            processed = await ChatStreamRuntime.process_send_now_idle(
                 chat_id_str, chat_service.session_factory
+            )
+            logger.info(
+                "Send-now for chat %s: idle path processed=%s", chat_id_str, processed
             )
         except asyncio.CancelledError:
             raise
