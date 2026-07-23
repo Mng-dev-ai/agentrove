@@ -217,7 +217,9 @@ class FakeAgent:
         self._cancel_events.setdefault(session_id, asyncio.Event()).set()
 
     async def ext_method(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        if method == "_session/steering":
+        # The agent-side router strips the leading `_` from the wire method
+        # (`_session/steering`) before dispatching here.
+        if method == "session/steering":
             session_id = params["sessionId"]
             prompt = params.get("prompt") or []
             text = "".join(

@@ -161,8 +161,11 @@ class AcpSession:
         prompt_blocks = self._build_prompt_blocks(content, attachments, agent_kind)
         # The original prompt task owns the live handler queue and its end sentinel;
         # preparing or finishing here would discard events or terminate that turn.
+        # The SDK's ext_method prepends the `_` extension prefix, so pass the
+        # unprefixed name — the wire method is `_session/steering`. (Passing the
+        # prefixed name yields `__session/steering` → "Method not found".)
         result = await self._conn.ext_method(
-            "_session/steering",
+            "session/steering",
             {
                 "sessionId": self.acp_session_id,
                 "prompt": [
