@@ -878,16 +878,32 @@ class ChatStreamRuntime:
             return True
         cls._steering_chats.add(chat_id)
         try:
+            logger.info(
+                "Steer attempt for chat %s (send-now message %s)",
+                chat_id,
+                queued_message_id,
+            )
             runtime = cls._active_runtimes.get(chat_id)
             session = session_registry.get(chat_id)
-            if (
-                runtime is None
-                or session is None
-                or runtime._acp_session is not session.acp_session
-                or not session.acp_session.is_alive()
-                or not session.acp_session.steering_supported
-                or session.acp_session.handler.has_pending_permissions
-            ):
+            skip_reason: str | None = None
+            if runtime is None:
+                skip_reason = "no active runtime in this process"
+            elif session is None:
+                skip_reason = "no registered ACP session"
+            elif runtime._acp_session is not session.acp_session:
+                skip_reason = "runtime is bound to a different ACP session"
+            elif not session.acp_session.is_alive():
+                skip_reason = "ACP agent process is not alive"
+            elif not session.acp_session.steering_supported:
+                skip_reason = "adapter did not advertise steering support"
+            elif session.acp_session.handler.has_pending_permissions:
+                skip_reason = "a permission prompt is pending"
+            if skip_reason is not None:
+                logger.info(
+                    "Steering skipped for chat %s: %s — using legacy send-now",
+                    chat_id,
+                    skip_reason,
+                )
                 return False
 
             queued_msg = await queue_service.get_message_by_id(
@@ -901,6 +917,13 @@ class ChatStreamRuntime:
                 )
                 return True
             if queued_msg["model_id"] != runtime.model_id:
+                logger.info(
+                    "Steering skipped for chat %s: queued model %s != running model %s"
+                    " — using legacy send-now",
+                    chat_id,
+                    queued_msg["model_id"],
+                    runtime.model_id,
+                )
                 return False
 
             user_service = UserService(session_factory=session_factory)
@@ -927,11 +950,27 @@ class ChatStreamRuntime:
                 selected_persona_name=queued_request.selected_persona_name,
                 fast_mode=queued_request.fast_mode,
             )
+            fingerprint_matches = (
+                session_registry.compute_fingerprint(config) == session.fingerprint
+            )
             if (
-                session_registry.compute_fingerprint(config) != session.fingerprint
+                not fingerprint_matches
                 or config.permission_mode != session.current_mode
                 or config.fast_mode != session.current_fast_mode
             ):
+                logger.info(
+                    "Steering skipped for chat %s: settings differ from running turn "
+                    "(fingerprint_match=%s, mode %r vs %r, fast_mode %s vs %s, "
+                    "model %s, effort %r) — using legacy send-now",
+                    chat_id,
+                    fingerprint_matches,
+                    config.permission_mode,
+                    session.current_mode,
+                    config.fast_mode,
+                    session.current_fast_mode,
+                    config.model,
+                    config.reasoning_effort,
+                )
                 return False
 
             claimed_msg = await queue_service.pop_message_by_id(
