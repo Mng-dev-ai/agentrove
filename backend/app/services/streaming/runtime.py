@@ -254,6 +254,14 @@ class ChatStreamRuntime:
             checkpoint_id=checkpoint_id,
             prior_duration_ms=duration_ms,
         )
+        logger.info(
+            "Rotated live stream for steered message %s on chat %s "
+            "(old assistant %s interrupted, continuing into %s)",
+            queued_msg.get("id"),
+            self.chat_id,
+            self.assistant_message_id,
+            assistant_message.id,
+        )
         await self._start_rotated_stream(
             assistant_message_id=str(assistant_message.id),
             model_id=queued_msg["model_id"],
@@ -967,6 +975,11 @@ class ChatStreamRuntime:
                     and session.acp_session.handler.enqueue_steer_rotation(claimed_msg)
                 )
                 if delivered:
+                    logger.info(
+                        "Steered send-now message %s into live ACP turn for chat %s",
+                        queued_message_id,
+                        chat_id,
+                    )
                     return True
                 logger.warning(
                     "ACP steer rotation could not be delivered for chat %s", chat_id
