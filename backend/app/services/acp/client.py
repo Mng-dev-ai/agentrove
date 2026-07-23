@@ -403,6 +403,20 @@ class AcpClientHandler:
         self._active_tools[tc.tool_call_id] = payload
         return StreamEvent(type="tool_started", tool=payload)
 
+    @staticmethod
+    def _extract_meta_tool_name(tc: ToolCallProgress) -> str | None:
+        # claude-agent-acp stamps the real tool name on tool_progress updates
+        # at _meta.claudeCode.toolName (SDK >= 0.3.214 emits these for
+        # subagent-internal tools that never get a top-level tool_call start).
+        meta = getattr(tc, "field_meta", None)
+        if not isinstance(meta, dict):
+            return None
+        claude_meta = meta.get("claudeCode")
+        if not isinstance(claude_meta, dict):
+            return None
+        tool_name = claude_meta.get("toolName")
+        return tool_name if isinstance(tool_name, str) and tool_name else None
+
     def _map_tool_call_progress(self, tc: ToolCallProgress) -> StreamEvent | None:
         # Multiple progress events per tool possible; re-emit only when title/input changes.
         status = tc.status
@@ -411,11 +425,30 @@ class AcpClientHandler:
         if existing is None and status is None:
             return None
 
+        materialized = existing is None
         if existing is None:
+            # Update for a tool we never saw start. Use the real name from the
+            # adapter's _meta when present (subagent-internal tools report
+            # progress without a tool_call start); drop updates that carry no
+            # renderable identity at all instead of minting "Unknown tool"
+            # cards that finish() later stamps completed.
+            meta_tool_name = self._extract_meta_tool_name(tc)
+            if (
+                not tc.title
+                and tc.raw_input is None
+                and meta_tool_name is None
+                and self._extract_tool_result(tc) is None
+            ):
+                logger.debug(
+                    "Dropping update for untracked tool %s (status=%s)",
+                    tc.tool_call_id,
+                    status,
+                )
+                return None
             existing = ToolPayload(
                 id=tc.tool_call_id,
-                name="unknown",
-                title="Unknown tool",
+                name=meta_tool_name or "unknown",
+                title=meta_tool_name or "Unknown tool",
                 status=ToolStatus.STARTED.value,
                 parent_id=self._extract_parent_tool_id(tc),
                 input=None,
@@ -453,9 +486,10 @@ class AcpClientHandler:
             return StreamEvent(type="tool_failed", tool=existing)
 
         self._active_tools[tc.tool_call_id] = existing
-        # Re-emit tool_started so the frontend can update the loading title
-        # when input arrives or title changes.
-        if changed:
+        # Emit tool_started for a newly materialized card (first appearance),
+        # and re-emit when input arrives or the title changes so the frontend
+        # can update the loading title.
+        if materialized or changed:
             return StreamEvent(type="tool_started", tool=existing)
         return None
 
