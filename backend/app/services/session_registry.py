@@ -49,7 +49,7 @@ class SessionRegistry:
         config: AcpSessionConfig,
     ) -> tuple[ChatSession, bool]:
         session = self._sessions.get(chat_id)
-        fingerprint = self._compute_fingerprint(config)
+        fingerprint = self.compute_fingerprint(config)
 
         if session is not None and not session.acp_session.is_alive():
             await self._close_session(session)
@@ -124,6 +124,9 @@ class SessionRegistry:
             return_exceptions=True,
         )
 
+    def get(self, chat_id: str) -> ChatSession | None:
+        return self._sessions.get(chat_id)
+
     async def close_idle_sessions(self, ttl_seconds: float) -> None:
         now = time.monotonic()
         expired: list[str] = []
@@ -144,7 +147,7 @@ class SessionRegistry:
             logger.info("Closed %d idle chat session(s)", len(expired))
 
     @staticmethod
-    def _compute_fingerprint(config: AcpSessionConfig) -> str:
+    def compute_fingerprint(config: AcpSessionConfig) -> str:
         # cwd is stable per chat (workspace root or the chat's worktree, never
         # agent-reported paths), so including it respawns the agent process in
         # the worktree when worktree mode is enabled mid-chat — otherwise the

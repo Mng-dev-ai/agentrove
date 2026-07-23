@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from acp.schema import (
     AgentMessageChunk,
@@ -31,7 +31,7 @@ from acp.schema import (
 from app.models.types import PermissionMode
 from app.models.db_models.enums import ToolStatus
 from app.services.acp.adapters import AgentKind
-from app.services.streaming.types import StreamEvent, StreamEventType, ToolPayload
+from app.services.streaming.types import StreamEvent, ToolPayload
 
 logger = logging.getLogger(__name__)
 
@@ -88,10 +88,12 @@ class AcpClientHandler:
         self._resolved_permissions: dict[str, PermissionMode | None] = {}
         # request_id → option_id → permission_mode (filled in request_permission).
         self._permission_option_modes: dict[str, dict[str, PermissionMode | None]] = {}
+        self._rotated_tool_ids: set[str] = set()
         self.total_cost_usd: float = 0.0
         self.usage: dict[str, int] | None = None
         # Suppress replayed history events during load_session.
         self.muted: bool = False
+        self.prompt_active: bool = False
 
     def on_connect(self, conn: Any) -> None:
         pass
@@ -104,31 +106,54 @@ class AcpClientHandler:
                 self.event_queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
+        self._rotated_tool_ids.clear()
+        self.prompt_active = True
 
     def finish(self, *, prompt_completed: bool) -> None:
+        self.prompt_active = False
         if self._active_tools:
             if prompt_completed:
-                terminal_status: Literal["completed", "failed"] = (
-                    ToolStatus.COMPLETED.value
-                )
-                terminal_event_type: StreamEventType = "tool_completed"
+                for payload in self._active_tools.values():
+                    payload["status"] = ToolStatus.COMPLETED.value
+                    self.event_queue.put_nowait(
+                        StreamEvent(type="tool_completed", tool=payload)
+                    )
+                self._active_tools.clear()
             else:
-                terminal_status = ToolStatus.FAILED.value
-                terminal_event_type = "tool_failed"
-            for payload in self._active_tools.values():
-                payload["status"] = terminal_status
-                if not prompt_completed and "error" not in payload:
-                    # Codex occasionally ends the turn without a terminal tool
-                    # progress update. Mark the tool as interrupted so the UI
-                    # does not leave it stuck in a perpetual loading state.
-                    payload["error"] = "Tool ended before a terminal ACP update arrived"
-                self.event_queue.put_nowait(
-                    StreamEvent(type=terminal_event_type, tool=payload)
-                )
-            self._active_tools.clear()
+                for event in self.rotate_active_tools():
+                    self.event_queue.put_nowait(event)
+        self._rotated_tool_ids.clear()
         self._resolved_permissions.clear()
         self._permission_option_modes.clear()
         self.event_queue.put_nowait(_SENTINEL)
+
+    @property
+    def has_pending_permissions(self) -> bool:
+        return bool(self._pending_permissions)
+
+    def rotate_active_tools(self) -> list[StreamEvent]:
+        events: list[StreamEvent] = []
+        for tool_call_id, payload in self._active_tools.items():
+            payload["status"] = ToolStatus.FAILED.value
+            if "error" not in payload:
+                # Match a legacy interrupted prompt so old tool cards terminate.
+                payload["error"] = "Tool ended before a terminal ACP update arrived"
+            events.append(StreamEvent(type="tool_failed", tool=payload))
+            self._rotated_tool_ids.add(tool_call_id)
+            self._resolved_permissions.pop(tool_call_id, None)
+        self._active_tools.clear()
+        return events
+
+    def enqueue_steer_rotation(self, queued_msg: dict[str, Any]) -> bool:
+        if not self.prompt_active:
+            return False
+        self.event_queue.put_nowait(
+            StreamEvent(
+                type="_steer_rotation",
+                data={"queued_msg": queued_msg},
+            )
+        )
+        return True
 
     def cancel_pending_permissions(self) -> None:
         for future in self._pending_permissions.values():
@@ -385,7 +410,9 @@ class AcpClientHandler:
             return StreamEvent(type="user_text", text=chunk.content.text)
         return None
 
-    def _map_tool_call_start(self, tc: ToolCallStart) -> StreamEvent:
+    def _map_tool_call_start(self, tc: ToolCallStart) -> StreamEvent | None:
+        if tc.tool_call_id in self._rotated_tool_ids:
+            return None
         payload = ToolPayload(
             id=tc.tool_call_id,
             name=self._extract_tool_name(tc),
@@ -406,6 +433,10 @@ class AcpClientHandler:
     def _map_tool_call_progress(self, tc: ToolCallProgress) -> StreamEvent | None:
         # Multiple progress events per tool possible; re-emit only when title/input changes.
         status = tc.status
+        if tc.tool_call_id in self._rotated_tool_ids:
+            if status in ("completed", "failed"):
+                self._rotated_tool_ids.discard(tc.tool_call_id)
+            return None
 
         existing = self._active_tools.get(tc.tool_call_id)
         if existing is None and status is None:

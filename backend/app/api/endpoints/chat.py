@@ -716,13 +716,30 @@ async def send_now_queued_message(
             detail="Queued message not found",
         )
 
-    if ChatStreamRuntime.has_active_chat(str(chat_id)):
+    chat_id_str = str(chat_id)
+    if ChatStreamRuntime.has_active_chat(chat_id_str):
+        try:
+            if await ChatStreamRuntime.try_steer_send_now(
+                chat_id=chat_id_str,
+                queued_message_id=str(message_id),
+                queue_service=queue_service,
+                session_factory=chat_service.session_factory,
+            ):
+                return
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning(
+                "Failed to coordinate ACP steering for chat %s", chat_id, exc_info=True
+            )
+
+    if ChatStreamRuntime.has_active_chat(chat_id_str):
         # Cancel so send-now is picked up without waiting for the current turn.
-        await session_registry.cancel_generation(str(chat_id))
+        await session_registry.cancel_generation(chat_id_str)
     else:
         try:
             await ChatStreamRuntime.process_send_now_idle(
-                str(chat_id), chat_service.session_factory
+                chat_id_str, chat_service.session_factory
             )
         except asyncio.CancelledError:
             raise

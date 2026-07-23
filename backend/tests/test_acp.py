@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.models.db_models.workspace import Workspace
 from app.services.acp.adapters import AgentKind, GrokAgentAdapter
-from app.services.acp.session import AcpSessionConfig
+from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.session_registry import session_registry
 from tests.conftest import LoginClient, UserFactory
@@ -63,6 +63,42 @@ DEFAULT_TURN_TEXT = "Hello from the fake agent."
 # content_type, not on parsing the file itself.
 PNG_BYTES = bytes.fromhex("89504e470d0a1a0a0000000d49484452")
 PDF_BYTES = b"%PDF-1.4\n%fake\n"
+
+
+@pytest.mark.parametrize(
+    "scenario,expected_supported",
+    [("normal", True), ("no_steering", False)],
+)
+async def test_acp_session_captures_steering_capability(
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: "FakeAgentHandle",
+    monkeypatch: pytest.MonkeyPatch,
+    scenario: str,
+    expected_supported: bool,
+) -> None:
+    _headers, workspace = auth_workspace
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", scenario)
+    session = await AcpSession.create(
+        AcpSessionConfig(
+            sandbox_id=workspace.sandbox_id,
+            sandbox_provider=SandboxProviderType.HOST,
+            cwd="",
+            user_id=str(workspace.user_id),
+            workspace_path=workspace.workspace_path,
+            agent_kind=AgentKind.CLAUDE,
+        )
+    )
+    try:
+        assert session.steering_supported is expected_supported
+        if expected_supported:
+            outcome = await session.steer("wire prompt")
+            assert outcome == "injected"
+            await asyncio.sleep(0.05)
+            [steering] = fake_agent.events_of("steering")
+            assert steering["text"] == "wire prompt"
+            assert steering["session_id"] == NEW_SESSION_ID
+    finally:
+        await session.close()
 
 
 @pytest.mark.parametrize(
@@ -113,9 +149,9 @@ def test_permission_mode_only_changes_grok_session_fingerprint(
     )
     always_approve = replace(auto, permission_mode="always-approve")
 
-    fingerprints_equal = session_registry._compute_fingerprint(
+    fingerprints_equal = session_registry.compute_fingerprint(
         auto
-    ) == session_registry._compute_fingerprint(always_approve)
+    ) == session_registry.compute_fingerprint(always_approve)
     assert fingerprints_equal is expect_equal
 
 

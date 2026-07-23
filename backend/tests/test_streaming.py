@@ -10,7 +10,12 @@ import httpx
 import pytest
 import pytest_asyncio
 import uvicorn
-from acp.schema import PermissionOption, ToolCallUpdate
+from acp.schema import (
+    PermissionOption,
+    ToolCallProgress,
+    ToolCallStart,
+    ToolCallUpdate,
+)
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import event as sa_event
@@ -18,7 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
 from app.core import deps
-from app.constants import MODELS, REDIS_KEY_USER_STREAMS_LIVE
+from app.constants import (
+    MODELS,
+    REDIS_KEY_USER_STREAMS_LIVE,
+)
 from app.db.session import engine
 from app.models.db_models.chat import Chat
 from app.models.db_models.enums import MessageStreamStatus
@@ -26,6 +34,7 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
+from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services import chat as chat_service_module
 from app.services.sandbox_providers.base import SandboxProvider
@@ -49,6 +58,7 @@ pytestmark = pytest.mark.anyio
 # Sentinel script step: makes the fake ACP session block forever on this
 # prompt (until the runtime cancels it), simulating a long-running turn.
 BLOCK_FOREVER = object()
+END_TURN = object()
 
 
 class ConnectionCounter:
@@ -73,6 +83,12 @@ class PermissionStep:
     on_response: dict[str, list[StreamEvent]]
 
 
+@dataclass
+class DelayedAcpUpdate:
+    delay: float
+    update: ToolCallProgress
+
+
 class FakeAcpSession:
     # Duck-types AcpSession so AgentService/SessionRegistry run without spawn.
     def __init__(
@@ -82,6 +98,10 @@ class FakeAcpSession:
         usage: dict[str, int] | None = None,
         total_cost_usd: float = 0.0,
         session_id: str = "acp-session-1",
+        steering_supported: bool = False,
+        steering_outcomes: list[str] | None = None,
+        steering_scripts: list[list[Any]] | None = None,
+        steer_gate: asyncio.Event | None = None,
     ) -> None:
         self.handler: AcpClientHandler | None = None
         self.configs: list[AcpSessionConfig] = []
@@ -96,6 +116,12 @@ class FakeAcpSession:
         self.set_model_calls: list[tuple[str, str | None]] = []
         self.close_calls = 0
         self.prompt_calls: list[str] = []
+        self.steering_supported = steering_supported
+        self.steering_outcomes = steering_outcomes or []
+        self.steering_scripts = steering_scripts or []
+        self.steer_calls: list[str] = []
+        self.steer_gate = steer_gate
+        self._turn_done = asyncio.Event()
 
     def is_alive(self) -> bool:
         return self.alive
@@ -116,8 +142,10 @@ class FakeAcpSession:
             for step in script:
                 if isinstance(step, PermissionStep):
                     await self._run_permission_step(step)
+                elif isinstance(step, (ToolCallStart, ToolCallProgress)):
+                    await self.handler.session_update(self.acp_session_id, step)
                 elif step is BLOCK_FOREVER:
-                    await asyncio.Event().wait()
+                    await self._turn_done.wait()
                 elif isinstance(step, BaseException):
                     raise step
                 else:
@@ -128,6 +156,35 @@ class FakeAcpSession:
                 self.handler.usage = self.usage
             self.handler.total_cost_usd = self.total_cost_usd
             self.handler.finish(prompt_completed=prompt_completed)
+
+    async def steer(
+        self,
+        content: str,
+        attachments: list[dict[str, Any]] | None = None,
+        agent_kind: Any = None,
+    ) -> str:
+        assert self.handler is not None
+        self.steer_calls.append(content)
+        if self.steer_gate is not None:
+            await self.steer_gate.wait()
+        outcome = self.steering_outcomes.pop(0)
+        if outcome == "injected":
+            script = self.steering_scripts.pop(0)
+            asyncio.get_running_loop().call_soon(
+                asyncio.create_task, self._emit_steer_script(script)
+            )
+        return outcome
+
+    async def _emit_steer_script(self, script: list[Any]) -> None:
+        assert self.handler is not None
+        for step in script:
+            if step is END_TURN:
+                self._turn_done.set()
+            elif isinstance(step, DelayedAcpUpdate):
+                await asyncio.sleep(step.delay)
+                await self.handler.session_update(self.acp_session_id, step.update)
+            else:
+                self.handler.event_queue.put_nowait(step)
 
     async def _run_permission_step(self, step: PermissionStep) -> None:
         assert self.handler is not None
@@ -183,10 +240,14 @@ def streaming_runtime_state_reset() -> Iterator[None]:
     # Both registries are process-wide singletons/class state — reset around
     # every test so a task or session left by one test can't leak into the next.
     ChatStreamRuntime._background_task_chat_ids.clear()
+    ChatStreamRuntime._active_runtimes.clear()
+    ChatStreamRuntime._steering_chats.clear()
     session_registry._sessions.clear()
     session_registry._pending_cancels.clear()
     yield
     ChatStreamRuntime._background_task_chat_ids.clear()
+    ChatStreamRuntime._active_runtimes.clear()
+    ChatStreamRuntime._steering_chats.clear()
     session_registry._sessions.clear()
     session_registry._pending_cancels.clear()
 
@@ -747,9 +808,8 @@ async def test_send_now_cancels_active_generation_and_starts_queued_message(
 
     first_script = [StreamEvent(type="assistant_text", text="Working"), BLOCK_FOREVER]
     second_script = [StreamEvent(type="assistant_text", text="Send-now turn done")]
-    acp_factory.queue(
-        FakeAcpSession([first_script, second_script], session_id="resumed-7")
-    )
+    acp_session = FakeAcpSession([first_script, second_script], session_id="resumed-7")
+    acp_factory.queue(acp_session)
 
     queue_response = await client.post(
         f"/api/v1/chat/chats/{chat.id}/queue",
@@ -793,6 +853,730 @@ async def test_send_now_cancels_active_generation_and_starts_queued_message(
         f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
     )
     assert queue_list_response.json() == []
+    assert acp_session.cancel_calls == 1
+
+
+async def test_send_now_steers_and_rotates_the_live_stream(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="steer-1")
+    acp_session = FakeAcpSession(
+        [[StreamEvent(type="assistant_text", text="Working"), BLOCK_FOREVER]],
+        session_id="steer-1",
+        steering_supported=True,
+        steering_outcomes=["injected"],
+        steering_scripts=[
+            [StreamEvent(type="assistant_text", text="Steered answer"), END_TURN]
+        ],
+    )
+    acp_factory.queue(acp_session)
+
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Urgent follow-up", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    queued_id = queued.json()["id"]
+    first = await send_message(client, headers, chat, prompt="First prompt")
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await asyncio.sleep(0.05)
+
+    response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{queued_id}/send-now", headers=headers
+    )
+    assert response.status_code == 204
+    await run_background_task(chat.id)
+
+    messages = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    first_assistant = next(
+        item for item in messages if item["id"] == first["message_id"]
+    )
+    second_assistant = next(
+        item
+        for item in messages
+        if item["role"] == "assistant" and item["id"] != first["message_id"]
+    )
+    users = [item for item in messages if item["role"] == "user"]
+    assert first_assistant["stream_status"] == MessageStreamStatus.INTERRUPTED.value
+    assert first_assistant["duration_ms"] is not None
+    assert second_assistant["stream_status"] == MessageStreamStatus.COMPLETED.value
+    assert second_assistant["content_text"] == "Steered answer"
+    assert [item["content_text"] for item in users].count("Urgent follow-up") == 1
+
+    handoff = await wait_for_message_event_type(
+        client, headers, first["message_id"], "queue_processing"
+    )
+    payload = handoff["render_payload"]
+    assert payload["queued_message_id"] == queued_id
+    assert payload["assistant_message_id"] == second_assistant["id"]
+    assert payload["user_message_id"] == next(
+        item["id"] for item in users if item["content_text"] == "Urgent follow-up"
+    )
+    assert payload["prior_duration_ms"] == first_assistant["duration_ms"]
+    assert acp_session.cancel_calls == 0
+    assert len(acp_session.prompt_calls) == 1
+    assert len(acp_session.steer_calls) == 1
+    assert (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/queue", headers=headers)
+    ).json() == []
+
+
+async def test_send_now_model_mismatch_uses_legacy_cancel(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="steer-2")
+    acp_session = FakeAcpSession(
+        [
+            [StreamEvent(type="assistant_text", text="Working"), BLOCK_FOREVER],
+            [StreamEvent(type="assistant_text", text="Legacy answer")],
+        ],
+        session_id="steer-2",
+        steering_supported=True,
+    )
+    acp_factory.queue(acp_session)
+    other_model = "opencode:google-vertex-anthropic/claude-opus-4@20250514"
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Different model", "model_id": other_model},
+        headers=headers,
+    )
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{queued.json()['id']}/send-now",
+        headers=headers,
+    )
+    await run_background_task(chat.id)
+    await asyncio.sleep(0)
+    await run_background_task(chat.id)
+    assert acp_session.steer_calls == []
+    assert acp_session.cancel_calls == 1
+    assert len(acp_session.prompt_calls) == 2
+
+
+@pytest.mark.parametrize("outcome", ["failed", "startedNewTurn"])
+async def test_send_now_steering_outcome_falls_back_once(
+    outcome: str,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(
+        db_session, user, workspace, session_id="steer-fallback"
+    )
+    acp_session = FakeAcpSession(
+        [
+            [StreamEvent(type="assistant_text", text="Working"), BLOCK_FOREVER],
+            [StreamEvent(type="assistant_text", text="Fallback answer")],
+        ],
+        session_id="steer-fallback",
+        steering_supported=True,
+        steering_outcomes=[outcome],
+    )
+    acp_factory.queue(acp_session)
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Fallback prompt", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{queued.json()['id']}/send-now",
+        headers=headers,
+    )
+    await run_background_task(chat.id)
+    await asyncio.sleep(0)
+    await run_background_task(chat.id)
+
+    messages = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    assert [item["content_text"] for item in messages if item["role"] == "user"].count(
+        "Fallback prompt"
+    ) == 1
+    assert len(acp_session.prompt_calls) == 2
+    assert len(acp_session.steer_calls) == 1
+    assert acp_session.cancel_calls == (2 if outcome == "startedNewTurn" else 1)
+    assert (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/queue", headers=headers)
+    ).json() == []
+
+
+async def test_send_now_steer_timeout_falls_back_to_legacy_cancel(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A hung _session/steering RPC must not hold the send-now claim (or the
+    # per-chat steering guard) forever — the acceptance timeout routes it
+    # through the generic failure path into the legacy cancel flow.
+    monkeypatch.setattr(runtime_module, "STEER_ACCEPT_TIMEOUT_SECONDS", 0.05)
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(
+        db_session, user, workspace, session_id="steer-timeout"
+    )
+    acp_session = FakeAcpSession(
+        [
+            [StreamEvent(type="assistant_text", text="Working"), BLOCK_FOREVER],
+            [StreamEvent(type="assistant_text", text="Fallback answer")],
+        ],
+        session_id="steer-timeout",
+        steering_supported=True,
+        steering_outcomes=["injected"],
+        steer_gate=asyncio.Event(),  # never set — steer hangs until cancelled
+    )
+    acp_factory.queue(acp_session)
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Timeout prompt", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{queued.json()['id']}/send-now",
+        headers=headers,
+    )
+    await run_background_task(chat.id)
+    await asyncio.sleep(0)
+    await run_background_task(chat.id)
+
+    messages = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    assert [item["content_text"] for item in messages if item["role"] == "user"].count(
+        "Timeout prompt"
+    ) == 1
+    assert len(acp_session.steer_calls) == 1
+    assert len(acp_session.prompt_calls) == 2
+    assert acp_session.cancel_calls == 1
+    assert ChatStreamRuntime._steering_chats == set()
+    assert (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/queue", headers=headers)
+    ).json() == []
+
+
+async def test_send_now_can_steer_twice_in_one_acp_turn(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="steer-double")
+    acp_session = FakeAcpSession(
+        [[StreamEvent(type="assistant_text", text="First"), BLOCK_FOREVER]],
+        session_id="steer-double",
+        steering_supported=True,
+        steering_outcomes=["injected", "injected"],
+        steering_scripts=[
+            [StreamEvent(type="assistant_text", text="Second")],
+            [StreamEvent(type="assistant_text", text="Third"), END_TURN],
+        ],
+    )
+    acp_factory.queue(acp_session)
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await asyncio.sleep(0.05)
+
+    first_queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Steer one", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{first_queued.json()['id']}/send-now",
+        headers=headers,
+    )
+    first_handoff = await wait_for_message_event_type(
+        client, headers, first["message_id"], "queue_processing"
+    )
+    second_assistant_id = first_handoff["render_payload"]["assistant_message_id"]
+    await wait_for_message_event_type(
+        client, headers, second_assistant_id, "stream_started"
+    )
+    await asyncio.sleep(0.05)
+
+    second_queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Steer two", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{second_queued.json()['id']}/send-now",
+        headers=headers,
+    )
+    await run_background_task(chat.id)
+
+    messages = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    assistants = [item for item in messages if item["role"] == "assistant"]
+    assert len(assistants) == 3
+    by_content = {item["content_text"]: item for item in assistants}
+    assert by_content["First"]["stream_status"] == MessageStreamStatus.INTERRUPTED.value
+    assert (
+        by_content["Second"]["stream_status"] == MessageStreamStatus.INTERRUPTED.value
+    )
+    assert by_content["Third"]["stream_status"] == MessageStreamStatus.COMPLETED.value
+    assert len(acp_session.prompt_calls) == 1
+    assert len(acp_session.steer_calls) == 2
+
+
+async def test_send_now_steer_terminates_active_tool_and_drops_late_update(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="steer-tool")
+    tool_id = "tool-active-during-steer"
+    acp_session = FakeAcpSession(
+        [
+            [
+                ToolCallStart(
+                    session_update="tool_call",
+                    tool_call_id=tool_id,
+                    title="Long-running tool",
+                ),
+                StreamEvent(type="assistant_text", text="Before"),
+                BLOCK_FOREVER,
+            ]
+        ],
+        session_id="steer-tool",
+        steering_supported=True,
+        steering_outcomes=["injected"],
+        steering_scripts=[
+            [
+                StreamEvent(type="assistant_text", text="After"),
+                DelayedAcpUpdate(
+                    0.2,
+                    ToolCallProgress(
+                        session_update="tool_call_update",
+                        tool_call_id=tool_id,
+                        status="completed",
+                        raw_output="late result",
+                    ),
+                ),
+                END_TURN,
+            ]
+        ],
+    )
+    acp_factory.queue(acp_session)
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await asyncio.sleep(0.05)
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Rotate with tool", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{queued.json()['id']}/send-now",
+        headers=headers,
+    )
+    await run_background_task(chat.id)
+
+    messages = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    old = next(item for item in messages if item["id"] == first["message_id"])
+    new = next(
+        item
+        for item in messages
+        if item["role"] == "assistant" and item["id"] != first["message_id"]
+    )
+    old_tools = [
+        event
+        for event in old["content_render"]["events"]
+        if event["type"].startswith("tool_")
+    ]
+    assert old["stream_status"] == MessageStreamStatus.INTERRUPTED.value
+    assert old_tools[-1]["type"] == "tool_failed"
+    assert old_tools[-1]["tool"]["id"] == tool_id
+    assert (
+        old_tools[-1]["tool"]["error"]
+        == "Tool ended before a terminal ACP update arrived"
+    )
+    assert new["content_text"] == "After"
+    assert not any(
+        event["type"].startswith("tool_") for event in new["content_render"]["events"]
+    )
+
+
+async def test_send_now_refuses_steering_while_permission_is_pending(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(
+        db_session, user, workspace, session_id="steer-permission"
+    )
+    permission = PermissionStep(
+        options=[("allow_once", "Allow", "allow")],
+        tool_call_id="permission-tool",
+        on_response={},
+    )
+    acp_session = FakeAcpSession(
+        [
+            [permission],
+            [StreamEvent(type="assistant_text", text="Legacy after permission")],
+        ],
+        session_id="steer-permission",
+        steering_supported=True,
+    )
+    acp_factory.queue(acp_session)
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Do not steer", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "permission_request"
+    )
+    await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{queued.json()['id']}/send-now",
+        headers=headers,
+    )
+    await run_background_task(chat.id)
+    await asyncio.sleep(0)
+    await run_background_task(chat.id)
+    assert acp_session.steer_calls == []
+    assert acp_session.cancel_calls == 1
+
+
+async def test_concurrent_send_now_claims_once_and_second_attempt_is_noop(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="steer-race")
+    acp_session = FakeAcpSession(
+        [[StreamEvent(type="assistant_text", text="Before"), BLOCK_FOREVER]],
+        session_id="steer-race",
+        steering_supported=True,
+        steering_outcomes=["injected"],
+        steering_scripts=[
+            [StreamEvent(type="assistant_text", text="Claimed once"), END_TURN]
+        ],
+    )
+    acp_factory.queue(acp_session)
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await asyncio.sleep(0.05)
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Race prompt", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    queued_id = queued.json()["id"]
+    queue_service = QueueService(streaming_cache.store)
+    assert await queue_service.mark_send_now(str(chat.id), queued_id)
+    assert await queue_service.mark_send_now(str(chat.id), queued_id)
+
+    results = await asyncio.gather(
+        *[
+            ChatStreamRuntime.try_steer_send_now(
+                chat_id=str(chat.id),
+                queued_message_id=queued_id,
+                queue_service=queue_service,
+                session_factory=runtime_module.SessionLocal,
+            )
+            for _ in range(2)
+        ]
+    )
+    assert results == [True, True]
+    await run_background_task(chat.id)
+
+    messages = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    assert len(acp_session.steer_calls) == 1
+    assert [item["content_text"] for item in messages if item["role"] == "user"].count(
+        "Race prompt"
+    ) == 1
+    assert (
+        sum(
+            item["stream_status"] == MessageStreamStatus.INTERRUPTED.value
+            for item in messages
+            if item["role"] == "assistant"
+        )
+        == 1
+    )
+
+
+async def test_in_flight_steering_guard_allows_only_one_driver(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="steer-guard")
+    steer_gate = asyncio.Event()
+    acp_session = FakeAcpSession(
+        [[StreamEvent(type="assistant_text", text="Before"), BLOCK_FOREVER]],
+        session_id="steer-guard",
+        steering_supported=True,
+        steering_outcomes=["injected"],
+        steering_scripts=[
+            [StreamEvent(type="assistant_text", text="Guarded"), END_TURN]
+        ],
+        steer_gate=steer_gate,
+    )
+    acp_factory.queue(acp_session)
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await asyncio.sleep(0.05)
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Guard prompt", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    queued_id = queued.json()["id"]
+    queue_service = QueueService(streaming_cache.store)
+    assert await queue_service.mark_send_now(str(chat.id), queued_id)
+
+    first_attempt = asyncio.create_task(
+        ChatStreamRuntime.try_steer_send_now(
+            chat_id=str(chat.id),
+            queued_message_id=queued_id,
+            queue_service=queue_service,
+            session_factory=runtime_module.SessionLocal,
+        )
+    )
+    deadline = time.monotonic() + 2.0
+    while not acp_session.steer_calls and time.monotonic() < deadline:
+        await asyncio.sleep(0.01)
+    assert len(acp_session.steer_calls) == 1
+
+    second_result = await ChatStreamRuntime.try_steer_send_now(
+        chat_id=str(chat.id),
+        queued_message_id=queued_id,
+        queue_service=queue_service,
+        session_factory=runtime_module.SessionLocal,
+    )
+    assert second_result is True
+    assert len(acp_session.steer_calls) == 1
+
+    steer_gate.set()
+    assert await first_attempt is True
+    await run_background_task(chat.id)
+    messages = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    assert [item["content_text"] for item in messages if item["role"] == "user"].count(
+        "Guard prompt"
+    ) == 1
+
+
+async def test_deleted_send_now_claim_is_noop_without_interrupting_live_message(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="steer-delete")
+    acp_session = FakeAcpSession(
+        [[StreamEvent(type="assistant_text", text="Keeps streaming"), BLOCK_FOREVER]],
+        session_id="steer-delete",
+        steering_supported=True,
+    )
+    acp_factory.queue(acp_session)
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await asyncio.sleep(0.05)
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Deleted prompt", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    queued_id = queued.json()["id"]
+    queue_service = QueueService(streaming_cache.store)
+    assert await queue_service.mark_send_now(str(chat.id), queued_id)
+
+    async def delete_before_claim(chat_id: str, message_id: str) -> None:
+        assert await queue_service.delete_message(chat_id, message_id)
+        return None
+
+    monkeypatch.setattr(queue_service, "pop_message_by_id", delete_before_claim)
+
+    handled = await ChatStreamRuntime.try_steer_send_now(
+        chat_id=str(chat.id),
+        queued_message_id=queued_id,
+        queue_service=queue_service,
+        session_factory=runtime_module.SessionLocal,
+    )
+    assert handled is True
+    assert acp_session.steer_calls == []
+    acp_session._turn_done.set()
+    await run_background_task(chat.id)
+    messages = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    old = next(item for item in messages if item["id"] == first["message_id"])
+    assert old["stream_status"] == MessageStreamStatus.COMPLETED.value
+    assert old["content_text"] == "Keeps streaming"
+
+
+async def test_steer_materialize_failure_cancels_and_redelivers_once(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(
+        db_session, user, workspace, session_id="steer-materialize"
+    )
+    acp_session = FakeAcpSession(
+        [
+            [StreamEvent(type="assistant_text", text="Still live"), BLOCK_FOREVER],
+            [StreamEvent(type="assistant_text", text="Retried")],
+        ],
+        session_id="steer-materialize",
+        steering_supported=True,
+        steering_outcomes=["injected"],
+        steering_scripts=[[StreamEvent(type="assistant_text", text="Continues")]],
+    )
+    acp_factory.queue(acp_session)
+    first = await send_message(client, headers, chat)
+    await wait_for_message_event_type(
+        client, headers, first["message_id"], "stream_started"
+    )
+    await asyncio.sleep(0.05)
+    runtime = ChatStreamRuntime._active_runtimes[str(chat.id)]
+    original_create_message = runtime.message_service.create_message
+    fail_next_create = True
+
+    async def fail_create_message(*args: Any, **kwargs: Any) -> Any:
+        nonlocal fail_next_create
+        if fail_next_create:
+            fail_next_create = False
+            raise RuntimeError("materialize failed")
+        return await original_create_message(*args, **kwargs)
+
+    monkeypatch.setattr(runtime.message_service, "create_message", fail_create_message)
+    queued = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Retry me", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    queued_id = queued.json()["id"]
+    await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{queued_id}/send-now",
+        headers=headers,
+    )
+    await run_background_task(chat.id)
+    await asyncio.sleep(0)
+    await run_background_task(chat.id)
+
+    messages = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    old = next(item for item in messages if item["id"] == first["message_id"])
+    retried = next(
+        item
+        for item in messages
+        if item["role"] == "assistant" and item["id"] != first["message_id"]
+    )
+    assert old["stream_status"] == MessageStreamStatus.INTERRUPTED.value
+    assert retried["stream_status"] == MessageStreamStatus.COMPLETED.value
+    assert retried["content_text"] == "Retried"
+    assert [item["content_text"] for item in messages if item["role"] == "user"].count(
+        "Retry me"
+    ) == 1
+    assert len(acp_session.steer_calls) == 1
+    assert len(acp_session.prompt_calls) == 2
+    assert (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/queue", headers=headers)
+    ).json() == []
 
 
 async def test_send_now_starts_immediately_when_chat_is_idle(

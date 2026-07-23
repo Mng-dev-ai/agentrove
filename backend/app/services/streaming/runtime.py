@@ -21,11 +21,11 @@ from app.constants import (
 )
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.db_models.chat import Chat
+from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
 from app.prompts.system_prompt import build_system_prompt_for_chat
-from app.services.acp.session import AcpSessionConfig
+from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.agent import (
     AgentService,
     StreamResult,
@@ -53,6 +53,12 @@ TRANSPORT_FATAL_TYPES = (
     OSError,
 )
 
+# Steering acceptance is a fast control-plane call (adapters reply on acceptance,
+# not on LLM completion). Bound it so a hung adapter can't hold the send-now claim
+# and the per-chat steering guard forever; on timeout the generic failure path
+# restores the claim and falls back to the legacy cancel flow.
+STEER_ACCEPT_TIMEOUT_SECONDS = 15.0
+
 # Snapshot-contributing events (text/tools/etc.) — batched; control events persist immediately.
 SNAPSHOT_EVENT_KINDS = frozenset(
     {
@@ -71,6 +77,9 @@ SNAPSHOT_EVENT_KINDS = frozenset(
 class ChatStreamRuntime:
     # Background stream tasks by asyncio.Task — track chats, await shutdown, block duplicates.
     _background_task_chat_ids: dict[asyncio.Task[str], str] = {}
+    _active_runtimes: dict[str, ChatStreamRuntime] = {}
+    # Per-process like the runtime/session registries it protects.
+    _steering_chats: set[str] = set()
 
     def __init__(
         self,
@@ -105,6 +114,9 @@ class ChatStreamRuntime:
         self._last_emitted_tokens: int = 0
         self._last_emitted_context_window: int = 0
         self._stream: AsyncIterator[StreamEvent] | None = None
+        self._stream_result: StreamResult = StreamResult()
+        self._start_seq = 0
+        self._acp_session: AcpSession | None = None
 
     async def run(
         self,
@@ -112,6 +124,7 @@ class ChatStreamRuntime:
         stream: AsyncIterator[StreamEvent],
     ) -> str:
         self._stream = stream
+        self._stream_result = stream_result
         # Titling only needs the user's prompt, so it starts alongside the turn
         # instead of after it — the sidebar shows a real title while streaming.
         title_task = asyncio.create_task(self._generate_title())
@@ -119,52 +132,36 @@ class ChatStreamRuntime:
         title_task.add_done_callback(self._bg_tasks.discard)
         title_task.add_done_callback(ChatStreamRuntime._on_title_task_done)
         try:
-            start_seq = await self.emit_event(
-                "stream_started",
-                {"status": "started"},
-                apply_snapshot=False,
-            )
-            if self.assistant_message_id:
-                await self.message_service.update_message_snapshot(
-                    UUID(self.assistant_message_id),
-                    content_text="",
-                    content_render=self.snapshot.to_render(),
-                    last_seq=start_seq,
-                    active_stream_id=self.stream_id,
+            await self._start_message_stream()
+            await self._consume_stream(stream)
+            if self._acp_session is not None:
+                self._stream_result.total_cost_usd = (
+                    self._acp_session.handler.total_cost_usd
                 )
-            # Emit worktree_cwd up front so the frontend can patch the chat
-            # cache mid-turn; without this, branch/diff/editor actions during
-            # the turn would target the workspace root until end-of-stream
-            # invalidation refetches the chat.
-            if self.chat.worktree_cwd:
-                await self.emit_event(
-                    "system",
-                    {"data": {"worktree_cwd": self.chat.worktree_cwd}},
-                )
-            await self._consume_stream(stream_result, stream)
+                self._stream_result.usage = self._acp_session.handler.usage
             await self._emit_prompt_suggestions()
 
             if self._cancelled:
                 return await self._complete_stream(
-                    stream_result, MessageStreamStatus.INTERRUPTED
+                    self._stream_result, MessageStreamStatus.INTERRUPTED
                 )
 
             # Buffered events may not have flushed yet (debounce) — a fast turn
             # can finish with last_seq still at start_seq, so check the buffer
             # too before declaring the stream empty.
-            if self.last_seq <= start_seq and not self._event_buffer:
+            if self.last_seq <= self._start_seq and not self._event_buffer:
                 # Cancel/send-now may have arrived after the last event was
                 # consumed but before _consume_stream returned — the stream
                 # ended naturally (via StopAsyncIteration) so CancelledError
                 # never fired. Treat as interrupted rather than erroring.
                 if self._cancel_event and self._cancel_event.is_set():
                     return await self._complete_stream(
-                        stream_result, MessageStreamStatus.INTERRUPTED
+                        self._stream_result, MessageStreamStatus.INTERRUPTED
                     )
                 raise AgentException("Stream completed without any events")
 
             return await self._complete_stream(
-                stream_result, MessageStreamStatus.COMPLETED
+                self._stream_result, MessageStreamStatus.COMPLETED
             )
 
         except Exception as exc:
@@ -174,12 +171,13 @@ class ChatStreamRuntime:
                 {"error": str(exc)},
                 apply_snapshot=False,
             )
-            await self._save_final_snapshot(stream_result, MessageStreamStatus.FAILED)
+            await self._save_final_snapshot(
+                self._stream_result, MessageStreamStatus.FAILED
+            )
             raise
 
     async def _consume_stream(
         self,
-        stream_result: StreamResult,
         stream: AsyncIterator[StreamEvent],
     ) -> None:
         stream_iter = aiter(stream)
@@ -195,6 +193,15 @@ class ChatStreamRuntime:
                     k: v for k, v in event_dict.items() if k != "type"
                 }
 
+                if kind == "_steer_rotation":
+                    data = payload.get("data")
+                    queued_msg = (
+                        data.get("queued_msg") if isinstance(data, dict) else None
+                    )
+                    if isinstance(queued_msg, dict):
+                        await self._rotate_for_steer(queued_msg)
+                    continue
+
                 if kind == "system":
                     session_data: dict[str, Any] = payload.get("data") or {}
                     if session_data.get("session_id"):
@@ -207,10 +214,10 @@ class ChatStreamRuntime:
 
                 if kind == "usage":
                     usage_data = payload.get("data")
-                    stream_result.usage = (
+                    self._stream_result.usage = (
                         usage_data if isinstance(usage_data, dict) else None
                     )
-                    await self._emit_context_usage(stream_result)
+                    await self._emit_context_usage(self._stream_result)
                 else:
                     await self.emit_event(kind, payload)
                     await self._flush_snapshot(force=False)
@@ -218,6 +225,39 @@ class ChatStreamRuntime:
             if not (self._cancel_event and self._cancel_event.is_set()):
                 raise
             self._cancelled = True
+
+    async def _rotate_for_steer(self, queued_msg: dict[str, Any]) -> None:
+        materialized = await self._create_queued_handoff(queued_msg)
+        if materialized is None:
+            await self._requeue_next_message(queued_msg, mark_send_now=True)
+            await session_registry.cancel_generation(self.chat_id)
+            return
+        user_message, assistant_message, checkpoint_id = materialized
+
+        assert self._acp_session is not None
+        handler = self._acp_session.handler
+        if handler.has_pending_permissions:
+            handler.cancel_pending_permissions()
+        for event in handler.rotate_active_tools():
+            event_dict = dict(event)
+            kind = str(event_dict.pop("type", "tool_failed"))
+            await self.emit_event(kind, event_dict)
+            await self._flush_snapshot(force=False)
+
+        duration_ms = await self._save_final_snapshot(
+            self._stream_result, MessageStreamStatus.INTERRUPTED
+        )
+        await self._emit_queue_processing(
+            queued_msg=queued_msg,
+            user_message=user_message,
+            assistant_message=assistant_message,
+            checkpoint_id=checkpoint_id,
+            prior_duration_ms=duration_ms,
+        )
+        await self._start_rotated_stream(
+            assistant_message_id=str(assistant_message.id),
+            model_id=queued_msg["model_id"],
+        )
 
     async def _emit_prompt_suggestions(self) -> None:
         raw = "".join(self.snapshot.text_parts)
@@ -488,7 +528,10 @@ class ChatStreamRuntime:
             logger.error("Session update task failed: %s", exc)
 
     async def _process_next_queued(
-        self, *, send_now_only: bool = False, prior_duration_ms: int | None = None
+        self,
+        *,
+        send_now_only: bool = False,
+        prior_duration_ms: int | None = None,
     ) -> bool:
         next_msg: dict[str, Any] | None = None
         try:
@@ -506,49 +549,20 @@ class ChatStreamRuntime:
         if not next_msg:
             return False
 
+        materialized = await self._create_queued_handoff(next_msg)
+        if materialized is None:
+            await self._requeue_next_message(next_msg)
+            return False
+        user_message, assistant_message, checkpoint_id = materialized
+
         try:
-            user_message = await self.message_service.create_message(
-                UUID(self.chat_id),
-                next_msg["content"],
-                MessageRole.USER,
-                attachments=next_msg.get("attachments"),
+            await self._emit_queue_processing(
+                queued_msg=next_msg,
+                user_message=user_message,
+                assistant_message=assistant_message,
+                checkpoint_id=checkpoint_id,
+                prior_duration_ms=prior_duration_ms,
             )
-            assistant_message = await self.message_service.create_message(
-                UUID(self.chat_id),
-                "",
-                MessageRole.ASSISTANT,
-                model_id=next_msg["model_id"],
-                stream_status=MessageStreamStatus.IN_PROGRESS,
-            )
-            # Avoid circular import with chat.py.
-            from app.services.chat import ChatService
-
-            checkpoint_id = await ChatService.create_checkpoint_for_message(
-                self.chat,
-                assistant_message.id,
-                self.session_factory,
-                next_msg["worktree"],
-            )
-
-            await self.emit_event(
-                "queue_processing",
-                {
-                    "queued_message_id": next_msg["id"],
-                    "user_message_id": str(user_message.id),
-                    "assistant_message_id": str(assistant_message.id),
-                    "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
-                    "content": next_msg["content"],
-                    "model_id": next_msg["model_id"],
-                    "attachments": MessageService.serialize_attachments(
-                        next_msg, user_message
-                    ),
-                    # The prior turn's terminal event is suppressed during a queue
-                    # handoff, so ship its persisted duration here for the rollup.
-                    "prior_duration_ms": prior_duration_ms,
-                },
-                apply_snapshot=False,
-            )
-
             user_service = UserService(session_factory=self.session_factory)
             user_settings = await user_service.get_user_settings(
                 self.chat.user_id, db=None
@@ -574,11 +588,115 @@ class ChatStreamRuntime:
         )
         return True
 
-    async def _requeue_next_message(self, queued_msg: dict[str, Any]) -> None:
+    async def _create_queued_handoff(
+        self,
+        queued_msg: dict[str, Any],
+    ) -> tuple[Message, Message, UUID | None] | None:
+        try:
+            user_message = await self.message_service.create_message(
+                UUID(self.chat_id),
+                queued_msg["content"],
+                MessageRole.USER,
+                attachments=queued_msg.get("attachments"),
+            )
+            assistant_message = await self.message_service.create_message(
+                UUID(self.chat_id),
+                "",
+                MessageRole.ASSISTANT,
+                model_id=queued_msg["model_id"],
+                stream_status=MessageStreamStatus.IN_PROGRESS,
+            )
+            # Avoid circular import with chat.py.
+            from app.services.chat import ChatService
+
+            checkpoint_id = await ChatService.create_checkpoint_for_message(
+                self.chat,
+                assistant_message.id,
+                self.session_factory,
+                queued_msg["worktree"],
+            )
+            return user_message, assistant_message, checkpoint_id
+        except Exception as exc:
+            logger.error("Failed to materialize queued message: %s", exc)
+            return None
+
+    async def _emit_queue_processing(
+        self,
+        *,
+        queued_msg: dict[str, Any],
+        user_message: Message,
+        assistant_message: Message,
+        checkpoint_id: UUID | None,
+        prior_duration_ms: int | None,
+    ) -> None:
+        await self.emit_event(
+            "queue_processing",
+            {
+                "queued_message_id": queued_msg["id"],
+                "user_message_id": str(user_message.id),
+                "assistant_message_id": str(assistant_message.id),
+                "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
+                "content": queued_msg["content"],
+                "model_id": queued_msg["model_id"],
+                "attachments": MessageService.serialize_attachments(
+                    queued_msg, user_message
+                ),
+                # The prior turn's terminal event is suppressed during a queue
+                # handoff, so ship its persisted duration here for the rollup.
+                "prior_duration_ms": prior_duration_ms,
+            },
+            apply_snapshot=False,
+        )
+
+    async def _start_message_stream(self) -> None:
+        self._start_seq = await self.emit_event(
+            "stream_started",
+            {"status": "started"},
+            apply_snapshot=False,
+        )
+        if self.assistant_message_id:
+            await self.message_service.update_message_snapshot(
+                UUID(self.assistant_message_id),
+                content_text="",
+                content_render=self.snapshot.to_render(),
+                last_seq=self._start_seq,
+                active_stream_id=self.stream_id,
+            )
+        # Emit worktree_cwd up front so mid-turn actions target the worktree.
+        if self.chat.worktree_cwd:
+            await self.emit_event(
+                "system",
+                {"data": {"worktree_cwd": self.chat.worktree_cwd}},
+            )
+
+    async def _start_rotated_stream(
+        self, *, assistant_message_id: str, model_id: str
+    ) -> None:
+        self.assistant_message_id = assistant_message_id
+        self.model_id = model_id
+        self.context_window = MODELS[model_id].context_window
+        self.stream_id = uuid4()
+        self.snapshot = StreamSnapshotAccumulator()
+        self.last_seq = 0
+        self.pending_since_flush = 0
+        self.last_flush_at = time.monotonic()
+        self._event_buffer = []
+        self._stream_result = StreamResult()
+        self._last_emitted_tokens = 0
+        self._last_emitted_context_window = 0
+
+        await self._start_message_stream()
+
+    async def _requeue_next_message(
+        self, queued_msg: dict[str, Any], *, mark_send_now: bool = False
+    ) -> None:
         try:
             async with cache_connection() as cache:
                 queue_service = QueueService(cache)
-                await queue_service.requeue_message(self.chat_id, queued_msg)
+                if mark_send_now:
+                    await queue_service.restore_send_now(self.chat_id, queued_msg)
+                else:
+                    await queue_service.requeue_message(self.chat_id, queued_msg)
         except Exception as requeue_exc:
             logger.error("Failed to re-queue message: %s", requeue_exc)
 
@@ -737,6 +855,140 @@ class ChatStreamRuntime:
     def has_active_chat(cls, chat_id: str) -> bool:
         cls._prune_done_tasks()
         return chat_id in cls._background_task_chat_ids.values()
+
+    @classmethod
+    async def try_steer_send_now(
+        cls,
+        *,
+        chat_id: str,
+        queued_message_id: str,
+        queue_service: QueueService,
+        session_factory: SessionFactoryType,
+    ) -> bool:
+        if chat_id in cls._steering_chats:
+            logger.info("Steering already in flight for chat %s", chat_id)
+            return True
+        cls._steering_chats.add(chat_id)
+        try:
+            runtime = cls._active_runtimes.get(chat_id)
+            session = session_registry.get(chat_id)
+            if (
+                runtime is None
+                or session is None
+                or runtime._acp_session is not session.acp_session
+                or not session.acp_session.is_alive()
+                or not session.acp_session.steering_supported
+                or session.acp_session.handler.has_pending_permissions
+            ):
+                return False
+
+            queued_msg = await queue_service.get_message_by_id(
+                chat_id, queued_message_id
+            )
+            if not queued_msg:
+                logger.info(
+                    "Send-now message %s for chat %s was already claimed or deleted",
+                    queued_message_id,
+                    chat_id,
+                )
+                return True
+            if queued_msg["model_id"] != runtime.model_id:
+                return False
+
+            user_service = UserService(session_factory=session_factory)
+            user_settings = await user_service.get_user_settings(
+                runtime.chat.user_id, db=None
+            )
+            queued_request = cls._build_queued_stream_request(
+                chat=runtime.chat,
+                queued_msg=queued_msg,
+                user_settings=user_settings,
+                assistant_message_id="",
+                session_id_override=runtime.session_id,
+            )
+            ai_service = AgentService(session_factory=session_factory)
+            config = await ai_service.build_session_config(
+                user=User(id=runtime.chat.user_id),
+                chat=runtime.chat,
+                model_id=queued_request.model_id,
+                permission_mode=queued_request.permission_mode,
+                session_id=queued_request.session_id,
+                thinking_mode=queued_request.thinking_mode,
+                system_prompt=queued_request.system_prompt,
+                worktree=queued_request.worktree,
+                selected_persona_name=queued_request.selected_persona_name,
+                fast_mode=queued_request.fast_mode,
+            )
+            if (
+                session_registry.compute_fingerprint(config) != session.fingerprint
+                or config.permission_mode != session.current_mode
+                or config.fast_mode != session.current_fast_mode
+            ):
+                return False
+
+            claimed_msg = await queue_service.pop_message_by_id(
+                chat_id, queued_message_id
+            )
+            if claimed_msg is None:
+                logger.info(
+                    "Send-now message %s for chat %s was concurrently claimed or deleted",
+                    queued_message_id,
+                    chat_id,
+                )
+                return True
+
+            content = AgentService.prepare_user_prompt(
+                claimed_msg["content"], queued_request.custom_instructions
+            )
+            try:
+                async with asyncio.timeout(STEER_ACCEPT_TIMEOUT_SECONDS):
+                    outcome = await session.acp_session.steer(
+                        content,
+                        attachments=claimed_msg.get("attachments"),
+                        agent_kind=config.agent_kind,
+                    )
+            except asyncio.CancelledError:
+                await queue_service.restore_send_now(chat_id, claimed_msg)
+                raise
+            except Exception:
+                logger.warning(
+                    "ACP steering failed for chat %s", chat_id, exc_info=True
+                )
+                await queue_service.restore_send_now(chat_id, claimed_msg)
+                return False
+
+            if outcome == "injected":
+                current_runtime = cls._active_runtimes.get(chat_id)
+                # Events already queued stay old. The response precedes steered output
+                # on the wire, leaving only one task-switch window for pre-steer tail
+                # output; ACP provides no stronger boundary marker.
+                delivered = (
+                    current_runtime is runtime
+                    and session.acp_session.handler.enqueue_steer_rotation(claimed_msg)
+                )
+                if delivered:
+                    return True
+                logger.warning(
+                    "ACP steer rotation could not be delivered for chat %s", chat_id
+                )
+                await queue_service.restore_send_now(chat_id, claimed_msg)
+                await session.acp_session.cancel()
+                return False
+
+            if outcome == "startedNewTurn":
+                await queue_service.restore_send_now(chat_id, claimed_msg)
+                await session.acp_session.cancel()
+                return False
+
+            logger.warning(
+                "ACP steering returned %s for chat %s; using cancel fallback",
+                outcome,
+                chat_id,
+            )
+            await queue_service.restore_send_now(chat_id, claimed_msg)
+            return False
+        finally:
+            cls._steering_chats.discard(chat_id)
 
     @classmethod
     def active_chat_ids(cls) -> set[str]:
@@ -1059,6 +1311,8 @@ class ChatStreamRuntime:
             if session_registry.consume_pending_cancel(runtime.chat_id):
                 session.cancel_event.set()
             runtime._cancel_event = session.cancel_event
+            runtime._acp_session = session.acp_session
+            cls._active_runtimes[runtime.chat_id] = runtime
             session.active_generation_task = asyncio.current_task()
             stream: AsyncIterator[StreamEvent] | None = None
             try:
@@ -1111,6 +1365,8 @@ class ChatStreamRuntime:
                 await session_registry.terminate(runtime.chat_id)
                 raise
             finally:
+                if cls._active_runtimes.get(runtime.chat_id) is runtime:
+                    cls._active_runtimes.pop(runtime.chat_id, None)
                 await runtime._close_stream()
                 session.active_generation_task = None
                 session.last_used_at = time.monotonic()

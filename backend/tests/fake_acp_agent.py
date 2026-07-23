@@ -70,6 +70,7 @@ MARKER_TOOL_EMPTY_RESULT = "MARKER_TOOL_EMPTY_RESULT"
 MARKER_TOOL_START_DIFF = "MARKER_TOOL_START_DIFF"
 MARKER_TOOL_UNKNOWN_DICT_ERROR = "MARKER_TOOL_UNKNOWN_DICT_ERROR"
 MARKER_ENTER_PLAN_MODE = "MARKER_ENTER_PLAN_MODE"
+MARKER_STEERING = "MARKER_STEERING"
 # 1x1 transparent PNG, reused wherever the protocol needs inline image bytes.
 TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
@@ -91,6 +92,7 @@ class FakeAgent:
     def __init__(self) -> None:
         self._client: AgentSideConnection | None = None
         self._cancel_events: dict[str, asyncio.Event] = {}
+        self._steering_events: dict[str, asyncio.Event] = {}
 
     def on_connect(self, conn: AgentSideConnection) -> None:
         self._client = conn
@@ -107,6 +109,9 @@ class FakeAgent:
         return InitializeResponse(
             protocol_version=protocol_version,
             agent_capabilities=AgentCapabilities(load_session=True),
+            field_meta=(
+                None if SCENARIO == "no_steering" else {"steering": {"supported": True}}
+            ),
         )
 
     async def new_session(
@@ -212,7 +217,37 @@ class FakeAgent:
         self._cancel_events.setdefault(session_id, asyncio.Event()).set()
 
     async def ext_method(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        if method == "_session/steering":
+            session_id = params["sessionId"]
+            prompt = params.get("prompt") or []
+            text = "".join(
+                block.get("text", "") for block in prompt if block.get("type") == "text"
+            )
+            outcome = os.environ.get("FAKE_ACP_STEERING_OUTCOME", "injected")
+            log_event(
+                {
+                    "event": "steering",
+                    "session_id": session_id,
+                    "text": text,
+                    "outcome": outcome,
+                }
+            )
+            if outcome == "injected" and self._client is not None:
+                asyncio.create_task(self._emit_steered_response(session_id))
+            return {"outcome": outcome}
         return {}
+
+    async def _emit_steered_response(self, session_id: str) -> None:
+        assert self._client is not None
+        await asyncio.sleep(0.01)
+        await self._client.session_update(
+            session_id=session_id,
+            update=AgentMessageChunk(
+                session_update="agent_message_chunk",
+                content=text_block("Steered response"),
+            ),
+        )
+        self._steering_events.setdefault(session_id, asyncio.Event()).set()
 
     async def ext_notification(self, method: str, params: dict[str, Any]) -> None:
         return None
@@ -252,6 +287,17 @@ class FakeAgent:
             await self._call_fs_terminal_stubs(session_id)
         if MARKER_ENTER_PLAN_MODE in text:
             return await self._run_enter_plan_mode_turn(session_id)
+        if MARKER_STEERING in text:
+            await self._client.session_update(
+                session_id=session_id,
+                update=AgentMessageChunk(
+                    session_update="agent_message_chunk",
+                    content=text_block("Before steering"),
+                ),
+            )
+            await self._steering_events.setdefault(session_id, asyncio.Event()).wait()
+            self._steering_events.pop(session_id, None)
+            return PromptResponse(stop_reason="end_turn")
 
         return await self._run_default_turn(session_id, text)
 

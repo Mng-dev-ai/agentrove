@@ -12,6 +12,8 @@ from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 
 
 StreamEventType = Literal[
+    # Internal in-band control signal; intercepted by the runtime, never sent to SSE.
+    "_steer_rotation",
     "assistant_text",
     "assistant_thinking",
     "tool_started",

@@ -91,6 +91,12 @@ class QueueService:
         queue = await self._read_queue(key)
         return [self._to_queued_message(item) for item in queue]
 
+    async def get_message_by_id(
+        self, chat_id: str, message_id: str
+    ) -> dict[str, Any] | None:
+        queue = await self._read_queue(self._queue_key(chat_id))
+        return next((item for item in queue if item["id"] == message_id), None)
+
     async def update_message(
         self, chat_id: str, message_id: str, content: str
     ) -> QueuedMessage | None:
@@ -167,12 +173,35 @@ class QueueService:
         await self._write_queue(key, remaining)
         return target
 
+    async def pop_message_by_id(
+        self, chat_id: str, message_id: str
+    ) -> dict[str, Any] | None:
+        key = self._queue_key(chat_id)
+        queue = await self._read_queue(key)
+        target = next((item for item in queue if item["id"] == message_id), None)
+        if target is None:
+            return None
+
+        await self._write_queue(
+            key, [item for item in queue if item["id"] != message_id]
+        )
+        send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)
+        if await self.cache.get(send_now_key) == message_id:
+            await self.cache.delete(send_now_key)
+        return target
+
     async def requeue_message(self, chat_id: str, message_data: dict[str, Any]) -> None:
         # Front of queue so a failed process is retried next.
         key = self._queue_key(chat_id)
         queue = await self._read_queue(key)
         queue.insert(0, message_data)
         await self._write_queue(key, queue)
+
+    async def restore_send_now(
+        self, chat_id: str, message_data: dict[str, Any]
+    ) -> None:
+        await self.requeue_message(chat_id, message_data)
+        await self.mark_send_now(chat_id, message_data["id"])
 
     async def clear_send_now(self, chat_id: str) -> None:
         send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)

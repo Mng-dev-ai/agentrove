@@ -113,6 +113,7 @@ class AcpSession:
         acp_session_id: str,
         agent_kind: AgentKind = AgentKind.CLAUDE,
         stderr_task: asyncio.Task[None] | None = None,
+        steering_supported: bool = False,
     ) -> None:
         self._handler = handler
         self._conn = conn
@@ -120,6 +121,7 @@ class AcpSession:
         self.acp_session_id = acp_session_id
         self._agent_kind = agent_kind
         self._stderr_task = stderr_task
+        self.steering_supported = steering_supported
 
     @property
     def handler(self) -> AcpClientHandler:
@@ -136,18 +138,7 @@ class AcpSession:
     ) -> None:
         self._handler.prepare_for_prompt()
 
-        prompt_blocks: list[
-            TextContentBlock | ImageContentBlock | EmbeddedResourceContentBlock
-        ] = [
-            TextContentBlock(type="text", text=content),
-        ]
-        if attachments:
-            attachment_note = self._build_attachment_note(attachments, agent_kind)
-            if attachment_note:
-                prompt_blocks.append(
-                    TextContentBlock(type="text", text=attachment_note)
-                )
-            prompt_blocks.extend(self._build_attachment_blocks(attachments, agent_kind))
+        prompt_blocks = self._build_prompt_blocks(content, attachments, agent_kind)
 
         try:
             await self._conn.prompt(
@@ -160,6 +151,47 @@ class AcpSession:
             raise
         finally:
             self._handler.finish(prompt_completed=prompt_completed)
+
+    async def steer(
+        self,
+        content: str,
+        attachments: list[dict[str, Any]] | None = None,
+        agent_kind: AgentKind = AgentKind.CLAUDE,
+    ) -> str:
+        prompt_blocks = self._build_prompt_blocks(content, attachments, agent_kind)
+        # The original prompt task owns the live handler queue and its end sentinel;
+        # preparing or finishing here would discard events or terminate that turn.
+        result = await self._conn.ext_method(
+            "_session/steering",
+            {
+                "sessionId": self.acp_session_id,
+                "prompt": [
+                    block.model_dump(by_alias=True, exclude_none=True)
+                    for block in prompt_blocks
+                ],
+            },
+        )
+        outcome = (result or {}).get("outcome", "failed")
+        return outcome if isinstance(outcome, str) else "failed"
+
+    @classmethod
+    def _build_prompt_blocks(
+        cls,
+        content: str,
+        attachments: list[dict[str, Any]] | None,
+        agent_kind: AgentKind,
+    ) -> list[TextContentBlock | ImageContentBlock | EmbeddedResourceContentBlock]:
+        prompt_blocks: list[
+            TextContentBlock | ImageContentBlock | EmbeddedResourceContentBlock
+        ] = [TextContentBlock(type="text", text=content)]
+        if attachments:
+            attachment_note = cls._build_attachment_note(attachments, agent_kind)
+            if attachment_note:
+                prompt_blocks.append(
+                    TextContentBlock(type="text", text=attachment_note)
+                )
+            prompt_blocks.extend(cls._build_attachment_blocks(attachments, agent_kind))
+        return prompt_blocks
 
     @staticmethod
     def _build_attachment_note(
@@ -354,7 +386,13 @@ class AcpSession:
         stderr_task = asyncio.create_task(cls._read_stderr(process))
 
         try:
-            await conn.initialize(protocol_version=ACP_PROTOCOL_VERSION)
+            init_resp = await conn.initialize(protocol_version=ACP_PROTOCOL_VERSION)
+            meta = getattr(init_resp, "field_meta", None) or {}
+            steering_supported = bool(
+                isinstance(meta, dict)
+                and isinstance(meta.get("steering"), dict)
+                and meta["steering"].get("supported") is True
+            )
 
             mcp_servers = cls._build_mcp_servers(config.mcp_servers)
             session_meta = config.session_meta
@@ -472,6 +510,7 @@ class AcpSession:
             acp_session_id=acp_session_id,
             agent_kind=config.agent_kind,
             stderr_task=stderr_task,
+            steering_supported=steering_supported,
         )
 
     @staticmethod
