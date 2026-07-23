@@ -1138,3 +1138,65 @@ async def test_chat_attachments_and_mcp_servers_reach_the_agent(
     last_prompt = prompts[-1]
     assert "image" in last_prompt["block_types"]
     assert "doc.pdf is available at" in last_prompt["text"]
+
+
+def test_untracked_tool_updates_use_meta_name_or_are_dropped() -> None:
+    from acp.schema import ToolCallProgress
+
+    from app.services.acp.client import AcpClientHandler
+
+    handler = AcpClientHandler(agent_kind=AgentKind.CLAUDE)
+
+    # Bare progress for a tool that never had a tool_call start: no title, no
+    # input, no meta name — must be dropped, not minted as "Unknown tool".
+    bare = ToolCallProgress(
+        toolCallId="sub-tool-1", sessionUpdate="tool_call_update", status="in_progress"
+    )
+    assert handler._map_tool_call_progress(bare) is None
+    assert "sub-tool-1" not in handler._active_tools
+
+    # A later terminal update for the same untracked id is also dropped.
+    done = ToolCallProgress(
+        toolCallId="sub-tool-1", sessionUpdate="tool_call_update", status="completed"
+    )
+    assert handler._map_tool_call_progress(done) is None
+
+    # claude-agent-acp stamps the real tool name at _meta.claudeCode.toolName
+    # on subagent tool_progress updates — render the real name.
+    named = ToolCallProgress.model_validate(
+        {
+            "toolCallId": "sub-tool-2",
+            "sessionUpdate": "tool_call_update",
+            "status": "in_progress",
+            "_meta": {"claudeCode": {"toolName": "Bash"}},
+        }
+    )
+    event = handler._map_tool_call_progress(named)
+    assert event is not None
+    assert event["tool"]["name"] == "Bash"
+    assert event["tool"]["title"] == "Bash"
+    assert "sub-tool-2" in handler._active_tools
+
+    # Terminal update for the now-tracked tool completes the same card.
+    named_done = ToolCallProgress.model_validate(
+        {
+            "toolCallId": "sub-tool-2",
+            "sessionUpdate": "tool_call_update",
+            "status": "completed",
+        }
+    )
+    completed = handler._map_tool_call_progress(named_done)
+    assert completed is not None
+    assert completed["tool"]["name"] == "Bash"
+    assert completed["tool"]["status"] == "completed"
+
+    # Updates carrying a title still materialize a card (update-first adapters).
+    titled = ToolCallProgress(
+        toolCallId="sub-tool-3",
+        sessionUpdate="tool_call_update",
+        status="in_progress",
+        title="Reading config",
+    )
+    titled_event = handler._map_tool_call_progress(titled)
+    assert titled_event is not None
+    assert titled_event["tool"]["title"] == "Reading config"
