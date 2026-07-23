@@ -254,7 +254,7 @@ class ChatStreamRuntime:
             checkpoint_id=checkpoint_id,
             prior_duration_ms=duration_ms,
         )
-        logger.info(
+        logger.warning(
             "Rotated live stream for steered message %s on chat %s "
             "(old assistant %s interrupted, continuing into %s)",
             queued_msg.get("id"),
@@ -874,11 +874,11 @@ class ChatStreamRuntime:
         session_factory: SessionFactoryType,
     ) -> bool:
         if chat_id in cls._steering_chats:
-            logger.info("Steering already in flight for chat %s", chat_id)
+            logger.warning("Steering already in flight for chat %s", chat_id)
             return True
         cls._steering_chats.add(chat_id)
         try:
-            logger.info(
+            logger.warning(
                 "Steer attempt for chat %s (send-now message %s)",
                 chat_id,
                 queued_message_id,
@@ -899,7 +899,7 @@ class ChatStreamRuntime:
             elif session.acp_session.handler.has_pending_permissions:
                 skip_reason = "a permission prompt is pending"
             if skip_reason is not None:
-                logger.info(
+                logger.warning(
                     "Steering skipped for chat %s: %s — using legacy send-now",
                     chat_id,
                     skip_reason,
@@ -910,14 +910,14 @@ class ChatStreamRuntime:
                 chat_id, queued_message_id
             )
             if not queued_msg:
-                logger.info(
+                logger.warning(
                     "Send-now message %s for chat %s was already claimed or deleted",
                     queued_message_id,
                     chat_id,
                 )
                 return True
             if queued_msg["model_id"] != runtime.model_id:
-                logger.info(
+                logger.warning(
                     "Steering skipped for chat %s: queued model %s != running model %s"
                     " — using legacy send-now",
                     chat_id,
@@ -958,7 +958,7 @@ class ChatStreamRuntime:
                 or config.permission_mode != session.current_mode
                 or config.fast_mode != session.current_fast_mode
             ):
-                logger.info(
+                logger.warning(
                     "Steering skipped for chat %s: settings differ from running turn "
                     "(fingerprint_match=%s, mode %r vs %r, fast_mode %s vs %s, "
                     "model %s, effort %r) — using legacy send-now",
@@ -977,7 +977,7 @@ class ChatStreamRuntime:
                 chat_id, queued_message_id
             )
             if claimed_msg is None:
-                logger.info(
+                logger.warning(
                     "Send-now message %s for chat %s was concurrently claimed or deleted",
                     queued_message_id,
                     chat_id,
@@ -1014,7 +1014,7 @@ class ChatStreamRuntime:
                     and session.acp_session.handler.enqueue_steer_rotation(claimed_msg)
                 )
                 if delivered:
-                    logger.info(
+                    logger.warning(
                         "Steered send-now message %s into live ACP turn for chat %s",
                         queued_message_id,
                         chat_id,
