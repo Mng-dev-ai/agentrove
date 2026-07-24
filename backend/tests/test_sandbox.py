@@ -23,8 +23,13 @@ from app.services.git import (
     GIT_PUSH_CMD,
     GIT_SHOW_HEAD_TEMPLATE,
     GIT_STATUS_PORCELAIN_CMD,
+    GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE,
+    GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE,
     RESTORE_ALL_CMD,
+    GitService,
+    _validate_base_ref,
 )
+from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.types import (
     CommandResult,
@@ -42,6 +47,134 @@ from tests.helpers import (
 
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.mark.parametrize("base_ref", ["main", "feat/api-keys", "release-1.2"])
+async def test_validate_base_ref_accepts_valid_branch_names(base_ref: str) -> None:
+    assert _validate_base_ref(base_ref) is None
+
+
+@pytest.mark.parametrize(
+    "base_ref",
+    ["-evil", "a b", "x'y", "a..b", "a//b", "x.lock", "@{u}", ""],
+)
+async def test_validate_base_ref_rejects_invalid_branch_names(base_ref: str) -> None:
+    with pytest.raises(SandboxException, match="^Invalid base branch name$"):
+        _validate_base_ref(base_ref)
+
+
+async def test_create_worktree_uses_local_base_without_retry() -> None:
+    provider = ScriptedSandboxProvider()
+    primary_command = GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE.substitute(
+        worktree_dir=".worktrees/12345678",
+        base_worktrees_dir=".worktrees",
+        branch_name="worktree-12345678",
+        base_ref="feature",
+    )
+    provider.script(
+        primary_command,
+        CommandResult(stdout="", stderr="", exit_code=0),
+    )
+    service = GitService(SandboxService(provider))
+
+    worktree = await service.create_worktree(
+        "sandbox-1",
+        "",
+        "12345678-1234-1234-1234-123456789012",
+        base_ref="feature",
+    )
+
+    assert worktree == ".worktrees/12345678"
+    assert len(provider.commands) == 1
+    assert provider.commands[0][1].endswith(primary_command)
+
+
+async def test_create_worktree_retries_remote_base() -> None:
+    provider = ScriptedSandboxProvider()
+    primary_command = GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE.substitute(
+        worktree_dir=".worktrees/12345678",
+        base_worktrees_dir=".worktrees",
+        branch_name="worktree-12345678",
+        base_ref="feature",
+    )
+    remote_command = GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE.substitute(
+        worktree_dir=".worktrees/12345678",
+        base_worktrees_dir=".worktrees",
+        branch_name="worktree-12345678",
+        base_ref="feature",
+    )
+    provider.script(
+        primary_command,
+        CommandResult(
+            stdout="fatal: not a valid object name: 'feature'\n",
+            stderr="",
+            exit_code=128,
+        ),
+    )
+    provider.script(
+        remote_command,
+        CommandResult(stdout="", stderr="", exit_code=0),
+    )
+    service = GitService(SandboxService(provider))
+
+    worktree = await service.create_worktree(
+        "sandbox-1",
+        "",
+        "12345678-1234-1234-1234-123456789012",
+        base_ref="feature",
+    )
+
+    assert worktree == ".worktrees/12345678"
+    assert len(provider.commands) == 2
+    assert provider.commands[0][1].endswith(primary_command)
+    assert provider.commands[1][1].endswith(remote_command)
+
+
+async def test_create_worktree_surfaces_remote_retry_error() -> None:
+    provider = ScriptedSandboxProvider()
+    primary_command = GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE.substitute(
+        worktree_dir=".worktrees/12345678",
+        base_worktrees_dir=".worktrees",
+        branch_name="worktree-12345678",
+        base_ref="missing",
+    )
+    remote_command = GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE.substitute(
+        worktree_dir=".worktrees/12345678",
+        base_worktrees_dir=".worktrees",
+        branch_name="worktree-12345678",
+        base_ref="missing",
+    )
+    provider.script(
+        primary_command,
+        CommandResult(
+            stdout="fatal: not a valid object name: 'missing'\n",
+            stderr="",
+            exit_code=128,
+        ),
+    )
+    provider.script(
+        remote_command,
+        CommandResult(
+            stdout="",
+            stderr="fatal: invalid reference: origin/missing\n",
+            exit_code=128,
+        ),
+    )
+    service = GitService(SandboxService(provider))
+
+    with pytest.raises(
+        SandboxException, match="^fatal: invalid reference: origin/missing$"
+    ):
+        await service.create_worktree(
+            "sandbox-1",
+            "",
+            "12345678-1234-1234-1234-123456789012",
+            base_ref="missing",
+        )
+
+    assert len(provider.commands) == 2
+    assert provider.commands[0][1].endswith(primary_command)
+    assert provider.commands[1][1].endswith(remote_command)
 
 
 class ScriptedSandboxProvider(FakeSandboxProvider):

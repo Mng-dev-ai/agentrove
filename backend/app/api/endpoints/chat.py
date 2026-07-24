@@ -14,6 +14,8 @@ from fastapi import (
     UploadFile,
     status,
 )
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
@@ -62,7 +64,12 @@ from app.models.schemas.pagination import (
     PaginatedResponse,
     PaginationParams,
 )
-from app.models.schemas.queue import QueueAddResponse, QueuedMessage, QueueMessageUpdate
+from app.models.schemas.queue import (
+    QueueAddResponse,
+    QueuedMessage,
+    QueuedMessageBase,
+    QueueMessageUpdate,
+)
 from app.services.chat import ChatService
 from app.services.agent import AgentService
 from app.services.exceptions import (
@@ -124,6 +131,7 @@ async def send_message(
     permission_mode: PermissionMode = Form("bypassPermissions"),
     thinking_mode: str | None = Form(None),
     worktree: bool = Form(False),
+    base_branch: str | None = Form(None),
     fast_mode: bool = Form(False),
     selected_persona_name: str = Form(DEFAULT_PERSONA_NAME),
     attached_files: list[UploadFile] | None = File(None),
@@ -132,18 +140,20 @@ async def send_message(
 ) -> dict[str, Any]:
     files = attached_files or []
     try:
+        request = ChatRequest(
+            prompt=prompt,
+            chat_id=UUID(chat_id),
+            model_id=model_id,
+            attached_files=files,
+            permission_mode=permission_mode,
+            thinking_mode=thinking_mode,
+            worktree=worktree,
+            base_branch=base_branch,
+            fast_mode=fast_mode,
+            selected_persona_name=selected_persona_name,
+        )
         result = await chat_service.initiate_chat_completion(
-            ChatRequest(
-                prompt=prompt,
-                chat_id=UUID(chat_id),
-                model_id=model_id,
-                attached_files=files,
-                permission_mode=permission_mode,
-                thinking_mode=thinking_mode,
-                worktree=worktree,
-                fast_mode=fast_mode,
-                selected_persona_name=selected_persona_name,
-            ),
+            request,
             current_user,
         )
 
@@ -154,6 +164,8 @@ async def send_message(
             "checkpoint_id": result["checkpoint_id"],
             "worktree_cwd": result["worktree_cwd"],
         }
+    except ValidationError as e:
+        raise RequestValidationError(e.errors()) from e
     except ChatException as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
@@ -605,6 +617,7 @@ async def queue_message(
     permission_mode: PermissionMode = Form("bypassPermissions"),
     thinking_mode: str | None = Form(None),
     worktree: bool = Form(False),
+    base_branch: str | None = Form(None),
     fast_mode: bool = Form(False),
     selected_persona_name: str = Form(DEFAULT_PERSONA_NAME),
     attached_files: list[UploadFile] | None = File(None),
@@ -612,6 +625,20 @@ async def queue_message(
     current_user: User = Depends(get_current_user),
     queue_service: QueueService = Depends(get_queue_service),
 ) -> QueueAddResponse:
+    try:
+        queued_message = QueuedMessageBase(
+            content=content,
+            model_id=model_id,
+            permission_mode=permission_mode,
+            thinking_mode=thinking_mode,
+            worktree=worktree,
+            base_branch=base_branch,
+            fast_mode=fast_mode,
+            selected_persona_name=selected_persona_name,
+        )
+    except ValidationError as e:
+        raise RequestValidationError(e.errors()) from e
+
     attachments: list[MessageAttachmentDict] | None = None
     files = attached_files or []
     if files:
@@ -635,13 +662,14 @@ async def queue_message(
 
     return await queue_service.add_message(
         str(chat_id),
-        content,
-        model_id,
-        permission_mode=permission_mode,
-        thinking_mode=thinking_mode,
-        worktree=worktree,
-        fast_mode=fast_mode,
-        selected_persona_name=selected_persona_name,
+        queued_message.content,
+        queued_message.model_id,
+        permission_mode=queued_message.permission_mode,
+        thinking_mode=queued_message.thinking_mode,
+        worktree=queued_message.worktree,
+        base_branch=queued_message.base_branch,
+        fast_mode=queued_message.fast_mode,
+        selected_persona_name=queued_message.selected_persona_name,
         attachments=queue_attachments,
     )
 

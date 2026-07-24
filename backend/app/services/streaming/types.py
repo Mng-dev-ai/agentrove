@@ -52,6 +52,7 @@ class ChatStreamRequest:
     assistant_message_id: str | None
     thinking_mode: str | None
     worktree: bool = False
+    base_branch: str | None = None
     # Codex-only; other agents ignore it at the adapter boundary.
     fast_mode: bool = False
     attachments: list[dict[str, Any]] | None

@@ -18,6 +18,7 @@ async function queueMessage(
     permissionMode = DEFAULT_PERMISSION_MODE,
     thinkingMode = null,
     worktree = false,
+    baseBranch,
     fastMode = false,
     selectedPersonaName = DEFAULT_PERSONA,
     files,
@@ -33,6 +34,9 @@ async function queueMessage(
     }
     if (worktree) {
       formData.append('worktree', 'true');
+    }
+    if (worktree && baseBranch) {
+      formData.append('base_branch', baseBranch);
     }
     if (fastMode) {
       formData.append('fast_mode', 'true');

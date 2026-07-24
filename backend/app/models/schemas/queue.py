@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
+from app.utils.sandbox import BaseBranch
 
 
 class QueuedMessageBase(BaseModel):
@@ -14,6 +15,7 @@ class QueuedMessageBase(BaseModel):
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = None
     worktree: bool = False
+    base_branch: BaseBranch = None
     fast_mode: bool = False
     selected_persona_name: str = DEFAULT_PERSONA_NAME
 

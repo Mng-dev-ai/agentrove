@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.models.db_models.enums import AttachmentType, MessageRole, MessageStreamStatus
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
+from app.utils.sandbox import BaseBranch
 
 
 class MessageAttachmentBase(BaseModel):
@@ -34,6 +35,7 @@ class ChatRequest(BaseModel):
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = Field(None, max_length=50)
     worktree: bool = False
+    base_branch: BaseBranch = None
     # Codex-only: 1.5x speed service tier via codex-acp's fast-mode config.
     fast_mode: bool = False
     selected_persona_name: str = Field(DEFAULT_PERSONA_NAME, max_length=100)

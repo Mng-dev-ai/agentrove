@@ -1,0 +1,62 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.header {
+  padding: var(--space-1) var(--space-1) 0;
+}
+
+.worktree-row {
+  @include anim.transition-colors;
+  display: flex;
+  cursor: pointer;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-2-5);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--theme-border-hover);
+    outline-offset: -2px;
+  }
+}
+
+.worktree-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  color: var(--theme-text-tertiary);
+}
+
+.worktree-label {
+  @include type.type-meta(500);
+  flex: 1;
+  color: var(--theme-text-primary);
+}
+
+.divider {
+  margin: var(--space-1) var(--space-2);
+  border-top: 1px solid var(--theme-border);
+}
+
+.section-label {
+  @include type.type-section-header;
+  padding: var(--space-1) var(--space-2) var(--space-0-5);
+}
+
+.footer {
+  @include type.type-meta;
+  border-top: 1px solid var(--theme-border);
+  padding: var(--space-2) var(--space-2-5);
+  color: var(--theme-text-tertiary);
+  line-height: 1.4;
+}
+
+// Passed to Dropdown's itemClassName — branch names render in monospace.
+.item-mono {
+  @include type.type-mono-meta;
+}

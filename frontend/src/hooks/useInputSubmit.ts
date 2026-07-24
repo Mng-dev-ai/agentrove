@@ -102,6 +102,7 @@ export function useInputSubmit({
         selectedModelId,
       );
       const worktree = settings.worktreeByChat[chatId] ?? DEFAULT_WORKTREE;
+      const baseBranch = settings.worktreeBaseBranchByChat[chatId];
       const fastMode = settings.fastModeByChat[chatId] ?? DEFAULT_FAST_MODE;
       const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
       const validPersona = resolvePersona(storedPersona, personas);
@@ -110,6 +111,7 @@ export function useInputSubmit({
         permissionMode,
         thinkingMode,
         worktree,
+        baseBranch,
         fastMode,
         selectedPersonaName: validPersona,
         files: attachedFiles ?? undefined,

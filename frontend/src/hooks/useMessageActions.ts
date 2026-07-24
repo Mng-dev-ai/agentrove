@@ -24,6 +24,7 @@ interface UseMessageActionsParams {
   permissionMode: PermissionMode;
   thinkingMode: string | null | undefined;
   worktree: boolean;
+  baseBranch: string | undefined;
   fastMode: boolean;
   setStreamState: (state: StreamState) => void;
   setCurrentMessageId: (id: string | null) => void;
@@ -55,6 +56,7 @@ export function useMessageActions({
   permissionMode,
   thinkingMode,
   worktree,
+  baseBranch,
   fastMode,
   setStreamState,
   setCurrentMessageId,
@@ -114,6 +116,7 @@ export function useMessageActions({
               permissionMode,
               thinkingMode: thinkingMode ?? DEFAULT_THINKING_MODE,
               worktree,
+              baseBranch,
               fastMode,
               persona: storedPersona,
             },
@@ -180,6 +183,7 @@ export function useMessageActions({
       startStream,
       thinkingMode,
       worktree,
+      baseBranch,
       fastMode,
       setStreamState,
       setCurrentMessageId,

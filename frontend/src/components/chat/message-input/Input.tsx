@@ -35,6 +35,8 @@ export interface InputProps {
   showAttachedFilesPreview?: boolean;
   contextUsage?: ContextUsageInfo;
   showTip?: boolean;
+  // Landing hosts branch selection in its own composer control, so its footer hides it.
+  showBranch?: boolean;
   compact?: boolean;
   chatId?: string;
   showLoadingSpinner?: boolean;

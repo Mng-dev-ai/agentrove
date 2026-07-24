@@ -9,7 +9,7 @@ import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
 import { Input as ChatInput } from '@/components/chat/message-input/Input';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
-import { WorktreeToggle } from '@/components/chat/worktree-selector/WorktreeToggle';
+import { BranchWorktreeSelector } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
 import { CloudWorkspaceSelector } from '@/components/chat/workspace-selector/CloudWorkspaceSelector';
 import {
   useCloudWorkspacesQuery,
@@ -77,6 +77,10 @@ function getTimeGreeting(): string {
   return 'Good evening';
 }
 
+// Base-branch intent is workspace-scoped, so switching workspace resets it.
+const clearDefaultWorktreeBase = () =>
+  useChatSettingsStore.getState().setWorktreeBaseBranch(DEFAULT_CHAT_SETTINGS_KEY, undefined);
+
 export function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -125,25 +129,51 @@ export function LandingPage() {
   const isCloud = useChatSettingsStore((state) => state.runOnCloud);
   const [selectedCloudWorkspaceId, setSelectedCloudWorkspaceId] = useState<string | null>(null);
 
+  // Single entry points for selection changes: clear the workspace-scoped default
+  // base only on a genuine switch (prior selection existed and differs) so
+  // auto-select (null -> first) and reload keep a persisted base for the same workspace.
+  const handleWorkspaceChange = useCallback(
+    (id: string | null) => {
+      if (selectedWorkspaceId !== null && id !== selectedWorkspaceId) clearDefaultWorktreeBase();
+      setSelectedWorkspaceId(id);
+    },
+    [selectedWorkspaceId],
+  );
+
+  const handleCloudWorkspaceChange = useCallback(
+    (id: string) => {
+      if (selectedCloudWorkspaceId !== null && id !== selectedCloudWorkspaceId)
+        clearDefaultWorktreeBase();
+      setSelectedCloudWorkspaceId(id);
+    },
+    [selectedCloudWorkspaceId],
+  );
+
   // Default local workspace when list loads or current pick is gone.
   useEffect(() => {
     if (!workspaces.length) return;
     if (selectedWorkspaceId && workspaces.some((ws) => ws.id === selectedWorkspaceId)) return;
-    setSelectedWorkspaceId(workspaces[0].id);
-  }, [workspaces, selectedWorkspaceId]);
+    handleWorkspaceChange(workspaces[0].id);
+  }, [workspaces, selectedWorkspaceId, handleWorkspaceChange]);
 
   // One-shot per navigation: preselect workspace + match run location (cloud/local).
   useEffect(() => {
     if (location.key === consumedNavKeyRef.current) return;
     consumedNavKeyRef.current = location.key;
     if (initialCloudWorkspaceId) {
-      setSelectedCloudWorkspaceId(initialCloudWorkspaceId);
+      handleCloudWorkspaceChange(initialCloudWorkspaceId);
       useChatSettingsStore.getState().setRunOnCloud(true);
     } else if (initialWorkspaceId) {
-      setSelectedWorkspaceId(initialWorkspaceId);
+      handleWorkspaceChange(initialWorkspaceId);
       useChatSettingsStore.getState().setRunOnCloud(false);
     }
-  }, [location.key, initialWorkspaceId, initialCloudWorkspaceId]);
+  }, [
+    location.key,
+    initialWorkspaceId,
+    initialCloudWorkspaceId,
+    handleWorkspaceChange,
+    handleCloudWorkspaceChange,
+  ]);
 
   if (initialMessage && !consumedInitialMessageRef.current) {
     consumedInitialMessageRef.current = true;
@@ -266,6 +296,7 @@ export function LandingPage() {
                   DEFAULT_THINKING_MODE,
                 worktree:
                   chatSettings.worktreeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_WORKTREE,
+                baseBranch: chatSettings.worktreeBaseBranchByChat[DEFAULT_CHAT_SETTINGS_KEY],
                 fastMode:
                   chatSettings.fastModeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_FAST_MODE,
                 persona: chatSettings.personaByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_PERSONA,
@@ -353,21 +384,29 @@ export function LandingPage() {
         {isCloud ? (
           <CloudWorkspaceSelector
             selectedWorkspaceId={selectedCloudWorkspaceId}
-            onWorkspaceChange={setSelectedCloudWorkspaceId}
+            onWorkspaceChange={handleCloudWorkspaceChange}
             disabled={isLoading}
           />
         ) : (
           <WorkspaceSelector
             selectedWorkspaceId={selectedWorkspaceId}
-            onWorkspaceChange={setSelectedWorkspaceId}
+            onWorkspaceChange={handleWorkspaceChange}
             enabled={isAuthenticated}
           />
         )}
-        <WorktreeToggle disabled={isLoading} />
+        <BranchWorktreeSelector disabled={isLoading} />
         <RunLocationSelector disabled={isLoading} />
       </div>
     ),
-    [isCloud, selectedCloudWorkspaceId, selectedWorkspaceId, isLoading, isAuthenticated],
+    [
+      isCloud,
+      selectedCloudWorkspaceId,
+      selectedWorkspaceId,
+      handleCloudWorkspaceChange,
+      handleWorkspaceChange,
+      isLoading,
+      isAuthenticated,
+    ],
   );
 
   const sidebarContent = useMemo(() => {
@@ -418,6 +457,7 @@ export function LandingPage() {
                   selectedModelId={selectedModelId}
                   onModelChange={selectModel}
                   showTip={false}
+                  showBranch={false}
                   placeholder="Message Agentrove... (@ to mention, / for commands)"
                 />
 
