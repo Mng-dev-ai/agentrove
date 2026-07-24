@@ -18,6 +18,7 @@ export interface InputState {
   showDrawingModal: boolean;
   showLoadingSpinner: boolean;
   showTip: boolean;
+  showBranch: boolean;
   isDragging: boolean;
   compact: boolean;
   placeholder: string;

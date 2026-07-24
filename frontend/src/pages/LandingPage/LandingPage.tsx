@@ -9,7 +9,7 @@ import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
 import { Input as ChatInput } from '@/components/chat/message-input/Input';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
-import { WorktreeToggle } from '@/components/chat/worktree-selector/WorktreeToggle';
+import { BranchWorktreeSelector } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
 import { CloudWorkspaceSelector } from '@/components/chat/workspace-selector/CloudWorkspaceSelector';
 import {
   useCloudWorkspacesQuery,
@@ -266,6 +266,7 @@ export function LandingPage() {
                   DEFAULT_THINKING_MODE,
                 worktree:
                   chatSettings.worktreeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_WORKTREE,
+                baseBranch: chatSettings.worktreeBaseBranchByChat[DEFAULT_CHAT_SETTINGS_KEY],
                 fastMode:
                   chatSettings.fastModeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_FAST_MODE,
                 persona: chatSettings.personaByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_PERSONA,
@@ -363,7 +364,7 @@ export function LandingPage() {
             enabled={isAuthenticated}
           />
         )}
-        <WorktreeToggle disabled={isLoading} />
+        <BranchWorktreeSelector disabled={isLoading} />
         <RunLocationSelector disabled={isLoading} />
       </div>
     ),
@@ -418,6 +419,7 @@ export function LandingPage() {
                   selectedModelId={selectedModelId}
                   onModelChange={selectModel}
                   showTip={false}
+                  showBranch={false}
                   placeholder="Message Agentrove... (@ to mention, / for commands)"
                 />
 

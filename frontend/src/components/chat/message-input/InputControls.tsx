@@ -30,7 +30,11 @@ export function InputControls() {
 
   const showPersona =
     personas.length > 0 && (!agentKind || PERSONAS_SUPPORTED_AGENTS.has(agentKind));
-  const showBranch = !!sandboxId && !!branchesData?.is_git_repo && branchesData.branches.length > 0;
+  const showBranch =
+    state.showBranch &&
+    !!sandboxId &&
+    !!branchesData?.is_git_repo &&
+    branchesData.branches.length > 0;
   // Model-aware: some agents only expose a reasoning dial on specific models
   // (e.g. Grok 4.5 but not Composer), so the base per-agent list isn't enough.
   const showThinking = agentKind
