@@ -48,7 +48,8 @@ export interface DropdownProps<T> {
   renderHeader?: () => ReactNode;
   renderFooter?: () => ReactNode;
   onOpenChange?: (isOpen: boolean) => void;
-  triggerVariant?: 'default' | 'text';
+  // 'toolbar' matches ToggleDropdown's composer-toolbar trigger (icon always shown).
+  triggerVariant?: 'default' | 'text' | 'toolbar';
   dropdownAlign?: 'left' | 'right';
 }
 
@@ -191,7 +192,11 @@ const Dropdown = memo(function Dropdown<T>({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={clsx(
-          triggerVariant === 'text' ? styles['trigger-text'] : styles.trigger,
+          triggerVariant === 'text'
+            ? styles['trigger-text']
+            : triggerVariant === 'toolbar'
+              ? styles['trigger-toolbar']
+              : styles.trigger,
           isOpen && !disabled && stateClasses.OPEN,
         )}
       >
@@ -199,7 +204,7 @@ const Dropdown = memo(function Dropdown<T>({
           <LeftIcon
             className={clsx(
               styles['trigger-icon'],
-              !forceCompact && styles['trigger-icon--responsive'],
+              !forceCompact && triggerVariant !== 'toolbar' && styles['trigger-icon--responsive'],
             )}
           />
         )}
@@ -210,7 +215,10 @@ const Dropdown = memo(function Dropdown<T>({
           <ChevronDown
             className={clsx(
               styles.chevron,
-              showIconOnly && !forceCompact && styles['chevron--responsive'],
+              showIconOnly &&
+                !forceCompact &&
+                triggerVariant !== 'toolbar' &&
+                styles['chevron--responsive'],
               isOpen && stateClasses.OPEN,
             )}
           />

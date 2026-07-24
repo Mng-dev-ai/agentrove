@@ -56,6 +56,30 @@
   }
 }
 
+// triggerVariant="toolbar" — matches the ToggleDropdown trigger so mixed controls
+// in the composer selector row read as one family (icon always visible, muted label).
+.trigger-toolbar {
+  @include type.type-meta;
+  @include anim.transition-colors;
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1-5);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-1-5);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
 .trigger-icon {
   height: var(--space-3);
   width: var(--space-3);
@@ -64,6 +88,10 @@
 
   .trigger-text & {
     color: currentColor;
+  }
+
+  .trigger-toolbar & {
+    color: var(--theme-text-quaternary);
   }
 
   // compactOnMobile: the icon stands in for the label only below the sm breakpoint
@@ -97,6 +125,11 @@
   color: var(--theme-text-secondary);
 
   .trigger-text & {
+    color: inherit;
+  }
+
+  .trigger-toolbar & {
+    font-weight: 400;
     color: inherit;
   }
 }

@@ -139,6 +139,7 @@ export const BranchWorktreeSelector = memo(function BranchWorktreeSelector({
       }
       onSelect={handleSelect}
       leftIcon={GitBranch}
+      triggerVariant="toolbar"
       width="17rem"
       disabled={disabled || isPending}
       compactOnMobile
