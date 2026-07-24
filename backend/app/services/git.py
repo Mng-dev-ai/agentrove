@@ -18,7 +18,7 @@ from app.models.schemas.sandbox import (
 )
 from app.services.exceptions import SandboxException
 from app.services.sandbox import SandboxService
-from app.utils.sandbox import BRANCH_NAME_RE, git_cd_prefix
+from app.utils.sandbox import BRANCH_NAME_RE, git_cd_prefix, is_valid_base_ref
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,6 @@ class Checkpoint(NamedTuple):
 GITHUB_REMOTE_RE = re.compile(
     r"(?:https?://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?$"
 )
-BASE_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$")
-
 GIT_IS_REPO_CMD = "git rev-parse --is-inside-work-tree 2>/dev/null"
 GIT_CURRENT_BRANCH_CMD = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
 # One round-trip so a clean tree (the common case) avoids the diff capture.
@@ -103,14 +101,7 @@ GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE = Template(
 
 
 def _validate_base_ref(base_ref: str) -> None:
-    if (
-        not BASE_REF_RE.fullmatch(base_ref)
-        or ".." in base_ref
-        or "//" in base_ref
-        or "@{" in base_ref
-        or base_ref.endswith("/")
-        or base_ref.endswith(".lock")
-    ):
+    if not is_valid_base_ref(base_ref):
         raise SandboxException("Invalid base branch name")
 
 

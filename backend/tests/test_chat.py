@@ -386,7 +386,7 @@ async def test_send_message_endpoint_passes_form_fields_to_chat_service(
             "permission_mode": "default",
             "thinking_mode": "high",
             "worktree": "true",
-            "base_branch": "main",
+            "base_branch": " main ",
             "selected_persona_name": "Builder",
         },
         files={"attached_files": ("note.txt", b"hello", "text/plain")},
@@ -413,6 +413,45 @@ async def test_send_message_endpoint_passes_form_fields_to_chat_service(
     assert request.attached_files is not None
     assert request.attached_files[0].filename == "note.txt"
     assert [stored_user.id for stored_user in chat_service.users] == [user.id]
+
+
+async def test_send_message_endpoint_validates_base_branch_before_starting_turn(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    chat_service = ChatCompletionServiceOverride()
+    app.dependency_overrides[get_chat_service] = chat_service
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    request_data = {
+        "prompt": "Ship this",
+        "chat_id": str(chat.id),
+        "model_id": TEST_MODEL_ID,
+        "worktree": "true",
+    }
+
+    invalid_response = await client.post(
+        "/api/v1/chat/chat",
+        data={**request_data, "base_branch": "a b"},
+        headers=headers,
+    )
+
+    assert invalid_response.status_code == 422
+    assert chat_service.requests == []
+
+    blank_response = await client.post(
+        "/api/v1/chat/chat",
+        data={**request_data, "base_branch": ""},
+        headers=headers,
+    )
+
+    assert blank_response.status_code == 200
+    assert chat_service.requests[0].base_branch is None
 
 
 async def test_send_message_endpoint_translates_chat_errors(
@@ -1096,7 +1135,7 @@ async def test_queue_message_lifecycle(
             "permission_mode": "bypassPermissions",
             "thinking_mode": "high",
             "worktree": "true",
-            "base_branch": "main",
+            "base_branch": " main ",
             "selected_persona_name": "Default",
         },
         headers=headers,
@@ -1177,6 +1216,46 @@ async def test_queue_message_lifecycle(
     assert clear_response.status_code == 204
     assert cleared_list_response.status_code == 200
     assert cleared_list_response.json() == []
+
+
+async def test_queue_message_endpoint_validates_base_branch_before_queueing(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    queue_override = QueueServiceOverride()
+    app.dependency_overrides[get_queue_service] = queue_override
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    endpoint = f"/api/v1/chat/chats/{chat.id}/queue"
+    request_data = {
+        "content": "Queued prompt",
+        "model_id": TEST_MODEL_ID,
+        "worktree": "true",
+    }
+
+    invalid_response = await client.post(
+        endpoint,
+        data={**request_data, "base_branch": "a b"},
+        headers=headers,
+    )
+
+    assert invalid_response.status_code == 422
+    assert await QueueService(queue_override.store).get_queue(str(chat.id)) == []
+
+    blank_response = await client.post(
+        endpoint,
+        data={**request_data, "base_branch": ""},
+        headers=headers,
+    )
+
+    assert blank_response.status_code == 201
+    queued = await QueueService(queue_override.store).get_queue(str(chat.id))
+    assert queued[0].base_branch is None
 
 
 async def test_queue_access_is_limited_to_chat_owner(

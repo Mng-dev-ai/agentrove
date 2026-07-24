@@ -2,6 +2,18 @@ import re
 
 # Reject shell-injectable branch names / cwd paths passed to exec.
 BRANCH_NAME_RE = re.compile(r"^[\w./-]+$")
+BASE_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$")
+
+
+def is_valid_base_ref(base_ref: str) -> bool:
+    return bool(
+        BASE_REF_RE.fullmatch(base_ref)
+        and ".." not in base_ref
+        and "//" not in base_ref
+        and "@{" not in base_ref
+        and not base_ref.endswith("/")
+        and not base_ref.endswith(".lock")
+    )
 
 
 def normalize_relative_path(path: str | None) -> str:

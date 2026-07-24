@@ -3,11 +3,12 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import UploadFile
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.db_models.enums import AttachmentType, MessageRole, MessageStreamStatus
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
+from app.utils.sandbox import is_valid_base_ref
 
 
 class MessageAttachmentBase(BaseModel):
@@ -38,6 +39,18 @@ class ChatRequest(BaseModel):
     # Codex-only: 1.5x speed service tier via codex-acp's fast-mode config.
     fast_mode: bool = False
     selected_persona_name: str = Field(DEFAULT_PERSONA_NAME, max_length=100)
+
+    @field_validator("base_branch")
+    @classmethod
+    def validate_base_branch(cls, base_branch: str | None) -> str | None:
+        if base_branch is None:
+            return None
+        base_branch = base_branch.strip()
+        if not base_branch:
+            return None
+        if not is_valid_base_ref(base_branch):
+            raise ValueError("Invalid base branch name")
+        return base_branch
 
 
 class MessageBase(BaseModel):
