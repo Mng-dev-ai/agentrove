@@ -129,25 +129,51 @@ export function LandingPage() {
   const isCloud = useChatSettingsStore((state) => state.runOnCloud);
   const [selectedCloudWorkspaceId, setSelectedCloudWorkspaceId] = useState<string | null>(null);
 
+  // Single entry points for selection changes: clear the workspace-scoped default
+  // base only on a genuine switch (prior selection existed and differs) so
+  // auto-select (null -> first) and reload keep a persisted base for the same workspace.
+  const handleWorkspaceChange = useCallback(
+    (id: string | null) => {
+      if (selectedWorkspaceId !== null && id !== selectedWorkspaceId) clearDefaultWorktreeBase();
+      setSelectedWorkspaceId(id);
+    },
+    [selectedWorkspaceId],
+  );
+
+  const handleCloudWorkspaceChange = useCallback(
+    (id: string) => {
+      if (selectedCloudWorkspaceId !== null && id !== selectedCloudWorkspaceId)
+        clearDefaultWorktreeBase();
+      setSelectedCloudWorkspaceId(id);
+    },
+    [selectedCloudWorkspaceId],
+  );
+
   // Default local workspace when list loads or current pick is gone.
   useEffect(() => {
     if (!workspaces.length) return;
     if (selectedWorkspaceId && workspaces.some((ws) => ws.id === selectedWorkspaceId)) return;
-    setSelectedWorkspaceId(workspaces[0].id);
-  }, [workspaces, selectedWorkspaceId]);
+    handleWorkspaceChange(workspaces[0].id);
+  }, [workspaces, selectedWorkspaceId, handleWorkspaceChange]);
 
   // One-shot per navigation: preselect workspace + match run location (cloud/local).
   useEffect(() => {
     if (location.key === consumedNavKeyRef.current) return;
     consumedNavKeyRef.current = location.key;
     if (initialCloudWorkspaceId) {
-      setSelectedCloudWorkspaceId(initialCloudWorkspaceId);
+      handleCloudWorkspaceChange(initialCloudWorkspaceId);
       useChatSettingsStore.getState().setRunOnCloud(true);
     } else if (initialWorkspaceId) {
-      setSelectedWorkspaceId(initialWorkspaceId);
+      handleWorkspaceChange(initialWorkspaceId);
       useChatSettingsStore.getState().setRunOnCloud(false);
     }
-  }, [location.key, initialWorkspaceId, initialCloudWorkspaceId]);
+  }, [
+    location.key,
+    initialWorkspaceId,
+    initialCloudWorkspaceId,
+    handleWorkspaceChange,
+    handleCloudWorkspaceChange,
+  ]);
 
   if (initialMessage && !consumedInitialMessageRef.current) {
     consumedInitialMessageRef.current = true;
@@ -350,25 +376,6 @@ export function LandingPage() {
       navigate(`/chat/${chatId}`);
     },
     [navigate],
-  );
-
-  // Clear the base only on a genuine user switch (prior selection existed and differs)
-  // so auto-select (null -> first) and reload keep a persisted base for the same workspace.
-  const handleWorkspaceChange = useCallback(
-    (id: string | null) => {
-      if (selectedWorkspaceId !== null && id !== selectedWorkspaceId) clearDefaultWorktreeBase();
-      setSelectedWorkspaceId(id);
-    },
-    [selectedWorkspaceId],
-  );
-
-  const handleCloudWorkspaceChange = useCallback(
-    (id: string) => {
-      if (selectedCloudWorkspaceId !== null && id !== selectedCloudWorkspaceId)
-        clearDefaultWorktreeBase();
-      setSelectedCloudWorkspaceId(id);
-    },
-    [selectedCloudWorkspaceId],
   );
 
   const composerSelectors = useMemo(
