@@ -84,7 +84,15 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         set((state) => ({
           fastModeByChat: { ...state.fastModeByChat, [chatId]: enabled },
         })),
-      setRunOnCloud: (enabled) => set({ runOnCloud: enabled }),
+      setRunOnCloud: (enabled) =>
+        set((state) => {
+          if (enabled === state.runOnCloud) return {};
+          // Local<->cloud swaps the active workspace without a workspace-change
+          // event, so the workspace-scoped default base must reset here too.
+          const next = { ...state.worktreeBaseBranchByChat };
+          delete next[DEFAULT_KEY];
+          return { runOnCloud: enabled, worktreeBaseBranchByChat: next };
+        }),
       setPersona: (chatId, name) =>
         set((state) => ({
           personaByChat: { ...state.personaByChat, [chatId]: name },
