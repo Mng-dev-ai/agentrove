@@ -12,6 +12,7 @@ export interface QueueMessageOptions {
   permissionMode?: PermissionMode;
   thinkingMode?: string | null;
   worktree?: boolean;
+  baseBranch?: string;
   fastMode?: boolean;
   selectedPersonaName?: string;
   files?: File[];
@@ -24,6 +25,7 @@ export interface QueuedMessage {
   permission_mode: PermissionMode;
   thinking_mode?: string | null;
   worktree: boolean;
+  base_branch?: string | null;
   fast_mode: boolean;
   selected_persona_name: string;
   queued_at: string;
@@ -43,6 +45,7 @@ export interface LocalQueuedMessage {
   permissionMode?: PermissionMode;
   thinkingMode?: string | null;
   worktree?: boolean;
+  baseBranch?: string;
   fastMode?: boolean;
   selectedPersonaName?: string;
   queuedAt: number;

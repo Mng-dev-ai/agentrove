@@ -26,6 +26,8 @@ interface ChatSettingsState {
   permissionModeByChat: Record<string, PermissionMode>;
   thinkingModeByChat: Record<string, string>;
   worktreeByChat: Record<string, boolean>;
+  // Base branch a new worktree is cut from; undefined = follow the current branch.
+  worktreeBaseBranchByChat: Record<string, string | undefined>;
   // Codex-only 1.5x tier; other agents ignore it.
   fastModeByChat: Record<string, boolean>;
   // Global landing-composer choice (cloud chats have no local id to key by).
@@ -34,6 +36,7 @@ interface ChatSettingsState {
   setPermissionMode: (chatId: string, mode: PermissionMode) => void;
   setThinkingMode: (chatId: string, mode: string) => void;
   setWorktree: (chatId: string, enabled: boolean) => void;
+  setWorktreeBaseBranch: (chatId: string, branch: string | undefined) => void;
   setFastMode: (chatId: string, enabled: boolean) => void;
   setRunOnCloud: (enabled: boolean) => void;
   setPersona: (chatId: string, name: string) => void;
@@ -46,6 +49,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       permissionModeByChat: {},
       thinkingModeByChat: {},
       worktreeByChat: {},
+      worktreeBaseBranchByChat: {},
       fastModeByChat: {},
       runOnCloud: false,
       personaByChat: {},
@@ -64,6 +68,10 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         set((state) => ({
           worktreeByChat: { ...state.worktreeByChat, [chatId]: enabled },
         })),
+      setWorktreeBaseBranch: (chatId, branch) =>
+        set((state) => ({
+          worktreeBaseBranchByChat: { ...state.worktreeBaseBranchByChat, [chatId]: branch },
+        })),
       setFastMode: (chatId, enabled) =>
         set((state) => ({
           fastModeByChat: { ...state.fastModeByChat, [chatId]: enabled },
@@ -79,6 +87,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         const permission = state.permissionModeByChat[DEFAULT_KEY];
         const thinking = state.thinkingModeByChat[DEFAULT_KEY];
         const worktree = state.worktreeByChat[DEFAULT_KEY];
+        const baseBranch = state.worktreeBaseBranchByChat[DEFAULT_KEY];
         const fastMode = state.fastModeByChat[DEFAULT_KEY];
         const persona = state.personaByChat[DEFAULT_KEY];
         const updates: Partial<
@@ -87,6 +96,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
             | 'permissionModeByChat'
             | 'thinkingModeByChat'
             | 'worktreeByChat'
+            | 'worktreeBaseBranchByChat'
             | 'fastModeByChat'
             | 'personaByChat'
           >
@@ -102,6 +112,12 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         }
         if (worktree !== undefined) {
           updates.worktreeByChat = { ...state.worktreeByChat, [chatId]: worktree };
+        }
+        if (baseBranch !== undefined) {
+          updates.worktreeBaseBranchByChat = {
+            ...state.worktreeBaseBranchByChat,
+            [chatId]: baseBranch,
+          };
         }
         if (fastMode !== undefined) {
           updates.fastModeByChat = { ...state.fastModeByChat, [chatId]: fastMode };

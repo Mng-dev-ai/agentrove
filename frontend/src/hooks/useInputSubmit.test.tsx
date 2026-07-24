@@ -10,6 +10,14 @@ const h = vi.hoisted(() => ({
   clearComposerSelections: vi.fn(),
   removeComposerSelection: vi.fn(),
   toastError: vi.fn(),
+  settings: {
+    permissionModeByChat: {} as Record<string, unknown>,
+    thinkingModeByChat: {} as Record<string, unknown>,
+    worktreeByChat: {} as Record<string, unknown>,
+    worktreeBaseBranchByChat: {} as Record<string, string | undefined>,
+    fastModeByChat: {} as Record<string, unknown>,
+    personaByChat: {} as Record<string, unknown>,
+  },
 }));
 
 vi.mock('react-hot-toast', () => ({ default: { error: h.toastError } }));
@@ -26,13 +34,7 @@ vi.mock('@/store/uiStore', () => ({
 }));
 vi.mock('@/store/chatSettingsStore', () => ({
   useChatSettingsStore: {
-    getState: () => ({
-      permissionModeByChat: {},
-      thinkingModeByChat: {},
-      worktreeByChat: {},
-      fastModeByChat: {},
-      personaByChat: {},
-    }),
+    getState: () => h.settings,
   },
   DEFAULT_PERMISSION_MODE: 'bypassPermissions',
   DEFAULT_THINKING_MODE: 'high',
@@ -75,6 +77,12 @@ function formEvent() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  h.settings.permissionModeByChat = {};
+  h.settings.thinkingModeByChat = {};
+  h.settings.worktreeByChat = {};
+  h.settings.worktreeBaseBranchByChat = {};
+  h.settings.fastModeByChat = {};
+  h.settings.personaByChat = {};
 });
 
 describe('useInputSubmit — handleSubmit', () => {
@@ -134,6 +142,18 @@ describe('useInputSubmit — submitOrStop queue path', () => {
     expect(opts.setMessage).toHaveBeenCalledWith('');
     expect(opts.onAttach).toHaveBeenCalledWith([]);
     expect(opts.setPreviewDismissed).toHaveBeenCalledWith(true);
+  });
+
+  it('threads the per-chat worktree and base branch into the queued options', () => {
+    h.settings.worktreeByChat = { 'chat-1': true };
+    h.settings.worktreeBaseBranchByChat = { 'chat-1': 'develop' };
+    const opts = makeOptions({ isStreaming: true, hasContent: true });
+    const { result } = renderHook(() => useInputSubmit(opts));
+    act(() => result.current.submitOrStop());
+
+    const options = h.queueMessage.mock.calls[0][3] as { worktree: boolean; baseBranch?: string };
+    expect(options.worktree).toBe(true);
+    expect(options.baseBranch).toBe('develop');
   });
 
   it('refuses to queue and warns when no model is selected — the draft survives', () => {

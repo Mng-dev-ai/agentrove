@@ -61,6 +61,7 @@ export function ChatSessionOrchestrator({
   const worktree = useChatSettingsStore(
     (state) => state.worktreeByChat[chatId] ?? DEFAULT_WORKTREE,
   );
+  const baseBranch = useChatSettingsStore((state) => state.worktreeBaseBranchByChat[chatId]);
   const fastMode = useChatSettingsStore(
     (state) => state.fastModeByChat[chatId] ?? DEFAULT_FAST_MODE,
   );
@@ -130,6 +131,7 @@ export function ChatSessionOrchestrator({
     permissionMode,
     thinkingMode,
     worktree,
+    baseBranch,
     fastMode,
     onPermissionRequest: handlePermissionRequest,
   });

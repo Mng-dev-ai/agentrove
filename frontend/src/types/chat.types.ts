@@ -94,6 +94,8 @@ export interface ChatRequest {
   permission_mode: PermissionMode;
   thinking_mode?: string;
   worktree?: boolean;
+  // Base branch for the worktree; only sent when worktree creates one this turn.
+  base_branch?: string;
   // Codex-only; ignored by other agents on the backend.
   fast_mode?: boolean;
   selected_persona_name: string;

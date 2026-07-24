@@ -15,6 +15,7 @@ const raw = (over: Partial<Parameters<typeof buildAgentChatFields>[2]> = {}) => 
   permissionMode: 'bypassPermissions' as const,
   thinkingMode: 'high',
   worktree: false,
+  baseBranch: undefined,
   fastMode: false,
   persona: 'Default',
   ...over,
@@ -66,6 +67,31 @@ describe('buildAgentChatFields', () => {
     const off = buildAgentChatFields('claude-x', new Map(), raw({ worktree: false }), []);
     expect(on.worktree).toBe(true);
     expect(off.worktree).toBeUndefined();
+  });
+
+  it('sends base_branch only when a worktree is being created this turn', () => {
+    const worktreeWithBase = buildAgentChatFields(
+      'claude-x',
+      new Map(),
+      raw({ worktree: true, baseBranch: 'develop' }),
+      [],
+    );
+    const worktreeNoBase = buildAgentChatFields(
+      'claude-x',
+      new Map(),
+      raw({ worktree: true, baseBranch: undefined }),
+      [],
+    );
+    const baseWithoutWorktree = buildAgentChatFields(
+      'claude-x',
+      new Map(),
+      raw({ worktree: false, baseBranch: 'develop' }),
+      [],
+    );
+    expect(worktreeWithBase.base_branch).toBe('develop');
+    expect(worktreeNoBase.base_branch).toBeUndefined();
+    // A stale base can't leak onto a turn that isn't cutting a worktree.
+    expect(baseWithoutWorktree.base_branch).toBeUndefined();
   });
 
   it('sends fast_mode only for Codex when enabled', () => {

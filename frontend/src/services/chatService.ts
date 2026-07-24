@@ -37,6 +37,9 @@ export function buildChatFormData(request: ChatRequest): FormData {
   if (request.worktree) {
     formData.append('worktree', 'true');
   }
+  if (request.base_branch) {
+    formData.append('base_branch', request.base_branch);
+  }
   if (request.fast_mode) {
     formData.append('fast_mode', 'true');
   }
