@@ -528,6 +528,7 @@ class ChatStreamRuntime:
                 assistant_message.id,
                 self.session_factory,
                 next_msg["worktree"],
+                next_msg.get("base_branch"),
             )
 
             await self.emit_event(
@@ -825,6 +826,7 @@ class ChatStreamRuntime:
             assistant_message_id=assistant_message_id,
             thinking_mode=queued_msg["thinking_mode"],
             worktree=queued_msg["worktree"],
+            base_branch=queued_msg.get("base_branch"),
             # Older queue entries predate fast_mode.
             fast_mode=queued_msg.get("fast_mode", False),
             attachments=queued_msg["attachments"],
@@ -880,6 +882,7 @@ class ChatStreamRuntime:
                 assistant_message.id,
                 session_factory,
                 queued_msg["worktree"],
+                queued_msg.get("base_branch"),
             )
 
             user_service = UserService(session_factory=session_factory)
@@ -1043,6 +1046,7 @@ class ChatStreamRuntime:
                 thinking_mode=request.thinking_mode,
                 system_prompt=request.system_prompt,
                 worktree=request.worktree,
+                base_branch=request.base_branch,
                 selected_persona_name=request.selected_persona_name,
                 fast_mode=request.fast_mode,
             )

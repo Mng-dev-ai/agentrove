@@ -187,6 +187,7 @@ async def send_message(
     model_id: str | None = None,
     thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None,
     worktree: bool = False,
+    base_branch: str | None = None,
     fast_mode: bool = False,
     persona: str | None = None,
 ) -> dict[str, Any]:
@@ -203,6 +204,7 @@ async def send_message(
     worktree (its own branch); fast_mode=true enables Codex's fast mode (ignored by
     non-Codex agents); persona selects a custom persona by name (defaults to the
     standard persona).
+    base_branch: start the worktree from this branch instead of current HEAD; only used with worktree=true.
 
     Follow-up turns (chat_id given) inherit the chat's previous model_id, thinking_mode
     and persona when you omit them — pass a value only to change it for this turn.
@@ -234,6 +236,7 @@ async def send_message(
         permission_mode=permission_mode,
         thinking_mode=thinking_mode,
         worktree=worktree,
+        base_branch=base_branch,
         fast_mode=fast_mode,
         persona=persona,
     )

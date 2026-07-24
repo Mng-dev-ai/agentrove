@@ -180,6 +180,7 @@ class AgentroveClient:
         permission_mode: str,
         thinking_mode: str | None = None,
         worktree: bool = False,
+        base_branch: str | None = None,
         fast_mode: bool = False,
         persona: str | None = None,
     ) -> dict[str, Any]:
@@ -194,6 +195,8 @@ class AgentroveClient:
         }
         if thinking_mode:
             data["thinking_mode"] = thinking_mode
+        if base_branch:
+            data["base_branch"] = base_branch
         if persona:
             data["selected_persona_name"] = persona
         resp = await self.request("POST", "/chat/chat", data=data)

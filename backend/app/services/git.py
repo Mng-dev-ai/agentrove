@@ -31,6 +31,7 @@ class Checkpoint(NamedTuple):
 GITHUB_REMOTE_RE = re.compile(
     r"(?:https?://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?$"
 )
+BASE_REF_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,254}$")
 
 GIT_IS_REPO_CMD = "git rev-parse --is-inside-work-tree 2>/dev/null"
 GIT_CURRENT_BRANCH_CMD = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
@@ -90,6 +91,28 @@ GIT_WORKTREE_ADD_TEMPLATE = Template(
     "mkdir -p '$base_worktrees_dir' && "
     "git worktree add '$worktree_dir' -b '$branch_name' 2>&1"
 )
+GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE = Template(
+    "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
+    "if [ -e '$worktree_dir/.git' ]; then echo 'exists'; exit 0; fi; "
+    'excl="$$(git rev-parse --git-path info/exclude)"; '
+    '{ mkdir -p "$${excl%/*}" && grep -qxF ".worktrees/" "$$excl" '
+    '|| echo ".worktrees/" >> "$$excl"; } 2>/dev/null; '
+    "mkdir -p '$base_worktrees_dir' && "
+    "git worktree add '$worktree_dir' -b '$branch_name' '$base_ref' 2>&1"
+)
+
+
+def _validate_base_ref(base_ref: str) -> None:
+    if (
+        not BASE_REF_RE.fullmatch(base_ref)
+        or ".." in base_ref
+        or "//" in base_ref
+        or "@{" in base_ref
+        or base_ref.endswith("/")
+        or base_ref.endswith(".lock")
+    ):
+        raise SandboxException("Invalid base branch name")
+
 
 # Chat deletion is best-effort cleanup: `remove` without --force refuses when
 # the worktree has uncommitted changes and `-d` refuses when the branch is
@@ -615,6 +638,8 @@ class GitService:
         sandbox_id: str,
         base_cwd: str,
         chat_id: str,
+        *,
+        base_ref: str | None = None,
     ) -> str:
         # The caller only opts into this path when it explicitly requested
         # worktree isolation, so setup failures must surface instead of
@@ -625,11 +650,21 @@ class GitService:
         rel_worktree = posixpath.join(base_cwd, self.chat_worktree_path(chat_id))
         branch_name = f"worktree-{short_id}"
         git_prefix = self.git_command_prefix(base_cwd)
-        cmd = git_prefix + GIT_WORKTREE_ADD_TEMPLATE.substitute(
-            worktree_dir=rel_worktree,
-            base_worktrees_dir=rel_base_worktrees,
-            branch_name=branch_name,
-        )
+        if base_ref is None:
+            command = GIT_WORKTREE_ADD_TEMPLATE.substitute(
+                worktree_dir=rel_worktree,
+                base_worktrees_dir=rel_base_worktrees,
+                branch_name=branch_name,
+            )
+        else:
+            _validate_base_ref(base_ref)
+            command = GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE.substitute(
+                worktree_dir=rel_worktree,
+                base_worktrees_dir=rel_base_worktrees,
+                branch_name=branch_name,
+                base_ref=base_ref,
+            )
+        cmd = git_prefix + command
         # Local git operation — no user secrets needed, so bypass
         # SandboxService.execute_command and call the provider directly.
         result = await self.sandbox_service.provider.execute_command(

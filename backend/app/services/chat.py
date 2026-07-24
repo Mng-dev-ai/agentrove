@@ -741,6 +741,7 @@ class ChatService(BaseDbService[Chat]):
         assistant_message_id: UUID,
         session_factory: SessionFactoryType,
         worktree: bool,
+        base_branch: str | None = None,
     ) -> UUID | None:
         # Best-effort: a non-git workspace must not block the agent run.
         sandbox_id = chat.sandbox_id
@@ -751,7 +752,7 @@ class ChatService(BaseDbService[Chat]):
             # Resolve the same cwd the agent turn runs in, so the checkpoint's
             # diff and restore target match where the agent actually edited.
             cwd = await AgentService(session_factory=session_factory).resolve_cwd(
-                chat, worktree
+                chat, worktree, base_branch
             )
             provider = SandboxProvider.create_provider(
                 chat.sandbox_provider, workspace_path=chat.workspace_path
@@ -1115,6 +1116,7 @@ class ChatService(BaseDbService[Chat]):
             assistant_message.id,
             self._session_factory,
             request.worktree,
+            request.base_branch,
         )
 
         model = MODELS[request.model_id]
@@ -1135,6 +1137,7 @@ class ChatService(BaseDbService[Chat]):
                 assistant_message_id=str(assistant_message.id),
                 thinking_mode=request.thinking_mode,
                 worktree=request.worktree,
+                base_branch=request.base_branch,
                 fast_mode=request.fast_mode,
                 attachments=attachments,
                 context_window=model.context_window,
@@ -1181,6 +1184,7 @@ class ChatService(BaseDbService[Chat]):
         thinking_mode: str | None,
         attachments: list[MessageAttachmentDict] | None,
         worktree: bool = False,
+        base_branch: str | None = None,
         fast_mode: bool = False,
         context_window: int | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
@@ -1213,6 +1217,7 @@ class ChatService(BaseDbService[Chat]):
             assistant_message_id=assistant_message_id,
             thinking_mode=thinking_mode,
             worktree=worktree,
+            base_branch=base_branch,
             fast_mode=fast_mode,
             attachments=stream_attachments,
             selected_persona_name=selected_persona_name,

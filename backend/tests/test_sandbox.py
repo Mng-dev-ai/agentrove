@@ -24,6 +24,7 @@ from app.services.git import (
     GIT_SHOW_HEAD_TEMPLATE,
     GIT_STATUS_PORCELAIN_CMD,
     RESTORE_ALL_CMD,
+    _validate_base_ref,
 )
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.types import (
@@ -42,6 +43,20 @@ from tests.helpers import (
 
 
 pytestmark = pytest.mark.anyio
+
+
+@pytest.mark.parametrize("base_ref", ["main", "feat/api-keys", "release-1.2"])
+async def test_validate_base_ref_accepts_valid_branch_names(base_ref: str) -> None:
+    assert _validate_base_ref(base_ref) is None
+
+
+@pytest.mark.parametrize(
+    "base_ref",
+    ["-evil", "a b", "x'y", "a..b", "a//b", "x.lock", "@{u}", ""],
+)
+async def test_validate_base_ref_rejects_invalid_branch_names(base_ref: str) -> None:
+    with pytest.raises(SandboxException, match="^Invalid base branch name$"):
+        _validate_base_ref(base_ref)
 
 
 class ScriptedSandboxProvider(FakeSandboxProvider):

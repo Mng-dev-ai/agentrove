@@ -78,7 +78,9 @@ class AgentService:
         except (SQLAlchemyError, ValueError) as exc:
             logger.error("Failed to persist worktree_cwd for chat %s: %s", chat_id, exc)
 
-    async def ensure_worktree_cwd(self, chat: Chat) -> str:
+    async def ensure_worktree_cwd(
+        self, chat: Chat, base_branch: str | None = None
+    ) -> str:
         if chat.worktree_cwd:
             return cast(str, chat.worktree_cwd)
 
@@ -95,18 +97,21 @@ class AgentService:
             sandbox_id,
             "",
             str(chat.id),
+            base_ref=base_branch,
         )
         chat.worktree_cwd = worktree_cwd
         await self._save_worktree_cwd(chat.id, worktree_cwd)
         return worktree_cwd
 
-    async def resolve_cwd(self, chat: Chat, worktree: bool) -> str:
+    async def resolve_cwd(
+        self, chat: Chat, worktree: bool, base_branch: str | None = None
+    ) -> str:
         # A chat already bound to a worktree (e.g. a sub-thread inheriting the
         # parent's) always runs in it, even when this turn didn't request one;
         # otherwise only materialize one when the turn asks and a sandbox exists.
         # "" is the canonical workspace root, resolved to an absolute cwd at the edge.
         if chat.worktree_cwd or (worktree and chat.sandbox_id):
-            return await self.ensure_worktree_cwd(chat)
+            return await self.ensure_worktree_cwd(chat, base_branch)
         return ""
 
     async def build_session_config(
@@ -120,6 +125,7 @@ class AgentService:
         thinking_mode: str | None = None,
         system_prompt: str | None = None,
         worktree: bool = False,
+        base_branch: str | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
         fast_mode: bool = False,
     ) -> AcpSessionConfig:
@@ -137,7 +143,7 @@ class AgentService:
                 error_code=ErrorCode.VALIDATION_ERROR,
             )
 
-        cwd = await self.resolve_cwd(chat, worktree)
+        cwd = await self.resolve_cwd(chat, worktree, base_branch)
 
         is_custom_persona = selected_persona_name != DEFAULT_PERSONA_NAME
 

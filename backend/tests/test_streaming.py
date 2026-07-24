@@ -4,6 +4,7 @@ import time
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass
 from typing import Any
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import httpx
@@ -26,6 +27,7 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
+from app.services.git import GitService
 from app.services.session_registry import session_registry
 from app.services import chat as chat_service_module
 from app.services.sandbox_providers.base import SandboxProvider
@@ -1041,6 +1043,7 @@ async def test_send_message_with_worktree_persists_cwd_and_emits_system_event(
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
     streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1049,6 +1052,8 @@ async def test_send_message_with_worktree_persists_cwd_and_emits_system_event(
 
     script = [StreamEvent(type="assistant_text", text="Working in worktree")]
     acp_factory.queue(FakeAcpSession([script], session_id="resumed-15"))
+    create_worktree = AsyncMock(return_value=f".worktrees/{str(chat.id)[:8]}")
+    monkeypatch.setattr(GitService, "create_worktree", create_worktree)
 
     response = await client.post(
         "/api/v1/chat/chat",
@@ -1058,10 +1063,17 @@ async def test_send_message_with_worktree_persists_cwd_and_emits_system_event(
             "model_id": TEST_MODEL_ID,
             "permission_mode": "bypassPermissions",
             "worktree": "true",
+            "base_branch": "main",
         },
         headers=headers,
     )
     assert response.status_code == 200
+    create_worktree.assert_awaited_once_with(
+        workspace.sandbox_id,
+        "",
+        str(chat.id),
+        base_ref="main",
+    )
     # worktree_cwd is resolved/persisted before the stream task starts.
     assert response.json()["worktree_cwd"] is not None
 
