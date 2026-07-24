@@ -69,9 +69,17 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
           worktreeByChat: { ...state.worktreeByChat, [chatId]: enabled },
         })),
       setWorktreeBaseBranch: (chatId, branch) =>
-        set((state) => ({
-          worktreeBaseBranchByChat: { ...state.worktreeBaseBranchByChat, [chatId]: branch },
-        })),
+        set((state) => {
+          // Delete rather than store `undefined` so persist/rehydrate round-trips to
+          // the same shape — one representation of "no base" (absent key).
+          const next = { ...state.worktreeBaseBranchByChat };
+          if (branch === undefined) {
+            delete next[chatId];
+          } else {
+            next[chatId] = branch;
+          }
+          return { worktreeBaseBranchByChat: next };
+        }),
       setFastMode: (chatId, enabled) =>
         set((state) => ({
           fastModeByChat: { ...state.fastModeByChat, [chatId]: enabled },

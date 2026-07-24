@@ -77,6 +77,10 @@ function getTimeGreeting(): string {
   return 'Good evening';
 }
 
+// Base-branch intent is workspace-scoped, so switching workspace resets it.
+const clearDefaultWorktreeBase = () =>
+  useChatSettingsStore.getState().setWorktreeBaseBranch(DEFAULT_CHAT_SETTINGS_KEY, undefined);
+
 export function LandingPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -348,19 +352,38 @@ export function LandingPage() {
     [navigate],
   );
 
+  // Clear the base only on a genuine user switch (prior selection existed and differs)
+  // so auto-select (null -> first) and reload keep a persisted base for the same workspace.
+  const handleWorkspaceChange = useCallback(
+    (id: string | null) => {
+      if (selectedWorkspaceId !== null && id !== selectedWorkspaceId) clearDefaultWorktreeBase();
+      setSelectedWorkspaceId(id);
+    },
+    [selectedWorkspaceId],
+  );
+
+  const handleCloudWorkspaceChange = useCallback(
+    (id: string) => {
+      if (selectedCloudWorkspaceId !== null && id !== selectedCloudWorkspaceId)
+        clearDefaultWorktreeBase();
+      setSelectedCloudWorkspaceId(id);
+    },
+    [selectedCloudWorkspaceId],
+  );
+
   const composerSelectors = useMemo(
     () => (
       <div className={styles['selector-row']}>
         {isCloud ? (
           <CloudWorkspaceSelector
             selectedWorkspaceId={selectedCloudWorkspaceId}
-            onWorkspaceChange={setSelectedCloudWorkspaceId}
+            onWorkspaceChange={handleCloudWorkspaceChange}
             disabled={isLoading}
           />
         ) : (
           <WorkspaceSelector
             selectedWorkspaceId={selectedWorkspaceId}
-            onWorkspaceChange={setSelectedWorkspaceId}
+            onWorkspaceChange={handleWorkspaceChange}
             enabled={isAuthenticated}
           />
         )}
@@ -368,7 +391,15 @@ export function LandingPage() {
         <RunLocationSelector disabled={isLoading} />
       </div>
     ),
-    [isCloud, selectedCloudWorkspaceId, selectedWorkspaceId, isLoading, isAuthenticated],
+    [
+      isCloud,
+      selectedCloudWorkspaceId,
+      selectedWorkspaceId,
+      handleCloudWorkspaceChange,
+      handleWorkspaceChange,
+      isLoading,
+      isAuthenticated,
+    ],
   );
 
   const sidebarContent = useMemo(() => {

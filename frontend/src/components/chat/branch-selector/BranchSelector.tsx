@@ -1,10 +1,11 @@
 import { memo, useMemo } from 'react';
-import toast from 'react-hot-toast';
 import { GitBranch } from 'lucide-react';
 import { Dropdown, DropdownItemType } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
-import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
+import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
+import { useBranchCheckout } from '@/hooks/useBranchCheckout';
+import { buildBranchItems, shortenBranchName } from './branchItems';
 import styles from './BranchSelector.module.scss';
 
 export interface BranchSelectorProps {
@@ -24,19 +25,13 @@ export const BranchSelector = memo(function BranchSelector({
   const isSplitMode = useIsSplitMode();
 
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
-  const checkoutBranch = useCheckoutBranchMutation();
+  const { checkout, isPending } = useBranchCheckout(sandboxId, worktreeCwd);
 
-  const groupedItems = useMemo<DropdownItemType<string>[]>(() => {
-    if (!branchesData) return [];
-    const current = branchesData.current_branch;
-    const others = branchesData.branches.filter((b) => b !== current);
-    const items: DropdownItemType<string>[] = [{ type: 'item', data: current }];
-    if (others.length > 0) {
-      items.push({ type: 'header', label: 'Branches' });
-      others.forEach((b) => items.push({ type: 'item', data: b }));
-    }
-    return items;
-  }, [branchesData]);
+  const groupedItems = useMemo<DropdownItemType<string>[]>(
+    () =>
+      branchesData ? buildBranchItems(branchesData.branches, branchesData.current_branch) : [],
+    [branchesData],
+  );
 
   if (!sandboxId || !branchesData?.is_git_repo || branchesData.branches.length === 0) {
     return null;
@@ -50,29 +45,12 @@ export const BranchSelector = memo(function BranchSelector({
       items={groupedItems}
       getItemKey={(branch) => branch}
       getItemLabel={(branch) => branch}
-      onSelect={(branch) => {
-        if (branch === currentBranch) return;
-        checkoutBranch.mutate(
-          { sandboxId, branch, cwd: worktreeCwd },
-          {
-            onSuccess: (data) => {
-              if (data.success) {
-                toast.success(`Switched to ${branch}`);
-              } else {
-                toast.error(data.error ?? 'Failed to switch branch');
-              }
-            },
-            onError: (err) => {
-              toast.error(err instanceof Error ? err.message : 'Failed to switch branch');
-            },
-          },
-        );
-      }}
+      onSelect={(branch) => checkout(branch, currentBranch)}
       leftIcon={GitBranch}
-      getItemShortLabel={(branch) => (branch.length > 16 ? branch.slice(0, 16) + '…' : branch)}
+      getItemShortLabel={shortenBranchName}
       width="16rem"
       dropdownPosition={dropdownPosition}
-      disabled={disabled || checkoutBranch.isPending}
+      disabled={disabled || isPending}
       compactOnMobile
       forceCompact={isSplitMode}
       triggerVariant={variant}

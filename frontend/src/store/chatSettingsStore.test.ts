@@ -39,8 +39,9 @@ describe('per-chat setters', () => {
   it('records and clears the worktree base branch keyed by chat', () => {
     state().setWorktreeBaseBranch('c1', 'develop');
     expect(state().worktreeBaseBranchByChat.c1).toBe('develop');
+    // Clearing deletes the key (not a present-undefined) so it matches rehydrate.
     state().setWorktreeBaseBranch('c1', undefined);
-    expect(state().worktreeBaseBranchByChat.c1).toBeUndefined();
+    expect('c1' in state().worktreeBaseBranchByChat).toBe(false);
   });
 
   it('keeps per-chat entries independent', () => {

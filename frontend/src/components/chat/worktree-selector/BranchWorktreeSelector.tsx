@@ -1,14 +1,15 @@
 import { memo, useEffect, useMemo } from 'react';
-import toast from 'react-hot-toast';
 import { GitBranch, GitFork } from 'lucide-react';
-import { Dropdown, DropdownItemType } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import {
   ToggleDropdown,
   type ToggleDropdownOption,
 } from '@/components/ui/shared/ToggleDropdown/ToggleDropdown';
 import { useChatContext } from '@/hooks/useChatContext';
-import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
+import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
+import { useBranchCheckout } from '@/hooks/useBranchCheckout';
+import { buildBranchItems, shortenBranchName } from '@/components/chat/branch-selector/branchItems';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -23,8 +24,6 @@ const TOGGLE_OPTIONS: readonly [ToggleDropdownOption, ToggleDropdownOption] = [
 
 // Other chats' worktree branches — noise as base candidates, but still checkoutable.
 const isWorktreeBranch = (branch: string) => /^worktree-/.test(branch);
-
-const shortBranch = (branch: string) => (branch.length > 16 ? branch.slice(0, 16) + '…' : branch);
 
 const setWorktree = (enabled: boolean) =>
   useChatSettingsStore.getState().setWorktree(DEFAULT_CHAT_SETTINGS_KEY, enabled);
@@ -43,7 +42,7 @@ export const BranchWorktreeSelector = memo(function BranchWorktreeSelector({
 }: BranchWorktreeSelectorProps) {
   const { sandboxId, worktreeCwd } = useChatContext();
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
-  const checkoutBranch = useCheckoutBranchMutation();
+  const { checkout, isPending } = useBranchCheckout(sandboxId, worktreeCwd);
 
   const worktree = useChatSettingsStore(
     (state) => state.worktreeByChat[DEFAULT_CHAT_SETTINGS_KEY] ?? DEFAULT_WORKTREE,
@@ -69,15 +68,10 @@ export const BranchWorktreeSelector = memo(function BranchWorktreeSelector({
     [branches, worktree],
   );
 
-  const items = useMemo<DropdownItemType<string>[]>(() => {
-    const others = visibleBranches.filter((b) => b !== currentBranch);
-    const entries: DropdownItemType<string>[] = [{ type: 'item', data: currentBranch }];
-    if (others.length > 0) {
-      entries.push({ type: 'header', label: 'Branches' });
-      others.forEach((b) => entries.push({ type: 'item', data: b }));
-    }
-    return entries;
-  }, [visibleBranches, currentBranch]);
+  const items = useMemo(
+    () => buildBranchItems(visibleBranches, currentBranch),
+    [visibleBranches, currentBranch],
+  );
 
   const isDegraded = !sandboxId || !branchesData?.is_git_repo || (branches?.length ?? 0) === 0;
 
@@ -101,22 +95,7 @@ export const BranchWorktreeSelector = memo(function BranchWorktreeSelector({
       setBase(branch === currentBranch ? undefined : branch);
       return;
     }
-    if (branch === currentBranch || !sandboxId) return;
-    checkoutBranch.mutate(
-      { sandboxId, branch, cwd: worktreeCwd },
-      {
-        onSuccess: (data) => {
-          if (data.success) {
-            toast.success(`Switched to ${branch}`);
-          } else {
-            toast.error(data.error ?? 'Failed to switch branch');
-          }
-        },
-        onError: (err) => {
-          toast.error(err instanceof Error ? err.message : 'Failed to switch branch');
-        },
-      },
-    );
+    checkout(branch, currentBranch);
   };
 
   const renderHeader = () => (
@@ -156,12 +135,12 @@ export const BranchWorktreeSelector = memo(function BranchWorktreeSelector({
       getItemKey={(branch) => branch}
       getItemLabel={(branch) => branch}
       getItemShortLabel={(branch) =>
-        worktree ? `${shortBranch(branch)} → worktree` : shortBranch(branch)
+        worktree ? `${shortenBranchName(branch)} → worktree` : shortenBranchName(branch)
       }
       onSelect={handleSelect}
       leftIcon={GitBranch}
       width="17rem"
-      disabled={disabled || checkoutBranch.isPending}
+      disabled={disabled || isPending}
       compactOnMobile
       searchable={visibleBranches.length >= 6}
       searchPlaceholder="Search branches..."
