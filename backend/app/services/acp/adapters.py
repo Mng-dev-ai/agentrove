@@ -50,7 +50,7 @@ COPILOT_SESSION_MODE_IDS: dict[str, str] = {
 
 CLAUDE_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "max"})
 CLAUDE_XHIGH_VALID_THINKING_MODES = CLAUDE_VALID_THINKING_MODES | {"xhigh"}
-CLAUDE_XHIGH_MODEL_IDS = frozenset({"opus", "claude-fable-5"})
+CLAUDE_XHIGH_MODEL_IDS = frozenset({"claude-fable-5", "claude-opus-5"})
 CODEX_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 CODEX_MAX_VALID_THINKING_MODES = CODEX_VALID_THINKING_MODES | {"max"}
 CODEX_MAX_MODEL_IDS = frozenset({"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"})
