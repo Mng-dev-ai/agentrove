@@ -105,6 +105,13 @@ class AgentroveClient:
         resp = await self.request("GET", "/settings/")
         return resp.json().get("personas") or []
 
+    async def get_persona(self, name: str) -> dict[str, Any]:
+        personas = await self.list_personas()
+        persona = next((p for p in personas if p["name"] == name), None)
+        if persona is None:
+            raise AgentroveError(f"No persona named {name!r} exists.")
+        return persona
+
     async def create_persona(self, name: str, content: str) -> dict[str, Any]:
         # No per-persona API — personas are a settings list; read-modify-PATCH.
         resp = await self.request("GET", "/settings/")

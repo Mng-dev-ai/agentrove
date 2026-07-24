@@ -135,11 +135,25 @@ async def list_chats(
 async def list_personas() -> dict[str, Any]:
     """List custom personas available for send_message's `persona` argument.
 
-    Returns each persona's name. Pass one as `persona` to send_message; if none are
-    defined or `persona` is omitted, the standard "Default" persona is used.
+    Returns each persona's name and system prompt content. Pass a name as `persona` to
+    send_message; if none are defined or `persona` is omitted, the standard "Default"
+    persona is used.
     """
     personas = await client.list_personas()
-    return {"personas": [{"name": p["name"]} for p in personas]}
+    return {
+        "personas": [{"name": p["name"], "content": p["content"]} for p in personas]
+    }
+
+
+@mcp.tool()
+async def get_persona(name: str) -> dict[str, Any]:
+    """Get a persona's name and system prompt content.
+
+    `name` must match an existing persona (see list_personas). Returns name and content
+    so you can inspect or copy a persona before updating it or using it with send_message.
+    """
+    persona = await client.get_persona(name)
+    return {"persona": {"name": persona["name"], "content": persona["content"]}}
 
 
 @mcp.tool()
