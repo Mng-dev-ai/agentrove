@@ -135,9 +135,9 @@ SANDBOX_BASHRC_PATH: Final[str] = "/home/user/.bashrc"
 
 MODELS: dict[str, ModelInfo] = {
     "sonnet": ModelInfo("Sonnet", AgentKind.CLAUDE, 1_000_000),
-    "opus": ModelInfo("Opus", AgentKind.CLAUDE, 1_000_000),
     "haiku": ModelInfo("Haiku", AgentKind.CLAUDE, 200_000),
     "claude-fable-5": ModelInfo("Fable 5", AgentKind.CLAUDE, 1_000_000),
+    "claude-opus-5": ModelInfo("Opus 5", AgentKind.CLAUDE, 1_000_000),
     # 1M via model_context_window in ~/.codex/config.toml (registry default 372k).
     # Live-reported window still wins over these fallbacks.
     "gpt-5.6-sol": ModelInfo("GPT 5.6 Sol", AgentKind.CODEX, 1_050_000),

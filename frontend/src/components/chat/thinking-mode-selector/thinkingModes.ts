@@ -18,7 +18,7 @@ const CLAUDE_XHIGH_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'xhigh', label: 'XHigh' },
   { value: 'max', label: 'Max' },
 ];
-const CLAUDE_XHIGH_MODEL_IDS = new Set(['opus', 'claude-fable-5']);
+const CLAUDE_XHIGH_MODEL_IDS = new Set(['claude-fable-5', 'claude-opus-5']);
 
 const CODEX_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'low', label: 'Low' },

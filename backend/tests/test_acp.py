@@ -355,7 +355,7 @@ def last_tool(message: dict[str, Any], tool_id: str) -> dict[str, Any]:
     "model_id",
     [
         "sonnet",
-        "opus",
+        "claude-opus-5",
         "gpt-5.6-sol",
         "gpt-5.6-luna",
         "gpt-5.4",
@@ -448,7 +448,9 @@ async def test_enhance_prompt_survives_config_option_failures(
     )
     monkeypatch.setenv("FAKE_ACP_SCENARIO", "config_error")
 
-    response = await enhance_prompt(client, headers, prompt="hi", model_id="opus")
+    response = await enhance_prompt(
+        client, headers, prompt="hi", model_id="claude-opus-5"
+    )
 
     assert response.status_code == 200, response.text
     assert response.json() == {"enhanced_prompt": DEFAULT_TURN_TEXT}
