@@ -1,4 +1,7 @@
 import re
+from typing import Annotated
+
+from pydantic import BeforeValidator
 
 # Reject shell-injectable branch names / cwd paths passed to exec.
 BRANCH_NAME_RE = re.compile(r"^[\w./-]+$")
@@ -14,6 +17,20 @@ def is_valid_base_ref(base_ref: str) -> bool:
         and not base_ref.endswith("/")
         and not base_ref.endswith(".lock")
     )
+
+
+def normalize_base_branch(v: str | None) -> str | None:
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    if not is_valid_base_ref(v):
+        raise ValueError("Invalid base branch name")
+    return v
+
+
+BaseBranch = Annotated[str | None, BeforeValidator(normalize_base_branch)]
 
 
 def normalize_relative_path(path: str | None) -> str:

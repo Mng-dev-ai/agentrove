@@ -80,23 +80,24 @@ GIT_CREATE_BRANCH_FROM_REMOTE_TEMPLATE = Template(
 # resolves through the common git dir, so the entry lands in the file git
 # actually reads even when the workspace is itself a linked worktree
 # (`--absolute-git-dir` would point at the per-worktree admin dir).
-GIT_WORKTREE_ADD_TEMPLATE = Template(
+_WORKTREE_ADD_PREAMBLE = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     "if [ -e '$worktree_dir/.git' ]; then echo 'exists'; exit 0; fi; "
     'excl="$$(git rev-parse --git-path info/exclude)"; '
     '{ mkdir -p "$${excl%/*}" && grep -qxF ".worktrees/" "$$excl" '
     '|| echo ".worktrees/" >> "$$excl"; } 2>/dev/null; '
     "mkdir -p '$base_worktrees_dir' && "
-    "git worktree add '$worktree_dir' -b '$branch_name' 2>&1"
+)
+GIT_WORKTREE_ADD_TEMPLATE = Template(
+    _WORKTREE_ADD_PREAMBLE + "git worktree add '$worktree_dir' -b '$branch_name' 2>&1"
 )
 GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE = Template(
-    "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
-    "if [ -e '$worktree_dir/.git' ]; then echo 'exists'; exit 0; fi; "
-    'excl="$$(git rev-parse --git-path info/exclude)"; '
-    '{ mkdir -p "$${excl%/*}" && grep -qxF ".worktrees/" "$$excl" '
-    '|| echo ".worktrees/" >> "$$excl"; } 2>/dev/null; '
-    "mkdir -p '$base_worktrees_dir' && "
-    "git worktree add '$worktree_dir' -b '$branch_name' '$base_ref' 2>&1"
+    _WORKTREE_ADD_PREAMBLE
+    + "git worktree add '$worktree_dir' -b '$branch_name' '$base_ref' 2>&1"
+)
+GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE = Template(
+    _WORKTREE_ADD_PREAMBLE
+    + "git worktree add '$worktree_dir' -b '$branch_name' 'origin/$base_ref' 2>&1"
 )
 
 
@@ -662,6 +663,17 @@ class GitService:
             sandbox_id,
             cmd,
         )
+        if result.exit_code != 0 and base_ref:
+            remote_command = GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE.substitute(
+                worktree_dir=rel_worktree,
+                base_worktrees_dir=rel_base_worktrees,
+                branch_name=branch_name,
+                base_ref=base_ref,
+            )
+            result = await self.sandbox_service.provider.execute_command(
+                sandbox_id,
+                git_prefix + remote_command,
+            )
         if result.exit_code == 0:
             return rel_worktree
         error_output = (result.stdout or result.stderr).strip()
