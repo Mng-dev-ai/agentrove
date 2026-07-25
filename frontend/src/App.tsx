@@ -3,6 +3,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDesktopZoom } from '@/hooks/useDesktopZoom';
+import { useAppBadge } from '@/hooks/useAppBadge';
 import { Layout } from '@/components/layout/Layout/Layout';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
@@ -24,6 +25,7 @@ import { isTauri, invoke } from '@tauri-apps/api/core';
 import { isDesktopApp, isMobileApp } from '@/utils/platform';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { authStorage, cloudAuthStorage } from '@/utils/storage';
+import { useNotificationPermissionPrompt } from '@/hooks/useNotificationPermissionPrompt';
 import { clearCloudOrigins } from '@/utils/chatOrigin';
 import { PALETTES } from '@/styles/palettes';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
@@ -72,6 +74,7 @@ function AppContent() {
   useCloudStreamRestoration({ enabled: isSessionAuthenticated });
   useChatEvents({ enabled: isSessionAuthenticated });
   useCloudChatEvents({ enabled: isSessionAuthenticated });
+  useNotificationPermissionPrompt(isSessionAuthenticated);
 
   const showLoading = hasToken && isLoading;
 
@@ -248,6 +251,7 @@ export default function App() {
   });
 
   useDesktopZoom();
+  useAppBadge();
 
   // Tauri release builds disable Cmd/Ctrl+R reload by default.
   useMountEffect(() => {

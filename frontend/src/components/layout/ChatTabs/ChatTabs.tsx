@@ -14,7 +14,7 @@ import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
-import { splitSlotOfTile } from '@/utils/tileHelpers';
+import { paintedChatIds } from '@/utils/tileHelpers';
 import { stateClasses } from '@/config/stateClasses';
 import styles from './ChatTabs.module.scss';
 
@@ -112,15 +112,10 @@ export function ChatTabs() {
   const pendingRequests = usePermissionStore((s) => s.pendingRequests);
 
   // From layout (not splitChatIds): a split chat under a full-screen primary is off-screen.
-  const visibleChatIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const tileId of visibleLayout.flat()) {
-      const slot = splitSlotOfTile(tileId);
-      const owner = slot ? splitChatIds[slot - 1] : routedChatId;
-      if (owner) ids.add(owner);
-    }
-    return ids;
-  }, [visibleLayout, routedChatId, splitChatIds]);
+  const visibleChatIds = useMemo(
+    () => paintedChatIds(visibleLayout.flat(), splitChatIds, routedChatId),
+    [visibleLayout, routedChatId, splitChatIds],
+  );
 
   const streamingChatIdSet = useMemo(
     () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
