@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { QueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import type { StreamContentBuffer } from '@/utils/stream';
+import { extractAssistantText, type StreamContentBuffer } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { markChatViewed } from '@/hooks/queries/useChatQueries';
 import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
-import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import type {
   AssistantStreamEvent,
   Chat,
@@ -123,7 +123,7 @@ export function useStreamCallbacks({
     chatId,
     queryClient,
   });
-  const { data: settings } = useSettingsQuery();
+  const notifyBackground = useBackgroundNotify();
 
   // Live state only when on-screen; always can write cache so off-screen progress survives switches.
   const flushBufferedContent = useCallback(
@@ -351,6 +351,11 @@ export function useStreamCallbacks({
         flushBufferedContent(resolvedStreamId, { writeToCache: true });
       }
 
+      // Read before clearStreamSession drops the buffer holding it.
+      const assistantText = resolvedStreamId
+        ? extractAssistantText(getStreamBuffer(resolvedStreamId)?.getEvents() ?? [])
+        : '';
+
       clearStreamSession(resolvedStreamId);
 
       const targetChatId = sessionChatId ?? chatId;
@@ -406,6 +411,12 @@ export function useStreamCallbacks({
         void invalidateGitState(queryClient, targetSandboxId);
       }
 
+      if (!isCancelled) {
+        notifyBackground(targetChatId, (options) =>
+          notifyStreamComplete({ ...options, message: assistantText }),
+        );
+      }
+
       if (!isCurrentChat) return;
 
       // Re-stamp read so initiation's updated_at bump doesn't re-flag unread.
@@ -417,10 +428,6 @@ export function useStreamCallbacks({
       setPendingUserMessageId(null);
       setStreamState('idle');
       setCurrentMessageId(null);
-
-      if (!isCancelled && (settings?.notifications_enabled ?? true)) {
-        void notifyStreamComplete();
-      }
 
       timerIdsRef.current.forEach(clearTimeout);
       timerIdsRef.current = [];
@@ -443,12 +450,12 @@ export function useStreamCallbacks({
       chatId,
       currentChat?.sandbox_id,
       currentChat?.parent_chat_id,
+      notifyBackground,
       queryClient,
       setCurrentMessageId,
       setMessages,
       setPendingUserMessageId,
       setStreamState,
-      settings?.notifications_enabled,
     ],
   );
 

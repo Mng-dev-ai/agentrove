@@ -3,7 +3,7 @@ import { permissionService } from '@/services/permissionService';
 import { usePermissionStore } from '@/store/permissionStore';
 import { isPermissionResolved } from '@/utils/permissionStorage';
 import { notifyPermissionRequest } from '@/utils/notifications';
-import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import { executePermissionResponse, clearPermissionRequest } from '@/utils/permissionResponse';
 import type { PermissionRequest } from '@/types/chat.types';
 
@@ -20,7 +20,7 @@ interface UsePermissionRequestReturn {
 export function usePermissionRequest(chatId: string | undefined): UsePermissionRequestReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { data: settings } = useSettingsQuery();
+  const notifyBackground = useBackgroundNotify();
 
   // Select only this chat's queue so other chats' permission changes don't re-render us.
   const pendingRequest = usePermissionStore((state) => {
@@ -47,11 +47,11 @@ export function usePermissionRequest(chatId: string | undefined): UsePermissionR
       // queue; only notify when it was a genuinely new request, not a
       // duplicate envelope for one still awaiting a response.
       const added = usePermissionStore.getState().enqueuePermissionRequest(chatId, request);
-      if (added && (settings?.notifications_enabled ?? true)) {
-        void notifyPermissionRequest(request);
+      if (added) {
+        notifyBackground(chatId, (options) => notifyPermissionRequest(request, options));
       }
     },
-    [chatId, settings?.notifications_enabled],
+    [chatId, notifyBackground],
   );
 
   const handleApprove = useCallback(

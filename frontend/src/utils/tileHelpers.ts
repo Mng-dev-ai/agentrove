@@ -59,3 +59,30 @@ export function viewTypeToTileId(view: ViewType, slot: SplitSlot | null): TileId
 export function tileViewKinds(tiles: TileId[]): ViewType[] {
   return Array.from(new Set(tiles.map(tileIdToViewType)));
 }
+
+// Mobile paints one pane (focused, else first); desktop paints the whole layout.
+export function paintedLayout(
+  visibleLayout: TileId[][],
+  focusedTile: TileId | null,
+  isMobile: boolean,
+): TileId[][] {
+  if (!isMobile) return visibleLayout;
+  const flat = visibleLayout.flat();
+  const tile = focusedTile && flat.includes(focusedTile) ? focusedTile : flat[0];
+  return tile ? [[tile]] : [];
+}
+
+// Split tiles bind their slot's chat; every other tile binds the route chat.
+export function paintedChatIds(
+  tiles: TileId[],
+  splitChatIds: string[],
+  routeChatId: string | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const tile of tiles) {
+    const slot = splitSlotOfTile(tile);
+    const chatId = slot ? splitChatIds[slot - 1] : routeChatId;
+    if (chatId) ids.add(chatId);
+  }
+  return ids;
+}

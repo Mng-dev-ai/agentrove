@@ -2,14 +2,16 @@ import { useState } from 'react';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 import { useMountEffect } from '@/hooks/useMountEffect';
 
+// Point-in-time read for non-render code paths; useIsMobile is the reactive form.
+export const isMobileViewport = (): boolean =>
+  typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT;
+
 export function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(
-    typeof window !== 'undefined' ? window.innerWidth < MOBILE_BREAKPOINT : false,
-  );
+  const [isMobile, setIsMobile] = useState(isMobileViewport());
 
   useMountEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
+      setIsMobile(isMobileViewport());
     };
 
     window.addEventListener('resize', handleResize, { passive: true });
