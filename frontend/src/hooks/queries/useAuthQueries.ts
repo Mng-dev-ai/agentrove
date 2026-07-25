@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query';
 import { authService } from '@/services/authService';
 import type { AuthResponse, User } from '@/types/user.types';
+import { clearAllStreamState } from '@/hooks/stream/streamRegistry';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
@@ -102,5 +103,7 @@ export const useLogoutMutation = createMutation<void, Error, void>(
   async (queryClient) => {
     await queryClient.cancelQueries();
     queryClient.clear();
+    // SPA logout doesn't reload — the next session must not inherit buffers.
+    clearAllStreamState();
   },
 );

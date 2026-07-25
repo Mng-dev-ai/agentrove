@@ -18,7 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sse_starlette.sse import EventSourceResponse
+from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 from app.constants import (
     MODELS,
@@ -94,6 +94,9 @@ INACTIVE_TASK_RESPONSE = {
     "last_seq": 0,
 }
 
+# Bounds the HTTP hold for pathological unwinds.
+CANCEL_UNWIND_TIMEOUT_SECONDS = 10.0
+
 
 @router.post(
     "/chats",
@@ -167,9 +170,7 @@ async def send_message(
     except ValidationError as e:
         raise RequestValidationError(e.errors()) from e
     except ChatException as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        ) from e
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
 
 
 @router.post("/enhance-prompt", response_model=EnhancePromptResponse)
@@ -337,6 +338,8 @@ async def stream_user_streams(
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+        # Real events — EventSource can't see comment pings — so the client can detect stalls.
+        ping_message_factory=lambda: ServerSentEvent(event="ping", data=""),
     )
 
 
@@ -569,15 +572,10 @@ async def restore_message_checkpoint(
 async def cancel_stream(
     chat_id: UUID,
     _chat: Chat = Depends(ensure_chat_access),
-    chat_service: ChatService = Depends(get_chat_service),
 ) -> None:
-    if not ChatStreamRuntime.has_active_chat(
-        str(chat_id)
-    ) and not await chat_service.has_cancelable_pending_start(chat_id):
-        return
-
-    # Cancel may race the runtime task start; registry holds a pending flag.
-    await session_registry.cancel_generation(str(chat_id))
+    await ChatStreamRuntime.cancel_chat_turn(
+        str(chat_id), timeout=CANCEL_UNWIND_TIMEOUT_SECONDS
+    )
 
 
 @router.post(
@@ -744,8 +742,11 @@ async def send_now_queued_message(
             detail="Queued message not found",
         )
 
-    if ChatStreamRuntime.has_active_chat(str(chat_id)):
-        # Cancel so send-now is picked up without waiting for the current turn.
+    if ChatStreamRuntime.has_active_chat(
+        str(chat_id)
+    ) or ChatStreamRuntime.has_pending_start(str(chat_id)):
+        # Cancel so send-now is picked up without waiting for the current turn —
+        # a reserved start consumes the flag at bootstrap and interrupts the same way.
         await session_registry.cancel_generation(str(chat_id))
     else:
         try:

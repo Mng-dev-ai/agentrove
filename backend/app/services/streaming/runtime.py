@@ -4,10 +4,11 @@ import asyncio
 import json
 import logging
 import time
+from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from functools import partial
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
@@ -21,9 +22,10 @@ from app.constants import (
 )
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.db_models.chat import Chat
+from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
+from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.session import AcpSessionConfig
 from app.services.agent import (
@@ -32,9 +34,12 @@ from app.services.agent import (
 )
 from app.services.session_registry import session_registry
 from app.services.db import SessionFactoryType
-from app.services.exceptions import AgentException
+from app.services.exceptions import AgentException, SandboxException
+from app.services.git import GitService
 from app.services.message import MessageService
 from app.services.queue import QueueService
+from app.services.sandbox import SandboxService
+from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.types import (
     PROMPT_SUGGESTIONS_RE,
     ChatStreamRequest,
@@ -69,8 +74,28 @@ SNAPSHOT_EVENT_KINDS = frozenset(
 
 
 class ChatStreamRuntime:
-    # Background stream tasks by asyncio.Task — track chats, await shutdown, block duplicates.
+    # Single-process state: turn gating and reconcile assume the one uvicorn
+    # worker in entrypoint.sh. Scaling out needs Redis-side gating first.
     _background_task_chat_ids: dict[asyncio.Task[str], str] = {}
+    # Reserved before the background task registers — closes the double-send
+    # window. The event fires when the reservation is released.
+    _starting_chat_ids: dict[str, asyncio.Event] = {}
+
+    @classmethod
+    @asynccontextmanager
+    async def chat_start_slot(cls, chat_id: str) -> AsyncIterator[bool]:
+        # One turn per chat — concurrent turns would share and corrupt the ACP
+        # session. No awaits before the yield, so check-and-reserve is atomic.
+        reserved = chat_id not in cls._starting_chat_ids and not cls.has_active_chat(
+            chat_id
+        )
+        if reserved:
+            cls._starting_chat_ids[chat_id] = asyncio.Event()
+        try:
+            yield reserved
+        finally:
+            if reserved:
+                cls._starting_chat_ids.pop(chat_id).set()
 
     def __init__(
         self,
@@ -169,12 +194,15 @@ class ChatStreamRuntime:
 
         except Exception as exc:
             logger.error("Error in stream processing: %s", exc)
+            # Snapshot first — it prunes the event log — then the terminal
+            # event so it survives replay.
+            self.snapshot.add_error(str(exc))
+            await self._save_final_snapshot(stream_result, MessageStreamStatus.FAILED)
             await self.emit_event(
                 "error",
                 {"error": str(exc)},
                 apply_snapshot=False,
             )
-            await self._save_final_snapshot(stream_result, MessageStreamStatus.FAILED)
             raise
 
     async def _consume_stream(
@@ -507,65 +535,19 @@ class ChatStreamRuntime:
             return False
 
         try:
-            user_message = await self.message_service.create_message(
-                UUID(self.chat_id),
-                next_msg["content"],
-                MessageRole.USER,
-                attachments=next_msg.get("attachments"),
-            )
-            assistant_message = await self.message_service.create_message(
-                UUID(self.chat_id),
-                "",
-                MessageRole.ASSISTANT,
-                model_id=next_msg["model_id"],
-                stream_status=MessageStreamStatus.IN_PROGRESS,
-            )
-            # Avoid circular import with chat.py.
-            from app.services.chat import ChatService
-
-            checkpoint_id = await ChatService.create_checkpoint_for_message(
-                self.chat,
-                assistant_message.id,
-                self.session_factory,
-                next_msg["worktree"],
-                next_msg.get("base_branch"),
-            )
-
-            await self.emit_event(
-                "queue_processing",
-                {
-                    "queued_message_id": next_msg["id"],
-                    "user_message_id": str(user_message.id),
-                    "assistant_message_id": str(assistant_message.id),
-                    "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
-                    "content": next_msg["content"],
-                    "model_id": next_msg["model_id"],
-                    "attachments": MessageService.serialize_attachments(
-                        next_msg, user_message
-                    ),
-                    # The prior turn's terminal event is suppressed during a queue
-                    # handoff, so ship its persisted duration here for the rollup.
-                    "prior_duration_ms": prior_duration_ms,
-                },
-                apply_snapshot=False,
-            )
-
-            user_service = UserService(session_factory=self.session_factory)
-            user_settings = await user_service.get_user_settings(
-                self.chat.user_id, db=None
-            )
-            ChatStreamRuntime.start_background_chat(
-                self._build_queued_stream_request(
-                    chat=self.chat,
-                    queued_msg=next_msg,
-                    user_settings=user_settings,
-                    assistant_message_id=str(assistant_message.id),
-                    session_id_override=self.session_id,
-                )
+            await self._start_queued_turn(
+                chat=self.chat,
+                queued_msg=next_msg,
+                message_service=self.message_service,
+                session_factory=self.session_factory,
+                session_id_override=self.session_id,
+                before_handoff=partial(
+                    self._emit_queue_processing, next_msg, prior_duration_ms
+                ),
             )
         except Exception as exc:
             logger.error("Failed to process queued message: %s", exc)
-            await self._requeue_next_message(next_msg)
+            await self._requeue_message_quietly(self.chat_id, next_msg)
             return False
 
         logger.info(
@@ -575,13 +557,178 @@ class ChatStreamRuntime:
         )
         return True
 
-    async def _requeue_next_message(self, queued_msg: dict[str, Any]) -> None:
+    async def _emit_queue_processing(
+        self,
+        queued_msg: dict[str, Any],
+        prior_duration_ms: int | None,
+        user_message: Message,
+        assistant_message: Message,
+        checkpoint_id: UUID | None,
+    ) -> None:
+        await self.emit_event(
+            "queue_processing",
+            {
+                "queued_message_id": queued_msg["id"],
+                "user_message_id": str(user_message.id),
+                "assistant_message_id": str(assistant_message.id),
+                "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
+                "content": queued_msg["content"],
+                "model_id": queued_msg["model_id"],
+                "attachments": MessageService.serialize_attachments(
+                    queued_msg, user_message
+                ),
+                # The terminal is suppressed during handoff — ship the duration here.
+                "prior_duration_ms": prior_duration_ms,
+            },
+            apply_snapshot=False,
+        )
+
+    @staticmethod
+    async def create_checkpoint_for_message(
+        chat: Chat,
+        assistant_message_id: UUID,
+        session_factory: SessionFactoryType,
+        worktree: bool,
+        base_branch: str | None = None,
+    ) -> UUID | None:
+        # Best-effort: a non-git workspace must not block the agent run.
+        sandbox_id = chat.sandbox_id
+        if not sandbox_id:
+            return None
+
+        try:
+            # Resolve the same cwd the agent turn runs in, so the checkpoint's
+            # diff and restore target match where the agent actually edited.
+            cwd = await AgentService(session_factory=session_factory).resolve_cwd(
+                chat, worktree, base_branch
+            )
+            provider = SandboxProvider.create_provider(
+                chat.sandbox_provider, workspace_path=chat.workspace_path
+            )
+            checkpoint = await GitService(SandboxService(provider)).create_checkpoint(
+                sandbox_id, cwd
+            )
+            if checkpoint is None:
+                return None
+
+            async with session_factory() as db:
+                checkpoint_row = ChatCheckpoint(
+                    chat_id=chat.id,
+                    assistant_message_id=assistant_message_id,
+                    cwd=cwd,
+                    base_head=checkpoint.base_head,
+                    pre_run_diff=checkpoint.pre_run_diff,
+                )
+                db.add(checkpoint_row)
+                await db.commit()
+                await db.refresh(checkpoint_row)
+                return cast(UUID, checkpoint_row.id)
+        except (SandboxException, SQLAlchemyError, TimeoutError, ValueError) as exc:
+            logger.warning(
+                "Failed to create checkpoint for message %s: %s",
+                assistant_message_id,
+                exc,
+            )
+            return None
+
+    @classmethod
+    @asynccontextmanager
+    async def turn_scaffold(
+        cls,
+        message_service: MessageService,
+        chat: Chat,
+        *,
+        prompt: str,
+        model_id: str,
+        attachments: list[MessageAttachmentDict] | None,
+        worktree: bool,
+        base_branch: str | None,
+        session_factory: SessionFactoryType,
+    ) -> AsyncIterator[tuple[Message, Message, UUID | None]]:
+        # A turn that fails to start leaves no rows behind.
+        user_message = None
+        assistant_message = None
+        try:
+            chat_uuid = UUID(str(chat.id))
+            user_message = await message_service.create_message(
+                chat_uuid,
+                prompt,
+                MessageRole.USER,
+                attachments=attachments,
+            )
+            assistant_message = await message_service.create_message(
+                chat_uuid,
+                "",
+                MessageRole.ASSISTANT,
+                model_id=model_id,
+                stream_status=MessageStreamStatus.IN_PROGRESS,
+            )
+            checkpoint_id = await cls.create_checkpoint_for_message(
+                chat,
+                assistant_message.id,
+                session_factory,
+                worktree,
+                base_branch,
+            )
+            yield user_message, assistant_message, checkpoint_id
+        except Exception as exc:
+            logger.error("Turn failed to start for chat %s: %s", chat.id, exc)
+            for message in (assistant_message, user_message):
+                if message is not None:
+                    await message_service.discard_message_quietly(message.id)
+            raise
+
+    @classmethod
+    async def _start_queued_turn(
+        cls,
+        *,
+        chat: Chat,
+        queued_msg: dict[str, Any],
+        message_service: MessageService,
+        session_factory: SessionFactoryType,
+        session_id_override: str | None = None,
+        before_handoff: Callable[[Message, Message, UUID | None], Awaitable[None]]
+        | None = None,
+    ) -> None:
+        if queued_msg["model_id"] not in MODELS:
+            raise AgentException(
+                f"Queued message has unknown model {queued_msg['model_id']}"
+            )
+        user_settings = await UserService(
+            session_factory=session_factory
+        ).get_user_settings(chat.user_id, db=None)
+        async with cls.turn_scaffold(
+            message_service,
+            chat,
+            prompt=queued_msg["content"],
+            model_id=queued_msg["model_id"],
+            attachments=queued_msg.get("attachments"),
+            worktree=queued_msg["worktree"],
+            base_branch=queued_msg.get("base_branch"),
+            session_factory=session_factory,
+        ) as (user_message, assistant_message, checkpoint_id):
+            request = cls._build_queued_stream_request(
+                chat=chat,
+                queued_msg=queued_msg,
+                user_settings=user_settings,
+                assistant_message_id=str(assistant_message.id),
+                session_id_override=session_id_override,
+            )
+            # The client repoints on this event — nothing fallible may follow it.
+            if before_handoff is not None:
+                await before_handoff(user_message, assistant_message, checkpoint_id)
+            cls.start_background_chat(request)
+
+    @staticmethod
+    async def _requeue_message_quietly(
+        chat_id: str, queued_msg: dict[str, Any]
+    ) -> None:
         try:
             async with cache_connection() as cache:
-                queue_service = QueueService(cache)
-                await queue_service.requeue_message(self.chat_id, queued_msg)
-        except Exception as requeue_exc:
-            logger.error("Failed to re-queue message: %s", requeue_exc)
+                await QueueService(cache).requeue_message(chat_id, queued_msg)
+                logger.info("Re-queued message %s after failed start", queued_msg["id"])
+        except Exception as exc:
+            logger.error("Failed to re-queue message: %s", exc)
 
     async def _emit_context_usage(self, stream_result: StreamResult) -> None:
         usage = stream_result.usage
@@ -681,6 +828,37 @@ class ChatStreamRuntime:
             logger.error("Background title generation failed: %s", exc)
 
     @classmethod
+    async def reconcile_orphaned_messages(
+        cls, session_factory: SessionFactoryType
+    ) -> None:
+        # In-progress messages from a previous process can never complete.
+        try:
+            async with session_factory() as db:
+                result = await db.execute(
+                    select(Message.id).where(
+                        Message.stream_status == MessageStreamStatus.IN_PROGRESS,
+                        Message.deleted_at.is_(None),
+                    )
+                )
+                orphan_ids = list(result.scalars().all())
+        except SQLAlchemyError:
+            logger.exception("Failed to scan for orphaned in-progress messages")
+            return
+
+        for message_id in orphan_ids:
+            await cls.finalize_dead_stream(
+                assistant_message_id=str(message_id),
+                session_factory=session_factory,
+                stream_status=MessageStreamStatus.INTERRUPTED,
+                record_activity=False,
+            )
+        if orphan_ids:
+            logger.info(
+                "Reconciled %d orphaned in-progress message(s) from previous run",
+                len(orphan_ids),
+            )
+
+    @classmethod
     async def stop_background_chats(cls) -> None:
         if not cls._background_task_chat_ids:
             return
@@ -738,6 +916,39 @@ class ChatStreamRuntime:
     def has_active_chat(cls, chat_id: str) -> bool:
         cls._prune_done_tasks()
         return chat_id in cls._background_task_chat_ids.values()
+
+    @classmethod
+    def has_pending_start(cls, chat_id: str) -> bool:
+        return chat_id in cls._starting_chat_ids
+
+    @classmethod
+    def _chat_tasks(cls, chat_id: str) -> set[asyncio.Task[str]]:
+        return {
+            task
+            for task, task_chat_id in cls._background_task_chat_ids.items()
+            if task_chat_id == chat_id and not task.done()
+        }
+
+    @classmethod
+    async def cancel_chat_turn(cls, chat_id: str, timeout: float) -> None:
+        # Hold the response until the cancelled turn unwinds (a resend would 409).
+        # Capture first — the unwind can start a successor we must not wait on.
+        reservation = cls._starting_chat_ids.get(chat_id)
+        tasks = cls._chat_tasks(chat_id)
+        # Idle chats must not cancel — a stray pending-cancel flag could kill the next turn.
+        if reservation is None and not tasks:
+            return
+        await session_registry.cancel_generation(chat_id)
+        if reservation is not None:
+            # The reserved turn's task registers before the reservation frees.
+            with suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(reservation.wait(), timeout)
+            tasks |= cls._chat_tasks(chat_id)
+        tasks = {task for task in tasks if not task.done()}
+        if not tasks:
+            return
+        # asyncio.wait leaves the tasks running on timeout.
+        await asyncio.wait(tasks, timeout=timeout)
 
     @classmethod
     def active_chat_ids(cls) -> set[str]:
@@ -839,93 +1050,57 @@ class ChatStreamRuntime:
         chat_id: str,
         session_factory: SessionFactoryType,
     ) -> bool:
-        if cls.has_active_chat(chat_id):
-            return False
-
-        async with cache_connection() as cache:
-            queue_service = QueueService(cache)
-            queued_msg = await queue_service.pop_send_now_message(chat_id)
-            if not queued_msg:
+        async with cls.chat_start_slot(chat_id) as reserved:
+            if not reserved:
                 return False
 
-        try:
-            message_service = MessageService(session_factory=session_factory)
-            await message_service.create_message(
-                UUID(chat_id),
-                queued_msg["content"],
-                MessageRole.USER,
-                attachments=queued_msg.get("attachments"),
-            )
-            assistant_message = await message_service.create_message(
-                UUID(chat_id),
-                "",
-                MessageRole.ASSISTANT,
-                model_id=queued_msg["model_id"],
-                stream_status=MessageStreamStatus.IN_PROGRESS,
-            )
-
-            async with session_factory() as db:
-                result = await db.execute(
-                    select(Chat)
-                    .options(selectinload(Chat.workspace))
-                    .filter(Chat.id == UUID(chat_id))
-                )
-                chat = result.scalar_one_or_none()
-                if not chat:
-                    raise AgentException(f"Chat {chat_id} not found for idle send-now")
-
-            # Avoid circular import with chat.py.
-            from app.services.chat import ChatService
-
-            await ChatService.create_checkpoint_for_message(
-                chat,
-                assistant_message.id,
-                session_factory,
-                queued_msg["worktree"],
-                queued_msg.get("base_branch"),
-            )
-
-            user_service = UserService(session_factory=session_factory)
-            user_settings = await user_service.get_user_settings(chat.user_id, db=None)
-            cls.start_background_chat(
-                cls._build_queued_stream_request(
-                    chat=chat,
-                    queued_msg=queued_msg,
-                    user_settings=user_settings,
-                    assistant_message_id=str(assistant_message.id),
-                )
-            )
-
-            logger.info(
-                "Idle send-now: message %s started for chat %s",
-                queued_msg["id"],
-                chat_id,
-            )
-            return True
-
-        except Exception:
-            await cls._requeue_idle_message(chat_id=chat_id, queued_msg=queued_msg)
-            raise
-
-    @staticmethod
-    async def _requeue_idle_message(chat_id: str, queued_msg: dict[str, Any]) -> None:
-        try:
             async with cache_connection() as cache:
                 queue_service = QueueService(cache)
-                await queue_service.requeue_message(chat_id, queued_msg)
-                logger.info(
-                    "Re-queued message %s after idle send-now failure",
-                    queued_msg["id"],
+                queued_msg = await queue_service.pop_send_now_message(chat_id)
+                if not queued_msg:
+                    return False
+
+            try:
+                async with session_factory() as db:
+                    result = await db.execute(
+                        select(Chat)
+                        .options(selectinload(Chat.workspace))
+                        .filter(Chat.id == UUID(chat_id))
+                    )
+                    chat = result.scalar_one_or_none()
+                    if not chat:
+                        raise AgentException(
+                            f"Chat {chat_id} not found for idle send-now"
+                        )
+
+                await cls._start_queued_turn(
+                    chat=chat,
+                    queued_msg=queued_msg,
+                    message_service=MessageService(session_factory=session_factory),
+                    session_factory=session_factory,
                 )
-        except Exception as requeue_exc:
-            logger.error("Failed to re-queue message: %s", requeue_exc)
+
+                logger.info(
+                    "Idle send-now: message %s started for chat %s",
+                    queued_msg["id"],
+                    chat_id,
+                )
+                return True
+
+            except Exception:
+                await cls._requeue_message_quietly(chat_id, queued_msg)
+                raise
 
     @staticmethod
-    async def mark_message_failed(
+    async def finalize_dead_stream(
         *,
         assistant_message_id: str | None,
         session_factory: SessionFactoryType,
         stream_status: MessageStreamStatus,
+        user_id: str | None = None,
+        error_message: str | None = None,
+        # False for reconciliation: cleanup is not duration or unseen activity.
+        record_activity: bool = True,
     ) -> None:
         if not assistant_message_id:
             return
@@ -940,84 +1115,94 @@ class ChatStreamRuntime:
             message = await message_service.get_message(message_uuid)
             if not message or message.stream_status != MessageStreamStatus.IN_PROGRESS:
                 return
-            await message_service.update_message_snapshot(
+            content_text = message.content_text
+            content_render = message.content_render
+            if error_message is not None:
+                render_events = list(content_render.get("events", []))
+                render_events.append(
+                    StreamSnapshotAccumulator.error_event(error_message)
+                )
+                content_render = {**content_render, "events": render_events}
+                if not content_text:
+                    content_text = error_message
+            updated = await message_service.update_message_snapshot(
                 message_uuid,
-                content_text=message.content_text,
-                content_render=message.content_render,
+                content_text=content_text,
+                content_render=content_render,
                 last_seq=message.last_seq,
                 active_stream_id=None,
                 stream_status=stream_status,
+                record_activity=record_activity,
+            )
+            # After the snapshot prune, so the terminal event survives for clients.
+            await ChatStreamRuntime._emit_terminal_for_dead_stream(
+                message_service=message_service,
+                chat_id=message.chat_id,
+                message_id=message_uuid,
+                stream_id=message.active_stream_id or uuid4(),
+                stream_status=stream_status,
+                duration_ms=updated.duration_ms if updated else None,
+                user_id=user_id,
+                error_message=error_message,
+                record_activity=record_activity,
             )
         except Exception:
             logger.exception(
-                "Failed to update assistant message %s to %s after bootstrap failure",
+                "Failed to finalize assistant message %s as %s",
                 assistant_message_id,
                 stream_status.value,
             )
 
     @staticmethod
-    async def emit_bootstrap_error(
+    async def _emit_terminal_for_dead_stream(
         *,
-        chat_id: str,
-        user_id: str,
-        assistant_message_id: str | None,
-        session_factory: SessionFactoryType,
-        error_message: str,
+        message_service: MessageService,
+        chat_id: UUID,
+        message_id: UUID,
+        stream_id: UUID,
+        stream_status: MessageStreamStatus,
+        duration_ms: int | None,
+        user_id: str | None,
+        error_message: str | None = None,
+        record_activity: bool = True,
     ) -> None:
-        if not assistant_message_id:
+        if stream_status == MessageStreamStatus.INTERRUPTED:
+            kind = "cancelled"
+            payload: dict[str, Any] = {
+                "status": stream_status.value,
+                "duration_ms": duration_ms,
+            }
+        else:
+            kind = "error"
+            payload = {"error": error_message or "Stream ended unexpectedly"}
+        seq = await message_service.append_event_with_next_seq(
+            chat_id=chat_id,
+            message_id=message_id,
+            stream_id=stream_id,
+            event_type=kind,
+            render_payload=payload,
+            audit_payload={"payload": payload},
+            record_activity=record_activity,
+        )
+        if not user_id:
             return
         try:
-            message_service = MessageService(session_factory=session_factory)
-            message = await message_service.get_message(UUID(assistant_message_id))
-            if not message:
-                return
-            stream_id = uuid4()
-            payload = {"error": error_message}
-            error_seq = await message_service.append_event_with_next_seq(
-                chat_id=UUID(chat_id),
-                message_id=UUID(assistant_message_id),
-                stream_id=stream_id,
-                event_type="error",
-                render_payload=payload,
-                audit_payload={"payload": payload},
-            )
             async with cache_connection() as cache:
                 channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=user_id)
-                envelope = StreamEnvelope.serialize(
-                    chat_id=UUID(chat_id),
-                    message_id=UUID(assistant_message_id),
-                    stream_id=stream_id,
-                    seq=error_seq,
-                    kind="error",
-                    payload=payload,
+                await cache.publish(
+                    channel,
+                    StreamEnvelope.serialize(
+                        chat_id=chat_id,
+                        message_id=message_id,
+                        stream_id=stream_id,
+                        seq=seq,
+                        kind=kind,
+                        payload=payload,
+                    ),
                 )
-                await cache.publish(channel, envelope)
-            existing_render = message.content_render
-            render_events = list(existing_render.get("events", []))
-            render_events.append(
-                {"type": "assistant_text", "text": f"\n\nError: {error_message}"}
-            )
-            content_text = message.content_text
-            if not content_text:
-                content_text = error_message
-            await message_service.update_message_snapshot(
-                UUID(assistant_message_id),
-                content_text=content_text,
-                content_render={**existing_render, "events": render_events},
-                last_seq=error_seq,
-                active_stream_id=None,
-                stream_status=MessageStreamStatus.FAILED,
-            )
-        except Exception as inner_exc:
-            logger.error(
-                "Failed to emit bootstrap error for chat %s: %s",
-                chat_id,
-                inner_exc,
-            )
-            await ChatStreamRuntime.mark_message_failed(
-                assistant_message_id=assistant_message_id,
-                session_factory=session_factory,
-                stream_status=MessageStreamStatus.FAILED,
+        except CacheError as exc:
+            logger.warning(
+                "Failed to publish terminal event for chat %s: %s", chat_id, exc
             )
 
     @classmethod
@@ -1133,10 +1318,11 @@ class ChatStreamRuntime:
                 session_factory=session_factory,
             )
         except asyncio.CancelledError:
-            await cls.mark_message_failed(
+            await cls.finalize_dead_stream(
                 assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.INTERRUPTED,
+                user_id=str(request.chat_data["user_id"]),
             )
             raise
         except Exception as exc:
@@ -1150,11 +1336,11 @@ class ChatStreamRuntime:
                 error_data,
                 exc_info=True,
             )
-            await cls.emit_bootstrap_error(
-                chat_id=chat_id,
-                user_id=str(request.chat_data["user_id"]),
+            await cls.finalize_dead_stream(
                 assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
+                stream_status=MessageStreamStatus.FAILED,
+                user_id=str(request.chat_data["user_id"]),
                 error_message=str(exc),
             )
             raise

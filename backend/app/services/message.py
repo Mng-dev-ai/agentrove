@@ -134,6 +134,7 @@ class MessageService(BaseDbService[Message]):
         active_stream_id: UUID | None,
         stream_status: MessageStreamStatus | None = None,
         total_cost_usd: float | None = None,
+        record_activity: bool = True,
     ) -> Message | None:
         # Periodic snapshot write so reconnecting clients can hydrate without
         # replaying every event. Returns None if the row was soft-deleted mid-stream.
@@ -156,7 +157,7 @@ class MessageService(BaseDbService[Message]):
                 # Record total run time once, at the terminal snapshot. created_at
                 # marks run start — the empty assistant row is inserted before
                 # streaming begins.
-                if stream_status != MessageStreamStatus.IN_PROGRESS:
+                if record_activity and stream_status != MessageStreamStatus.IN_PROGRESS:
                     created_at = await db.scalar(
                         select(Message.created_at).where(Message.id == message_id)
                     )
@@ -200,14 +201,19 @@ class MessageService(BaseDbService[Message]):
         event_type: str,
         render_payload: dict[str, Any],
         audit_payload: dict[str, Any] | None,
+        record_activity: bool = True,
     ) -> int:
         # Allocate a gapless chat-scoped seq atomically via UPDATE...RETURNING;
         # clients use it as the SSE id for catch-up on reconnect.
+        values: dict[str, Any] = {"last_event_seq": Chat.last_event_seq + 1}
+        if not record_activity:
+            # Self-assign to suppress the onupdate bump.
+            values["updated_at"] = Chat.updated_at
         async with self.session_factory() as db:
             seq_result = await db.execute(
                 update(Chat)
                 .where(Chat.id == chat_id)
-                .values(last_event_seq=Chat.last_event_seq + 1)
+                .values(**values)
                 .returning(Chat.last_event_seq)
             )
             next_seq = seq_result.scalar_one_or_none()
@@ -406,6 +412,13 @@ class MessageService(BaseDbService[Message]):
             .where(MessageAttachment.id == attachment_id)
         )
         return cast(MessageAttachment | None, result.scalar_one_or_none())
+
+    async def discard_message_quietly(self, message_id: UUID) -> None:
+        # Must not mask the original startup error.
+        try:
+            await self.soft_delete_message(message_id)
+        except Exception:
+            logger.exception("Failed to discard message %s", message_id)
 
     async def soft_delete_message(self, message_id: UUID) -> bool:
         async with self.session_factory() as db:

@@ -113,6 +113,7 @@ class AcpSession:
         acp_session_id: str,
         agent_kind: AgentKind = AgentKind.CLAUDE,
         stderr_task: asyncio.Task[None] | None = None,
+        exit_watch_task: asyncio.Task[None] | None = None,
     ) -> None:
         self._handler = handler
         self._conn = conn
@@ -120,6 +121,7 @@ class AcpSession:
         self.acp_session_id = acp_session_id
         self._agent_kind = agent_kind
         self._stderr_task = stderr_task
+        self._exit_watch_task = exit_watch_task
 
     @property
     def handler(self) -> AcpClientHandler:
@@ -280,6 +282,7 @@ class AcpSession:
         # Orderly shutdown: cancel any pending permission prompts (so blocked
         # request_permission() calls unblock), close the ACP connection, then
         # terminate the agent process with a SIGTERM grace period before SIGKILL.
+        # The exit watcher is left running; it no-ops once the process is reaped.
         self._handler.cancel_pending_permissions()
         if self._stderr_task and not self._stderr_task.done():
             self._stderr_task.cancel()
@@ -299,6 +302,21 @@ class AcpSession:
                 await self._force_kill_group(self._process)
             except Exception:
                 logger.debug("Error killing ACP agent process", exc_info=True)
+
+    @staticmethod
+    async def _watch_process_exit(
+        process: asyncio.subprocess.Process,
+        conn: ClientSideConnection,
+        handler: AcpClientHandler,
+    ) -> None:
+        # The SDK treats a dead agent's EOF as a clean end and never rejects
+        # pending RPCs — close the connection so the turn fails instead of hanging.
+        await process.wait()
+        handler.cancel_pending_permissions()
+        try:
+            await conn.close()
+        except Exception:
+            logger.debug("Error closing ACP connection after agent exit", exc_info=True)
 
     @staticmethod
     async def _force_kill_group(process: asyncio.subprocess.Process) -> None:
@@ -352,6 +370,10 @@ class AcpSession:
         )
 
         stderr_task = asyncio.create_task(cls._read_stderr(process))
+        # Started before the handshake so a crash there also unblocks.
+        exit_watch_task = asyncio.create_task(
+            cls._watch_process_exit(process, conn, handler)
+        )
 
         try:
             await conn.initialize(protocol_version=ACP_PROTOCOL_VERSION)
@@ -445,6 +467,7 @@ class AcpSession:
                 except (asyncio.TimeoutError, Exception):
                     pass
             stderr_task.cancel()
+            exit_watch_task.cancel()
 
             error_data = getattr(exc, "data", None)
             error_code = getattr(exc, "code", None)
@@ -472,6 +495,7 @@ class AcpSession:
             acp_session_id=acp_session_id,
             agent_kind=config.agent_kind,
             stderr_task=stderr_task,
+            exit_watch_task=exit_watch_task,
         )
 
     @staticmethod

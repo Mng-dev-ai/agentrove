@@ -86,6 +86,8 @@ class SessionRegistry:
         if session is None:
             return
         session.cancel_event.set()
+        # Not every agent unblocks request_permission on session/cancel.
+        session.acp_session.handler.dismiss_pending_permissions()
         await session.acp_session.cancel()
 
     def resolve_permission(
