@@ -97,4 +97,4 @@ jobs:
           COVERAGE_CORE: sysmon
         run: |
           cd backend
-          pytest tests --faulthandler-timeout=8 --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=85
+          pytest tests --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=85
