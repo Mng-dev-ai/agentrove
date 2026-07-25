@@ -1202,3 +1202,43 @@ def test_untracked_tool_updates_use_meta_name_or_are_dropped() -> None:
     titled_event = handler._map_tool_call_progress(titled)
     assert titled_event is not None
     assert titled_event["tool"]["title"] == "Reading config"
+
+
+def test_tool_heartbeat_updates_never_materialize_cards() -> None:
+    from acp.schema import ToolCallProgress, ToolCallStart
+
+    from app.services.acp.client import AcpClientHandler
+
+    handler = AcpClientHandler(agent_kind=AgentKind.CLAUDE)
+    handler._map_tool_call_start(
+        ToolCallStart.model_validate(
+            {
+                "toolCallId": "toolu_abc",
+                "sessionUpdate": "tool_call",
+                "title": "npm test",
+                "rawInput": {"command": "npm test"},
+                "_meta": {"claudeCode": {"toolName": "Bash"}},
+            }
+        )
+    )
+
+    # The CLI pings every 30s under "<realId>-heartbeat-<n>"; each ping names the
+    # real tool and carries an elapsed-time payload, so it passes the
+    # renderable-identity guard and would otherwise mint a card per 30s.
+    for beat in range(3):
+        heartbeat = ToolCallProgress.model_validate(
+            {
+                "toolCallId": f"toolu_abc-heartbeat-{beat}",
+                "sessionUpdate": "tool_call_update",
+                "status": "in_progress",
+                "_meta": {
+                    "claudeCode": {
+                        "toolName": "Bash",
+                        "toolResponse": {"elapsedTimeSeconds": 30 * (beat + 1)},
+                    }
+                },
+            }
+        )
+        assert handler._map_tool_call_progress(heartbeat) is None
+
+    assert list(handler._active_tools) == ["toolu_abc"]

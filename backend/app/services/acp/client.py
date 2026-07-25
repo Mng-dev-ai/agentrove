@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 from typing import Any, Literal, cast
 
 from acp.schema import (
@@ -37,6 +38,12 @@ logger = logging.getLogger(__name__)
 
 # Sentinel on event_queue when the ACP prompt finishes (success or error).
 _SENTINEL = object()
+
+# The Claude CLI pings every 30s while a tool runs, under a synthetic
+# "<realToolId>-heartbeat-<n>" id. claude-agent-acp (<= 0.62.0) forwards those
+# pings as tool_call_updates keyed by that id and drops the SDK's `heartbeat`
+# flag, so the id shape is the only signal left to recognize them by.
+_HEARTBEAT_TOOL_ID_RE = re.compile(r"-heartbeat-\d+$")
 
 # Valid ACP option_ids that match our PermissionMode literals directly.
 VALID_PERMISSION_MODES: set[str] = {
@@ -415,9 +422,8 @@ class AcpClientHandler:
 
     @staticmethod
     def _extract_meta_tool_name(tc: ToolCallProgress) -> str | None:
-        # claude-agent-acp stamps the real tool name on tool_progress updates
-        # at _meta.claudeCode.toolName (SDK >= 0.3.214 emits these for
-        # subagent-internal tools that never get a top-level tool_call start).
+        # claude-agent-acp stamps the real tool name at _meta.claudeCode.toolName
+        # on updates that carry no title of their own.
         meta = getattr(tc, "field_meta", None)
         if not isinstance(meta, dict):
             return None
@@ -431,6 +437,11 @@ class AcpClientHandler:
         # Multiple progress events per tool possible; re-emit only when title/input changes.
         status = tc.status
 
+        # Heartbeat ids never get a terminal update, so materializing one would
+        # leave a card spinning until finish() sweeps it completed.
+        if _HEARTBEAT_TOOL_ID_RE.search(tc.tool_call_id):
+            return None
+
         existing = self._active_tools.get(tc.tool_call_id)
         if existing is None and status is None:
             return None
@@ -438,8 +449,7 @@ class AcpClientHandler:
         materialized = existing is None
         if existing is None:
             # Update for a tool we never saw start. Use the real name from the
-            # adapter's _meta when present (subagent-internal tools report
-            # progress without a tool_call start); drop updates that carry no
+            # adapter's _meta when present; drop updates that carry no
             # renderable identity at all instead of minting "Unknown tool"
             # cards that finish() later stamps completed.
             meta_tool_name = self._extract_meta_tool_name(tc)
