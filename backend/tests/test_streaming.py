@@ -9,7 +9,6 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
-import pytest_asyncio
 import uvicorn
 from acp.schema import PermissionOption, ToolCallUpdate
 from fastapi import FastAPI
@@ -1093,9 +1092,11 @@ async def test_send_message_with_worktree_persists_cwd_and_emits_system_event(
     assert detail_response.json()["worktree_cwd"] == response.json()["worktree_cwd"]
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 async def live_server_url(app: FastAPI) -> AsyncIterator[str]:
     # ASGITransport buffers whole body — live SSE needs a real socket server.
+    # Plain (anyio-run) fixture: pytest-asyncio would start uvicorn on its own
+    # loop, which stops running during the anyio test — requests then hang.
     config = uvicorn.Config(app, host="127.0.0.1", port=0, log_level="error")
     server = uvicorn.Server(config)
     serve_task = asyncio.create_task(server.serve())

@@ -114,8 +114,3 @@ DEP002 = [
     # spawns at runtime — not imported by backend source, so deptry can't see it.
     "mcp",
 ]
-
-[tool.pytest.ini_options]
-# TEMPORARY DIAGNOSTIC: dump all thread stacks for any test exceeding 8s, to
-# locate the CI-only SSE stall. Remove once diagnosed.
-faulthandler_timeout = 8
