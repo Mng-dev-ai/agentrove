@@ -4,11 +4,10 @@ import logging
 import math
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import exists, func, select, update
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased, selectinload
 
 from app.constants import (
@@ -17,7 +16,7 @@ from app.constants import (
     REDIS_KEY_USER_STREAMS_LIVE,
 )
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message
-from app.models.db_models.enums import MessageRole, MessageStreamStatus, StreamEventKind
+from app.models.db_models.enums import MessageRole, StreamEventKind
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import Chat as ChatSchema
@@ -41,9 +40,8 @@ from app.models.schemas.pagination import (
 )
 from app.models.types import ChatCompletionResult, MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME, build_system_prompt_for_chat
-from app.services.agent import AgentService
 from app.services.db import BaseDbService, SessionFactoryType
-from app.services.exceptions import ChatException, ErrorCode, SandboxException
+from app.services.exceptions import ChatException, ErrorCode
 from app.services.git import GitService
 from app.services.message import MessageService
 from app.services.sandbox import SandboxService
@@ -57,8 +55,6 @@ from app.services.user import UserService
 from app.utils.cache import CacheError, CachePubSub, cache_connection, cache_pubsub
 
 logger = logging.getLogger(__name__)
-
-TERMINAL_STREAM_EVENT_TYPES = frozenset({"cancelled", "complete", "error"})
 
 # Context chars kept before a search match in snippets.
 SEARCH_SNIPPET_CONTEXT_BEFORE = 30
@@ -735,54 +731,6 @@ class ChatService(BaseDbService[Chat]):
 
         return await self.message_service.get_chat_messages(chat_id, cursor, limit)
 
-    @staticmethod
-    async def create_checkpoint_for_message(
-        chat: Chat,
-        assistant_message_id: UUID,
-        session_factory: SessionFactoryType,
-        worktree: bool,
-        base_branch: str | None = None,
-    ) -> UUID | None:
-        # Best-effort: a non-git workspace must not block the agent run.
-        sandbox_id = chat.sandbox_id
-        if not sandbox_id:
-            return None
-
-        try:
-            # Resolve the same cwd the agent turn runs in, so the checkpoint's
-            # diff and restore target match where the agent actually edited.
-            cwd = await AgentService(session_factory=session_factory).resolve_cwd(
-                chat, worktree, base_branch
-            )
-            provider = SandboxProvider.create_provider(
-                chat.sandbox_provider, workspace_path=chat.workspace_path
-            )
-            checkpoint = await GitService(SandboxService(provider)).create_checkpoint(
-                sandbox_id, cwd
-            )
-            if checkpoint is None:
-                return None
-
-            async with session_factory() as db:
-                checkpoint_row = ChatCheckpoint(
-                    chat_id=chat.id,
-                    assistant_message_id=assistant_message_id,
-                    cwd=cwd,
-                    base_head=checkpoint.base_head,
-                    pre_run_diff=checkpoint.pre_run_diff,
-                )
-                db.add(checkpoint_row)
-                await db.commit()
-                await db.refresh(checkpoint_row)
-                return cast(UUID, checkpoint_row.id)
-        except (SandboxException, SQLAlchemyError, TimeoutError, ValueError) as exc:
-            logger.warning(
-                "Failed to create checkpoint for message %s: %s",
-                assistant_message_id,
-                exc,
-            )
-            return None
-
     async def restore_checkpoint_all(
         self,
         message_id: UUID,
@@ -829,7 +777,7 @@ class ChatService(BaseDbService[Chat]):
         chat_id: UUID,
         after_seq: int,
     ) -> AsyncIterator[dict[str, Any]]:
-        # SSE reconnection catch-up: page events after the client's last seq, then live pub/sub.
+        # Catch-up after the client's last seq; terminal pruning keeps volume O(turns).
         page_size = 5000
         cursor = after_seq
 
@@ -851,8 +799,6 @@ class ChatService(BaseDbService[Chat]):
                     kind=event.event_type,
                     payload=event.render_payload,
                 )
-                if event.event_type in TERMINAL_STREAM_EVENT_TYPES:
-                    return
 
             next_cursor = int(backlog[-1].seq)
             if next_cursor <= cursor:
@@ -891,10 +837,6 @@ class ChatService(BaseDbService[Chat]):
                 payload=payload,
             ),
         }
-
-    async def has_cancelable_pending_start(self, chat_id: UUID) -> bool:
-        message = await self.message_service.get_in_progress_assistant_message(chat_id)
-        return bool(message and message.active_stream_id is None)
 
     async def filter_owned_chat_ids(
         self, user_id: UUID, chat_ids: list[UUID]
@@ -1032,6 +974,21 @@ class ChatService(BaseDbService[Chat]):
         request: ChatRequest,
         current_user: User,
     ) -> ChatCompletionResult:
+        async with ChatStreamRuntime.chat_start_slot(str(request.chat_id)) as reserved:
+            if not reserved:
+                raise ChatException(
+                    "A response is already streaming for this chat. "
+                    "Wait for it to finish or queue the message instead.",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                    status_code=409,
+                )
+            return await self._initiate_chat_completion_reserved(request, current_user)
+
+    async def _initiate_chat_completion_reserved(
+        self,
+        request: ChatRequest,
+        current_user: User,
+    ) -> ChatCompletionResult:
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(request.chat_id, current_user)
 
@@ -1096,36 +1053,24 @@ class ChatService(BaseDbService[Chat]):
                 )
             )
 
-        await self.message_service.create_message(
-            chat_id,
-            request.prompt,
-            MessageRole.USER,
-            attachments=attachments,
-        )
-
-        assistant_message = await self.message_service.create_message(
-            chat.id,
-            "",
-            MessageRole.ASSISTANT,
-            model_id=request.model_id,
-            stream_status=MessageStreamStatus.IN_PROGRESS,
-        )
-
-        checkpoint_id = await self.create_checkpoint_for_message(
-            chat,
-            assistant_message.id,
-            self._session_factory,
-            request.worktree,
-            request.base_branch,
-        )
-
+        # Validate before the scaffold writes any rows.
         model = MODELS[request.model_id]
         system_prompt = build_system_prompt_for_chat(
             user_settings,
             agent_kind=model.agent_kind,
             selected_persona_name=request.selected_persona_name,
         )
-        try:
+
+        async with ChatStreamRuntime.turn_scaffold(
+            self.message_service,
+            chat,
+            prompt=request.prompt,
+            model_id=request.model_id,
+            attachments=attachments,
+            worktree=request.worktree,
+            base_branch=request.base_branch,
+            session_factory=self._session_factory,
+        ) as (_, assistant_message, checkpoint_id):
             await self._enqueue_chat_task(
                 prompt=request.prompt,
                 system_prompt=system_prompt,
@@ -1143,10 +1088,6 @@ class ChatService(BaseDbService[Chat]):
                 context_window=model.context_window,
                 selected_persona_name=request.selected_persona_name,
             )
-        except Exception as e:
-            logger.error("Failed to enqueue chat task: %s", e)
-            await self.message_service.soft_delete_message(assistant_message.id)
-            raise
 
         # Lets open sessions mark this chat "running" even when the turn was
         # started out-of-band (e.g. via the MCP server) with no client stream.

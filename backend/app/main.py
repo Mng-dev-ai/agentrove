@@ -45,6 +45,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    await ChatStreamRuntime.reconcile_orphaned_messages(SessionLocal)
     maintenance_service = MaintenanceService()
     await maintenance_service.start()
     try:

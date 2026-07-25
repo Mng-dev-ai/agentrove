@@ -128,9 +128,19 @@ class AcpClientHandler:
             self._active_tools.clear()
         self._resolved_permissions.clear()
         self._permission_option_modes.clear()
+        # Unanswered permission prompts must not outlive the turn.
+        self.dismiss_pending_permissions()
         self.event_queue.put_nowait(_SENTINEL)
 
+    def dismiss_pending_permissions(self) -> None:
+        # Agent still alive: "" resolves as a proper DeniedOutcome("cancelled") RPC response.
+        for future in self._pending_permissions.values():
+            if not future.done():
+                future.set_result("")
+        self._pending_permissions.clear()
+
     def cancel_pending_permissions(self) -> None:
+        # Teardown/dead process: no response can be delivered, just unblock the waiters.
         for future in self._pending_permissions.values():
             if not future.done():
                 future.cancel()

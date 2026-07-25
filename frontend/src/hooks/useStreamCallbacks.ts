@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { QueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { StreamContentBuffer } from '@/utils/stream';
+import type { StreamContentBuffer } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { markChatViewed } from '@/hooks/queries/useChatQueries';
@@ -32,9 +32,19 @@ import {
   buildFailedMessageUpdate,
   createEmptyRenderSnapshot,
   getStreamErrorMessage,
-  type StreamSessionState,
 } from '@/hooks/stream/messageUpdates';
 import { envelopeToRenderEvent, extractPayloadData } from '@/hooks/stream/envelopeTranslation';
+import {
+  advanceStreamSession,
+  clearStreamSession,
+  createStreamSession,
+  findStreamIdByMessage,
+  getStreamBuffer,
+  getStreamSession,
+  stashPendingStopEnvelope,
+  streamSessionsForChat,
+  takePendingStopEnvelopes,
+} from '@/hooks/stream/streamRegistry';
 
 // Token envelopes arrive ~10-50ms apart; 50ms batching (~20/s) avoids thrashing React/cache.
 const STREAM_FLUSH_INTERVAL_MS = 50;
@@ -105,10 +115,7 @@ export function useStreamCallbacks({
   const messagesRef = useRef<Message[]>(messages);
   messagesRef.current = messages;
   const timerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const buffersRef = useRef<Map<string, StreamContentBuffer>>(new Map());
   const flushTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
-  const streamSessionsRef = useRef<Map<string, StreamSessionState>>(new Map());
-  const pendingStopEnvelopesRef = useRef<Map<string, StreamEnvelope[]>>(new Map());
   const chatIdRef = useRef(chatId);
   chatIdRef.current = chatId;
 
@@ -118,42 +125,11 @@ export function useStreamCallbacks({
   });
   const { data: settings } = useSettingsQuery();
 
-  const clearStreamSession = useCallback((streamId: string | undefined) => {
-    if (!streamId) return;
-
-    const flushTimer = flushTimersRef.current.get(streamId);
-    if (flushTimer) {
-      clearTimeout(flushTimer);
-      flushTimersRef.current.delete(streamId);
-    }
-
-    buffersRef.current.delete(streamId);
-    streamSessionsRef.current.delete(streamId);
-  }, []);
-
-  const findStreamIdByMessage = useCallback((messageId?: string): string | undefined => {
-    if (!messageId) return undefined;
-
-    for (const [streamId, session] of streamSessionsRef.current.entries()) {
-      if (session.messageId === messageId) {
-        return streamId;
-      }
-    }
-
-    return undefined;
-  }, []);
-
-  const replayPendingStopEnvelopes = useCallback((messageId: string) => {
-    const envelopes = pendingStopEnvelopesRef.current.get(messageId);
-    pendingStopEnvelopesRef.current.delete(messageId);
-    return envelopes ?? [];
-  }, []);
-
   // Live state only when on-screen; always can write cache so off-screen progress survives switches.
   const flushBufferedContent = useCallback(
     (streamId: string, { writeToCache }: { writeToCache: boolean }) => {
-      const buffer = buffersRef.current.get(streamId);
-      const session = streamSessionsRef.current.get(streamId);
+      const buffer = getStreamBuffer(streamId);
+      const session = getStreamSession(streamId);
       if (!buffer || !session) return;
 
       const update = buildContentFlushUpdate(streamId, buffer, session);
@@ -171,19 +147,18 @@ export function useStreamCallbacks({
     [setMessages, queryClient],
   );
 
-  // One pending flush timer per stream.
+  // Per-pane timers — each pane flushes into its own messages state.
   const scheduleContentFlush = useCallback(
     (streamId: string) => {
-      if (flushTimersRef.current.has(streamId)) {
+      const timers = flushTimersRef.current;
+      if (timers.has(streamId)) {
         return;
       }
-
       const timer = setTimeout(() => {
-        flushTimersRef.current.delete(streamId);
+        timers.delete(streamId);
         flushBufferedContent(streamId, { writeToCache: true });
       }, STREAM_FLUSH_INTERVAL_MS);
-
-      flushTimersRef.current.set(streamId, timer);
+      timers.set(streamId, timer);
     },
     [flushBufferedContent],
   );
@@ -196,14 +171,8 @@ export function useStreamCallbacks({
       seq: number,
       streamChatId: string,
     ): StreamContentBuffer => {
-      const existing = buffersRef.current.get(streamId);
+      const existing = advanceStreamSession(streamId, messageId, seq, streamChatId);
       if (existing) {
-        const existingSession = streamSessionsRef.current.get(streamId);
-        if (existingSession) {
-          existingSession.lastSeq = Math.max(existingSession.lastSeq, seq);
-          existingSession.messageId = messageId;
-          existingSession.chatId = streamChatId;
-        }
         return existing;
       }
 
@@ -220,48 +189,35 @@ export function useStreamCallbacks({
         seedText = existingMessage.content_text ?? '';
       }
 
-      const buffer = new StreamContentBuffer(seedEvents, seedText);
-      buffersRef.current.set(streamId, buffer);
-      streamSessionsRef.current.set(streamId, {
-        messageId,
-        lastSeq: seq,
-        chatId: streamChatId,
-        // Resolve now while chat query is warm — completion-time resolve can miss after gc.
-        sandboxId: queryClient.getQueryData<Chat>(queryKeys.chat(streamChatId))?.sandbox_id,
-      });
-
-      return buffer;
+      return createStreamSession(
+        streamId,
+        {
+          messageId,
+          lastSeq: seq,
+          chatId: streamChatId,
+          // Resolve now while chat query is warm — completion-time resolve can miss after gc.
+          sandboxId: queryClient.getQueryData<Chat>(queryKeys.chat(streamChatId))?.sandbox_id,
+        },
+        seedEvents,
+        seedText,
+      );
     },
     [queryClient],
   );
 
   useEffect(() => {
     const flushTimers = flushTimersRef.current;
-    const buffers = buffersRef.current;
-    const streamSessions = streamSessionsRef.current;
-    const pendingStopEnvelopes = pendingStopEnvelopesRef.current;
-
     return () => {
       timerIdsRef.current.forEach(clearTimeout);
       timerIdsRef.current = [];
-
-      // Flush pending content so cursor-acked progress isn't lost on unmount.
-      for (const [streamId, timer] of flushTimers.entries()) {
+      // Persist the buffered tail — the next envelope can be minutes away.
+      for (const [streamId, timer] of flushTimers) {
         clearTimeout(timer);
-        const buffer = buffers.get(streamId);
-        const session = streamSessions.get(streamId);
-        if (buffer && session) {
-          const update = buildContentFlushUpdate(streamId, buffer, session);
-          updateMessageInCacheForChat(queryClient, session.chatId, session.messageId, update);
-        }
+        flushBufferedContent(streamId, { writeToCache: true });
       }
       flushTimers.clear();
-
-      buffers.clear();
-      streamSessions.clear();
-      pendingStopEnvelopes.clear();
     };
-  }, [queryClient]);
+  }, [flushBufferedContent]);
 
   const setPendingUserMessageId = useCallback(
     (id: string | null) => {
@@ -275,9 +231,7 @@ export function useStreamCallbacks({
   const onEnvelope = useCallback(
     (envelope: StreamEnvelope) => {
       if (pendingStopRef.current.has(envelope.messageId)) {
-        const envelopes = pendingStopEnvelopesRef.current.get(envelope.messageId) ?? [];
-        envelopes.push(envelope);
-        pendingStopEnvelopesRef.current.set(envelope.messageId, envelopes);
+        stashPendingStopEnvelope(envelope.messageId, envelope);
         return;
       }
 
@@ -364,13 +318,6 @@ export function useStreamCallbacks({
         envelope.chatId,
       );
       buffer.push(renderEvent);
-
-      const session = streamSessionsRef.current.get(envelope.streamId);
-      if (session) {
-        session.lastSeq = Math.max(session.lastSeq, envelope.seq);
-        session.messageId = envelope.messageId;
-      }
-
       scheduleContentFlush(envelope.streamId);
     },
     [
@@ -396,9 +343,7 @@ export function useStreamCallbacks({
       const resolvedStreamId = streamId ?? findStreamIdByMessage(messageId);
       const isCancelled = terminalKind === 'cancelled';
       const isCurrentChat = chatId === chatIdRef.current;
-      const session = resolvedStreamId
-        ? streamSessionsRef.current.get(resolvedStreamId)
-        : undefined;
+      const session = getStreamSession(resolvedStreamId);
       const sessionChatId = session?.chatId;
       const sessionSandboxId = session?.sandboxId;
 
@@ -413,7 +358,7 @@ export function useStreamCallbacks({
       // Finalize cache even off-screen so return within staleTime isn't stuck.
       if (messageId) {
         pendingStopRef.current.delete(messageId);
-        pendingStopEnvelopesRef.current.delete(messageId);
+        takePendingStopEnvelopes(messageId);
         const finalizeMessage = (message: Message): Message => ({
           ...message,
           active_stream_id: null,
@@ -437,6 +382,11 @@ export function useStreamCallbacks({
       // Server mutates title/updated_at/context during the turn — refresh even if off-screen.
       if (targetChatId) {
         queryClient.invalidateQueries({ queryKey: queryKeys.chat(targetChatId), exact: true });
+        // Server terminals only — an optimistic Stop races the unwind and
+        // would refetch pre-terminal state over the local patch.
+        if (streamId) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.messages(targetChatId) });
+        }
       }
 
       // Refresh sandbox caches even off-screen (incl. cancelled — real file/branch effects).
@@ -491,11 +441,9 @@ export function useStreamCallbacks({
     [
       flushBufferedContent,
       chatId,
-      clearStreamSession,
       currentChat?.sandbox_id,
       currentChat?.parent_chat_id,
       queryClient,
-      findStreamIdByMessage,
       setCurrentMessageId,
       setMessages,
       setPendingUserMessageId,
@@ -508,9 +456,7 @@ export function useStreamCallbacks({
     (streamError: Error, assistantMessageId?: string, streamId?: string) => {
       const resolvedStreamId = streamId ?? findStreamIdByMessage(assistantMessageId);
       const isCurrentChat = chatId === chatIdRef.current;
-      const sessionChatId = resolvedStreamId
-        ? streamSessionsRef.current.get(resolvedStreamId)?.chatId
-        : undefined;
+      const sessionChatId = getStreamSession(resolvedStreamId)?.chatId;
 
       if (resolvedStreamId) {
         flushBufferedContent(resolvedStreamId, { writeToCache: true });
@@ -521,6 +467,9 @@ export function useStreamCallbacks({
 
       // Don't remove — already persisted; mirror backend snapshot so live UI matches refresh.
       if (assistantMessageId) {
+        // Same drain as onComplete — a stop ending in error must not keep stashing.
+        pendingStopRef.current.delete(assistantMessageId);
+        takePendingStopEnvelopes(assistantMessageId);
         const markFailed = buildFailedMessageUpdate(streamError);
         if (targetChatId) {
           updateMessageInCacheForChat(queryClient, targetChatId, assistantMessageId, markFailed);
@@ -530,6 +479,11 @@ export function useStreamCallbacks({
             prev.map((msg) => (msg.id === assistantMessageId ? markFailed(msg) : msg)),
           );
         }
+      }
+
+      // Same gate as onComplete — a connection-failure error has no streamId.
+      if (targetChatId && streamId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(targetChatId) });
       }
 
       if (!isCurrentChat) return;
@@ -549,9 +503,8 @@ export function useStreamCallbacks({
     [
       flushBufferedContent,
       chatId,
-      clearStreamSession,
+      pendingStopRef,
       queryClient,
-      findStreamIdByMessage,
       setCurrentMessageId,
       setMessages,
       setPendingUserMessageId,
@@ -567,8 +520,8 @@ export function useStreamCallbacks({
 
       // Queue continuation starts a new stream/message pair without terminal events
       // on the prior stream, so flush and drop stale per-stream session state.
-      for (const [streamId, session] of Array.from(streamSessionsRef.current.entries())) {
-        if (session.chatId !== chatId || session.messageId === data.assistantMessageId) {
+      for (const [streamId, session] of streamSessionsForChat(chatId)) {
+        if (session.messageId === data.assistantMessageId) {
           continue;
         }
         flushBufferedContent(streamId, { writeToCache: true });
@@ -655,7 +608,6 @@ export function useStreamCallbacks({
     [
       flushBufferedContent,
       chatId,
-      clearStreamSession,
       queryClient,
       setMessages,
       setCurrentMessageId,
@@ -726,13 +678,13 @@ export function useStreamCallbacks({
         }
       } catch (error) {
         pendingStopRef.current.delete(messageId);
-        for (const envelope of replayPendingStopEnvelopes(messageId)) {
+        for (const envelope of takePendingStopEnvelopes(messageId)) {
           onEnvelope(envelope);
         }
         throw error;
       }
     },
-    [chatId, onComplete, onEnvelope, pendingStopRef, replayPendingStopEnvelopes],
+    [chatId, onComplete, onEnvelope, pendingStopRef],
   );
 
   return {

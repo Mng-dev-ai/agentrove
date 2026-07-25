@@ -1,3 +1,4 @@
+import asyncio
 import json
 from datetime import datetime, timezone
 from typing import Any, cast
@@ -15,8 +16,15 @@ from app.utils.cache import CacheStore
 
 
 class QueueService:
+    # Serializes per-chat read-modify-write; single uvicorn worker only
+    # (entrypoint.sh). Locks are retained for the process lifetime.
+    _locks: dict[str, asyncio.Lock] = {}
+
     def __init__(self, cache: CacheStore):
         self.cache = cache
+
+    def _lock(self, chat_id: str) -> asyncio.Lock:
+        return self._locks.setdefault(chat_id, asyncio.Lock())
 
     def _queue_key(self, chat_id: str) -> str:
         return REDIS_KEY_CHAT_QUEUE.format(chat_id=chat_id)
@@ -46,29 +54,30 @@ class QueueService:
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
         attachments: list[dict[str, Any]] | None = None,
     ) -> QueueAddResponse:
-        key = self._queue_key(chat_id)
-        queue = await self._read_queue(key)
+        async with self._lock(chat_id):
+            key = self._queue_key(chat_id)
+            queue = await self._read_queue(key)
 
-        message_id = uuid4()
-        queued_at = datetime.now(timezone.utc)
-        message_data: dict[str, Any] = {
-            "id": str(message_id),
-            "content": content,
-            "model_id": model_id,
-            "permission_mode": permission_mode,
-            "thinking_mode": thinking_mode,
-            "worktree": worktree,
-            "base_branch": base_branch,
-            "fast_mode": fast_mode,
-            "selected_persona_name": selected_persona_name,
-            "queued_at": queued_at.isoformat(),
-            "attachments": attachments,
-        }
+            message_id = uuid4()
+            queued_at = datetime.now(timezone.utc)
+            message_data: dict[str, Any] = {
+                "id": str(message_id),
+                "content": content,
+                "model_id": model_id,
+                "permission_mode": permission_mode,
+                "thinking_mode": thinking_mode,
+                "worktree": worktree,
+                "base_branch": base_branch,
+                "fast_mode": fast_mode,
+                "selected_persona_name": selected_persona_name,
+                "queued_at": queued_at.isoformat(),
+                "attachments": attachments,
+            }
 
-        queue.append(message_data)
-        await self._write_queue(key, queue)
+            queue.append(message_data)
+            await self._write_queue(key, queue)
 
-        return QueueAddResponse(id=message_id, queued_at=queued_at)
+            return QueueAddResponse(id=message_id, queued_at=queued_at)
 
     @staticmethod
     def _to_queued_message(item: dict[str, Any]) -> QueuedMessage:
@@ -97,86 +106,90 @@ class QueueService:
     async def update_message(
         self, chat_id: str, message_id: str, content: str
     ) -> QueuedMessage | None:
-        key = self._queue_key(chat_id)
-        queue = await self._read_queue(key)
+        async with self._lock(chat_id):
+            key = self._queue_key(chat_id)
+            queue = await self._read_queue(key)
 
-        for item in queue:
-            if item["id"] == message_id:
-                item["content"] = content
-                await self._write_queue(key, queue)
-                return self._to_queued_message(item)
+            for item in queue:
+                if item["id"] == message_id:
+                    item["content"] = content
+                    await self._write_queue(key, queue)
+                    return self._to_queued_message(item)
 
-        return None
-
-    async def delete_message(self, chat_id: str, message_id: str) -> bool:
-        key = self._queue_key(chat_id)
-        queue = await self._read_queue(key)
-        original_len = len(queue)
-        queue = [item for item in queue if item["id"] != message_id]
-
-        if len(queue) == original_len:
-            return False
-
-        await self._write_queue(key, queue)
-        return True
-
-    async def clear_queue(self, chat_id: str) -> None:
-        key = self._queue_key(chat_id)
-        await self.cache.delete(key)
-
-    async def pop_next_message(self, chat_id: str) -> dict[str, Any] | None:
-        key = self._queue_key(chat_id)
-        queue = await self._read_queue(key)
-
-        if not queue:
             return None
 
-        next_msg = queue[0]
-        await self._write_queue(key, queue[1:])
-        return next_msg
+    async def delete_message(self, chat_id: str, message_id: str) -> bool:
+        async with self._lock(chat_id):
+            key = self._queue_key(chat_id)
+            queue = await self._read_queue(key)
+            original_len = len(queue)
+            queue = [item for item in queue if item["id"] != message_id]
+
+            if len(queue) == original_len:
+                return False
+
+            await self._write_queue(key, queue)
+            return True
+
+    async def clear_queue(self, chat_id: str) -> None:
+        # Locked so a concurrent pop's _write_queue can't resurrect the key.
+        async with self._lock(chat_id):
+            key = self._queue_key(chat_id)
+            await self.cache.delete(key)
+
+    async def pop_next_message(self, chat_id: str) -> dict[str, Any] | None:
+        async with self._lock(chat_id):
+            key = self._queue_key(chat_id)
+            queue = await self._read_queue(key)
+
+            if not queue:
+                return None
+
+            next_msg = queue[0]
+            await self._write_queue(key, queue[1:])
+            return next_msg
 
     async def mark_send_now(self, chat_id: str, message_id: str) -> bool:
         # Runtime checks this key to skip normal queue order.
-        key = self._queue_key(chat_id)
-        queue = await self._read_queue(key)
-        if not any(item["id"] == message_id for item in queue):
-            return False
+        async with self._lock(chat_id):
+            key = self._queue_key(chat_id)
+            queue = await self._read_queue(key)
+            if not any(item["id"] == message_id for item in queue):
+                return False
 
-        send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)
-        await self.cache.set(send_now_key, message_id, ex=QUEUE_MESSAGE_TTL_SECONDS)
-        return True
+            send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)
+            await self.cache.set(send_now_key, message_id, ex=QUEUE_MESSAGE_TTL_SECONDS)
+            return True
 
     async def pop_send_now_message(self, chat_id: str) -> dict[str, Any] | None:
-        send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)
-        message_id = await self.cache.get(send_now_key)
-        if not message_id:
-            return None
+        async with self._lock(chat_id):
+            send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)
+            message_id = await self.cache.get(send_now_key)
+            if not message_id:
+                return None
 
-        await self.cache.delete(send_now_key)
+            await self.cache.delete(send_now_key)
 
-        key = self._queue_key(chat_id)
-        queue = await self._read_queue(key)
-        target = None
-        remaining = []
-        for item in queue:
-            if item["id"] == message_id and target is None:
-                target = item
-            else:
-                remaining.append(item)
+            key = self._queue_key(chat_id)
+            queue = await self._read_queue(key)
+            target = None
+            remaining = []
+            for item in queue:
+                if item["id"] == message_id and target is None:
+                    target = item
+                else:
+                    remaining.append(item)
 
-        if target is None:
-            return None
+            if target is None:
+                return None
 
-        await self._write_queue(key, remaining)
-        return target
+            await self._write_queue(key, remaining)
+            return target
 
     async def requeue_message(self, chat_id: str, message_data: dict[str, Any]) -> None:
         # Front of queue so a failed process is retried next.
-        key = self._queue_key(chat_id)
-        queue = await self._read_queue(key)
-        queue.insert(0, message_data)
-        await self._write_queue(key, queue)
-
-    async def clear_send_now(self, chat_id: str) -> None:
-        send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)
-        await self.cache.delete(send_now_key)
+        async with self._lock(chat_id):
+            key = self._queue_key(chat_id)
+            queue = await self._read_queue(key)
+            queue.insert(0, message_data)
+            await self._write_queue(key, queue)

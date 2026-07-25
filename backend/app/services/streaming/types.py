@@ -98,6 +98,16 @@ class StreamSnapshotAccumulator:
 
         self.events.append({"type": kind, **payload})
 
+    def add_error(self, message: str) -> None:
+        self.add_event("assistant_text", {"text": f"\n\nError: {message}"})
+
+    @classmethod
+    def error_event(cls, message: str) -> dict[str, Any]:
+        # Keeps dead-stream finalization on the same error shape as live streams.
+        accumulator = cls()
+        accumulator.add_error(message)
+        return accumulator.events[0]
+
     def to_render(self) -> dict[str, Any]:
         return {"events": self.events}
 

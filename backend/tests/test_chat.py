@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from uuid import UUID, uuid4
 
@@ -1941,7 +1942,7 @@ async def test_restore_message_checkpoint_translates_sandbox_and_value_errors(
     assert sandbox_error_response.json()["detail"] == "disk full"
 
 
-async def test_cancel_stream_endpoint_only_cancels_when_active_or_pending(
+async def test_cancel_stream_endpoint_only_cancels_when_turn_alive(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
@@ -1953,21 +1954,15 @@ async def test_cancel_stream_endpoint_only_cancels_when_active_or_pending(
     )
     idle_chat = await create_chat_row(db_session, user, workspace, title="Idle")
     pending_chat = await create_chat_row(db_session, user, workspace, title="Pending")
-    await create_message_row(
-        db_session,
-        pending_chat,
-        content="",
-        role=MessageRole.ASSISTANT,
-        stream_status=MessageStreamStatus.IN_PROGRESS,
-    )
-    active_chat = await create_chat_row(db_session, user, workspace, title="Active")
 
     capture = CancelGenerationCapture()
     monkeypatch.setattr(chat_endpoint.session_registry, "cancel_generation", capture)
-    monkeypatch.setattr(
-        ChatStreamRuntime,
-        "has_active_chat",
-        lambda chat_id: chat_id == str(active_chat.id),
+    released_reservation = asyncio.Event()
+    released_reservation.set()
+    monkeypatch.setitem(
+        ChatStreamRuntime._starting_chat_ids,
+        str(pending_chat.id),
+        released_reservation,
     )
 
     idle_response = await client.delete(
@@ -1976,16 +1971,12 @@ async def test_cancel_stream_endpoint_only_cancels_when_active_or_pending(
     pending_response = await client.delete(
         f"/api/v1/chat/chats/{pending_chat.id}/stream", headers=headers
     )
-    active_response = await client.delete(
-        f"/api/v1/chat/chats/{active_chat.id}/stream", headers=headers
-    )
 
     assert idle_response.status_code == 204
     assert pending_response.status_code == 204
-    assert active_response.status_code == 204
-    # Idle+no-pending-start must not cancel; pending-start and active-runtime
-    # chats both should, even though only one has an active runtime task.
-    assert capture.chat_ids == [str(pending_chat.id), str(active_chat.id)]
+    # Idle must not cancel (a stray pending-cancel flag could kill the next
+    # turn); a reserved start should, even with no task registered yet.
+    assert capture.chat_ids == [str(pending_chat.id)]
 
 
 async def test_queue_message_with_attachments_saves_to_sandbox(
@@ -2232,3 +2223,57 @@ async def test_context_usage_for_chat_without_assistant_message(
         "context_window": 0,
         "percentage": 0.0,
     }
+
+
+async def test_send_now_during_reserved_start_cancels_current_turn(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queue_override = QueueServiceOverride()
+    send_now_capture = SendNowCapture()
+    cancel_capture = CancelGenerationCapture()
+
+    app.dependency_overrides[get_queue_service] = queue_override
+    monkeypatch.setattr(
+        ChatStreamRuntime,
+        "process_send_now_idle",
+        staticmethod(send_now_capture.process_send_now_idle),
+    )
+    monkeypatch.setattr(
+        chat_endpoint.session_registry, "cancel_generation", cancel_capture
+    )
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    monkeypatch.setitem(
+        ChatStreamRuntime._starting_chat_ids, str(chat.id), asyncio.Event()
+    )
+
+    create_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={
+            "content": "Queued during reserved start",
+            "model_id": TEST_MODEL_ID,
+            "permission_mode": "bypassPermissions",
+            "selected_persona_name": "Default",
+        },
+        headers=headers,
+    )
+    assert create_response.status_code == 201
+    queued_id = create_response.json()["id"]
+
+    send_now_response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue/{queued_id}/send-now", headers=headers
+    )
+
+    assert send_now_response.status_code == 204
+    # A reserved start must take the cancel branch: the flag interrupts the
+    # starting turn, whose INTERRUPTED path picks the message up. The idle
+    # path would lose the reservation race and strand the send-now flag.
+    assert cancel_capture.chat_ids == [str(chat.id)]
+    assert send_now_capture.chat_ids == []

@@ -17,6 +17,8 @@ interface ManagedConnection {
   retryAttempts: number;
   retryTimer: ReturnType<typeof setTimeout> | null;
   stableTimer: ReturnType<typeof setTimeout> | null;
+  stallTimer: ReturnType<typeof setInterval> | null;
+  lastActivityAt: number;
   // Bumped on (re)open/teardown so in-flight async opens self-cancel.
   generation: number;
 }
@@ -26,6 +28,9 @@ const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 15000;
 // Stay open this long before resetting retry budget (avoids open→die loops).
 const CONNECTION_STABLE_MS = 15000;
+// A half-open socket fires no error; silence past 3 server pings means dead.
+const STALL_CHECK_INTERVAL_MS = 15000;
+const STALL_TIMEOUT_MS = 45000;
 
 // One multiplexed SSE per API host (browsers cap ~6 HTTP/1.1 sockets per origin).
 // Opens when streamStore has active streams; closes when the last is removed.
@@ -104,6 +109,8 @@ class StreamConnectionManager {
       retryAttempts: 0,
       retryTimer: null,
       stableTimer: null,
+      stallTimer: null,
+      lastActivityAt: Date.now(),
       generation: 0,
     };
     this.connections.set(client, connection);
@@ -150,12 +157,19 @@ class StreamConnectionManager {
     params.append('cursors', JSON.stringify(cursors));
     const source = new EventSource(`${client.getBaseUrl()}/chat/chats/streams?${params}`);
     connection.source = source;
+    connection.lastActivityAt = Date.now();
+    this.startStallWatchdog(client, connection);
 
     source.addEventListener('stream', (event: Event) => {
+      connection.lastActivityAt = Date.now();
       const data = (event as MessageEvent).data;
       if (data) this.handlers?.onEnvelopeData(data);
     });
+    source.addEventListener('ping', () => {
+      connection.lastActivityAt = Date.now();
+    });
     source.onopen = () => {
+      connection.lastActivityAt = Date.now();
       if (connection.source !== source || connection.stableTimer) return;
       connection.stableTimer = setTimeout(() => {
         connection.stableTimer = null;
@@ -173,6 +187,16 @@ class StreamConnectionManager {
       connection.source = null;
       this.scheduleReconnect(client, connection);
     };
+  }
+
+  private startStallWatchdog(client: StreamApiClient, connection: ManagedConnection): void {
+    if (connection.stallTimer) return;
+    connection.stallTimer = setInterval(() => {
+      if (this.connections.get(client) !== connection || !connection.source) return;
+      if (Date.now() - connection.lastActivityAt <= STALL_TIMEOUT_MS) return;
+      logger.warn('Stream connection stalled; reopening', 'streamConnection');
+      this.open(client);
+    }, STALL_CHECK_INTERVAL_MS);
   }
 
   private scheduleReconnect(client: StreamApiClient, connection: ManagedConnection): void {
@@ -221,6 +245,10 @@ class StreamConnectionManager {
     if (connection.stableTimer) {
       clearTimeout(connection.stableTimer);
       connection.stableTimer = null;
+    }
+    if (connection.stallTimer) {
+      clearInterval(connection.stallTimer);
+      connection.stallTimer = null;
     }
     connection.source?.close();
     connection.source = null;

@@ -23,7 +23,7 @@ interface UseStreamReconnectParams {
   replayStream: (messageId: string, afterSeq?: number) => Promise<string>;
 }
 
-// On chat entry: poll active task, resume SSE from max(server/local/message seq).
+// On chat entry: poll active task, resume SSE from the message's snapshot seq.
 export function useStreamReconnect({
   chatId,
   fetchedMessages,
@@ -81,16 +81,9 @@ export function useStreamReconnect({
         const existingMessage = messages.find((msg) => msg.id === targetMessageId);
         const messageExists = existingMessage != null;
 
-        // Resume from max(server, local storage, message cursor) to avoid duplicates.
-        const reconnectSeq = status.last_seq ?? existingMessage?.last_seq ?? 0;
-        const storedSeqRaw = chatStorage.getEventId(chatId);
-        const storedSeq = storedSeqRaw ? Number(storedSeqRaw) : Number.NaN;
-        const normalizedStoredSeq = Number.isFinite(storedSeq) && storedSeq > 0 ? storedSeq : 0;
-        const normalizedReconnectSeq = reconnectSeq > 0 ? reconnectSeq : 0;
-        // Missing local message → replay from 0 (truncated cursor would drop content).
-        const replayAfterSeq = messageExists
-          ? Math.max(normalizedStoredSeq, normalizedReconnectSeq)
-          : 0;
+        // Replay from the message's own last_seq — stored cursors can be ahead and would skip events.
+        const snapshotSeq = Number(existingMessage?.last_seq);
+        const replayAfterSeq = Number.isFinite(snapshotSeq) && snapshotSeq > 0 ? snapshotSeq : 0;
         if (replayAfterSeq > 0) {
           chatStorage.setEventId(chatId, String(replayAfterSeq));
         } else {

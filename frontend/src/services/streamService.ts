@@ -139,6 +139,9 @@ class StreamService {
     const stream = useStreamStore.getState().getStreamByChat(chatId);
     if (!stream) return;
 
+    // A replayed handoff from an older turn must not repoint the stream backwards.
+    if (envelope.messageId !== stream.messageId) return;
+
     if (payload.assistant_message_id !== stream.messageId) {
       useStreamStore
         .getState()
@@ -291,9 +294,10 @@ class StreamService {
   }
 
   async stopStreamByMessage(chatId: string, messageId: string): Promise<boolean> {
-    const stream = useStreamStore.getState().getStreamByChatAndMessage(chatId, messageId);
     await chatService.stopStream(chatId);
 
+    // Read after the blocking DELETE — a pre-await handle would finalize twice.
+    const stream = useStreamStore.getState().getStreamByChatAndMessage(chatId, messageId);
     if (stream) {
       this.finalizeStreamAsCancelled(stream);
       return true;
