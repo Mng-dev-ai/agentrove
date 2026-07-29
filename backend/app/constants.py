@@ -279,7 +279,7 @@ MODELS: dict[str, ModelInfo] = {
         "MiniMax M2.7 (Opencode Go)", AgentKind.OPENCODE, 204_800
     ),
     "opencode:opencode-go/minimax-m3": ModelInfo(
-        "MiniMax M3 (Opencode Go)", AgentKind.OPENCODE, 512_000
+        "MiniMax M3 (Opencode Go)", AgentKind.OPENCODE, 1_000_000
     ),
     "opencode:opencode-go/qwen3.5-plus": ModelInfo(
         "Qwen3.5 Plus (Opencode Go)", AgentKind.OPENCODE, 262_144
