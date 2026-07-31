@@ -81,6 +81,8 @@ type UIStoreState = ThemeState &
     setCreateCommitDialogOpen: (open: boolean) => void;
     // chatId binds the jump to one editor tile; undefined = landing editor.
     pendingFileOpen: PendingFileOpen | null;
+    // Monotonic — consumers null pendingFileOpen, so its nonce can't seed the next.
+    fileOpenNonce: number;
     openFileInEditor: (path: string, chatId: string | undefined, line?: number) => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
@@ -309,16 +311,19 @@ export const useUIStore = create<UIStoreState>()(
       },
 
       pendingFileOpen: null,
+      fileOpenNonce: 0,
       openFileInEditor: (path, chatId, line) => {
         const state = get();
         const splitIndex = chatId ? state.splitChatIds.indexOf(chatId) : -1;
         const slot = splitIndex >= 0 ? splitSlotAt(splitIndex) : null;
         const tileId = viewTypeToTileId('editor', slot);
+        const nonce = state.fileOpenNonce + 1;
         set({
+          fileOpenNonce: nonce,
           pendingFileOpen: {
             path,
             chatId,
-            nonce: (state.pendingFileOpen?.nonce ?? 0) + 1,
+            nonce,
             ...(line != null ? { line } : {}),
           },
           openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
