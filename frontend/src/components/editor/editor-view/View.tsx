@@ -229,12 +229,14 @@ export const View = memo(function View({
     const editor = editorRef.current;
     if (!editor) return;
 
+    let layoutListener: monaco.IDisposable | null = null;
     const raf = requestAnimationFrame(() => {
       if (editorRef.current !== editor) return;
       const model = editor.getModel();
       if (!model) return;
-      let lineNumber = Math.max(1, targetLine.line);
-      if (model.getLineCount() < lineNumber) {
+      const targetLineNumber = Math.max(1, targetLine.line);
+      let lineNumber = targetLineNumber;
+      if (model.getLineCount() < targetLineNumber) {
         // The model is shorter than the requested line. If the loaded content
         // hasn't synced into Monaco's value prop yet, wait for the next run
         // (currentContent is in deps) instead of clamping a stale buffer.
@@ -245,7 +247,12 @@ export const View = memo(function View({
         if (!contentReady) return;
         lineNumber = model.getLineCount();
       }
-      lastAppliedTargetRef.current = key;
+      // Only an exact reveal (or a clamp onto an unsaved draft) consumes the
+      // target — a clamp onto non-draft content means the cache is behind the
+      // search hit, so leave it pending for the refetch to land the real line.
+      if (lineNumber === targetLineNumber || hasUnsavedChanges) {
+        lastAppliedTargetRef.current = key;
+      }
       editor.revealLineInCenter(lineNumber);
       editor.setPosition({ lineNumber, column: 1 });
       editor.setSelection({
@@ -255,8 +262,21 @@ export const View = memo(function View({
         endColumn: Number.MAX_SAFE_INTEGER,
       });
       editor.focus();
+      // A jump into a display:none tile reveals against a 0-high layout and
+      // nothing re-centers later — redo the reveal on the first real layout.
+      if (editor.getLayoutInfo().height === 0) {
+        layoutListener = editor.onDidLayoutChange((info) => {
+          if (info.height === 0) return;
+          layoutListener?.dispose();
+          layoutListener = null;
+          if (editorRef.current === editor) editor.revealLineInCenter(lineNumber);
+        });
+      }
     });
-    return () => cancelAnimationFrame(raf);
+    return () => {
+      cancelAnimationFrame(raf);
+      layoutListener?.dispose();
+    };
   }, [
     targetLine,
     selectedFile,
@@ -273,6 +293,12 @@ export const View = memo(function View({
   if (prevViewModeRef.current !== viewMode || prevFilePathRef.current !== selectedFile?.path) {
     const fileChanged = prevFilePathRef.current !== selectedFile?.path;
     const enteredDiff = prevViewModeRef.current !== 'diff' && viewMode === 'diff';
+    // Only an actual preview unmounts Content — 'preview' mode on a
+    // non-previewable file keeps the editor mounted.
+    const enteredPreview =
+      prevViewModeRef.current !== 'preview' &&
+      viewMode === 'preview' &&
+      isPreviewableFile(selectedFile);
     prevViewModeRef.current = viewMode;
     prevFilePathRef.current = selectedFile?.path;
     if (isPreviewFullscreen) {
@@ -283,9 +309,10 @@ export const View = memo(function View({
     if (fileChanged) {
       setViewMode(defaultViewMode(selectedFile));
     }
-    if (enteredDiff) {
-      // Content unmounts while the diff is shown; drop the disposed editor so
-      // the jump-to-line effect waits for the remount instead of touching it.
+    if (enteredDiff || enteredPreview) {
+      // Content unmounts while the diff/preview is shown; drop the disposed
+      // editor so the jump-to-line effect waits for the remount instead of
+      // touching it.
       editorRef.current = null;
       if (mountedEditorPath !== null) setMountedEditorPath(null);
     }

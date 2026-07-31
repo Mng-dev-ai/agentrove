@@ -135,8 +135,11 @@ export const CodeView = memo(function CodeView({
     // Respect a collapsed file tree — opening a file shouldn't reopen it;
     // handleFileTreeExpand re-reveals the selection if the user expands later.
     if (!fileTreePanelRef.current?.isCollapsed()) treeRef.current?.reveal(path);
-    if (pendingFileOpen.line != null) {
-      setTargetLine({ path, line: pendingFileOpen.line, nonce: pendingFileOpen.nonce });
+    const line = pendingFileOpen.line;
+    if (line != null) {
+      // Share handleOpenResult's counter — a second nonce sequence could
+      // collide in View's path:line:nonce dedupe and skip the jump.
+      setTargetLine((prev) => ({ path, line, nonce: (prev?.nonce ?? 0) + 1 }));
     }
     useUIStore.setState({ pendingFileOpen: null });
   }, [pendingFileOpen, chatId, onFileSelect, files.length]);

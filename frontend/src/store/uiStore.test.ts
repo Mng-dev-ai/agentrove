@@ -29,6 +29,7 @@ beforeEach(() => {
     currentWorkspaceChatId: null,
     chatTabs: [],
     pendingFileOpen: null,
+    fileOpenNonce: 0,
     composerSelectionsByChat: {},
   });
 });
@@ -139,6 +140,15 @@ describe('openFileInEditor', () => {
     state().openFileInEditor('a.ts', 'c1', 12);
     // Same path/line re-opens must still register (nonce increments) so the
     // editor re-focuses after the user scrolled away.
+    expect(state().pendingFileOpen?.nonce).toBe(2);
+  });
+
+  it('keeps incrementing the nonce after a consumer clears pendingFileOpen', () => {
+    state().openFileInEditor('a.ts', 'c1', 12);
+    // Consumers null the pending open — a restarted nonce would repeat a
+    // path:line:nonce key and the editor would skip the jump as already applied.
+    useUIStore.setState({ pendingFileOpen: null });
+    state().openFileInEditor('a.ts', 'c1', 12);
     expect(state().pendingFileOpen?.nonce).toBe(2);
   });
 
