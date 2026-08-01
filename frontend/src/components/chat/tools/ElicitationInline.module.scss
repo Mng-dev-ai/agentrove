@@ -110,8 +110,6 @@
   color: var(--theme-text-tertiary);
 }
 
-// Text/number inputs need the same breathing room below the label/description
-// that .options gets — without it the input border rides into the description.
 .text-control {
   margin-top: var(--space-2);
 }
