@@ -15,7 +15,7 @@ markupsafe
 python-multipart
 starlette
 aiodocker>=0.22.0
-agent-client-protocol==0.9.0
+agent-client-protocol==0.12.0
 sqladmin[full]
 httpx
 mcp>=1.19.0

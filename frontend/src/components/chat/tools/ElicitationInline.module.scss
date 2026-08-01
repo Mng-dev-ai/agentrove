@@ -1,0 +1,188 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+// Subtle inset surface — black overlay on light, white overlay on dark.
+@mixin inset-surface {
+  background-color: rgb(0 0 0 / 0.05);
+
+  :global([data-theme='dark']) & {
+    background-color: rgb(255 255 255 / 0.05);
+  }
+}
+
+.elicitation {
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  border: 1px solid colors.theme-color('border', 0.5);
+  background-color: var(--theme-surface-tertiary);
+}
+
+.header {
+  display: flex;
+  height: var(--space-9);
+  align-items: center;
+  gap: var(--space-2);
+  border-bottom: 1px solid colors.theme-color('border', 0.5);
+  padding-inline: var(--space-3);
+}
+
+.header-icon {
+  @include inset-surface;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+}
+
+.header-glyph {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-tertiary);
+}
+
+.header-title {
+  @include type.type-default(500);
+  color: var(--theme-text-primary);
+}
+
+.dismiss-wrap {
+  margin-left: auto;
+  display: flex;
+}
+
+.dismiss {
+  @include anim.transition-colors($duration: var(--duration-fast));
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+}
+
+.dismiss-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.body {
+  // TODO(refactor): no spacing token for viewport-relative max-height
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: var(--space-3);
+}
+
+.message {
+  @include type.type(0.9rem, 1.625);
+  margin-bottom: var(--space-3);
+  color: var(--theme-text-primary);
+}
+
+.field {
+  margin-bottom: var(--space-4);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.field--custom {
+  margin-top: calc(-1 * var(--space-2));
+  margin-bottom: var(--space-4);
+  padding-left: var(--space-3);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.field-label {
+  @include type.type-body(500);
+  color: var(--theme-text-primary);
+}
+
+.field-description {
+  @include type.type-meta;
+  margin-top: var(--space-0-5);
+  color: var(--theme-text-tertiary);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.options {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.option {
+  @include anim.transition-colors($duration: var(--duration-fast));
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  padding: var(--space-2);
+  cursor: pointer;
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
+}
+
+.option-control {
+  margin-top: var(--space-1);
+  flex-shrink: 0;
+  accent-color: var(--theme-text-primary);
+}
+
+.option-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.option-title {
+  @include type.type-default;
+  color: var(--theme-text-primary);
+}
+
+.option-description {
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
+}
+
+.footer {
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-2);
+}
+
+.error {
+  @include type.type-meta;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding-inline: var(--space-1);
+  color: var(--theme-error-text);
+}
+
+.error-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

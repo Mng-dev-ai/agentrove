@@ -49,6 +49,7 @@ from app.models.schemas.chat import (
     ChatUpdate,
     ChatRequest,
     ContextUsage,
+    ElicitationRespondRequest,
     EnhancePromptResponse,
     GenerateTitleResponse,
     Message as MessageSchema,
@@ -598,6 +599,38 @@ async def respond_to_permission(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Permission request not found or expired",
+        )
+
+    return PermissionRespondResponse(success=True)
+
+
+@router.post(
+    "/chats/{chat_id}/elicitation/{request_id}/respond",
+    response_model=PermissionRespondResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def respond_to_elicitation(
+    chat_id: UUID,
+    request_id: str,
+    response: ElicitationRespondRequest,
+    _chat: Chat = Depends(ensure_chat_access),
+) -> PermissionRespondResponse:
+    if response.request_id != request_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Elicitation request ID does not match path",
+        )
+
+    acp_resolved = session_registry.resolve_elicitation(
+        str(chat_id),
+        request_id,
+        action=response.action,
+        content=response.content,
+    )
+    if not acp_resolved:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Elicitation request not found or expired",
         )
 
     return PermissionRespondResponse(success=True)

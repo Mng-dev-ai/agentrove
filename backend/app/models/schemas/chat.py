@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import UploadFile
@@ -166,6 +166,12 @@ class MessageEvent(BaseModel):
 
 class PermissionRespondResponse(BaseModel):
     success: bool
+
+
+class ElicitationRespondRequest(BaseModel):
+    request_id: str
+    action: Literal["accept", "decline", "cancel"]
+    content: dict[str, Any] | None = None
 
 
 class ChatSearchMatch(BaseModel):

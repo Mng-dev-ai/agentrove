@@ -1,5 +1,10 @@
 import { createContext } from 'react';
-import type { Message, PermissionRequest } from '@/types/chat.types';
+import type {
+  ElicitationContent,
+  ElicitationRequest,
+  Message,
+  PermissionRequest,
+} from '@/types/chat.types';
 import type { ContextUsageInfo } from '@/components/chat/message-input/ContextUsageIndicator';
 
 export interface ChatSessionState {
@@ -16,6 +21,9 @@ export interface ChatSessionState {
   pendingPermissionRequest: PermissionRequest | null;
   isPermissionLoading: boolean;
   permissionError: string | null;
+  pendingElicitationRequest: ElicitationRequest | null;
+  isElicitationLoading: boolean;
+  elicitationError: string | null;
 }
 
 export interface ChatSessionActions {
@@ -27,6 +35,9 @@ export interface ChatSessionActions {
   fetchNextPage: () => void;
   onPermissionApprove: (optionId: string) => void;
   onPermissionReject: (optionId: string) => void;
+  onElicitationSubmit: (content: ElicitationContent) => void;
+  onElicitationSkip: () => void;
+  onElicitationCancel: () => void;
 }
 
 interface ChatSessionContextValue {

@@ -12,6 +12,8 @@ import type {
   AssistantStreamEvent,
   Chat,
   ContextUsage,
+  ElicitationRequest,
+  ElicitationSchema,
   Message,
   PermissionRequest,
 } from '@/types/chat.types';
@@ -56,6 +58,8 @@ interface UseStreamCallbacksParams {
   queryClient: QueryClient;
   onContextUsageUpdate?: (data: ContextUsage, chatId?: string) => void;
   onPermissionRequest?: (request: PermissionRequest) => void;
+  onElicitationRequest?: (request: ElicitationRequest) => void;
+  onElicitationDismissed?: (requestId: string) => void;
   setMessages: Dispatch<SetStateAction<Message[]>>;
   setStreamState: Dispatch<SetStateAction<StreamState>>;
   setCurrentMessageId: Dispatch<SetStateAction<string | null>>;
@@ -92,6 +96,8 @@ export function useStreamCallbacks({
   queryClient,
   onContextUsageUpdate,
   onPermissionRequest,
+  onElicitationRequest,
+  onElicitationDismissed,
   setMessages,
   setStreamState,
   setCurrentMessageId,
@@ -263,6 +269,31 @@ export function useStreamCallbacks({
         return;
       }
 
+      // Elicitations block the turn like permissions do — inline form, not content.
+      if (envelope.kind === 'elicitation_request' && onElicitationRequest) {
+        const payload = envelope.payload as Record<string, unknown>;
+        const request_id = typeof payload.request_id === 'string' ? payload.request_id : undefined;
+        const data = extractPayloadData(payload);
+
+        if (request_id && data) {
+          onElicitationRequest({
+            request_id,
+            message: typeof data.message === 'string' ? data.message : '',
+            tool_call_id: typeof data.tool_call_id === 'string' ? data.tool_call_id : null,
+            requested_schema: (data.requested_schema ?? {}) as ElicitationSchema,
+          });
+        }
+        return;
+      }
+
+      if (envelope.kind === 'elicitation_dismissed' && onElicitationDismissed) {
+        const payload = envelope.payload as Record<string, unknown>;
+        if (typeof payload.request_id === 'string') {
+          onElicitationDismissed(payload.request_id);
+        }
+        return;
+      }
+
       if (envelope.kind === 'system') {
         const payload = envelope.payload as Record<string, unknown>;
         const nestedData = extractPayloadData(payload);
@@ -324,6 +355,8 @@ export function useStreamCallbacks({
       chatId,
       ensureBuffer,
       onContextUsageUpdate,
+      onElicitationDismissed,
+      onElicitationRequest,
       onPermissionRequest,
       pendingStopRef,
       queryClient,

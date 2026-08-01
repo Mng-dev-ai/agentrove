@@ -15,6 +15,7 @@ import {
 } from '@/store/chatSettingsStore';
 import { useChatStreaming } from '@/hooks/useChatStreaming';
 import { usePermissionRequest } from '@/hooks/usePermissionRequest';
+import { useElicitationRequest } from '@/hooks/useElicitationRequest';
 import { useInitialPrompt } from '@/hooks/useInitialPrompt';
 import { useContextUsageState } from '@/hooks/useContextUsageState';
 import { useMessageInitialization } from '@/hooks/useMessageInitialization';
@@ -119,6 +120,17 @@ export function ChatSessionOrchestrator({
     handleReject,
   } = usePermissionRequest(chatId);
 
+  const {
+    pendingRequest: pendingElicitation,
+    isLoading: isElicitationLoading,
+    error: elicitationError,
+    handleElicitationRequest,
+    handleElicitationDismissed,
+    handleSubmit: handleElicitationSubmit,
+    handleSkip: handleElicitationSkip,
+    handleCancel: handleElicitationCancel,
+  } = useElicitationRequest(chatId);
+
   const streamingState = useChatStreaming({
     chatId,
     currentChat,
@@ -134,6 +146,8 @@ export function ChatSessionOrchestrator({
     baseBranch,
     fastMode,
     onPermissionRequest: handlePermissionRequest,
+    onElicitationRequest: handleElicitationRequest,
+    onElicitationDismissed: handleElicitationDismissed,
   });
 
   const { messages, sendMessage, isLoading, isStreaming, wasAborted, setMessages } = streamingState;
@@ -220,6 +234,9 @@ export function ChatSessionOrchestrator({
       pendingPermissionRequest: pendingRequest,
       isPermissionLoading,
       permissionError,
+      pendingElicitationRequest: pendingElicitation,
+      isElicitationLoading,
+      elicitationError,
     }),
     [
       messages,
@@ -236,6 +253,9 @@ export function ChatSessionOrchestrator({
       pendingRequest,
       isPermissionLoading,
       permissionError,
+      pendingElicitation,
+      isElicitationLoading,
+      elicitationError,
     ],
   );
 
@@ -249,6 +269,9 @@ export function ChatSessionOrchestrator({
       fetchNextPage: messagesQuery.fetchNextPage,
       onPermissionApprove: handleApprove,
       onPermissionReject: handleReject,
+      onElicitationSubmit: handleElicitationSubmit,
+      onElicitationSkip: handleElicitationSkip,
+      onElicitationCancel: handleElicitationCancel,
     }),
     [
       streamingState.handleMessageSend,
@@ -259,6 +282,9 @@ export function ChatSessionOrchestrator({
       messagesQuery.fetchNextPage,
       handleApprove,
       handleReject,
+      handleElicitationSubmit,
+      handleElicitationSkip,
+      handleElicitationCancel,
     ],
   );
 

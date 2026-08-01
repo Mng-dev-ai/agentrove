@@ -7,12 +7,19 @@ import re
 from typing import Any, Literal, cast
 
 from acp.schema import (
+    AcceptElicitationResponse,
     AgentMessageChunk,
     AgentPlanUpdate,
     AgentThoughtChunk,
     AllowedOutcome,
+    CancelElicitationResponse,
     CreateTerminalResponse,
+    CreateElicitationResponse,
+    DeclineElicitationResponse,
     DeniedOutcome,
+    ElicitationFormRequestMode,
+    ElicitationFormSessionMode,
+    ElicitationMode,
     KillTerminalResponse,
     PermissionOption,
     ReadTextFileResponse,
@@ -39,10 +46,8 @@ logger = logging.getLogger(__name__)
 # Sentinel on event_queue when the ACP prompt finishes (success or error).
 _SENTINEL = object()
 
-# The Claude CLI pings every 30s while a tool runs, under a synthetic
-# "<realToolId>-heartbeat-<n>" id. claude-agent-acp (<= 0.62.0) forwards those
-# pings as tool_call_updates keyed by that id and drops the SDK's `heartbeat`
-# flag, so the id shape is the only signal left to recognize them by.
+# claude-agent-acp fixed heartbeat forwarding in 0.63.0; retain the ID filter
+# as defense-in-depth for other or older adapters.
 _HEARTBEAT_TOOL_ID_RE = re.compile(r"-heartbeat-\d+$")
 
 # Valid ACP option_ids that match our PermissionMode literals directly.
@@ -91,6 +96,13 @@ class AcpClientHandler:
         self.event_queue: asyncio.Queue[StreamEvent | object] = asyncio.Queue()
         self._active_tools: dict[str, ToolPayload] = {}
         self._pending_permissions: dict[str, asyncio.Future[str]] = {}
+        self._pending_elicitations: dict[
+            str,
+            asyncio.Future[
+                tuple[Literal["accept", "decline", "cancel"], dict[str, Any] | None]
+            ],
+        ] = {}
+        self._elicitation_counter = 0
         # Permission mode chosen per tool call (for tool_completed/failed events).
         self._resolved_permissions: dict[str, PermissionMode | None] = {}
         # request_id → option_id → permission_mode (filled in request_permission).
@@ -135,8 +147,9 @@ class AcpClientHandler:
             self._active_tools.clear()
         self._resolved_permissions.clear()
         self._permission_option_modes.clear()
-        # Unanswered permission prompts must not outlive the turn.
+        # Unanswered client prompts must not outlive the turn.
         self.dismiss_pending_permissions()
+        self.dismiss_pending_elicitations()
         self.event_queue.put_nowait(_SENTINEL)
 
     def dismiss_pending_permissions(self) -> None:
@@ -152,6 +165,21 @@ class AcpClientHandler:
             if not future.done():
                 future.cancel()
         self._pending_permissions.clear()
+
+    def dismiss_pending_elicitations(self) -> None:
+        for request_id, future in self._pending_elicitations.items():
+            if not future.done():
+                future.set_result(("cancel", None))
+                self.event_queue.put_nowait(
+                    StreamEvent(type="elicitation_dismissed", request_id=request_id)
+                )
+        self._pending_elicitations.clear()
+
+    def cancel_pending_elicitations(self) -> None:
+        for future in self._pending_elicitations.values():
+            if not future.done():
+                future.cancel()
+        self._pending_elicitations.clear()
 
     @staticmethod
     def is_sentinel(obj: Any) -> bool:
@@ -253,6 +281,85 @@ class AcpClientHandler:
             self._permission_option_modes.pop(request_id, None)
 
         future.set_result(option_id)
+        return True
+
+    async def create_elicitation(
+        self,
+        message: str,
+        mode: ElicitationMode,
+        **kwargs: Any,
+    ) -> CreateElicitationResponse:
+        if not isinstance(
+            mode, (ElicitationFormSessionMode, ElicitationFormRequestMode)
+        ):
+            return CancelElicitationResponse(action="cancel")
+
+        tool_call_id = getattr(mode, "tool_call_id", None)
+        if tool_call_id:
+            request_id = tool_call_id
+        else:
+            self._elicitation_counter += 1
+            request_id = f"elicit-{self._elicitation_counter}"
+
+        future: asyncio.Future[
+            tuple[Literal["accept", "decline", "cancel"], dict[str, Any] | None]
+        ] = asyncio.get_running_loop().create_future()
+        self._pending_elicitations[request_id] = future
+        requested_schema = mode.requested_schema.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        self.event_queue.put_nowait(
+            StreamEvent(
+                type="elicitation_request",
+                request_id=request_id,
+                data={
+                    "message": message,
+                    "tool_call_id": tool_call_id,
+                    "requested_schema": requested_schema,
+                },
+            )
+        )
+
+        try:
+            action, content = await future
+        finally:
+            self._pending_elicitations.pop(request_id, None)
+
+        if action == "accept":
+            return AcceptElicitationResponse(action="accept", content=content or {})
+        if action == "decline":
+            return DeclineElicitationResponse(action="decline")
+        return CancelElicitationResponse(action="cancel")
+
+    async def complete_elicitation(
+        self,
+        elicitation_id: str,
+        **kwargs: Any,
+    ) -> None:
+        try:
+            future = self._pending_elicitations.get(elicitation_id)
+            if future is None or future.done():
+                return
+            future.set_result(("cancel", None))
+            self.event_queue.put_nowait(
+                StreamEvent(type="elicitation_dismissed", request_id=elicitation_id)
+            )
+        except Exception:
+            logger.debug(
+                "Failed to complete elicitation %s", elicitation_id, exc_info=True
+            )
+
+    def resolve_elicitation(
+        self,
+        request_id: str,
+        *,
+        action: Literal["accept", "decline", "cancel"],
+        content: dict[str, Any] | None = None,
+    ) -> bool:
+        future = self._pending_elicitations.get(request_id)
+        if future is None or future.done():
+            return False
+        future.set_result((action, content if action == "accept" else None))
         return True
 
     async def read_text_file(
