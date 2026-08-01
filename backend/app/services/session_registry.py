@@ -125,6 +125,15 @@ class SessionRegistry:
             content=content,
         )
 
+    def pending_elicitations(self, chat_id: str) -> list[dict[str, Any]]:
+        session = self._sessions.get(chat_id)
+        if session is None or not session.acp_session.is_alive():
+            return []
+        return [
+            {"request_id": request_id, **payload}
+            for request_id, payload in session.acp_session.handler._pending_elicitation_payloads.items()
+        ]
+
     def consume_pending_cancel(self, chat_id: str) -> bool:
         created_at = self._pending_cancels.pop(chat_id, None)
         if created_at is None:

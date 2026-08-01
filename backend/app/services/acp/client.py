@@ -102,6 +102,7 @@ class AcpClientHandler:
                 tuple[Literal["accept", "decline", "cancel"], dict[str, Any] | None]
             ],
         ] = {}
+        self._pending_elicitation_payloads: dict[str, dict[str, Any]] = {}
         self._elicitation_counter = 0
         # Permission mode chosen per tool call (for tool_completed/failed events).
         self._resolved_permissions: dict[str, PermissionMode | None] = {}
@@ -170,16 +171,19 @@ class AcpClientHandler:
         for request_id, future in self._pending_elicitations.items():
             if not future.done():
                 future.set_result(("cancel", None))
+                self._pending_elicitation_payloads.pop(request_id, None)
                 self.event_queue.put_nowait(
                     StreamEvent(type="elicitation_dismissed", request_id=request_id)
                 )
         self._pending_elicitations.clear()
+        self._pending_elicitation_payloads.clear()
 
     def cancel_pending_elicitations(self) -> None:
         for future in self._pending_elicitations.values():
             if not future.done():
                 future.cancel()
         self._pending_elicitations.clear()
+        self._pending_elicitation_payloads.clear()
 
     @staticmethod
     def is_sentinel(obj: Any) -> bool:
@@ -295,11 +299,8 @@ class AcpClientHandler:
             return CancelElicitationResponse(action="cancel")
 
         tool_call_id = getattr(mode, "tool_call_id", None)
-        if tool_call_id:
-            request_id = tool_call_id
-        else:
-            self._elicitation_counter += 1
-            request_id = f"elicit-{self._elicitation_counter}"
+        self._elicitation_counter += 1
+        request_id = f"elicit-{self._elicitation_counter}"
 
         future: asyncio.Future[
             tuple[Literal["accept", "decline", "cancel"], dict[str, Any] | None]
@@ -308,15 +309,17 @@ class AcpClientHandler:
         requested_schema = mode.requested_schema.model_dump(
             mode="json", by_alias=True, exclude_none=True
         )
+        payload = {
+            "message": message,
+            "tool_call_id": tool_call_id,
+            "requested_schema": requested_schema,
+        }
+        self._pending_elicitation_payloads[request_id] = payload
         self.event_queue.put_nowait(
             StreamEvent(
                 type="elicitation_request",
                 request_id=request_id,
-                data={
-                    "message": message,
-                    "tool_call_id": tool_call_id,
-                    "requested_schema": requested_schema,
-                },
+                data=payload,
             )
         )
 
@@ -324,6 +327,7 @@ class AcpClientHandler:
             action, content = await future
         finally:
             self._pending_elicitations.pop(request_id, None)
+            self._pending_elicitation_payloads.pop(request_id, None)
 
         if action == "accept":
             return AcceptElicitationResponse(action="accept", content=content or {})
@@ -339,8 +343,10 @@ class AcpClientHandler:
         try:
             future = self._pending_elicitations.get(elicitation_id)
             if future is None or future.done():
+                self._pending_elicitation_payloads.pop(elicitation_id, None)
                 return
             future.set_result(("cancel", None))
+            self._pending_elicitation_payloads.pop(elicitation_id, None)
             self.event_queue.put_nowait(
                 StreamEvent(type="elicitation_dismissed", request_id=elicitation_id)
             )
@@ -358,7 +364,9 @@ class AcpClientHandler:
     ) -> bool:
         future = self._pending_elicitations.get(request_id)
         if future is None or future.done():
+            self._pending_elicitation_payloads.pop(request_id, None)
             return False
+        self._pending_elicitation_payloads.pop(request_id, None)
         future.set_result((action, content if action == "accept" else None))
         return True
 

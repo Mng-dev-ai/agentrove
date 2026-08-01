@@ -4,6 +4,7 @@ import { logger } from '@/utils/logger';
 import { chatService } from '@/services/chatService';
 import { chatStorage } from '@/utils/storage';
 import { useStreamStore } from '@/store/streamStore';
+import { useElicitationStore } from '@/store/elicitationStore';
 import type { Message } from '@/types/chat.types';
 import type { StreamState } from '@/types/stream.types';
 
@@ -56,6 +57,15 @@ export function useStreamReconnect({
 
         const status = await chatService.checkChatStatus(chatId);
         if (cancelled) return;
+
+        // Pending forms can't ride event replay — the cursor may already be past
+        // their control event — so the status response is the source of truth.
+        if (status?.pending_elicitations) {
+          useElicitationStore
+            .getState()
+            .reconcileElicitationRequests(chatId, status.pending_elicitations);
+        }
+
         if (!status?.has_active_task) return;
 
         let targetMessageId = status.message_id;

@@ -217,3 +217,14 @@ export interface ElicitationRequest {
 export type ElicitationAction = 'accept' | 'decline' | 'cancel';
 
 export type ElicitationContent = Record<string, string | string[] | number | boolean>;
+
+// GET /chat/chats/{id}/status — active-turn snapshot used to recover after a refresh.
+export interface ChatStatusResponse {
+  has_active_task: boolean;
+  message_id?: string;
+  stream_id?: string;
+  last_seq?: number;
+  // Forms still awaiting an answer, oldest first. Server truth: event replay can
+  // start past the control event when parallel tool activity advanced the snapshot.
+  pending_elicitations?: ElicitationRequest[];
+}

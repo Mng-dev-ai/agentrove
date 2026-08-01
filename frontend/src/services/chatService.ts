@@ -7,6 +7,7 @@ import type {
   ChatRequest,
   Chat,
   ChatSearchResponse,
+  ChatStatusResponse,
   CreateChatRequest,
   ContextUsage,
 } from '@/types/chat.types';
@@ -100,12 +101,7 @@ async function startCompletion(request: ChatRequest): Promise<{ messageId: strin
   });
 }
 
-async function checkChatStatus(chatId: string): Promise<{
-  has_active_task: boolean;
-  message_id?: string;
-  stream_id?: string;
-  last_seq?: number;
-} | null> {
+async function checkChatStatus(chatId: string): Promise<ChatStatusResponse | null> {
   return serviceCall(() => resolveChatClient(chatId).get(`/chat/chats/${chatId}/status`));
 }
 

@@ -24,6 +24,7 @@ from tests.conftest import LoginClient, UserFactory
 from tests.fake_acp_agent import (
     MARKER_ASK_USER_QUESTION,
     MARKER_CANCEL,
+    MARKER_CONCURRENT_ELICITATIONS,
     MARKER_CRASH_MID_PROMPT,
     MARKER_ELICITATION,
     MARKER_ENTER_PLAN_MODE,
@@ -977,8 +978,10 @@ async def test_chat_elicitation_request_event_is_well_formed(
     initialize = fake_agent.events_of("initialize")[-1]
     assert initialize["client_capabilities"]["elicitation"] == {"form": {}}
     payload = event["render_payload"]
+    request_id = payload["request_id"]
+    assert request_id.startswith("elicit-")
     assert payload == {
-        "request_id": "tool-elicitation",
+        "request_id": request_id,
         "data": {
             "message": "Choose a color",
             "tool_call_id": "tool-elicitation",
@@ -1017,9 +1020,9 @@ async def test_chat_elicitation_request_event_is_well_formed(
     await pubsub.unsubscribe(channel)
 
     response = await client.post(
-        f"/api/v1/chat/chats/{chat['id']}/elicitation/tool-elicitation/respond",
+        f"/api/v1/chat/chats/{chat['id']}/elicitation/{request_id}/respond",
         json={
-            "request_id": "tool-elicitation",
+            "request_id": request_id,
             "action": "decline",
             "content": None,
         },
@@ -1045,9 +1048,10 @@ async def test_chat_cancel_pending_elicitation_returns_cancel_and_dismisses(
         prompt=f"{MARKER_ELICITATION} choose",
     )
     message_id = send_response.json()["message_id"]
-    await wait_for_message_event(
+    event = await wait_for_message_event(
         client, headers, message_id=message_id, event_type="elicitation_request"
     )
+    request_id = event["render_payload"]["request_id"]
 
     channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=workspace.user_id)
     pubsub = acp_cache.store.pubsub()
@@ -1078,8 +1082,148 @@ async def test_chat_cancel_pending_elicitation_returns_cancel_and_dismisses(
         if envelope["kind"] == "elicitation_dismissed":
             dismissed_payload = envelope["payload"]
             break
-    assert dismissed_payload == {"request_id": "tool-elicitation"}
+    assert dismissed_payload == {"request_id": request_id}
     await pubsub.unsubscribe(channel)
+
+
+async def test_chat_status_hydrates_pending_elicitation_until_response(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    send_response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="sonnet",
+        prompt=f"{MARKER_ELICITATION} choose",
+    )
+    message_id = send_response.json()["message_id"]
+    event = await wait_for_message_event(
+        client, headers, message_id=message_id, event_type="elicitation_request"
+    )
+    payload = event["render_payload"]
+    request_id = payload["request_id"]
+
+    pending_status = await client.get(
+        f"/api/v1/chat/chats/{chat['id']}/status", headers=headers
+    )
+    assert pending_status.status_code == 200, pending_status.text
+    assert pending_status.json()["pending_elicitations"] == [
+        {"request_id": request_id, **payload["data"]}
+    ]
+
+    response = await client.post(
+        f"/api/v1/chat/chats/{chat['id']}/elicitation/{request_id}/respond",
+        json={"request_id": request_id, "action": "decline", "content": None},
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+
+    resolved_status = await client.get(
+        f"/api/v1/chat/chats/{chat['id']}/status", headers=headers
+    )
+    assert resolved_status.status_code == 200, resolved_status.text
+    assert resolved_status.json()["pending_elicitations"] == []
+    await wait_for_message(client, headers, chat_id=chat["id"], message_id=message_id)
+
+
+async def test_concurrent_elicitations_share_tool_id_but_resolve_independently(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    send_response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="sonnet",
+        prompt=f"{MARKER_CONCURRENT_ELICITATIONS} choose",
+    )
+    message_id = send_response.json()["message_id"]
+
+    deadline = time.monotonic() + 10.0
+    elicitation_events: list[dict[str, Any]] = []
+    while time.monotonic() < deadline:
+        events_response = await client.get(
+            f"/api/v1/chat/messages/{message_id}/events", headers=headers
+        )
+        assert events_response.status_code == 200, events_response.text
+        elicitation_events = [
+            event
+            for event in events_response.json()
+            if event["event_type"] == "elicitation_request"
+        ]
+        if len(elicitation_events) == 2:
+            break
+        await asyncio.sleep(0.05)
+    else:
+        raise AssertionError("two concurrent elicitation requests never arrived")
+
+    payloads = [event["render_payload"] for event in elicitation_events]
+    first_id = payloads[0]["request_id"]
+    second_id = payloads[1]["request_id"]
+    assert first_id != second_id
+    assert [payload["data"]["message"] for payload in payloads] == [
+        "First question",
+        "Second question",
+    ]
+    assert {payload["data"]["tool_call_id"] for payload in payloads} == {
+        "tool-concurrent-elicitations"
+    }
+
+    status_response = await client.get(
+        f"/api/v1/chat/chats/{chat['id']}/status", headers=headers
+    )
+    assert status_response.status_code == 200, status_response.text
+    assert status_response.json()["pending_elicitations"] == [
+        {"request_id": payload["request_id"], **payload["data"]} for payload in payloads
+    ]
+
+    second_response = await client.post(
+        f"/api/v1/chat/chats/{chat['id']}/elicitation/{second_id}/respond",
+        json={
+            "request_id": second_id,
+            "action": "accept",
+            "content": {"question_0": "Blue"},
+        },
+        headers=headers,
+    )
+    assert second_response.status_code == 200, second_response.text
+
+    middle_status = await client.get(
+        f"/api/v1/chat/chats/{chat['id']}/status", headers=headers
+    )
+    assert middle_status.status_code == 200, middle_status.text
+    assert middle_status.json()["pending_elicitations"] == [
+        {"request_id": first_id, **payloads[0]["data"]}
+    ]
+
+    first_response = await client.post(
+        f"/api/v1/chat/chats/{chat['id']}/elicitation/{first_id}/respond",
+        json={
+            "request_id": first_id,
+            "action": "accept",
+            "content": {"question_0": "Red"},
+        },
+        headers=headers,
+    )
+    assert first_response.status_code == 200, first_response.text
+    await wait_for_message(client, headers, chat_id=chat["id"], message_id=message_id)
+
+    assert [
+        {"action": "accept", "content": {"question_0": "Red"}},
+        {"action": "accept", "content": {"question_0": "Blue"}},
+    ] in [
+        event["responses"]
+        for event in fake_agent.events_of("concurrent_elicitation_responses")
+    ]
 
 
 async def test_respond_to_elicitation_validates_action_and_request_id(

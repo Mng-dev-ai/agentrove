@@ -972,6 +972,7 @@ async def test_chat_status_reports_active_stream_only_when_runtime_is_active(
         "message_id": None,
         "stream_id": None,
         "last_seq": 0,
+        "pending_elicitations": [],
     }
     assert active_response.status_code == 200
     active_body = active_response.json()
@@ -979,6 +980,7 @@ async def test_chat_status_reports_active_stream_only_when_runtime_is_active(
     assert active_body["message_id"] == str(message.id)
     assert active_body["stream_id"] == str(stream_id)
     assert active_body["last_seq"] == 7
+    assert active_body["pending_elicitations"] == []
 
 
 async def test_message_events_respect_owner_and_after_seq(
@@ -2134,6 +2136,7 @@ async def test_get_stream_status_handles_access_denied_and_missing_active_messag
         "message_id": None,
         "stream_id": None,
         "last_seq": 0,
+        "pending_elicitations": [],
     }
 
 

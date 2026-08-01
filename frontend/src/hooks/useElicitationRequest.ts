@@ -20,10 +20,12 @@ export function useElicitationRequest(chatId: string | undefined): UseElicitatio
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Select only this chat's slot so other chats' forms don't re-render us.
-  const pendingRequest = useElicitationStore((state) =>
-    chatId ? (state.pendingRequests.get(chatId) ?? null) : null,
-  );
+  // Select only this chat's queue so other chats' forms don't re-render us.
+  const pendingRequest = useElicitationStore((state) => {
+    if (!chatId) return null;
+    const queue = state.pendingRequests.get(chatId);
+    return queue && queue.length > 0 ? queue[0] : null;
+  });
   const prevRequestIdRef = useRef(pendingRequest?.request_id);
 
   // Don't bleed a previous form's error into the next one.
@@ -35,7 +37,7 @@ export function useElicitationRequest(chatId: string | undefined): UseElicitatio
   const handleElicitationRequest = useCallback(
     (request: ElicitationRequest) => {
       if (!chatId) return;
-      useElicitationStore.getState().setElicitationRequest(chatId, request);
+      useElicitationStore.getState().enqueueElicitationRequest(chatId, request);
     },
     [chatId],
   );
@@ -43,7 +45,7 @@ export function useElicitationRequest(chatId: string | undefined): UseElicitatio
   const handleElicitationDismissed = useCallback(
     (requestId: string) => {
       if (!chatId) return;
-      useElicitationStore.getState().clearElicitationRequest(chatId, requestId);
+      useElicitationStore.getState().resolveElicitationRequest(chatId, requestId);
     },
     [chatId],
   );
@@ -67,7 +69,7 @@ export function useElicitationRequest(chatId: string | undefined): UseElicitatio
           clearRequest: () =>
             useElicitationStore
               .getState()
-              .clearElicitationRequest(chatId, pendingRequest.request_id),
+              .resolveElicitationRequest(chatId, pendingRequest.request_id),
         },
       );
     },
