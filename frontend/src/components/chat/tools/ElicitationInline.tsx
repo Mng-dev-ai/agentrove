@@ -87,6 +87,7 @@ function FieldRow({ field, fieldId, value, onChange, disabled }: FieldRowProps) 
       {field.kind === 'text' && (
         <Input
           id={fieldId}
+          className={styles['text-control']}
           value={typeof value === 'string' ? value : ''}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
@@ -97,6 +98,7 @@ function FieldRow({ field, fieldId, value, onChange, disabled }: FieldRowProps) 
         <Input
           id={fieldId}
           type="number"
+          className={styles['text-control']}
           step={field.integer ? 1 : 'any'}
           value={typeof value === 'string' ? value : ''}
           disabled={disabled}
