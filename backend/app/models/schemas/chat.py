@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import UploadFile
@@ -136,11 +136,19 @@ class GenerateTitleResponse(BaseModel):
     title: str
 
 
+class PendingElicitation(BaseModel):
+    request_id: str
+    message: str
+    tool_call_id: str | None
+    requested_schema: dict[str, Any]
+
+
 class ChatStatusResponse(BaseModel):
     has_active_task: bool
     message_id: UUID | None = None
     stream_id: UUID | None = None
     last_seq: int = 0
+    pending_elicitations: list[PendingElicitation] = Field(default_factory=list)
 
 
 class ActiveStreamStatus(BaseModel):
@@ -166,6 +174,12 @@ class MessageEvent(BaseModel):
 
 class PermissionRespondResponse(BaseModel):
     success: bool
+
+
+class ElicitationRespondRequest(BaseModel):
+    request_id: str
+    action: Literal["accept", "decline", "cancel"]
+    content: dict[str, Any] | None = None
 
 
 class ChatSearchMatch(BaseModel):

@@ -6,6 +6,7 @@ import { isAssistantMessage } from '@/utils/message';
 import { UserMessage, AssistantMessage } from '@/components/chat/message-bubble/Message';
 import { ChatQueueBanner } from './ChatQueueBanner';
 import { ChatInlinePermission } from './ChatInlinePermission';
+import { ChatInlineElicitation } from './ChatInlineElicitation';
 import { StreamActionsBar } from './StreamActionsBar';
 import { Input } from '@/components/chat/message-input/Input';
 import { ChatSkeleton } from './ChatSkeleton';
@@ -42,6 +43,7 @@ export const Chat = memo(function Chat() {
     hasNextPage,
     isFetchingNextPage,
     pendingPermissionRequest,
+    pendingElicitationRequest,
   } = state;
 
   const { onSubmit, onStopStream, onAttach, onModelChange, fetchNextPage } = actions;
@@ -194,6 +196,10 @@ export const Chat = memo(function Chat() {
     !!lastBotMessage &&
     ((lastBotMessage.content_render?.events?.length ?? 0) > 0 || !!lastBotMessage.content_text);
   const showPermissionAtEnd = canShowPermissionInline && (!lastBotMessageId || lastBotIsStreaming);
+  // Permission and elicitation share the slot; a pending permission wins.
+  const canShowElicitationInline = !!pendingElicitationRequest && !pendingPermissionRequest;
+  const showElicitationAtEnd =
+    canShowElicitationInline && (!lastBotMessageId || lastBotIsStreaming);
   // Only offer actions against a cleanly completed turn — skips failed/interrupted
   // output and the reconnect window where an in-progress message isn't yet in the stream set.
   const showStreamActions =
@@ -255,7 +261,12 @@ export const Chat = memo(function Chat() {
               isStreaming={messageIsStreaming}
             />
           )}
-          {isLastBotMessage && !messageIsStreaming && <ChatInlinePermission />}
+          {isLastBotMessage && !messageIsStreaming && (
+            <>
+              <ChatInlinePermission />
+              <ChatInlineElicitation />
+            </>
+          )}
         </div>
       );
     },
@@ -296,7 +307,12 @@ export const Chat = memo(function Chat() {
   const showThinking = isLoading || (isStreaming && (!lastBotIsStreaming || !lastBotHasContent));
 
   const listFooter = useMemo(() => {
-    if (!showThinking && !showPermissionAtEnd && !(showStreamActions && chatId)) {
+    if (
+      !showThinking &&
+      !showPermissionAtEnd &&
+      !showElicitationAtEnd &&
+      !(showStreamActions && chatId)
+    ) {
       return null;
     }
 
@@ -304,10 +320,18 @@ export const Chat = memo(function Chat() {
       <div className={styles.column}>
         {showThinking && <StatusTypewriter streamStartTime={streamStartTime} />}
         {showPermissionAtEnd && <ChatInlinePermission />}
+        {showElicitationAtEnd && <ChatInlineElicitation />}
         {showStreamActions && chatId && <StreamActionsBar chatId={chatId} />}
       </div>
     );
-  }, [chatId, showPermissionAtEnd, showStreamActions, showThinking, streamStartTime]);
+  }, [
+    chatId,
+    showElicitationAtEnd,
+    showPermissionAtEnd,
+    showStreamActions,
+    showThinking,
+    streamStartTime,
+  ]);
 
   return (
     <div className={styles.chat}>

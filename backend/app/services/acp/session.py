@@ -13,7 +13,10 @@ from typing import Any
 from acp.client.connection import ClientSideConnection
 from acp.schema import (
     BlobResourceContents,
+    ClientCapabilities,
     EmbeddedResourceContentBlock,
+    ElicitationCapabilities,
+    ElicitationFormCapabilities,
     EnvVariable,
     HttpHeader,
     ImageContentBlock,
@@ -279,11 +282,11 @@ class AcpSession:
             logger.warning("Failed to set Codex fast mode: %s", enabled, exc_info=True)
 
     async def close(self) -> None:
-        # Orderly shutdown: cancel any pending permission prompts (so blocked
-        # request_permission() calls unblock), close the ACP connection, then
+        # Orderly shutdown: cancel pending client RPCs, close the ACP connection, then
         # terminate the agent process with a SIGTERM grace period before SIGKILL.
         # The exit watcher is left running; it no-ops once the process is reaped.
         self._handler.cancel_pending_permissions()
+        self._handler.cancel_pending_elicitations()
         if self._stderr_task and not self._stderr_task.done():
             self._stderr_task.cancel()
         try:
@@ -313,6 +316,7 @@ class AcpSession:
         # pending RPCs — close the connection so the turn fails instead of hanging.
         await process.wait()
         handler.cancel_pending_permissions()
+        handler.cancel_pending_elicitations()
         try:
             await conn.close()
         except Exception:
@@ -367,6 +371,7 @@ class AcpSession:
             handler,
             process.stdin,
             process.stdout,
+            use_unstable_protocol=True,
         )
 
         stderr_task = asyncio.create_task(cls._read_stderr(process))
@@ -376,7 +381,14 @@ class AcpSession:
         )
 
         try:
-            await conn.initialize(protocol_version=ACP_PROTOCOL_VERSION)
+            await conn.initialize(
+                protocol_version=ACP_PROTOCOL_VERSION,
+                client_capabilities=ClientCapabilities(
+                    elicitation=ElicitationCapabilities(
+                        form=ElicitationFormCapabilities()
+                    )
+                ),
+            )
 
             mcp_servers = cls._build_mcp_servers(config.mcp_servers)
             session_meta = config.session_meta
@@ -519,23 +531,15 @@ class AcpSession:
         model_id: str,
         reasoning_effort: str | None = None,
     ) -> None:
-        # Claude's current ACP server canonicalizes aliases through the model
-        # config option; the legacy model method can drift from /context state.
         acp_model_id = AGENT_ADAPTERS[agent_kind].map_model_id(model_id)
-        if agent_kind == AgentKind.CLAUDE:
-            await conn.set_config_option(
-                config_id=CLAUDE_MODEL_CONFIG_ID,
-                session_id=session_id,
-                value=acp_model_id,
-            )
-            return
         # codex-acp encodes reasoning effort inside the model ID and rejects
         # bare IDs ("modelId[effort]" is the required format).
         if agent_kind == AgentKind.CODEX and reasoning_effort:
             acp_model_id = f"{acp_model_id}[{reasoning_effort}]"
-        await conn.set_session_model(
-            model_id=acp_model_id,
+        await conn.set_config_option(
+            config_id=CLAUDE_MODEL_CONFIG_ID,
             session_id=session_id,
+            value=acp_model_id,
         )
 
     @staticmethod

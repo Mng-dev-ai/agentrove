@@ -428,6 +428,13 @@ class AgentService:
                     request_id = event.get("request_id")
                     if request_id:
                         handler.resolve_permission(request_id)
+                elif event_type == "elicitation_request":
+                    # Unattended text task — decline (not cancel) so the agent's
+                    # tool proceeds with empty answers instead of aborting the
+                    # tool use mid-task.
+                    request_id = event.get("request_id")
+                    if request_id:
+                        handler.resolve_elicitation(request_id, action="decline")
                 elif event_type == "assistant_text":
                     text = event.get("text", "")
                     if text:

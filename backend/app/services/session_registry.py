@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from app.services.acp.adapters import AgentKind
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -85,10 +85,13 @@ class SessionRegistry:
         session = self._sessions.get(chat_id)
         if session is None:
             return
-        session.cancel_event.set()
-        # Not every agent unblocks request_permission on session/cancel.
+        # Not every agent unblocks pending client RPCs on session/cancel.
         session.acp_session.handler.dismiss_pending_permissions()
-        await session.acp_session.cancel()
+        session.acp_session.handler.dismiss_pending_elicitations()
+        try:
+            await session.acp_session.cancel()
+        finally:
+            session.cancel_event.set()
 
     def resolve_permission(
         self,
@@ -104,6 +107,32 @@ class SessionRegistry:
             request_id,
             option_id=option_id,
         )
+
+    def resolve_elicitation(
+        self,
+        chat_id: str,
+        request_id: str,
+        *,
+        action: Literal["accept", "decline", "cancel"],
+        content: dict[str, Any] | None = None,
+    ) -> bool:
+        session = self._sessions.get(chat_id)
+        if session is None:
+            return False
+        return session.acp_session.handler.resolve_elicitation(
+            request_id,
+            action=action,
+            content=content,
+        )
+
+    def pending_elicitations(self, chat_id: str) -> list[dict[str, Any]]:
+        session = self._sessions.get(chat_id)
+        if session is None or not session.acp_session.is_alive():
+            return []
+        return [
+            {"request_id": request_id, **payload}
+            for request_id, payload in session.acp_session.handler._pending_elicitation_payloads.items()
+        ]
 
     def consume_pending_cancel(self, chat_id: str) -> bool:
         created_at = self._pending_cancels.pop(chat_id, None)

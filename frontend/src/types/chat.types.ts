@@ -58,6 +58,16 @@ export type AssistantStreamEvent =
       tool_input: Record<string, unknown>;
       options: PermissionOption[];
     }
+  | {
+      type: 'elicitation_request';
+      request_id: string;
+      data: {
+        message: string;
+        tool_call_id: string | null;
+        requested_schema: ElicitationSchema;
+      };
+    }
+  | { type: 'elicitation_dismissed'; request_id: string }
   | { type: 'prompt_suggestions'; suggestions: string[] };
 
 export interface Chat {
@@ -187,4 +197,34 @@ export interface PermissionRequest {
   options: PermissionOption[];
   // Envelope seq for dedupe on reconnect (request_id can be reused across turns).
   seq: number;
+}
+
+// Flat JSON-schema subset the agent may ask the user to fill in. Property values
+// stay `unknown` — the parser (utils/elicitationSchema) narrows the shapes it knows
+// and degrades the rest to a text field.
+export interface ElicitationSchema {
+  type?: string;
+  properties?: Record<string, unknown>;
+}
+
+export interface ElicitationRequest {
+  request_id: string;
+  message: string;
+  tool_call_id: string | null;
+  requested_schema: ElicitationSchema;
+}
+
+export type ElicitationAction = 'accept' | 'decline' | 'cancel';
+
+export type ElicitationContent = Record<string, string | string[] | number | boolean>;
+
+// GET /chat/chats/{id}/status — active-turn snapshot used to recover after a refresh.
+export interface ChatStatusResponse {
+  has_active_task: boolean;
+  message_id?: string;
+  stream_id?: string;
+  last_seq?: number;
+  // Forms still awaiting an answer, oldest first. Server truth: event replay can
+  // start past the control event when parallel tool activity advanced the snapshot.
+  pending_elicitations?: ElicitationRequest[];
 }

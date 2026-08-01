@@ -15,6 +15,7 @@ from acp.schema import (
     CreateTerminalResponse,
     CurrentModeUpdate,
     Cost,
+    ElicitationFormSessionMode,
     FileEditToolCallContent,
     ImageContentBlock,
     InitializeResponse,
@@ -30,7 +31,6 @@ from acp.schema import (
     SessionInfoUpdate,
     SetSessionConfigOptionResponse,
     SetSessionModeResponse,
-    SetSessionModelResponse,
     TerminalOutputResponse,
     TextContentBlock,
     ToolCallProgress,
@@ -60,6 +60,8 @@ MARKER_TOOL_PROGRESS_NEW = "MARKER_TOOL_PROGRESS_NEW"
 MARKER_RAW_INPUT_STRING = "MARKER_RAW_INPUT_STRING"
 MARKER_RAW_INPUT_INVALID = "MARKER_RAW_INPUT_INVALID"
 MARKER_PERMISSION = "MARKER_PERMISSION"
+MARKER_ELICITATION = "MARKER_ELICITATION"
+MARKER_CONCURRENT_ELICITATIONS = "MARKER_CONCURRENT_ELICITATIONS"
 MARKER_ASK_USER_QUESTION = "MARKER_ASK_USER_QUESTION"
 MARKER_CANCEL = "MARKER_CANCEL"
 MARKER_CRASH_MID_PROMPT = "MARKER_CRASH_MID_PROMPT"
@@ -72,6 +74,25 @@ MARKER_TOOL_UNKNOWN_DICT_ERROR = "MARKER_TOOL_UNKNOWN_DICT_ERROR"
 MARKER_ENTER_PLAN_MODE = "MARKER_ENTER_PLAN_MODE"
 # 1x1 transparent PNG, reused wherever the protocol needs inline image bytes.
 TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+ELICITATION_REQUESTED_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "question_0": {
+            "type": "string",
+            "title": "Pick a color",
+            "oneOf": [
+                {"const": "Red", "title": "Red"},
+                {"const": "Blue", "title": "Blue"},
+            ],
+        },
+        "question_0_custom": {
+            "type": "string",
+            "title": "Other",
+            "_meta": {"_askUserQuestionCustomAnswer": True},
+        },
+    },
+}
 
 
 def log_event(record: dict[str, Any]) -> None:
@@ -102,6 +123,16 @@ class FakeAgent:
         client_info: Any = None,
         **kwargs: Any,
     ) -> InitializeResponse:
+        log_event(
+            {
+                "event": "initialize",
+                "client_capabilities": {
+                    "elicitation": client_capabilities.elicitation.model_dump(
+                        mode="json", by_alias=True, exclude_none=True
+                    )
+                },
+            }
+        )
         if SCENARIO == "crash_initialize":
             raise RuntimeError("simulated initialize failure")
         return InitializeResponse(
@@ -163,14 +194,6 @@ class FakeAgent:
         if SCENARIO == "config_error":
             raise RuntimeError("simulated set_session_mode failure")
         return SetSessionModeResponse()
-
-    async def set_session_model(
-        self, model_id: str, session_id: str, **kwargs: Any
-    ) -> SetSessionModelResponse:
-        log_event({"event": "set_session_model", "model_id": model_id})
-        if SCENARIO == "config_error":
-            raise RuntimeError("simulated set_session_model failure")
-        return SetSessionModelResponse()
 
     async def set_config_option(
         self, config_id: str, session_id: str, value: str | bool, **kwargs: Any
@@ -246,6 +269,10 @@ class FakeAgent:
             return await self._run_cancel_turn(session_id)
         if MARKER_PERMISSION in text:
             return await self._run_permission_turn(session_id)
+        if MARKER_CONCURRENT_ELICITATIONS in text:
+            return await self._run_concurrent_elicitation_turn(session_id)
+        if MARKER_ELICITATION in text:
+            return await self._run_elicitation_turn(session_id)
         if MARKER_ASK_USER_QUESTION in text:
             return await self._run_ask_user_question_turn(session_id)
         if MARKER_FS_TERMINAL_STUBS in text:
@@ -453,6 +480,91 @@ class FakeAgent:
                     raw_output="Permission denied by user",
                 ),
             )
+        await asyncio.sleep(0.05)
+        return PromptResponse(stop_reason="end_turn")
+
+    async def _run_elicitation_turn(self, session_id: str) -> PromptResponse:
+        assert self._client is not None
+        tool_call_id = "tool-elicitation"
+        await self._emit_tool_started(
+            session_id, tool_call_id, "Asking the user a question"
+        )
+        response = await self._client.create_elicitation(
+            message="Choose a color",
+            mode=ElicitationFormSessionMode.model_validate(
+                {
+                    "sessionId": session_id,
+                    "toolCallId": tool_call_id,
+                    "requestedSchema": ELICITATION_REQUESTED_SCHEMA,
+                }
+            ),
+        )
+        response_data = response.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        )
+        log_event({"event": "elicitation_response", "response": response_data})
+        await self._client.session_update(
+            session_id=session_id,
+            update=ToolCallProgress(
+                session_update="tool_call_update",
+                tool_call_id=tool_call_id,
+                status="failed" if response.action == "cancel" else "completed",
+                raw_output=response_data,
+            ),
+        )
+        await asyncio.sleep(0.05)
+        return PromptResponse(
+            stop_reason="cancelled" if response.action == "cancel" else "end_turn"
+        )
+
+    async def _run_concurrent_elicitation_turn(self, session_id: str) -> PromptResponse:
+        assert self._client is not None
+        tool_call_id = "tool-concurrent-elicitations"
+        await self._emit_tool_started(
+            session_id, tool_call_id, "Asking two user questions"
+        )
+        first = asyncio.create_task(
+            self._client.create_elicitation(
+                message="First question",
+                mode=ElicitationFormSessionMode.model_validate(
+                    {
+                        "sessionId": session_id,
+                        "toolCallId": tool_call_id,
+                        "requestedSchema": ELICITATION_REQUESTED_SCHEMA,
+                    }
+                ),
+            )
+        )
+        await asyncio.sleep(0)
+        second = asyncio.create_task(
+            self._client.create_elicitation(
+                message="Second question",
+                mode=ElicitationFormSessionMode.model_validate(
+                    {
+                        "sessionId": session_id,
+                        "toolCallId": tool_call_id,
+                        "requestedSchema": ELICITATION_REQUESTED_SCHEMA,
+                    }
+                ),
+            )
+        )
+        responses = await asyncio.gather(first, second)
+        response_data = [
+            response.model_dump(mode="json", by_alias=True, exclude_none=True)
+            for response in responses
+        ]
+        log_event(
+            {"event": "concurrent_elicitation_responses", "responses": response_data}
+        )
+        await self._client.session_update(
+            session_id=session_id,
+            update=ToolCallProgress(
+                session_update="tool_call_update",
+                tool_call_id=tool_call_id,
+                status="completed",
+                raw_output=response_data,
+            ),
+        )
         await asyncio.sleep(0.05)
         return PromptResponse(stop_reason="end_turn")
 

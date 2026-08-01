@@ -4,7 +4,13 @@ import type { Dispatch, FormEvent, SetStateAction } from 'react';
 import { logger } from '@/utils/logger';
 import { QueryClient } from '@tanstack/react-query';
 import { useStreamStore } from '@/store/streamStore';
-import type { Chat, ContextUsage, Message, PermissionRequest } from '@/types/chat.types';
+import type {
+  Chat,
+  ContextUsage,
+  ElicitationRequest,
+  Message,
+  PermissionRequest,
+} from '@/types/chat.types';
 import type { PermissionMode } from '@/store/chatSettingsStore';
 import type { StreamState } from '@/types/stream.types';
 import { cleanupExpiredPdfBlobs, storePdfBlobUrl } from '@/hooks/usePdfBlobCache';
@@ -33,6 +39,8 @@ interface UseChatStreamingParams {
   baseBranch: string | undefined;
   fastMode: boolean;
   onPermissionRequest?: (request: PermissionRequest) => void;
+  onElicitationRequest?: (request: ElicitationRequest) => void;
+  onElicitationDismissed?: (requestId: string) => void;
 }
 
 interface UseChatStreamingResult {
@@ -78,6 +86,8 @@ export function useChatStreaming({
   baseBranch,
   fastMode,
   onPermissionRequest,
+  onElicitationRequest,
+  onElicitationDismissed,
 }: UseChatStreamingParams): UseChatStreamingResult {
   const [messages, setMessages] = useState<Message[]>([]);
   const [streamState, setStreamState] = useState<StreamState>('idle');
@@ -125,6 +135,8 @@ export function useChatStreaming({
     queryClient,
     onContextUsageUpdate,
     onPermissionRequest,
+    onElicitationRequest,
+    onElicitationDismissed,
     setMessages,
     setStreamState,
     setCurrentMessageId,
