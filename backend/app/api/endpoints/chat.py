@@ -89,7 +89,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-INACTIVE_TASK_RESPONSE = {
+INACTIVE_TASK_RESPONSE: dict[str, Any] = {
     "has_active_task": False,
     "stream_id": None,
     "last_seq": 0,
