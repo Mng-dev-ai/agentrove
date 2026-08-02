@@ -19,6 +19,10 @@ const CLAUDE_XHIGH_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'max', label: 'Max' },
 ];
 const CLAUDE_XHIGH_MODEL_IDS = new Set(['claude-fable-5', 'claude-opus-5']);
+// claude-agent-acp only exposes the effort dial for models that report
+// supportsEffort — Haiku doesn't, so hide the selector. Mirrors
+// CLAUDE_NO_EFFORT_MODEL_IDS in backend app/services/acp/adapters.py.
+const CLAUDE_NO_EFFORT_MODEL_IDS = new Set(['haiku']);
 
 const CODEX_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'low', label: 'Low' },
@@ -78,7 +82,11 @@ export function getThinkingModesForAgent(
   agentKind: AgentKind,
   modelId?: string,
 ): ThinkingModeOption[] {
-  // Claude only exposes `xhigh` on selected high-capability models.
+  // Claude gates the effort dial per model: none at all on Haiku, and
+  // `xhigh` only on selected high-capability models.
+  if (agentKind === 'claude' && modelId && CLAUDE_NO_EFFORT_MODEL_IDS.has(modelId)) {
+    return EMPTY_THINKING_MODES;
+  }
   if (agentKind === 'claude' && modelId && CLAUDE_XHIGH_MODEL_IDS.has(modelId)) {
     return CLAUDE_XHIGH_THINKING_MODES;
   }

@@ -51,6 +51,10 @@ COPILOT_SESSION_MODE_IDS: dict[str, str] = {
 CLAUDE_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "max"})
 CLAUDE_XHIGH_VALID_THINKING_MODES = CLAUDE_VALID_THINKING_MODES | {"xhigh"}
 CLAUDE_XHIGH_MODEL_IDS = frozenset({"claude-fable-5", "claude-opus-5"})
+# claude-agent-acp only advertises the "effort" config option for models that
+# report supportsEffort — Haiku doesn't, so set_config_option("effort") fails
+# with "Unknown config option: effort". Empty set = no effort dial for these.
+CLAUDE_NO_EFFORT_MODEL_IDS = frozenset({"haiku"})
 CODEX_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
 CODEX_MAX_VALID_THINKING_MODES = CODEX_VALID_THINKING_MODES | {"max"}
 CODEX_MAX_MODEL_IDS = frozenset({"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"})
@@ -99,6 +103,8 @@ THINKING_MODE_ORDER = ("low", "medium", "high", "xhigh", "max", "ultra")
 def valid_thinking_modes(agent_kind: AgentKind, model_id: str) -> frozenset[str]:
     # Accepted thinking tiers; empty = no effort dial (thinking_mode ignored).
     if agent_kind is AgentKind.CLAUDE:
+        if model_id in CLAUDE_NO_EFFORT_MODEL_IDS:
+            return frozenset()
         return (
             CLAUDE_XHIGH_VALID_THINKING_MODES
             if model_id in CLAUDE_XHIGH_MODEL_IDS
@@ -234,9 +240,11 @@ class ClaudeAgentAdapter(AgentAdapter):
 
         # Claude exposes thinking budget as the "effort" session config option,
         # applied post-handshake via set_config_option; the UI's named tiers
-        # are passed through directly as effort level IDs.
-        reasoning_effort = coerce_thinking_mode(
-            thinking_mode, valid_thinking_modes(AgentKind.CLAUDE, model_id)
+        # are passed through directly as effort level IDs. Models without the
+        # effort dial (Haiku) get None so that call is skipped entirely.
+        claude_modes = valid_thinking_modes(AgentKind.CLAUDE, model_id)
+        reasoning_effort = (
+            coerce_thinking_mode(thinking_mode, claude_modes) if claude_modes else None
         )
 
         return SessionConfig(

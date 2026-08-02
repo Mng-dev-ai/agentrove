@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 from app.core.config import get_settings
 from app.models.db_models.workspace import Workspace
-from app.services.acp.adapters import AgentKind, GrokAgentAdapter
+from app.services.acp.adapters import AgentKind, ClaudeAgentAdapter, GrokAgentAdapter
 from app.services.acp.session import AcpSessionConfig
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.session_registry import session_registry
@@ -96,6 +96,36 @@ def test_grok_launch_args_apply_always_approve_flag(
     )
 
     assert launch.cli_args == expected_args
+
+
+@pytest.mark.parametrize(
+    "model_id,thinking_mode,expected_effort",
+    [
+        # Haiku has no effort dial in claude-agent-acp (supportsEffort false);
+        # sending "effort" would fail with "Unknown config option: effort".
+        ("haiku", None, None),
+        ("haiku", "medium", None),
+        ("haiku", "high", None),
+        ("sonnet", None, "medium"),
+        ("sonnet", "high", "high"),
+        ("sonnet", "xhigh", "medium"),  # xhigh is fable/opus-only; clamps
+        ("claude-opus-5", "xhigh", "xhigh"),
+    ],
+)
+def test_claude_session_config_gates_effort_by_model(
+    model_id: str,
+    thinking_mode: str | None,
+    expected_effort: str | None,
+) -> None:
+    session_config = ClaudeAgentAdapter().build_session_config(
+        system_prompt=None,
+        system_prompt_is_full_replace=False,
+        model_id=model_id,
+        thinking_mode=thinking_mode,
+        permission_mode="default",
+    )
+
+    assert session_config.reasoning_effort == expected_effort
 
 
 @pytest.mark.parametrize(
