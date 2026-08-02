@@ -10,6 +10,10 @@ from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 
 
 def validate_cron_expression(value: str) -> str:
+    # Syntax-only: whether the expression still has a future occurrence is
+    # timezone-dependent (calendar-constrained and year-bounded crons), so
+    # that check lives in AutomationService._compute_next_run_validated,
+    # where the automation's zone is known.
     if not croniter.is_valid(value):
         raise ValueError("Invalid cron expression")
     return value
@@ -62,6 +66,27 @@ class AutomationUpdate(BaseModel):
     worktree: bool | None = None
     selected_persona_name: str | None = Field(None, min_length=1, max_length=100)
     enabled: bool | None = None
+
+    @field_validator(
+        "name",
+        "prompt",
+        "model_id",
+        "workspace_id",
+        "cron_expression",
+        "timezone",
+        "permission_mode",
+        "worktree",
+        "selected_persona_name",
+        "enabled",
+        mode="before",
+    )
+    @classmethod
+    def reject_explicit_null(cls, value: object) -> object:
+        # None here can only mean an explicit JSON null (validators don't run
+        # for omitted fields): these columns are non-nullable, reject it.
+        if value is None:
+            raise ValueError("Field cannot be null")
+        return value
 
     @field_validator("cron_expression")
     @classmethod
