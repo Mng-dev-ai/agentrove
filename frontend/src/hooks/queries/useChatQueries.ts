@@ -80,9 +80,8 @@ export const useInfiniteChatsQuery = (options?: {
   });
 };
 
-// Flat, most-recent-first list backing the composer's `@` chat mentions.
-// Fetched once per staleTime window — filtering is client-side, like files.
-// Sub-threads are valid mention targets, so they're included (the sidebar list isn't affected).
+// Backs the composer's `@` chat mentions: one fetch per staleTime window, filtered
+// client-side like files. Includes sub-threads (the top-level-only sidebar doesn't).
 export const useRecentChatsQuery = (enabled: boolean) => {
   return useQuery({
     queryKey: queryKeys.chatsRecent,
@@ -157,7 +156,6 @@ export const useContextUsageQuery = (
 // for local creates; second-pass invalidations are intentional (don't suppress).
 export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat): Promise<void> {
   queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
-  // Composer `@` chat mentions should offer new chats without waiting out staleTime.
   queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
 
   if (newChat.parent_chat_id) {
@@ -214,7 +212,6 @@ export function patchChatInCache(
       };
     },
   );
-  // Keep composer `@` chat-mention titles in sync (e.g. mid-stream title backfill).
   queryClient.setQueryData<PaginatedChats>(queryKeys.chatsRecent, (oldData) => {
     if (!oldData) return oldData;
     return {
@@ -273,9 +270,8 @@ export const useUpdateChatMutation = createMutation<
       },
     );
 
-    // Keep composer `@` chat-mention titles in sync with renames. The map handles
-    // cached entries instantly; the invalidation re-fetches membership/order, since
-    // renaming bumps updated_at and can pull an uncached chat into the recent page.
+    // Patch + invalidate, not either alone: the patch renames cached entries instantly,
+    // the refetch fixes membership — updated_at bumps can pull in an uncached chat.
     queryClient.setQueryData<PaginatedChats>(queryKeys.chatsRecent, (oldData) => {
       if (!oldData) return oldData;
       return {
@@ -358,7 +354,6 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
     queryClient.removeQueries({ queryKey: queryKeys.contextUsage(chatId) });
     queryClient.removeQueries({ queryKey: queryKeys.subThreads(chatId) });
     queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
-    // Evict from `@` chat mentions — a mention token pointing at a deleted chat is dead.
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
