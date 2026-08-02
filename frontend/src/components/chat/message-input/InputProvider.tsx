@@ -2,6 +2,7 @@ import { useRef, useState, useMemo, type ReactNode } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
+import { useRecentChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useInputAttachments } from '@/hooks/useInputAttachments';
 import { useInputEnhance } from '@/hooks/useInputEnhance';
@@ -17,7 +18,7 @@ import {
   type InputContextValue,
 } from './InputContext';
 import type { InputProps } from './Input';
-import { getAgentKindForModelId, type AgentKind } from '@/types/chat.types';
+import { getAgentKindForModelId, type AgentKind, type Chat } from '@/types/chat.types';
 
 // Agents whose ACP servers don't emit UsageUpdate notifications — the context
 // window indicator stays at 0 for these, so we hide it entirely.
@@ -30,6 +31,7 @@ const AGENTS_WITHOUT_USAGE_UPDATE: ReadonlySet<AgentKind> = new Set([
 
 // Stable fallback so chat-less composers (landing page) don't churn the selector.
 const NO_SELECTIONS: ComposerSelection[] = [];
+const NO_CHATS: Chat[] = [];
 
 export function InputProvider({
   message,
@@ -58,6 +60,7 @@ export function InputProvider({
   // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const modelMap = useModelMap(isAuthenticated);
+  const { data: recentChats } = useRecentChatsQuery(isAuthenticated);
   const agentKind =
     modelMap.get(selectedModelId)?.agent_kind ?? getAgentKindForModelId(selectedModelId);
   // Hide the context-usage indicator for agents whose ACP servers never emit
@@ -120,6 +123,7 @@ export function InputProvider({
     selectSlashCommand,
     handleSlashCommandKeyDown,
     filteredFiles,
+    filteredChats,
     highlightedMentionIndex,
     selectMention,
     handleMentionKeyDown,
@@ -132,6 +136,8 @@ export function InputProvider({
     messageRef,
     textareaRef,
     fileStructure,
+    mentionChats: recentChats?.items ?? NO_CHATS,
+    chatId,
     customSkills,
     builtinSlashCommands,
     agentKind,
@@ -195,6 +201,7 @@ export function InputProvider({
       slashCommandSuggestions,
       highlightedSlashCommandIndex,
       filteredFiles,
+      filteredChats,
       highlightedMentionIndex,
     }),
     [
@@ -228,6 +235,7 @@ export function InputProvider({
       slashCommandSuggestions,
       highlightedSlashCommandIndex,
       filteredFiles,
+      filteredChats,
       highlightedMentionIndex,
     ],
   );

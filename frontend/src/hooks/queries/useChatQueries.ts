@@ -25,6 +25,7 @@ import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
 const CHATS_PER_PAGE = 25;
+const RECENT_CHATS_PER_PAGE = 100;
 const GLOBAL_WORKSPACE_SENTINEL = 'all';
 
 // Global infinite chats: key[3]=GLOBAL_WORKSPACE_SENTINEL, key[4]=null (unpinned).
@@ -76,6 +77,22 @@ export const useInfiniteChatsQuery = (options?: {
     gcTime: 1000 * 60 * 1,
     // Snapshot hydrates first paint; always refetch so out-of-band creates surface.
     refetchOnMount: 'always',
+  });
+};
+
+// Backs the composer's `@` chat mentions: one fetch per staleTime window, filtered
+// client-side like files. Includes sub-threads (the top-level-only sidebar doesn't).
+export const useRecentChatsQuery = (enabled: boolean) => {
+  return useQuery({
+    queryKey: queryKeys.chatsRecent,
+    queryFn: () =>
+      chatService.listChats({
+        page: 1,
+        per_page: RECENT_CHATS_PER_PAGE,
+        include_sub_threads: true,
+      }),
+    enabled,
+    staleTime: 1000 * 60 * 5,
   });
 };
 
@@ -139,6 +156,7 @@ export const useContextUsageQuery = (
 // for local creates; second-pass invalidations are intentional (don't suppress).
 export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat): Promise<void> {
   queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
+  queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
 
   if (newChat.parent_chat_id) {
     // Sub-thread create bumps parent updated_at (workspace ordering).
@@ -174,7 +192,7 @@ export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat):
   queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
 }
 
-// Patch single-chat query + every infinite chats list together.
+// Patch single-chat query + every infinite chats list + recent-chats mention list together.
 export function patchChatInCache(
   queryClient: QueryClient,
   chatId: string,
@@ -194,6 +212,13 @@ export function patchChatInCache(
       };
     },
   );
+  queryClient.setQueryData<PaginatedChats>(queryKeys.chatsRecent, (oldData) => {
+    if (!oldData) return oldData;
+    return {
+      ...oldData,
+      items: oldData.items.map((chat) => (chat.id === chatId ? patch(chat) : chat)),
+    };
+  });
 }
 
 // Optimistic unread clear + server stamp; fire-and-forget (failed stamp resurfaces on refetch).
@@ -244,6 +269,21 @@ export const useUpdateChatMutation = createMutation<
         };
       },
     );
+
+    // Patch + invalidate, not either alone: the patch renames cached entries instantly,
+    // the refetch fixes membership — updated_at bumps can pull in an uncached chat.
+    queryClient.setQueryData<PaginatedChats>(queryKeys.chatsRecent, (oldData) => {
+      if (!oldData) return oldData;
+      return {
+        ...oldData,
+        items: oldData.items.map((chat) =>
+          chat.id === updatedChat.id
+            ? { ...updatedChat, sub_thread_count: chat.sub_thread_count }
+            : chat,
+        ),
+      };
+    });
+    queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
 
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
@@ -314,6 +354,7 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
     queryClient.removeQueries({ queryKey: queryKeys.contextUsage(chatId) });
     queryClient.removeQueries({ queryKey: queryKeys.subThreads(chatId) });
     queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
     invalidateCloudChats(queryClient, chatId);

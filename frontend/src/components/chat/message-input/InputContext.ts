@@ -34,6 +34,7 @@ export interface InputState {
   slashCommandSuggestions: SlashCommand[];
   highlightedSlashCommandIndex: number;
   filteredFiles: MentionItem[];
+  filteredChats: MentionItem[];
   highlightedMentionIndex: number;
 }
 

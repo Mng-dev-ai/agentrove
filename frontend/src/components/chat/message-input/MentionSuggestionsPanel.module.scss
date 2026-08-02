@@ -1,6 +1,6 @@
 @use '@/styles/globals/typography' as type;
 
-.file-row {
+.item-row {
   display: flex;
   min-width: 0;
   flex: 1;
@@ -8,13 +8,14 @@
   gap: var(--space-0-5);
 }
 
-.file-icon {
+.item-icon {
   height: var(--space-4);
   width: var(--space-4);
 }
 
-.file-name {
+.item-name {
   @include type.type-mono(0.9rem, 1.25);
+  @include type.type-overflow;
   color: var(--theme-text-secondary);
 
   &--active {
@@ -22,7 +23,7 @@
   }
 }
 
-.file-path {
+.item-path {
   @include type.type-meta;
   @include type.type-overflow;
   color: var(--theme-text-tertiary);

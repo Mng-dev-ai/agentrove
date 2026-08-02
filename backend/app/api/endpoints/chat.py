@@ -244,12 +244,17 @@ async def ask_about_code(
 async def get_chats(
     workspace_id: UUID | None = None,
     pinned: bool | None = None,
+    include_sub_threads: bool = False,
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> PaginatedResponse[ChatSchema]:
     return await chat_service.get_user_chats(
-        current_user, pagination, workspace_id=workspace_id, pinned=pinned
+        current_user,
+        pagination,
+        workspace_id=workspace_id,
+        pinned=pinned,
+        include_sub_threads=include_sub_threads,
     )
 
 
