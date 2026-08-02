@@ -10,10 +10,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.constants import BUILTIN_SLASH_COMMANDS
 from app.core.config import get_settings
+from app.models.db_models.automation import Automation
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
@@ -315,6 +316,12 @@ class WorkspaceService(BaseDbService[Workspace]):
                     )
                     .values(deleted_at=now)
                 )
+
+            # Soft-delete never fires the FK CASCADE: remove this workspace's
+            # automations outright or they keep firing into a deleted workspace.
+            await db.execute(
+                delete(Automation).where(Automation.workspace_id == workspace_id)
+            )
 
             await db.commit()
 

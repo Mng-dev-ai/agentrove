@@ -426,7 +426,9 @@ class AcpSession:
                         config.reasoning_effort,
                     )
                 except Exception:
-                    logger.warning("Failed to set initial model: %s", config.model)
+                    logger.warning(
+                        "Failed to set initial model: %s", config.model, exc_info=True
+                    )
 
             if config.permission_mode and config.permission_mode != "default":
                 try:
@@ -438,7 +440,9 @@ class AcpSession:
                     )
                 except Exception:
                     logger.warning(
-                        "Failed to set initial mode: %s", config.permission_mode
+                        "Failed to set initial mode: %s",
+                        config.permission_mode,
+                        exc_info=True,
                     )
 
             # Claude receives thinking budget via the "effort" session config
@@ -456,6 +460,7 @@ class AcpSession:
                     logger.warning(
                         "Failed to set initial effort: %s",
                         config.reasoning_effort,
+                        exc_info=True,
                     )
 
             # Fast mode is per-turn service tier state inside codex-acp; default
