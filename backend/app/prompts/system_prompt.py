@@ -25,6 +25,17 @@ Guidelines for suggestions:
 """
 
 
+CHAT_MENTIONS_INSTRUCTIONS = """
+<chat_mentions_instructions>
+User messages may contain @chat:<chat_id> tokens referencing other AgentRove chats.
+The referenced chat's content is NOT included in the prompt. To read it, call the
+agentrove MCP get_messages tool with that chat_id: the first call returns the most
+recent messages, and passing next_cursor pages back through older ones (repeat while
+has_more is true to read the full history).
+</chat_mentions_instructions>
+"""
+
+
 DEFAULT_PERSONA_NAME = "Default"
 
 
@@ -51,4 +62,4 @@ def build_system_prompt_for_chat(
         if persona:
             persona_content = f"\n{persona['content']}\n"
 
-    return f"{persona_content}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"
+    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"

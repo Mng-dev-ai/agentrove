@@ -4,7 +4,7 @@ import { useMentionSuggestions } from '@/hooks/useMentionSuggestions';
 import { insertToken } from '@/utils/mentionParser';
 import type { MentionItem, SlashCommand } from '@/types/ui.types';
 import type { CustomSkill } from '@/types/user.types';
-import type { AgentKind } from '@/types/chat.types';
+import type { AgentKind, Chat } from '@/types/chat.types';
 import type { FileStructure } from '@/types/file-system.types';
 
 interface UseInputSuggestionsOptions {
@@ -15,6 +15,8 @@ interface UseInputSuggestionsOptions {
   messageRef: RefObject<string>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   fileStructure: FileStructure[];
+  mentionChats: Chat[];
+  chatId?: string;
   customSkills: CustomSkill[];
   builtinSlashCommands: Record<AgentKind, SlashCommand[]>;
   agentKind: AgentKind;
@@ -28,6 +30,8 @@ export function useInputSuggestions({
   messageRef,
   textareaRef,
   fileStructure,
+  mentionChats,
+  chatId,
   customSkills,
   builtinSlashCommands,
   agentKind,
@@ -80,6 +84,7 @@ export function useInputSuggestions({
 
   const {
     filteredFiles,
+    filteredChats,
     highlightedIndex: highlightedMentionIndex,
     selectItem: selectMention,
     handleKeyDown: handleMentionKeyDown,
@@ -88,6 +93,8 @@ export function useInputSuggestions({
     message,
     cursorPosition: cursorPosition,
     fileStructure,
+    chats: mentionChats,
+    currentChatId: chatId,
     onSelect: handleMentionSelect,
   });
 
@@ -97,6 +104,7 @@ export function useInputSuggestions({
     selectSlashCommand,
     handleSlashCommandKeyDown,
     filteredFiles,
+    filteredChats,
     highlightedMentionIndex,
     selectMention,
     handleMentionKeyDown,

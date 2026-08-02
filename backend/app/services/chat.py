@@ -87,8 +87,10 @@ class ChatService(BaseDbService[Chat]):
         pagination: PaginationParams | None = None,
         workspace_id: UUID | None = None,
         pinned: bool | None = None,
+        include_sub_threads: bool = False,
     ) -> PaginatedResponse[ChatSchema]:
-        # Top-level chats only; pinned first, then recency. Optional workspace/pinned filters.
+        # Top-level chats by default (include_sub_threads=True adds sub-threads,
+        # e.g. for composer @chat mentions); pinned first, then recency.
         if pagination is None:
             pagination = PaginationParams()
 
@@ -96,8 +98,9 @@ class ChatService(BaseDbService[Chat]):
             base_filters = [
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),
-                Chat.parent_chat_id.is_(None),
             ]
+            if not include_sub_threads:
+                base_filters.append(Chat.parent_chat_id.is_(None))
             if workspace_id is not None:
                 base_filters.append(Chat.workspace_id == workspace_id)
             if pinned is True:

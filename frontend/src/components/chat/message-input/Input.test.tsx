@@ -32,6 +32,10 @@ vi.mock('@/hooks/queries/useModelQueries', () => ({
   useModelMap: () => new Map(),
 }));
 
+vi.mock('@/hooks/queries/useChatQueries', () => ({
+  useRecentChatsQuery: () => ({ data: undefined }),
+}));
+
 const uiState = { composerSelectionsByChat: {} as Record<string, unknown[]> };
 vi.mock('@/store/uiStore', () => {
   const useUIStore = (selector: (s: typeof uiState) => unknown) => selector(uiState);
@@ -89,6 +93,7 @@ vi.mock('@/hooks/useInputSuggestions', () => ({
     selectSlashCommand: vi.fn(),
     handleSlashCommandKeyDown: () => false,
     filteredFiles: [],
+    filteredChats: [],
     highlightedMentionIndex: -1,
     selectMention: vi.fn(),
     handleMentionKeyDown: () => false,

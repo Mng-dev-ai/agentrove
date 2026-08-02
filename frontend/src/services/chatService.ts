@@ -143,6 +143,7 @@ async function listChats(params?: {
   per_page?: number;
   workspace_id?: string;
   pinned?: boolean;
+  include_sub_threads?: boolean;
 }): Promise<PaginatedChats> {
   return serviceCall(async () => {
     const queryString = buildQueryString(params);

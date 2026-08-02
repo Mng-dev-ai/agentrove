@@ -267,10 +267,13 @@ async def get_messages(
     limit: int = 20,
     cursor: str | None = None,
 ) -> dict[str, Any]:
-    """List messages in an AgentRove chat, oldest first.
+    """Read messages from an AgentRove chat; cursor pagination reaches the full history.
 
-    Returns up to `limit` messages (1-100) with role, content_text and stream_status.
-    Use the returned next_cursor with a follow-up call to page through older messages.
+    Each call returns up to `limit` messages (1-100) with role, content_text and
+    stream_status, ordered oldest-to-newest within the page. The first call (no cursor)
+    returns the MOST RECENT messages; pass the returned next_cursor to fetch the
+    preceding, older page. Repeat while has_more is true to read the entire chat —
+    no part of the history is unreachable.
     """
     page = await client.get_messages(chat_id, limit=limit, cursor=cursor)
     # Backend is newest-first; reverse for chronological readability.
