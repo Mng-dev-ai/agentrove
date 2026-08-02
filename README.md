@@ -1,15 +1,13 @@
 # Agentrove
 
-Self-hosted AI coding workspace for running Claude Code, Codex, Copilot, Cursor, Grok, and OpenCode agents from one interface.
+Self-hosted AI coding workspace for running and orchestrating Claude Code, Codex, Copilot, Cursor, Grok, and OpenCode agents from one interface.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
 [![React 19](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
 [![Discord](https://img.shields.io/badge/Discord-5865F2.svg?logo=discord&logoColor=white)](https://discord.gg/HvkJU8dcBA)
 
-> Agentrove is under active development. Expect breaking changes between releases.
-
-![Chat Interface](screenshots/chat-interface.jpeg)
+![Chat Interface](screenshots/chat-interface.png)
 
 ## What It Does
 
@@ -19,8 +17,23 @@ Self-hosted AI coding workspace for running Claude Code, Codex, Copilot, Cursor,
 - Supports workspaces from empty folders, git clones, existing local folders, or GitHub repositories.
 - Streams agent sessions with cancellation, permission prompts, queued follow-up messages, file mentions, slash commands, and attachments.
 - Includes sub-threads, pinned chats, worktree mode, personas, custom instructions, environment variables, and installed agent skills.
+- Orchestrates multi-agent workflows through the bundled MCP server: a lead chat spawns worker sub-threads on any installed agent, model, and persona — in parallel worktrees when needed — then reviews their results.
 - Provides GitHub-assisted repository browsing, pull request review, PR creation, reviewer selection, and git branch/commit/push/pull helpers.
 - Ships as a Docker web app, a macOS desktop app, and a native iOS app.
+
+## Orchestrating Agents
+
+Agentrove chats aren't just endpoints — they can drive each other. The bundled MCP server (`mcp-server/`) exposes the whole instance as tools (`send_message`, `get_messages`, `list_models`, `list_personas`, …), and every chat's agent has those tools available. That turns any chat into an orchestrator: a lead agent on a strong model that decomposes the work, routes each task to the right agent, and reviews what comes back.
+
+The primitives:
+
+- **Sub-threads** — `send_message(parent_chat_id=…)` creates a worker chat grouped under the lead chat, in the same workspace and branch. Sub-threads stay flat (no nesting): the lead fans out, workers report back.
+- **Per-turn model and persona** — each worker runs on any installed agent and model (`model_id`) with any persona (a custom system prompt). Typical fleet: a fast model with a read-only scout persona for codebase exploration, coding models for implementation, dedicated reviewer personas (bug hunting, structural quality) for QA. `list_models` reports each model's supported reasoning tiers (`thinking_modes`), so the lead dials effort per task.
+- **Isolated worktrees** — `worktree=true` gives a worker its own git worktree, so parallel workers edit concurrently without conflicts.
+- **Polling and follow-ups** — the lead polls `get_messages` until a worker's turn completes, judges the result against the actual code, and sends rework to the worker's own thread; follow-ups inherit the thread's previous model, persona, and reasoning settings.
+- **Unattended turns** — orchestrated turns run in the agent's full-execution mode, so workers finish without permission prompts.
+
+A typical loop: the lead explores with a cheap fast model, hands a precise spec to a coding model in a sub-thread, fans reviewer personas out over the diff in parallel, triages their findings, delegates the accepted fixes — and owns the final result. Models, personas, and routing rules are all user-defined, so the same machinery drives whatever fleet you run.
 
 ## Quick Start
 
