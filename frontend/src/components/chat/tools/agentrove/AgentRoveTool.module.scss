@@ -1,0 +1,72 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+
+.icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+
+  &--on-light {
+    display: block;
+
+    :global([data-theme='dark']) & {
+      display: none;
+    }
+  }
+
+  &--on-dark {
+    display: none;
+
+    :global([data-theme='dark']) & {
+      display: block;
+    }
+  }
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.field-label {
+  @include type.type-meta;
+  color: var(--theme-text-quaternary);
+}
+
+.field-text {
+  @include type.type-meta;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: var(--theme-text-tertiary);
+}
+
+.summary {
+  @include type.type-meta(500);
+  color: var(--theme-text-secondary);
+}
+
+.chat-link {
+  @include type.type-meta(500);
+  align-self: flex-start;
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  color: var(--theme-text-secondary);
+  // subtle inset surface — black overlay on light, white overlay on dark
+  background-color: rgb(0 0 0 / 0.05);
+
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-tertiary);
+    background-color: rgb(255 255 255 / 0.05);
+  }
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+}

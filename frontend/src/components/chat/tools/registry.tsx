@@ -105,6 +105,8 @@ const mcpLoader: ToolModuleLoader = () =>
   import('./claude/MCPTool').then((m) => ({ default: m.MCPTool }));
 const webSearchLoader: ToolModuleLoader = () =>
   import('./claude/WebSearch').then((m) => ({ default: m.WebSearch }));
+const agentRoveLoader: ToolModuleLoader = () =>
+  import('./agentrove/AgentRoveTool').then((m) => ({ default: m.AgentRoveTool }));
 
 const lazyToolComponents = new Map<string, ToolComponent>();
 
@@ -147,6 +149,11 @@ export const getToolComponent = (toolName: string, agentKind?: AgentKind): ToolC
     toolName.startsWith('mcp__web_search_prime__')
   ) {
     return getOrCreateLazy(toolName, webSearchLoader);
+  }
+
+  if (toolName.startsWith('mcp__agentrove__')) {
+    // The prefix is a collision-proof cache key — any tool name equal to it routes here.
+    return getOrCreateLazy('mcp__agentrove__', agentRoveLoader);
   }
 
   return getOrCreateLazy(toolName, mcpLoader);
