@@ -218,6 +218,15 @@ class AgentroveClient:
         resp = await self.request("GET", f"/chat/chats/{chat_id}/messages", params=params)
         return resp.json()
 
+    async def get_context_usage(self, chat_id: str) -> dict[str, Any] | None:
+        try:
+            resp = await self.request("GET", f"/chat/chats/{chat_id}/context-usage")
+        except AgentroveError:
+            # No usage yet (fresh chat) or transient failure — not worth failing
+            # the read that asked for messages.
+            return None
+        return resp.json()
+
     async def list_automations(self) -> list[dict[str, Any]]:
         resp = await self.request("GET", "/automations")
         return resp.json()

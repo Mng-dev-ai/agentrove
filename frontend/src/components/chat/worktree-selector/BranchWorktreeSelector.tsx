@@ -142,7 +142,6 @@ export const BranchWorktreeSelector = memo(function BranchWorktreeSelector({
       triggerVariant="toolbar"
       width="17rem"
       disabled={disabled || isPending}
-      compactOnMobile
       searchable={visibleBranches.length >= 6}
       searchPlaceholder="Search branches..."
       searchVariant="underline"

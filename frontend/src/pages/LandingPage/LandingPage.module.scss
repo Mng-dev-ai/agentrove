@@ -98,6 +98,12 @@
   padding-left: var(--space-4);
   padding-right: var(--space-4);
 
+  // All triggers keep their labels on phones; let each shrink so long
+  // workspace/branch names truncate with ellipsis instead of overflowing.
+  > * {
+    min-width: 0;
+  }
+
   @include responsive.media('sm-up') {
     padding-left: var(--space-6);
     padding-right: var(--space-6);

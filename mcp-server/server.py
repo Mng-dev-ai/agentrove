@@ -274,8 +274,14 @@ async def get_messages(
     returns the MOST RECENT messages; pass the returned next_cursor to fetch the
     preceding, older page. Repeat while has_more is true to read the entire chat —
     no part of the history is unreachable.
+
+    Also returns context_usage — {tokens_used, context_window, percentage} for the
+    chat's agent session (null until the first turn completes). A high percentage
+    means follow-ups in this chat run with little headroom; prefer a fresh chat or
+    sub-thread with a distilled handoff instead of continuing a nearly-full one.
     """
     page = await client.get_messages(chat_id, limit=limit, cursor=cursor)
+    context_usage = await client.get_context_usage(chat_id)
     # Backend is newest-first; reverse for chronological readability.
     messages = [
         {
@@ -291,6 +297,7 @@ async def get_messages(
         "messages": messages,
         "next_cursor": page["next_cursor"],
         "has_more": page["has_more"],
+        "context_usage": context_usage,
     }
 
 

@@ -37,15 +37,11 @@
   color: var(--theme-text-quaternary);
 }
 
-// Same compact-on-mobile behavior as the Dropdown primitive's triggers: below
-// the sm breakpoint the icon stands in for the label.
+// The label stays visible at every breakpoint (the icon alone doesn't convey
+// state like Local/Cloud or Worktree); it truncates when the row gets tight.
 .trigger-label {
-  display: none;
+  @include type.type-overflow;
   min-width: 0;
-
-  @include responsive.media('sm-up') {
-    display: block;
-  }
 }
 
 .chevron {
