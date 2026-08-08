@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { Chat } from '@/types/chat.types';
 import { useStreamStore } from '@/store/streamStore';
-import { usePermissionStore } from '@/store/permissionStore';
+import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { formatRelativeTime } from '@/utils/date';
 import { stripMarkdownTitle } from '@/utils/format';
@@ -29,8 +29,8 @@ export function RecentChats({ chats, workspaceBadgeById, onChatSelect }: RecentC
   const activeStreamMetadata = useStreamStore((state) => state.activeStreamMetadata);
   const lastToolTitleByChatId = useStreamStore((state) => state.lastToolTitleByChatId);
   const completedChatIds = useStreamStore((state) => state.completedChatIds);
-  // Empty queues are dropped; remaining keys = blocked on plan/question/permission.
-  const pendingRequests = usePermissionStore((state) => state.pendingRequests);
+  // Blocked on plan/permission approval or an agent question form.
+  const blockedChatIds = useBlockedChatIds();
   // Recents only mount when authenticated.
   const modelMap = useModelMap();
 
@@ -49,7 +49,7 @@ export function RecentChats({ chats, workspaceBadgeById, onChatSelect }: RecentC
         {chats.slice(0, MAX_RECENT_CHATS).map((chat) => {
           // Same tone order as sidebar/tabs; no open chat, so unread is never suppressed.
           const status = chatStatusTone({
-            blocked: pendingRequests.has(chat.id),
+            blocked: blockedChatIds.has(chat.id),
             streaming: streamingChatIds.has(chat.id),
             completed: completedChatIds.has(chat.id),
             unread: chat.unread,

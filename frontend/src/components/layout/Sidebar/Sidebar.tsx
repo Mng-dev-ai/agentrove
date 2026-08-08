@@ -6,7 +6,7 @@ import type { Workspace } from '@/types/workspace.types';
 import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
-import { usePermissionStore } from '@/store/permissionStore';
+import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
@@ -56,11 +56,9 @@ export function Sidebar({
     () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
     [activeStreamMetadata],
   );
-  // Chats with a pending plan/question/permission request — the agent is
-  // blocked on the user. Empty queues are deleted from the store, so every
-  // remaining key has an outstanding request.
-  const pendingRequests = usePermissionStore((state) => state.pendingRequests);
-  const blockedChatIdSet = useMemo(() => new Set(pendingRequests.keys()), [pendingRequests]);
+  // Chats with a pending plan/permission request or agent question form — the
+  // agent is blocked on the user.
+  const blockedChatIdSet = useBlockedChatIds();
   // Chats merge from two backends, so filters apply client-side over loaded
   // pages. Lives in the persisted uiStore so reloads keep the narrowed view.
   const filters = useUIStore((state) => state.sidebarFilters);
