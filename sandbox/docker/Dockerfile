@@ -75,12 +75,22 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | b
 RUN . "$NVM_DIR/nvm.sh" && \
     npm install -g @anthropic-ai/claude-code@2.1.206 @agentclientprotocol/claude-agent-acp@0.64.0 @agentclientprotocol/codex-acp@1.1.7 @openai/codex@0.144.1 @github/copilot@1.0.36
 
-# Cursor CLI (installs `cursor-agent` to ~/.local/bin, which is already on PATH).
-RUN curl -fsS https://cursor.com/install | bash
+# Cursor CLI — pinned download replicating cursor.com/install (which always
+# fetches its own latest); cursor-agent lands in ~/.local/bin, already on PATH.
+RUN set -eux; \
+    v=2026.08.04-aaa8809; \
+    case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
+    dir=/home/user/.local/share/cursor-agent/versions/$v; \
+    mkdir -p "$dir" /home/user/.local/bin; \
+    curl -fsSL "https://downloads.cursor.com/lab/$v/linux/$arch/agent-cli-package.tar.gz" \
+      | tar --strip-components=1 -xz -C "$dir"; \
+    ln -sf "$dir/cursor-agent" /home/user/.local/bin/cursor-agent; \
+    ln -sf "$dir/cursor-agent" /home/user/.local/bin/agent
 
 # OpenCode CLI (installs `opencode` to ~/.opencode/bin; symlink into ~/.local/bin
-# so the ACP binary resolves without modifying PATH).
-RUN curl -fsSL https://opencode.ai/install | bash && \
+# so the ACP binary resolves without modifying PATH). Pinned: the unpinned path
+# resolves "latest" via the rate-limited GitHub API.
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.15 && \
     mkdir -p /home/user/.local/bin && \
     ln -sf /home/user/.opencode/bin/opencode /home/user/.local/bin/opencode
 
