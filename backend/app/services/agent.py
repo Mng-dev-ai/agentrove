@@ -12,6 +12,7 @@ from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
+from app.core.security import create_mcp_access_token
 from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat
 from app.models.db_models.user import User, UserSettings
@@ -461,13 +462,10 @@ class AgentService:
 
     @staticmethod
     def _build_mcp_server_configs(
-        chat_id: str | None, sandbox_provider: SandboxProviderType
+        chat_id: str | None, user_id: str, sandbox_provider: SandboxProviderType
     ) -> list[dict[str, Any]]:
         # Opt-in: hand the agent Agentrove's own chat tools over a stdio MCP server.
-        # Skipped unless enabled with credentials — the server logs into this backend.
         if not settings.AGENTROVE_MCP_ENABLED:
-            return []
-        if not (settings.AGENTROVE_MCP_EMAIL and settings.AGENTROVE_MCP_PASSWORD):
             return []
         if sandbox_provider is SandboxProviderType.HOST:
             # Host-provider agents share this process's network namespace, but the
@@ -481,8 +479,7 @@ class AgentService:
             api_base = settings.BASE_URL
         env = {
             "AGENTROVE_API_URL": f"{api_base}{settings.API_V1_STR}",
-            "AGENTROVE_EMAIL": settings.AGENTROVE_MCP_EMAIL,
-            "AGENTROVE_PASSWORD": settings.AGENTROVE_MCP_PASSWORD,
+            "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(user_id),
         }
         # The chat this session runs in — lets the agent create sub-threads under it
         if chat_id:
@@ -554,7 +551,9 @@ class AgentService:
             user_id=user_id,
             agent_kind=agent_kind,
             env=env,
-            mcp_servers=self._build_mcp_server_configs(chat_id, sandbox_provider),
+            mcp_servers=self._build_mcp_server_configs(
+                chat_id, user_id, sandbox_provider
+            ),
             model=model_id,
             permission_mode=session_config.permission.session_mode,
             resume_session_id=session_id,

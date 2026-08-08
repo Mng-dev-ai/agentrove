@@ -38,12 +38,12 @@ def _automation_summary(a: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_client() -> AgentroveClient:
-    email = os.environ.get("AGENTROVE_EMAIL")
-    password = os.environ.get("AGENTROVE_PASSWORD")
-    if not email or not password:
-        raise AgentroveError("AGENTROVE_EMAIL and AGENTROVE_PASSWORD must be set")
+    # The backend mints a per-user token for the chat's owner at session spawn.
+    access_token = os.environ.get("AGENTROVE_ACCESS_TOKEN")
+    if not access_token:
+        raise AgentroveError("AGENTROVE_ACCESS_TOKEN must be set")
     base_url = os.environ.get("AGENTROVE_API_URL", DEFAULT_API_URL)
-    return AgentroveClient(base_url, email, password)
+    return AgentroveClient(base_url, access_token)
 
 
 client = _build_client()

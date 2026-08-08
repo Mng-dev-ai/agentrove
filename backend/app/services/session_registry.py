@@ -175,6 +175,21 @@ class SessionRegistry:
             logger.info("Closed %d idle chat session(s)", len(expired))
 
     @staticmethod
+    def _redact_mcp_tokens(mcp_servers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        # The MCP token is minted per spawn, so hashing it would respawn every
+        # turn. A chat's owner can't change — same chat means same identity, and
+        # a reused session keeps the still-valid token it was spawned with.
+        redacted: list[dict[str, Any]] = []
+        for server in mcp_servers:
+            env = {
+                k: v
+                for k, v in server.get("env", {}).items()
+                if k != "AGENTROVE_ACCESS_TOKEN"
+            }
+            redacted.append({**server, "env": env})
+        return redacted
+
+    @staticmethod
     def _compute_fingerprint(config: AcpSessionConfig) -> str:
         # cwd is stable per chat (workspace root or the chat's worktree, never
         # agent-reported paths), so including it respawns the agent process in
@@ -185,7 +200,7 @@ class SessionRegistry:
             "agent_kind": config.agent_kind.value,
             "cwd": config.cwd,
             "env": config.env,
-            "mcp_servers": config.mcp_servers,
+            "mcp_servers": SessionRegistry._redact_mcp_tokens(config.mcp_servers),
             "system_prompt": config.system_prompt,
             "reasoning_effort": config.reasoning_effort,
             # Grok bakes approval into launch, so mode changes must respawn;
