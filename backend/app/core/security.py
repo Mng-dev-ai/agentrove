@@ -10,6 +10,7 @@ from uuid import UUID
 
 from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException, Query, WebSocket, status
+from fastapi_users.jwt import generate_jwt
 from fastapi_users.password import PasswordHelper
 from jose import jwt
 from sqlalchemy import select
@@ -107,6 +108,20 @@ async def get_current_user(
         raise credentials_exception
 
     return user
+
+
+def create_mcp_access_token(user_id: str) -> str:
+    # Minted for the MCP server spawned into a chat session — audience must match
+    # the JWTStrategy in user_manager.py (fastapi-users default) so the normal
+    # bearer path accepts it. `mcp` marks its origin in logs.
+    return str(
+        generate_jwt(
+            {"sub": str(user_id), "aud": ["fastapi-users:auth"], "mcp": True},
+            settings.SECRET_KEY,
+            lifetime_seconds=settings.AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS,
+            algorithm=settings.ALGORITHM,
+        )
+    )
 
 
 def generate_refresh_token() -> str:

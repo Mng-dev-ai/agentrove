@@ -10,42 +10,14 @@ class AgentroveError(Exception):
 
 
 class AgentroveClient:
-    def __init__(self, base_url: str, email: str, password: str) -> None:
+    def __init__(self, base_url: str, access_token: str) -> None:
         self._base_url = base_url.rstrip("/")
-        self._email = email
-        self._password = password
         self._http = httpx.AsyncClient(base_url=self._base_url, timeout=60.0)
-        self._access_token: str | None = None
-        self._refresh_token: str | None = None
+        self._access_token = access_token
         self._models_cache: list[dict[str, Any]] | None = None
 
     async def aclose(self) -> None:
         await self._http.aclose()
-
-    async def _login(self) -> None:
-        # fastapi-users JWT login: OAuth2 form (username = email).
-        resp = await self._http.post(
-            "/auth/jwt/login",
-            data={"username": self._email, "password": self._password},
-        )
-        if resp.status_code != 200:
-            raise AgentroveError(f"Login failed ({resp.status_code}): {resp.text}")
-        body = resp.json()
-        self._access_token = body["access_token"]
-        self._refresh_token = body.get("refresh_token")
-
-    async def _refresh(self) -> bool:
-        if not self._refresh_token:
-            return False
-        resp = await self._http.post(
-            "/auth/jwt/refresh", json={"refresh_token": self._refresh_token}
-        )
-        if resp.status_code != 200:
-            return False
-        body = resp.json()
-        self._access_token = body["access_token"]
-        self._refresh_token = body.get("refresh_token", self._refresh_token)
-        return True
 
     async def _send(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         headers = {"Authorization": f"Bearer {self._access_token}"}
@@ -56,14 +28,12 @@ class AgentroveClient:
         self, method: str, path: str, *, expected: tuple[int, ...] = (200,), **kwargs: Any
     ) -> httpx.Response:
         try:
-            if self._access_token is None:
-                await self._login()
             resp = await self._send(method, path, **kwargs)
-            # Short-lived access token: on 401, refresh/re-login and retry once.
             if resp.status_code == 401:
-                if not await self._refresh():
-                    await self._login()
-                resp = await self._send(method, path, **kwargs)
+                raise AgentroveError(
+                    "AgentRove access token was rejected (expired or revoked) "
+                    "— start a new session to get a fresh token."
+                )
         except httpx.HTTPError as e:
             # Transport errors (e.g. ConnectTimeout) often str() to "" — name the
             # exception class and target URL so tool errors stay diagnosable.

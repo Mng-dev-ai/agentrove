@@ -6,10 +6,12 @@ import aiosmtplib
 import httpx
 import pytest
 from httpx import AsyncClient
+from jose import jwt
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import hash_refresh_token
+from app.core.config import get_settings
+from app.core.security import create_mcp_access_token, hash_refresh_token
 from app.models.db_models.refresh_token import RefreshToken
 from app.models.db_models.user import User
 from app.services.email import EmailService, email_service
@@ -872,3 +874,26 @@ async def test_forgot_password_returns_false_without_smtp_configured(
     )
 
     assert response.status_code == 202
+
+
+async def test_mcp_access_token_authenticates_bearer_requests(
+    client: AsyncClient,
+    create_user: UserFactory,
+) -> None:
+    user = await create_user(email="mcp-token@example.com", username="mcptoken")
+    token = create_mcp_access_token(str(user.id))
+
+    payload = jwt.decode(
+        token,
+        get_settings().SECRET_KEY,
+        algorithms=[get_settings().ALGORITHM],
+        audience="fastapi-users:auth",
+    )
+    assert payload["sub"] == str(user.id)
+    assert payload["mcp"] is True
+
+    # The real check: fastapi-users' bearer strategy must accept the token.
+    response = await client.get(
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert response.status_code == 200, response.text

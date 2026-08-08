@@ -212,21 +212,15 @@ def pin_ambient_settings() -> Iterator[None]:
     settings = get_settings()
     original = (
         settings.AGENTROVE_MCP_ENABLED,
-        settings.AGENTROVE_MCP_EMAIL,
-        settings.AGENTROVE_MCP_PASSWORD,
         settings.DESKTOP_MODE,
     )
     settings.AGENTROVE_MCP_ENABLED = False
-    settings.AGENTROVE_MCP_EMAIL = None
-    settings.AGENTROVE_MCP_PASSWORD = None
     settings.DESKTOP_MODE = False
     try:
         yield
     finally:
         (
             settings.AGENTROVE_MCP_ENABLED,
-            settings.AGENTROVE_MCP_EMAIL,
-            settings.AGENTROVE_MCP_PASSWORD,
             settings.DESKTOP_MODE,
         ) = original
 
@@ -1491,14 +1485,8 @@ async def test_chat_attachments_and_mcp_servers_reach_the_agent(
     acp_cache: EndpointCache,
 ) -> None:
     settings = get_settings()
-    original = (
-        settings.AGENTROVE_MCP_ENABLED,
-        settings.AGENTROVE_MCP_EMAIL,
-        settings.AGENTROVE_MCP_PASSWORD,
-    )
+    original = settings.AGENTROVE_MCP_ENABLED
     settings.AGENTROVE_MCP_ENABLED = True
-    settings.AGENTROVE_MCP_EMAIL = "mcp@example.com"
-    settings.AGENTROVE_MCP_PASSWORD = "mcp-password"
     try:
         headers, workspace = auth_workspace
         # Codex only treats "image" as natively embeddable — the pdf forces
@@ -1524,11 +1512,7 @@ async def test_chat_attachments_and_mcp_servers_reach_the_agent(
         )
         assert message["stream_status"] == "completed"
     finally:
-        (
-            settings.AGENTROVE_MCP_ENABLED,
-            settings.AGENTROVE_MCP_EMAIL,
-            settings.AGENTROVE_MCP_PASSWORD,
-        ) = original
+        settings.AGENTROVE_MCP_ENABLED = original
 
     new_sessions = fake_agent.events_of("new_session")
     assert new_sessions
@@ -1536,12 +1520,65 @@ async def test_chat_attachments_and_mcp_servers_reach_the_agent(
     assert len(mcp_servers) == 1
     assert mcp_servers[0]["name"] == "agentrove"
     assert mcp_servers[0]["command"] == sys.executable
+    mcp_env = {v["name"]: v["value"] for v in mcp_servers[0]["env"]}
+    assert mcp_env["AGENTROVE_ACCESS_TOKEN"]
+    assert "AGENTROVE_EMAIL" not in mcp_env
+    assert "AGENTROVE_PASSWORD" not in mcp_env
 
     prompts = fake_agent.main_turn_prompts()
     assert prompts
     last_prompt = prompts[-1]
     assert "image" in last_prompt["block_types"]
     assert "doc.pdf is available at" in last_prompt["text"]
+
+
+async def test_mcp_session_is_reused_across_turns(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A fresh token per turn (real mints differ once a second has passed) must
+    # not change the session fingerprint, or every turn respawns the agent.
+    settings = get_settings()
+    original = settings.AGENTROVE_MCP_ENABLED
+    settings.AGENTROVE_MCP_ENABLED = True
+    mints = iter(("token-one", "token-two", "token-three", "token-four"))
+    monkeypatch.setattr(
+        "app.services.agent.create_mcp_access_token", lambda user_id: next(mints)
+    )
+    try:
+        headers, workspace = auth_workspace
+        chat = await create_chat(client, headers, workspace, model_id="sonnet")
+
+        spawns = []
+        for prompt in ("first turn", "second turn"):
+            response = await send_message(
+                client,
+                headers,
+                chat_id=chat["id"],
+                model_id="sonnet",
+                prompt=prompt,
+            )
+            assert response.status_code == 200, response.text
+            message = await wait_for_message(
+                client,
+                headers,
+                chat_id=chat["id"],
+                message_id=response.json()["message_id"],
+            )
+            assert message["stream_status"] == "completed"
+            spawns.append(
+                len(fake_agent.events_of("new_session"))
+                + len(fake_agent.events_of("load_session"))
+            )
+    finally:
+        settings.AGENTROVE_MCP_ENABLED = original
+
+    # A respawn resumes the old session id, so count load_session too. The first
+    # turn's count also covers the one-off title-gen session.
+    assert spawns[1] == spawns[0]
 
 
 def test_untracked_tool_updates_use_meta_name_or_are_dropped() -> None:
