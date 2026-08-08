@@ -8,7 +8,7 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
-import { usePermissionStore } from '@/store/permissionStore';
+import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -109,7 +109,8 @@ export function ChatTabs() {
   const activeStreamMetadata = useStreamStore((s) => s.activeStreamMetadata);
   // Marked on stream success; sidebar clears when the chat is viewed.
   const completedChatIds = useStreamStore((s) => s.completedChatIds);
-  const pendingRequests = usePermissionStore((s) => s.pendingRequests);
+  // Pending plan/permission requests or agent question forms — blocked on the user.
+  const blockedChatIdSet = useBlockedChatIds();
 
   // From layout (not splitChatIds): a split chat under a full-screen primary is off-screen.
   const visibleChatIds = useMemo(
@@ -121,7 +122,6 @@ export function ChatTabs() {
     () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
     [activeStreamMetadata],
   );
-  const blockedChatIdSet = useMemo(() => new Set(pendingRequests.keys()), [pendingRequests]);
 
   const handleSelect = useCallback(
     (chatId: string) => {
