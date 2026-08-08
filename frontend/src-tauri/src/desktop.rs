@@ -152,7 +152,6 @@ fn spawn_backend(
     let db_path = data_dir.join("agentrove.db").to_string_lossy().to_string();
     let mut command = Command::new(&backend_bin);
     command
-        .env("DESKTOP_MODE", "true")
         .env("SECRET_KEY", secret_key)
         .env("BASE_URL", format!("http://127.0.0.1:{port}"))
         .env("DATABASE_URL", format!("sqlite+aiosqlite:///{db_path}"))
