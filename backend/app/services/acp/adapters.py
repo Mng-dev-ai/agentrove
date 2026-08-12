@@ -72,10 +72,12 @@ CURSOR_SESSION_MODES = frozenset({"agent", "plan", "ask"})
 # default classifier behavior (routine calls pass, risky ones prompt); `plan`
 # stays for the set_mode plan-hop and revives if ACP modes return.
 GROK_SESSION_MODES = frozenset({"auto", "always-approve", "plan"})
-# Only Grok 4.5 exposes the low/medium/high reasoning-effort dial; Composer
-# ignores it, so the effort launch flag is skipped for other models.
+# Grok 4.5 exposes low/medium/high reasoning effort, Grok 4.6 adds xhigh, and
+# Composer ignores the dial, so its effort launch flag is skipped.
 GROK_VALID_THINKING_MODES = frozenset({"low", "medium", "high"})
-GROK_REASONING_MODEL_IDS = frozenset({"grok:grok-4.5"})
+GROK_REASONING_MODEL_IDS = frozenset({"grok:grok-4.5", "grok:grok-4.6"})
+GROK_XHIGH_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
+GROK_XHIGH_MODEL_IDS = frozenset({"grok:grok-4.6"})
 
 # OpenCode's built-in primary agents double as ACP session modes; `plan`
 # restricts edits to `.opencode/plans/*.md`, `build` has full tool access.
@@ -119,6 +121,8 @@ def valid_thinking_modes(agent_kind: AgentKind, model_id: str) -> frozenset[str]
     if agent_kind is AgentKind.COPILOT:
         return COPILOT_VALID_THINKING_MODES
     if agent_kind is AgentKind.GROK:
+        if model_id in GROK_XHIGH_MODEL_IDS:
+            return GROK_XHIGH_VALID_THINKING_MODES
         return (
             GROK_VALID_THINKING_MODES
             if model_id in GROK_REASONING_MODEL_IDS

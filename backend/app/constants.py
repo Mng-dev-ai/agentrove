@@ -211,6 +211,7 @@ MODELS: dict[str, ModelInfo] = {
         "Grok 4.20 Thinking", AgentKind.CURSOR, 200_000
     ),
     "cursor:kimi-k2.5": ModelInfo("Kimi K2.5", AgentKind.CURSOR, 262_000),
+    "grok:grok-4.6": ModelInfo("Grok 4.6", AgentKind.GROK, 500_000),
     "grok:grok-4.5": ModelInfo("Grok 4.5", AgentKind.GROK, 500_000),
     "grok:grok-composer-2.5-fast": ModelInfo(
         "Composer 2.5 (Grok)", AgentKind.GROK, 200_000
@@ -350,8 +351,14 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:opencode/grok-4.5": ModelInfo(
         "Grok 4.5 (OpenCode)", AgentKind.OPENCODE, 500_000
     ),
+    "opencode:opencode/grok-4.6": ModelInfo(
+        "Grok 4.6 (OpenCode)", AgentKind.OPENCODE, 500_000
+    ),
     "opencode:opencode/grok-build-0.1": ModelInfo(
         "Grok Build 0.1 (OpenCode)", AgentKind.OPENCODE, 256_000
+    ),
+    "opencode:opencode/hy3-free": ModelInfo(
+        "Hy3 Free (OpenCode)", AgentKind.OPENCODE, 190_000
     ),
     "opencode:opencode/kimi-k2.5": ModelInfo(
         "Kimi K2.5 (OpenCode)", AgentKind.OPENCODE, 262_144
@@ -371,6 +378,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:opencode/ling-3.0-flash-free": ModelInfo(
         "Ling-3.0-flash Free (OpenCode)", AgentKind.OPENCODE, 262_144
     ),
+    "opencode:opencode/ling-3.0-tiny-free": ModelInfo(
+        "Ling-3.0-tiny Free (OpenCode)", AgentKind.OPENCODE, 262_144
+    ),
     "opencode:opencode/mimo-v2.5-free": ModelInfo(
         "MiMo V2.5 Free (OpenCode)", AgentKind.OPENCODE, 200_000
     ),
@@ -385,6 +395,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:opencode/nemotron-3-ultra-free": ModelInfo(
         "Nemotron 3 Ultra Free (OpenCode)", AgentKind.OPENCODE, 1_000_000
+    ),
+    "opencode:opencode/nemotron-3.5-lightning-free": ModelInfo(
+        "Nemotron 3.5 Lightning Free (OpenCode)", AgentKind.OPENCODE, 262_144
     ),
     "opencode:opencode/north-mini-code-free": ModelInfo(
         "North Mini Code Free (OpenCode)", AgentKind.OPENCODE, 256_000
@@ -445,6 +458,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:opencode-go/qwen3.7-plus": ModelInfo(
         "Qwen3.7 Plus (Opencode Go)", AgentKind.OPENCODE, 1_000_000
+    ),
+    "opencode:opencode-go/qwen3.8-max": ModelInfo(
+        "Qwen3.8 Max (Opencode Go)", AgentKind.OPENCODE, 1_000_000
     ),
     "opencode:amazon-bedrock/amazon.nova-2-lite-v1:0": ModelInfo(
         "Nova 2 Lite (Amazon Bedrock)", AgentKind.OPENCODE, 128_000
@@ -862,6 +878,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:github-copilot/gemini-3.5-flash": ModelInfo(
         "Gemini 3.5 Flash (Github Copilot)", AgentKind.OPENCODE, 200_000
     ),
+    "opencode:github-copilot/gemini-3.6-flash": ModelInfo(
+        "Gemini 3.6 Flash (Github Copilot)", AgentKind.OPENCODE, 1_000_000
+    ),
     "opencode:github-copilot/gpt-4.1": ModelInfo(
         "GPT-4.1 (Github Copilot)", AgentKind.OPENCODE, 128_000
     ),
@@ -898,11 +917,20 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:github-copilot/gpt-5.6-terra": ModelInfo(
         "GPT-5.6 Terra (Github Copilot)", AgentKind.OPENCODE, 1_050_000
     ),
+    "opencode:github-copilot/grok-4.5": ModelInfo(
+        "Grok 4.5 (Github Copilot)", AgentKind.OPENCODE, 500_000
+    ),
     "opencode:github-copilot/kimi-k2.7-code": ModelInfo(
         "Kimi K2.7 Code (Github Copilot)", AgentKind.OPENCODE, 256_000
     ),
+    "opencode:github-copilot/kimi-k3": ModelInfo(
+        "Kimi K3 (Github Copilot)", AgentKind.OPENCODE, 1_048_576
+    ),
     "opencode:github-copilot/mai-code-1-flash-picker": ModelInfo(
         "MAI-Code-1-Flash (Github Copilot)", AgentKind.OPENCODE, 256_000
+    ),
+    "opencode:github-copilot/mai-code-1.1-flash": ModelInfo(
+        "MAI-Code-1.1-Flash (Github Copilot)", AgentKind.OPENCODE, 256_000
     ),
     "opencode:google/deep-research-max-preview-04-2026": ModelInfo(
         "Deep Research Max Preview (Apr-21-2026) (Google)", AgentKind.OPENCODE, 131_072
@@ -1318,6 +1346,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:openrouter/deepseek/deepseek-v4-pro": ModelInfo(
         "DeepSeek V4 Pro (Openrouter)", AgentKind.OPENCODE, 1_048_576
+    ),
+    "opencode:openrouter/deepseek/deepseek-v4-pro-0813": ModelInfo(
+        "DeepSeek V4 Pro 0813 (Openrouter)", AgentKind.OPENCODE, 1_048_576
     ),
     "opencode:openrouter/google/gemini-2.5-flash": ModelInfo(
         "Gemini 2.5 Flash (Openrouter)", AgentKind.OPENCODE, 1_048_576
@@ -2083,6 +2114,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/x-ai/grok-4.5": ModelInfo(
         "Grok 4.5 (Openrouter)", AgentKind.OPENCODE, 500_000
     ),
+    "opencode:openrouter/x-ai/grok-4.6": ModelInfo(
+        "Grok 4.6 (Openrouter)", AgentKind.OPENCODE, 500_000
+    ),
     "opencode:openrouter/x-ai/grok-build-0.1": ModelInfo(
         "Grok Build 0.1 (Openrouter)", AgentKind.OPENCODE, 256_000
     ),
@@ -2246,6 +2280,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:zai-coding-plan/glm-5.2": ModelInfo(
         "GLM-5.2 (Zai Coding Plan)", AgentKind.OPENCODE, 1_000_000
+    ),
+    "opencode:zai-coding-plan/glm-5.2-highspeed": ModelInfo(
+        "GLM-5.2 Highspeed (Zai Coding Plan)", AgentKind.OPENCODE, 1_000_000
     ),
     "opencode:zai-coding-plan/glm-5v-turbo": ModelInfo(
         "GLM-5V-Turbo (Zai Coding Plan)", AgentKind.OPENCODE, 200_000
