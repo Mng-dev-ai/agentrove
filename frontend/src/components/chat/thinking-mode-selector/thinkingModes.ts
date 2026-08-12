@@ -51,8 +51,8 @@ const CODEX_ULTRA_MODEL_IDS = new Set(['gpt-5.6-sol', 'gpt-5.6-terra']);
 // so an empty list hides the selector.
 const EMPTY_THINKING_MODES: ThinkingModeOption[] = [];
 
-// Grok 4.5 has low–high reasoning effort, Grok 4.6 adds xhigh, and Composer
-// ignores the dial, so the selector is model-gated like Claude's xhigh tier.
+// Grok 4.5 has low–high reasoning effort and Grok 4.6 adds xhigh, so the
+// selector is model-gated like Claude's xhigh tier.
 const GROK_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },

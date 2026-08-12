@@ -72,8 +72,8 @@ CURSOR_SESSION_MODES = frozenset({"agent", "plan", "ask"})
 # default classifier behavior (routine calls pass, risky ones prompt); `plan`
 # stays for the set_mode plan-hop and revives if ACP modes return.
 GROK_SESSION_MODES = frozenset({"auto", "always-approve", "plan"})
-# Grok 4.5 exposes low/medium/high reasoning effort, Grok 4.6 adds xhigh, and
-# Composer ignores the dial, so its effort launch flag is skipped.
+# Grok 4.5 exposes low/medium/high reasoning effort and Grok 4.6 adds xhigh;
+# the effort launch flag is skipped for models outside these allowlists.
 GROK_VALID_THINKING_MODES = frozenset({"low", "medium", "high"})
 GROK_REASONING_MODEL_IDS = frozenset({"grok:grok-4.5", "grok:grok-4.6"})
 GROK_XHIGH_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})

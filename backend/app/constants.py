@@ -213,9 +213,6 @@ MODELS: dict[str, ModelInfo] = {
     "cursor:kimi-k2.5": ModelInfo("Kimi K2.5", AgentKind.CURSOR, 262_000),
     "grok:grok-4.6": ModelInfo("Grok 4.6", AgentKind.GROK, 500_000),
     "grok:grok-4.5": ModelInfo("Grok 4.5", AgentKind.GROK, 500_000),
-    "grok:grok-composer-2.5-fast": ModelInfo(
-        "Composer 2.5 (Grok)", AgentKind.GROK, 200_000
-    ),
     "opencode:opencode/big-pickle": ModelInfo(
         "Big Pickle (OpenCode)", AgentKind.OPENCODE, 200_000
     ),

@@ -36,7 +36,7 @@ export function InputControls() {
     !!branchesData?.is_git_repo &&
     branchesData.branches.length > 0;
   // Model-aware: some agents only expose a reasoning dial on specific models
-  // (e.g. Grok 4.5 but not Composer), so the base per-agent list isn't enough.
+  // (e.g. Claude's Haiku has none), so the base per-agent list isn't enough.
   const showThinking = agentKind
     ? getThinkingModesForAgent(agentKind, state.selectedModelId).length > 0
     : true;
