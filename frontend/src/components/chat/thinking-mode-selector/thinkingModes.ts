@@ -96,14 +96,19 @@ const COPILOT_KIMI_K3_THINKING_MODES: ThinkingModeOption[] = [
 // so an empty list hides the selector.
 const EMPTY_THINKING_MODES: ThinkingModeOption[] = [];
 
-// Grok's reasoning-effort dial only exists on Grok 4.5 (Composer ignores it),
-// so the selector is model-gated like Claude's xhigh tier.
+// Grok 4.5 has low–high reasoning effort and Grok 4.6 adds xhigh, so the
+// selector is model-gated like Claude's xhigh tier.
 const GROK_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
 ];
-const GROK_REASONING_MODEL_IDS = new Set(['grok:grok-4.5']);
+const GROK_REASONING_MODEL_IDS = new Set(['grok:grok-4.5', 'grok:grok-4.6']);
+const GROK_XHIGH_THINKING_MODES: ThinkingModeOption[] = [
+  ...GROK_THINKING_MODES,
+  { value: 'xhigh', label: 'XHigh' },
+];
+const GROK_XHIGH_MODEL_IDS = new Set(['grok:grok-4.6']);
 
 export const THINKING_MODES_BY_AGENT: Record<AgentKind, ThinkingModeOption[]> = {
   claude: CLAUDE_THINKING_MODES,
@@ -155,6 +160,9 @@ export function getThinkingModesForAgent(
   }
   if (agentKind === 'copilot' && modelId === 'copilot:kimi-k3') {
     return COPILOT_KIMI_K3_THINKING_MODES;
+  }
+  if (agentKind === 'grok' && modelId && GROK_XHIGH_MODEL_IDS.has(modelId)) {
+    return GROK_XHIGH_THINKING_MODES;
   }
   if (agentKind === 'grok' && modelId && GROK_REASONING_MODEL_IDS.has(modelId)) {
     return GROK_THINKING_MODES;
