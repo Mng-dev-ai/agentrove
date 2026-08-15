@@ -1537,9 +1537,7 @@ async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
     acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
-    chat = await create_chat(
-        client, headers, workspace, model_id="copilot:grok-4.5"
-    )
+    chat = await create_chat(client, headers, workspace, model_id="copilot:grok-4.5")
 
     first = await send_message(
         client,
@@ -1572,13 +1570,10 @@ async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
 
     switch_events = fake_agent.events()[event_count:]
     assert not any(
-        event["event"] in {"new_session", "load_session"}
-        for event in switch_events
+        event["event"] in {"new_session", "load_session"} for event in switch_events
     )
     switch_calls = [
-        event
-        for event in switch_events
-        if event["event"] == "set_config_option"
+        event for event in switch_events if event["event"] == "set_config_option"
     ]
     assert [(event["config_id"], event["value"]) for event in switch_calls] == [
         ("model", "claude-opus-4.6"),
