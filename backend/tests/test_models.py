@@ -55,6 +55,14 @@ async def test_list_models_returns_registered_models(
         "xhigh",
         "max",
     ]
+    assert by_id["copilot:gpt-5.4"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+    ]
+    assert by_id["copilot:kimi-k3"]["thinking_modes"] == ["low", "high", "max"]
+    assert by_id["copilot:claude-haiku-4.5"]["thinking_modes"] == []
     assert by_id["grok:grok-4.5"]["thinking_modes"] == ["low", "medium", "high"]
     assert by_id["cursor:auto"]["thinking_modes"] == []
 

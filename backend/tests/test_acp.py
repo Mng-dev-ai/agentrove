@@ -108,7 +108,7 @@ def test_grok_launch_args_apply_always_approve_flag(
         ("haiku", "high", None),
         ("sonnet", None, "medium"),
         ("sonnet", "high", "high"),
-        ("sonnet", "xhigh", "medium"),  # xhigh is fable/opus-only; clamps
+        ("sonnet", "xhigh", "high"),
         ("claude-opus-5", "xhigh", "xhigh"),
     ],
 )
@@ -293,6 +293,7 @@ async def send_message(
     model_id: str,
     prompt: str,
     permission_mode: str = "default",
+    thinking_mode: str | None = None,
     attached_files: list[tuple[str, tuple[str, bytes, str]]] | None = None,
 ) -> httpx.Response:
     data = {
@@ -301,6 +302,8 @@ async def send_message(
         "model_id": model_id,
         "permission_mode": permission_mode,
     }
+    if thinking_mode is not None:
+        data["thinking_mode"] = thinking_mode
     return await client.post(
         "/api/v1/chat/chat",
         data=data,
@@ -415,6 +418,55 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
     new_sessions = fake_agent.events_of("new_session")
     assert new_sessions
     assert new_sessions[-1]["mcp_servers"] == []
+
+
+@pytest.mark.parametrize(
+    "model_id,thinking_mode,expected_effort",
+    [
+        ("copilot:gpt-5.4", "max", "xhigh"),
+        ("copilot:claude-haiku-4.5", "high", None),
+        ("copilot:kimi-k3", "medium", "low"),
+    ],
+)
+async def test_copilot_session_setup_gates_and_clamps_reasoning_effort(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    model_id: str,
+    thinking_mode: str,
+    expected_effort: str | None,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id=model_id)
+
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id=model_id,
+        prompt="reason carefully",
+        permission_mode="agent",
+        thinking_mode=thinking_mode,
+    )
+    assert response.status_code == 200, response.text
+    message = await wait_for_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        message_id=response.json()["message_id"],
+    )
+    assert message["stream_status"] == "completed"
+
+    effort_calls = [
+        event
+        for event in fake_agent.events_of("set_config_option")
+        if event["config_id"] == "reasoning_effort"
+    ]
+    if expected_effort is None:
+        assert effort_calls == []
+    else:
+        assert effort_calls[-1]["value"] == expected_effort
 
 
 @pytest.mark.parametrize(
@@ -1476,6 +1528,114 @@ async def test_chat_mid_session_model_and_mode_switch_survives_config_errors(
     set_modes = fake_agent.events_of("set_session_mode")
     assert set_modes
     assert set_modes[-1]["mode_id"] == "read-only"
+
+
+async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(
+        client, headers, workspace, model_id="copilot:grok-4.5"
+    )
+
+    first = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="copilot:grok-4.5",
+        prompt="first turn",
+        permission_mode="agent",
+        thinking_mode="high",
+    )
+    first_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=first.json()["message_id"]
+    )
+    assert first_message["stream_status"] == "completed"
+
+    event_count = len(fake_agent.events())
+    second = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="copilot:claude-opus-4.6",
+        prompt="second turn",
+        permission_mode="agent",
+        thinking_mode="high",
+    )
+    second_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=second.json()["message_id"]
+    )
+    assert second_message["stream_status"] == "completed"
+
+    switch_events = fake_agent.events()[event_count:]
+    assert not any(
+        event["event"] in {"new_session", "load_session"}
+        for event in switch_events
+    )
+    switch_calls = [
+        event
+        for event in switch_events
+        if event["event"] == "set_config_option"
+    ]
+    assert [(event["config_id"], event["value"]) for event in switch_calls] == [
+        ("model", "claude-opus-4.6"),
+        ("reasoning_effort", "high"),
+    ]
+
+    no_dial_chat = await create_chat(
+        client, headers, workspace, model_id="copilot:auto"
+    )
+    no_dial_first = await send_message(
+        client,
+        headers,
+        chat_id=no_dial_chat["id"],
+        model_id="copilot:auto",
+        prompt="first no-dial turn",
+        permission_mode="agent",
+        thinking_mode="high",
+    )
+    no_dial_first_message = await wait_for_message(
+        client,
+        headers,
+        chat_id=no_dial_chat["id"],
+        message_id=no_dial_first.json()["message_id"],
+    )
+    assert no_dial_first_message["stream_status"] == "completed"
+
+    event_count = len(fake_agent.events())
+    no_dial_second = await send_message(
+        client,
+        headers,
+        chat_id=no_dial_chat["id"],
+        model_id="copilot:kimi-k2.7-code",
+        prompt="second no-dial turn",
+        permission_mode="agent",
+        thinking_mode="high",
+    )
+    no_dial_second_message = await wait_for_message(
+        client,
+        headers,
+        chat_id=no_dial_chat["id"],
+        message_id=no_dial_second.json()["message_id"],
+    )
+    assert no_dial_second_message["stream_status"] == "completed"
+
+    no_dial_switch_events = fake_agent.events()[event_count:]
+    assert not any(
+        event["event"] in {"new_session", "load_session"}
+        for event in no_dial_switch_events
+    )
+    no_dial_switch_calls = [
+        event
+        for event in no_dial_switch_events
+        if event["event"] == "set_config_option"
+    ]
+    assert [(event["config_id"], event["value"]) for event in no_dial_switch_calls] == [
+        ("model", "kimi-k2.7-code")
+    ]
 
 
 async def test_chat_attachments_and_mcp_servers_reach_the_agent(

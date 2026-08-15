@@ -151,20 +151,43 @@ MODELS: dict[str, ModelInfo] = {
     "gpt-5.2": ModelInfo("GPT 5.2", AgentKind.CODEX, 400_000),
     "gpt-5.1-codex-max": ModelInfo("GPT 5.1 Codex Max", AgentKind.CODEX, 400_000),
     "gpt-5.1-codex-mini": ModelInfo("GPT 5.1 Codex Mini", AgentKind.CODEX, 400_000),
+    "copilot:auto": ModelInfo("Auto", AgentKind.COPILOT, None),
+    "copilot:claude-sonnet-5": ModelInfo("Sonnet 5", AgentKind.COPILOT, 160_000),
+    "copilot:claude-fable-5": ModelInfo("Fable 5", AgentKind.COPILOT, 160_000),
+    "copilot:claude-opus-5": ModelInfo("Opus 5", AgentKind.COPILOT, 160_000),
+    "copilot:claude-opus-4.8": ModelInfo("Opus 4.8", AgentKind.COPILOT, 160_000),
+    "copilot:claude-opus-4.8-fast": ModelInfo(
+        "Opus 4.8 Fast", AgentKind.COPILOT, 160_000
+    ),
+    "copilot:claude-opus-4.7": ModelInfo("Opus 4.7", AgentKind.COPILOT, 160_000),
     "copilot:claude-sonnet-4.6": ModelInfo("Sonnet 4.6", AgentKind.COPILOT, 160_000),
-    "copilot:claude-sonnet-4.5": ModelInfo("Sonnet 4.5", AgentKind.COPILOT, 160_000),
     "copilot:claude-opus-4.6": ModelInfo("Opus 4.6", AgentKind.COPILOT, 160_000),
+    "copilot:claude-sonnet-4.5": ModelInfo("Sonnet 4.5", AgentKind.COPILOT, 160_000),
     "copilot:claude-opus-4.5": ModelInfo("Opus 4.5", AgentKind.COPILOT, 160_000),
     "copilot:claude-haiku-4.5": ModelInfo("Haiku 4.5", AgentKind.COPILOT, 160_000),
-    "copilot:claude-sonnet-4": ModelInfo("Sonnet 4", AgentKind.COPILOT, 144_000),
+    "copilot:gpt-5.6-sol": ModelInfo("GPT 5.6 Sol", AgentKind.COPILOT, 304_000),
+    "copilot:gpt-5.6-terra": ModelInfo("GPT 5.6 Terra", AgentKind.COPILOT, 304_000),
+    "copilot:gpt-5.6-luna": ModelInfo("GPT 5.6 Luna", AgentKind.COPILOT, 304_000),
+    "copilot:gpt-5.5": ModelInfo("GPT 5.5", AgentKind.COPILOT, 304_000),
     "copilot:gpt-5.4": ModelInfo("GPT 5.4", AgentKind.COPILOT, 304_000),
     "copilot:gpt-5.4-mini": ModelInfo("GPT 5.4 Mini", AgentKind.COPILOT, 304_000),
     "copilot:gpt-5.3-codex": ModelInfo("GPT 5.3 Codex", AgentKind.COPILOT, 304_000),
-    "copilot:gpt-5.2-codex": ModelInfo("GPT 5.2 Codex", AgentKind.COPILOT, 304_000),
-    "copilot:gpt-5.2": ModelInfo("GPT 5.2", AgentKind.COPILOT, 160_000),
-    "copilot:gpt-5.1": ModelInfo("GPT 5.1", AgentKind.COPILOT, 160_000),
     "copilot:gpt-5-mini": ModelInfo("GPT 5 Mini", AgentKind.COPILOT, 160_000),
-    "copilot:gpt-4.1": ModelInfo("GPT 4.1", AgentKind.COPILOT, 80_000),
+    "copilot:mai-code-1-flash-picker": ModelInfo(
+        "MAI Code 1 Flash", AgentKind.COPILOT, 128_000
+    ),
+    "copilot:gemini-3.6-flash": ModelInfo(
+        "Gemini 3.6 Flash", AgentKind.COPILOT, 1_000_000
+    ),
+    "copilot:gemini-3.5-flash": ModelInfo(
+        "Gemini 3.5 Flash", AgentKind.COPILOT, 1_000_000
+    ),
+    "copilot:gemini-3.1-pro-preview": ModelInfo(
+        "Gemini 3.1 Pro Preview", AgentKind.COPILOT, 200_000
+    ),
+    "copilot:grok-4.5": ModelInfo("Grok 4.5", AgentKind.COPILOT, 256_000),
+    "copilot:kimi-k3": ModelInfo("Kimi K3", AgentKind.COPILOT, 256_000),
+    "copilot:kimi-k2.7-code": ModelInfo("Kimi K2.7 Code", AgentKind.COPILOT, 256_000),
     "cursor:auto": ModelInfo("Auto", AgentKind.CURSOR, None),
     "cursor:composer-2.5-fast": ModelInfo(
         "Composer 2.5 Fast", AgentKind.CURSOR, 200_000

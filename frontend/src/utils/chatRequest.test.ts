@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import { buildAgentChatFields } from './chatRequest';
 import type { Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
@@ -19,6 +20,13 @@ const raw = (over: Partial<Parameters<typeof buildAgentChatFields>[2]> = {}) => 
   fastMode: false,
   persona: 'Default',
   ...over,
+});
+
+describe('coerceThinkingModeForAgent', () => {
+  it('uses the agent default for empty or unknown modes', () => {
+    expect(coerceThinkingModeForAgent('', 'claude')).toBe('high');
+    expect(coerceThinkingModeForAgent('unknown', 'copilot', 'copilot:gpt-5.4')).toBe('high');
+  });
 });
 
 describe('buildAgentChatFields', () => {
@@ -56,10 +64,10 @@ describe('buildAgentChatFields', () => {
     expect(fields.thinking_mode).toBe('max');
   });
 
-  it('coerces a thinking mode the model does not support to the agent default', () => {
-    // gpt-5.5 (codex, non-max) has no 'max' tier -> falls back to 'high'.
+  it('clamps an unsupported thinking mode to the nearest lower tier', () => {
+    // gpt-5.5 (codex, non-max) has no 'max' tier, so it clamps to 'xhigh'.
     const fields = buildAgentChatFields('gpt-5.5', new Map(), raw({ thinkingMode: 'max' }), []);
-    expect(fields.thinking_mode).toBe('high');
+    expect(fields.thinking_mode).toBe('xhigh');
   });
 
   it('maps worktree to true only when enabled, else undefined', () => {
