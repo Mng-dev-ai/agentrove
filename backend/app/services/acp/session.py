@@ -69,6 +69,7 @@ EMPTY_FROZENSET: frozenset[str] = frozenset()
 # option; value IDs are the supported Claude UI tiers.
 CLAUDE_EFFORT_CONFIG_ID = "effort"
 CLAUDE_MODEL_CONFIG_ID = "model"
+COPILOT_EFFORT_CONFIG_ID = "reasoning_effort"
 
 # codex-acp advertises Fast mode as a session config option (select on/off, or
 # boolean when the client supports it). Values match FastModeConfig.ts.
@@ -264,6 +265,20 @@ class AcpSession:
             )
         except Exception:
             logger.warning("Failed to set ACP model: %s", model_id, exc_info=True)
+        else:
+            if self._agent_kind == AgentKind.COPILOT and reasoning_effort:
+                try:
+                    await self._conn.set_config_option(
+                        config_id=COPILOT_EFFORT_CONFIG_ID,
+                        session_id=self.acp_session_id,
+                        value=reasoning_effort,
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to set Copilot effort: %s",
+                        reasoning_effort,
+                        exc_info=True,
+                    )
 
     async def set_mode(self, mode_id: str) -> None:
         try:
@@ -416,6 +431,7 @@ class AcpSession:
                 )
                 acp_session_id = response.session_id
 
+            model_set = False
             if config.model:
                 try:
                     await cls._set_model_on_conn(
@@ -425,6 +441,7 @@ class AcpSession:
                         config.model,
                         config.reasoning_effort,
                     )
+                    model_set = True
                 except Exception:
                     logger.warning(
                         "Failed to set initial model: %s", config.model, exc_info=True
@@ -459,6 +476,24 @@ class AcpSession:
                 except Exception:
                     logger.warning(
                         "Failed to set initial effort: %s",
+                        config.reasoning_effort,
+                        exc_info=True,
+                    )
+
+            if (
+                config.agent_kind == AgentKind.COPILOT
+                and config.reasoning_effort
+                and model_set
+            ):
+                try:
+                    await conn.set_config_option(
+                        config_id=COPILOT_EFFORT_CONFIG_ID,
+                        session_id=acp_session_id,
+                        value=config.reasoning_effort,
+                    )
+                except Exception:
+                    logger.warning(
+                        "Failed to set initial Copilot effort: %s",
                         config.reasoning_effort,
                         exc_info=True,
                     )

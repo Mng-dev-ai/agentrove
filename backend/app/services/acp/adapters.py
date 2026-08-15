@@ -62,7 +62,45 @@ CODEX_MAX_MODEL_IDS = frozenset({"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
 # delegation) is supported by Sol/Terra but not Luna.
 CODEX_ULTRA_VALID_THINKING_MODES = CODEX_MAX_VALID_THINKING_MODES | {"ultra"}
 CODEX_ULTRA_MODEL_IDS = frozenset({"gpt-5.6-sol", "gpt-5.6-terra"})
-COPILOT_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
+COPILOT_MAX_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh", "max"})
+COPILOT_MAX_MODEL_IDS = frozenset(
+    {
+        "copilot:claude-sonnet-5",
+        "copilot:claude-fable-5",
+        "copilot:claude-opus-5",
+        "copilot:claude-opus-4.8",
+        "copilot:claude-opus-4.8-fast",
+        "copilot:claude-opus-4.7",
+        "copilot:gpt-5.6-sol",
+        "copilot:gpt-5.6-terra",
+        "copilot:gpt-5.6-luna",
+    }
+)
+COPILOT_NO_XHIGH_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "max"})
+COPILOT_NO_XHIGH_MODEL_IDS = frozenset(
+    {"copilot:claude-sonnet-4.6", "copilot:claude-opus-4.6"}
+)
+COPILOT_XHIGH_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "xhigh"})
+COPILOT_XHIGH_MODEL_IDS = frozenset(
+    {
+        "copilot:gpt-5.5",
+        "copilot:gpt-5.4",
+        "copilot:gpt-5.4-mini",
+        "copilot:gpt-5.3-codex",
+    }
+)
+COPILOT_VALID_THINKING_MODES = frozenset({"low", "medium", "high"})
+COPILOT_REASONING_MODEL_IDS = frozenset(
+    {
+        "copilot:gpt-5-mini",
+        "copilot:mai-code-1-flash-picker",
+        "copilot:gemini-3.6-flash",
+        "copilot:gemini-3.5-flash",
+        "copilot:gemini-3.1-pro-preview",
+        "copilot:grok-4.5",
+    }
+)
+COPILOT_KIMI_K3_VALID_THINKING_MODES = frozenset({"low", "high", "max"})
 
 # Cursor CLI exposes three ACP session modes (see https://cursor.com/docs/cli/acp).
 CURSOR_SESSION_MODES = frozenset({"agent", "plan", "ask"})
@@ -119,7 +157,17 @@ def valid_thinking_modes(agent_kind: AgentKind, model_id: str) -> frozenset[str]
             return CODEX_MAX_VALID_THINKING_MODES
         return CODEX_VALID_THINKING_MODES
     if agent_kind is AgentKind.COPILOT:
-        return COPILOT_VALID_THINKING_MODES
+        if model_id in COPILOT_MAX_MODEL_IDS:
+            return COPILOT_MAX_VALID_THINKING_MODES
+        if model_id in COPILOT_NO_XHIGH_MODEL_IDS:
+            return COPILOT_NO_XHIGH_VALID_THINKING_MODES
+        if model_id in COPILOT_XHIGH_MODEL_IDS:
+            return COPILOT_XHIGH_VALID_THINKING_MODES
+        if model_id in COPILOT_REASONING_MODEL_IDS:
+            return COPILOT_VALID_THINKING_MODES
+        if model_id == "copilot:kimi-k3":
+            return COPILOT_KIMI_K3_VALID_THINKING_MODES
+        return frozenset()
     if agent_kind is AgentKind.GROK:
         if model_id in GROK_XHIGH_MODEL_IDS:
             return GROK_XHIGH_VALID_THINKING_MODES
@@ -131,9 +179,18 @@ def valid_thinking_modes(agent_kind: AgentKind, model_id: str) -> frozenset[str]
     return frozenset()
 
 
-def coerce_thinking_mode(mode: str | None, valid_modes: frozenset[str]) -> str:
-    # Clamp UI thinking tier to one the agent accepts (default medium).
-    return mode if mode in valid_modes else "medium"
+def coerce_thinking_mode(
+    mode: str | None, valid_modes: frozenset[str], default: str = "medium"
+) -> str:
+    requested = mode or default
+    if requested in valid_modes:
+        return requested
+    if requested in THINKING_MODE_ORDER:
+        requested_index = THINKING_MODE_ORDER.index(requested)
+        for candidate in reversed(THINKING_MODE_ORDER[:requested_index]):
+            if candidate in valid_modes:
+                return candidate
+    return next((mode for mode in THINKING_MODE_ORDER if mode in valid_modes), default)
 
 
 def build_system_prompt_meta(
@@ -348,8 +405,11 @@ class CopilotCliAdapter(AgentAdapter):
     ) -> SessionConfig:
         meta = build_system_prompt_meta(system_prompt, system_prompt_is_full_replace)
 
-        reasoning_effort = coerce_thinking_mode(
-            thinking_mode, valid_thinking_modes(AgentKind.COPILOT, model_id)
+        copilot_modes = valid_thinking_modes(AgentKind.COPILOT, model_id)
+        reasoning_effort = (
+            coerce_thinking_mode(thinking_mode, copilot_modes, default="high")
+            if copilot_modes
+            else None
         )
 
         return SessionConfig(
