@@ -138,17 +138,20 @@ MODELS: dict[str, ModelInfo] = {
     "haiku": ModelInfo("Haiku", AgentKind.CLAUDE, 200_000),
     "claude-fable-5": ModelInfo("Fable 5", AgentKind.CLAUDE, 1_000_000),
     "claude-opus-5": ModelInfo("Opus 5", AgentKind.CLAUDE, 1_000_000),
-    # 1M via model_context_window in ~/.codex/config.toml (registry default 372k).
+    # Codex CLI clamps model_context_window to its bundled catalog max — 272k for
+    # these slugs — then sessions report ~95% of the resolved window (e.g. 258,400).
+    # gpt-5.4's catalog max is 1M via config opt-in; raise it here once a live
+    # session verifies the opt-in survives our app-server launch path.
     # Live-reported window still wins over these fallbacks.
-    "gpt-5.6-sol": ModelInfo("GPT 5.6 Sol", AgentKind.CODEX, 1_050_000),
-    "gpt-5.6-terra": ModelInfo("GPT 5.6 Terra", AgentKind.CODEX, 1_050_000),
-    "gpt-5.6-luna": ModelInfo("GPT 5.6 Luna", AgentKind.CODEX, 1_050_000),
-    "gpt-5.5": ModelInfo("GPT 5.5", AgentKind.CODEX, 1_000_000),
-    "gpt-5.4": ModelInfo("GPT 5.4", AgentKind.CODEX, 1_000_000),
-    "gpt-5.4-mini": ModelInfo("GPT 5.4 Mini", AgentKind.CODEX, 400_000),
+    "gpt-5.6-sol": ModelInfo("GPT 5.6 Sol", AgentKind.CODEX, 272_000),
+    "gpt-5.6-terra": ModelInfo("GPT 5.6 Terra", AgentKind.CODEX, 272_000),
+    "gpt-5.6-luna": ModelInfo("GPT 5.6 Luna", AgentKind.CODEX, 272_000),
+    "gpt-5.5": ModelInfo("GPT 5.5", AgentKind.CODEX, 272_000),
+    "gpt-5.4": ModelInfo("GPT 5.4", AgentKind.CODEX, 272_000),
+    "gpt-5.4-mini": ModelInfo("GPT 5.4 Mini", AgentKind.CODEX, 272_000),
     "gpt-5.3-codex": ModelInfo("GPT 5.3 Codex", AgentKind.CODEX, 400_000),
     "gpt-5.2-codex": ModelInfo("GPT 5.2 Codex", AgentKind.CODEX, 400_000),
-    "gpt-5.2": ModelInfo("GPT 5.2", AgentKind.CODEX, 400_000),
+    "gpt-5.2": ModelInfo("GPT 5.2", AgentKind.CODEX, 272_000),
     "gpt-5.1-codex-max": ModelInfo("GPT 5.1 Codex Max", AgentKind.CODEX, 400_000),
     "gpt-5.1-codex-mini": ModelInfo("GPT 5.1 Codex Mini", AgentKind.CODEX, 400_000),
     "copilot:auto": ModelInfo("Auto", AgentKind.COPILOT, None),
