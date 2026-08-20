@@ -20,3 +20,7 @@
 .message {
   @include type.type-body;
 }
+
+.reload {
+  margin-top: var(--space-3);
+}
