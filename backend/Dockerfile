@@ -27,12 +27,12 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.206 @agentclientprotocol/claude-agent-acp@0.64.0 @agentclientprotocol/codex-acp@1.1.7 @openai/codex@0.144.1 @github/copilot@1.0.79
+RUN npm install -g @anthropic-ai/claude-code@2.1.237 @agentclientprotocol/claude-agent-acp@0.70.0 @agentclientprotocol/codex-acp@1.6.0 @openai/codex@0.148.0 @github/copilot@1.0.80
 
 # Cursor CLI — used for the Cursor ACP server (`cursor-agent acp`). Pinned
 # download replicating cursor.com/install, which always fetches its own latest.
 RUN set -eux; \
-    v=2026.08.04-aaa8809; \
+    v=2026.08.11-e8db854; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
     dir=/root/.local/share/cursor-agent/versions/$v; \
     mkdir -p "$dir" /root/.local/bin; \
@@ -45,7 +45,7 @@ RUN set -eux; \
 # OpenCode CLI — used for the OpenCode ACP server (`opencode acp`); installs to
 # /root/.opencode/bin. Pinned: the unpinned path resolves "latest" via the
 # rate-limited GitHub API.
-RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.15 && \
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.18 && \
     cp /root/.opencode/bin/opencode /usr/local/bin/opencode && \
     chmod +x /usr/local/bin/opencode
 
