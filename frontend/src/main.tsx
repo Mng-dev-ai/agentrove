@@ -7,7 +7,14 @@ import App from './App.tsx';
 // Build-time palette CSS overrides (vite.config.ts).
 import 'virtual:palette-overrides.css';
 import { queryClient, persistOptions } from './lib/queryClient';
+import { reloadStaleChunk } from './utils/lazyNamed';
 import { isMobileApp } from './utils/platform';
+
+window.addEventListener('vite:preloadError', (event) => {
+  if (reloadStaleChunk()) {
+    event.preventDefault();
+  }
+});
 
 // iOS WebKit zooms inputs with font-size < 16px; lock scale in the native shell only.
 if (isMobileApp()) {

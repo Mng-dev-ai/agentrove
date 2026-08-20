@@ -1,4 +1,5 @@
 import { Component, ReactNode } from 'react';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { logger } from '@/utils/logger';
 import styles from './ErrorBoundary.module.scss';
 
@@ -38,10 +39,17 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <p className={styles.message}>
             {this.state.error?.message || 'An unexpected error occurred'}
           </p>
+          <Button className={styles.reload} size="sm" onClick={reloadPage}>
+            Reload page
+          </Button>
         </div>
       );
     }
 
     return this.props.children;
   }
+}
+
+function reloadPage(): void {
+  window.location.reload();
 }
