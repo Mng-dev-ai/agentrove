@@ -170,30 +170,33 @@ export function useInputSubmit({
     [chatId],
   );
 
-  const handleTokenDeleteKeyDown = useCallback((event: React.KeyboardEvent<Element>) => {
-    // First Backspace/Delete at a pill's boundary selects token + separator space;
-    // the next keystroke deletes it natively (undo intact). Backspace triggers only
-    // after the separator — at the bare token end the user is still composing.
-    if (event.key !== 'Backspace' && event.key !== 'Delete') return false;
-    const textarea = textareaRef.current;
-    if (!textarea) return false;
-    const { selectionStart, selectionEnd } = textarea;
-    if (selectionStart !== selectionEnd) return false;
-    const message = messageRef.current;
-    for (const [start, end] of getHighlightTokenRanges(message)) {
-      const hasSeparator = message[end] === ' ';
-      const atEdge =
-        event.key === 'Backspace'
-          ? hasSeparator && selectionStart === end + 1
-          : selectionStart === start;
-      if (atEdge) {
-        event.preventDefault();
-        textarea.setSelectionRange(start, hasSeparator ? end + 1 : end);
-        return true;
+  const handleTokenDeleteKeyDown = useCallback(
+    (event: React.KeyboardEvent<Element>) => {
+      // First Backspace/Delete at a pill's boundary selects token + separator space;
+      // the next keystroke deletes it natively (undo intact). Backspace triggers only
+      // after the separator — at the bare token end the user is still composing.
+      if (event.key !== 'Backspace' && event.key !== 'Delete') return false;
+      const textarea = textareaRef.current;
+      if (!textarea) return false;
+      const { selectionStart, selectionEnd } = textarea;
+      if (selectionStart !== selectionEnd) return false;
+      const message = messageRef.current;
+      for (const [start, end] of getHighlightTokenRanges(message)) {
+        const hasSeparator = message[end] === ' ';
+        const atEdge =
+          event.key === 'Backspace'
+            ? hasSeparator && selectionStart === end + 1
+            : selectionStart === start;
+        if (atEdge) {
+          event.preventDefault();
+          textarea.setSelectionRange(start, hasSeparator ? end + 1 : end);
+          return true;
+        }
       }
-    }
-    return false;
-  }, [messageRef, textareaRef]);
+      return false;
+    },
+    [messageRef, textareaRef],
+  );
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<Element>) => {

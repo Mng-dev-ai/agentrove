@@ -16,16 +16,19 @@ export function useInputEnhance({
   messageRef,
   hasMessage,
 }: UseInputEnhanceOptions) {
-  const focusTextarea = useCallback((text: string) => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      setTimeout(() => {
-        textarea.focus();
-        const length = text.length;
-        textarea.setSelectionRange(length, length);
-      }, 0);
-    }
-  }, [textareaRef]);
+  const focusTextarea = useCallback(
+    (text: string) => {
+      const textarea = textareaRef.current;
+      if (textarea) {
+        setTimeout(() => {
+          textarea.focus();
+          const length = text.length;
+          textarea.setSelectionRange(length, length);
+        }, 0);
+      }
+    },
+    [textareaRef],
+  );
 
   const enhancePromptMutation = useEnhancePromptMutation({
     onSuccess: (enhancedPrompt) => {
