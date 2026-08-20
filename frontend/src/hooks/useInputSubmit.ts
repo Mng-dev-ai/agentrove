@@ -74,7 +74,7 @@ export function useInputSubmit({
       setPreviewDismissed(true);
       onSubmit(event);
     },
-    [disabled, hasContent, onSubmit],
+    [disabled, hasContent, onSubmit, setPreviewDismissed],
   );
 
   const submitOrStop = useCallback(() => {
@@ -158,6 +158,9 @@ export function useInputSubmit({
     agentKind,
     selectedModelId,
     personas,
+    formRef,
+    messageRef,
+    setPreviewDismissed,
   ]);
 
   const handleRemoveSelection = useCallback(
@@ -190,7 +193,7 @@ export function useInputSubmit({
       }
     }
     return false;
-  }, []);
+  }, [messageRef, textareaRef]);
 
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<Element>) => {

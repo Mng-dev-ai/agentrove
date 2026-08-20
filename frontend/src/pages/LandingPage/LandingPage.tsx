@@ -367,6 +367,7 @@ export function LandingPage() {
       selectedCloudWorkspaceId,
       attachedFiles,
       modelMap,
+      queryClient,
       resolvedPersonas,
     ],
   );

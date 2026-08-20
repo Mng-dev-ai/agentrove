@@ -1,12 +1,12 @@
 import { memo, useEffect, useRef } from 'react';
 import { ChevronRight, Cloud, CornerDownRight, MoreHorizontal } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
+import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import {
-  ChatStatusDot,
   chatStatusTone,
   CHAT_STATUS_LABEL,
   type ChatStatusTone,
-} from '@/components/ui/ChatStatusDot/ChatStatusDot';
+} from '@/utils/message';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';

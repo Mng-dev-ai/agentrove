@@ -10,6 +10,7 @@ import { DiffCommentComposer } from '@/components/sandbox/git/DiffCommentCompose
 import type { FileChangeStats } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { FileDiff } from '@pierre/diffs/react';
 import clsx from 'clsx';
+import { isRenameFileType } from '@/utils/fileTypes';
 import styles from './DiffFileRow.module.scss';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -29,9 +30,6 @@ const STATUS_BADGE_MODIFIERS: Record<string, string> = {
 // Stable empty value — the library re-renders a file whenever the annotations
 // array identity changes.
 const NO_ANNOTATIONS: DiffLineAnnotation[] = [];
-
-export const isRenameFileType = (type?: string) =>
-  type === 'rename-pure' || type === 'rename-changed';
 
 const FileDiffRenderer = memo(function FileDiffRenderer({
   file,

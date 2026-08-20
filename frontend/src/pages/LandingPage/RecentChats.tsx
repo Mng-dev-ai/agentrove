@@ -7,11 +7,11 @@ import { formatRelativeTime } from '@/utils/date';
 import { stripMarkdownTitle } from '@/utils/format';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { Cloud } from 'lucide-react';
+import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import {
-  ChatStatusDot,
   chatStatusTone,
   CHAT_STATUS_LABEL,
-} from '@/components/ui/ChatStatusDot/ChatStatusDot';
+} from '@/utils/message';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Button } from '@/components/ui/primitives/Button/Button';

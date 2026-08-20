@@ -1,28 +1,6 @@
 import clsx from 'clsx';
+import type { ChatStatusTone } from '@/utils/message';
 import styles from './ChatStatusDot.module.scss';
-
-export type ChatStatusTone = 'blocked' | 'running' | 'completed' | 'unread';
-
-// Precedence: needs-you > running > done > unread (running uses the spinner, not a dot).
-export function chatStatusTone(flags: {
-  blocked: boolean;
-  streaming: boolean;
-  completed: boolean;
-  unread?: boolean;
-}): ChatStatusTone | null {
-  if (flags.blocked) return 'blocked';
-  if (flags.streaming) return 'running';
-  if (flags.completed) return 'completed';
-  if (flags.unread) return 'unread';
-  return null;
-}
-
-export const CHAT_STATUS_LABEL: Record<ChatStatusTone, string> = {
-  blocked: 'Needs you',
-  running: 'Running',
-  completed: 'Done',
-  unread: 'Unread',
-};
 
 // red+ping=needs you, amber=running (compact; usually spinner), green=done, blue=unread
 const TONE_STYLE: Record<ChatStatusTone, { tone: ChatStatusTone; ping: boolean }> = {

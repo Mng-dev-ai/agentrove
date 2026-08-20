@@ -3,35 +3,15 @@ import { Check, Cloud } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
-import type { SidebarFilters, SidebarGroupBy, SidebarStatusFilter } from '@/store/sidebarFilters';
-import type { AgentKind } from '@/types/chat.types';
+import {
+  AGENT_OPTIONS,
+  GROUP_BY_OPTIONS,
+  STATUS_OPTIONS,
+  type FilterCategory,
+  type SidebarFilters,
+  type SidebarStatusFilter,
+} from '@/store/sidebarFilters';
 import styles from './SidebarFilterSubmenu.module.scss';
-
-export type FilterCategory = 'status' | 'agent' | 'source' | 'workspace' | 'groupBy';
-
-export const STATUS_OPTIONS: { value: SidebarStatusFilter; label: string }[] = [
-  { value: 'unread', label: 'Unread' },
-  { value: 'running', label: 'Running' },
-  { value: 'done', label: 'Done' },
-  { value: 'needs-you', label: 'Needs you' },
-];
-
-// Labels match the ModelSelector agent group headers
-export const AGENT_OPTIONS: { value: AgentKind; label: string }[] = [
-  { value: 'claude', label: 'Claude' },
-  { value: 'codex', label: 'Codex' },
-  { value: 'copilot', label: 'Copilot' },
-  { value: 'cursor', label: 'Cursor' },
-  { value: 'grok', label: 'Grok' },
-  { value: 'opencode', label: 'OpenCode' },
-];
-
-export const GROUP_BY_OPTIONS: { value: SidebarGroupBy; label: string }[] = [
-  { value: 'none', label: 'None' },
-  { value: 'date', label: 'Date' },
-  { value: 'workspace', label: 'Workspace' },
-  { value: 'status', label: 'Status' },
-];
 
 interface WorkspaceOption {
   id: string;

@@ -95,7 +95,7 @@ export function useDiffReview({
       if (allOff) return new Set();
       return new Set(parsedFiles.map((f) => f.name));
     });
-  }, [parsedFiles, setCollapsedFiles]);
+  }, [parsedFiles, reviewCollapsedRef, setCollapsedFiles]);
 
   // Chevron/header toggle — manually changing a file's collapse hands ownership
   // back to the user, so drop our review-collapse claim on it first.
@@ -104,7 +104,7 @@ export function useDiffReview({
       reviewCollapsedRef.current.delete(name);
       toggleCollapsed(name);
     },
-    [toggleCollapsed],
+    [reviewCollapsedRef, toggleCollapsed],
   );
 
   const toggleReviewed = useCallback(
@@ -140,7 +140,7 @@ export function useDiffReview({
         });
       }
     },
-    [isPlaceholder, reviewKeyByFile, scopeKey, setCollapsedFiles],
+    [isPlaceholder, reviewCollapsedRef, reviewKeyByFile, scopeKey, setCollapsedFiles],
   );
 
   return {

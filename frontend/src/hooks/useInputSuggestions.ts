@@ -51,7 +51,7 @@ export function useInputSuggestions({
         }
       }, 0);
     },
-    [setMessage],
+    [messageRef, setCursorPosition, setMessage, textareaRef],
   );
 
   const handleSlashCommandSelect = useCallback(

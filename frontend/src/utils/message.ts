@@ -1,6 +1,28 @@
 import { detectFileType } from './fileTypes';
 import type { Message } from '@/types/chat.types';
 
+export type ChatStatusTone = 'blocked' | 'running' | 'completed' | 'unread';
+
+export function chatStatusTone(flags: {
+  blocked: boolean;
+  streaming: boolean;
+  completed: boolean;
+  unread?: boolean;
+}): ChatStatusTone | null {
+  if (flags.blocked) return 'blocked';
+  if (flags.streaming) return 'running';
+  if (flags.completed) return 'completed';
+  if (flags.unread) return 'unread';
+  return null;
+}
+
+export const CHAT_STATUS_LABEL: Record<ChatStatusTone, string> = {
+  blocked: 'Needs you',
+  running: 'Running',
+  completed: 'Done',
+  unread: 'Unread',
+};
+
 export const isAssistantMessage = (msg: Message) => msg.is_bot ?? msg.role === 'assistant';
 
 export function createInitialMessage(

@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import clsx from 'clsx';
 import { FileText, FileSpreadsheet, Download } from 'lucide-react';
 import type { MessageAttachment } from '@/types/chat.types';
+import { getDefaultFilename } from '@/utils/file';
 import { Button } from '../primitives/Button/Button';
 import { Spinner } from '../primitives/Spinner/Spinner';
 import styles from './AttachmentThumbnails.module.scss';
@@ -34,19 +35,6 @@ const getIconConfig = (fileType: string, filename?: string): IconConfig => {
   }
 
   return { icon: FileText, tone: 'file', label: 'FILE' };
-};
-
-export const getDefaultFilename = (fileType: string, index: number): string => {
-  switch (fileType) {
-    case 'pdf':
-      return 'document.pdf';
-    case 'xlsx':
-      return 'spreadsheet.xlsx';
-    case 'image':
-      return `image-${index}.jpg`;
-    default:
-      return `file-${index}`;
-  }
 };
 
 const LoadingProgressOverlay = memo(function LoadingProgressOverlay() {

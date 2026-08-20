@@ -5,7 +5,7 @@ import {
   useGitRestoreAllMutation,
   useGitRestoreFileMutation,
 } from '@/hooks/queries/useSandboxQueries';
-import { isRenameFileType } from '@/components/sandbox/git/DiffFileRow/DiffFileRow';
+import { isRenameFileType } from '@/utils/fileTypes';
 
 interface UseDiffDiscardParams {
   sandboxId: string | undefined;
