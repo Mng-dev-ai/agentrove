@@ -74,8 +74,7 @@ export const MarkDown = memo(function MarkDown({
   const needsMath = useMemo(() => MATH_PATTERN.test(content), [content]);
 
   const remarkPlugins = useMemo<NonNullable<Options['remarkPlugins']>>(
-    () =>
-      needsMath ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }]] : [remarkGfm],
+    () => (needsMath ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }]] : [remarkGfm]),
     [needsMath],
   );
   const rehypePlugins = useMemo(
