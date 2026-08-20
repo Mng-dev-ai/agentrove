@@ -4,19 +4,17 @@ import { ChevronRight, SlidersVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import {
+  AGENT_OPTIONS,
   clearSidebarFilters,
   countActiveSidebarFilters,
+  GROUP_BY_OPTIONS,
+  STATUS_OPTIONS,
+  type FilterCategory,
   type SidebarFilters,
   type SidebarStatusFilter,
 } from '@/store/sidebarFilters';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
-import {
-  SidebarFilterSubmenu,
-  AGENT_OPTIONS,
-  GROUP_BY_OPTIONS,
-  STATUS_OPTIONS,
-  type FilterCategory,
-} from './SidebarFilterSubmenu';
+import { SidebarFilterSubmenu } from './SidebarFilterSubmenu';
 import styles from './SidebarFilterMenu.module.scss';
 
 const PANEL_WIDTH = 240;

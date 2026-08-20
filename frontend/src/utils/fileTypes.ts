@@ -46,6 +46,9 @@ export const isUploadedXlsxFile = (file: File): boolean =>
 export const isSupportedUploadedFile = (file: File): boolean =>
   isUploadedImageFile(file) || isUploadedPdfFile(file) || isUploadedXlsxFile(file);
 
+export const isRenameFileType = (type?: string) =>
+  type === 'rename-pure' || type === 'rename-changed';
+
 export const isMarkdownFile = (file: FileStructure | null): boolean =>
   hasFileExtension(file, FILE_TYPE_EXTENSIONS.markdown);
 

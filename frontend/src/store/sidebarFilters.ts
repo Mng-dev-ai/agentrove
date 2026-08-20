@@ -6,6 +6,30 @@ import type { AgentKind } from '@/types/chat.types';
 export type SidebarStatusFilter = 'unread' | 'running' | 'done' | 'needs-you';
 export type SidebarSourceFilter = 'all' | 'local' | 'cloud';
 export type SidebarGroupBy = 'none' | 'date' | 'workspace' | 'status';
+export type FilterCategory = 'status' | 'agent' | 'source' | 'workspace' | 'groupBy';
+
+export const STATUS_OPTIONS: { value: SidebarStatusFilter; label: string }[] = [
+  { value: 'unread', label: 'Unread' },
+  { value: 'running', label: 'Running' },
+  { value: 'done', label: 'Done' },
+  { value: 'needs-you', label: 'Needs you' },
+];
+
+export const AGENT_OPTIONS: { value: AgentKind; label: string }[] = [
+  { value: 'claude', label: 'Claude' },
+  { value: 'codex', label: 'Codex' },
+  { value: 'copilot', label: 'Copilot' },
+  { value: 'cursor', label: 'Cursor' },
+  { value: 'grok', label: 'Grok' },
+  { value: 'opencode', label: 'OpenCode' },
+];
+
+export const GROUP_BY_OPTIONS: { value: SidebarGroupBy; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'date', label: 'Date' },
+  { value: 'workspace', label: 'Workspace' },
+  { value: 'status', label: 'Status' },
+];
 
 // Array (not Set) so the object survives JSON persistence; max 4 entries.
 export interface SidebarFilters {

@@ -69,6 +69,19 @@ export function getFileName(path: string): string {
   return parts[parts.length - 1];
 }
 
+export function getDefaultFilename(fileType: string, index: number): string {
+  switch (fileType) {
+    case 'pdf':
+      return 'document.pdf';
+    case 'xlsx':
+      return 'spreadsheet.xlsx';
+    case 'image':
+      return `image-${index}.jpg`;
+    default:
+      return `file-${index}`;
+  }
+}
+
 export function getAncestorFolderPaths(path: string): string[] {
   const segments = path.split('/');
   const ancestors: string[] = [];

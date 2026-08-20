@@ -484,6 +484,7 @@ export function useStreamCallbacks({
       currentChat?.sandbox_id,
       currentChat?.parent_chat_id,
       notifyBackground,
+      pendingStopRef,
       queryClient,
       setCurrentMessageId,
       setMessages,

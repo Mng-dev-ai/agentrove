@@ -152,14 +152,16 @@ const DiffViewContent = memo(function DiffViewContent({
   // portaled to escape the toolbar's clip and stacking context.
   const filesMenu = useAnchoredPanel(computeMenuPos);
   const overflowMenu = useAnchoredPanel(computeOverflowMenuPos);
+  const { close: closeFilesMenu } = filesMenu;
+  const { close: closeOverflowMenu } = overflowMenu;
 
   // Closing a menu is a no-op when it isn't open, so every discard-all trigger
   // (toolbar, overflow menu, empty state) shares this handler.
   const openDiscardAll = useCallback(() => {
     setDiscardAllOpen(true);
-    filesMenu.close();
-    overflowMenu.close();
-  }, [setDiscardAllOpen, filesMenu.close, overflowMenu.close]);
+    closeFilesMenu();
+    closeOverflowMenu();
+  }, [setDiscardAllOpen, closeFilesMenu, closeOverflowMenu]);
 
   const diffContent = diffData?.diff ?? '';
   const diffCacheKey = useMemo(
@@ -263,9 +265,9 @@ const DiffViewContent = memo(function DiffViewContent({
   const selectFile = useCallback(
     (name: string) => {
       jumpToFile(name);
-      filesMenu.close();
+      closeFilesMenu();
     },
-    [jumpToFile, filesMenu.close],
+    [jumpToFile, closeFilesMenu],
   );
 
   // The tile stays mounted while hidden, so switching back to it doesn't remount
@@ -281,8 +283,8 @@ const DiffViewContent = memo(function DiffViewContent({
 
   const toggleAllFromMenu = useCallback(() => {
     toggleAll();
-    overflowMenu.close();
-  }, [toggleAll, overflowMenu.close]);
+    closeOverflowMenu();
+  }, [toggleAll, closeOverflowMenu]);
 
   if (!sandboxId) {
     return <div className={styles['no-sandbox']}>No sandbox connected</div>;

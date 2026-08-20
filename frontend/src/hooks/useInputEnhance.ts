@@ -16,16 +16,19 @@ export function useInputEnhance({
   messageRef,
   hasMessage,
 }: UseInputEnhanceOptions) {
-  const focusTextarea = useCallback((text: string) => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      setTimeout(() => {
-        textarea.focus();
-        const length = text.length;
-        textarea.setSelectionRange(length, length);
-      }, 0);
-    }
-  }, []);
+  const focusTextarea = useCallback(
+    (text: string) => {
+      const textarea = textareaRef.current;
+      if (textarea) {
+        setTimeout(() => {
+          textarea.focus();
+          const length = text.length;
+          textarea.setSelectionRange(length, length);
+        }, 0);
+      }
+    },
+    [textareaRef],
+  );
 
   const enhancePromptMutation = useEnhancePromptMutation({
     onSuccess: (enhancedPrompt) => {
@@ -39,7 +42,7 @@ export function useInputEnhance({
   const handleEnhancePrompt = useCallback(() => {
     if (!hasMessage || isEnhancing) return;
     enhancePromptMutation.mutate({ prompt: messageRef.current.trim(), modelId: selectedModelId });
-  }, [hasMessage, isEnhancing, selectedModelId, enhancePromptMutation]);
+  }, [hasMessage, isEnhancing, selectedModelId, enhancePromptMutation, messageRef]);
 
   return {
     isEnhancing,
