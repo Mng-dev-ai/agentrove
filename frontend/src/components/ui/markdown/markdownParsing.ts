@@ -4,7 +4,7 @@ import type { MessageAttachment } from '@/types/chat.types';
 import { buildHighlightSegments } from '@/utils/mentionParser';
 import { MENTION_PILL_CLASSNAME } from '../shared/HighlightedText/HighlightedText';
 
-export const MATH_PATTERN = /(^|[^\\])(\$[^$\n]+\$|\$\$[\s\S]*?\$\$|\\\(|\\\[)/;
+export const MATH_PATTERN = /(^|[^\\])(\$\$[\s\S]*?\$\$|\\\(|\\\[)/;
 
 // Unclosed ```visualizer at stream end — partial body for live preview.
 const UNCLOSED_VISUALIZER_RE = /```visualizer\n([\s\S]*)$/;

@@ -73,8 +73,9 @@ export const MarkDown = memo(function MarkDown({
   // stray `$` characters in ordinary text aren't parsed as TeX.
   const needsMath = useMemo(() => MATH_PATTERN.test(content), [content]);
 
-  const remarkPlugins = useMemo(
-    () => (needsMath ? [remarkGfm, remarkMath] : [remarkGfm]),
+  const remarkPlugins = useMemo<NonNullable<Options['remarkPlugins']>>(
+    () =>
+      needsMath ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }]] : [remarkGfm],
     [needsMath],
   );
   const rehypePlugins = useMemo(
