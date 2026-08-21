@@ -4,6 +4,7 @@ import shlex
 import subprocess
 import zipfile
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from httpx import AsyncClient
@@ -31,6 +32,10 @@ from app.services.git import (
 )
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
+from app.services.sandbox_providers.docker_provider import (
+    DockerConfig,
+    LocalDockerProvider,
+)
 from app.services.sandbox_providers.types import (
     CommandResult,
     FileContent,
@@ -47,6 +52,41 @@ from tests.helpers import (
 
 
 pytestmark = pytest.mark.anyio
+
+
+async def test_docker_sandbox_chowns_only_managed_workspace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    storage_root = tmp_path / "storage"
+    managed_workspace = storage_root / "workspaces" / "user" / "repo"
+    external_workspace = tmp_path / "local-repo"
+    monkeypatch.setattr(get_settings(), "STORAGE_PATH", str(storage_root))
+
+    provider = LocalDockerProvider(DockerConfig())
+    exec_obj = MagicMock()
+    container = MagicMock()
+    container.exec = AsyncMock(return_value=exec_obj)
+    create_container = AsyncMock(return_value=container)
+    collect_exec_output = AsyncMock(return_value=(0, ""))
+    monkeypatch.setattr(provider, "_create_container", create_container)
+    monkeypatch.setattr(provider, "_collect_exec_output", collect_exec_output)
+
+    await provider.create_sandbox(str(managed_workspace))
+
+    container.exec.assert_awaited_once_with(
+        cmd=["chown", "-R", "1000:1000", provider.workspace_root],
+        user="root",
+    )
+    collect_exec_output.assert_awaited_once_with(exec_obj)
+
+    container.exec.reset_mock()
+    collect_exec_output.reset_mock()
+
+    await provider.create_sandbox(str(external_workspace))
+    await provider.create_sandbox(None)
+
+    container.exec.assert_not_awaited()
+    collect_exec_output.assert_not_awaited()
 
 
 @pytest.mark.parametrize("base_ref", ["main", "feat/api-keys", "release-1.2"])

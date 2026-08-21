@@ -17,6 +17,7 @@ from app.constants import (
     SANDBOX_DEFAULT_COMMAND_TIMEOUT,
     TERMINAL_TYPE,
 )
+from app.core.config import get_settings
 from app.services.exceptions import SandboxException
 from app.services.sandbox_providers.base import GIT_LS_FILES_CMD, SandboxProvider
 from app.services.sandbox_providers.types import (
@@ -142,8 +143,26 @@ class LocalDockerProvider(SandboxProvider):
         container = await self._create_container(
             sandbox_id, workspace_path=workspace_path
         )
+        if workspace_path:
+            await self._fix_workspace_ownership(container, workspace_path)
         self._containers[sandbox_id] = container
         return sandbox_id
+
+    async def _fix_workspace_ownership(
+        self, container: Any, workspace_path: str
+    ) -> None:
+        workspace_dir = Path(workspace_path).expanduser().resolve()
+        storage_root = Path(get_settings().STORAGE_PATH).resolve()
+        if not workspace_dir.is_relative_to(storage_root):
+            return
+
+        exec_obj = await container.exec(
+            cmd=["chown", "-R", "1000:1000", self.workspace_root],
+            user="root",
+        )
+        exit_code, output = await self._collect_exec_output(exec_obj)
+        if exit_code != 0:
+            logger.warning("Failed to set workspace ownership: %s", output)
 
     async def _get_container_by_id(self, sandbox_id: str) -> Any | None:
         # Daemon lookup when missing from the in-memory cache (e.g. after API restart).
