@@ -101,6 +101,7 @@ class LocalDockerProvider(SandboxProvider):
 
         host_config: dict[str, Any] = {
             "NetworkMode": self.config.network,
+            "SecurityOpt": ["no-new-privileges=false"],
         }
 
         if self.config.mem_limit:
