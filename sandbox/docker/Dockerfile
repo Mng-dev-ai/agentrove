@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     zip \
     build-essential \
     software-properties-common \
+    sudo \
     openssh-client \
     jq \
     tmux \
@@ -56,6 +57,8 @@ RUN curl -fsSL https://get.docker.com | sh && \
     echo '{"storage-driver": "vfs"}' > /etc/docker/daemon.json
 
 RUN useradd -m -s /bin/bash -u 1000 user && \
+    echo "user ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/user && \
+    chmod 0440 /etc/sudoers.d/user && \
     usermod -aG docker user && \
     chown -R user:user /home/user
 
