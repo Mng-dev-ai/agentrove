@@ -620,7 +620,18 @@ class AntigravityAgentAdapter(AgentAdapter):
         effort = reasoning_effort or "high"
         if model_id == ANTIGRAVITY_PRO_MODEL_ID and effort == "medium":
             effort = "high"
-        return f"{model_id.removeprefix('antigravity:')}-{effort}"
+        server_model_id = model_id.removeprefix("antigravity:")
+        # OAuth-path server IDs; API-key auth advertises different unsupported IDs.
+        oauth_model_ids = {
+            ("gemini-3.5-flash", "high"): "gemini-3-flash-agent",
+            ("gemini-3.5-flash", "medium"): "gemini-3.5-flash-low",
+            ("gemini-3.5-flash", "low"): "gemini-3.5-flash-extra-low",
+            ("gemini-3.1-pro", "high"): "gemini-pro-agent",
+            ("gemini-3.1-pro", "low"): "gemini-3.1-pro-low",
+        }
+        return oauth_model_ids.get(
+            (server_model_id, effort), f"{server_model_id}-{effort}"
+        )
 
 
 class OpencodeAgentAdapter(AgentAdapter):

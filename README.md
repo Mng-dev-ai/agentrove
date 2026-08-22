@@ -62,7 +62,7 @@ docker compose up -d
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Antigravity authenticates with a `GEMINI_API_KEY` environment variable or Google OAuth completed in a terminal. Its ACP tokens live in `~/.gemini/antigravity-acp/`, separately from the Antigravity CLI login.
+Antigravity supports authentication through Google OAuth completed in a terminal. Its ACP tokens live in `~/.gemini/antigravity-acp/`, separately from the Antigravity CLI login.
 
 ## Desktop
 
