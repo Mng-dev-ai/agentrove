@@ -11,6 +11,12 @@ export const formatValue = (value: unknown): string => {
 
 export const extractFilename = (path: string): string => path.split('/').pop() ?? path;
 
+export const humanizeToolTitle = (title: string): string =>
+  title
+    .replace(/^Running\s+/i, '')
+    .replace(/_/g, ' ')
+    .trim();
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
