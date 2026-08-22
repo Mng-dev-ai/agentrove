@@ -239,6 +239,18 @@ MODELS: dict[str, ModelInfo] = {
     "cursor:kimi-k2.5": ModelInfo("Kimi K2.5", AgentKind.CURSOR, 262_000),
     "grok:grok-4.6": ModelInfo("Grok 4.6", AgentKind.GROK, 500_000),
     "grok:grok-4.5": ModelInfo("Grok 4.5", AgentKind.GROK, 500_000),
+    "antigravity:gemini-3.7-flash": ModelInfo(
+        "Gemini 3.7 Flash", AgentKind.ANTIGRAVITY, 1_000_000
+    ),
+    "antigravity:gemini-3.6-flash": ModelInfo(
+        "Gemini 3.6 Flash", AgentKind.ANTIGRAVITY, 1_000_000
+    ),
+    "antigravity:gemini-3.5-flash": ModelInfo(
+        "Gemini 3.5 Flash", AgentKind.ANTIGRAVITY, 1_000_000
+    ),
+    "antigravity:gemini-3.1-pro": ModelInfo(
+        "Gemini 3.1 Pro", AgentKind.ANTIGRAVITY, 1_000_000
+    ),
     "opencode:opencode/big-pickle": ModelInfo(
         "Big Pickle (OpenCode)", AgentKind.OPENCODE, 200_000
     ),
@@ -2316,6 +2328,7 @@ MODELS: dict[str, ModelInfo] = {
 # are filtered ACP-exposed subsets (not full CLI/TUI chrome); skills are runtime.
 # Codex omits logout — too easy to hit from chat autocomplete.
 BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
+    AgentKind.ANTIGRAVITY: [],
     AgentKind.CLAUDE: [
         {
             "value": "/compact",

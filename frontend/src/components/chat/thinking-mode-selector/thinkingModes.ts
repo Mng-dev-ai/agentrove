@@ -110,7 +110,18 @@ const GROK_XHIGH_THINKING_MODES: ThinkingModeOption[] = [
 ];
 const GROK_XHIGH_MODEL_IDS = new Set(['grok:grok-4.6']);
 
+const ANTIGRAVITY_THINKING_MODES: ThinkingModeOption[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+];
+const ANTIGRAVITY_PRO_THINKING_MODES: ThinkingModeOption[] = [
+  { value: 'low', label: 'Low' },
+  { value: 'high', label: 'High' },
+];
+
 export const THINKING_MODES_BY_AGENT: Record<AgentKind, ThinkingModeOption[]> = {
+  antigravity: ANTIGRAVITY_THINKING_MODES,
   claude: CLAUDE_THINKING_MODES,
   codex: CODEX_THINKING_MODES,
   copilot: EMPTY_THINKING_MODES,
@@ -120,6 +131,7 @@ export const THINKING_MODES_BY_AGENT: Record<AgentKind, ThinkingModeOption[]> = 
 };
 
 const DEFAULT_BY_AGENT: Record<AgentKind, string> = {
+  antigravity: 'high',
   claude: 'high',
   codex: 'high',
   copilot: 'high',
@@ -132,6 +144,9 @@ export function getThinkingModesForAgent(
   agentKind: AgentKind,
   modelId?: string,
 ): ThinkingModeOption[] {
+  if (agentKind === 'antigravity' && modelId === 'antigravity:gemini-3.1-pro') {
+    return ANTIGRAVITY_PRO_THINKING_MODES;
+  }
   // Claude gates the effort dial per model: none at all on Haiku, and
   // `xhigh` only on selected high-capability models.
   if (agentKind === 'claude' && modelId && CLAUDE_NO_EFFORT_MODEL_IDS.has(modelId)) {
@@ -177,6 +192,13 @@ export function coerceThinkingModeForAgent(
   modelId?: string,
 ): string {
   const modes = getThinkingModesForAgent(agentKind, modelId);
+  if (
+    agentKind === 'antigravity' &&
+    modelId === 'antigravity:gemini-3.1-pro' &&
+    thinkingMode === 'medium'
+  ) {
+    return 'high';
+  }
   const requestedMode = THINKING_MODE_ORDER.includes(thinkingMode)
     ? thinkingMode
     : DEFAULT_BY_AGENT[agentKind];

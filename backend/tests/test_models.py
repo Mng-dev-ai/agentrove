@@ -70,6 +70,22 @@ async def test_list_models_returns_registered_models(
         "high",
         "xhigh",
     ]
+    assert by_id["antigravity:gemini-3.7-flash"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+    ]
+    assert by_id["antigravity:gemini-3.6-flash"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+    ]
+    assert by_id["antigravity:gemini-3.5-flash"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+    ]
+    assert by_id["antigravity:gemini-3.1-pro"]["thinking_modes"] == ["low", "high"]
     assert by_id["cursor:auto"]["thinking_modes"] == []
 
 

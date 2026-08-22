@@ -16,7 +16,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 from app.core.config import get_settings
 from app.models.db_models.workspace import Workspace
-from app.services.acp.adapters import AgentKind, ClaudeAgentAdapter, GrokAgentAdapter
+from app.services.acp.adapters import (
+    NORMAL_SESSION_MODE,
+    AgentKind,
+    AntigravityAgentAdapter,
+    ClaudeAgentAdapter,
+    GrokAgentAdapter,
+)
 from app.services.acp.session import AcpSessionConfig
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.session_registry import session_registry
@@ -52,6 +58,7 @@ pytestmark = pytest.mark.anyio
 
 FAKE_AGENT_SCRIPT = Path(__file__).resolve().parent / "fake_acp_agent.py"
 BINARY_NAMES = [
+    "agy-acp-server",
     "claude-agent-acp",
     "codex-acp",
     "copilot",
@@ -66,6 +73,27 @@ DEFAULT_TURN_TEXT = "Hello from the fake agent."
 # content_type, not on parsing the file itself.
 PNG_BYTES = bytes.fromhex("89504e470d0a1a0a0000000d49484452")
 PDF_BYTES = b"%PDF-1.4\n%fake\n"
+
+
+def test_antigravity_adapter_configuration() -> None:
+    adapter = AntigravityAgentAdapter()
+    launch = adapter.build_launch_config(
+        system_prompt=None,
+        system_prompt_is_full_replace=False,
+    )
+
+    assert launch.binary == "agy-acp-server"
+    assert launch.cli_args == []
+    assert adapter.map_model_id("antigravity:gemini-3.7-flash", None) == (
+        "gemini-3.7-flash-high"
+    )
+    assert adapter.map_model_id("antigravity:gemini-3.7-flash", "low") == (
+        "gemini-3.7-flash-low"
+    )
+    assert adapter.map_model_id("antigravity:gemini-3.1-pro", "medium") == (
+        "gemini-3.1-pro-high"
+    )
+    assert NORMAL_SESSION_MODE[AgentKind.ANTIGRAVITY] == "yolo"
 
 
 @pytest.mark.parametrize(
@@ -391,6 +419,7 @@ def last_tool(message: dict[str, Any], tool_id: str) -> dict[str, Any]:
         "gpt-5.4",
         "copilot:gpt-5.4",
         "cursor:auto",
+        "antigravity:gemini-3.7-flash",
         "opencode:opencode/gpt-5-nano",
     ],
 )

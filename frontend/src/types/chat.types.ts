@@ -141,7 +141,14 @@ export interface CreateChatRequest {
   parent_chat_id?: string;
 }
 
-export type AgentKind = 'claude' | 'codex' | 'copilot' | 'cursor' | 'grok' | 'opencode';
+export type AgentKind =
+  | 'antigravity'
+  | 'claude'
+  | 'codex'
+  | 'copilot'
+  | 'cursor'
+  | 'grok'
+  | 'opencode';
 
 export interface Model {
   model_id: string;
@@ -169,7 +176,8 @@ export function getAgentKindForModelId(modelId: string | null | undefined): Agen
     return 'claude';
   }
   if (CODEX_MODEL_IDS.has(modelId)) return 'codex';
-  // Prefix convention for copilot/cursor/grok/opencode (avoids a second static set).
+  // Prefix convention for non-Codex providers (avoids a second static set).
+  if (modelId.startsWith('antigravity:')) return 'antigravity';
   if (modelId.startsWith('copilot:')) return 'copilot';
   if (modelId.startsWith('cursor:')) return 'cursor';
   if (modelId.startsWith('grok:')) return 'grok';

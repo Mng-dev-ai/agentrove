@@ -571,7 +571,9 @@ class AcpSession:
         model_id: str,
         reasoning_effort: str | None = None,
     ) -> None:
-        acp_model_id = AGENT_ADAPTERS[agent_kind].map_model_id(model_id)
+        acp_model_id = AGENT_ADAPTERS[agent_kind].map_model_id(
+            model_id, reasoning_effort
+        )
         # codex-acp encodes reasoning effort inside the model ID and rejects
         # bare IDs ("modelId[effort]" is the required format).
         if agent_kind == AgentKind.CODEX and reasoning_effort:

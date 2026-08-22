@@ -10,6 +10,7 @@ mcp = FastMCP("agentrove")
 # Unattended full-execution mode per agent. Backend rejects cross-agent modes;
 # mirrored here because this HTTP client can't import adapters.*_SESSION_MODES.
 PERMISSION_MODE_BY_AGENT = {
+    "antigravity": "yolo",
     "claude": "bypassPermissions",
     "codex": "full-access",
     "copilot": "autopilot",
@@ -63,7 +64,10 @@ async def list_workspaces() -> dict[str, Any]:
 
 @mcp.tool()
 async def list_models(
-    agent_kind: Literal["claude", "codex", "copilot", "cursor", "grok", "opencode"] | None = None,
+    agent_kind: Literal[
+        "antigravity", "claude", "codex", "copilot", "cursor", "grok", "opencode"
+    ]
+    | None = None,
 ) -> dict[str, Any]:
     """List available AI models, optionally filtered by agent_kind.
 

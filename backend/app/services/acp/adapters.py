@@ -10,6 +10,7 @@ from app.models.types import PermissionMode
 
 
 class AgentKind(str, Enum):
+    ANTIGRAVITY = "antigravity"
     CLAUDE = "claude"
     CODEX = "codex"
     COPILOT = "copilot"
@@ -25,6 +26,7 @@ class AgentKind(str, Enum):
 # models (Claude, GPT, etc.) — PDF parsing depends on the runtime model, so we
 # stay conservative and only declare image as guaranteed-inline for Copilot.
 NATIVE_FILE_TYPES: dict[AgentKind, frozenset[str]] = {
+    AgentKind.ANTIGRAVITY: frozenset({"image"}),
     AgentKind.CLAUDE: frozenset({"image", "pdf"}),
     AgentKind.CODEX: frozenset({"image"}),
     AgentKind.COPILOT: frozenset({"image"}),
@@ -105,6 +107,11 @@ COPILOT_KIMI_K3_VALID_THINKING_MODES = frozenset({"low", "high", "max"})
 # Cursor CLI exposes three ACP session modes (see https://cursor.com/docs/cli/acp).
 CURSOR_SESSION_MODES = frozenset({"agent", "plan", "ask"})
 
+ANTIGRAVITY_SESSION_MODES = frozenset({"default", "auto_edit", "yolo"})
+ANTIGRAVITY_VALID_THINKING_MODES = frozenset({"low", "medium", "high"})
+ANTIGRAVITY_PRO_VALID_THINKING_MODES = frozenset({"low", "high"})
+ANTIGRAVITY_PRO_MODEL_ID = "antigravity:gemini-3.1-pro"
+
 # Current stable Grok advertises no ACP session modes and silently ignores
 # set_mode ids. `always-approve` uses the launch flag; `auto` keeps the CLI's
 # default classifier behavior (routine calls pass, risky ones prompt); `plan`
@@ -123,6 +130,7 @@ OPENCODE_SESSION_MODES = frozenset({"build", "plan"})
 
 # Full-execution mode per agent for unattended one-shots (Codex rejects unknown modes; avoid plan/read-only).
 NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
+    AgentKind.ANTIGRAVITY: "yolo",
     AgentKind.CLAUDE: "default",
     AgentKind.CODEX: "auto",
     AgentKind.COPILOT: "agent",
@@ -133,7 +141,12 @@ NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
 
 # Agents that support persona system-prompt replacement over ACP (Cursor/Copilot ignore it).
 PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
-    {AgentKind.CLAUDE, AgentKind.CODEX, AgentKind.GROK, AgentKind.OPENCODE}
+    {
+        AgentKind.CLAUDE,
+        AgentKind.CODEX,
+        AgentKind.GROK,
+        AgentKind.OPENCODE,
+    }
 )
 
 
@@ -142,6 +155,12 @@ THINKING_MODE_ORDER = ("low", "medium", "high", "xhigh", "max", "ultra")
 
 def valid_thinking_modes(agent_kind: AgentKind, model_id: str) -> frozenset[str]:
     # Accepted thinking tiers; empty = no effort dial (thinking_mode ignored).
+    if agent_kind is AgentKind.ANTIGRAVITY:
+        return (
+            ANTIGRAVITY_PRO_VALID_THINKING_MODES
+            if model_id == ANTIGRAVITY_PRO_MODEL_ID
+            else ANTIGRAVITY_VALID_THINKING_MODES
+        )
     if agent_kind is AgentKind.CLAUDE:
         if model_id in CLAUDE_NO_EFFORT_MODEL_IDS:
             return frozenset()
@@ -196,7 +215,7 @@ def coerce_thinking_mode(
 def build_system_prompt_meta(
     system_prompt: str | None, is_full_replace: bool
 ) -> dict[str, Any]:
-    # Claude/Copilot _meta systemPrompt: str replaces; {"append": ...} appends.
+    # For adapters using _meta.systemPrompt, str replaces and {"append": ...} appends.
     if not system_prompt:
         return {}
     if is_full_replace:
@@ -263,7 +282,7 @@ class AgentAdapter(ABC):
         # UI permission mode → ACP session mode id (plan-mode transitions).
         raise NotImplementedError
 
-    def map_model_id(self, model_id: str) -> str:
+    def map_model_id(self, model_id: str, reasoning_effort: str | None = None) -> str:
         # Registry key → agent model id (default passthrough).
         return model_id
 
@@ -428,7 +447,7 @@ class CopilotCliAdapter(AgentAdapter):
             return COPILOT_SESSION_MODE_IDS["agent"]
         return COPILOT_SESSION_MODE_IDS[permission_mode]
 
-    def map_model_id(self, model_id: str) -> str:
+    def map_model_id(self, model_id: str, reasoning_effort: str | None = None) -> str:
         # Strip "copilot:" namespace for the CLI.
         return model_id.removeprefix("copilot:")
 
@@ -475,7 +494,7 @@ class CursorAgentAdapter(AgentAdapter):
             return "agent"
         return permission_mode
 
-    def map_model_id(self, model_id: str) -> str:
+    def map_model_id(self, model_id: str, reasoning_effort: str | None = None) -> str:
         # Strip "cursor:" namespace for the CLI.
         return model_id.removeprefix("cursor:")
 
@@ -546,9 +565,62 @@ class GrokAgentAdapter(AgentAdapter):
             return "always-approve"
         return permission_mode
 
-    def map_model_id(self, model_id: str) -> str:
+    def map_model_id(self, model_id: str, reasoning_effort: str | None = None) -> str:
         # Strip "grok:" namespace for the CLI.
         return model_id.removeprefix("grok:")
+
+
+class AntigravityAgentAdapter(AgentAdapter):
+    def __init__(self) -> None:
+        super().__init__(kind=AgentKind.ANTIGRAVITY)
+
+    def build_launch_config(
+        self,
+        *,
+        system_prompt: str | None,
+        system_prompt_is_full_replace: bool,
+        instructions_file_path: str | None = None,
+        reasoning_effort: str | None = None,
+        permission_mode: str | None = None,
+    ) -> LaunchConfig:
+        return LaunchConfig(binary="agy-acp-server")
+
+    def build_session_config(
+        self,
+        *,
+        system_prompt: str | None,
+        system_prompt_is_full_replace: bool,
+        model_id: str,
+        thinking_mode: str | None,
+        permission_mode: str,
+    ) -> SessionConfig:
+        reasoning_effort = (
+            "high"
+            if model_id == ANTIGRAVITY_PRO_MODEL_ID and thinking_mode == "medium"
+            else coerce_thinking_mode(
+                thinking_mode,
+                valid_thinking_modes(AgentKind.ANTIGRAVITY, model_id),
+                default="high",
+            )
+        )
+        return SessionConfig(
+            meta=build_system_prompt_meta(system_prompt, system_prompt_is_full_replace),
+            reasoning_effort=reasoning_effort,
+            permission=PermissionConfig(
+                session_mode=self.map_session_mode(permission_mode)
+            ),
+        )
+
+    def map_session_mode(self, permission_mode: str) -> str:
+        if permission_mode not in ANTIGRAVITY_SESSION_MODES:
+            return "yolo"
+        return permission_mode
+
+    def map_model_id(self, model_id: str, reasoning_effort: str | None = None) -> str:
+        effort = reasoning_effort or "high"
+        if model_id == ANTIGRAVITY_PRO_MODEL_ID and effort == "medium":
+            effort = "high"
+        return f"{model_id.removeprefix('antigravity:')}-{effort}"
 
 
 class OpencodeAgentAdapter(AgentAdapter):
@@ -629,12 +701,13 @@ class OpencodeAgentAdapter(AgentAdapter):
             return "plan"
         return permission_mode
 
-    def map_model_id(self, model_id: str) -> str:
+    def map_model_id(self, model_id: str, reasoning_effort: str | None = None) -> str:
         # Strip "opencode:" namespace for the CLI.
         return model_id.removeprefix("opencode:")
 
 
 AGENT_ADAPTERS: dict[AgentKind, AgentAdapter] = {
+    AgentKind.ANTIGRAVITY: AntigravityAgentAdapter(),
     AgentKind.CLAUDE: ClaudeAgentAdapter(),
     AgentKind.CODEX: CodexAgentAdapter(),
     AgentKind.COPILOT: CopilotCliAdapter(),

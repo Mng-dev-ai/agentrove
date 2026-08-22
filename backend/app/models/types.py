@@ -1,6 +1,7 @@
 from typing import Literal, TypeAlias, TypedDict
 
 PermissionMode: TypeAlias = Literal[
+    "auto_edit",
     "default",
     "acceptEdits",
     "plan",
@@ -13,6 +14,7 @@ PermissionMode: TypeAlias = Literal[
     "read-only",
     "full-access",
     "ask",
+    "yolo",
 ]
 
 

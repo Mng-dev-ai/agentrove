@@ -52,6 +52,7 @@ _HEARTBEAT_TOOL_ID_RE = re.compile(r"-heartbeat-\d+$")
 
 # Valid ACP option_ids that match our PermissionMode literals directly.
 VALID_PERMISSION_MODES: set[str] = {
+    "auto_edit",
     "default",
     "acceptEdits",
     "plan",
@@ -64,10 +65,12 @@ VALID_PERMISSION_MODES: set[str] = {
     "full-access",
     "ask",
     "always-approve",
+    "yolo",
 }
 
 # Human option labels → PermissionMode when option_id isn't already a literal.
 PERMISSION_MODE_BY_OPTION_NAME: dict[str, PermissionMode] = {
+    "auto edit": "auto_edit",
     "default": "default",
     "accept edits": "acceptEdits",
     "plan": "plan",
@@ -79,6 +82,7 @@ PERMISSION_MODE_BY_OPTION_NAME: dict[str, PermissionMode] = {
     "read only": "read-only",
     "full access": "full-access",
     "always approve": "always-approve",
+    "yolo": "yolo",
 }
 
 # Grok delivers its ask_user_question tool as an ACP extension request
