@@ -23,6 +23,7 @@ import { getAgentKindForModelId, type AgentKind, type Chat } from '@/types/chat.
 // Agents whose ACP servers don't emit UsageUpdate notifications — the context
 // window indicator stays at 0 for these, so we hide it entirely.
 const AGENTS_WITHOUT_USAGE_UPDATE: ReadonlySet<AgentKind> = new Set([
+  'antigravity',
   'copilot',
   'cursor',
   'grok',
