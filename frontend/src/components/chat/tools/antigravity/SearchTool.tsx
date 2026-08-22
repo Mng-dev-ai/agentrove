@@ -1,10 +1,9 @@
 import { memo } from 'react';
 import { FileSearch, FolderSearch } from 'lucide-react';
 import type { ToolAggregate, ToolEventStatus } from '@/types/tools.types';
-import { extractFilename } from '@/utils/format';
+import { extractFilename, humanizeToolTitle } from '@/utils/format';
 import { ToolCard } from '../common/ToolCard/ToolCard';
 import type { AntigravitySearchInput } from './antigravityPayload';
-import { humanizeToolTitle } from './humanizeToolTitle';
 import styles from './SearchTool.module.scss';
 
 const searchTitle = (

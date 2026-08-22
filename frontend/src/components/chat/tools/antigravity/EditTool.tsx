@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { FileEdit, FilePlus } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { extractFilename } from '@/utils/format';
+import { extractFilename, humanizeToolTitle } from '@/utils/format';
 import { ToolCard } from '../common/ToolCard/ToolCard';
 import { DiffView } from '../common/DiffView/DiffView';
 import { NumberedContent } from '../common/NumberedContent/NumberedContent';
@@ -12,7 +12,6 @@ import type {
   AntigravityEditInput,
   AntigravityEditOutput,
 } from './antigravityPayload';
-import { humanizeToolTitle } from './humanizeToolTitle';
 import styles from './EditTool.module.scss';
 
 const classifyEdit = (block: AntigravityDiffBlock): 'create' | 'edit' =>

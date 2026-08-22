@@ -1,11 +1,10 @@
 import { memo } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
-import { extractFilename } from '@/utils/format';
+import { extractFilename, humanizeToolTitle } from '@/utils/format';
 import { ToolCard } from '../common/ToolCard/ToolCard';
 import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import type { AntigravityReadInput } from './antigravityPayload';
-import { humanizeToolTitle } from './humanizeToolTitle';
 import styles from './ReadTool.module.scss';
 
 export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }) {
