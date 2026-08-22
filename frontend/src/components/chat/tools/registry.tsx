@@ -34,6 +34,18 @@ const cursorToolLoaders: Record<string, ToolModuleLoader> = {
   edit: () => import('./cursor/EditTool').then((m) => ({ default: m.EditTool })),
 };
 
+const antigravityToolLoaders: Record<string, ToolModuleLoader> = {
+  execute: () => import('./antigravity/ExecuteTool').then((m) => ({ default: m.ExecuteTool })),
+  read: () => import('./antigravity/ReadTool').then((m) => ({ default: m.ReadTool })),
+  edit: () => import('./antigravity/EditTool').then((m) => ({ default: m.EditTool })),
+  search: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),
+  fetch: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),
+  delete: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),
+  move: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),
+  think: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),
+  other: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),
+};
+
 // Grok surfaces its raw tool names via _meta["x.ai/tool"].name (the backend
 // extracts these as tool_name for grok sessions). Backend web searches carry
 // no x.ai/tool meta, so they arrive under the ACP kind "search".
@@ -120,6 +132,11 @@ const getOrCreateLazy = (key: string, loader: ToolModuleLoader) => {
 
 export const getToolComponent = (toolName: string, agentKind?: AgentKind): ToolComponent => {
   // Same ACP kind names across agents, different rawInput/rawOutput — prefer agent-specific loaders.
+  if (agentKind === 'antigravity') {
+    const loader = antigravityToolLoaders[toolName] ?? mcpLoader;
+    return getOrCreateLazy(`antigravity:${toolName}`, loader);
+  }
+
   if (agentKind === 'codex' && codexToolLoaders[toolName]) {
     return getOrCreateLazy(`codex:${toolName}`, codexToolLoaders[toolName]);
   }

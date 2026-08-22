@@ -1,0 +1,55 @@
+@use '@/styles/globals/typography' as type;
+
+.icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-secondary);
+
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-tertiary);
+  }
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.command {
+  @include type.type-mono(0.75rem, 1.625);
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--theme-text-secondary);
+
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-tertiary);
+  }
+}
+
+.prompt {
+  user-select: none;
+  color: var(--theme-text-quaternary);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.cwd {
+  @include type.type-mono-meta;
+  @include type.type-overflow;
+  color: var(--theme-text-quaternary);
+}
+
+.badge {
+  @include type.type-meta(500);
+  flex-shrink: 0;
+  color: var(--theme-success-text);
+}
+
+.badge--failed {
+  color: var(--theme-error-text);
+}
