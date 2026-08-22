@@ -7,7 +7,12 @@ import { DiffView } from '../common/DiffView/DiffView';
 import { NumberedContent } from '../common/NumberedContent/NumberedContent';
 import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import { buildUnifiedDiff } from '../common/buildUnifiedDiff';
-import type { AntigravityDiffBlock, AntigravityEditOutput } from './antigravityPayload';
+import type {
+  AntigravityDiffBlock,
+  AntigravityEditInput,
+  AntigravityEditOutput,
+} from './antigravityPayload';
+import { humanizeToolTitle } from './humanizeToolTitle';
 import styles from './EditTool.module.scss';
 
 const classifyEdit = (block: AntigravityDiffBlock): 'create' | 'edit' =>
@@ -21,12 +26,18 @@ function DiffEntry({ block }: { block: AntigravityDiffBlock }) {
 }
 
 export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }) {
-  const result = tool.result as AntigravityEditOutput | undefined;
-  const diffs = result?.diffs ?? [];
+  const input = tool.input as AntigravityEditInput | undefined;
+  const result = tool.result as AntigravityEditOutput | string | undefined;
+  const summary = typeof result === 'string' ? result.trim() : '';
+  const diffs = typeof result === 'object' && result ? (result.diffs ?? []) : [];
   const first = diffs[0];
-  const operation = first ? classifyEdit(first) : 'edit';
-  const filePath = first?.path ?? '';
-  const fileName = filePath ? extractFilename(filePath) : tool.title?.trim() || 'file';
+  const operation = first
+    ? classifyEdit(first)
+    : /^(create|add)\b/i.test(summary)
+      ? 'create'
+      : 'edit';
+  const filePath = first?.path ?? input?.file_path ?? input?.target_file ?? '';
+  const fileName = filePath ? extractFilename(filePath) : humanizeToolTitle(tool.title) || 'file';
   const target = diffs.length > 1 ? `${diffs.length} files` : fileName;
 
   return (
@@ -40,6 +51,7 @@ export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }
       }
       status={tool.status}
       title={(status) => {
+        if (status === 'completed' && summary) return summary;
         if (operation === 'create') {
           switch (status) {
             case 'completed':

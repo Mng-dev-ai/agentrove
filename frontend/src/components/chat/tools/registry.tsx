@@ -38,7 +38,7 @@ const antigravityToolLoaders: Record<string, ToolModuleLoader> = {
   execute: () => import('./antigravity/ExecuteTool').then((m) => ({ default: m.ExecuteTool })),
   read: () => import('./antigravity/ReadTool').then((m) => ({ default: m.ReadTool })),
   edit: () => import('./antigravity/EditTool').then((m) => ({ default: m.EditTool })),
-  search: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),
+  search: () => import('./antigravity/SearchTool').then((m) => ({ default: m.SearchTool })),
   fetch: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),
   delete: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),
   move: () => import('./claude/MCPTool').then((m) => ({ default: m.MCPTool })),

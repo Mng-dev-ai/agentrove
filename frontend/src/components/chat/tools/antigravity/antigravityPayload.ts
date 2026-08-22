@@ -1,5 +1,17 @@
 export interface AntigravityReadInput {
+  AbsolutePath?: string;
   absolute_path?: string;
+}
+
+export interface AntigravityEditInput {
+  file_path?: string;
+  target_file?: string;
+}
+
+export interface AntigravitySearchInput {
+  query?: string;
+  directory_path?: string;
+  num_results?: number;
 }
 
 export interface AntigravityExecuteInput {

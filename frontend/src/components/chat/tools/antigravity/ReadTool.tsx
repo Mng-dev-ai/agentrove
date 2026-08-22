@@ -5,12 +5,13 @@ import { extractFilename } from '@/utils/format';
 import { ToolCard } from '../common/ToolCard/ToolCard';
 import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import type { AntigravityReadInput } from './antigravityPayload';
+import { humanizeToolTitle } from './humanizeToolTitle';
 import styles from './ReadTool.module.scss';
 
 export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as AntigravityReadInput | undefined;
-  const filePath = input?.absolute_path ?? '';
-  const label = filePath ? extractFilename(filePath) : tool.title?.trim() || 'file';
+  const filePath = input?.AbsolutePath ?? input?.absolute_path ?? '';
+  const label = filePath ? extractFilename(filePath) : humanizeToolTitle(tool.title) || 'file';
 
   return (
     <ToolCard
