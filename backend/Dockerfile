@@ -63,6 +63,23 @@ RUN set -eux; \
     curl -fsSL "https://x.ai/cli/grok-${version}-linux-${arch}" -o /usr/local/bin/grok; \
     chmod +x /usr/local/bin/grok
 
+RUN set -eux; \
+    version=20260818_01_RC01; \
+    case "$(uname -m)" in \
+      x86_64|amd64) platform=linux-x86_64 ;; \
+      aarch64|arm64) platform=linux-arm64 ;; \
+      *) exit 1 ;; \
+    esac; \
+    mkdir -p /opt/antigravity; \
+    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_${version}-${platform}.zip" \
+      -o /tmp/antigravity.zip; \
+    unzip /tmp/antigravity.zip -d /opt/antigravity; \
+    rm /tmp/antigravity.zip; \
+    chmod +x /opt/antigravity/agy_acp_server.par /opt/antigravity/localharness_external; \
+    printf '#!/bin/sh\nexec /opt/antigravity/agy_acp_server.par --uid= "$@"\n' \
+      > /usr/local/bin/agy-acp-server; \
+    chmod +x /usr/local/bin/agy-acp-server
+
 # Install uv package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | bash
 

@@ -55,6 +55,7 @@ class SkillService:
         # Claude-compatible skills; Grok scans .agents plus the Claude and Cursor
         # skill directories by default.
         result: dict[str, list[Path]] = {
+            AgentKind.ANTIGRAVITY.value: ns(workspace_path, base, ["gemini"]),
             AgentKind.CODEX.value: ns(workspace_path, base, ["codex", "agents"]),
             AgentKind.COPILOT.value: ns(workspace_path, base, ["copilot", "agents"]),
             AgentKind.CURSOR.value: ns(workspace_path, base, ["cursor", "agents"]),

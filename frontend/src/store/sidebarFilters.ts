@@ -16,6 +16,7 @@ export const STATUS_OPTIONS: { value: SidebarStatusFilter; label: string }[] = [
 ];
 
 export const AGENT_OPTIONS: { value: AgentKind; label: string }[] = [
+  { value: 'antigravity', label: 'Antigravity' },
   { value: 'claude', label: 'Claude' },
   { value: 'codex', label: 'Codex' },
   { value: 'copilot', label: 'Copilot' },

@@ -7,6 +7,7 @@ import type { AgentKind } from '@/types/chat.types';
 import styles from './AgentFilterChips.module.scss';
 
 const AGENT_LABELS: Record<AgentKind, string> = {
+  antigravity: 'Antigravity',
   claude: 'Claude',
   codex: 'Codex',
   copilot: 'Copilot',

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 type PermissionMode =
+  | 'auto_edit'
   | 'default'
   | 'acceptEdits'
   | 'plan'
@@ -13,7 +14,8 @@ type PermissionMode =
   | 'read-only'
   | 'full-access'
   | 'ask'
-  | 'build';
+  | 'build'
+  | 'yolo';
 
 const DEFAULT_KEY = '__default__';
 export const DEFAULT_PERMISSION_MODE: PermissionMode = 'bypassPermissions';

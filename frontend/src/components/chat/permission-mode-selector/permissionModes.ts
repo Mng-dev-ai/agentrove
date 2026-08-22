@@ -86,6 +86,24 @@ export const GROK_PERMISSION_MODES: PermissionModeOption[] = [
   },
 ];
 
+export const ANTIGRAVITY_PERMISSION_MODES: PermissionModeOption[] = [
+  {
+    value: 'default',
+    label: 'Default',
+    description: 'Ask before running tools',
+  },
+  {
+    value: 'auto_edit',
+    label: 'Auto Edit',
+    description: 'Auto-approve file edits and ask for other tools',
+  },
+  {
+    value: 'yolo',
+    label: 'YOLO',
+    description: 'Auto-approve all tools',
+  },
+];
+
 export const OPENCODE_PERMISSION_MODES: PermissionModeOption[] = [
   {
     value: 'build',
@@ -100,6 +118,7 @@ export const OPENCODE_PERMISSION_MODES: PermissionModeOption[] = [
 ];
 
 export const MODES_BY_AGENT: Record<AgentKind, PermissionModeOption[]> = {
+  antigravity: ANTIGRAVITY_PERMISSION_MODES,
   claude: CLAUDE_PERMISSION_MODES,
   codex: CODEX_PERMISSION_MODES,
   copilot: COPILOT_PERMISSION_MODES,
@@ -109,6 +128,7 @@ export const MODES_BY_AGENT: Record<AgentKind, PermissionModeOption[]> = {
 };
 
 const DEFAULT_BY_AGENT: Record<AgentKind, PermissionMode> = {
+  antigravity: 'yolo',
   claude: 'bypassPermissions',
   codex: 'full-access',
   copilot: 'agent',

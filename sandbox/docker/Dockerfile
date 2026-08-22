@@ -64,6 +64,24 @@ RUN useradd -m -s /bin/bash -u 1000 user && \
 
 COPY --chmod=755 sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
+RUN set -eux; \
+    version=20260818_01_RC01; \
+    case "$(uname -m)" in \
+      x86_64|amd64) platform=linux-x86_64 ;; \
+      aarch64|arm64) platform=linux-arm64 ;; \
+      *) exit 1 ;; \
+    esac; \
+    mkdir -p /opt/antigravity /home/user/.local/bin; \
+    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_${version}-${platform}.zip" \
+      -o /tmp/antigravity.zip; \
+    unzip /tmp/antigravity.zip -d /opt/antigravity; \
+    rm /tmp/antigravity.zip; \
+    chmod +x /opt/antigravity/agy_acp_server.par /opt/antigravity/localharness_external; \
+    printf '#!/bin/sh\nexec /opt/antigravity/agy_acp_server.par --uid= "$@"\n' \
+      > /home/user/.local/bin/agy-acp-server; \
+    chmod +x /home/user/.local/bin/agy-acp-server; \
+    chown -R user:user /opt/antigravity /home/user/.local
+
 EXPOSE 3000 3001 5000 8000 8080 5173 4200 8888 4321 3030 5500 1234 4000
 
 USER user
