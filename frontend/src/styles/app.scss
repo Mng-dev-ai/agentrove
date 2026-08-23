@@ -85,6 +85,8 @@
   background-color: var(--theme-surface-secondary) !important;
   color: var(--theme-text-primary) !important;
   box-shadow: var(--shadow-medium) !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 // @mention / /command highlight (see HighlightedText.MENTION_PILL_CLASSNAME)
