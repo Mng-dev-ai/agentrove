@@ -1,4 +1,4 @@
-import { ServiceError, AuthenticationError, NetworkError } from './ServiceError';
+import { ServiceError, AuthenticationError } from './ServiceError';
 import { invalidateSessionAndRedirect } from '@/utils/authSession';
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -106,10 +106,6 @@ function handleServiceError(error: unknown): ServiceError {
 
     if (status === 401 || error.message.includes('401') || error.message.includes('Unauthorized')) {
       return new AuthenticationError();
-    }
-
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      return new NetworkError();
     }
 
     const statusMatch = error.message.match(/status:\s*(\d+)/);

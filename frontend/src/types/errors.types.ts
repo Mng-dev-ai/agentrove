@@ -24,9 +24,7 @@ export class ServiceError extends Error {
   static isRetryable(error: ServiceError): boolean {
     if (!error.status) return false;
 
-    return (
-      error.status === 503 || error.status === 504 || (error.status >= 500 && error.status < 600)
-    );
+    return error.status === 500 || error.status === 503 || error.status === 504;
   }
 }
 

@@ -41,6 +41,7 @@ import {
   resolveChatClient,
   resolveSandboxClient,
 } from './api';
+import { NetworkError } from '@/types/errors.types';
 
 const json = (body: unknown, status = 200, statusText?: string) =>
   new Response(body == null ? '' : JSON.stringify(body), { status, statusText });
@@ -95,6 +96,19 @@ describe('APIClient success + error shaping', () => {
     await expect(apiClient.get('/thing')).rejects.toMatchObject({
       message: 'HTTP error! status: 503',
     });
+  });
+
+  it('converts fetch rejections to NetworkError', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('Load failed'));
+
+    await expect(apiClient.get('/thing')).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it('rethrows fetch aborts unchanged', async () => {
+    const error = new DOMException('The operation was aborted', 'AbortError');
+    fetchMock.mockRejectedValueOnce(error);
+
+    await expect(apiClient.get('/thing')).rejects.toBe(error);
   });
 });
 

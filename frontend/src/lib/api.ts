@@ -2,6 +2,7 @@ import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { invalidateSessionAndRedirect } from '@/utils/authSession';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { isCloudChat, isCloudSandbox, clearCloudOrigins } from '@/utils/chatOrigin';
+import { NetworkError } from '@/types/errors.types';
 
 type RequestMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -226,7 +227,15 @@ class APIClient {
       config.body = formData;
     }
 
-    const response = await fetch(`${this.baseURL}${endpoint}`, config);
+    let response: Response;
+    try {
+      response = await fetch(`${this.baseURL}${endpoint}`, config);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
+      throw new NetworkError();
+    }
 
     if (response.status === 401 && !isRetry && !endpoint.includes('/auth/jwt/')) {
       const hasRefreshToken = !!this.auth.getRefreshToken();
