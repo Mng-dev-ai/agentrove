@@ -15,18 +15,19 @@ export const ExecuteTool = memo(function ExecuteTool({ tool }: { tool: ToolAggre
   const output = result?.combinedOutput ?? result?.formatted_output ?? '';
   const exitCode = result?.exitCode ?? result?.exit_code;
   const failed = typeof exitCode === 'number' && exitCode !== 0;
+  const displayStatus = tool.status === 'completed' && failed ? 'failed' : tool.status;
   const label = command || 'command';
 
   return (
     <ToolCard
       icon={<Terminal className={styles.icon} />}
-      status={tool.status}
+      status={displayStatus}
       title={(status) => {
         switch (status) {
           case 'completed':
-            return failed ? `Failed (exit ${exitCode}): ${label}` : `Ran: ${label}`;
+            return `Ran: ${label}`;
           case 'failed':
-            return `Failed: ${label}`;
+            return failed ? `Failed (exit ${exitCode}): ${label}` : `Failed: ${label}`;
           default:
             return `Running: ${label}`;
         }
