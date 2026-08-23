@@ -175,12 +175,8 @@
   border-radius: var(--radius-md);
   padding: var(--space-0-5) var(--space-1);
   background-color: var(--theme-surface-secondary);
-  text-decoration: none;
+  text-decoration: underline;
   cursor: pointer;
-
-  @include responsive.hover {
-    text-decoration: underline;
-  }
 }
 
 .img {
