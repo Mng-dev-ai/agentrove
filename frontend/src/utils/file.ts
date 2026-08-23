@@ -127,6 +127,24 @@ export function findFileByToolPath(
   return undefined;
 }
 
+const FILE_HREF_LINE_RE = /^#L(\d+)(?:-L?\d+)?$/i;
+
+export function parseFileHref(href: string): { path: string; line?: number } | null {
+  if (!/^file:/i.test(href)) return null;
+  try {
+    const url = new URL(href);
+    if (url.protocol.toLowerCase() !== 'file:') return null;
+    const path = decodeURIComponent(url.pathname);
+    if (!path || path === '/') return null;
+    const match = FILE_HREF_LINE_RE.exec(url.hash);
+    if (!match) return { path };
+    const line = Number(match[1]);
+    return line > 0 ? { path, line } : { path };
+  } catch {
+    return null;
+  }
+}
+
 export function detectLanguage(path: string): string {
   if (!path) return 'javascript';
 
