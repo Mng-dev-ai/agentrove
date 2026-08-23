@@ -15,6 +15,7 @@ markupsafe
 python-multipart
 starlette
 aiodocker>=0.22.0
+aiohttp>=3.13,<4.0
 agent-client-protocol==0.12.0
 sqladmin[full]
 httpx
