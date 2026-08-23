@@ -1,11 +1,21 @@
-import { Suspense } from 'react';
+import { Suspense, use } from 'react';
 import { lazyNamed } from '@/utils/lazyNamed';
 import type { Components } from 'react-markdown';
-import type { AnchorHTMLAttributes, HTMLAttributes, ImgHTMLAttributes } from 'react';
+import type {
+  AnchorHTMLAttributes,
+  HTMLAttributes,
+  ImgHTMLAttributes,
+  KeyboardEvent,
+  MouseEvent,
+} from 'react';
 import clsx from 'clsx';
 import { AttachmentViewer } from '../attachment-viewer/AttachmentViewer';
 import { Link } from '../primitives/Link/Link';
 import { isImageUrl } from '@/utils/fileTypes';
+import { findFileByToolPath, parseFileHref } from '@/utils/file';
+import type { FileStructure } from '@/types/file-system.types';
+import { ChatContext } from '@/contexts/ChatContextDefinition';
+import { useUIStore } from '@/store/uiStore';
 import { createImageAttachment } from './markdownParsing';
 import { CodeBlock } from './CodeBlock';
 import styles from './markdownComponents.module.scss';
@@ -24,6 +34,36 @@ interface CodeProps extends CommonProps {
 type LinkProps = AnchorHTMLAttributes<HTMLAnchorElement>;
 
 type ImageProps = ImgHTMLAttributes<HTMLImageElement>;
+
+type FileLinkChat = { chatId: string | undefined; fileStructure: FileStructure[] } | null;
+
+function openWorkspaceFile(href: string, chat: FileLinkChat) {
+  if (!chat) return;
+  const parsed = parseFileHref(href);
+  if (!parsed) return;
+  const mapped = findFileByToolPath(chat.fileStructure, parsed.path);
+  useUIStore.getState().openFileInEditor(mapped?.path ?? parsed.path, chat.chatId, parsed.line);
+}
+
+function handleFileLinkClick(
+  event: MouseEvent<HTMLAnchorElement>,
+  href: string,
+  chat: FileLinkChat,
+) {
+  event.preventDefault();
+  event.stopPropagation();
+  openWorkspaceFile(href, chat);
+}
+
+function handleFileLinkKeyDown(
+  event: KeyboardEvent<HTMLAnchorElement>,
+  href: string,
+  chat: FileLinkChat,
+) {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  event.preventDefault();
+  openWorkspaceFile(href, chat);
+}
 
 // Module-level so every MarkdownBlock sees the same components identity forever
 // — the memo on completed blocks never busts after CodeBlock took copy state.
@@ -171,7 +211,27 @@ export const MARKDOWN_COMPONENTS: Components = {
     </blockquote>
   ),
 
-  a: ({ children, href, ...props }: LinkProps) => {
+  a: function MarkdownAnchor({ children, href, ...props }: LinkProps) {
+    // useChatContext throws outside ChatProvider (file preview, landing, etc.).
+    const chat = use(ChatContext);
+
+    if (href && /^file:/i.test(href)) {
+      return (
+        <Link
+          {...props}
+          variant="unstyled"
+          className={clsx(styles.link, styles['file-link'])}
+          role="button"
+          tabIndex={0}
+          onClick={(event) => handleFileLinkClick(event, href, chat)}
+          onAuxClick={(event) => handleFileLinkClick(event, href, chat)}
+          onKeyDown={(event) => handleFileLinkKeyDown(event, href, chat)}
+        >
+          {children}
+        </Link>
+      );
+    }
+
     if (href && isImageUrl(href)) {
       return <AttachmentViewer attachments={[createImageAttachment(href)]} />;
     }

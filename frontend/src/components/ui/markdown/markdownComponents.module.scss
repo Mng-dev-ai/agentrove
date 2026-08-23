@@ -170,6 +170,19 @@
   }
 }
 
+.file-link {
+  @include type.type-mono;
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1);
+  background-color: var(--theme-surface-secondary);
+  text-decoration: none;
+  cursor: pointer;
+
+  @include responsive.hover {
+    text-decoration: underline;
+  }
+}
+
 .img {
   margin: var(--space-4) 0;
   height: auto;

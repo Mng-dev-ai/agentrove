@@ -1,4 +1,4 @@
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -18,6 +18,12 @@ import styles from './MarkDown.module.scss';
 
 const VisualWidget = lazyNamed(() => import('../VisualWidget/VisualWidget'), 'VisualWidget');
 
+function markdownUrlTransform(url: string, key: string): string {
+  const colon = url.indexOf(':');
+  if (key === 'href' && colon > 0 && url.slice(0, colon).toLowerCase() === 'file') return url;
+  return defaultUrlTransform(url);
+}
+
 interface MarkdownBlockProps {
   content: string;
   remarkPlugins: Options['remarkPlugins'];
@@ -35,6 +41,7 @@ const MarkdownBlock = memo(function MarkdownBlock({
       remarkPlugins={remarkPlugins}
       rehypePlugins={rehypePlugins}
       components={MARKDOWN_COMPONENTS}
+      urlTransform={markdownUrlTransform}
     >
       {content}
     </ReactMarkdown>
