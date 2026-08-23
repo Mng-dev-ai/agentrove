@@ -11,11 +11,13 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
   const input = tool.input as AntigravityReadInput | undefined;
   const filePath = input?.AbsolutePath ?? input?.absolute_path ?? '';
   const label = filePath ? extractFilename(filePath) : humanizeToolTitle(tool.title) || 'file';
+  // The server batches or omits read completions even though reads finish immediately.
+  const displayStatus = tool.status === 'started' ? 'completed' : tool.status;
 
   return (
     <ToolCard
       icon={<FileSearch className={styles.icon} />}
-      status={tool.status}
+      status={displayStatus}
       title={(status) => {
         switch (status) {
           case 'completed':
@@ -26,7 +28,6 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
             return `Reading ${label}`;
         }
       }}
-      loadingContent="Reading file..."
       error={tool.error}
       actions={filePath ? <OpenInEditorButton filePath={filePath} /> : null}
     >
