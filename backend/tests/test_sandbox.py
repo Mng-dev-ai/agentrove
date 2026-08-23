@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from aiodocker.exceptions import DockerError
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
@@ -87,6 +88,74 @@ async def test_docker_sandbox_chowns_only_managed_workspace(
 
     container.exec.assert_not_awaited()
     collect_exec_output.assert_not_awaited()
+
+
+async def test_docker_sandbox_reports_daemon_connection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = LocalDockerProvider(DockerConfig())
+    docker = MagicMock()
+    docker.containers.create_or_replace = AsyncMock(
+        side_effect=DockerError(900, {"message": "Cannot connect to Docker Engine"})
+    )
+    monkeypatch.setattr(provider, "_get_docker", AsyncMock(return_value=docker))
+
+    with pytest.raises(SandboxException) as exc_info:
+        await provider.create_sandbox()
+
+    assert exc_info.value.status_code == 502
+    assert "is Docker running?" in exc_info.value.message
+    assert "Cannot connect to Docker Engine" in exc_info.value.message
+
+
+async def test_docker_sandbox_reports_constructor_connection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = LocalDockerProvider(DockerConfig())
+    monkeypatch.setattr(
+        "app.services.sandbox_providers.docker_provider.aiodocker.Docker",
+        MagicMock(side_effect=ValueError("Missing valid docker_host")),
+    )
+
+    with pytest.raises(SandboxException) as exc_info:
+        await provider.create_sandbox()
+
+    assert exc_info.value.status_code == 502
+    assert "is Docker running?" in exc_info.value.message
+    assert "Missing valid docker_host" in exc_info.value.message
+
+
+async def test_docker_sandbox_error_hint_is_limited_to_connectivity_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = LocalDockerProvider(DockerConfig())
+    docker = MagicMock()
+    docker.containers.create_or_replace = AsyncMock(
+        side_effect=DockerError(404, {"message": "No such image"})
+    )
+    monkeypatch.setattr(provider, "_get_docker", AsyncMock(return_value=docker))
+
+    with pytest.raises(SandboxException) as exc_info:
+        await provider.create_sandbox()
+
+    assert exc_info.value.status_code == 502
+    assert "is Docker running?" not in exc_info.value.message
+    assert "No such image" in exc_info.value.message
+
+
+async def test_delete_docker_sandbox_continues_after_stop_error() -> None:
+    provider = LocalDockerProvider(DockerConfig())
+    container = MagicMock()
+    container.stop = AsyncMock(
+        side_effect=DockerError(500, {"message": "failed to stop"})
+    )
+    container.delete = AsyncMock()
+    provider._containers["sandbox-1"] = container
+
+    await provider.delete_sandbox("sandbox-1")
+
+    container.delete.assert_awaited_once_with(force=True)
+    assert "sandbox-1" not in provider._containers
 
 
 @pytest.mark.parametrize("base_ref", ["main", "feat/api-keys", "release-1.2"])

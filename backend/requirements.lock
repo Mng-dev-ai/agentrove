@@ -7,7 +7,9 @@ aiodocker==0.24.0
 aiohappyeyeballs==2.6.1
     # via aiohttp
 aiohttp==3.13.3
-    # via aiodocker
+    # via
+    #   -r backend/requirements.txt
+    #   aiodocker
 aiosignal==1.4.0
     # via aiohttp
 aiosmtplib==5.1.0

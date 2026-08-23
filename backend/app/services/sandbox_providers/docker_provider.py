@@ -5,11 +5,13 @@ import posixpath
 import shlex
 import tarfile
 import uuid
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, AsyncIterator
 
 import aiodocker
+import aiohttp
 
 from app.constants import (
     DOCKER_STATUS_RUNNING,
@@ -64,9 +66,34 @@ class LocalDockerProvider(SandboxProvider):
                     self._docker = aiodocker.Docker(url=self.config.host)
                 else:
                     self._docker = aiodocker.Docker()
-            except Exception as e:
-                raise SandboxException(f"Failed to connect to Docker: {e}")
+            except ValueError as e:
+                raise SandboxException(
+                    f"Failed to connect to Docker — is Docker running? ({e})",
+                    status_code=502,
+                ) from e
         return self._docker
+
+    @asynccontextmanager
+    async def _docker_operation(
+        self, operation: str, catch_timeout: bool = True
+    ) -> AsyncIterator[None]:
+        exception_types: tuple[type[Exception], ...] = (
+            aiodocker.exceptions.DockerError,
+            aiohttp.ClientError,
+        )
+        if catch_timeout:
+            exception_types += (asyncio.TimeoutError,)
+        try:
+            yield
+        except exception_types as e:
+            is_connectivity_error = isinstance(
+                e, (aiohttp.ClientError, asyncio.TimeoutError)
+            ) or (isinstance(e, aiodocker.exceptions.DockerError) and e.status == 900)
+            hint = " — is Docker running?" if is_connectivity_error else ""
+            raise SandboxException(
+                f"Failed to {operation}{hint} ({e})",
+                status_code=502,
+            ) from e
 
     @staticmethod
     def _parse_mem_limit(mem_str: str) -> int:
@@ -140,14 +167,15 @@ class LocalDockerProvider(SandboxProvider):
         return container
 
     async def create_sandbox(self, workspace_path: str | None = None) -> str:
-        sandbox_id = str(uuid.uuid4())[:12]
-        container = await self._create_container(
-            sandbox_id, workspace_path=workspace_path
-        )
-        if workspace_path:
-            await self._fix_workspace_ownership(container, workspace_path)
-        self._containers[sandbox_id] = container
-        return sandbox_id
+        async with self._docker_operation("create Docker sandbox"):
+            sandbox_id = str(uuid.uuid4())[:12]
+            container = await self._create_container(
+                sandbox_id, workspace_path=workspace_path
+            )
+            if workspace_path:
+                await self._fix_workspace_ownership(container, workspace_path)
+            self._containers[sandbox_id] = container
+            return sandbox_id
 
     async def _fix_workspace_ownership(
         self, container: Any, workspace_path: str
@@ -172,45 +200,55 @@ class LocalDockerProvider(SandboxProvider):
             return await docker.containers.get(
                 f"{DOCKER_SANDBOX_CONTAINER_PREFIX}{sandbox_id}"
             )
-        except Exception:
-            return None
+        except aiodocker.exceptions.DockerError as e:
+            if e.status == 404:
+                return None
+            raise
 
     async def connect_sandbox(self, sandbox_id: str) -> bool:
-        if sandbox_id in self._containers:
-            container = self._containers[sandbox_id]
-            info = await container.show()
-            status: str = info.get("State", {}).get("Status", "")
-            if status == DOCKER_STATUS_RUNNING:
+        async with self._docker_operation("connect to Docker sandbox"):
+            if sandbox_id in self._containers:
+                container = self._containers[sandbox_id]
+                try:
+                    info = await container.show()
+                except aiodocker.exceptions.DockerError as e:
+                    if e.status != 404:
+                        raise
+                    self._containers.pop(sandbox_id, None)
+                else:
+                    status: str = info.get("State", {}).get("Status", "")
+                    if status == DOCKER_STATUS_RUNNING:
+                        return True
+                    self._containers.pop(sandbox_id, None)
+
+            container = await self._get_container_by_id(sandbox_id)
+            if container:
+                self._containers[sandbox_id] = container
                 return True
-            self._containers.pop(sandbox_id, None)
 
-        container = await self._get_container_by_id(sandbox_id)
-        if container:
-            self._containers[sandbox_id] = container
-            return True
-
-        return False
+            return False
 
     async def delete_sandbox(self, sandbox_id: str) -> None:
-        container = self._containers.get(sandbox_id)
+        async with self._docker_operation("delete Docker sandbox"):
+            container = self._containers.get(sandbox_id)
 
-        if not container:
-            container = await self._get_container_by_id(sandbox_id)
             if not container:
-                return
+                container = await self._get_container_by_id(sandbox_id)
+                if not container:
+                    return
 
-        try:
-            await container.stop(t=5)
-        except Exception:
-            pass
-        try:
-            await container.delete(force=True)
-        except Exception:
-            pass
+            try:
+                try:
+                    await container.stop(t=5)
+                except aiodocker.exceptions.DockerError as e:
+                    logger.warning(
+                        "Failed to stop Docker sandbox %s: %s", sandbox_id, e
+                    )
+                await container.delete(force=True)
+            finally:
+                self._containers.pop(sandbox_id, None)
 
-        self._containers.pop(sandbox_id, None)
-
-        logger.info("Successfully deleted Docker sandbox %s", sandbox_id)
+            logger.info("Successfully deleted Docker sandbox %s", sandbox_id)
 
     async def list_files(
         self,
@@ -286,28 +324,31 @@ class LocalDockerProvider(SandboxProvider):
         envs: dict[str, str] | None = None,
         timeout: int = SANDBOX_DEFAULT_COMMAND_TIMEOUT,
     ) -> CommandResult:
-        # aiodocker merges stdout/stderr, so stderr is always empty.
-        container = await self._get_container(sandbox_id)
-        env_list = [f"{k}={v}" for k, v in (envs or {}).items()]
+        async with self._docker_operation(
+            "execute Docker command", catch_timeout=False
+        ):
+            # aiodocker merges stdout/stderr, so stderr is always empty.
+            container = await self._get_container(sandbox_id)
+            env_list = [f"{k}={v}" for k, v in (envs or {}).items()]
 
-        # Exec from the workspace root so relative cwd prefixes (e.g.
-        # `cd '.worktrees/abc' && ...`) resolve against the project files,
-        # not the user's home dir.
-        exec_obj = await container.exec(
-            cmd=["bash", "-c", command],
-            environment=env_list,
-            workdir=self.workspace_root,
-        )
-
-        try:
-            exit_code, output_str = await asyncio.wait_for(
-                self._collect_exec_output(exec_obj),
-                timeout=timeout,
+            # Exec from the workspace root so relative cwd prefixes (e.g.
+            # `cd '.worktrees/abc' && ...`) resolve against the project files,
+            # not the user's home dir.
+            exec_obj = await container.exec(
+                cmd=["bash", "-c", command],
+                environment=env_list,
+                workdir=self.workspace_root,
             )
-        except asyncio.TimeoutError:
-            raise TimeoutError(f"Command execution timed out after {timeout}s")
 
-        return CommandResult(stdout=output_str, stderr="", exit_code=exit_code)
+            try:
+                exit_code, output_str = await asyncio.wait_for(
+                    self._collect_exec_output(exec_obj),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                raise TimeoutError(f"Command execution timed out after {timeout}s")
+
+            return CommandResult(stdout=output_str, stderr="", exit_code=exit_code)
 
     @staticmethod
     def _build_file_tar(filename: str, content_bytes: bytes) -> bytes:
@@ -328,56 +369,61 @@ class LocalDockerProvider(SandboxProvider):
         path: str,
         content: str | bytes,
     ) -> None:
-        container = await self._get_container(sandbox_id)
-        normalized_path = self.resolve_workspace_path(path)
-        content_bytes = content.encode("utf-8") if isinstance(content, str) else content
-
-        parent_dir = str(Path(normalized_path).parent)
-        mkdir_exec = await container.exec(
-            cmd=["mkdir", "-p", parent_dir],
-        )
-        mkdir_exit_code, mkdir_output = await self._collect_exec_output(mkdir_exec)
-        if mkdir_exit_code != 0:
-            raise SandboxException(
-                f"Failed to create directory {parent_dir}: {mkdir_output}"
+        async with self._docker_operation("write file in Docker sandbox"):
+            container = await self._get_container(sandbox_id)
+            normalized_path = self.resolve_workspace_path(path)
+            content_bytes = (
+                content.encode("utf-8") if isinstance(content, str) else content
             )
-        tar = self._build_file_tar(Path(normalized_path).name, content_bytes)
-        await container.put_archive(parent_dir, tar)
+
+            parent_dir = str(Path(normalized_path).parent)
+            mkdir_exec = await container.exec(
+                cmd=["mkdir", "-p", parent_dir],
+            )
+            mkdir_exit_code, mkdir_output = await self._collect_exec_output(mkdir_exec)
+            if mkdir_exit_code != 0:
+                raise SandboxException(
+                    f"Failed to create directory {parent_dir}: {mkdir_output}"
+                )
+            tar = self._build_file_tar(Path(normalized_path).name, content_bytes)
+            await container.put_archive(parent_dir, tar)
 
     async def write_temp_file(self, sandbox_id: str, content: str) -> str:
-        # /tmp always exists and is world-writable, so no mkdir is needed.
-        container = await self._get_container(sandbox_id)
-        filename = f"agentrove-codex-{uuid.uuid4().hex}.md"
-        tar = self._build_file_tar(filename, content.encode("utf-8"))
-        await container.put_archive("/tmp", tar)
-        return posixpath.join("/tmp", filename)
+        async with self._docker_operation("write temporary file in Docker sandbox"):
+            # /tmp always exists and is world-writable, so no mkdir is needed.
+            container = await self._get_container(sandbox_id)
+            filename = f"agentrove-codex-{uuid.uuid4().hex}.md"
+            tar = self._build_file_tar(filename, content.encode("utf-8"))
+            await container.put_archive("/tmp", tar)
+            return posixpath.join("/tmp", filename)
 
     async def read_file(
         self,
         sandbox_id: str,
         path: str,
     ) -> FileContent:
-        # get_archive returns a tar; take the first member.
-        container = await self._get_container(sandbox_id)
-        normalized_path = self.resolve_workspace_path(path)
+        async with self._docker_operation("read file from Docker sandbox"):
+            # get_archive returns a tar; take the first member.
+            container = await self._get_container(sandbox_id)
+            normalized_path = self.resolve_workspace_path(path)
 
-        tar_obj = await container.get_archive(normalized_path)
+            tar_obj = await container.get_archive(normalized_path)
 
-        content_bytes = b""
-        members = tar_obj.getmembers()
-        if members:
-            f = tar_obj.extractfile(members[0])
-            if f:
-                content_bytes = f.read()
+            content_bytes = b""
+            members = tar_obj.getmembers()
+            if members:
+                f = tar_obj.extractfile(members[0])
+                if f:
+                    content_bytes = f.read()
 
-        content, is_binary = self.encode_file_content(path, content_bytes)
+            content, is_binary = self.encode_file_content(path, content_bytes)
 
-        return FileContent(
-            path=path,
-            content=content,
-            type="file",
-            is_binary=is_binary,
-        )
+            return FileContent(
+                path=path,
+                content=content,
+                type="file",
+                is_binary=is_binary,
+            )
 
     async def create_pty(
         self,
@@ -390,46 +436,51 @@ class LocalDockerProvider(SandboxProvider):
         on_exit: PtyExitCallbackType,
         user_id: str = "",
     ) -> str:
-        # tmux for reconnect persistence; bare bash if missing. user_id unused (fixed container HOME).
-        container = await self._get_container(sandbox_id)
-        session_id = str(uuid.uuid4())
+        async with self._docker_operation("create Docker terminal"):
+            # tmux for reconnect persistence; bare bash if missing. user_id unused (fixed container HOME).
+            container = await self._get_container(sandbox_id)
+            session_id = str(uuid.uuid4())
 
-        cmd = [
-            "bash",
-            "-c",
-            self.build_pty_shell_command(tmux_session, "bash"),
-        ]
+            cmd = [
+                "bash",
+                "-c",
+                self.build_pty_shell_command(tmux_session, "bash"),
+            ]
 
-        # Root terminals keep $HOME as the start dir (dotfiles, existing
-        # behavior); worktree terminals must start inside the worktree.
-        workdir = self.resolve_workspace_path(cwd) if cwd else self.config.user_home
-        exec_obj = await container.exec(
-            cmd=cmd,
-            stdin=True,
-            tty=True,
-            environment={"TERM": TERMINAL_TYPE},
-            workdir=workdir,
-        )
-        stream = exec_obj.start()
-        # aiodocker creates the stream lazily — _init() opens the actual
-        # WebSocket to the Docker daemon. No public API exists for this.
-        await stream._init()
+            # Root terminals keep $HOME as the start dir (dotfiles, existing
+            # behavior); worktree terminals must start inside the worktree.
+            workdir = self.resolve_workspace_path(cwd) if cwd else self.config.user_home
+            exec_obj = await container.exec(
+                cmd=cmd,
+                stdin=True,
+                tty=True,
+                environment={"TERM": TERMINAL_TYPE},
+                workdir=workdir,
+            )
+            stream = exec_obj.start()
+            # aiodocker creates the stream lazily — _init() opens the actual
+            # WebSocket to the Docker daemon. No public API exists for this.
+            await stream._init()
 
-        reader_task = asyncio.create_task(self._pty_reader(stream, on_data, on_exit))
-        self.register_pty_session(
-            sandbox_id,
-            session_id,
-            {
-                "exec": exec_obj,
-                "stream": stream,
-                "reader_task": reader_task,
-            },
-        )
+            reader_task = asyncio.create_task(
+                self._pty_reader(stream, on_data, on_exit)
+            )
+            self.register_pty_session(
+                sandbox_id,
+                session_id,
+                {
+                    "exec": exec_obj,
+                    "stream": stream,
+                    "reader_task": reader_task,
+                },
+            )
 
-        if rows > 0 and cols > 0:
-            await self.resize_pty(sandbox_id, session_id, PtySize(rows=rows, cols=cols))
+            if rows > 0 and cols > 0:
+                await self.resize_pty(
+                    sandbox_id, session_id, PtySize(rows=rows, cols=cols)
+                )
 
-        return session_id
+            return session_id
 
     async def _pty_reader(
         self,
@@ -457,11 +508,12 @@ class LocalDockerProvider(SandboxProvider):
         pty_id: str,
         data: bytes,
     ) -> None:
-        session = self.get_pty_session(sandbox_id, pty_id)
-        if not session:
-            return
+        async with self._docker_operation("send Docker terminal input"):
+            session = self.get_pty_session(sandbox_id, pty_id)
+            if not session:
+                return
 
-        await session["stream"].write_in(data)
+            await session["stream"].write_in(data)
 
     async def resize_pty(
         self,
@@ -469,36 +521,36 @@ class LocalDockerProvider(SandboxProvider):
         pty_id: str,
         size: PtySize,
     ) -> None:
-        # Docker rejects zero dimensions — clamp to at least 1.
-        session = self.get_pty_session(sandbox_id, pty_id)
-        if not session:
-            return
+        async with self._docker_operation("resize Docker terminal"):
+            # Docker rejects zero dimensions — clamp to at least 1.
+            session = self.get_pty_session(sandbox_id, pty_id)
+            if not session:
+                return
 
-        await session["exec"].resize(h=max(size.rows, 1), w=max(size.cols, 1))
+            await session["exec"].resize(h=max(size.rows, 1), w=max(size.cols, 1))
 
     async def kill_pty(
         self,
         sandbox_id: str,
         pty_id: str,
     ) -> None:
-        # Best-effort teardown — stream/container may already be gone.
         session = self.get_pty_session(sandbox_id, pty_id)
         if not session:
             return
 
-        reader_task = session["reader_task"]
-        reader_task.cancel()
         try:
-            await reader_task
-        except asyncio.CancelledError:
-            pass
-
-        try:
-            await session["stream"].close()
-        except Exception:
-            pass
-
-        self.cleanup_pty_session_tracking(sandbox_id, pty_id)
+            reader_task = session["reader_task"]
+            reader_task.cancel()
+            try:
+                await reader_task
+            except asyncio.CancelledError:
+                pass
+        finally:
+            try:
+                await session["stream"].close()
+            except Exception:
+                pass
+            self.cleanup_pty_session_tracking(sandbox_id, pty_id)
 
     async def cleanup(self) -> None:
         await super().cleanup()

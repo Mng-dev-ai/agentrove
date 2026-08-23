@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useMessageQueueStore, EMPTY_QUEUE } from './messageQueueStore';
 import { queueService } from '@/services/queueService';
 import type { LocalQueuedMessage } from '@/types/queue.types';
+import { NetworkError } from '@/types/errors.types';
 
 vi.mock('@/services/queueService', () => ({
   queueService: {
@@ -55,7 +56,7 @@ describe('queueMessage', () => {
   });
 
   it('keeps the unsynced local message on a network error and returns the temp id', async () => {
-    svc.queueMessage.mockRejectedValue(new TypeError('Failed to fetch'));
+    svc.queueMessage.mockRejectedValue(new NetworkError());
     const returned = await useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5');
 
     const queue = queueOf('c1');

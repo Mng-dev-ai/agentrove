@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { LocalQueuedMessage, QueueMessageOptions } from '@/types/queue.types';
 import { queueService } from '@/services/queueService';
 import { DEFAULT_PERSONA, DEFAULT_PERMISSION_MODE } from '@/store/chatSettingsStore';
+import { NetworkError } from '@/types/errors.types';
 
 export const EMPTY_QUEUE: LocalQueuedMessage[] = [];
 
@@ -83,10 +84,7 @@ export const useMessageQueueStore = create<MessageQueueState>((set, get) => ({
 
       return result.id;
     } catch (error) {
-      const isNetworkError =
-        error instanceof TypeError || (error instanceof Error && error.message.includes('network'));
-
-      if (!isNetworkError) {
+      if (!(error instanceof NetworkError)) {
         get().removeLocalOnly(chatId, tempId);
         throw error;
       }
