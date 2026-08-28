@@ -52,6 +52,28 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
     apt-get install -y gh && \
     rm -rf /var/lib/apt/lists/*
 
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) \
+        curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/google-chrome.deb; \
+        apt-get update; \
+        apt-get install -y /tmp/google-chrome.deb fonts-liberation fonts-noto-color-emoji; \
+        google-chrome --version; \
+        rm /tmp/google-chrome.deb \
+        ;; \
+      arm64) \
+        apt-get update; \
+        apt-get install -y debian-archive-keyring; \
+        echo "deb [signed-by=/usr/share/keyrings/debian-archive-bookworm-stable.gpg] http://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/debian-bookworm.list; \
+        printf 'Package: chromium chromium-common chromium-sandbox\nPin: release n=bookworm\nPin-Priority: 1001\n' > /etc/apt/preferences.d/chromium; \
+        apt-get update; \
+        apt-get install -y chromium fonts-liberation fonts-noto-color-emoji; \
+        chromium --version \
+        ;; \
+      *) exit 1 ;; \
+    esac; \
+    rm -rf /var/lib/apt/lists/*
+
 RUN curl -fsSL https://get.docker.com | sh && \
     mkdir -p /etc/docker && \
     echo '{"storage-driver": "vfs"}' > /etc/docker/daemon.json
@@ -132,6 +154,9 @@ RUN set -eux; \
 RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
     uv
+
+RUN uv tool install --python python3.12 'browser-use[cli]==0.13.8' && \
+    browser-use --version
 
 RUN echo '#!/bin/bash\nexec echo $GITHUB_TOKEN' > /home/user/.git-askpass.sh && \
     chmod +x /home/user/.git-askpass.sh

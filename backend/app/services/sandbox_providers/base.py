@@ -74,6 +74,7 @@ class SandboxProvider:
                     network=settings.DOCKER_NETWORK,
                     host=settings.DOCKER_HOST,
                     mem_limit=settings.DOCKER_MEM_LIMIT,
+                    shm_size=settings.DOCKER_SHM_SIZE,
                     cpu_period=settings.DOCKER_CPU_PERIOD,
                     cpu_quota=settings.DOCKER_CPU_QUOTA,
                     pids_limit=settings.DOCKER_PIDS_LIMIT,
