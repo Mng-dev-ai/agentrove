@@ -495,7 +495,10 @@ class AgentService:
                     "env": env,
                 }
             )
-        if settings.AGENTROVE_BROWSER_MCP_ENABLED:
+        if (
+            settings.AGENTROVE_BROWSER_MCP_ENABLED
+            and sandbox_provider is SandboxProviderType.DOCKER
+        ):
             browser_env = {"BROWSER_USE_HEADLESS": "true"}
             servers.append(
                 {

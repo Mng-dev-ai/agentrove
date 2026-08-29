@@ -62,13 +62,7 @@ RUN set -eux; \
         rm /tmp/google-chrome.deb \
         ;; \
       arm64) \
-        apt-get update; \
-        apt-get install -y debian-archive-keyring; \
-        echo "deb [signed-by=/usr/share/keyrings/debian-archive-bookworm-stable.gpg] http://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/debian-bookworm.list; \
-        printf 'Package: chromium chromium-common chromium-sandbox\nPin: release n=bookworm\nPin-Priority: 1001\n' > /etc/apt/preferences.d/chromium; \
-        apt-get update; \
-        apt-get install -y chromium fonts-liberation fonts-noto-color-emoji; \
-        chromium --version \
+        : \
         ;; \
       *) exit 1 ;; \
     esac; \
@@ -155,8 +149,17 @@ RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
     uv
 
-RUN uv tool install --python python3.12 'browser-use[cli]==0.13.8' && \
-    browser-use --version
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+      amd64) \
+        uv tool install --python python3.12 'browser-use[cli]==0.13.8'; \
+        browser-use --version \
+        ;; \
+      arm64) \
+        : \
+        ;; \
+      *) exit 1 ;; \
+    esac
 
 RUN echo '#!/bin/bash\nexec echo $GITHUB_TOKEN' > /home/user/.git-askpass.sh && \
     chmod +x /home/user/.git-askpass.sh

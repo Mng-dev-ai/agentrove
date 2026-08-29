@@ -101,6 +101,7 @@ class LocalDockerProvider(SandboxProvider):
         size = size.strip().lower()
         if not size:
             return 0
+        size = size.removesuffix("b")
         multipliers = {"k": 1024, "m": 1024**2, "g": 1024**3}
         if size[-1] in multipliers:
             return int(size[:-1]) * multipliers[size[-1]]
