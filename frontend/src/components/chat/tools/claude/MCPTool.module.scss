@@ -17,3 +17,8 @@
   @include type.type-mono-meta;
   color: var(--theme-text-tertiary);
 }
+
+.caption {
+  @include type.type-meta;
+  color: var(--theme-text-quaternary);
+}

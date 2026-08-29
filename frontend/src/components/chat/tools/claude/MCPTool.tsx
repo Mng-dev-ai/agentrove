@@ -3,8 +3,8 @@ import { Wrench } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { formatResult, formatValue } from '@/utils/format';
 import { extractToolResultImages } from '@/utils/mcpToolImages';
-import { AttachmentViewer } from '@/components/ui/attachment-viewer/AttachmentViewer';
 import { ToolCard } from '../common/ToolCard/ToolCard';
+import { ToolResultImages } from '../common/ToolResultImages/ToolResultImages';
 import toolText from '../common/toolText.module.scss';
 import toolIcon from './toolIcon.module.scss';
 import styles from './MCPTool.module.scss';
@@ -46,12 +46,11 @@ export const MCPTool = memo(function MCPTool({ tool }: MCPToolProps) {
     ([key]) => !(key === 'description' && description),
   );
   const hasInput = inputEntries.length > 0;
-  // Base64 image blocks (e.g. browser screenshots) render as real images; the
-  // remainder is what's left for the JSON/text output.
-  const { attachments: resultImages, remainder: textResult } = useMemo(
-    () => extractToolResultImages(tool.id, tool.result),
-    [tool.id, tool.result],
-  );
+  const {
+    attachments: resultImages,
+    caption,
+    remainder: textResult,
+  } = useMemo(() => extractToolResultImages(tool.id, tool.result), [tool.id, tool.result]);
   const hasImages = resultImages.length > 0;
   const hasResult = Boolean(
     textResult &&
@@ -86,7 +85,8 @@ export const MCPTool = memo(function MCPTool({ tool }: MCPToolProps) {
                 </div>
               ))
             : null}
-          {hasImages ? <AttachmentViewer attachments={resultImages} /> : null}
+          {hasImages ? <ToolResultImages attachments={resultImages} /> : null}
+          {caption ? <p className={styles.caption}>{caption}</p> : null}
           {hasResult ? (
             <pre className={toolText['output-pre']}>{formatResult(textResult)}</pre>
           ) : null}
