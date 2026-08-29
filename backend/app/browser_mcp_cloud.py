@@ -3,14 +3,15 @@
 import asyncio
 import os
 import sys
+from typing import Any
 
 from browser_use.mcp.server import BrowserUseServer
 
 
 class CloudBrowserUseServer(BrowserUseServer):
     async def _init_browser_session(
-        self, allowed_domains: list[str] | None = None, **kwargs
-    ):
+        self, allowed_domains: list[str] | None = None, **kwargs: Any
+    ) -> None:
         # The upstream MCP server otherwise always creates a local browser profile.
         kwargs["use_cloud"] = True
         await super()._init_browser_session(allowed_domains=allowed_domains, **kwargs)
