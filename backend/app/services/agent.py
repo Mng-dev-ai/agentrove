@@ -464,36 +464,51 @@ class AgentService:
     def _build_mcp_server_configs(
         chat_id: str | None, user_id: str, sandbox_provider: SandboxProviderType
     ) -> list[dict[str, Any]]:
-        # Opt-in: hand the agent Agentrove's own chat tools over a stdio MCP server.
-        if not settings.AGENTROVE_MCP_ENABLED:
-            return []
-        if sandbox_provider is SandboxProviderType.HOST:
-            # Host-provider agents share this process's network namespace, but the
-            # public BASE_URL is often unreachable from inside the deployment
-            # (hairpin NAT), so point the MCP server at the local uvicorn instead.
-            # Web mode listens on ${PORT:-8080}; desktop derives its port from a
-            # loopback BASE_URL (desktop/entry.py).
-            port = os.environ.get("PORT") or urlparse(settings.BASE_URL).port or 8080
-            api_base = f"http://127.0.0.1:{port}"
-        else:
-            api_base = settings.BASE_URL
-        env = {
-            "AGENTROVE_API_URL": f"{api_base}{settings.API_V1_STR}",
-            "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(user_id),
-        }
-        # The chat this session runs in — lets the agent create sub-threads under it
-        if chat_id:
-            env["AGENTROVE_CURRENT_CHAT_ID"] = chat_id
-        return [
-            {
-                "name": "agentrove",
-                # Spawn with the backend's own interpreter (the bundled sidecar
-                # Python, which ships mcp+httpx) — avoids PATH/version surprises
-                "command": sys.executable,
-                "args": [str(MCP_SERVER_PATH)],
-                "env": env,
+        servers: list[dict[str, Any]] = []
+        if settings.AGENTROVE_MCP_ENABLED:
+            if sandbox_provider is SandboxProviderType.HOST:
+                # Host-provider agents share this process's network namespace, but the
+                # public BASE_URL is often unreachable from inside the deployment
+                # (hairpin NAT), so point the MCP server at the local uvicorn instead.
+                # Web mode listens on ${PORT:-8080}; desktop derives its port from a
+                # loopback BASE_URL (desktop/entry.py).
+                port = (
+                    os.environ.get("PORT") or urlparse(settings.BASE_URL).port or 8080
+                )
+                api_base = f"http://127.0.0.1:{port}"
+            else:
+                api_base = settings.BASE_URL
+            env = {
+                "AGENTROVE_API_URL": f"{api_base}{settings.API_V1_STR}",
+                "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(user_id),
             }
-        ]
+            # The chat this session runs in — lets the agent create sub-threads under it
+            if chat_id:
+                env["AGENTROVE_CURRENT_CHAT_ID"] = chat_id
+            servers.append(
+                {
+                    "name": "agentrove",
+                    # Spawn with the backend's own interpreter (the bundled sidecar
+                    # Python, which ships mcp+httpx) — avoids PATH/version surprises
+                    "command": sys.executable,
+                    "args": [str(MCP_SERVER_PATH)],
+                    "env": env,
+                }
+            )
+        if (
+            settings.AGENTROVE_BROWSER_MCP_ENABLED
+            and sandbox_provider is SandboxProviderType.DOCKER
+        ):
+            browser_env = {"BROWSER_USE_HEADLESS": "true"}
+            servers.append(
+                {
+                    "name": "browser",
+                    "command": "browser-use",
+                    "args": ["--mcp"],
+                    "env": browser_env,
+                }
+            )
+        return servers
 
     async def _build_acp_config(
         self,

@@ -43,6 +43,7 @@ class DockerConfig:
     host: str | None = None
     user_home: str = "/home/user"
     mem_limit: str = ""
+    shm_size: str = ""
     cpu_period: int = 0
     cpu_quota: int = 0
     pids_limit: int = 0
@@ -96,15 +97,15 @@ class LocalDockerProvider(SandboxProvider):
             ) from e
 
     @staticmethod
-    def _parse_mem_limit(mem_str: str) -> int:
-        # "4g"/"512m" → bytes for Docker Memory.
-        mem_str = mem_str.strip().lower()
-        if not mem_str:
+    def _parse_byte_size(size: str) -> int:
+        size = size.strip().lower()
+        if not size:
             return 0
+        size = size.removesuffix("b")
         multipliers = {"k": 1024, "m": 1024**2, "g": 1024**3}
-        if mem_str[-1] in multipliers:
-            return int(mem_str[:-1]) * multipliers[mem_str[-1]]
-        return int(mem_str)
+        if size[-1] in multipliers:
+            return int(size[:-1]) * multipliers[size[-1]]
+        return int(size)
 
     async def _get_container(self, sandbox_id: str) -> Any:
         # Reconnect if uncached; restart if the container has exited.
@@ -132,7 +133,9 @@ class LocalDockerProvider(SandboxProvider):
         }
 
         if self.config.mem_limit:
-            host_config["Memory"] = self._parse_mem_limit(self.config.mem_limit)
+            host_config["Memory"] = self._parse_byte_size(self.config.mem_limit)
+        if self.config.shm_size:
+            host_config["ShmSize"] = self._parse_byte_size(self.config.shm_size)
         if self.config.cpu_period > 0:
             host_config["CpuPeriod"] = self.config.cpu_period
         if self.config.cpu_quota > 0:
