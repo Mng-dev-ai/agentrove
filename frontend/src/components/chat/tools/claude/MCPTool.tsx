@@ -1,7 +1,9 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import { Wrench } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { formatResult, formatValue } from '@/utils/format';
+import { extractToolResultImages } from '@/utils/mcpToolImages';
+import { AttachmentViewer } from '@/components/ui/attachment-viewer/AttachmentViewer';
 import { ToolCard } from '../common/ToolCard/ToolCard';
 import toolText from '../common/toolText.module.scss';
 import toolIcon from './toolIcon.module.scss';
@@ -44,24 +46,35 @@ export const MCPTool = memo(function MCPTool({ tool }: MCPToolProps) {
     ([key]) => !(key === 'description' && description),
   );
   const hasInput = inputEntries.length > 0;
+  // Base64 image blocks (e.g. browser screenshots) render as real images; the
+  // remainder is what's left for the JSON/text output.
+  const { attachments: resultImages, remainder: textResult } = useMemo(
+    () => extractToolResultImages(tool.id, tool.result),
+    [tool.id, tool.result],
+  );
+  const hasImages = resultImages.length > 0;
   const hasResult = Boolean(
-    tool.result &&
-    (Array.isArray(tool.result)
-      ? tool.result.length > 0
-      : typeof tool.result === 'object'
-        ? Object.keys(tool.result as object).length > 0
+    textResult &&
+    (Array.isArray(textResult)
+      ? textResult.length > 0
+      : typeof textResult === 'object'
+        ? Object.keys(textResult as object).length > 0
         : true),
   );
-  const hasDetails = hasInput || hasResult;
+  const hasDetails = hasInput || hasResult || hasImages;
   const title = description ? `${formattedToolName}: ${description}` : formattedToolName;
 
   return (
     <ToolCard
+      // ToolCard reads defaultExpanded only at mount; remount when an image
+      // arrives mid-stream so screenshots open without a click.
+      key={hasImages ? 'image' : 'default'}
       icon={<Wrench className={toolIcon.icon} />}
       status={toolStatus}
       title={title}
       loadingContent="Processing..."
       error={errorMessage}
+      defaultExpanded={hasImages || undefined}
     >
       {hasDetails ? (
         <div className={styles.details}>
@@ -73,8 +86,9 @@ export const MCPTool = memo(function MCPTool({ tool }: MCPToolProps) {
                 </div>
               ))
             : null}
+          {hasImages ? <AttachmentViewer attachments={resultImages} /> : null}
           {hasResult ? (
-            <pre className={toolText['output-pre']}>{formatResult(tool.result)}</pre>
+            <pre className={toolText['output-pre']}>{formatResult(textResult)}</pre>
           ) : null}
         </div>
       ) : null}
