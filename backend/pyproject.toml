@@ -104,6 +104,9 @@ exclude = [
 DEP001 = [
     "pytest",
     "pytest_asyncio",
+    # app/browser_mcp_cloud.py runs under the isolated /app/browser-use venv's
+    # interpreter (see backend/Dockerfile), never imported by the backend app.
+    "browser_use",
 ]
 DEP002 = [
     "aiosqlite",
