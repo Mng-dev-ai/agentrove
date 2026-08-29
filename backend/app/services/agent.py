@@ -46,6 +46,10 @@ logger = logging.getLogger(__name__)
 # MCP server ships next to the backend (bundled into the sidecar by run_build.mjs),
 # so its path derives from this file: app/services/agent.py -> ../../mcp-server/server.py
 MCP_SERVER_PATH = Path(__file__).resolve().parents[2] / "mcp-server" / "server.py"
+BROWSER_MCP_CLOUD_PATH = Path(__file__).resolve().parents[1] / "browser_mcp_cloud.py"
+BROWSER_USE_PYTHON_PATH = (
+    BROWSER_MCP_CLOUD_PATH.parents[1] / "browser-use" / "bin" / "python"
+)
 
 
 class StreamResult:
@@ -495,17 +499,19 @@ class AgentService:
                     "env": env,
                 }
             )
-        if (
-            settings.AGENTROVE_BROWSER_MCP_ENABLED
-            and sandbox_provider is SandboxProviderType.DOCKER
-        ):
-            browser_env = {"BROWSER_USE_HEADLESS": "true"}
+        if chat_id and settings.BROWSER_USE_API_KEY:
+            if sandbox_provider is SandboxProviderType.DOCKER:
+                command = "/home/user/.local/share/uv/tools/browser-use/bin/python"
+                args = ["/home/user/browser_mcp_cloud.py"]
+            else:
+                command = str(BROWSER_USE_PYTHON_PATH)
+                args = [str(BROWSER_MCP_CLOUD_PATH)]
             servers.append(
                 {
                     "name": "browser",
-                    "command": "browser-use",
-                    "args": ["--mcp"],
-                    "env": browser_env,
+                    "command": command,
+                    "args": args,
+                    "env": {"BROWSER_USE_API_KEY": settings.BROWSER_USE_API_KEY},
                 }
             )
         return servers

@@ -24,6 +24,7 @@ const RELEASE_TAG = '20260211';
 const RIPGREP_VERSION = '14.1.1';
 const CLAUDE_AGENT_ACP_VERSION = '0.70.0';
 const CODEX_ACP_VERSION = '1.6.0';
+const BROWSER_USE_VERSION = '0.13.8';
 const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
 
 const platform = process.platform;
@@ -37,6 +38,8 @@ if (platform !== 'darwin' || !['arm64', 'x64'].includes(arch)) {
 const ARCH_TRIPLE = arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
 
 const pythonBin = join(sidecarDir, 'python', 'bin', 'python3');
+const browserUseDir = join(sidecarDir, 'browser-use');
+const browserUsePython = join(browserUseDir, 'bin', 'python');
 const nodeDir = join(sidecarDir, 'node');
 const nodeBin = join(nodeDir, 'bin', 'node');
 const npmBin = join(nodeDir, 'bin', 'npm');
@@ -49,6 +52,7 @@ const PYTHON_STAMP = `${PYTHON_VERSION}+${RELEASE_TAG}-${arch}-${platform}`;
 const NODE_STAMP = `${NODE_VERSION}-${arch}-${platform}`;
 const RG_STAMP = `${RIPGREP_VERSION}-${arch}-${platform}`;
 const ACP_STAMP = `${CLAUDE_AGENT_ACP_VERSION}-${CODEX_ACP_VERSION}-${NODE_STAMP}`;
+const BROWSER_USE_STAMP = `${BROWSER_USE_VERSION}-${PYTHON_STAMP}`;
 
 function stampPath(name) {
   return join(sidecarDir, `.${name}-stamp`);
@@ -197,6 +201,21 @@ function installPyDeps() {
   writeStamp('deps', depsStampValue());
 }
 
+function installBrowserUse() {
+  rmSync(browserUseDir, { recursive: true, force: true });
+  execFileSync(pythonBin, ['-m', 'venv', browserUseDir], { stdio: 'inherit' });
+  execFileSync(
+    browserUsePython,
+    [
+      '-m', 'pip', 'install', '-q',
+      '--disable-pip-version-check',
+      `browser-use[cli]==${BROWSER_USE_VERSION}`,
+    ],
+    { stdio: 'inherit' },
+  );
+  writeStamp('browser-use', BROWSER_USE_STAMP);
+}
+
 function installAcpAdapters() {
   console.log('Installing ACP adapters...');
   execFileSync(
@@ -294,6 +313,12 @@ function run() {
     console.log('Dependencies up to date, skipping install.');
   } else {
     installPyDeps();
+  }
+
+  if (upToDate('browser-use', BROWSER_USE_STAMP, browserUsePython)) {
+    console.log('browser-use already installed, skipping install.');
+  } else {
+    installBrowserUse();
   }
 
   if (upToDate('rg', RG_STAMP, rgBin)) {

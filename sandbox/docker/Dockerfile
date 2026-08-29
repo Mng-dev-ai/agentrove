@@ -52,22 +52,6 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | d
     apt-get install -y gh && \
     rm -rf /var/lib/apt/lists/*
 
-RUN set -eux; \
-    case "$(dpkg --print-architecture)" in \
-      amd64) \
-        curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/google-chrome.deb; \
-        apt-get update; \
-        apt-get install -y /tmp/google-chrome.deb fonts-liberation fonts-noto-color-emoji; \
-        google-chrome --version; \
-        rm /tmp/google-chrome.deb \
-        ;; \
-      arm64) \
-        : \
-        ;; \
-      *) exit 1 ;; \
-    esac; \
-    rm -rf /var/lib/apt/lists/*
-
 RUN curl -fsSL https://get.docker.com | sh && \
     mkdir -p /etc/docker && \
     echo '{"storage-driver": "vfs"}' > /etc/docker/daemon.json
@@ -79,6 +63,7 @@ RUN useradd -m -s /bin/bash -u 1000 user && \
     chown -R user:user /home/user
 
 COPY --chmod=755 sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chown=user:user --chmod=755 backend/app/browser_mcp_cloud.py /home/user/browser_mcp_cloud.py
 
 RUN set -eux; \
     version=20260818_01_RC01; \
@@ -149,17 +134,10 @@ RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
     uv
 
-RUN set -eux; \
-    case "$(dpkg --print-architecture)" in \
-      amd64) \
-        uv tool install --python python3.12 'browser-use[cli]==0.13.8'; \
-        browser-use --version \
-        ;; \
-      arm64) \
-        : \
-        ;; \
-      *) exit 1 ;; \
-    esac
+RUN uv tool install --python python3.12 'browser-use[cli]==0.13.8' && \
+    command -v browser-use && \
+    /home/user/.local/share/uv/tools/browser-use/bin/python -c \
+      "from browser_mcp_cloud import CloudBrowserUseServer"
 
 RUN echo '#!/bin/bash\nexec echo $GITHUB_TOKEN' > /home/user/.git-askpass.sh && \
     chmod +x /home/user/.git-askpass.sh

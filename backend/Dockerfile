@@ -87,7 +87,14 @@ COPY backend/requirements.lock .
 
 RUN /root/.local/bin/uv pip install --system --no-cache -r requirements.lock
 
+RUN /root/.local/bin/uv venv /app/browser-use --python python3.12 && \
+    /root/.local/bin/uv pip install --python /app/browser-use/bin/python \
+    'browser-use[cli]==0.13.8'
+
 COPY backend/ /app/
+
+RUN /app/browser-use/bin/python -c \
+    "from app.browser_mcp_cloud import CloudBrowserUseServer"
 
 # Agentrove chat MCP server (mcp-server/server.py) lives at the repo root, not
 # under backend/. The backend spawns it from /app/mcp-server/ (see MCP_SERVER_PATH
