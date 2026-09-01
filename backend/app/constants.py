@@ -136,6 +136,7 @@ SANDBOX_BASHRC_PATH: Final[str] = "/home/user/.bashrc"
 MODELS: dict[str, ModelInfo] = {
     "sonnet": ModelInfo("Sonnet", AgentKind.CLAUDE, 1_000_000),
     "haiku": ModelInfo("Haiku", AgentKind.CLAUDE, 200_000),
+    "claude-fable-5-1": ModelInfo("Fable 5.1", AgentKind.CLAUDE, 1_000_000),
     "claude-fable-5": ModelInfo("Fable 5", AgentKind.CLAUDE, 1_000_000),
     "claude-opus-5": ModelInfo("Opus 5", AgentKind.CLAUDE, 1_000_000),
     # Codex CLI clamps model_context_window to its bundled catalog max — 272k for
