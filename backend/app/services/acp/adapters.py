@@ -52,7 +52,9 @@ COPILOT_SESSION_MODE_IDS: dict[str, str] = {
 
 CLAUDE_VALID_THINKING_MODES = frozenset({"low", "medium", "high", "max"})
 CLAUDE_XHIGH_VALID_THINKING_MODES = CLAUDE_VALID_THINKING_MODES | {"xhigh"}
-CLAUDE_XHIGH_MODEL_IDS = frozenset({"claude-fable-5", "claude-opus-5"})
+CLAUDE_XHIGH_MODEL_IDS = frozenset(
+    {"claude-fable-5-1", "claude-fable-5", "claude-opus-5"}
+)
 # claude-agent-acp only advertises the "effort" config option for models that
 # report supportsEffort — Haiku doesn't, so set_config_option("effort") fails
 # with "Unknown config option: effort". Empty set = no effort dial for these.

@@ -159,6 +159,7 @@ def test_grok_launch_args_apply_always_approve_flag(
         ("sonnet", "high", "high"),
         ("sonnet", "xhigh", "high"),
         ("claude-opus-5", "xhigh", "xhigh"),
+        ("claude-fable-5-1", "xhigh", "xhigh"),
     ],
 )
 def test_claude_session_config_gates_effort_by_model(

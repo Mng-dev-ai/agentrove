@@ -20,7 +20,11 @@ const CLAUDE_XHIGH_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'xhigh', label: 'XHigh' },
   { value: 'max', label: 'Max' },
 ];
-const CLAUDE_XHIGH_MODEL_IDS = new Set(['claude-fable-5', 'claude-opus-5']);
+const CLAUDE_XHIGH_MODEL_IDS = new Set([
+  'claude-fable-5-1',
+  'claude-fable-5',
+  'claude-opus-5',
+]);
 // claude-agent-acp only exposes the effort dial for models that report
 // supportsEffort — Haiku doesn't, so hide the selector. Mirrors
 // CLAUDE_NO_EFFORT_MODEL_IDS in backend app/services/acp/adapters.py.

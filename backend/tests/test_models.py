@@ -41,6 +41,13 @@ async def test_list_models_returns_registered_models(
     } in body
     by_id = {item["model_id"]: item for item in body}
     assert by_id["sonnet"]["thinking_modes"] == ["low", "medium", "high", "max"]
+    assert by_id["claude-fable-5-1"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    ]
     assert by_id["claude-fable-5"]["thinking_modes"] == [
         "low",
         "medium",
