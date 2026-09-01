@@ -302,9 +302,6 @@ class ClaudeAgentAdapter(AgentAdapter):
         reasoning_effort: str | None = None,
         permission_mode: str | None = None,
     ) -> LaunchConfig:
-        # claude-agent-acp 0.71.0 pins Agent SDK 0.3.238 (Claude Code 2.1.238).
-        # Fable 5.1 requires 2.1.251+, so use the separately installed `claude`
-        # CLI instead of the SDK's bundled binary.
         return LaunchConfig(
             binary="claude-agent-acp",
             env={"CLAUDE_CODE_EXECUTABLE": "claude"},
