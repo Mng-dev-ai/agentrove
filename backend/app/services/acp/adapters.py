@@ -302,8 +302,10 @@ class ClaudeAgentAdapter(AgentAdapter):
         reasoning_effort: str | None = None,
         permission_mode: str | None = None,
     ) -> LaunchConfig:
-        # Config via env + session meta only (no CLI args).
-        return LaunchConfig(binary="claude-agent-acp")
+        return LaunchConfig(
+            binary="claude-agent-acp",
+            env={"CLAUDE_CODE_EXECUTABLE": "claude"},
+        )
 
     def build_session_config(
         self,

@@ -23,6 +23,7 @@ const NODE_VERSION = '22.12.0';
 const RELEASE_TAG = '20260211';
 const RIPGREP_VERSION = '14.1.1';
 const CLAUDE_AGENT_ACP_VERSION = '0.71.0';
+const CLAUDE_CODE_VERSION = '2.1.257';
 const CODEX_ACP_VERSION = '1.6.0';
 const BROWSER_USE_VERSION = '0.13.8';
 const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
@@ -51,7 +52,7 @@ const codexAcpBin = join(sidecarBinDir, 'codex-acp');
 const PYTHON_STAMP = `${PYTHON_VERSION}+${RELEASE_TAG}-${arch}-${platform}`;
 const NODE_STAMP = `${NODE_VERSION}-${arch}-${platform}`;
 const RG_STAMP = `${RIPGREP_VERSION}-${arch}-${platform}`;
-const ACP_STAMP = `${CLAUDE_AGENT_ACP_VERSION}-${CODEX_ACP_VERSION}-${NODE_STAMP}`;
+const ACP_STAMP = `${CLAUDE_AGENT_ACP_VERSION}-${CLAUDE_CODE_VERSION}-${CODEX_ACP_VERSION}-${NODE_STAMP}`;
 const BROWSER_USE_STAMP = `${BROWSER_USE_VERSION}-${PYTHON_STAMP}`;
 
 function stampPath(name) {
@@ -224,6 +225,7 @@ function installAcpAdapters() {
       'install', '--prefix', sidecarDir,
       '--omit=dev', '--no-audit', '--no-fund', '--package-lock=false',
       `@agentclientprotocol/claude-agent-acp@${CLAUDE_AGENT_ACP_VERSION}`,
+      `@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}`,
       `@agentclientprotocol/codex-acp@${CODEX_ACP_VERSION}`,
     ],
     { stdio: 'inherit' },
@@ -243,9 +245,22 @@ function writeAcpLauncher(name, packageEntry) {
   chmodSync(launcher, 0o755);
 }
 
+function writeClaudeCliLauncher() {
+  const launcher = join(sidecarBinDir, 'claude');
+  mkdirSync(sidecarBinDir, { recursive: true });
+  writeFileSync(
+    launcher,
+    '#!/bin/bash\n' +
+      'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n' +
+      'exec "$SCRIPT_DIR/../node_modules/.bin/claude" "$@"\n',
+  );
+  chmodSync(launcher, 0o755);
+}
+
 function writeAcpLaunchers() {
   writeAcpLauncher('claude-agent-acp', '@agentclientprotocol/claude-agent-acp/dist/index.js');
   writeAcpLauncher('codex-acp', '@agentclientprotocol/codex-acp/dist/index.js');
+  writeClaudeCliLauncher();
 }
 
 function copySource() {

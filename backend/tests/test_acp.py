@@ -147,6 +147,16 @@ def test_grok_launch_args_apply_always_approve_flag(
     assert launch.cli_args == expected_args
 
 
+def test_claude_launch_uses_installed_claude_cli() -> None:
+    launch = ClaudeAgentAdapter().build_launch_config(
+        system_prompt=None,
+        system_prompt_is_full_replace=False,
+    )
+
+    assert launch.binary == "claude-agent-acp"
+    assert launch.env == {"CLAUDE_CODE_EXECUTABLE": "claude"}
+
+
 @pytest.mark.parametrize(
     "model_id,thinking_mode,expected_effort",
     [
