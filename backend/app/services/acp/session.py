@@ -65,11 +65,7 @@ NON_IMAGE_MIME: dict[str, str] = {
 
 EMPTY_FROZENSET: frozenset[str] = frozenset()
 
-# Claude's thinking budget is advertised as the "effort" session config
-# option; value IDs are the supported Claude UI tiers.
-CLAUDE_EFFORT_CONFIG_ID = "effort"
-CLAUDE_MODEL_CONFIG_ID = "model"
-COPILOT_EFFORT_CONFIG_ID = "reasoning_effort"
+MODEL_CONFIG_ID = "model"
 
 # codex-acp advertises Fast mode as a session config option (select on/off, or
 # boolean when the client supports it). Values match FastModeConfig.ts.
@@ -265,20 +261,16 @@ class AcpSession:
             )
         except Exception:
             logger.warning("Failed to set ACP model: %s", model_id, exc_info=True)
-        else:
-            if self._agent_kind == AgentKind.COPILOT and reasoning_effort:
-                try:
-                    await self._conn.set_config_option(
-                        config_id=COPILOT_EFFORT_CONFIG_ID,
-                        session_id=self.acp_session_id,
-                        value=reasoning_effort,
-                    )
-                except Exception:
-                    logger.warning(
-                        "Failed to set Copilot effort: %s",
-                        reasoning_effort,
-                        exc_info=True,
-                    )
+            return
+        # Effort options are model-scoped for some agents, so re-apply after a switch.
+        try:
+            await self._set_effort_on_conn(
+                self._conn, self._agent_kind, self.acp_session_id, reasoning_effort
+            )
+        except Exception:
+            logger.warning(
+                "Failed to set ACP effort: %s", reasoning_effort, exc_info=True
+            )
 
     async def set_mode(self, mode_id: str) -> None:
         try:
@@ -431,7 +423,6 @@ class AcpSession:
                 )
                 acp_session_id = response.session_id
 
-            model_set = False
             if config.model:
                 try:
                     await cls._set_model_on_conn(
@@ -441,7 +432,6 @@ class AcpSession:
                         config.model,
                         config.reasoning_effort,
                     )
-                    model_set = True
                 except Exception:
                     logger.warning(
                         "Failed to set initial model: %s", config.model, exc_info=True
@@ -462,41 +452,16 @@ class AcpSession:
                         exc_info=True,
                     )
 
-            # Claude receives thinking budget via the "effort" session config
-            # option (not launch CLI args), so it must be applied after
-            # new_session/load_session. Codex carries effort inside the
-            # model[effort] ID set above, so it doesn't need this step.
-            if config.agent_kind == AgentKind.CLAUDE and config.reasoning_effort:
-                try:
-                    await conn.set_config_option(
-                        config_id=CLAUDE_EFFORT_CONFIG_ID,
-                        session_id=acp_session_id,
-                        value=config.reasoning_effort,
-                    )
-                except Exception:
-                    logger.warning(
-                        "Failed to set initial effort: %s",
-                        config.reasoning_effort,
-                        exc_info=True,
-                    )
-
-            if (
-                config.agent_kind == AgentKind.COPILOT
-                and config.reasoning_effort
-                and model_set
-            ):
-                try:
-                    await conn.set_config_option(
-                        config_id=COPILOT_EFFORT_CONFIG_ID,
-                        session_id=acp_session_id,
-                        value=config.reasoning_effort,
-                    )
-                except Exception:
-                    logger.warning(
-                        "Failed to set initial Copilot effort: %s",
-                        config.reasoning_effort,
-                        exc_info=True,
-                    )
+            try:
+                await cls._set_effort_on_conn(
+                    conn, config.agent_kind, acp_session_id, config.reasoning_effort
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to set initial effort: %s",
+                    config.reasoning_effort,
+                    exc_info=True,
+                )
 
             # Fast mode is per-turn service tier state inside codex-acp; default
             # is off so only enable when the user opted in.
@@ -571,17 +536,27 @@ class AcpSession:
         model_id: str,
         reasoning_effort: str | None = None,
     ) -> None:
-        acp_model_id = AGENT_ADAPTERS[agent_kind].map_model_id(
-            model_id, reasoning_effort
-        )
-        # codex-acp encodes reasoning effort inside the model ID and rejects
-        # bare IDs ("modelId[effort]" is the required format).
-        if agent_kind == AgentKind.CODEX and reasoning_effort:
-            acp_model_id = f"{acp_model_id}[{reasoning_effort}]"
         await conn.set_config_option(
-            config_id=CLAUDE_MODEL_CONFIG_ID,
+            config_id=MODEL_CONFIG_ID,
             session_id=session_id,
-            value=acp_model_id,
+            value=AGENT_ADAPTERS[agent_kind].map_model_id(model_id, reasoning_effort),
+        )
+
+    @staticmethod
+    async def _set_effort_on_conn(
+        conn: ClientSideConnection,
+        agent_kind: AgentKind,
+        session_id: str,
+        reasoning_effort: str | None,
+    ) -> None:
+        # Only for agents whose effort is a session config option; it must be
+        # applied after new_session/load_session. Others carry effort in the
+        # model ID (Codex, Antigravity) or launch flags (Grok).
+        config_id = AGENT_ADAPTERS[agent_kind].effort_config_id
+        if config_id is None or not reasoning_effort:
+            return
+        await conn.set_config_option(
+            config_id=config_id, session_id=session_id, value=reasoning_effort
         )
 
     @staticmethod

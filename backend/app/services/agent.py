@@ -576,7 +576,7 @@ class AgentService:
                 chat_id, user_id, sandbox_provider
             ),
             model=model_id,
-            permission_mode=session_config.permission.session_mode,
+            permission_mode=session_config.session_mode,
             resume_session_id=session_id,
             workspace_path=workspace_path,
             system_prompt=system_prompt,
