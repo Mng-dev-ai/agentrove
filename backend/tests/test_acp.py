@@ -84,6 +84,12 @@ def test_antigravity_adapter_configuration() -> None:
 
     assert launch.binary == "agy-acp-server"
     assert launch.cli_args == []
+    assert adapter.map_model_id("antigravity:gemini-3.8-flash", None) == (
+        "gemini-3.8-flash-high"
+    )
+    assert adapter.map_model_id("antigravity:gemini-3.8-flash", "low") == (
+        "gemini-3.8-flash-low"
+    )
     assert adapter.map_model_id("antigravity:gemini-3.7-flash", None) == (
         "gemini-3.7-flash-high"
     )

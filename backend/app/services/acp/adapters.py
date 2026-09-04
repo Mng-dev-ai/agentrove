@@ -98,6 +98,7 @@ COPILOT_REASONING_MODEL_IDS = frozenset(
     {
         "copilot:gpt-5-mini",
         "copilot:mai-code-1-flash-picker",
+        "copilot:gemini-3.8-flash",
         "copilot:gemini-3.6-flash",
         "copilot:gemini-3.5-flash",
         "copilot:gemini-3.1-pro-preview",

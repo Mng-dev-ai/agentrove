@@ -180,6 +180,9 @@ MODELS: dict[str, ModelInfo] = {
     "copilot:mai-code-1-flash-picker": ModelInfo(
         "MAI Code 1 Flash", AgentKind.COPILOT, 128_000
     ),
+    "copilot:gemini-3.8-flash": ModelInfo(
+        "Gemini 3.8 Flash", AgentKind.COPILOT, 1_000_000
+    ),
     "copilot:gemini-3.6-flash": ModelInfo(
         "Gemini 3.6 Flash", AgentKind.COPILOT, 1_000_000
     ),
@@ -240,6 +243,9 @@ MODELS: dict[str, ModelInfo] = {
     "cursor:kimi-k2.5": ModelInfo("Kimi K2.5", AgentKind.CURSOR, 262_000),
     "grok:grok-4.6": ModelInfo("Grok 4.6", AgentKind.GROK, 500_000),
     "grok:grok-4.5": ModelInfo("Grok 4.5", AgentKind.GROK, 500_000),
+    "antigravity:gemini-3.8-flash": ModelInfo(
+        "Gemini 3.8 Flash", AgentKind.ANTIGRAVITY, 1_000_000
+    ),
     "antigravity:gemini-3.7-flash": ModelInfo(
         "Gemini 3.7 Flash", AgentKind.ANTIGRAVITY, 1_000_000
     ),
@@ -314,6 +320,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:opencode/gemini-3.6-flash": ModelInfo(
         "Gemini 3.6 Flash (OpenCode)", AgentKind.OPENCODE, 1_048_576
+    ),
+    "opencode:opencode/gemini-3.8-flash": ModelInfo(
+        "Gemini 3.8 Flash (OpenCode)", AgentKind.OPENCODE, 1_048_576
     ),
     "opencode:opencode/glm-5": ModelInfo(
         "GLM-5 (OpenCode)", AgentKind.OPENCODE, 204_800
@@ -917,6 +926,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:github-copilot/gemini-3.6-flash": ModelInfo(
         "Gemini 3.6 Flash (Github Copilot)", AgentKind.OPENCODE, 1_000_000
     ),
+    "opencode:github-copilot/gemini-3.8-flash": ModelInfo(
+        "Gemini 3.8 Flash (Github Copilot)", AgentKind.OPENCODE, 1_000_000
+    ),
     "opencode:github-copilot/gpt-4.1": ModelInfo(
         "GPT-4.1 (Github Copilot)", AgentKind.OPENCODE, 128_000
     ),
@@ -1040,6 +1052,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:google/gemini-3.6-flash": ModelInfo(
         "Gemini 3.6 Flash (Google)", AgentKind.OPENCODE, 1_048_576
     ),
+    "opencode:google/gemini-3.8-flash": ModelInfo(
+        "Gemini 3.8 Flash (Google)", AgentKind.OPENCODE, 1_048_576
+    ),
     "opencode:google/gemini-embedding-001": ModelInfo(
         "Gemini Embedding 001 (Google)", AgentKind.OPENCODE, 2_048
     ),
@@ -1152,6 +1167,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:google-vertex/gemini-3.6-flash": ModelInfo(
         "Gemini 3.6 Flash (Google Vertex)", AgentKind.OPENCODE, 1_048_576
+    ),
+    "opencode:google-vertex/gemini-3.8-flash": ModelInfo(
+        "Gemini 3.8 Flash (Google Vertex)", AgentKind.OPENCODE, 1_048_576
     ),
     "opencode:google-vertex/gemini-embedding-001": ModelInfo(
         "Gemini Embedding 001 (Google Vertex)", AgentKind.OPENCODE, 2_048
@@ -1444,6 +1462,9 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:openrouter/google/gemini-3.6-flash": ModelInfo(
         "Gemini 3.6 Flash (Openrouter)", AgentKind.OPENCODE, 1_048_576
+    ),
+    "opencode:openrouter/google/gemini-3.8-flash": ModelInfo(
+        "Gemini 3.8 Flash (Openrouter)", AgentKind.OPENCODE, 1_048_576
     ),
     "opencode:openrouter/google/gemma-2-27b-it": ModelInfo(
         "Gemma 2 27B (Openrouter)", AgentKind.OPENCODE, 8_192
