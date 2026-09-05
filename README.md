@@ -148,39 +148,10 @@ For a single-host Docker deployment:
 
 ```bash
 SECRET_KEY=$(openssl rand -hex 32) \
-SERVICE_URL_WEB_80=https://yourdomain.com \
 APP_URL=https://yourdomain.com \
 ALLOWED_ORIGINS=https://yourdomain.com \
 docker compose -f docker-compose-production.yml up -d --build
 ```
-
-### Coolify / reverse proxy
-
-Point Coolify at the `web` service (port 80) using `docker-compose-production.yml`. Set:
-
-| Variable | Example |
-| --- | --- |
-| `APP_URL` | `https://yourdomain.com` |
-| `ALLOWED_ORIGINS` | `https://yourdomain.com` |
-| `SECRET_KEY` | 32+ char secret |
-| `TRUSTED_PROXY_HOSTS` | `*` (default in production compose) |
-
-If `APP_URL` / `ALLOWED_ORIGINS` are unset, the compose file falls back to Coolify's `SERVICE_URL_WEB_80` (correct for production and PR previews).
-
-If `/admin` loads as plain unstyled HTML (blue links, no layout), the API is generating `http://` URLs for SQLAdmin CSS/JS while the page is `https://`. Rebuild with the production compose above so nginx forwards Coolify's `X-Forwarded-Proto` and the API trusts the proxy.
-
-### Coolify preview deployments (per PR)
-
-1. **Advanced** → enable **Preview Deployments** (and **Allow Public PR Deployments** if the repo is public / accepts fork PRs).
-2. **Preview Deployments** → set the URL template, e.g. `pr-{{pr_id}}.yourdomain.com`.
-3. Point a DNS wildcard (`*.yourdomain.com` or `pr-*.yourdomain.com`) at the Coolify server and let Coolify issue certificates.
-4. In **Environment Variables** → **Preview Deployments**, set:
-   - `AGENTROVE_STORAGE_SOURCE=agentrove_storage` (named volume; do not share production's host path)
-   - `APP_URL` / `ALLOWED_ORIGINS` empty or `$SERVICE_URL_WEB_80` (so each preview gets its own origin)
-   - copy `SECRET_KEY` and other secrets from production
-5. Open a PR (or **Load Pull Requests** and deploy manually). Coolify spins up an isolated compose stack at the preview URL.
-
-The sandbox Docker network is per compose project (no fixed name), so preview sandboxes do not join production's network.
 
 ## Stack
 
