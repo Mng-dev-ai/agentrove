@@ -39,14 +39,19 @@ const CODEX_MAX_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'xhigh', label: 'XHigh' },
   { value: 'max', label: 'Max' },
 ];
-const CODEX_MAX_MODEL_IDS = new Set(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']);
+const CODEX_MAX_MODEL_IDS = new Set([
+  'gpt-6-astra',
+  'gpt-5.6-sol',
+  'gpt-5.6-terra',
+  'gpt-5.6-luna',
+]);
 // Per Codex's model registry, `ultra` (max reasoning + automatic task
-// delegation) is supported by Sol/Terra but not Luna.
+// delegation) is supported by Astra/Sol/Terra but not Luna.
 const CODEX_ULTRA_THINKING_MODES: ThinkingModeOption[] = [
   ...CODEX_MAX_THINKING_MODES,
   { value: 'ultra', label: 'Ultra' },
 ];
-const CODEX_ULTRA_MODEL_IDS = new Set(['gpt-5.6-sol', 'gpt-5.6-terra']);
+const CODEX_ULTRA_MODEL_IDS = new Set(['gpt-6-astra', 'gpt-5.6-sol', 'gpt-5.6-terra']);
 
 const COPILOT_MAX_THINKING_MODES = CODEX_MAX_THINKING_MODES;
 const COPILOT_MAX_MODEL_IDS = new Set([
@@ -56,6 +61,7 @@ const COPILOT_MAX_MODEL_IDS = new Set([
   'copilot:claude-opus-4.8',
   'copilot:claude-opus-4.8-fast',
   'copilot:claude-opus-4.7',
+  'copilot:gpt-6-astra',
   'copilot:gpt-5.6-sol',
   'copilot:gpt-5.6-terra',
   'copilot:gpt-5.6-luna',
