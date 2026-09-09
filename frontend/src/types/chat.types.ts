@@ -158,6 +158,7 @@ export interface Model {
 }
 
 const CODEX_MODEL_IDS = new Set([
+  'gpt-6-astra',
   'gpt-5.6-sol',
   'gpt-5.6-terra',
   'gpt-5.6-luna',
