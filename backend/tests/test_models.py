@@ -55,6 +55,13 @@ async def test_list_models_returns_registered_models(
         "xhigh",
         "max",
     ]
+    assert by_id["claude-opus-5-5"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    ]
     assert by_id["claude-opus-5"]["thinking_modes"] == [
         "low",
         "medium",
@@ -87,6 +94,12 @@ async def test_list_models_returns_registered_models(
     assert by_id["copilot:claude-haiku-4.5"]["thinking_modes"] == []
     assert by_id["grok:grok-4.5"]["thinking_modes"] == ["low", "medium", "high"]
     assert by_id["grok:grok-4.6"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+    ]
+    assert by_id["grok:grok-4.7"]["thinking_modes"] == [
         "low",
         "medium",
         "high",

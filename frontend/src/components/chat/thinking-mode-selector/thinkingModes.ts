@@ -20,7 +20,12 @@ const CLAUDE_XHIGH_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'xhigh', label: 'XHigh' },
   { value: 'max', label: 'Max' },
 ];
-const CLAUDE_XHIGH_MODEL_IDS = new Set(['claude-fable-5-1', 'claude-fable-5', 'claude-opus-5']);
+const CLAUDE_XHIGH_MODEL_IDS = new Set([
+  'claude-fable-5-1',
+  'claude-fable-5',
+  'claude-opus-5-5',
+  'claude-opus-5',
+]);
 // claude-agent-acp only exposes the effort dial for models that report
 // supportsEffort — Haiku doesn't, so hide the selector. Mirrors
 // CLAUDE_NO_EFFORT_MODEL_IDS in backend app/services/acp/adapters.py.
@@ -103,19 +108,19 @@ const COPILOT_KIMI_K3_THINKING_MODES: ThinkingModeOption[] = [
 // so an empty list hides the selector.
 const EMPTY_THINKING_MODES: ThinkingModeOption[] = [];
 
-// Grok 4.5 has low–high reasoning effort and Grok 4.6 adds xhigh, so the
+// Grok 4.5 has low–high reasoning effort and Grok 4.6+ add xhigh, so the
 // selector is model-gated like Claude's xhigh tier.
 const GROK_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'low', label: 'Low' },
   { value: 'medium', label: 'Medium' },
   { value: 'high', label: 'High' },
 ];
-const GROK_REASONING_MODEL_IDS = new Set(['grok:grok-4.5', 'grok:grok-4.6']);
+const GROK_REASONING_MODEL_IDS = new Set(['grok:grok-4.5', 'grok:grok-4.6', 'grok:grok-4.7']);
 const GROK_XHIGH_THINKING_MODES: ThinkingModeOption[] = [
   ...GROK_THINKING_MODES,
   { value: 'xhigh', label: 'XHigh' },
 ];
-const GROK_XHIGH_MODEL_IDS = new Set(['grok:grok-4.6']);
+const GROK_XHIGH_MODEL_IDS = new Set(['grok:grok-4.6', 'grok:grok-4.7']);
 
 const ANTIGRAVITY_THINKING_MODES: ThinkingModeOption[] = [
   { value: 'low', label: 'Low' },
