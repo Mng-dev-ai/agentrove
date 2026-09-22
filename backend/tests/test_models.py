@@ -77,7 +77,36 @@ async def test_list_models_returns_registered_models(
         "max",
         "ultra",
     ]
+    assert by_id["gpt-6-sol"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+        "ultra",
+    ]
+    assert by_id["gpt-6-luna"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    ]
     assert by_id["copilot:gpt-6-astra"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    ]
+    assert by_id["copilot:gpt-6-sol"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    ]
+    assert by_id["copilot:gpt-6-luna"]["thinking_modes"] == [
         "low",
         "medium",
         "high",

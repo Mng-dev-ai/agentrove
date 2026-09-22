@@ -146,6 +146,8 @@ MODELS: dict[str, ModelInfo] = {
     # session verifies the opt-in survives our app-server launch path.
     # Live-reported window still wins over these fallbacks.
     "gpt-6-astra": ModelInfo("GPT 6 Astra", AgentKind.CODEX, 272_000),
+    "gpt-6-sol": ModelInfo("GPT 6 Sol", AgentKind.CODEX, 272_000),
+    "gpt-6-luna": ModelInfo("GPT 6 Luna", AgentKind.CODEX, 272_000),
     "gpt-5.6-sol": ModelInfo("GPT 5.6 Sol", AgentKind.CODEX, 272_000),
     "gpt-5.6-terra": ModelInfo("GPT 5.6 Terra", AgentKind.CODEX, 272_000),
     "gpt-5.6-luna": ModelInfo("GPT 5.6 Luna", AgentKind.CODEX, 272_000),
@@ -172,6 +174,8 @@ MODELS: dict[str, ModelInfo] = {
     "copilot:claude-opus-4.5": ModelInfo("Opus 4.5", AgentKind.COPILOT, 160_000),
     "copilot:claude-haiku-4.5": ModelInfo("Haiku 4.5", AgentKind.COPILOT, 160_000),
     "copilot:gpt-6-astra": ModelInfo("GPT 6 Astra", AgentKind.COPILOT, 304_000),
+    "copilot:gpt-6-sol": ModelInfo("GPT 6 Sol", AgentKind.COPILOT, 304_000),
+    "copilot:gpt-6-luna": ModelInfo("GPT 6 Luna", AgentKind.COPILOT, 304_000),
     "copilot:gpt-5.6-sol": ModelInfo("GPT 5.6 Sol", AgentKind.COPILOT, 304_000),
     "copilot:gpt-5.6-terra": ModelInfo("GPT 5.6 Terra", AgentKind.COPILOT, 304_000),
     "copilot:gpt-5.6-luna": ModelInfo("GPT 5.6 Luna", AgentKind.COPILOT, 304_000),
@@ -399,6 +403,12 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:opencode/gpt-6-astra": ModelInfo(
         "GPT-6 Astra (OpenCode)", AgentKind.OPENCODE, 1_050_000
+    ),
+    "opencode:opencode/gpt-6-luna": ModelInfo(
+        "GPT-6 Luna (OpenCode)", AgentKind.OPENCODE, 1_050_000
+    ),
+    "opencode:opencode/gpt-6-sol": ModelInfo(
+        "GPT-6 Sol (OpenCode)", AgentKind.OPENCODE, 1_050_000
     ),
     "opencode:opencode/grok-4.5": ModelInfo(
         "Grok 4.5 (OpenCode)", AgentKind.OPENCODE, 500_000
@@ -767,6 +777,12 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:amazon-bedrock/openai.gpt-6-astra": ModelInfo(
         "GPT-6 Astra (Amazon Bedrock)", AgentKind.OPENCODE, 272_000
     ),
+    "opencode:amazon-bedrock/openai.gpt-6-luna": ModelInfo(
+        "GPT-6 Luna (Amazon Bedrock)", AgentKind.OPENCODE, 272_000
+    ),
+    "opencode:amazon-bedrock/openai.gpt-6-sol": ModelInfo(
+        "GPT-6 Sol (Amazon Bedrock)", AgentKind.OPENCODE, 272_000
+    ),
     "opencode:amazon-bedrock/openai.gpt-oss-120b": ModelInfo(
         "gpt-oss-120b (Amazon Bedrock)", AgentKind.OPENCODE, 128_000
     ),
@@ -977,6 +993,12 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:github-copilot/gpt-6-astra": ModelInfo(
         "GPT-6 Astra (Github Copilot)", AgentKind.OPENCODE, 1_050_000
+    ),
+    "opencode:github-copilot/gpt-6-luna": ModelInfo(
+        "GPT-6 Luna (Github Copilot)", AgentKind.OPENCODE, 1_050_000
+    ),
+    "opencode:github-copilot/gpt-6-sol": ModelInfo(
+        "GPT-6 Sol (Github Copilot)", AgentKind.OPENCODE, 1_050_000
     ),
     "opencode:github-copilot/grok-4.5": ModelInfo(
         "Grok 4.5 (Github Copilot)", AgentKind.OPENCODE, 500_000
@@ -1880,6 +1902,18 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:openrouter/openai/gpt-6-astra-pro": ModelInfo(
         "GPT-6 Astra Pro (Openrouter)", AgentKind.OPENCODE, 1_050_000
+    ),
+    "opencode:openrouter/openai/gpt-6-luna": ModelInfo(
+        "GPT-6 Luna (Openrouter)", AgentKind.OPENCODE, 1_050_000
+    ),
+    "opencode:openrouter/openai/gpt-6-luna-pro": ModelInfo(
+        "GPT-6 Luna Pro (Openrouter)", AgentKind.OPENCODE, 1_050_000
+    ),
+    "opencode:openrouter/openai/gpt-6-sol": ModelInfo(
+        "GPT-6 Sol (Openrouter)", AgentKind.OPENCODE, 1_050_000
+    ),
+    "opencode:openrouter/openai/gpt-6-sol-pro": ModelInfo(
+        "GPT-6 Sol Pro (Openrouter)", AgentKind.OPENCODE, 1_050_000
     ),
     "opencode:openrouter/openai/gpt-audio": ModelInfo(
         "GPT Audio (Openrouter)", AgentKind.OPENCODE, 128_000
