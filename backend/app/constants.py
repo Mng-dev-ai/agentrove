@@ -138,6 +138,7 @@ MODELS: dict[str, ModelInfo] = {
     "haiku": ModelInfo("Haiku", AgentKind.CLAUDE, 200_000),
     "claude-fable-5-1": ModelInfo("Fable 5.1", AgentKind.CLAUDE, 1_000_000),
     "claude-fable-5": ModelInfo("Fable 5", AgentKind.CLAUDE, 1_000_000),
+    "claude-opus-5-5": ModelInfo("Opus 5.5", AgentKind.CLAUDE, 1_000_000),
     "claude-opus-5": ModelInfo("Opus 5", AgentKind.CLAUDE, 1_000_000),
     # Codex CLI clamps model_context_window to its bundled catalog max — 272k for
     # these slugs — then sessions report ~95% of the resolved window (e.g. 258,400).
@@ -243,6 +244,7 @@ MODELS: dict[str, ModelInfo] = {
         "Grok 4.20 Thinking", AgentKind.CURSOR, 200_000
     ),
     "cursor:kimi-k2.5": ModelInfo("Kimi K2.5", AgentKind.CURSOR, 262_000),
+    "grok:grok-4.7": ModelInfo("Grok 4.7", AgentKind.GROK, 500_000),
     "grok:grok-4.6": ModelInfo("Grok 4.6", AgentKind.GROK, 500_000),
     "grok:grok-4.5": ModelInfo("Grok 4.5", AgentKind.GROK, 500_000),
     "antigravity:gemini-3.8-flash": ModelInfo(

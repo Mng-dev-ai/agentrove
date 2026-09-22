@@ -176,7 +176,9 @@ class AgentAdapter:
 class ClaudeAgentAdapter(AgentAdapter):
     binary = "claude-agent-acp"
     effort_config_id = "effort"
-    XHIGH_MODEL_IDS = frozenset({"claude-fable-5-1", "claude-fable-5", "claude-opus-5"})
+    XHIGH_MODEL_IDS = frozenset(
+        {"claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5"}
+    )
     # claude-agent-acp only advertises the "effort" config option for models that
     # report supportsEffort — Haiku doesn't, so set_config_option("effort") fails
     # with "Unknown config option: effort".
@@ -373,10 +375,10 @@ class GrokAgentAdapter(AgentAdapter):
     # `code` mode never prompted, so it falls back to always-approve.
     session_modes = frozenset({"auto", "always-approve", "plan"})
     fallback_session_mode = "always-approve"
-    # Grok 4.5 exposes low/medium/high reasoning effort and Grok 4.6 adds xhigh;
-    # the effort launch flag is skipped for models outside these allowlists.
-    REASONING_MODEL_IDS = frozenset({"grok:grok-4.5", "grok:grok-4.6"})
-    XHIGH_MODEL_IDS = frozenset({"grok:grok-4.6"})
+    # Grok 4.5 exposes low/medium/high reasoning effort; 4.6+ add xhigh.
+    # The effort launch flag is skipped for models outside these allowlists.
+    REASONING_MODEL_IDS = frozenset({"grok:grok-4.5", "grok:grok-4.6", "grok:grok-4.7"})
+    XHIGH_MODEL_IDS = frozenset({"grok:grok-4.6", "grok:grok-4.7"})
 
     def build_launch_config(
         self,
