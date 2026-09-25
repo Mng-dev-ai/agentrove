@@ -41,7 +41,7 @@ export function FloatingTooltip({
   const [position, setPosition] = useState<TooltipPosition | null>(null);
   // Covers show delay + visible so scroll can cancel a pending show, not just an open tip.
   const [hovering, setHovering] = useState(false);
-  const triggerRef = useRef<HTMLElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const showTimerRef = useRef<number | null>(null);
 
@@ -119,10 +119,13 @@ export function FloatingTooltip({
   }, [hovering]);
 
   const Trigger = inline ? 'span' : 'div';
+  const setTriggerRef = (el: HTMLElement | null) => {
+    triggerRef.current = el;
+  };
 
   return (
     <Trigger
-      ref={triggerRef}
+      ref={setTriggerRef}
       className={clsx(styles['floating-tooltip'], className)}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={hide}
