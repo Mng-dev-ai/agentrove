@@ -11,6 +11,7 @@ import type {
 import clsx from 'clsx';
 import { AttachmentViewer } from '../attachment-viewer/AttachmentViewer';
 import { Link } from '../primitives/Link/Link';
+import { FloatingTooltip } from '../FloatingTooltip/FloatingTooltip';
 import { isImageUrl } from '@/utils/fileTypes';
 import { findFileByToolPath, parseFileHref } from '@/utils/file';
 import type { FileStructure } from '@/types/file-system.types';
@@ -37,12 +38,14 @@ type ImageProps = ImgHTMLAttributes<HTMLImageElement>;
 
 type FileLinkChat = { chatId: string | undefined; fileStructure: FileStructure[] } | null;
 
-function openWorkspaceFile(href: string, chat: FileLinkChat) {
+function openWorkspaceFile(href: string, chat: FileLinkChat, split: boolean) {
   if (!chat) return;
   const parsed = parseFileHref(href);
   if (!parsed) return;
   const mapped = findFileByToolPath(chat.fileStructure, parsed.path);
-  useUIStore.getState().openFileInEditor(mapped?.path ?? parsed.path, chat.chatId, parsed.line);
+  useUIStore
+    .getState()
+    .openFileInEditor(mapped?.path ?? parsed.path, chat.chatId, parsed.line, split);
 }
 
 function handleFileLinkClick(
@@ -52,7 +55,7 @@ function handleFileLinkClick(
 ) {
   event.preventDefault();
   event.stopPropagation();
-  openWorkspaceFile(href, chat);
+  openWorkspaceFile(href, chat, event.shiftKey);
 }
 
 function handleFileLinkKeyDown(
@@ -62,7 +65,7 @@ function handleFileLinkKeyDown(
 ) {
   if (event.key !== 'Enter' && event.key !== ' ') return;
   event.preventDefault();
-  openWorkspaceFile(href, chat);
+  openWorkspaceFile(href, chat, event.shiftKey);
 }
 
 // Module-level so every MarkdownBlock sees the same components identity forever
@@ -217,18 +220,20 @@ export const MARKDOWN_COMPONENTS: Components = {
 
     if (href && /^file:/i.test(href)) {
       return (
-        <Link
-          {...props}
-          variant="unstyled"
-          className={clsx(styles.link, styles['file-link'])}
-          role="button"
-          tabIndex={0}
-          onClick={(event) => handleFileLinkClick(event, href, chat)}
-          onAuxClick={(event) => handleFileLinkClick(event, href, chat)}
-          onKeyDown={(event) => handleFileLinkKeyDown(event, href, chat)}
-        >
-          {children}
-        </Link>
+        <FloatingTooltip content={chat ? 'Open in editor · ⇧-click to split' : ''} inline>
+          <Link
+            {...props}
+            variant="unstyled"
+            className={clsx(styles.link, styles['file-link'])}
+            role="button"
+            tabIndex={0}
+            onClick={(event) => handleFileLinkClick(event, href, chat)}
+            onAuxClick={(event) => handleFileLinkClick(event, href, chat)}
+            onKeyDown={(event) => handleFileLinkKeyDown(event, href, chat)}
+          >
+            {children}
+          </Link>
+        </FloatingTooltip>
       );
     }
 

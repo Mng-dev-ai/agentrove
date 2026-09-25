@@ -27,18 +27,25 @@ interface FloatingTooltipProps {
   content: string;
   children: ReactNode;
   className?: string;
+  // Renders the trigger as a span so it can sit inside running text (e.g. a <p>).
+  inline?: boolean;
 }
 
 // Fixed-position title replacement — unlike CSS Tooltip, won't clip inside overflow lists.
-export function FloatingTooltip({ content, children, className }: FloatingTooltipProps) {
+export function FloatingTooltip({
+  content,
+  children,
+  className,
+  inline = false,
+}: FloatingTooltipProps) {
   const [position, setPosition] = useState<TooltipPosition | null>(null);
   // Covers show delay + visible so scroll can cancel a pending show, not just an open tip.
   const [hovering, setHovering] = useState(false);
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLElement>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
   const showTimerRef = useRef<number | null>(null);
 
-  const handlePointerEnter = (e: ReactPointerEvent<HTMLDivElement>) => {
+  const handlePointerEnter = (e: ReactPointerEvent<HTMLElement>) => {
     if (e.pointerType === 'touch') return;
     setHovering(true);
     showTimerRef.current = window.setTimeout(() => {
@@ -111,8 +118,10 @@ export function FloatingTooltip({ content, children, className }: FloatingToolti
     };
   }, [hovering]);
 
+  const Trigger = inline ? 'span' : 'div';
+
   return (
-    <div
+    <Trigger
       ref={triggerRef}
       className={clsx(styles['floating-tooltip'], className)}
       onPointerEnter={handlePointerEnter}
@@ -134,6 +143,6 @@ export function FloatingTooltip({ content, children, className }: FloatingToolti
           </div>,
           document.body,
         )}
-    </div>
+    </Trigger>
   );
 }

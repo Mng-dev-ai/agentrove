@@ -83,7 +83,12 @@ type UIStoreState = ThemeState &
     pendingFileOpen: PendingFileOpen | null;
     // Monotonic — consumers null pendingFileOpen, so its nonce can't seed the next.
     fileOpenNonce: number;
-    openFileInEditor: (path: string, chatId: string | undefined, line?: number) => void;
+    openFileInEditor: (
+      path: string,
+      chatId: string | undefined,
+      line?: number,
+      split?: boolean,
+    ) => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
     // Selection chips for a chat's input; serialized into the prompt at send.
@@ -312,7 +317,7 @@ export const useUIStore = create<UIStoreState>()(
 
       pendingFileOpen: null,
       fileOpenNonce: 0,
-      openFileInEditor: (path, chatId, line) => {
+      openFileInEditor: (path, chatId, line, split = false) => {
         const state = get();
         const splitIndex = chatId ? state.splitChatIds.indexOf(chatId) : -1;
         const slot = splitIndex >= 0 ? splitSlotAt(splitIndex) : null;
@@ -329,8 +334,14 @@ export const useUIStore = create<UIStoreState>()(
           openTabs: state.openTabs.includes(tileId) ? state.openTabs : [...state.openTabs, tileId],
         });
         // Already visible — focus only; activateTab would collapse a split.
-        if (state.visibleLayout.flat().includes(tileId)) get().focusTile(tileId);
-        else get().activateTab(tileId);
+        if (state.visibleLayout.flat().includes(tileId)) {
+          get().focusTile(tileId);
+        } else if (split && isDesktop()) {
+          set({ visibleLayout: appendToLastRow(state.visibleLayout, tileId) });
+          get().focusTile(tileId);
+        } else {
+          get().activateTab(tileId);
+        }
       },
 
       openTabs: ['agent:primary'],
