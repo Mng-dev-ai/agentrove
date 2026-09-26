@@ -3,7 +3,7 @@ fastapi-users[sqlalchemy]==13.0.0
 pydantic>=2.0,<3.0
 pydantic-settings
 email-validator
-sqlalchemy[asyncio]
+sqlalchemy[asyncio]>=2.0,<2.1
 aiosqlite
 python-jose[cryptography]
 cryptography
@@ -16,7 +16,7 @@ starlette
 itsdangerous
 aiodocker>=0.22.0
 agent-client-protocol==0.12.0
-mcp
+mcp==1.19.0
 httpx
 aiosmtplib
 slowapi
