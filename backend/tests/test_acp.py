@@ -176,6 +176,7 @@ def test_claude_launch_uses_installed_claude_cli() -> None:
         ("sonnet", "xhigh", "high"),
         ("claude-opus-5", "xhigh", "xhigh"),
         ("claude-opus-5-5", "xhigh", "xhigh"),
+        ("claude-sonnet-5-5", "xhigh", "xhigh"),
         ("claude-fable-5-1", "xhigh", "xhigh"),
     ],
 )

@@ -177,7 +177,13 @@ class ClaudeAgentAdapter(AgentAdapter):
     binary = "claude-agent-acp"
     effort_config_id = "effort"
     XHIGH_MODEL_IDS = frozenset(
-        {"claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5"}
+        {
+            "claude-fable-5-1",
+            "claude-fable-5",
+            "claude-opus-5-5",
+            "claude-opus-5",
+            "claude-sonnet-5-5",
+        }
     )
     # claude-agent-acp only advertises the "effort" config option for models that
     # report supportsEffort — Haiku doesn't, so set_config_option("effort") fails
