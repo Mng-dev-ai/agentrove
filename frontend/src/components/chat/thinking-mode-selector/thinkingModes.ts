@@ -25,6 +25,7 @@ const CLAUDE_XHIGH_MODEL_IDS = new Set([
   'claude-fable-5',
   'claude-opus-5-5',
   'claude-opus-5',
+  'claude-sonnet-5-5',
 ]);
 // claude-agent-acp only exposes the effort dial for models that report
 // supportsEffort — Haiku doesn't, so hide the selector. Mirrors
