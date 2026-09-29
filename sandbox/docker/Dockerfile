@@ -2,9 +2,9 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV HOME=/home/user
-ENV PATH="/home/user/.local/bin:/home/user/.nvm/versions/node/v20.18.0/bin:$PATH"
+ENV PATH="/home/user/.local/bin:/home/user/.nvm/versions/node/v22.23.3/bin:$PATH"
 ENV NVM_DIR="/home/user/.nvm"
-ENV NODE_VERSION=20.18.0
+ENV NODE_VERSION=22.23.3
 ENV TERM=xterm-256color
 
 RUN apt-get update && apt-get install -y \
@@ -66,14 +66,14 @@ COPY --chmod=755 sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chown=user:user --chmod=755 backend/app/browser_mcp_cloud.py /home/user/browser_mcp_cloud.py
 
 RUN set -eux; \
-    version=20260818_01_RC01; \
+    version=1.2.1; \
     case "$(uname -m)" in \
-      x86_64|amd64) platform=linux-x86_64 ;; \
-      aarch64|arm64) platform=linux-arm64 ;; \
+      x86_64|amd64) arch=x86_64 ;; \
+      aarch64|arm64) arch=arm64 ;; \
       *) exit 1 ;; \
     esac; \
     mkdir -p /opt/antigravity /home/user/.local/bin; \
-    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_${version}-${platform}.zip" \
+    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${version}-linux-${arch}.zip" \
       -o /tmp/antigravity.zip; \
     unzip /tmp/antigravity.zip -d /opt/antigravity; \
     rm /tmp/antigravity.zip; \
@@ -95,12 +95,12 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | b
     nvm alias default $NODE_VERSION
 
 RUN . "$NVM_DIR/nvm.sh" && \
-    npm install -g @anthropic-ai/claude-code@2.1.280 @agentclientprotocol/claude-agent-acp@0.81.0 @agentclientprotocol/codex-acp@1.12.0 @openai/codex@0.155.1 @github/copilot@1.0.80
+    npm install -g @anthropic-ai/claude-code@2.1.284 @agentclientprotocol/claude-agent-acp@0.84.0 @agentclientprotocol/codex-acp@2.0.0 @openai/codex@0.158.0 @github/copilot@1.0.89
 
 # Cursor CLI — pinned download replicating cursor.com/install (which always
 # fetches its own latest); cursor-agent lands in ~/.local/bin, already on PATH.
 RUN set -eux; \
-    v=2026.08.11-e8db854; \
+    v=2026.09.26-dd393fe; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
     dir=/home/user/.local/share/cursor-agent/versions/$v; \
     mkdir -p "$dir" /home/user/.local/bin; \
@@ -112,7 +112,7 @@ RUN set -eux; \
 # OpenCode CLI (installs `opencode` to ~/.opencode/bin; symlink into ~/.local/bin
 # so the ACP binary resolves without modifying PATH). Pinned: the unpinned path
 # resolves "latest" via the rate-limited GitHub API.
-RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.18 && \
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.33 && \
     mkdir -p /home/user/.local/bin && \
     ln -sf /home/user/.opencode/bin/opencode /home/user/.local/bin/opencode
 
