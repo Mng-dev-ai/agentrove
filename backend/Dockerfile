@@ -27,12 +27,12 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.280 @agentclientprotocol/claude-agent-acp@0.81.0 @agentclientprotocol/codex-acp@1.12.0 @openai/codex@0.155.1 @github/copilot@1.0.80
+RUN npm install -g @anthropic-ai/claude-code@2.1.284 @agentclientprotocol/claude-agent-acp@0.84.0 @agentclientprotocol/codex-acp@2.0.0 @openai/codex@0.158.0 @github/copilot@1.0.89
 
 # Cursor CLI — used for the Cursor ACP server (`cursor-agent acp`). Pinned
 # download replicating cursor.com/install, which always fetches its own latest.
 RUN set -eux; \
-    v=2026.08.11-e8db854; \
+    v=2026.09.26-dd393fe; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
     dir=/root/.local/share/cursor-agent/versions/$v; \
     mkdir -p "$dir" /root/.local/bin; \
@@ -45,7 +45,7 @@ RUN set -eux; \
 # OpenCode CLI — used for the OpenCode ACP server (`opencode acp`); installs to
 # /root/.opencode/bin. Pinned: the unpinned path resolves "latest" via the
 # rate-limited GitHub API.
-RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.18 && \
+RUN curl -fsSL https://opencode.ai/install | bash -s -- --version 1.18.33 && \
     cp /root/.opencode/bin/opencode /usr/local/bin/opencode && \
     chmod +x /usr/local/bin/opencode
 
@@ -64,14 +64,14 @@ RUN set -eux; \
     chmod +x /usr/local/bin/grok
 
 RUN set -eux; \
-    version=20260818_01_RC01; \
+    version=1.2.1; \
     case "$(uname -m)" in \
-      x86_64|amd64) platform=linux-x86_64 ;; \
-      aarch64|arm64) platform=linux-arm64 ;; \
+      x86_64|amd64) arch=x86_64 ;; \
+      aarch64|arm64) arch=arm64 ;; \
       *) exit 1 ;; \
     esac; \
     mkdir -p /opt/antigravity; \
-    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_${version}-${platform}.zip" \
+    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${version}-linux-${arch}.zip" \
       -o /tmp/antigravity.zip; \
     unzip /tmp/antigravity.zip -d /opt/antigravity; \
     rm /tmp/antigravity.zip; \
