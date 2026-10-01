@@ -21,6 +21,7 @@ from app.services.git import (
     GIT_CREATE_BRANCH_FROM_REMOTE_TEMPLATE,
     GIT_CURRENT_BRANCH_CMD,
     GIT_IS_REPO_CMD,
+    GIT_LOCAL_BRANCH_EXISTS_TEMPLATE,
     GIT_PULL_CMD,
     GIT_PUSH_CMD,
     GIT_SHOW_HEAD_TEMPLATE,
@@ -1052,6 +1053,10 @@ async def test_git_checkout_remote_fallback_success(
         CommandResult(stdout="", stderr="error: pathspec", exit_code=1),
     )
     provider.script(
+        GIT_LOCAL_BRANCH_EXISTS_TEMPLATE.substitute(branch=branch),
+        CommandResult(stdout="", stderr="", exit_code=1),
+    )
+    provider.script(
         GIT_CHECKOUT_FROM_REMOTE_TEMPLATE.substitute(branch=branch),
         CommandResult(stdout="", stderr="", exit_code=0),
     )
@@ -1089,6 +1094,10 @@ async def test_git_checkout_fails_when_both_attempts_fail(
     provider.script(
         GIT_CHECKOUT_TEMPLATE.substitute(branch=branch),
         CommandResult(stdout="local fail\n", stderr="", exit_code=1),
+    )
+    provider.script(
+        GIT_LOCAL_BRANCH_EXISTS_TEMPLATE.substitute(branch=branch),
+        CommandResult(stdout="", stderr="", exit_code=1),
     )
     provider.script(
         GIT_CHECKOUT_FROM_REMOTE_TEMPLATE.substitute(branch=branch),

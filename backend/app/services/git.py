@@ -59,6 +59,9 @@ GIT_LIST_BRANCHES_CMD = (
 )
 
 GIT_CHECKOUT_TEMPLATE = Template("git checkout '$branch' 2>&1")
+GIT_LOCAL_BRANCH_EXISTS_TEMPLATE = Template(
+    "git show-ref --verify --quiet refs/heads/'$branch'"
+)
 GIT_CHECKOUT_FROM_REMOTE_TEMPLATE = Template(
     "git checkout -b '$branch' 'origin/$branch' 2>&1"
 )
@@ -395,24 +398,27 @@ class GitService:
             f"{git_prefix}{GIT_CHECKOUT_TEMPLATE.substitute(branch=branch)}",
         )
         if result.exit_code != 0:
-            # Branch might only exist as a remote tracking branch
-            result = await self.sandbox_service.execute_command(
+            local_result = await self.sandbox_service.execute_command(
                 sandbox_id,
-                f"{git_prefix}{GIT_CHECKOUT_FROM_REMOTE_TEMPLATE.substitute(branch=branch)}",
+                f"{git_prefix}{GIT_LOCAL_BRANCH_EXISTS_TEMPLATE.substitute(branch=branch)}",
             )
-
-        if result.exit_code != 0:
-            return GitCheckoutResponse(
-                success=False,
-                current_branch="",
-                error=result.stdout.strip() or result.stderr.strip(),
-            )
+            if local_result.exit_code == 1:
+                result = await self.sandbox_service.execute_command(
+                    sandbox_id,
+                    f"{git_prefix}{GIT_CHECKOUT_FROM_REMOTE_TEMPLATE.substitute(branch=branch)}",
+                )
 
         head_result = await self.sandbox_service.execute_command(
             sandbox_id,
             f"{git_prefix}{GIT_CURRENT_BRANCH_CMD}",
         )
         current = head_result.stdout.strip()
+        if result.exit_code != 0 and current != branch:
+            return GitCheckoutResponse(
+                success=False,
+                current_branch="",
+                error=result.stdout.strip() or result.stderr.strip(),
+            )
         if current == "HEAD":
             await self.sandbox_service.execute_command(
                 sandbox_id,
