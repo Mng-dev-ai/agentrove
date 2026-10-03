@@ -73,6 +73,7 @@ class MemberTurn:
     batch: list[ChannelMessage]
     text: str = ""
     reset_segment: bool = False
+    last_flush_at: float = 0
     message: ChannelMessage | None = None
     status: TurnStatus = TurnStatus.RUNNING
     provider_task: asyncio.Task[str] | None = None
@@ -283,20 +284,24 @@ class ChannelService(BaseDbService[Channel]):
     async def post(self, channel: Channel, content: str) -> ChannelMessage:
         state = self.state(channel)
         async with state.control:
-            async with state.lock:
-                if state.deleted:
-                    raise HTTPException(404, "Channel not found")
-                state.paused = True
-                turns = await self.cancel_active(state)
-                message = await self.new_message(state, content)
-                await self.publish_message(channel, message)
-                self.fan_out(state)
+            turns: list[MemberTurn] = []
             try:
-                await self.cancel_turns(turns)
-            finally:
                 async with state.lock:
-                    state.paused = False
-                    self.schedule(state)
+                    if state.deleted:
+                        raise HTTPException(404, "Channel not found")
+                    state.paused = True
+                    turns = list(state.turns.values())
+                    await self.cancel_active(state)
+                    message = await self.new_message(state, content)
+                    await self.publish_message(channel, message)
+                    self.fan_out(state)
+            finally:
+                try:
+                    await self.cancel_turns(turns)
+                finally:
+                    async with state.lock:
+                        state.paused = False
+                        self.schedule(state)
             return message
 
     async def cancel_active(self, state: ChannelState) -> list[MemberTurn]:
@@ -466,7 +471,10 @@ class ChannelService(BaseDbService[Channel]):
 
     @classmethod
     def is_silent(cls, text: str) -> bool:
-        return "PASS".startswith(cls.normalized(text))
+        lines = [line for line in text.splitlines() if line.strip()]
+        return "PASS".startswith(cls.normalized(text).upper()) or (
+            bool(lines) and cls.normalized(lines[-1]).upper() == "PASS"
+        )
 
     async def text(self, state: ChannelState, turn: MemberTurn, delta: str) -> None:
         async with state.lock:
@@ -475,21 +483,22 @@ class ChannelService(BaseDbService[Channel]):
             if turn.reset_segment:
                 turn.text = ""
                 turn.reset_segment = False
-                if turn.message is not None and turn.message.content:
-                    async with self.session_factory() as db:
-                        await self.write_message(db, turn.message, "", "streaming")
-                        await db.commit()
-                    await self.publish_message(state.channel, turn.message)
             turn.text += delta
-            if self.is_silent(turn.text):
+            silent = "PASS".startswith(self.normalized(turn.text).upper())
+            if turn.message is None and silent:
+                return
+            if asyncio.get_running_loop().time() - turn.last_flush_at < 0.2:
                 return
             if turn.message is None:
                 await self.begin_speaking(state, turn)
             else:
                 async with self.session_factory() as db:
-                    await self.write_message(db, turn.message, turn.text, "streaming")
+                    await self.write_message(
+                        db, turn.message, "" if silent else turn.text, "streaming"
+                    )
                     await db.commit()
                 await self.publish_message(state.channel, turn.message)
+            turn.last_flush_at = asyncio.get_running_loop().time()
 
     @staticmethod
     async def write_message(
