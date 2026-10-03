@@ -3,13 +3,11 @@ import json
 import logging
 import math
 from collections.abc import AsyncIterator, Callable
-from contextlib import nullcontext
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import exists, func, select, update, true
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
 from app.constants import (
@@ -269,15 +267,8 @@ class ChatService(BaseDbService[Chat]):
         self,
         user: User,
         chat_data: ChatCreate,
-        *,
-        channel_id: UUID | None = None,
-        session: AsyncSession | None = None,
     ) -> Chat:
-        async with (
-            nullcontext(session)
-            if session is not None
-            else self.session_factory() as db
-        ):
+        async with self.session_factory() as db:
             workspace_id = chat_data.workspace_id
             worktree_cwd: str | None = None
 
@@ -334,7 +325,6 @@ class ChatService(BaseDbService[Chat]):
 
             chat = Chat(
                 title=chat_data.title,
-                channel_id=channel_id,
                 user_id=user.id,
                 workspace_id=workspace.id,
                 parent_chat_id=chat_data.parent_chat_id,
@@ -342,10 +332,7 @@ class ChatService(BaseDbService[Chat]):
             )
 
             db.add(chat)
-            if session is None:
-                await db.commit()
-            else:
-                await db.flush()
+            await db.commit()
 
             query = (
                 select(Chat)
@@ -357,16 +344,13 @@ class ChatService(BaseDbService[Chat]):
 
         # Announce so open browser sessions can show chats created out-of-band
         # (e.g. via the MCP server) without a refresh.
-        if channel_id is None:
-            await self.publish_user_chat_event(
-                user.id,
-                {
-                    "kind": "chat_created",
-                    "chat": ChatSchema.model_validate(loaded_chat).model_dump(
-                        mode="json"
-                    ),
-                },
-            )
+        await self.publish_user_chat_event(
+            user.id,
+            {
+                "kind": "chat_created",
+                "chat": ChatSchema.model_validate(loaded_chat).model_dump(mode="json"),
+            },
+        )
 
         return loaded_chat
 

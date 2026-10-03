@@ -3,12 +3,14 @@ import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from enum import Enum
 from functools import partial
 from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
 from sqlalchemy import Select, delete, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.constants import MODELS, REDIS_KEY_USER_STREAMS_LIVE
@@ -22,7 +24,7 @@ from app.models.db_models.chat import Chat
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.channel import ChannelCreate, ChannelMessageRead
-from app.models.schemas.chat import ChatCreate, ChatRequest
+from app.models.schemas.chat import ChatRequest
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import DISCUSSION_SESSION_MODE
 from app.services.chat import ChatService
@@ -52,14 +54,26 @@ INTRODUCTION = (
 )
 
 
+class TurnStatus(Enum):
+    RUNNING = "running"
+    CANCELLED = "cancelled"
+    FAILED = "failed"
+    FINISHED = "finished"
+
+
+@dataclass
+class MemberRetry:
+    delay: float
+    until: float
+
+
 @dataclass
 class MemberTurn:
     member: ChannelMember
     batch: list[ChannelMessage]
     text: str = ""
     message: ChannelMessage | None = None
-    cancelled: bool = False
-    finished: bool = False
+    status: TurnStatus = TurnStatus.RUNNING
     provider_task: asyncio.Task[str] | None = None
     task: asyncio.Task[None] | None = None
 
@@ -74,6 +88,8 @@ class ChannelState:
     control: asyncio.Lock = field(default_factory=asyncio.Lock)
     turns: dict[UUID, MemberTurn] = field(default_factory=dict)
     timer: asyncio.Task[None] | None = None
+    retries: dict[UUID, MemberRetry] = field(default_factory=dict)
+    unavailable: set[UUID] = field(default_factory=set)
     quiet_until: float = 0
     paused: bool = False
     deleted: bool = False
@@ -141,16 +157,14 @@ class ChannelService(BaseDbService[Channel]):
                 name = MODELS[item.model_id].agent_kind.value.lower()
                 counts[name] = counts.get(name, 0) + 1
                 display_name = name if counts[name] == 1 else f"{name}-{counts[name]}"
-                chat = await self.chats.create_chat(
-                    user,
-                    ChatCreate(
-                        title=data.name,
-                        workspace_id=data.workspace_id,
-                        model_id=item.model_id,
-                    ),
+                chat = Chat(
+                    title=data.name,
+                    user_id=user.id,
+                    workspace_id=data.workspace_id,
                     channel_id=channel.id,
-                    session=db,
                 )
+                db.add(chat)
+                await db.flush()
                 channel.members.append(
                     ChannelMember(
                         chat_id=chat.id,
@@ -257,12 +271,12 @@ class ChannelService(BaseDbService[Channel]):
         state.quiet_until = asyncio.get_running_loop().time() + DEBOUNCE_SECONDS
         self.schedule(state)
 
-    def schedule(self, state: ChannelState) -> None:
+    def schedule(self, state: ChannelState, retry_at: float = 0) -> None:
         if state.timer is not None:
             state.timer.cancel()
             state.timer = None
         if not state.paused and not state.deleted:
-            state.timer = asyncio.create_task(self.wake(state))
+            state.timer = asyncio.create_task(self.wake(state, retry_at))
             state.timer.add_done_callback(self.task_done)
 
     @staticmethod
@@ -277,17 +291,9 @@ class ChannelService(BaseDbService[Channel]):
                 if state.deleted:
                     raise HTTPException(404, "Channel not found")
                 state.paused = True
-                turns = list(state.turns.values())
-                interrupted = [turn for turn in turns if not turn.finished]
-                for turn in interrupted:
-                    turn.cancelled = True
-                    await self.finish(state, turn)
+                turns = await self.cancel_active(state)
                 message = await self.new_message(state, content)
-                await self.publish(
-                    channel,
-                    "channel_message",
-                    {"message": self.serialized(message)},
-                )
+                await self.publish_message(channel, message)
                 self.fan_out(state)
             try:
                 await self.cancel_turns(turns)
@@ -297,6 +303,16 @@ class ChannelService(BaseDbService[Channel]):
                     self.schedule(state)
             return message
 
+    async def cancel_active(self, state: ChannelState) -> list[MemberTurn]:
+        turns = list(state.turns.values())
+        for turn in turns:
+            if turn.status is not TurnStatus.FINISHED:
+                turn.status = TurnStatus.CANCELLED
+                await self.finish(state, turn)
+            if turn.task is not None and turn.task.done():
+                state.turns.pop(turn.member.id)
+        return turns
+
     async def cancel_turns(self, turns: list[MemberTurn]) -> None:
         await asyncio.gather(
             *(
@@ -305,30 +321,76 @@ class ChannelService(BaseDbService[Channel]):
             )
         )
 
-    async def wake(self, state: ChannelState) -> None:
+    async def wake(self, state: ChannelState, retry_at: float = 0) -> None:
         await asyncio.sleep(
-            max(0, state.quiet_until - asyncio.get_running_loop().time())
+            max(0, max(state.quiet_until, retry_at) - asyncio.get_running_loop().time())
         )
         async with state.lock:
             state.timer = None
             if state.paused or state.deleted:
                 return
+            retry_times = []
+            now = asyncio.get_running_loop().time()
             for member in state.channel.members:
-                if member.id in state.turns:
+                if member.model_id not in MODELS:
+                    if member.id not in state.unavailable:
+                        logger.warning(
+                            "Skipping channel member %s: unknown model %s",
+                            member.id,
+                            member.model_id,
+                        )
+                        state.unavailable.add(member.id)
                     continue
-                async with self.session_factory() as db:
-                    batch = list((await db.scalars(self.unseen(member))).all())
-                    if not batch:
-                        continue
-                    db.add_all(
-                        ChannelDelivery(member_id=member.id, message_id=message.id)
-                        for message in batch
-                    )
-                    await db.commit()
+                retry = state.retries.get(member.id)
+                if retry is not None and retry.until > now:
+                    retry_times.append(retry.until)
+                    continue
+                previous = state.turns.get(member.id)
+                if previous is not None and (
+                    previous.status is not TurnStatus.FAILED
+                    or (previous.task is not None and not previous.task.done())
+                ):
+                    continue
+                try:
+                    if previous is not None:
+                        await self.finish(state, previous)
+                        state.turns.pop(member.id)
+                    async with self.session_factory() as db:
+                        batch = list((await db.scalars(self.unseen(member))).all())
+                        if not batch:
+                            continue
+                        db.add_all(
+                            ChannelDelivery(member_id=member.id, message_id=message.id)
+                            for message in batch
+                        )
+                        await db.commit()
+                except Exception as exc:
+                    self.backoff(state, member, exc)
+                    retry_times.append(state.retries[member.id].until)
+                    continue
                 turn = MemberTurn(member, batch)
                 state.turns[member.id] = turn
                 turn.task = asyncio.create_task(self.run_turn(state, turn))
                 turn.task.add_done_callback(self.task_done)
+            if retry_times:
+                self.schedule(state, min(retry_times))
+
+    def backoff(
+        self, state: ChannelState, member: ChannelMember, error: object
+    ) -> None:
+        previous = state.retries.get(member.id)
+        delay = min(previous.delay * 2, 300) if previous else 5
+        state.retries[member.id] = MemberRetry(
+            delay, asyncio.get_running_loop().time() + delay
+        )
+        logger.warning(
+            "Channel member %s failed; retrying in %ss: %s", member.id, delay, error
+        )
+
+    def fail_turn(self, state: ChannelState, turn: MemberTurn, error: object) -> None:
+        if turn.status not in (TurnStatus.FAILED, TurnStatus.FINISHED):
+            turn.status = TurnStatus.FAILED
+            self.backoff(state, turn.member, error)
 
     def prompt(self, state: ChannelState, turn: MemberTurn) -> str:
         names = {member.id: member.display_name for member in state.channel.members}
@@ -364,7 +426,7 @@ class ChannelService(BaseDbService[Channel]):
         )
         sink = partial(self.handle_event, state, turn)
         try:
-            while not turn.cancelled:
+            while turn.status is TurnStatus.RUNNING:
                 try:
                     await self.chats.initiate_chat_completion(
                         request,
@@ -379,18 +441,26 @@ class ChannelService(BaseDbService[Channel]):
                         raise
                     await asyncio.sleep(0.1)
             if turn.provider_task is not None:
-                if turn.cancelled:
+                if turn.status is not TurnStatus.RUNNING:
                     await ChatStreamRuntime.cancel_chat_turn(
                         str(member.chat_id), timeout=10
                     )
                 await turn.provider_task
-        except BaseException:
-            turn.cancelled = True
+        except asyncio.CancelledError:
+            if turn.status is TurnStatus.RUNNING:
+                turn.status = TurnStatus.CANCELLED
             raise
+        except Exception as exc:
+            if turn.status is TurnStatus.RUNNING:
+                self.fail_turn(state, turn, exc)
         finally:
             async with state.lock:
-                await self.finish(state, turn)
-                state.turns.pop(member.id)
+                try:
+                    await self.finish(state, turn)
+                except Exception as exc:
+                    self.fail_turn(state, turn, exc)
+                else:
+                    state.turns.pop(member.id)
                 self.schedule(state)
 
     @staticmethod
@@ -398,47 +468,59 @@ class ChannelService(BaseDbService[Channel]):
         wrappers = "`*\"' \t\r\n"
         return text.strip().strip(wrappers).removesuffix(".").strip().strip(wrappers)
 
+    @classmethod
+    def is_silent(cls, text: str) -> bool:
+        return cls.normalized(text) in ("", "PASS")
+
     async def text(self, state: ChannelState, turn: MemberTurn, delta: str) -> None:
         async with state.lock:
-            if turn.cancelled or turn.finished:
+            if turn.status is not TurnStatus.RUNNING:
                 return
             turn.text += delta
+            segment = self.normalized(turn.text)
+            if not segment or "PASS".startswith(segment):
+                return
             if turn.message is None:
-                segment = self.normalized(turn.text)
-                if not segment or "PASS".startswith(segment):
-                    return
                 await self.begin_speaking(state, turn)
             else:
-                await self.write_message(state, turn.message, turn.text, "streaming")
+                async with self.session_factory() as db:
+                    await self.write_message(db, turn.message, turn.text, "streaming")
+                    await db.commit()
+                await self.publish_message(state.channel, turn.message)
 
+    @staticmethod
     async def write_message(
-        self, state: ChannelState, message: ChannelMessage, content: str, status: str
+        db: AsyncSession, message: ChannelMessage, content: str, status: str
     ) -> None:
-        async with self.session_factory() as db:
-            message.content = content
-            message.status = status
-            message.version += 1
-            await db.execute(
-                update(ChannelMessage)
-                .where(ChannelMessage.id == message.id)
-                .values(content=content, status=status, version=message.version)
-            )
-            await db.commit()
-        await self.publish(
-            state.channel, "channel_message", {"message": self.serialized(message)}
+        message.content = content
+        message.status = status
+        message.version += 1
+        await db.execute(
+            update(ChannelMessage)
+            .where(ChannelMessage.id == message.id)
+            .values(content=content, status=status, version=message.version)
         )
 
     async def begin_speaking(self, state: ChannelState, turn: MemberTurn) -> None:
         turn.message = await self.new_message(state, turn.text, turn.member.id)
+        await self.publish_message(state.channel, turn.message)
+
+    async def publish_message(self, channel: Channel, message: ChannelMessage) -> None:
         await self.publish(
-            state.channel, "channel_message", {"message": self.serialized(turn.message)}
+            channel, "channel_message", {"message": self.serialized(message)}
+        )
+
+    async def publish_deleted(self, channel: Channel, message: ChannelMessage) -> None:
+        await self.publish(
+            channel, "channel_message_deleted", {"message_id": str(message.id)}
         )
 
     async def finish(self, state: ChannelState, turn: MemberTurn) -> None:
-        if turn.finished:
+        if turn.status is TurnStatus.FINISHED:
             return
-        silent = self.normalized(turn.text) in ("", "PASS")
-        if turn.message is None and not turn.cancelled and not silent:
+        successful = turn.status is TurnStatus.RUNNING
+        silent = self.is_silent(turn.text)
+        if turn.message is None and successful and not silent:
             await self.begin_speaking(state, turn)
         message = turn.message
         async with self.session_factory() as db:
@@ -446,54 +528,42 @@ class ChannelService(BaseDbService[Channel]):
                 ChannelDelivery.member_id == turn.member.id,
                 ChannelDelivery.message_id.in_([item.id for item in turn.batch]),
             )
-            if turn.cancelled:
-                await db.execute(delete(ChannelDelivery).where(*deliveries))
-            else:
+            if successful:
                 await db.execute(
                     update(ChannelDelivery).where(*deliveries).values(settled=True)
                 )
+            else:
+                await db.execute(delete(ChannelDelivery).where(*deliveries))
             if message is not None:
                 if silent:
                     await db.execute(
                         delete(ChannelMessage).where(ChannelMessage.id == message.id)
                     )
                 else:
-                    message.content = turn.text
-                    message.status = "cancelled" if turn.cancelled else "completed"
-                    message.version += 1
-                    await db.execute(
-                        update(ChannelMessage)
-                        .where(ChannelMessage.id == message.id)
-                        .values(
-                            content=message.content,
-                            status=message.status,
-                            version=message.version,
-                        )
+                    await self.write_message(
+                        db,
+                        message,
+                        turn.text,
+                        "completed" if successful else "cancelled",
                     )
-                    if not turn.cancelled:
-                        now = datetime.now(timezone.utc)
-                        await db.execute(
-                            update(Channel)
-                            .where(Channel.id == state.channel.id)
-                            .values(last_activity_at=now)
-                        )
-                        state.channel.last_activity_at = now
+                if not silent and successful:
+                    now = datetime.now(timezone.utc)
+                    await db.execute(
+                        update(Channel)
+                        .where(Channel.id == state.channel.id)
+                        .values(last_activity_at=now)
+                    )
+                    state.channel.last_activity_at = now
             await db.commit()
-        turn.finished = True
+        turn.status = TurnStatus.FINISHED
+        if successful:
+            state.retries.pop(turn.member.id, None)
         if message is not None:
             if silent:
-                await self.publish(
-                    state.channel,
-                    "channel_message_deleted",
-                    {"message_id": str(message.id)},
-                )
+                await self.publish_deleted(state.channel, message)
             else:
-                await self.publish(
-                    state.channel,
-                    "channel_message",
-                    {"message": self.serialized(message)},
-                )
-                if not turn.cancelled:
+                await self.publish_message(state.channel, message)
+                if successful:
                     self.fan_out(state)
 
     async def stop_state(self, state: ChannelState) -> None:
@@ -502,10 +572,7 @@ class ChannelService(BaseDbService[Channel]):
             if state.timer is not None:
                 state.timer.cancel()
                 state.timer = None
-            turns = list(state.turns.values())
-            for turn in turns:
-                turn.cancelled = True
-                await self.finish(state, turn)
+            turns = await self.cancel_active(state)
             async with self.session_factory() as db:
                 for member in state.channel.members:
                     batch = list((await db.scalars(self.unseen(member))).all())
@@ -561,7 +628,7 @@ class ChannelService(BaseDbService[Channel]):
                 ).all()
             )
             for message in messages:
-                if self.normalized(message.content) in ("", "PASS"):
+                if self.is_silent(message.content):
                     await db.delete(message)
                 else:
                     message.status = "cancelled"
@@ -579,18 +646,10 @@ class ChannelService(BaseDbService[Channel]):
             self.states[channel.id] = state
             for message in messages:
                 if message.channel_id == channel.id:
-                    if self.normalized(message.content) in ("", "PASS"):
-                        await self.publish(
-                            channel,
-                            "channel_message_deleted",
-                            {"message_id": str(message.id)},
-                        )
+                    if self.is_silent(message.content):
+                        await self.publish_deleted(channel, message)
                     else:
-                        await self.publish(
-                            channel,
-                            "channel_message",
-                            {"message": self.serialized(message)},
-                        )
+                        await self.publish_message(channel, message)
             self.fan_out(state)
 
     async def shutdown(self) -> None:
@@ -599,10 +658,7 @@ class ChannelService(BaseDbService[Channel]):
                 state.paused = True
                 if state.timer is not None:
                     state.timer.cancel()
-                for turn in state.turns.values():
-                    if not turn.finished:
-                        turn.cancelled = True
-                        await self.finish(state, turn)
+                await self.cancel_active(state)
         await asyncio.gather(
             *(
                 self.cancel_turns(list(state.turns.values()))
@@ -643,13 +699,18 @@ class ChannelService(BaseDbService[Channel]):
             await self.text(state, turn, payload["text"])
         elif kind in ("tool_started", "tool_completed", "tool_failed"):
             async with state.lock:
-                if turn.cancelled or turn.finished:
+                if turn.status is not TurnStatus.RUNNING:
                     return
                 turn.text = ""
-                if turn.message is not None:
-                    await self.write_message(state, turn.message, "", "streaming")
-        elif kind in ("cancelled", "error"):
-            turn.cancelled = True
+                if turn.message is not None and turn.message.content:
+                    async with self.session_factory() as db:
+                        await self.write_message(db, turn.message, "", "streaming")
+                        await db.commit()
+                    await self.publish_message(state.channel, turn.message)
+        elif kind == "error" and turn.status is TurnStatus.RUNNING:
+            self.fail_turn(state, turn, payload["error"])
+        elif kind == "cancelled" and turn.status is TurnStatus.RUNNING:
+            turn.status = TurnStatus.CANCELLED
 
 
 channel_service = ChannelService()

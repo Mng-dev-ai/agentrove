@@ -26,9 +26,12 @@ class ChannelCreate(BaseModel):
     members: list[ChannelMemberCreate] = Field(min_length=1)
 
 
-class ChannelMemberRead(ChannelMemberCreate):
+class ChannelMemberRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
+    model_id: str
+    persona: str | None
+    thinking_mode: str | None
     display_name: str
 
 
