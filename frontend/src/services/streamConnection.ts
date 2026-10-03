@@ -1,12 +1,12 @@
-import { apiClient, resolveChatClient } from '@/lib/api';
+import { resolveChatClient } from '@/lib/api';
 import { useStreamStore } from '@/store/streamStore';
-import { useChannelStore } from '@/store/channelStore';
 import { chatStorage } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 
 type StreamApiClient = ReturnType<typeof resolveChatClient>;
 
 interface StreamConnectionHandlers {
+  onOpen: () => void;
   onEnvelopeData: (raw: string) => void;
   onConnectionFailure: (chatIds: string[]) => void;
 }
@@ -38,13 +38,27 @@ const STALL_TIMEOUT_MS = 45000;
 class StreamConnectionManager {
   private connections = new Map<StreamApiClient, ManagedConnection>();
   private handlers: StreamConnectionHandlers | null = null;
+  private retainCounts = new Map<StreamApiClient, number>();
 
   configure(handlers: StreamConnectionHandlers): void {
     this.handlers = handlers;
     useStreamStore.subscribe(() => this.reconcile());
-    useChannelStore.subscribe((state, prev) => {
-      if (state.openChannelId !== prev.openChannelId) this.reconcile();
-    });
+  }
+
+  // Keeps the client's feed open without chat streams (e.g. a mounted channel page).
+  retain(client: StreamApiClient): () => void {
+    this.retainCounts.set(client, (this.retainCounts.get(client) ?? 0) + 1);
+    this.reconcile();
+    return () => {
+      const remaining = (this.retainCounts.get(client) ?? 1) - 1;
+      if (remaining > 0) this.retainCounts.set(client, remaining);
+      else this.retainCounts.delete(client);
+      this.reconcile();
+    };
+  }
+
+  private isRetained(client: StreamApiClient): boolean {
+    return this.retainCounts.has(client);
   }
 
   // Reopen if needed so this chat is in the replay cursor set.
@@ -65,19 +79,19 @@ class StreamConnectionManager {
 
     for (const [client, connection] of this.connections) {
       const activeChatIds = byClient.get(client);
-      if (!activeChatIds) {
+      if (!activeChatIds && !this.isRetained(client)) {
         this.teardown(client, connection);
         continue;
       }
       // Drop ended streams from replay set so a later turn can force replay again.
       for (const chatId of connection.replayedChatIds) {
-        if (!activeChatIds.has(chatId)) {
+        if (!activeChatIds?.has(chatId)) {
           connection.replayedChatIds.delete(chatId);
         }
       }
     }
 
-    for (const client of byClient.keys()) {
+    for (const client of new Set([...byClient.keys(), ...this.retainCounts.keys()])) {
       if (!this.connections.has(client)) {
         this.open(client);
       }
@@ -92,11 +106,6 @@ class StreamConnectionManager {
       const chatIds = byClient.get(client) ?? new Set<string>();
       chatIds.add(stream.chatId);
       byClient.set(client, chatIds);
-    }
-    // Channels live on the local backend and share its feed; an open channel needs
-    // the connection even with no chat streams.
-    if (useChannelStore.getState().openChannelId && !byClient.has(apiClient)) {
-      byClient.set(apiClient, new Set<string>());
     }
     return byClient;
   }
@@ -124,8 +133,8 @@ class StreamConnectionManager {
     };
     this.connections.set(client, connection);
 
-    const chatIds = this.activeChatIdsByClient().get(client);
-    if (!chatIds) {
+    const chatIds = this.activeChatIdsByClient().get(client) ?? new Set<string>();
+    if (chatIds.size === 0 && !this.isRetained(client)) {
       this.teardown(client, connection);
       return;
     }
@@ -179,7 +188,7 @@ class StreamConnectionManager {
     });
     source.onopen = () => {
       connection.lastActivityAt = Date.now();
-      useChannelStore.getState().bumpStreamEpoch();
+      this.handlers?.onOpen();
       if (connection.source !== source || connection.stableTimer) return;
       connection.stableTimer = setTimeout(() => {
         connection.stableTimer = null;

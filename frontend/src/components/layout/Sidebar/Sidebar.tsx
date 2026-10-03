@@ -209,8 +209,8 @@ export function Sidebar({
         <SidebarActions onNewChat={handleNewChat} onOpenSearch={handleOpenSearch} />
 
         <SidebarChannels
+          workspaces={workspaces}
           workspaceId={selectedChatWorkspaceId ?? undefined}
-          createWorkspaceId={selectedChatWorkspaceId ?? workspaces[0]?.id}
           selectedChannelId={selectedChannelId}
         />
 

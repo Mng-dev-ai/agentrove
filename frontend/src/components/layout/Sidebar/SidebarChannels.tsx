@@ -9,25 +9,26 @@ import { useChannelsQuery, useDeleteChannelMutation } from '@/hooks/queries/useC
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuthStore } from '@/store/authStore';
-import { useChannelStore } from '@/store/channelStore';
 import { useUIStore } from '@/store/uiStore';
 import { stateClasses } from '@/config/stateClasses';
+import type { Workspace } from '@/types/workspace.types';
 import type { Channel } from '@/types/channel.types';
 import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
 import dropdownStyles from './ChatDropdown.module.scss';
 import styles from './SidebarChannels.module.scss';
 
 interface SidebarChannelsProps {
+  workspaces: Workspace[];
   workspaceId: string | undefined;
-  createWorkspaceId: string | undefined;
   selectedChannelId: string | null;
 }
 
 export function SidebarChannels({
+  workspaces,
   workspaceId,
-  createWorkspaceId,
   selectedChannelId,
 }: SidebarChannelsProps) {
+  const createWorkspaceId = workspaceId ?? workspaces[0]?.id;
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -52,7 +53,7 @@ export function SidebarChannels({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   });
 
-  const handleSelect = (channelId: string) => {
+  const navigateToChannel = (channelId: string) => {
     navigate(`/channels/${channelId}`);
     if (isMobile) useUIStore.getState().setSidebarOpen(false);
   };
@@ -76,7 +77,6 @@ export function SidebarChannels({
         'Channel deleted successfully',
         'Failed to delete channel',
       );
-      useChannelStore.getState().clearChannel(id);
       if (id === selectedChannelId) navigate('/');
     } catch {
       // toast already shown by mutateWithToast
@@ -105,7 +105,7 @@ export function SidebarChannels({
           <div key={channel.id} className={clsx(styles.item, isActive && stateClasses.ACTIVE)}>
             <Button
               variant="unstyled"
-              onClick={() => handleSelect(channel.id)}
+              onClick={() => navigateToChannel(channel.id)}
               aria-current={isActive ? 'page' : undefined}
               className={styles['item-btn']}
             >
@@ -162,7 +162,11 @@ export function SidebarChannels({
       />
 
       {createOpen && createWorkspaceId && (
-        <CreateChannelDialog workspaceId={createWorkspaceId} onClose={() => setCreateOpen(false)} />
+        <CreateChannelDialog
+          workspaceId={createWorkspaceId}
+          onClose={() => setCreateOpen(false)}
+          onCreated={navigateToChannel}
+        />
       )}
     </div>
   );

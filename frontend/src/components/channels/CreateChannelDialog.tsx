@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Brain, Hash, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
@@ -17,7 +16,6 @@ import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { useCreateChannelMutation } from '@/hooks/queries/useChannelQueries';
 import { DEFAULT_PERSONA, DEFAULT_THINKING_MODE } from '@/store/chatSettingsStore';
 import { useAuthStore } from '@/store/authStore';
-import { useUIStore } from '@/store/uiStore';
 import type { Model } from '@/types/chat.types';
 import type { ChannelMemberCreateRequest } from '@/types/channel.types';
 import styles from './CreateChannelDialog.module.scss';
@@ -38,6 +36,12 @@ function newMemberDraft(): MemberDraft {
   };
 }
 
+function resolveModel(member: MemberDraft, models: Model[]) {
+  const modelId = member.modelId || models[0]?.model_id || '';
+  const agentKind = models.find((m) => m.model_id === modelId)?.agent_kind ?? 'claude';
+  return { modelId, agentKind };
+}
+
 interface MemberRowProps {
   member: MemberDraft;
   models: Model[];
@@ -48,8 +52,7 @@ interface MemberRowProps {
 }
 
 function MemberRow({ member, models, personas, canRemove, onChange, onRemove }: MemberRowProps) {
-  const modelId = member.modelId || models[0]?.model_id || '';
-  const agentKind = models.find((m) => m.model_id === modelId)?.agent_kind ?? 'claude';
+  const { modelId, agentKind } = resolveModel(member, models);
   const thinkingModes = getThinkingModesForAgent(agentKind, modelId);
   const effectiveMode = coerceThinkingModeForAgent(member.thinkingMode, agentKind, modelId);
   const selectedThinking = thinkingModes.find((mode) => mode.value === effectiveMode);
@@ -105,10 +108,10 @@ function MemberRow({ member, models, personas, canRemove, onChange, onRemove }: 
 interface CreateChannelDialogProps {
   workspaceId: string;
   onClose: () => void;
+  onCreated: (channelId: string) => void;
 }
 
-export function CreateChannelDialog({ workspaceId, onClose }: CreateChannelDialogProps) {
-  const navigate = useNavigate();
+export function CreateChannelDialog({ workspaceId, onClose, onCreated }: CreateChannelDialogProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: models = [] } = useModelsQuery({ enabled: isAuthenticated });
   const { data: settings } = useSettingsQuery({ enabled: isAuthenticated });
@@ -133,8 +136,7 @@ export function CreateChannelDialog({ workspaceId, onClose }: CreateChannelDialo
     }
 
     const requestMembers: ChannelMemberCreateRequest[] = members.map((member) => {
-      const modelId = member.modelId || models[0].model_id;
-      const agentKind = models.find((m) => m.model_id === modelId)?.agent_kind ?? 'claude';
+      const { modelId, agentKind } = resolveModel(member, models);
       const hasThinking = getThinkingModesForAgent(agentKind, modelId).length > 0;
       return {
         model_id: modelId,
@@ -152,8 +154,7 @@ export function CreateChannelDialog({ workspaceId, onClose }: CreateChannelDialo
         members: requestMembers,
       });
       onClose();
-      navigate(`/channels/${channel.id}`);
-      if (window.innerWidth < 640) useUIStore.getState().setSidebarOpen(false);
+      onCreated(channel.id);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create channel');
     }

@@ -13,7 +13,7 @@ import {
   usePostChannelMessageMutation,
   useStopChannelMutation,
 } from '@/hooks/queries/useChannelQueries';
-import { EMPTY_MESSAGES, EMPTY_TYPING, useChannelStore } from '@/store/channelStore';
+import { EMPTY_MESSAGES, useChannelStore } from '@/store/channelStore';
 import { useAuthStore } from '@/store/authStore';
 import { getAgentKindForModelId } from '@/types/chat.types';
 import type { Channel, ChannelMember, ChannelMessage } from '@/types/channel.types';
@@ -73,7 +73,6 @@ export function ChannelView({ channel }: { channel: Channel }) {
   const messagesById = useChannelStore(
     (state) => state.messagesByChannel[channel.id] ?? EMPTY_MESSAGES,
   );
-  const typingIds = useChannelStore((state) => state.typingByChannel[channel.id] ?? EMPTY_TYPING);
 
   const messages = useMemo(
     () => Object.values(messagesById).sort((a, b) => a.seq - b.seq),
@@ -83,8 +82,11 @@ export function ChannelView({ channel }: { channel: Channel }) {
     () => new Map(channel.members.map((member) => [member.id, member])),
     [channel.members],
   );
-  const typingNames = typingIds.flatMap((id) => membersById.get(id)?.display_name ?? []);
-  const isBusy = typingIds.length > 0 || messages.some((m) => m.status === 'streaming');
+  const speakers = messages.filter((m) => m.status === 'streaming');
+  const typingNames = [
+    ...new Set(speakers.flatMap((m) => membersById.get(m.member_id ?? '')?.display_name ?? [])),
+  ];
+  const isBusy = speakers.length > 0;
 
   const [draft, setDraft] = useState('');
   const postMessage = usePostChannelMessageMutation();
@@ -111,8 +113,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
     if (!content || postMessage.isPending) return;
     stickToBottomRef.current = true;
     try {
-      const message = await postMessage.mutateAsync({ channelId: channel.id, content });
-      useChannelStore.getState().mergeMessages(channel.id, [message]);
+      await postMessage.mutateAsync({ channelId: channel.id, content });
       setDraft('');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to send message');

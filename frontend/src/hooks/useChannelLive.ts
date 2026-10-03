@@ -1,27 +1,34 @@
 import { useEffect } from 'react';
+import { apiClient } from '@/lib/api';
 import { channelService } from '@/services/channelService';
+import { streamConnection } from '@/services/streamConnection';
 import { useChannelStore } from '@/store/channelStore';
 import { logger } from '@/utils/logger';
 
-function highestSeq(channelId: string): number {
-  const messages = useChannelStore.getState().messagesByChannel[channelId];
-  return messages ? Math.max(0, ...Object.values(messages).map((message) => message.seq)) : 0;
+// Streaming messages don't change seq, so resume just before the oldest one still open.
+function catchUpCursor(channelId: string): number {
+  const messages = Object.values(useChannelStore.getState().messagesByChannel[channelId] ?? {});
+  const streamingSeqs = messages.filter((m) => m.status === 'streaming').map((m) => m.seq);
+  if (streamingSeqs.length > 0) return Math.min(...streamingSeqs) - 1;
+  return Math.max(0, ...messages.map((m) => m.seq));
 }
 
-// Channel envelopes carry no seq: catch up by refetching past the highest seq held on
-// mount and after every SSE (re)open, merging by id.
 export function useChannelLive(channelId: string) {
   const streamEpoch = useChannelStore((state) => state.streamEpoch);
 
   useEffect(() => {
-    useChannelStore.getState().setOpenChannel(channelId);
-    return () => useChannelStore.getState().setOpenChannel(null);
+    useChannelStore.getState().holdChannel(channelId);
+    const release = streamConnection.retain(apiClient);
+    return () => {
+      release();
+      useChannelStore.getState().releaseChannel(channelId);
+    };
   }, [channelId]);
 
   useEffect(() => {
     let cancelled = false;
     channelService
-      .listMessages(channelId, highestSeq(channelId))
+      .listMessages(channelId, catchUpCursor(channelId))
       .then((messages) => {
         if (!cancelled) useChannelStore.getState().mergeMessages(channelId, messages);
       })

@@ -1,7 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { channelService } from '@/services/channelService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
+import { useChannelStore } from '@/store/channelStore';
 import type { Channel, ChannelCreateRequest, ChannelMessage } from '@/types/channel.types';
 
 export const useChannelsQuery = (workspaceId: string | undefined, enabled: boolean) =>
@@ -35,10 +36,11 @@ export const usePostChannelMessageMutation = createMutation<
   { channelId: string; content: string }
 >(
   ({ channelId, content }) => channelService.postMessage(channelId, content),
-  () => undefined,
+  (_queryClient, message) =>
+    useChannelStore.getState().mergeMessages(message.channel_id, [message]),
 );
 
-export const useStopChannelMutation = createMutation<void, Error, string>(
-  (channelId) => channelService.stopChannel(channelId),
-  () => undefined,
-);
+export const useStopChannelMutation = () =>
+  useMutation<void, Error, string>({
+    mutationFn: (channelId) => channelService.stopChannel(channelId),
+  });

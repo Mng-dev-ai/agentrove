@@ -1,7 +1,7 @@
 import { useStreamStore } from '@/store/streamStore';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useChannelStore } from '@/store/channelStore';
-import type { ChannelEnvelope } from '@/types/channel.types';
+import { isChannelEnvelope, type ChannelEnvelope } from '@/types/channel.types';
 import type { ChatRequest } from '@/types/chat.types';
 import type { ToolEventPayload } from '@/types/tools.types';
 import type {
@@ -52,6 +52,7 @@ class StreamService {
 
   constructor() {
     streamConnection.configure({
+      onOpen: () => useChannelStore.getState().bumpStreamEpoch(),
       onEnvelopeData: (raw) => this.handleEnvelopeData(raw),
       onConnectionFailure: (chatIds) => this.failStreamsForChats(chatIds),
     });
@@ -169,12 +170,11 @@ class StreamService {
 
   private handleEnvelopeData(raw: string): void {
     const parsed = this.parseStreamEvent<StreamEnvelope | ChannelEnvelope>(raw);
-    if (!parsed) return;
-    if ('channelId' in parsed) {
+    if (isChannelEnvelope(parsed)) {
       useChannelStore.getState().applyEnvelope(parsed);
       return;
     }
-    if (!parsed.chatId) return;
+    if (!parsed?.chatId) return;
     const chatId = parsed.chatId;
 
     // Ignore unregistered chats (e.g. sub-threads) — advancing their cursor would skip content on later replay.
