@@ -75,7 +75,10 @@ export function ChannelView({ channel }: { channel: Channel }) {
   );
 
   const messages = useMemo(
-    () => Object.values(messagesById).sort((a, b) => a.seq - b.seq),
+    () =>
+      Object.values(messagesById)
+        .filter((message) => message.status !== 'deleted')
+        .sort((a, b) => a.seq - b.seq),
     [messagesById],
   );
   const membersById = useMemo(

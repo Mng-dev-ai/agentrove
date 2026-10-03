@@ -27,7 +27,7 @@ export interface ChannelCreateRequest {
   members: ChannelMemberCreateRequest[];
 }
 
-export type ChannelMessageStatus = 'streaming' | 'completed' | 'cancelled';
+export type ChannelMessageStatus = 'streaming' | 'completed' | 'cancelled' | 'deleted';
 
 export interface ChannelMessage {
   id: string;
@@ -47,9 +47,7 @@ interface ChannelEnvelopeBase<K extends string, P> {
   payload: P;
 }
 
-export type ChannelEnvelope =
-  | ChannelEnvelopeBase<'channel_message', { message: ChannelMessage }>
-  | ChannelEnvelopeBase<'channel_message_deleted', { message_id: string }>;
+export type ChannelEnvelope = ChannelEnvelopeBase<'channel_message', { message: ChannelMessage }>;
 
 export function isChannelEnvelope(value: unknown): value is ChannelEnvelope {
   return typeof value === 'object' && value !== null && 'channelId' in value;

@@ -6,6 +6,9 @@ import { streamConnection } from '@/services/streamConnection';
 import { useChannelStore } from '@/store/channelStore';
 import { logger } from '@/utils/logger';
 
+const RETRY_BASE_DELAY_MS = 1000;
+const RETRY_MAX_DELAY_MS = 30000;
+
 // Streaming messages don't change seq, so resume just before the oldest one still open.
 function catchUpCursor(channelId: string): number {
   const slice = useChannelStore.getState().channels[channelId];
@@ -13,7 +16,7 @@ function catchUpCursor(channelId: string): number {
   const streamingSeqs = Object.values(slice.messages)
     .filter((message) => message.status === 'streaming')
     .map((message) => message.seq);
-  return Math.min(slice.syncedSeq, ...streamingSeqs.map((seq) => seq - 1));
+  return Math.max(0, Math.min(slice.syncedSeq, ...streamingSeqs.map((seq) => seq - 1)));
 }
 
 export function useChannelLive(channelId: string) {
@@ -30,18 +33,28 @@ export function useChannelLive(channelId: string) {
 
   useEffect(() => {
     let cancelled = false;
-    const afterSeq = Math.max(0, catchUpCursor(channelId));
-    const requestClock = useChannelStore.getState().liveClock;
-    channelService
-      .listMessages(channelId, afterSeq)
-      .then((messages) => {
-        if (!cancelled) {
-          useChannelStore.getState().syncMessages(channelId, afterSeq, messages, requestClock);
-        }
-      })
-      .catch((error) => logger.error('Channel catch-up failed', 'useChannelLive', error));
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const catchUp = (delayMs: number) => {
+      channelService
+        .listMessages(channelId, catchUpCursor(channelId))
+        .then((messages) => {
+          if (!cancelled) useChannelStore.getState().syncMessages(channelId, messages);
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          logger.error('Channel catch-up failed', 'useChannelLive', error);
+          retryTimer = setTimeout(
+            () => catchUp(Math.min(delayMs * 2, RETRY_MAX_DELAY_MS)),
+            delayMs,
+          );
+        });
+    };
+    catchUp(RETRY_BASE_DELAY_MS);
+
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [channelId, streamEpoch]);
 }
