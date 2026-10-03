@@ -51,6 +51,7 @@ class ChannelMessageRead(BaseModel):
     id: UUID
     channel_id: UUID
     seq: int
+    version: int
     author_type: Literal["user", "agent"]
     member_id: UUID | None
     content: str

@@ -73,7 +73,7 @@ def upgrade() -> None:
         sa.Column("persona", sa.String(100)),
         sa.Column("thinking_mode", sa.String(50)),
         sa.Column("display_name", sa.String(255), nullable=False),
-        sa.Column("last_seen_seq", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("introduced", sa.Boolean(), nullable=False, server_default="0"),
         *timestamps(),
     )
     op.create_index("ix_channel_members_channel_id", "channel_members", ["channel_id"])
@@ -87,6 +87,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("seq", sa.Integer(), nullable=False),
+        sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("author_type", sa.String(5), nullable=False),
         sa.Column(
             "member_id", GUID(), sa.ForeignKey("channel_members.id", ondelete="CASCADE")
@@ -110,9 +111,28 @@ def upgrade() -> None:
         ),
     )
 
+    op.create_table(
+        "channel_deliveries",
+        sa.Column(
+            "member_id",
+            GUID(),
+            sa.ForeignKey("channel_members.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column(
+            "message_id",
+            GUID(),
+            sa.ForeignKey("channel_messages.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column("settled", sa.Boolean(), nullable=False, server_default="0"),
+        *timestamps(),
+    )
+
 
 def downgrade() -> None:
     op.execute("DELETE FROM chats WHERE channel_id IS NOT NULL")
+    op.drop_table("channel_deliveries")
     op.drop_table("channel_messages")
     op.drop_table("channel_members")
     op.drop_index("ix_chats_channel_id", table_name="chats")

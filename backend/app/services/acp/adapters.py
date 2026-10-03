@@ -47,6 +47,16 @@ NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
     AgentKind.OPENCODE: "build",
 }
 
+DISCUSSION_SESSION_MODE: dict[AgentKind, PermissionMode] = {
+    AgentKind.ANTIGRAVITY: "default",
+    AgentKind.CLAUDE: "default",
+    AgentKind.CODEX: "read-only",
+    AgentKind.COPILOT: "plan",
+    AgentKind.CURSOR: "ask",
+    AgentKind.GROK: "auto",
+    AgentKind.OPENCODE: "plan",
+}
+
 # Agents that support persona system-prompt replacement over ACP (Cursor/Copilot ignore it).
 PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
     {

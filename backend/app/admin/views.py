@@ -98,10 +98,13 @@ class UserAdmin(ModelView, model=User):
 
 class ChatAdmin(ModelView, model=Chat):
     def list_query(self, request: Request) -> Select[tuple[Chat]]:
-        return select(Chat).where(Chat.channel_id.is_(None))
+        return select(Chat).where(Chat.is_visible())
 
     def count_query(self, request: Request) -> Select[tuple[int]]:
-        return select(func.count(Chat.id)).where(Chat.channel_id.is_(None))
+        return select(func.count(Chat.id)).where(Chat.is_visible())
+
+    def form_edit_query(self, request: Request) -> Select[tuple[Chat]]:
+        return super().form_edit_query(request).where(Chat.is_visible())
 
     column_list = [
         "id",

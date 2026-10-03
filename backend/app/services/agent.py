@@ -133,6 +133,7 @@ class AgentService:
         base_branch: str | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
         fast_mode: bool = False,
+        discussion_only: bool = False,
     ) -> AcpSessionConfig:
         user_settings = await self._get_user_settings(user.id)
 
@@ -171,7 +172,7 @@ class AgentService:
             fast_mode=fast_mode,
         )
 
-        if chat.channel_id is not None:
+        if discussion_only:
             config.discussion_only = True
             config.mcp_servers = []
         return config

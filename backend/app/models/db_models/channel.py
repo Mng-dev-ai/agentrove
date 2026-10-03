@@ -3,6 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     ForeignKey,
     Integer,
@@ -47,7 +48,7 @@ class ChannelMember(Base):
     persona: Mapped[str | None] = mapped_column(String(100))
     thinking_mode: Mapped[str | None] = mapped_column(String(50))
     display_name: Mapped[str] = mapped_column(String(255))
-    last_seen_seq: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    introduced: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
 
 class ChannelMessage(Base):
@@ -58,6 +59,7 @@ class ChannelMessage(Base):
         GUID(), ForeignKey("channels.id", ondelete="CASCADE")
     )
     seq: Mapped[int] = mapped_column(Integer)
+    version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     author_type: Mapped[str] = mapped_column(String(5))
     member_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("channel_members.id", ondelete="CASCADE")
@@ -79,3 +81,16 @@ class ChannelMessage(Base):
             name="ck_channel_message_member",
         ),
     )
+
+
+class ChannelDelivery(Base):
+    __tablename__ = "channel_deliveries"
+
+    member_id: Mapped[UUID] = mapped_column(
+        GUID(), ForeignKey("channel_members.id", ondelete="CASCADE"), primary_key=True
+    )
+    message_id: Mapped[UUID] = mapped_column(
+        GUID(), ForeignKey("channel_messages.id", ondelete="CASCADE"), primary_key=True
+    )
+    # Unsettled deliveries belong to an in-flight turn and roll back on recovery.
+    settled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")

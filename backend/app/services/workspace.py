@@ -162,7 +162,7 @@ class WorkspaceService(BaseDbService[Workspace]):
                     Chat,
                     (Chat.workspace_id == Workspace.id)
                     & (Chat.deleted_at.is_(None))
-                    & (Chat.channel_id.is_(None))
+                    & (Chat.is_visible())
                     & (Chat.parent_chat_id.is_(None)),
                 )
                 .filter(Workspace.user_id == user.id, Workspace.deleted_at.is_(None))
@@ -290,7 +290,9 @@ class WorkspaceService(BaseDbService[Workspace]):
             workspace.deleted_at = now
 
             chat_ids_query = select(Chat.id, Chat.worktree_cwd).filter(
-                Chat.workspace_id == workspace_id, Chat.deleted_at.is_(None)
+                Chat.workspace_id == workspace_id,
+                Chat.deleted_at.is_(None),
+                Chat.is_visible(),
             )
             chat_ids_result = await db.execute(chat_ids_query)
             chat_rows = chat_ids_result.all()
@@ -307,7 +309,11 @@ class WorkspaceService(BaseDbService[Workspace]):
 
             await db.execute(
                 update(Chat)
-                .where(Chat.workspace_id == workspace_id, Chat.deleted_at.is_(None))
+                .where(
+                    Chat.workspace_id == workspace_id,
+                    Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
+                )
                 .values(deleted_at=now)
             )
 

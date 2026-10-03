@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    ColumnElement,
     Float,
     ForeignKey,
     Index,
@@ -86,6 +87,10 @@ class Chat(Base):
         Index("idx_chats_parent_chat_id", "parent_chat_id"),
     )
 
+    @classmethod
+    def is_visible(cls) -> ColumnElement[bool]:
+        return cls.channel_id.is_(None)
+
     @property
     def unread(self) -> bool:
         # updated_at advances on turn start, so automations/MCP flag unread.
@@ -122,7 +127,6 @@ class Chat(Base):
             user_id=UUID(str(data["user_id"])),
             title=str(data["title"]),
             workspace_id=UUID(str(data["workspace_id"])),
-            channel_id=UUID(data["channel_id"]) if data.get("channel_id") else None,
             session_id=data.get("session_id"),
             session_agent_kind=data.get("session_agent_kind"),
         )

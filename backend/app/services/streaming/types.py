@@ -48,6 +48,7 @@ EventSink = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 @dataclass(kw_only=True)
 class ChatStreamRequest:
+    publish_user_id: str | None
     event_sink: EventSink | None = None
     prompt: str
     system_prompt: str
