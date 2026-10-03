@@ -27,7 +27,11 @@ export const useCreateChannelMutation = createMutation<Channel, Error, ChannelCr
 
 export const useDeleteChannelMutation = createMutation<void, Error, string>(
   (channelId) => channelService.deleteChannel(channelId),
-  (queryClient) => queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll }),
+  (queryClient, _data, channelId) => {
+    queryClient.removeQueries({ queryKey: queryKeys.channel(channelId) });
+    useChannelStore.getState().releaseChannel(channelId);
+    return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
+  },
 );
 
 export const usePostChannelMessageMutation = createMutation<

@@ -112,8 +112,9 @@ export function DesktopDragRegion() {
 export function TitleBar() {
   const navigate = useNavigate();
   const isChatPage = useMatch('/chat/:chatId');
+  const isChannelPage = useMatch('/channels/:channelId');
   const isLandingPage = useMatch('/');
-  const showSidebar = isChatPage || isLandingPage;
+  const showSidebar = isChatPage || isChannelPage || isLandingPage;
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
 

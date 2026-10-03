@@ -71,7 +71,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
   const userName = currentUser?.username || currentUser?.email || '';
 
   const messagesById = useChannelStore(
-    (state) => state.messagesByChannel[channel.id] ?? EMPTY_MESSAGES,
+    (state) => state.channels[channel.id]?.messages ?? EMPTY_MESSAGES,
   );
 
   const messages = useMemo(
@@ -112,10 +112,11 @@ export function ChannelView({ channel }: { channel: Channel }) {
     const content = draft.trim();
     if (!content || postMessage.isPending) return;
     stickToBottomRef.current = true;
+    setDraft('');
     try {
       await postMessage.mutateAsync({ channelId: channel.id, content });
-      setDraft('');
     } catch (error) {
+      setDraft((current) => (current ? `${content}\n${current}` : content));
       toast.error(error instanceof Error ? error.message : 'Failed to send message');
     }
   };
