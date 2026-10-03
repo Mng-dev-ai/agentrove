@@ -7,6 +7,9 @@ import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { ChannelView } from '@/components/channels/ChannelView';
 import { LoadingScreen } from '@/components/ui/LoadingScreen/LoadingScreen';
 import { useChannelQuery } from '@/hooks/queries/useChannelQueries';
+import { useChatStore } from '@/store/chatStore';
+import { useUIStore } from '@/store/uiStore';
+import { useMountEffect } from '@/hooks/useMountEffect';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import styles from './ChannelPage.module.scss';
 
@@ -14,6 +17,12 @@ export function ChannelPage() {
   const { channelId } = useParams();
   const navigate = useNavigate();
   useCommandMenu();
+
+  useMountEffect(() => {
+    useChatStore.getState().setCurrentChat(null);
+    useUIStore.getState().resetWorkspace();
+  });
+
   const workspaces = useWorkspacesList();
   const { data: channel, isError } = useChannelQuery(channelId);
 

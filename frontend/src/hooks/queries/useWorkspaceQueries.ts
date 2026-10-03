@@ -10,6 +10,8 @@ import type {
 } from '@/types/workspace.types';
 import type { PaginatedResponse } from '@/types/api.types';
 import type { Chat } from '@/types/chat.types';
+import type { Channel } from '@/types/channel.types';
+import { useChannelStore } from '@/store/channelStore';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
@@ -79,9 +81,18 @@ export const useDeleteWorkspaceMutation = createMutation<void, Error, string>(
       }
     }
 
+    const cachedChannels = queryClient.getQueriesData<Channel>({ queryKey: ['channel'] });
+    for (const [, channel] of cachedChannels) {
+      if (channel?.workspace_id === workspaceId) {
+        queryClient.removeQueries({ queryKey: queryKeys.channel(channel.id) });
+        useChannelStore.getState().releaseChannel(channel.id);
+      }
+    }
+
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.workspaces }),
       queryClient.invalidateQueries({ queryKey: [queryKeys.chats] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll }),
     ]);
   },
 );

@@ -90,6 +90,7 @@ export function Sidebar({
   });
   const workspaceActions = useSidebarWorkspaceActions({
     selectedChatId,
+    selectedChannelId,
     selectedChatWorkspaceId,
     isMobile,
     navigate,

@@ -97,12 +97,12 @@ export function ChannelView({ channel }: { channel: Channel }) {
 
   const listRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
-  const lastMessage = messages[messages.length - 1];
+  const versionSum = messages.reduce((sum, message) => sum + message.version, 0);
 
   useEffect(() => {
     const list = listRef.current;
     if (list && stickToBottomRef.current) list.scrollTop = list.scrollHeight;
-  }, [messages.length, lastMessage?.content, typingNames.length]);
+  }, [versionSum, typingNames.length]);
 
   const handleScroll = () => {
     const list = listRef.current;
