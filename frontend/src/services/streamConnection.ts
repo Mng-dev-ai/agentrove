@@ -246,6 +246,14 @@ class StreamConnectionManager {
     if (chatIds && chatIds.size > 0) {
       this.handlers?.onConnectionFailure([...chatIds]);
     }
+    if (this.isRetained(client)) {
+      // A retained feed (e.g. an open channel) keeps probing so it recovers when connectivity returns.
+      connection.retryTimer = setTimeout(() => {
+        connection.retryTimer = null;
+        this.open(client);
+      }, RECONNECT_MAX_DELAY_MS);
+      return;
+    }
     this.teardown(client, connection);
   }
 

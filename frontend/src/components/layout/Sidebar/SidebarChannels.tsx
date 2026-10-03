@@ -25,9 +25,12 @@ interface SidebarChannelsProps {
 
 export function SidebarChannels({
   workspaces,
-  workspaceId,
+  workspaceId: selectedWorkspaceId,
   selectedChannelId,
 }: SidebarChannelsProps) {
+  const workspaceId = workspaces.some((workspace) => workspace.id === selectedWorkspaceId)
+    ? selectedWorkspaceId
+    : undefined;
   const createWorkspaceId = workspaceId ?? workspaces[0]?.id;
   const navigate = useNavigate();
   const isMobile = useIsMobile();

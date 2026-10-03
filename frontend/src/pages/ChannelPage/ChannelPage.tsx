@@ -2,6 +2,8 @@ import { useEffect, useMemo } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
+import { CommandMenu } from '@/components/ui/command-menu/CommandMenu';
+import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { ChannelView } from '@/components/channels/ChannelView';
 import { LoadingScreen } from '@/components/ui/LoadingScreen/LoadingScreen';
 import { useChannelQuery } from '@/hooks/queries/useChannelQueries';
@@ -11,6 +13,7 @@ import styles from './ChannelPage.module.scss';
 export function ChannelPage() {
   const { channelId } = useParams();
   const navigate = useNavigate();
+  useCommandMenu();
   const workspaces = useWorkspacesList();
   const { data: channel, isError } = useChannelQuery(channelId);
 
@@ -39,6 +42,7 @@ export function ChannelPage() {
   return (
     <div className={styles.page}>
       <ChannelView key={channel.id} channel={channel} />
+      <CommandMenu />
     </div>
   );
 }
