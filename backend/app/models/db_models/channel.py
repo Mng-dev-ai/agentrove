@@ -1,5 +1,4 @@
 import uuid
-from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
@@ -13,8 +12,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base_class import Base, _utc_now
-from app.db.types import GUID, UTCDateTime
+from app.db.base_class import Base
+from app.db.types import GUID
 
 
 class Channel(Base):
@@ -28,8 +27,6 @@ class Channel(Base):
         GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(255))
-    next_seq: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
-    last_activity_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_utc_now)
     members: Mapped[list["ChannelMember"]] = relationship(
         cascade="all, delete-orphan", passive_deletes=True
     )
@@ -61,7 +58,6 @@ class ChannelMessage(Base):
     )
     seq: Mapped[int] = mapped_column(Integer)
     version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
-    author_type: Mapped[str] = mapped_column(String(5))
     member_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("channel_members.id", ondelete="CASCADE")
     )
@@ -71,15 +67,8 @@ class ChannelMessage(Base):
     __table_args__ = (
         UniqueConstraint("channel_id", "seq", name="uq_channel_messages_channel_seq"),
         CheckConstraint(
-            "author_type IN ('user', 'agent')", name="ck_channel_message_author"
-        ),
-        CheckConstraint(
             "status IN ('streaming', 'completed', 'cancelled', 'deleted')",
             name="ck_channel_message_status",
-        ),
-        CheckConstraint(
-            "(author_type = 'user' AND member_id IS NULL) OR (author_type = 'agent' AND member_id IS NOT NULL)",
-            name="ck_channel_message_member",
         ),
     )
 
@@ -93,5 +82,3 @@ class ChannelDelivery(Base):
     message_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("channel_messages.id", ondelete="CASCADE"), primary_key=True
     )
-    # Unsettled deliveries belong to an in-flight turn and roll back on recovery.
-    settled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")

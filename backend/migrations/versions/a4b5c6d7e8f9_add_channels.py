@@ -43,8 +43,6 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("name", sa.String(255), nullable=False),
-        sa.Column("next_seq", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("last_activity_at", UTCDateTime(), nullable=False),
         *timestamps(),
     )
     op.create_index("ix_channels_user_id", "channels", ["user_id"])
@@ -89,7 +87,6 @@ def upgrade() -> None:
         ),
         sa.Column("seq", sa.Integer(), nullable=False),
         sa.Column("version", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column("author_type", sa.String(5), nullable=False),
         sa.Column(
             "member_id", GUID(), sa.ForeignKey("channel_members.id", ondelete="CASCADE")
         ),
@@ -100,15 +97,8 @@ def upgrade() -> None:
             "channel_id", "seq", name="uq_channel_messages_channel_seq"
         ),
         sa.CheckConstraint(
-            "author_type IN ('user', 'agent')", name="ck_channel_message_author"
-        ),
-        sa.CheckConstraint(
             "status IN ('streaming', 'completed', 'cancelled', 'deleted')",
             name="ck_channel_message_status",
-        ),
-        sa.CheckConstraint(
-            "(author_type = 'user' AND member_id IS NULL) OR (author_type = 'agent' AND member_id IS NOT NULL)",
-            name="ck_channel_message_member",
         ),
     )
 
@@ -126,7 +116,6 @@ def upgrade() -> None:
             sa.ForeignKey("channel_messages.id", ondelete="CASCADE"),
             primary_key=True,
         ),
-        sa.Column("settled", sa.Boolean(), nullable=False, server_default="0"),
         *timestamps(),
     )
 

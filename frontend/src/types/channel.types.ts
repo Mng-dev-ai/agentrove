@@ -11,7 +11,7 @@ export interface Channel {
   workspace_id: string;
   name: string;
   created_at: string;
-  last_activity_at: string;
+  updated_at: string;
   members: ChannelMember[];
 }
 

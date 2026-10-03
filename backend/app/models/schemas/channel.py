@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.constants import MODELS
 
@@ -41,7 +41,7 @@ class ChannelRead(BaseModel):
     workspace_id: UUID
     name: str
     created_at: datetime
-    last_activity_at: datetime
+    updated_at: datetime
     members: list[ChannelMemberRead]
 
 
@@ -55,8 +55,11 @@ class ChannelMessageRead(BaseModel):
     channel_id: UUID
     seq: int
     version: int
-    author_type: Literal["user", "agent"]
     member_id: UUID | None
     content: str
     status: Literal["streaming", "completed", "cancelled", "deleted"]
     created_at: datetime
+
+    @computed_field
+    def author_type(self) -> Literal["user", "agent"]:
+        return "user" if self.member_id is None else "agent"

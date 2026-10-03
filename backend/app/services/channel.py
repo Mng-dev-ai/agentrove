@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import Select, delete, select, update
+from sqlalchemy import Select, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -125,7 +125,7 @@ class ChannelService(BaseDbService[Channel]):
                 select(Channel)
                 .where(Channel.user_id == user.id)
                 .options(selectinload(Channel.members))
-                .order_by(Channel.last_activity_at.desc())
+                .order_by(Channel.updated_at.desc())
             )
             if workspace_id is not None:
                 query = query.where(Channel.workspace_id == workspace_id)
@@ -228,25 +228,27 @@ class ChannelService(BaseDbService[Channel]):
     ) -> ChannelMessage:
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
-            result = await db.execute(
+            await db.execute(
                 update(Channel)
                 .where(Channel.id == state.channel.id)
-                .values(next_seq=Channel.next_seq + 1, last_activity_at=now)
-                .returning(Channel.next_seq)
+                .values(updated_at=now)
             )
-            seq = result.scalar_one() - 1
+            result = await db.execute(
+                select(func.coalesce(func.max(ChannelMessage.seq), 0) + 1).where(
+                    ChannelMessage.channel_id == state.channel.id
+                )
+            )
+            seq = result.scalar_one()
             message = ChannelMessage(
                 channel_id=state.channel.id,
                 seq=seq,
-                author_type="agent" if member_id else "user",
                 member_id=member_id,
                 content=content,
                 status="streaming" if member_id else "completed",
             )
             db.add(message)
             await db.commit()
-            state.channel.last_activity_at = now
-            state.channel.next_seq = seq + 1
+            state.channel.updated_at = now
         return message
 
     @staticmethod
@@ -364,11 +366,6 @@ class ChannelService(BaseDbService[Channel]):
                         batch = list((await db.scalars(self.unseen(member))).all())
                         if not batch:
                             continue
-                        db.add_all(
-                            ChannelDelivery(member_id=member.id, message_id=message.id)
-                            for message in batch
-                        )
-                        await db.commit()
                 except Exception as exc:
                     self.backoff(state, member, exc)
                     retry_times.append(state.retries[member.id].until)
@@ -546,16 +543,11 @@ class ChannelService(BaseDbService[Channel]):
             await self.begin_speaking(state, turn)
         message = turn.message
         async with self.session_factory() as db:
-            deliveries = (
-                ChannelDelivery.member_id == turn.member.id,
-                ChannelDelivery.message_id.in_([item.id for item in turn.batch]),
-            )
             if successful:
-                await db.execute(
-                    update(ChannelDelivery).where(*deliveries).values(settled=True)
+                db.add_all(
+                    ChannelDelivery(member_id=turn.member.id, message_id=message.id)
+                    for message in turn.batch
                 )
-            else:
-                await db.execute(delete(ChannelDelivery).where(*deliveries))
             if message is not None:
                 if silent:
                     await self.write_message(db, message, "", "deleted")
@@ -571,9 +563,9 @@ class ChannelService(BaseDbService[Channel]):
                     await db.execute(
                         update(Channel)
                         .where(Channel.id == state.channel.id)
-                        .values(last_activity_at=now)
+                        .values(updated_at=now)
                     )
-                    state.channel.last_activity_at = now
+                    state.channel.updated_at = now
             await db.commit()
         turn.status = TurnStatus.FINISHED
         if successful:
@@ -594,9 +586,7 @@ class ChannelService(BaseDbService[Channel]):
                 for member in state.channel.members:
                     batch = list((await db.scalars(self.unseen(member))).all())
                     db.add_all(
-                        ChannelDelivery(
-                            member_id=member.id, message_id=message.id, settled=True
-                        )
+                        ChannelDelivery(member_id=member.id, message_id=message.id)
                         for message in batch
                     )
                 await db.commit()
@@ -632,9 +622,6 @@ class ChannelService(BaseDbService[Channel]):
 
     async def recover(self) -> None:
         async with self.session_factory() as db:
-            await db.execute(
-                delete(ChannelDelivery).where(ChannelDelivery.settled.is_(False))
-            )
             messages = list(
                 (
                     await db.scalars(
