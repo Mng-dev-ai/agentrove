@@ -108,7 +108,7 @@ class ChannelService(BaseDbService[Channel]):
 
     async def get(self, channel_id: UUID, user: User) -> Channel:
         async with self.session_factory() as db:
-            channel = await db.scalar(
+            channel: Channel | None = await db.scalar(
                 select(Channel)
                 .where(Channel.id == channel_id, Channel.user_id == user.id)
                 .options(selectinload(Channel.members))
@@ -218,7 +218,10 @@ class ChannelService(BaseDbService[Channel]):
 
     @staticmethod
     def serialized(message: ChannelMessage) -> dict[str, Any]:
-        return ChannelMessageRead.model_validate(message).model_dump(mode="json")
+        payload: dict[str, Any] = ChannelMessageRead.model_validate(message).model_dump(
+            mode="json"
+        )
+        return payload
 
     async def new_message(
         self, state: ChannelState, content: str, member_id: UUID | None = None
