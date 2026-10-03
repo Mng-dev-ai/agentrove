@@ -152,7 +152,7 @@ class AgentService:
 
         is_custom_persona = selected_persona_name != DEFAULT_PERSONA_NAME
 
-        return await self._build_acp_config(
+        config = await self._build_acp_config(
             user_settings=user_settings,
             user_id=str(user.id),
             agent_kind=agent_kind,
@@ -170,6 +170,11 @@ class AgentService:
             # AcpSession is the codex boundary (create/set_fast_mode no-op elsewhere).
             fast_mode=fast_mode,
         )
+
+        if chat.channel_id is not None:
+            config.discussion_only = True
+            config.mcp_servers = []
+        return config
 
     async def stream_response(
         self,
@@ -195,7 +200,7 @@ class AgentService:
                 yield event
 
                 ui_mode = self._get_plan_mode_transition(event)
-                if ui_mode:
+                if ui_mode and not handler.discussion_only:
                     session_mode = adapter.map_session_mode(ui_mode)
                     await session.set_mode(session_mode)
 

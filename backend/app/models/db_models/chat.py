@@ -37,6 +37,9 @@ class Chat(Base):
     workspace_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
+    channel_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("channels.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     session_agent_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
     worktree_cwd: Mapped[str | None] = mapped_column(String(512), nullable=True)
@@ -119,6 +122,7 @@ class Chat(Base):
             user_id=UUID(str(data["user_id"])),
             title=str(data["title"]),
             workspace_id=UUID(str(data["workspace_id"])),
+            channel_id=UUID(data["channel_id"]) if data.get("channel_id") else None,
             session_id=data.get("session_id"),
             session_agent_kind=data.get("session_agent_kind"),
         )

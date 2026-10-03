@@ -88,6 +88,7 @@ class AcpSessionConfig:
     env: dict[str, str] = field(default_factory=dict)
     mcp_servers: list[dict[str, Any]] = field(default_factory=list)
     model: str = ""
+    discussion_only: bool = False
     permission_mode: str = "default"
     resume_session_id: str | None = None
     workspace_path: str | None = None
@@ -341,7 +342,9 @@ class AcpSession:
 
     @classmethod
     async def create(cls, config: AcpSessionConfig) -> AcpSession:
-        handler = AcpClientHandler(agent_kind=config.agent_kind)
+        handler = AcpClientHandler(
+            agent_kind=config.agent_kind, discussion_only=config.discussion_only
+        )
         # Resolve the workspace-relative cwd to a runtime-absolute path via the
         # provider — the single edge where relative → absolute translation lives.
         provider = SandboxProvider.create_provider(

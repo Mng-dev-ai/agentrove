@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from hashlib import sha256
 from typing import Any, Literal, TypedDict
@@ -42,8 +43,12 @@ SENSITIVE_KEY_PARTS = (
 )
 
 
+EventSink = Callable[[str, dict[str, Any]], Awaitable[None]]
+
+
 @dataclass(kw_only=True)
 class ChatStreamRequest:
+    event_sink: EventSink | None = None
     prompt: str
     system_prompt: str
     custom_instructions: str | None

@@ -104,6 +104,7 @@ class ChatStreamRuntime:
         session_factory: SessionFactoryType,
     ) -> None:
         chat = Chat.from_dict(request.chat_data)
+        self.event_sink = request.event_sink
         self.chat = chat
         self.chat_id = str(chat.id)
         self.stream_id = uuid4()
@@ -314,6 +315,9 @@ class ChatStreamRuntime:
         if not self.assistant_message_id:
             return 0
 
+        if self.event_sink is not None:
+            await self.event_sink(kind, payload)
+
         audit = {"payload": StreamEnvelope.sanitize_payload(payload)}
         if apply_snapshot and kind in SNAPSHOT_EVENT_KINDS:
             # ACP tool payloads are updated in place as progress arrives, so
@@ -371,7 +375,7 @@ class ChatStreamRuntime:
     async def _publish_to_redis(self, events: list[str]) -> None:
         # Envelopes carry chatId, so all of a user's streams share one channel —
         # the multiplexed SSE feed subscribes once and routes client-side.
-        if not self.cache or not events:
+        if self.chat.channel_id is not None or not self.cache or not events:
             return
         channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=self.chat.user_id)
         for raw in events:
@@ -518,6 +522,8 @@ class ChatStreamRuntime:
     async def _process_next_queued(
         self, *, send_now_only: bool = False, prior_duration_ms: int | None = None
     ) -> bool:
+        if self.chat.channel_id is not None:
+            return False
         next_msg: dict[str, Any] | None = None
         try:
             async with cache_connection() as cache:
@@ -596,6 +602,8 @@ class ChatStreamRuntime:
         if not sandbox_id:
             return None
 
+        if chat.channel_id is not None:
+            return None
         try:
             # Resolve the same cwd the agent turn runs in, so the checkpoint's
             # diff and restore target match where the agent actually edited.
@@ -788,7 +796,7 @@ class ChatStreamRuntime:
             )
 
     async def _generate_title(self) -> None:
-        if not self.prompt or not self._is_new_chat:
+        if self.chat.channel_id is not None or not self.prompt or not self._is_new_chat:
             return
 
         ai_service = AgentService(session_factory=self.session_factory)
@@ -982,7 +990,7 @@ class ChatStreamRuntime:
     def start_background_chat(
         cls,
         request: ChatStreamRequest,
-    ) -> None:
+    ) -> asyncio.Task[str]:
         chat_id = str(request.chat_data["id"])
         background_task = asyncio.create_task(
             cls._bootstrap_and_execute(
@@ -993,6 +1001,7 @@ class ChatStreamRuntime:
         background_task.add_done_callback(
             partial(cls._on_background_task_done, chat_id)
         )
+        return background_task
 
     @staticmethod
     def _build_queued_stream_request(
@@ -1322,7 +1331,9 @@ class ChatStreamRuntime:
                 assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.INTERRUPTED,
-                user_id=str(request.chat_data["user_id"]),
+                user_id=None
+                if request.chat_data.get("channel_id")
+                else str(request.chat_data["user_id"]),
             )
             raise
         except Exception as exc:
@@ -1340,7 +1351,9 @@ class ChatStreamRuntime:
                 assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.FAILED,
-                user_id=str(request.chat_data["user_id"]),
+                user_id=None
+                if request.chat_data.get("channel_id")
+                else str(request.chat_data["user_id"]),
                 error_message=str(exc),
             )
             raise

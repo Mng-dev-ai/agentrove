@@ -17,6 +17,7 @@ from app.api.endpoints import (
     auth,
     automations,
     chat,
+    channels,
     github,
     sandbox,
     workspace,
@@ -26,6 +27,7 @@ from app.api.endpoints import skills, websocket
 from app.core.config import get_settings
 from app.core.middleware import setup_middleware
 from app.db.session import SessionLocal, engine
+from app.services.channel import channel_service
 from app.services.maintenance import MaintenanceService
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
@@ -46,11 +48,13 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await ChatStreamRuntime.reconcile_orphaned_messages(SessionLocal)
+    await channel_service.recover()
     maintenance_service = MaintenanceService()
     await maintenance_service.start()
     try:
         yield
     finally:
+        await channel_service.shutdown()
         await maintenance_service.stop()
         await ChatStreamRuntime.stop_background_chats()
         await session_registry.terminate_all()
@@ -117,6 +121,9 @@ def create_application() -> FastAPI:
 
     application.include_router(
         auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["Authentication"]
+    )
+    application.include_router(
+        channels.router, prefix=f"{settings.API_V1_STR}/channels", tags=["Channels"]
     )
     application.include_router(
         chat.router, prefix=f"{settings.API_V1_STR}/chat", tags=["Chat"]

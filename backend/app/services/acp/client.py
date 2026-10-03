@@ -95,7 +95,8 @@ GROK_ASK_USER_QUESTION_METHOD = "x.ai/ask_user_question"
 class AcpClientHandler:
     # ACP client handler: SDK events → StreamEvent on event_queue for SSE.
 
-    def __init__(self, agent_kind: AgentKind) -> None:
+    def __init__(self, agent_kind: AgentKind, *, discussion_only: bool = False) -> None:
+        self.discussion_only = discussion_only
         self.agent_kind = agent_kind
         self.event_queue: asyncio.Queue[StreamEvent | object] = asyncio.Queue()
         self._active_tools: dict[str, ToolPayload] = {}
@@ -216,6 +217,8 @@ class AcpClientHandler:
         tool_call: ToolCallUpdate,
         **kwargs: Any,
     ) -> RequestPermissionResponse:
+        if self.discussion_only:
+            return RequestPermissionResponse(outcome=DeniedOutcome(outcome="cancelled"))
         # Emit permission_request and block until the user responds via SSE.
         request_id = tool_call.tool_call_id
         tool_name = self._extract_tool_name(tool_call)
@@ -297,6 +300,8 @@ class AcpClientHandler:
         mode: ElicitationMode,
         **kwargs: Any,
     ) -> CreateElicitationResponse:
+        if self.discussion_only:
+            return CancelElicitationResponse(action="cancel")
         if not isinstance(
             mode, (ElicitationFormSessionMode, ElicitationFormRequestMode)
         ):
@@ -441,6 +446,8 @@ class AcpClientHandler:
         return KillTerminalResponse()
 
     async def ext_method(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
+        if method == GROK_ASK_USER_QUESTION_METHOD and self.discussion_only:
+            return {"outcome": "skip_interview"}
         if method == GROK_ASK_USER_QUESTION_METHOD:
             return await self._answer_user_question(params)
         return {}
