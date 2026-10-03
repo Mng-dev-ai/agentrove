@@ -477,15 +477,16 @@ class ChannelService(BaseDbService[Channel]):
         lines = [
             normalized
             for line in text.splitlines()
-            if (normalized := cls.normalized(line).upper())
+            if (normalized := cls.normalized(line))
         ]
         if not lines:
-            return True
-        first = lines[0]
-        suffix = first[4:].lstrip()
+            return False
         return (
-            first.startswith("PASS") and (not suffix or not suffix[0].isalpha())
-        ) or re.search(r"(?<!\w)PASS$", lines[-1]) is not None
+            any(line.lower() == "pass" for line in lines)
+            or re.match(r"^PASS(?:\s*[—–:(,.!]|\s+-\s)", lines[0]) is not None
+            or re.match(r"^pass[,.]\s", lines[0], re.IGNORECASE) is not None
+            or re.search(r"(?:^|[.!?:;—–)]\s*)PASS\.?$", lines[-1]) is not None
+        )
 
     async def text(self, state: ChannelState, turn: MemberTurn, delta: str) -> None:
         async with state.lock:
