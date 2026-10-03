@@ -1,0 +1,104 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/responsive' as responsive;
+
+// ModelSelector/Dropdown popovers need to escape the modal's bounds.
+.dialog {
+  overflow: visible;
+}
+
+.body {
+  padding: var(--space-5);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+}
+
+.icon-box {
+  display: flex;
+  height: var(--space-8);
+  width: var(--space-8);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-tertiary);
+}
+
+.header-icon {
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-tertiary);
+}
+
+.title {
+  @include type.type-body(500);
+  color: var(--theme-text-primary);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.field-label {
+  @include type.type-section-header;
+  display: block;
+  margin-bottom: var(--space-1-5);
+}
+
+.members {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.member-controls {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.persona-select {
+  @include type.type-default;
+  height: var(--space-8);
+  padding: var(--space-1-5) var(--space-3);
+  background-color: var(--theme-surface-secondary);
+  color: var(--theme-text-primary);
+}
+
+.remove-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.add-member {
+  margin-top: var(--space-2);
+}
+
+.add-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-3-5) var(--space-5);
+}

@@ -1,5 +1,6 @@
-import { resolveChatClient } from '@/lib/api';
+import { apiClient, resolveChatClient } from '@/lib/api';
 import { useStreamStore } from '@/store/streamStore';
+import { useChannelStore } from '@/store/channelStore';
 import { chatStorage } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 
@@ -41,6 +42,9 @@ class StreamConnectionManager {
   configure(handlers: StreamConnectionHandlers): void {
     this.handlers = handlers;
     useStreamStore.subscribe(() => this.reconcile());
+    useChannelStore.subscribe((state, prev) => {
+      if (state.openChannelId !== prev.openChannelId) this.reconcile();
+    });
   }
 
   // Reopen if needed so this chat is in the replay cursor set.
@@ -89,6 +93,11 @@ class StreamConnectionManager {
       chatIds.add(stream.chatId);
       byClient.set(client, chatIds);
     }
+    // Channels live on the local backend and share its feed; an open channel needs
+    // the connection even with no chat streams.
+    if (useChannelStore.getState().openChannelId && !byClient.has(apiClient)) {
+      byClient.set(apiClient, new Set<string>());
+    }
     return byClient;
   }
 
@@ -116,7 +125,7 @@ class StreamConnectionManager {
     this.connections.set(client, connection);
 
     const chatIds = this.activeChatIdsByClient().get(client);
-    if (!chatIds || chatIds.size === 0) {
+    if (!chatIds) {
       this.teardown(client, connection);
       return;
     }
@@ -170,6 +179,7 @@ class StreamConnectionManager {
     });
     source.onopen = () => {
       connection.lastActivityAt = Date.now();
+      useChannelStore.getState().bumpStreamEpoch();
       if (connection.source !== source || connection.stableTimer) return;
       connection.stableTimer = setTimeout(() => {
         connection.stableTimer = null;

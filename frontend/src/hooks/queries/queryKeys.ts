@@ -86,6 +86,9 @@ export const queryKeys = {
   automations: ['automations'] as const,
   cloudAutomations: (cloudUrl?: string, connectedEmail?: string | null) =>
     ['cloud', 'automations', cloudUrl, connectedEmail] as const,
+  channels: (workspaceId?: string) => ['channels', workspaceId ?? null] as const,
+  channelsAll: ['channels'] as const,
+  channel: (channelId?: string) => ['channel', channelId] as const,
   models: 'models',
   github: {
     repos: (query: string) => ['github-repos', query] as const,

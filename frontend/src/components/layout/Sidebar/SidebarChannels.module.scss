@@ -1,0 +1,117 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/state-classes' as state;
+
+.channels {
+  flex-shrink: 0;
+  max-height: 30%;
+  overflow-y: auto;
+  padding-inline: var(--space-6);
+  padding-bottom: var(--space-1);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--space-2-5);
+  padding-bottom: var(--space-2);
+}
+
+.title {
+  @include type.type-meta;
+  color: var(--theme-text-quaternary);
+}
+
+.new-btn {
+  @include anim.transition-colors;
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5);
+  color: var(--theme-text-quaternary);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+}
+
+.new-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.item {
+  @include anim.transition-colors;
+  position: relative;
+  display: flex;
+  margin-inline: calc(var(--space-2) * -1);
+  align-items: center;
+  border-radius: var(--radius-lg);
+  padding-inline: var(--space-2);
+  padding-block: 7px;
+  color: var(--theme-text-secondary);
+
+  &:not(:global(.#{state.$state-active})) {
+    @include responsive.hover {
+      background-color: colors.theme-color('surface-hover', 0.5);
+      color: var(--theme-text-primary);
+    }
+  }
+
+  &:global(.#{state.$state-active}) {
+    background-color: colors.theme-color('surface-hover', 0.5);
+    color: var(--theme-text-primary);
+  }
+}
+
+.item-btn {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding-right: var(--space-6);
+  text-align: left;
+  font-size: 16px;
+}
+
+.item-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  flex-shrink: 0;
+  color: var(--theme-text-tertiary);
+}
+
+.item-name {
+  @include type.type-overflow;
+  min-width: 0;
+}
+
+.dropdown-btn {
+  @include anim.transition-colors;
+  position: absolute;
+  right: var(--space-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5);
+  color: var(--theme-text-quaternary);
+  opacity: 0;
+  transition: all var(--duration-base);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+
+  .item:hover & {
+    opacity: 1;
+  }
+
+  &--visible {
+    opacity: 1;
+  }
+}
+
+.dropdown-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+}

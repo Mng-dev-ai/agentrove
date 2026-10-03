@@ -14,6 +14,7 @@ import { useLogout } from '@/hooks/useLogout';
 import { UserProfileMenu } from '@/components/layout/UserProfileMenu/UserProfileMenu';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { SidebarActions } from './SidebarActions';
+import { SidebarChannels } from './SidebarChannels';
 import { SidebarChatList } from './SidebarChatList';
 import { SidebarOverlays } from './SidebarOverlays';
 import { type ChatRowProps } from './SidebarChatRow';
@@ -27,6 +28,7 @@ import styles from './Sidebar.module.scss';
 export interface SidebarProps {
   workspaces: Workspace[];
   selectedChatId: string | null;
+  selectedChannelId?: string | null;
   selectedChatWorkspaceId?: string | null;
   selectedChatParentId?: string | null;
   onChatSelect: (chatId: string) => void;
@@ -36,6 +38,7 @@ export interface SidebarProps {
 export function Sidebar({
   workspaces,
   selectedChatId,
+  selectedChannelId = null,
   selectedChatWorkspaceId,
   selectedChatParentId,
   onChatSelect,
@@ -204,6 +207,12 @@ export function Sidebar({
         className={clsx(styles.sidebar, sidebarOpen && styles['sidebar--open'])}
       >
         <SidebarActions onNewChat={handleNewChat} onOpenSearch={handleOpenSearch} />
+
+        <SidebarChannels
+          workspaceId={selectedChatWorkspaceId ?? undefined}
+          createWorkspaceId={selectedChatWorkspaceId ?? workspaces[0]?.id}
+          selectedChannelId={selectedChannelId}
+        />
 
         <SidebarChatList
           scrollContainerRef={scrollContainerRef}
