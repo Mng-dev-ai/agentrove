@@ -43,6 +43,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("name", sa.String(255), nullable=False),
+        sa.Column("next_seq", sa.Integer(), nullable=False, server_default="1"),
         sa.Column("last_activity_at", UTCDateTime(), nullable=False),
         *timestamps(),
     )
@@ -102,7 +103,7 @@ def upgrade() -> None:
             "author_type IN ('user', 'agent')", name="ck_channel_message_author"
         ),
         sa.CheckConstraint(
-            "status IN ('streaming', 'completed', 'cancelled')",
+            "status IN ('streaming', 'completed', 'cancelled', 'deleted')",
             name="ck_channel_message_status",
         ),
         sa.CheckConstraint(

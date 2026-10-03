@@ -58,5 +58,5 @@ class ChannelMessageRead(BaseModel):
     author_type: Literal["user", "agent"]
     member_id: UUID | None
     content: str
-    status: Literal["streaming", "completed", "cancelled"]
+    status: Literal["streaming", "completed", "cancelled", "deleted"]
     created_at: datetime

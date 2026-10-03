@@ -28,6 +28,7 @@ class Channel(Base):
         GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(255))
+    next_seq: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     last_activity_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_utc_now)
     members: Mapped[list["ChannelMember"]] = relationship(
         cascade="all, delete-orphan", passive_deletes=True
@@ -73,7 +74,7 @@ class ChannelMessage(Base):
             "author_type IN ('user', 'agent')", name="ck_channel_message_author"
         ),
         CheckConstraint(
-            "status IN ('streaming', 'completed', 'cancelled')",
+            "status IN ('streaming', 'completed', 'cancelled', 'deleted')",
             name="ck_channel_message_status",
         ),
         CheckConstraint(
