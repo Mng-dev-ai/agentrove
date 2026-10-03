@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -471,10 +472,20 @@ class ChannelService(BaseDbService[Channel]):
 
     @classmethod
     def is_silent(cls, text: str) -> bool:
-        lines = [line for line in text.splitlines() if line.strip()]
-        return "PASS".startswith(cls.normalized(text).upper()) or (
-            bool(lines) and cls.normalized(lines[-1]).upper() == "PASS"
-        )
+        if "PASS".startswith(cls.normalized(text).upper()):
+            return True
+        lines = [
+            normalized
+            for line in text.splitlines()
+            if (normalized := cls.normalized(line).upper())
+        ]
+        if not lines:
+            return True
+        first = lines[0]
+        suffix = first[4:].lstrip()
+        return (
+            first.startswith("PASS") and (not suffix or not suffix[0].isalpha())
+        ) or re.search(r"(?<!\w)PASS$", lines[-1]) is not None
 
     async def text(self, state: ChannelState, turn: MemberTurn, delta: str) -> None:
         async with state.lock:
@@ -484,7 +495,7 @@ class ChannelService(BaseDbService[Channel]):
                 turn.text = ""
                 turn.reset_segment = False
             turn.text += delta
-            silent = "PASS".startswith(self.normalized(turn.text).upper())
+            silent = self.is_silent(turn.text)
             if turn.message is None and silent:
                 return
             if asyncio.get_running_loop().time() - turn.last_flush_at < 0.2:
