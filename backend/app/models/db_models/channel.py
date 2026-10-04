@@ -14,6 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 from app.db.types import GUID
+from app.models.types import PermissionMode
 
 
 class Channel(Base):
@@ -27,6 +28,8 @@ class Channel(Base):
         GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(255))
+    worktree: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    branch: Mapped[str | None] = mapped_column(String(255))
     members: Mapped[list["ChannelMember"]] = relationship(
         cascade="all, delete-orphan", passive_deletes=True
     )
@@ -42,6 +45,7 @@ class ChannelMember(Base):
     chat_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("chats.id", ondelete="CASCADE"), unique=True
     )
+    permission_mode: Mapped[PermissionMode] = mapped_column(String(32))
     model_id: Mapped[str] = mapped_column(String(128))
     persona: Mapped[str | None] = mapped_column(String(100))
     thinking_mode: Mapped[str | None] = mapped_column(String(50))
@@ -63,6 +67,9 @@ class ChannelMessage(Base):
     )
     content: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(10))
+    attachments: Mapped[list["ChannelMessageAttachment"]] = relationship(
+        cascade="all, delete-orphan", passive_deletes=True, lazy="selectin"
+    )
 
     __table_args__ = (
         UniqueConstraint("channel_id", "seq", name="uq_channel_messages_channel_seq"),
@@ -82,3 +89,16 @@ class ChannelDelivery(Base):
     message_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("channel_messages.id", ondelete="CASCADE"), primary_key=True
     )
+
+
+class ChannelMessageAttachment(Base):
+    __tablename__ = "channel_message_attachments"
+
+    id: Mapped[UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
+    message_id: Mapped[UUID] = mapped_column(
+        GUID(), ForeignKey("channel_messages.id", ondelete="CASCADE"), index=True
+    )
+    file_url: Mapped[str] = mapped_column(String(2048))
+    file_path: Mapped[str] = mapped_column(String(512))
+    file_type: Mapped[str] = mapped_column(String(10))
+    filename: Mapped[str] = mapped_column(String(255))

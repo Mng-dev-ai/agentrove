@@ -5,10 +5,14 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.constants import MODELS
+from app.models.schemas.chat import MessageAttachment
+from app.models.types import PermissionMode
+from app.utils.sandbox import BaseBranch
 
 
 class ChannelMemberCreate(BaseModel):
     model_id: str
+    permission_mode: PermissionMode | None = None
     persona: str | None = Field(None, max_length=100)
     thinking_mode: str | None = Field(None, max_length=50)
 
@@ -23,12 +27,20 @@ class ChannelMemberCreate(BaseModel):
 class ChannelCreate(BaseModel):
     workspace_id: UUID
     name: str = Field(min_length=1, max_length=255)
+    worktree: bool = False
+    branch: BaseBranch = None
     members: list[ChannelMemberCreate] = Field(min_length=1)
+
+
+class ChannelUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
 
 
 class ChannelMemberRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: UUID
+    chat_id: UUID
+    permission_mode: PermissionMode
     model_id: str
     persona: str | None
     thinking_mode: str | None
@@ -40,13 +52,11 @@ class ChannelRead(BaseModel):
     id: UUID
     workspace_id: UUID
     name: str
+    worktree: bool
+    branch: str | None
     created_at: datetime
     updated_at: datetime
     members: list[ChannelMemberRead]
-
-
-class ChannelMessageCreate(BaseModel):
-    content: str = Field(min_length=1, max_length=100000)
 
 
 class ChannelMessageRead(BaseModel):
@@ -57,6 +67,7 @@ class ChannelMessageRead(BaseModel):
     version: int
     member_id: UUID | None
     content: str
+    attachments: list[MessageAttachment]
     status: Literal["streaming", "completed", "cancelled", "deleted"]
     created_at: datetime
 

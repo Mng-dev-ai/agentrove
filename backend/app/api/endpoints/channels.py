@@ -1,17 +1,27 @@
+from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+)
 
 from app.core.security import get_current_user
 from app.models.db_models.user import User
 from app.models.schemas.channel import (
     ChannelCreate,
-    ChannelMessageCreate,
+    ChannelUpdate,
     ChannelMessageRead,
     ChannelRead,
 )
 from app.services.channel import channel_service
-from app.services.exceptions import ChatException
+from app.services.exceptions import ChatException, StorageException, SandboxException
 
 router = APIRouter()
 
@@ -22,7 +32,7 @@ async def create_channel(
 ) -> ChannelRead:
     try:
         channel = await channel_service.create(user, data)
-    except ChatException as exc:
+    except (ChatException, SandboxException) as exc:
         raise HTTPException(exc.status_code, str(exc)) from exc
     response: ChannelRead = ChannelRead.model_validate(channel)
     return response
@@ -65,12 +75,18 @@ async def list_messages(
     "/{channel_id}/messages", response_model=ChannelMessageRead, status_code=201
 )
 async def post_message(
-    channel_id: UUID, data: ChannelMessageCreate, user: User = Depends(get_current_user)
+    channel_id: UUID,
+    content: str = Form(..., min_length=1, max_length=100000),
+    attached_files: list[UploadFile] | None = File(None),
+    user: User = Depends(get_current_user),
 ) -> ChannelMessageRead:
     channel = await channel_service.get(channel_id, user)
-    response: ChannelMessageRead = ChannelMessageRead.model_validate(
-        await channel_service.post(channel, data.content)
-    )
+    try:
+        response: ChannelMessageRead = ChannelMessageRead.model_validate(
+            await channel_service.post(channel, content, attached_files)
+        )
+    except (StorageException, SandboxException) as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
     return response
 
 
@@ -88,3 +104,22 @@ async def delete_channel(
 ) -> Response:
     await channel_service.delete(await channel_service.get(channel_id, user))
     return Response(status_code=204)
+
+
+@router.patch("/{channel_id}", response_model=ChannelRead)
+async def rename_channel(
+    channel_id: UUID, data: ChannelUpdate, user: User = Depends(get_current_user)
+) -> ChannelRead:
+    channel = await channel_service.get(channel_id, user)
+    response: ChannelRead = ChannelRead.model_validate(
+        await channel_service.rename(channel, data.name)
+    )
+    return response
+
+
+@router.get("/{channel_id}/permissions")
+async def pending_permissions(
+    channel_id: UUID, user: User = Depends(get_current_user)
+) -> list[dict[str, Any]]:
+    channel = await channel_service.get(channel_id, user)
+    return list(channel_service.state(channel).permissions.values())

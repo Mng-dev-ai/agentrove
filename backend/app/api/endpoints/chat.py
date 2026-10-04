@@ -595,8 +595,13 @@ async def respond_to_permission(
     chat_id: UUID,
     request_id: str,
     option_id: str = Form(""),
-    _chat: Chat = Depends(ensure_chat_access),
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
 ) -> PermissionRespondResponse:
+    try:
+        await chat_service.get_chat(chat_id, current_user, include_channel=True)
+    except ChatException as exc:
+        raise HTTPException(404, "Chat not found or access denied") from exc
     acp_resolved = session_registry.resolve_permission(
         str(chat_id),
         request_id,

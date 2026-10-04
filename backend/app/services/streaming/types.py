@@ -21,6 +21,7 @@ StreamEventType = Literal[
     "user_text",
     "system",
     "permission_request",
+    "permission_resolved",
     "elicitation_request",
     "elicitation_dismissed",
     "prompt_suggestions",

@@ -1015,6 +1015,7 @@ class ChatService(BaseDbService[Chat]):
         current_user: User,
         *,
         member_turn: bool = False,
+        stored_attachments: list[MessageAttachmentDict] | None = None,
         event_sink: EventSink | None = None,
         task_started: Callable[[asyncio.Task[str]], None] | None = None,
     ) -> ChatCompletionResult:
@@ -1030,6 +1031,7 @@ class ChatService(BaseDbService[Chat]):
                 request,
                 current_user,
                 member_turn=member_turn,
+                stored_attachments=stored_attachments,
                 event_sink=event_sink,
                 task_started=task_started,
             )
@@ -1040,6 +1042,7 @@ class ChatService(BaseDbService[Chat]):
         current_user: User,
         *,
         member_turn: bool = False,
+        stored_attachments: list[MessageAttachmentDict] | None = None,
         event_sink: EventSink | None = None,
         task_started: Callable[[asyncio.Task[str]], None] | None = None,
     ) -> ChatCompletionResult:
@@ -1094,7 +1097,7 @@ class ChatService(BaseDbService[Chat]):
 
         ws_sandbox = self.sandbox_for_workspace(chat.workspace)
 
-        attachments: list[MessageAttachmentDict] | None = None
+        attachments = stored_attachments
         if request.attached_files:
             file_storage = StorageService(ws_sandbox)
             agent_kind = MODELS[request.model_id].agent_kind

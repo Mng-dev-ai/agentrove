@@ -9,7 +9,7 @@ from functools import partial
 from typing import Any
 from uuid import UUID
 
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from sqlalchemy import Select, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -20,14 +20,23 @@ from app.models.db_models.channel import (
     ChannelDelivery,
     ChannelMember,
     ChannelMessage,
+    ChannelMessageAttachment,
 )
 from app.models.db_models.chat import Chat
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.channel import ChannelCreate, ChannelMessageRead
 from app.models.schemas.chat import ChatRequest
+from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
-from app.services.acp.adapters import DISCUSSION_SESSION_MODE
+from app.services.acp.adapters import (
+    AGENT_ADAPTERS,
+    NORMAL_SESSION_MODE,
+    NATIVE_FILE_TYPES,
+)
+from app.services.agent import AgentService
+from app.services.git import GitService
+from app.services.storage import StorageService
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
@@ -35,15 +44,15 @@ from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.user import UserService
 from app.utils.cache import CacheError, cache_connection
+from app.utils.attachment_urls import AttachmentURL
 
 logger = logging.getLogger(__name__)
 DEBOUNCE_SECONDS = 2.5
 
 INTRODUCTION = (
     "You are {name}, a member of a group chat channel with the user and {others}. "
-    "This channel is for discussion only: you may read files in the repository to inform your answers, "
-    "but never modify files or run commands that change anything. "
-    "Don't narrate tool use — read files silently, then write only your final message. "
+    "You share the same working directory with the other members. Before editing files, "
+    "say what you're about to change, and don't edit files another member is working on. "
     'You will receive new channel messages as lines of "[author]: text". '
     "After each batch, either post ONE short chat message, or reply with exactly `PASS` (nothing else). "
     "Speak only when you add something new: answering a question nobody has answered well, "
@@ -92,6 +101,7 @@ class ChannelState:
     turns: dict[UUID, MemberTurn] = field(default_factory=dict)
     timer: asyncio.Task[None] | None = None
     retries: dict[UUID, MemberRetry] = field(default_factory=dict)
+    permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     unavailable: set[UUID] = field(default_factory=set)
     quiet_until: float = 0
     paused: bool = False
@@ -133,13 +143,15 @@ class ChannelService(BaseDbService[Channel]):
 
     async def create(self, user: User, data: ChannelCreate) -> Channel:
         for item in data.members:
-            if MODELS[item.model_id].agent_kind not in DISCUSSION_SESSION_MODE:
-                raise HTTPException(
-                    400, f"Model {item.model_id} has no discussion-only mode"
-                )
+            kind = MODELS[item.model_id].agent_kind
+            if (
+                item.permission_mode is not None
+                and item.permission_mode not in AGENT_ADAPTERS[kind].session_modes
+            ):
+                raise HTTPException(400, f"Invalid permission mode for {kind.value}")
         async with self.session_factory() as db:
             workspace = await db.scalar(
-                select(Workspace.id).where(
+                select(Workspace).where(
                     Workspace.id == data.workspace_id,
                     Workspace.user_id == user.id,
                     Workspace.deleted_at.is_(None),
@@ -147,10 +159,22 @@ class ChannelService(BaseDbService[Channel]):
             )
             if workspace is None:
                 raise HTTPException(404, "Workspace not found")
+            if data.worktree and not workspace.sandbox_id:
+                raise HTTPException(400, "Workspace has no sandbox")
+            if data.branch and not data.worktree:
+                if not workspace.sandbox_id:
+                    raise HTTPException(400, "Workspace has no sandbox")
+                checkout = await GitService(
+                    self.chats.sandbox_for_workspace(workspace)
+                ).checkout(workspace.sandbox_id, data.branch)
+                if not checkout.success:
+                    raise HTTPException(400, checkout.error)
             channel = Channel(
                 user_id=user.id,
                 workspace_id=data.workspace_id,
                 name=data.name,
+                worktree=data.worktree,
+                branch=data.branch,
                 members=[],
             )
             db.add(channel)
@@ -165,6 +189,7 @@ class ChannelService(BaseDbService[Channel]):
                     user_id=user.id,
                     workspace_id=data.workspace_id,
                     channel_id=channel.id,
+                    workspace=workspace,
                 )
                 db.add(chat)
                 await db.flush()
@@ -172,6 +197,8 @@ class ChannelService(BaseDbService[Channel]):
                     ChannelMember(
                         chat_id=chat.id,
                         model_id=item.model_id,
+                        permission_mode=item.permission_mode
+                        or NORMAL_SESSION_MODE[MODELS[item.model_id].agent_kind],
                         persona=item.persona,
                         thinking_mode=item.thinking_mode,
                         display_name=display_name,
@@ -179,7 +206,30 @@ class ChannelService(BaseDbService[Channel]):
                 )
             await db.commit()
         self.states[channel.id] = ChannelState(channel)
+        try:
+            await self.prepare_worktree(channel)
+        except Exception:
+            await self.delete(channel)
+            raise
         return channel
+
+    async def prepare_worktree(self, channel: Channel) -> None:
+        if not channel.worktree:
+            return
+        owner = min(channel.members, key=lambda member: member.chat_id)
+        chat = await self.chats.get_chat(
+            owner.chat_id, User(id=channel.user_id), include_channel=True
+        )
+        cwd = await AgentService(self.session_factory).ensure_worktree_cwd(
+            chat, channel.branch
+        )
+        async with self.session_factory() as db:
+            await db.execute(
+                update(Chat)
+                .where(Chat.channel_id == channel.id)
+                .values(worktree_cwd=cwd)
+            )
+            await db.commit()
 
     async def messages(self, channel: Channel, after_seq: int) -> list[ChannelMessage]:
         async with self.session_factory() as db:
@@ -224,7 +274,11 @@ class ChannelService(BaseDbService[Channel]):
         return payload
 
     async def new_message(
-        self, state: ChannelState, content: str, member_id: UUID | None = None
+        self,
+        state: ChannelState,
+        content: str,
+        member_id: UUID | None = None,
+        attachments: list[MessageAttachmentDict] | None = None,
     ) -> ChannelMessage:
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
@@ -245,8 +299,15 @@ class ChannelService(BaseDbService[Channel]):
                 member_id=member_id,
                 content=content,
                 status="streaming" if member_id else "completed",
+                attachments=[
+                    ChannelMessageAttachment(**attachment)
+                    for attachment in attachments or []
+                ],
             )
             db.add(message)
+            await db.flush()
+            for attachment in message.attachments:
+                attachment.file_url = AttachmentURL.build_preview_url(attachment.id)
             await db.commit()
             state.channel.updated_at = now
         return message
@@ -287,9 +348,45 @@ class ChannelService(BaseDbService[Channel]):
         if not task.cancelled() and (error := task.exception()) is not None:
             logger.error("Channel task failed", exc_info=error)
 
-    async def post(self, channel: Channel, content: str) -> ChannelMessage:
+    async def rename(self, channel: Channel, name: str) -> Channel:
         state = self.state(channel)
         async with state.control:
+            async with self.session_factory() as db:
+                await db.execute(
+                    update(Channel).where(Channel.id == channel.id).values(name=name)
+                )
+                await db.execute(
+                    update(Chat).where(Chat.channel_id == channel.id).values(title=name)
+                )
+                await db.commit()
+            state.channel.name = name
+        return await self.get(channel.id, User(id=channel.user_id))
+
+    async def post(
+        self, channel: Channel, content: str, files: list[UploadFile] | None = None
+    ) -> ChannelMessage:
+        attachments: list[MessageAttachmentDict] = []
+        if files:
+            chat = await self.chats.get_chat(
+                channel.members[0].chat_id,
+                User(id=channel.user_id),
+                include_channel=True,
+            )
+            storage = StorageService(self.chats.sandbox_for_workspace(chat.workspace))
+            kinds = [MODELS[member.model_id].agent_kind for member in channel.members]
+            kind = min(kinds, key=lambda kind: len(NATIVE_FILE_TYPES[kind]))
+            for file in files:
+                attachments.append(
+                    await storage.save_file(
+                        file,
+                        agent_kind=kind,
+                        sandbox_id=chat.sandbox_id,
+                        user_id=str(channel.user_id),
+                    )
+                )
+        state = self.state(channel)
+        async with state.control:
+            await self.prepare_worktree(channel)
             turns: list[MemberTurn] = []
             try:
                 async with state.lock:
@@ -298,7 +395,9 @@ class ChannelService(BaseDbService[Channel]):
                     state.paused = True
                     turns = list(state.turns.values())
                     await self.cancel_active(state)
-                    message = await self.new_message(state, content)
+                    message = await self.new_message(
+                        state, content, attachments=attachments
+                    )
                     await self.publish_message(channel, message)
                     self.fan_out(state)
             finally:
@@ -416,13 +515,12 @@ class ChannelService(BaseDbService[Channel]):
 
     async def run_turn(self, state: ChannelState, turn: MemberTurn) -> None:
         member = turn.member
-        kind = MODELS[member.model_id].agent_kind
         # Batches combine validated messages and can exceed the single-message limit.
         request = ChatRequest.model_construct(
             chat_id=member.chat_id,
             model_id=member.model_id,
             prompt=self.prompt(state, turn),
-            permission_mode=DISCUSSION_SESSION_MODE[kind],
+            permission_mode=member.permission_mode,
             thinking_mode=member.thinking_mode,
             selected_persona_name=member.persona or DEFAULT_PERSONA_NAME,
         )
@@ -434,6 +532,16 @@ class ChannelService(BaseDbService[Channel]):
                         request,
                         User(id=state.channel.user_id),
                         member_turn=True,
+                        stored_attachments=[
+                            MessageAttachmentDict(
+                                file_url=attachment.file_url,
+                                file_path=attachment.file_path,
+                                file_type=attachment.file_type,
+                                filename=attachment.filename,
+                            )
+                            for message in turn.batch
+                            for attachment in message.attachments
+                        ],
                         event_sink=sink,
                         task_started=turn.started,
                     )
@@ -537,6 +645,7 @@ class ChannelService(BaseDbService[Channel]):
     async def finish(self, state: ChannelState, turn: MemberTurn) -> None:
         if turn.status is TurnStatus.FINISHED:
             return
+        await self.resolve_permissions(state, turn.member.id)
         successful = turn.status is TurnStatus.RUNNING
         silent = self.is_silent(turn.text)
         if turn.message is None and successful and not silent:
@@ -614,6 +723,17 @@ class ChannelService(BaseDbService[Channel]):
                 await asyncio.gather(*tasks, return_exceptions=True)
             for member in channel.members:
                 await session_registry.terminate(str(member.chat_id))
+            if channel.worktree:
+                owner = min(channel.members, key=lambda member: member.chat_id)
+                chat = await self.chats.get_chat(
+                    owner.chat_id, User(id=channel.user_id), include_channel=True
+                )
+                await GitService(
+                    self.chats.sandbox_for_workspace(chat.workspace)
+                ).remove_worktree(
+                    chat.workspace.sandbox_id,
+                    GitService.chat_worktree_path(str(owner.chat_id)),
+                )
             async with self.session_factory() as db:
                 await db.execute(delete(Chat).where(Chat.channel_id == channel.id))
                 await db.execute(delete(Channel).where(Channel.id == channel.id))
@@ -648,6 +768,7 @@ class ChannelService(BaseDbService[Channel]):
                 ).all()
             )
         for channel in channels:
+            await self.prepare_worktree(channel)
             state = ChannelState(channel)
             self.states[channel.id] = state
             for message in messages:
@@ -679,6 +800,19 @@ class ChannelService(BaseDbService[Channel]):
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
+    async def resolve_permissions(
+        self, state: ChannelState, member_id: UUID, request_id: str | None = None
+    ) -> None:
+        for key in list(state.permissions):
+            if key[0] == member_id and (request_id is None or key[1] == request_id):
+                pending = state.permissions.pop(key)
+                session_registry.resolve_permission(pending["chat_id"], key[1])
+                await self.publish(
+                    state.channel,
+                    "channel_permission_resolved",
+                    {"member_id": str(member_id), "request_id": key[1]},
+                )
+
     async def handle_event(
         self, state: ChannelState, turn: MemberTurn, kind: str, payload: dict[str, Any]
     ) -> None:
@@ -698,7 +832,32 @@ class ChannelService(BaseDbService[Channel]):
                 )
                 await db.commit()
             turn.member.introduced = True
-        if kind == "assistant_text":
+        if kind == "permission_request":
+            async with state.lock:
+                request_id = payload["request_id"]
+                if turn.status is not TurnStatus.RUNNING:
+                    session_registry.resolve_permission(
+                        str(turn.member.chat_id), request_id
+                    )
+                    return
+                pending = {
+                    "member_id": str(turn.member.id),
+                    "chat_id": str(turn.member.chat_id),
+                    "request": {
+                        "request_id": request_id,
+                        "tool_name": payload["tool_name"],
+                        "tool_input": payload["tool_input"],
+                        "options": payload["data"]["options"],
+                    },
+                }
+                state.permissions[(turn.member.id, request_id)] = pending
+                await self.publish(state.channel, "channel_permission_request", pending)
+        elif kind == "permission_resolved":
+            async with state.lock:
+                await self.resolve_permissions(
+                    state, turn.member.id, payload["request_id"]
+                )
+        elif kind == "assistant_text":
             await self.text(state, turn, payload["text"])
         elif kind == "tool_started":
             async with state.lock:

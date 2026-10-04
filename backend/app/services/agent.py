@@ -133,7 +133,7 @@ class AgentService:
         base_branch: str | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
         fast_mode: bool = False,
-        discussion_only: bool = False,
+        member_session: bool = False,
     ) -> AcpSessionConfig:
         user_settings = await self._get_user_settings(user.id)
 
@@ -172,9 +172,11 @@ class AgentService:
             fast_mode=fast_mode,
         )
 
-        if discussion_only:
-            config.discussion_only = True
-            config.mcp_servers = []
+        if member_session:
+            config.member_session = True
+            config.mcp_servers = [
+                server for server in config.mcp_servers if server["name"] != "agentrove"
+            ]
         return config
 
     async def stream_response(
@@ -201,7 +203,7 @@ class AgentService:
                 yield event
 
                 ui_mode = self._get_plan_mode_transition(event)
-                if ui_mode and not handler.discussion_only:
+                if ui_mode:
                     session_mode = adapter.map_session_mode(ui_mode)
                     await session.set_mode(session_mode)
 

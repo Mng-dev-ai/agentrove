@@ -4,10 +4,16 @@ from urllib.parse import quote
 from uuid import UUID
 
 from fastapi.responses import FileResponse
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.models.db_models.chat import MessageAttachment
+from app.models.db_models.channel import (
+    Channel,
+    ChannelMessage,
+    ChannelMessageAttachment,
+)
 from app.services.exceptions import AttachmentException, ErrorCode
 from app.services.message import MessageService
 
@@ -59,8 +65,26 @@ class AttachmentService:
 
     async def _get_attachment_with_path(
         self, attachment_id: UUID, user_id: UUID, db: AsyncSession
-    ) -> tuple[MessageAttachment, Path]:
-        attachment = await self._message_service.get_attachment(attachment_id, db)
+    ) -> tuple[MessageAttachment | ChannelMessageAttachment, Path]:
+        attachment: (
+            MessageAttachment | ChannelMessageAttachment | None
+        ) = await self._message_service.get_attachment(attachment_id, db)
+        owner_id = attachment.message.chat.user_id if attachment else None
+        if attachment is None:
+            row = (
+                await db.execute(
+                    select(ChannelMessageAttachment, Channel.user_id)
+                    .select_from(ChannelMessageAttachment)
+                    .join(
+                        ChannelMessage,
+                        ChannelMessage.id == ChannelMessageAttachment.message_id,
+                    )
+                    .join(Channel, Channel.id == ChannelMessage.channel_id)
+                    .where(ChannelMessageAttachment.id == attachment_id)
+                )
+            ).one_or_none()
+            if row is not None:
+                attachment, owner_id = row
 
         if not attachment:
             raise AttachmentException(
@@ -69,7 +93,7 @@ class AttachmentService:
                 status_code=404,
             )
 
-        if attachment.message.chat.user_id != user_id:
+        if owner_id != user_id:
             raise AttachmentException(
                 "Access denied",
                 error_code=ErrorCode.CHAT_ACCESS_DENIED,

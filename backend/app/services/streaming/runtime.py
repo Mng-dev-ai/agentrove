@@ -1249,7 +1249,7 @@ class ChatStreamRuntime:
                 base_branch=request.base_branch,
                 selected_persona_name=request.selected_persona_name,
                 fast_mode=request.fast_mode,
-                discussion_only=request.publish_user_id is None,
+                member_session=request.publish_user_id is None,
             )
 
             session, _ = await session_registry.get_or_create(
