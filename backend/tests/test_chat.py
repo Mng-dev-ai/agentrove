@@ -15,7 +15,6 @@ from app.models.db_models.chat import Chat, ChatCheckpoint, Message, MessageEven
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
-from app.models.types import MessageAttachmentDict
 from app.models.schemas.chat import (
     ChatCreate,
     ChatRequest,
@@ -103,10 +102,7 @@ class ChatCompletionServiceOverride:
         yield self
 
     async def initiate_chat_completion(
-        self,
-        request: ChatRequest,
-        user: User,
-        attachments: list[MessageAttachmentDict] | None,
+        self, request: ChatRequest, user: User
     ) -> dict[str, UUID | int | str | None]:
         self.requests.append(request)
         self.users.append(user)
@@ -394,6 +390,7 @@ async def test_send_message_endpoint_passes_form_fields_to_chat_service(
             "base_branch": " main ",
             "selected_persona_name": "Builder",
         },
+        files={"attached_files": ("note.txt", b"hello", "text/plain")},
         headers=headers,
     )
 
@@ -414,6 +411,8 @@ async def test_send_message_endpoint_passes_form_fields_to_chat_service(
     assert request.worktree is True
     assert request.base_branch == "main"
     assert request.selected_persona_name == "Builder"
+    assert request.attached_files is not None
+    assert request.attached_files[0].filename == "note.txt"
     assert [stored_user.id for stored_user in chat_service.users] == [user.id]
 
 

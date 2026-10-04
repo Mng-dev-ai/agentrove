@@ -9,7 +9,7 @@ from hashlib import sha256
 from typing import Any, Literal, TypedDict
 from uuid import UUID
 
-from app.models.types import PermissionMode
+from app.models.types import MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 
 
@@ -52,6 +52,7 @@ EventSink = Callable[[str, dict[str, Any]], Awaitable[None]]
 class ChannelMemberTurn:
     event_sink: EventSink
     task_started: Callable[[asyncio.Task[str]], None]
+    attachments: list[MessageAttachmentDict]
 
 
 @dataclass(kw_only=True)

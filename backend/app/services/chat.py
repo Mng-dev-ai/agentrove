@@ -47,6 +47,7 @@ from app.services.message import MessageService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
+from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import (
     ChannelMemberTurn,
@@ -1014,7 +1015,6 @@ class ChatService(BaseDbService[Chat]):
         self,
         request: ChatRequest,
         current_user: User,
-        attachments: list[MessageAttachmentDict] | None = None,
         *,
         member_turn: ChannelMemberTurn | None = None,
     ) -> ChatCompletionResult:
@@ -1027,20 +1027,32 @@ class ChatService(BaseDbService[Chat]):
                     status_code=409,
                 )
             return await self._initiate_chat_completion_reserved(
-                request, current_user, attachments, member_turn
+                request, current_user, member_turn
             )
 
     async def _initiate_chat_completion_reserved(
         self,
         request: ChatRequest,
         current_user: User,
-        attachments: list[MessageAttachmentDict] | None,
         member_turn: ChannelMemberTurn | None,
     ) -> ChatCompletionResult:
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(
             request.chat_id, current_user, include_channel=member_turn is not None
         )
+        attachments: list[MessageAttachmentDict] | None
+        if member_turn is not None:
+            attachments = member_turn.attachments
+        elif request.attached_files:
+            ws_sandbox = self.sandbox_for_workspace(chat.workspace)
+            attachments = await StorageService(ws_sandbox).save_files(
+                request.attached_files,
+                agent_kind=MODELS[request.model_id].agent_kind,
+                sandbox_id=chat.sandbox_id,
+                user_id=str(current_user.id),
+            )
+        else:
+            attachments = None
 
         # Bump ordering timestamps at initiation rather than first stream-event
         # persist — open sessions refetch the sidebar on the stream_started

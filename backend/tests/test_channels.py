@@ -17,7 +17,6 @@ from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatRequest
-from app.models.types import MessageAttachmentDict
 from app.services.acp.adapters import AgentKind
 from app.services.channel import (
     ChannelService,
@@ -76,7 +75,6 @@ class ScriptedTurns:
         self,
         request: ChatRequest,
         user: User,
-        attachments: list[MessageAttachmentDict],
         *,
         member_turn: ChannelMemberTurn,
     ) -> None:

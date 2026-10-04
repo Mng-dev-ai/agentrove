@@ -618,6 +618,7 @@ class ChannelService(BaseDbService[Channel]):
         member_turn = ChannelMemberTurn(
             event_sink=partial(self.handle_event, state, turn),
             task_started=turn.started,
+            attachments=attachments,
         )
         try:
             while turn.status is TurnStatus.RUNNING:
@@ -625,7 +626,6 @@ class ChannelService(BaseDbService[Channel]):
                     await self.chats.initiate_chat_completion(
                         request,
                         User(id=state.channel.user_id),
-                        attachments,
                         member_turn=member_turn,
                     )
                     break
