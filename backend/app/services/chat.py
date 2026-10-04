@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import math
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -22,7 +22,6 @@ from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import Chat as ChatSchema
 from app.models.schemas.chat import (
     ActiveStreamStatus,
-    ChannelChatRequest,
     ChatCreate,
     ChatRequest,
     ChatSearchMatch,
@@ -48,9 +47,12 @@ from app.services.message import MessageService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
-from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.streaming.types import ChatStreamRequest, StreamEnvelope, EventSink
+from app.services.streaming.types import (
+    ChannelMemberTurn,
+    ChatStreamRequest,
+    StreamEnvelope,
+)
 from app.services.terminal import teardown_workspace_sandbox
 from app.services.user import UserService
 from app.utils.cache import CacheError, CachePubSub, cache_connection, cache_pubsub
@@ -1012,11 +1014,11 @@ class ChatService(BaseDbService[Chat]):
 
     async def initiate_chat_completion(
         self,
-        request: ChatRequest | ChannelChatRequest,
+        request: ChatRequest,
         current_user: User,
+        attachments: list[MessageAttachmentDict] | None = None,
         *,
-        event_sink: EventSink | None = None,
-        task_started: Callable[[asyncio.Task[str]], None] | None = None,
+        member_turn: ChannelMemberTurn | None = None,
     ) -> ChatCompletionResult:
         async with ChatStreamRuntime.chat_start_slot(str(request.chat_id)) as reserved:
             if not reserved:
@@ -1027,40 +1029,20 @@ class ChatService(BaseDbService[Chat]):
                     status_code=409,
                 )
             return await self._initiate_chat_completion_reserved(
-                request,
-                current_user,
-                event_sink=event_sink,
-                task_started=task_started,
+                request, current_user, attachments, member_turn
             )
 
     async def _initiate_chat_completion_reserved(
         self,
-        request: ChatRequest | ChannelChatRequest,
+        request: ChatRequest,
         current_user: User,
-        *,
-        event_sink: EventSink | None = None,
-        task_started: Callable[[asyncio.Task[str]], None] | None = None,
+        attachments: list[MessageAttachmentDict] | None,
+        member_turn: ChannelMemberTurn | None,
     ) -> ChatCompletionResult:
-        member_turn = isinstance(request, ChannelChatRequest)
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(
-            request.chat_id, current_user, include_channel=member_turn
+            request.chat_id, current_user, include_channel=member_turn is not None
         )
-        attachments: list[MessageAttachmentDict] | None
-        if isinstance(request, ChannelChatRequest):
-            attachments = request.attachments
-        elif request.attached_files:
-            ws_sandbox = self.sandbox_for_workspace(chat.workspace)
-            attachments = await StorageService(ws_sandbox).save_files(
-                request.attached_files,
-                agent_kind=MODELS[request.model_id].agent_kind,
-                sandbox_id=chat.sandbox_id,
-                user_id=str(current_user.id),
-            )
-        else:
-            attachments = None
-
-        publish_user_id = None if member_turn else str(current_user.id)
 
         # Bump ordering timestamps at initiation rather than first stream-event
         # persist — open sessions refetch the sidebar on the stream_started
@@ -1110,7 +1092,7 @@ class ChatService(BaseDbService[Chat]):
             user_settings,
             agent_kind=model.agent_kind,
             selected_persona_name=request.selected_persona_name,
-            member_turn=member_turn,
+            channel_member=member_turn is not None,
         )
 
         async with ChatStreamRuntime.turn_scaffold(
@@ -1122,11 +1104,10 @@ class ChatService(BaseDbService[Chat]):
             worktree=request.worktree,
             base_branch=request.base_branch,
             session_factory=self._session_factory,
-            publish_user_id=publish_user_id,
+            channel_member=member_turn is not None,
         ) as (_, assistant_message, checkpoint_id):
             task = await self._enqueue_chat_task(
-                publish_user_id=publish_user_id,
-                event_sink=event_sink,
+                member_turn=member_turn,
                 prompt=request.prompt,
                 system_prompt=system_prompt,
                 custom_instructions=user_settings.custom_instructions,
@@ -1144,11 +1125,11 @@ class ChatService(BaseDbService[Chat]):
                 selected_persona_name=request.selected_persona_name,
             )
 
-        # Lets open sessions mark this chat "running" even when the turn was
-        # started out-of-band (e.g. via the MCP server) with no client stream.
-        if task_started is not None:
-            task_started(task)
-        if publish_user_id is not None:
+        if member_turn is not None:
+            member_turn.task_started(task)
+        else:
+            # Lets open sessions mark this chat "running" even when the turn was
+            # started out-of-band (e.g. via the MCP server) with no client stream.
             await self.publish_user_chat_event(
                 current_user.id,
                 {
@@ -1172,8 +1153,7 @@ class ChatService(BaseDbService[Chat]):
     async def _enqueue_chat_task(
         self,
         *,
-        publish_user_id: str | None,
-        event_sink: EventSink | None = None,
+        member_turn: ChannelMemberTurn | None,
         prompt: str,
         system_prompt: str,
         custom_instructions: str | None,
@@ -1196,8 +1176,7 @@ class ChatService(BaseDbService[Chat]):
         )
         workspace = chat.workspace
         request = ChatStreamRequest(
-            publish_user_id=publish_user_id,
-            event_sink=event_sink,
+            member_turn=member_turn,
             prompt=prompt,
             system_prompt=system_prompt,
             custom_instructions=custom_instructions,

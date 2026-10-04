@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
@@ -16,7 +16,8 @@ from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
-from app.models.schemas.chat import ChannelChatRequest
+from app.models.schemas.chat import ChatRequest
+from app.models.types import MessageAttachmentDict
 from app.services.acp.adapters import AgentKind
 from app.services.channel import (
     ChannelService,
@@ -26,7 +27,7 @@ from app.services.channel import (
 )
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.streaming.types import EventSink
+from app.services.streaming.types import ChannelMemberTurn, EventSink
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import FakeProviderFactory, create_authenticated_workspace
@@ -62,7 +63,7 @@ class ScriptedTurns:
         self.events: list[tuple[str, dict[str, Any]]] = [
             ("assistant_text", {"text": "PASS"})
         ]
-        self.requests: list[ChannelChatRequest] = []
+        self.requests: list[ChatRequest] = []
         self.sources: list[Message] = []
         self.turns: list[MemberTurn] = []
         self.publications: list[tuple[UUID, str, dict[str, Any]]] = []
@@ -73,11 +74,11 @@ class ScriptedTurns:
 
     async def initiate_chat_completion(
         self,
-        request: ChannelChatRequest,
+        request: ChatRequest,
         user: User,
+        attachments: list[MessageAttachmentDict],
         *,
-        event_sink: EventSink,
-        task_started: Callable[[asyncio.Task[str]], None],
+        member_turn: ChannelMemberTurn,
     ) -> None:
         self.requests.append(request)
         async with channel_service.session_factory() as db:
@@ -85,9 +86,11 @@ class ScriptedTurns:
                 db, request.chat_id, duration_ms=self.duration_ms
             )
         self.sources.append(source)
-        task = asyncio.create_task(self.emit(event_sink, source, self.events))
+        task = asyncio.create_task(
+            self.emit(member_turn.event_sink, source, self.events)
+        )
         self.provider_tasks[str(request.chat_id)] = task
-        task_started(task)
+        member_turn.task_started(task)
 
     async def emit(
         self,

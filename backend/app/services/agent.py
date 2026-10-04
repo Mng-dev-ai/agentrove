@@ -138,7 +138,7 @@ class AgentService:
         base_branch: str | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
         fast_mode: bool = False,
-        member_session: bool = False,
+        channel_member: bool = False,
     ) -> AcpSessionConfig:
         user_settings = await self._get_user_settings(user.id)
 
@@ -158,7 +158,7 @@ class AgentService:
 
         is_custom_persona = selected_persona_name != DEFAULT_PERSONA_NAME
 
-        config = await self._build_acp_config(
+        return await self._build_acp_config(
             user_settings=user_settings,
             user_id=str(user.id),
             agent_kind=agent_kind,
@@ -175,21 +175,8 @@ class AgentService:
             system_prompt_is_full_replace=is_custom_persona,
             # AcpSession is the codex boundary (create/set_fast_mode no-op elsewhere).
             fast_mode=fast_mode,
+            channel_member=channel_member,
         )
-
-        if member_session:
-            config.member_session = True
-            if permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind]:
-                for server in config.mcp_servers:
-                    if server["name"] == "agentrove":
-                        del server["env"]["AGENTROVE_CURRENT_CHAT_ID"]
-            else:
-                config.mcp_servers = [
-                    server
-                    for server in config.mcp_servers
-                    if server["name"] != "agentrove"
-                ]
-        return config
 
     async def stream_response(
         self,
@@ -486,10 +473,15 @@ class AgentService:
 
     @staticmethod
     def _build_mcp_server_configs(
-        chat_id: str | None, user_id: str, sandbox_provider: SandboxProviderType
+        chat_id: str | None,
+        user_id: str,
+        sandbox_provider: SandboxProviderType,
+        *,
+        agentrove_mcp: bool,
+        current_chat_id: str | None,
     ) -> list[dict[str, Any]]:
         servers: list[dict[str, Any]] = []
-        if settings.AGENTROVE_MCP_ENABLED:
+        if settings.AGENTROVE_MCP_ENABLED and agentrove_mcp:
             if sandbox_provider is SandboxProviderType.HOST:
                 # Host-provider agents share this process's network namespace, but the
                 # public BASE_URL is often unreachable from inside the deployment
@@ -507,8 +499,8 @@ class AgentService:
                 "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(user_id),
             }
             # The chat this session runs in — lets the agent create sub-threads under it
-            if chat_id:
-                env["AGENTROVE_CURRENT_CHAT_ID"] = chat_id
+            if current_chat_id:
+                env["AGENTROVE_CURRENT_CHAT_ID"] = current_chat_id
             servers.append(
                 {
                     "name": "agentrove",
@@ -554,6 +546,7 @@ class AgentService:
         system_prompt: str | None = None,
         system_prompt_is_full_replace: bool = False,
         fast_mode: bool = False,
+        channel_member: bool = False,
     ) -> AcpSessionConfig:
         env: dict[str, str] = {}
 
@@ -593,9 +586,15 @@ class AgentService:
             agent_kind=agent_kind,
             env=env,
             mcp_servers=self._build_mcp_server_configs(
-                chat_id, user_id, sandbox_provider
+                chat_id,
+                user_id,
+                sandbox_provider,
+                agentrove_mcp=not channel_member
+                or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind],
+                current_chat_id=None if channel_member else chat_id,
             ),
             model=model_id,
+            channel_member=channel_member,
             permission_mode=session_config.session_mode,
             resume_session_id=session_id,
             workspace_path=workspace_path,

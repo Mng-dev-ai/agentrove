@@ -26,7 +26,7 @@ from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.channel import ChannelCreate, ChannelMessageRead
-from app.models.schemas.chat import ChannelChatRequest, Message as MessageSchema
+from app.models.schemas.chat import ChatRequest, Message as MessageSchema
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import (
@@ -42,6 +42,7 @@ from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.streaming.types import ChannelMemberTurn
 from app.services.user import UserService
 from app.utils.cache import CacheError, cache_connection
 from app.utils.attachment_urls import AttachmentURL
@@ -596,33 +597,36 @@ class ChannelService(BaseDbService[Channel]):
     async def run_turn(self, state: ChannelState, turn: MemberTurn) -> None:
         member = turn.member
         # Batches combine validated messages and can exceed the single-message limit.
-        request = ChannelChatRequest.model_construct(
+        request = ChatRequest.model_construct(
             chat_id=member.chat_id,
             model_id=member.model_id,
             prompt=self.prompt(state, turn),
             permission_mode=member.permission_mode,
             thinking_mode=member.thinking_mode,
             selected_persona_name=member.persona or DEFAULT_PERSONA_NAME,
-            attachments=[
-                MessageAttachmentDict(
-                    file_url=attachment.file_url,
-                    file_path=attachment.file_path,
-                    file_type=attachment.file_type,
-                    filename=attachment.filename,
-                )
-                for message in turn.batch
-                for attachment in message.attachments
-            ],
         )
-        sink = partial(self.handle_event, state, turn)
+        attachments = [
+            MessageAttachmentDict(
+                file_url=attachment.file_url,
+                file_path=attachment.file_path,
+                file_type=attachment.file_type,
+                filename=attachment.filename,
+            )
+            for message in turn.batch
+            for attachment in message.attachments
+        ]
+        member_turn = ChannelMemberTurn(
+            event_sink=partial(self.handle_event, state, turn),
+            task_started=turn.started,
+        )
         try:
             while turn.status is TurnStatus.RUNNING:
                 try:
                     await self.chats.initiate_chat_completion(
                         request,
                         User(id=state.channel.user_id),
-                        event_sink=sink,
-                        task_started=turn.started,
+                        attachments,
+                        member_turn=member_turn,
                     )
                     break
                 except ChatException as exc:

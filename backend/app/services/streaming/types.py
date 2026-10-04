@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections.abc import Awaitable, Callable
@@ -47,10 +48,15 @@ SENSITIVE_KEY_PARTS = (
 EventSink = Callable[[str, dict[str, Any]], Awaitable[None]]
 
 
+@dataclass(frozen=True, kw_only=True)
+class ChannelMemberTurn:
+    event_sink: EventSink
+    task_started: Callable[[asyncio.Task[str]], None]
+
+
 @dataclass(kw_only=True)
 class ChatStreamRequest:
-    publish_user_id: str | None
-    event_sink: EventSink | None = None
+    member_turn: ChannelMemberTurn | None = None
     prompt: str
     system_prompt: str
     custom_instructions: str | None
@@ -67,6 +73,10 @@ class ChatStreamRequest:
     attachments: list[dict[str, Any]] | None
     context_window: int | None = None
     selected_persona_name: str = DEFAULT_PERSONA_NAME
+
+    @property
+    def publish_user_id(self) -> str | None:
+        return None if self.member_turn else str(self.chat_data["user_id"])
 
 
 class ToolPayload(TypedDict, total=False):

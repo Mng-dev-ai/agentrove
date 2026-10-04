@@ -150,7 +150,6 @@ async def send_message(
             prompt=prompt,
             chat_id=UUID(chat_id),
             model_id=model_id,
-            attached_files=files,
             permission_mode=permission_mode,
             thinking_mode=thinking_mode,
             worktree=worktree,
@@ -158,9 +157,19 @@ async def send_message(
             fast_mode=fast_mode,
             selected_persona_name=selected_persona_name,
         )
+        attachments: list[MessageAttachmentDict] | None = None
+        if files:
+            chat = await chat_service.get_chat(request.chat_id, current_user)
+            attachments = await StorageService(
+                ChatService.sandbox_for_workspace(chat.workspace)
+            ).save_files(
+                files,
+                agent_kind=MODELS[model_id].agent_kind,
+                sandbox_id=chat.sandbox_id,
+                user_id=str(current_user.id),
+            )
         result = await chat_service.initiate_chat_completion(
-            request,
-            current_user,
+            request, current_user, attachments
         )
 
         return {

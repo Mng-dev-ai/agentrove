@@ -105,7 +105,7 @@ class ChatStreamRuntime:
     ) -> None:
         chat = Chat.from_dict(request.chat_data)
         self.publish_user_id = request.publish_user_id
-        self.event_sink = request.event_sink
+        self.member_turn = request.member_turn
         self.chat = chat
         self.chat_id = str(chat.id)
         self.stream_id = uuid4()
@@ -316,8 +316,8 @@ class ChatStreamRuntime:
         if not self.assistant_message_id:
             return 0
 
-        if self.event_sink is not None:
-            await self.event_sink(kind, payload)
+        if self.member_turn is not None:
+            await self.member_turn.event_sink(kind, payload)
 
         audit = {"payload": StreamEnvelope.sanitize_payload(payload)}
         if apply_snapshot and kind in SNAPSHOT_EVENT_KINDS:
@@ -523,7 +523,7 @@ class ChatStreamRuntime:
     async def _process_next_queued(
         self, *, send_now_only: bool = False, prior_duration_ms: int | None = None
     ) -> bool:
-        if self.publish_user_id is None:
+        if self.member_turn is not None:
             return False
         next_msg: dict[str, Any] | None = None
         try:
@@ -651,7 +651,7 @@ class ChatStreamRuntime:
         worktree: bool,
         base_branch: str | None,
         session_factory: SessionFactoryType,
-        publish_user_id: str | None,
+        channel_member: bool = False,
     ) -> AsyncIterator[tuple[Message, Message, UUID | None]]:
         # A turn that fails to start leaves no rows behind.
         user_message = None
@@ -673,7 +673,7 @@ class ChatStreamRuntime:
             )
             checkpoint_id = (
                 None
-                if publish_user_id is None
+                if channel_member
                 else await cls.create_checkpoint_for_message(
                     chat,
                     assistant_message.id,
@@ -718,7 +718,6 @@ class ChatStreamRuntime:
             worktree=queued_msg["worktree"],
             base_branch=queued_msg.get("base_branch"),
             session_factory=session_factory,
-            publish_user_id=str(chat.user_id),
         ) as (user_message, assistant_message, checkpoint_id):
             request = cls._build_queued_stream_request(
                 chat=chat,
@@ -801,7 +800,7 @@ class ChatStreamRuntime:
             )
 
     async def _generate_title(self) -> None:
-        if self.publish_user_id is None or not self.prompt or not self._is_new_chat:
+        if self.member_turn is not None or not self.prompt or not self._is_new_chat:
             return
 
         ai_service = AgentService(session_factory=self.session_factory)
@@ -1029,7 +1028,6 @@ class ChatStreamRuntime:
         context_window = model.context_window
         resolved_session_id = session_id_override or chat.session_id
         return ChatStreamRequest(
-            publish_user_id=str(chat.user_id),
             prompt=queued_msg["content"],
             system_prompt=system_prompt,
             custom_instructions=user_settings.custom_instructions,
@@ -1249,7 +1247,7 @@ class ChatStreamRuntime:
                 base_branch=request.base_branch,
                 selected_persona_name=request.selected_persona_name,
                 fast_mode=request.fast_mode,
-                member_session=request.publish_user_id is None,
+                channel_member=request.member_turn is not None,
             )
 
             session, _ = await session_registry.get_or_create(

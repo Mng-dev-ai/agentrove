@@ -88,7 +88,7 @@ class AcpSessionConfig:
     env: dict[str, str] = field(default_factory=dict)
     mcp_servers: list[dict[str, Any]] = field(default_factory=list)
     model: str = ""
-    member_session: bool = False
+    channel_member: bool = False
     permission_mode: str = "default"
     resume_session_id: str | None = None
     workspace_path: str | None = None
@@ -343,7 +343,7 @@ class AcpSession:
     @classmethod
     async def create(cls, config: AcpSessionConfig) -> AcpSession:
         handler = AcpClientHandler(
-            agent_kind=config.agent_kind, member_session=config.member_session
+            agent_kind=config.agent_kind, channel_member=config.channel_member
         )
         # Resolve the workspace-relative cwd to a runtime-absolute path via the
         # provider — the single edge where relative → absolute translation lives.
