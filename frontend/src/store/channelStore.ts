@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type {
   ChannelEnvelope,
+  ChannelMemberActivity,
   ChannelMessage,
   ChannelPermissionRequest,
 } from '@/types/channel.types';
@@ -12,6 +13,7 @@ interface ChannelSlice {
   synced: boolean;
   permissions: ChannelPermissionRequest[];
   permissionSync: PermissionSync | null;
+  activity: ChannelMemberActivity;
 }
 
 interface PermissionSync {
@@ -36,11 +38,13 @@ interface ChannelState {
     permissions: ChannelPermissionRequest[],
   ) => void;
   dropPermission: (channelId: string, memberId: string, requestId: string) => void;
+  syncActivity: (channelId: string, activity: ChannelMemberActivity) => void;
   applyEnvelope: (envelope: ChannelEnvelope) => void;
 }
 
 export const EMPTY_MESSAGES: Record<string, ChannelMessage> = {};
 export const EMPTY_PERMISSIONS: ChannelPermissionRequest[] = [];
+export const EMPTY_MEMBER_IDS: string[] = [];
 
 const EMPTY_SLICE: ChannelSlice = {
   messages: EMPTY_MESSAGES,
@@ -48,6 +52,7 @@ const EMPTY_SLICE: ChannelSlice = {
   synced: false,
   permissions: EMPTY_PERMISSIONS,
   permissionSync: null,
+  activity: { version: 0, member_ids: EMPTY_MEMBER_IDS },
 };
 
 let lastSyncToken = 0;
@@ -116,6 +121,10 @@ function mergeSnapshot(
   return { ...slice, permissions: [...restored, ...live], permissionSync: null };
 }
 
+function applyActivity(slice: ChannelSlice, activity: ChannelMemberActivity): ChannelSlice {
+  return activity.version > slice.activity.version ? { ...slice, activity } : slice;
+}
+
 function applyToSlice(slice: ChannelSlice, envelope: ChannelEnvelope): ChannelSlice {
   switch (envelope.kind) {
     case 'channel_message':
@@ -124,6 +133,8 @@ function applyToSlice(slice: ChannelSlice, envelope: ChannelEnvelope): ChannelSl
       return addPermission(slice, envelope.payload);
     case 'channel_permission_resolved':
       return removePermission(slice, envelope.payload.member_id, envelope.payload.request_id);
+    case 'channel_member_activity':
+      return applyActivity(slice, envelope.payload);
   }
 }
 
@@ -193,6 +204,9 @@ export const useChannelStore = create<ChannelState>((set) => ({
     set((state) =>
       withSlice(state, channelId, (slice) => removePermission(slice, memberId, requestId)),
     ),
+
+  syncActivity: (channelId, activity) =>
+    set((state) => withSlice(state, channelId, (slice) => applyActivity(slice, activity))),
 
   applyEnvelope: (envelope) =>
     set((state) => withSlice(state, envelope.channelId, (slice) => applyToSlice(slice, envelope))),

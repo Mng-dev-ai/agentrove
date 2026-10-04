@@ -61,6 +61,11 @@ export interface ChannelPermissionRequest {
   request: ToolPermissionRequest;
 }
 
+export interface ChannelMemberActivity {
+  version: number;
+  member_ids: string[];
+}
+
 interface ChannelEnvelopeBase<K extends string, P> {
   channelId: string;
   kind: K;
@@ -70,7 +75,8 @@ interface ChannelEnvelopeBase<K extends string, P> {
 export type ChannelEnvelope =
   | ChannelEnvelopeBase<'channel_message', { message: ChannelMessage }>
   | ChannelEnvelopeBase<'channel_permission_request', ChannelPermissionRequest>
-  | ChannelEnvelopeBase<'channel_permission_resolved', { member_id: string; request_id: string }>;
+  | ChannelEnvelopeBase<'channel_permission_resolved', { member_id: string; request_id: string }>
+  | ChannelEnvelopeBase<'channel_member_activity', ChannelMemberActivity>;
 
 export function isChannelEnvelope(value: unknown): value is ChannelEnvelope {
   return typeof value === 'object' && value !== null && 'channelId' in value;

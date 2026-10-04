@@ -20,7 +20,12 @@ import { useChannelMessageActivityQuery } from '@/hooks/queries/useChannelQuerie
 import { useChannelLive } from '@/hooks/useChannelLive';
 import { useSmoothText } from '@/hooks/useSmoothText';
 import { permissionService } from '@/services/permissionService';
-import { EMPTY_MESSAGES, EMPTY_PERMISSIONS, useChannelStore } from '@/store/channelStore';
+import {
+  EMPTY_MEMBER_IDS,
+  EMPTY_MESSAGES,
+  EMPTY_PERMISSIONS,
+  useChannelStore,
+} from '@/store/channelStore';
 import { getAgentKindForModelId, type AgentKind } from '@/types/chat.types';
 import { formatFullTimestamp, formatRelativeTime } from '@/utils/date';
 import { executePermissionResponse } from '@/utils/permissionResponse';
@@ -115,15 +120,18 @@ function memberStatus(members: ChannelMember[], singular: string, plural: string
 }
 
 interface ChannelTypingRowProps {
+  thinking: ChannelMember[];
   typing: ChannelMember[];
   waiting: ChannelMember[];
 }
 
 const ChannelTypingRow = memo(function ChannelTypingRow({
+  thinking,
   typing,
   waiting,
 }: ChannelTypingRowProps) {
   const text = [
+    thinking.length > 0 && memberStatus(thinking, 'is thinking…', 'are thinking…'),
     typing.length > 0 && memberStatus(typing, 'is typing', 'are typing'),
     waiting.length > 0 &&
       memberStatus(waiting, 'is waiting for approval', 'are waiting for approval'),
@@ -135,7 +143,7 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
       <StatusIndicator
         leading={
           <span className={styles['typing-icons']}>
-            {[...typing, ...waiting].map((member) => (
+            {[...thinking, ...typing, ...waiting].map((member) => (
               <ProviderIcon
                 key={member.id}
                 agentKind={getAgentKindForModelId(member.model_id)}
@@ -145,7 +153,7 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
           </span>
         }
         text={text}
-        caretBlinking={typing.length > 0}
+        caretBlinking={thinking.length > 0 || typing.length > 0}
       />
     </div>
   );
@@ -226,6 +234,9 @@ export function ChannelView({ channel }: { channel: Channel }) {
   const permissions = useChannelStore(
     (state) => state.channels[channel.id]?.permissions ?? EMPTY_PERMISSIONS,
   );
+  const activeMemberIds = useChannelStore(
+    (state) => state.channels[channel.id]?.activity.member_ids ?? EMPTY_MEMBER_IDS,
+  );
 
   const messages = useMemo(
     () =>
@@ -242,19 +253,25 @@ export function ChannelView({ channel }: { channel: Channel }) {
     () => new Map(channel.members.map((member) => [member.id, member])),
     [channel.members],
   );
-  const { typingMembers, waitingMembers } = useMemo(() => {
+  const { thinkingMembers, typingMembers, waitingMembers } = useMemo(() => {
     const waitingIds = new Set(permissions.map((p) => p.member_id));
     const typingIds = new Set(
       messages.flatMap((m) => (m.status === 'streaming' && m.member_id ? [m.member_id] : [])),
     );
+    const activeIds = new Set(activeMemberIds);
     return {
+      thinkingMembers: channel.members.filter(
+        (member) =>
+          activeIds.has(member.id) && !typingIds.has(member.id) && !waitingIds.has(member.id),
+      ),
       typingMembers: channel.members.filter(
         (member) => typingIds.has(member.id) && !waitingIds.has(member.id),
       ),
       waitingMembers: channel.members.filter((member) => waitingIds.has(member.id)),
     };
-  }, [messages, permissions, channel.members]);
-  const isBusy = typingMembers.length > 0 || waitingMembers.length > 0;
+  }, [messages, permissions, activeMemberIds, channel.members]);
+  const isBusy =
+    thinkingMembers.length > 0 || typingMembers.length > 0 || waitingMembers.length > 0;
 
   const { showScrollButton, containerRefCallback, scrollToBottom } = useChatScroll({
     chatId: channel.id,
@@ -311,7 +328,11 @@ export function ChannelView({ channel }: { channel: Channel }) {
           ))}
           {isBusy && (
             <ConversationColumn>
-              <ChannelTypingRow typing={typingMembers} waiting={waitingMembers} />
+              <ChannelTypingRow
+                thinking={thinkingMembers}
+                typing={typingMembers}
+                waiting={waitingMembers}
+              />
             </ConversationColumn>
           )}
         </ConversationScroller>

@@ -3,6 +3,7 @@ import { ensureResponse, serviceCall } from '@/services/base/BaseService';
 import type {
   Channel,
   ChannelCreateRequest,
+  ChannelMemberActivity,
   ChannelMessage,
   ChannelPermissionRequest,
 } from '@/types/channel.types';
@@ -87,6 +88,15 @@ async function listPermissions(channelId: string): Promise<ChannelPermissionRequ
   });
 }
 
+async function getMemberActivity(channelId: string): Promise<ChannelMemberActivity> {
+  return serviceCall(async () => {
+    const response = await apiClient.get<ChannelMemberActivity>(
+      `/channels/${channelId}/member-activity`,
+    );
+    return ensureResponse(response, 'Failed to load channel activity');
+  });
+}
+
 async function stopChannel(channelId: string): Promise<void> {
   await serviceCall(async () => {
     await apiClient.post(`/channels/${channelId}/stop`);
@@ -103,5 +113,6 @@ export const channelService = {
   getMessageActivity,
   postMessage,
   listPermissions,
+  getMemberActivity,
   stopChannel,
 };

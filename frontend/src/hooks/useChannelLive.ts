@@ -40,11 +40,13 @@ export function useChannelLive(channelId: string) {
       Promise.all([
         channelService.listMessages(channelId, catchUpCursor(channelId)),
         channelService.listPermissions(channelId),
+        channelService.getMemberActivity(channelId),
       ])
-        .then(([messages, permissions]) => {
+        .then(([messages, permissions, activity]) => {
           if (cancelled) return;
           useChannelStore.getState().syncMessages(channelId, messages);
           useChannelStore.getState().syncPermissions(channelId, token, permissions);
+          useChannelStore.getState().syncActivity(channelId, activity);
         })
         .catch((error) => {
           if (cancelled) return;
