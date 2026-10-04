@@ -696,6 +696,19 @@ class ChatService(BaseDbService[Chat]):
                 )
             )
             workspaces = list(ws_result.scalars().all())
+            surviving_ids = worktrees_by_workspace.keys() - {ws.id for ws in workspaces}
+            surviving_workspaces: list[Workspace] = []
+            if surviving_ids:
+                surviving_result = await db.execute(
+                    select(Workspace).filter(
+                        Workspace.id.in_(surviving_ids),
+                        Workspace.deleted_at.is_(None),
+                        exists().where(
+                            Chat.workspace_id == Workspace.id, ~Chat.is_visible()
+                        ),
+                    )
+                )
+                surviving_workspaces = list(surviving_result.scalars().all())
 
             now = datetime.now(timezone.utc)
 
@@ -740,6 +753,14 @@ class ChatService(BaseDbService[Chat]):
                             worktrees_by_workspace.get(ws.id, []),
                         )
                     )
+
+            for ws in surviving_workspaces:
+                if ws.sandbox_id:
+                    git_service = GitService(self.sandbox_for_workspace(ws))
+                    for worktree_cwd in worktrees_by_workspace[ws.id]:
+                        asyncio.create_task(
+                            git_service.remove_worktree(ws.sandbox_id, worktree_cwd)
+                        )
 
             return len(chat_ids)
 
