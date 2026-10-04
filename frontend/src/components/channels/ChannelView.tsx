@@ -74,10 +74,10 @@ function AgentChannelMessage({ message, member }: AgentChannelMessageProps) {
   const isStreaming = message.status === 'streaming';
   const isInterrupted = message.status === 'cancelled';
   const agentKind = getAgentKindForModelId(member?.model_id);
-  const content = useSmoothText(message.content, isStreaming);
+  const [content, isRevealing] = useSmoothText(message.content, isStreaming, true);
   const text = (
     <MessageText>
-      <MarkDown content={content} streaming={isStreaming} />
+      <MarkDown content={content} streaming={isRevealing} />
     </MessageText>
   );
 

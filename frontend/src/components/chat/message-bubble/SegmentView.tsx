@@ -32,7 +32,7 @@ function TextSegment({
 }) {
   // The segment receiving stream output reveals its text word-by-word instead
   // of jumping a flush-sized chunk at a time.
-  const smoothText = useSmoothText(text, isActive);
+  const [smoothText] = useSmoothText(text, isActive);
   return (
     <div className={styles['text-segment']}>
       <MarkDown content={smoothText} streaming={isActive} highlightMentions={highlightMentions} />

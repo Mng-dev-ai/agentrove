@@ -11,19 +11,28 @@ const MIN_TICK_MS = 33;
 const MAX_TICK_DELTA_MS = 100;
 const HIGH_SURROGATE_RE = /[\uD800-\uDBFF]/;
 
-export function useSmoothText(text: string, animate: boolean): string {
+export function useSmoothText(
+  text: string,
+  animate: boolean,
+  finishReveal = false,
+): [string, boolean] {
   // Init to full length so reconnect/nav mounts show buffered content immediately;
   // only post-mount appends animate.
   const [visibleCount, setVisibleCount] = useState(text.length);
   const visibleCountRef = useRef(visibleCount);
   const textRef = useRef(text);
 
-  if (!text.startsWith(textRef.current.slice(0, visibleCountRef.current))) {
+  if (finishReveal && !text.startsWith(textRef.current.slice(0, visibleCountRef.current))) {
     visibleCountRef.current = 0;
     setVisibleCount(0);
   }
   textRef.current = text;
-  const revealing = animate || visibleCount < text.length;
+  const revealing = animate || (finishReveal && visibleCountRef.current < text.length);
+
+  if (!revealing && visibleCountRef.current !== text.length) {
+    visibleCountRef.current = text.length;
+    setVisibleCount(text.length);
+  }
 
   useEffect(() => {
     if (!revealing) return;
@@ -54,5 +63,5 @@ export function useSmoothText(text: string, animate: boolean): string {
     return () => cancelAnimationFrame(rafId);
   }, [revealing]);
 
-  return revealing ? text.slice(0, visibleCount) : text;
+  return [revealing ? text.slice(0, visibleCount) : text, revealing];
 }
