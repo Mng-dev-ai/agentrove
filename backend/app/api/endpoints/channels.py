@@ -134,3 +134,11 @@ async def pending_permissions(
 ) -> list[dict[str, Any]]:
     channel = await channel_service.get(channel_id, user)
     return list(channel_service.state(channel).permissions.values())
+
+
+@router.get("/{channel_id}/member-activity")
+async def member_activity(
+    channel_id: UUID, user: User = Depends(get_current_user)
+) -> dict[str, Any]:
+    channel = await channel_service.get(channel_id, user)
+    return channel_service.member_activity(channel_service.state(channel))

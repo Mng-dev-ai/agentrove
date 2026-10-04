@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -71,6 +72,10 @@ class TurnStatus(Enum):
     FINISHED = "finished"
 
 
+def activity_version(previous: int = 0) -> int:
+    return max(previous + 1, int(time.time() * 1000))
+
+
 @dataclass
 class MemberRetry:
     delay: float
@@ -106,6 +111,8 @@ class ChannelState:
     retries: dict[UUID, MemberRetry] = field(default_factory=dict)
     permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     unavailable: set[UUID] = field(default_factory=set)
+    active_member_ids: list[str] = field(default_factory=list)
+    activity_version: int = field(default_factory=activity_version)
     quiet_until: float = 0
     paused: bool = False
     deleted: bool = False
@@ -318,6 +325,27 @@ class ChannelService(BaseDbService[Channel]):
             logger.warning("Failed to publish channel event for %s", channel.id)
 
     @staticmethod
+    def member_activity(state: ChannelState) -> dict[str, Any]:
+        return {
+            "version": state.activity_version,
+            "member_ids": state.active_member_ids,
+        }
+
+    async def publish_activity(self, state: ChannelState) -> None:
+        member_ids = [
+            str(turn.member.id)
+            for turn in state.turns.values()
+            if turn.status is TurnStatus.RUNNING
+        ]
+        if member_ids == state.active_member_ids:
+            return
+        state.active_member_ids = member_ids
+        state.activity_version = activity_version(state.activity_version)
+        await self.publish(
+            state.channel, "channel_member_activity", self.member_activity(state)
+        )
+
+    @staticmethod
     def serialized(message: ChannelMessage) -> dict[str, Any]:
         payload: dict[str, Any] = ChannelMessageRead.model_validate(message).model_dump(
             mode="json"
@@ -470,6 +498,7 @@ class ChannelService(BaseDbService[Channel]):
                 await self.finish(state, turn)
             if turn.task is not None and turn.task.done():
                 state.turns.pop(turn.member.id)
+        await self.publish_activity(state)
         return turns
 
     async def cancel_turns(self, turns: list[MemberTurn]) -> None:
@@ -526,6 +555,7 @@ class ChannelService(BaseDbService[Channel]):
                 state.turns[member.id] = turn
                 turn.task = asyncio.create_task(self.run_turn(state, turn))
                 turn.task.add_done_callback(self.task_done)
+            await self.publish_activity(state)
             if retry_times:
                 self.schedule(state, min(retry_times))
 
@@ -623,6 +653,7 @@ class ChannelService(BaseDbService[Channel]):
                     self.fail_turn(state, turn, exc)
                 else:
                     state.turns.pop(member.id)
+                await self.publish_activity(state)
                 self.schedule(state)
 
     @staticmethod
