@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
+import { ChatProvider } from '@/contexts/ChatContext';
 import { CommandMenu } from '@/components/ui/command-menu/CommandMenu';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { ChannelView } from '@/components/channels/ChannelView';
@@ -51,7 +52,9 @@ export function ChannelPage() {
   return (
     <div className={styles.page}>
       <ChannelView key={channel.id} channel={channel} />
-      <CommandMenu />
+      <ChatProvider>
+        <CommandMenu />
+      </ChatProvider>
     </div>
   );
 }
