@@ -816,7 +816,7 @@ class ChatStreamRuntime:
             # title isn't unseen activity.
             await db.execute(
                 update(Chat)
-                .where(Chat.id == self.chat.id, Chat.is_visible())
+                .where(Chat.id == self.chat.id)
                 .values(title=title, updated_at=Chat.updated_at)
             )
             await db.commit()

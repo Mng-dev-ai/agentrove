@@ -306,8 +306,6 @@ class MessageService(BaseDbService[Message]):
         async with self.session_factory() as db:
             query = (
                 select(Message, ChatCheckpoint.id)
-                .join(Chat, Chat.id == Message.chat_id)
-                .where(Chat.is_visible())
                 .outerjoin(
                     ChatCheckpoint,
                     ChatCheckpoint.assistant_message_id == Message.id,
@@ -396,8 +394,6 @@ class MessageService(BaseDbService[Message]):
         async with self.session_factory() as db:
             query = (
                 select(MessageEvent)
-                .join(Chat, Chat.id == MessageEvent.chat_id)
-                .where(Chat.is_visible())
                 .where(
                     MessageEvent.message_id == message_id, MessageEvent.seq > after_seq
                 )

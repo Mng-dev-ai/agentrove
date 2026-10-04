@@ -512,7 +512,7 @@ class ChatService(BaseDbService[Chat]):
         async with self.session_factory() as db:
             await db.execute(
                 update(Chat)
-                .where(Chat.id == chat_id, Chat.is_visible())
+                .where(Chat.id == chat_id)
                 .values(
                     last_viewed_at=datetime.now(timezone.utc),
                     updated_at=Chat.updated_at,
@@ -538,8 +538,6 @@ class ChatService(BaseDbService[Chat]):
             prompt = (
                 await db.execute(
                     select(Message.content_text)
-                    .join(Chat, Chat.id == Message.chat_id)
-                    .where(Chat.is_visible())
                     .filter(
                         Message.chat_id == chat_id,
                         Message.role == MessageRole.USER,
@@ -609,7 +607,7 @@ class ChatService(BaseDbService[Chat]):
             if sub_thread_ids:
                 await db.execute(
                     update(Chat)
-                    .where(Chat.id.in_(sub_thread_ids), Chat.is_visible())
+                    .where(Chat.id.in_(sub_thread_ids))
                     .values(deleted_at=now, updated_at=now)
                 )
                 await db.execute(
@@ -692,7 +690,7 @@ class ChatService(BaseDbService[Chat]):
                     Workspace.user_id == user.id,
                     Workspace.deleted_at.is_(None),
                     ~exists().where(
-                        Chat.workspace_id == Workspace.id, Chat.channel_id.is_not(None)
+                        Chat.workspace_id == Workspace.id, ~Chat.is_visible()
                     ),
                 )
             )
