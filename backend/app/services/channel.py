@@ -86,6 +86,7 @@ class MemberTurn:
     text: str = ""
     reset_segment: bool = False
     last_flush_at: float = 0
+    flush_task: asyncio.Task[None] | None = None
     message: ChannelMessage | None = None
     status: TurnStatus = TurnStatus.RUNNING
     provider_task: asyncio.Task[str] | None = None
@@ -655,22 +656,41 @@ class ChannelService(BaseDbService[Channel]):
                 turn.text = ""
                 turn.reset_segment = False
             turn.text += delta
-            silent = self.is_silent(turn.text)
-            if turn.message is None and silent:
+            if turn.message is None and self.is_silent(turn.text):
                 return
-            if asyncio.get_running_loop().time() - turn.last_flush_at < 0.2:
-                return
-            if turn.message is None:
-                await self.begin_speaking(state, turn)
-            else:
-                async with self.session_factory() as db:
-                    turn.message.tool_call_count = len(turn.tool_call_ids)
-                    await self.write_message(
-                        db, turn.message, "" if silent else turn.text, "streaming"
-                    )
-                    await db.commit()
-                await self.publish_message(state.channel, turn.message)
-            turn.last_flush_at = asyncio.get_running_loop().time()
+            delay = turn.last_flush_at + 0.2 - asyncio.get_running_loop().time()
+            if delay <= 0:
+                await self.flush(state, turn)
+            elif turn.flush_task is None:
+                turn.flush_task = asyncio.create_task(
+                    self.flush_later(state, turn, delay)
+                )
+                turn.flush_task.add_done_callback(self.task_done)
+
+    async def flush_later(
+        self, state: ChannelState, turn: MemberTurn, delay: float
+    ) -> None:
+        await asyncio.sleep(delay)
+        async with state.lock:
+            turn.flush_task = None
+            if turn.status is TurnStatus.RUNNING:
+                await self.flush(state, turn)
+
+    async def flush(self, state: ChannelState, turn: MemberTurn) -> None:
+        if turn.message is None:
+            await self.begin_speaking(state, turn)
+        else:
+            async with self.session_factory() as db:
+                turn.message.tool_call_count = len(turn.tool_call_ids)
+                await self.write_message(
+                    db,
+                    turn.message,
+                    "" if self.is_silent(turn.text) else turn.text,
+                    "streaming",
+                )
+                await db.commit()
+            await self.publish_message(state.channel, turn.message)
+        turn.last_flush_at = asyncio.get_running_loop().time()
 
     @staticmethod
     async def write_message(

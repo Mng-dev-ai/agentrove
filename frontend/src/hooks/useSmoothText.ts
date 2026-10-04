@@ -17,15 +17,16 @@ export function useSmoothText(text: string, animate: boolean): string {
   const [visibleCount, setVisibleCount] = useState(text.length);
   const visibleCountRef = useRef(visibleCount);
   const textRef = useRef(text);
-  textRef.current = text;
 
-  if (!animate && visibleCountRef.current !== text.length) {
-    visibleCountRef.current = text.length;
-    setVisibleCount(text.length);
+  if (!text.startsWith(textRef.current.slice(0, visibleCountRef.current))) {
+    visibleCountRef.current = 0;
+    setVisibleCount(0);
   }
+  textRef.current = text;
+  const revealing = animate || visibleCount < text.length;
 
   useEffect(() => {
-    if (!animate) return;
+    if (!revealing) return;
 
     let rafId = 0;
     let lastTick = performance.now();
@@ -51,7 +52,7 @@ export function useSmoothText(text: string, animate: boolean): string {
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [animate]);
+  }, [revealing]);
 
-  return animate ? text.slice(0, visibleCount) : text;
+  return revealing ? text.slice(0, visibleCount) : text;
 }
