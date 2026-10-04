@@ -677,7 +677,7 @@ class ChannelService(BaseDbService[Channel]):
             if normalized := cls.normalized(line):
                 lines.append(normalized)
         if not lines:
-            return not text.strip()
+            return not cls.normalized(text)
         if len(lines) == 1 and "PASS".startswith(lines[0].upper()):
             return True
         return (

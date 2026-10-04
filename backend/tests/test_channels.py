@@ -255,6 +255,8 @@ async def source_message(
         ("Ran it.\nunit tests: PASS", False),
         ("CI: PASS", False),
         ("Nothing further to add.\nPASS — already covered", True),
+        ("*", True),
+        ("```py\nx = 1\n```", False),
     ],
 )
 def test_is_silent(text: str, silent: bool) -> None:
