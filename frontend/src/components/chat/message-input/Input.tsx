@@ -1,6 +1,4 @@
 import { memo } from 'react';
-import clsx from 'clsx';
-import { stateClasses } from '@/config/stateClasses';
 import { FileUploadDialog } from '@/components/ui/FileUploadDialog/FileUploadDialog';
 import { DrawingModal } from '@/components/ui/drawing-modal/DrawingModal';
 import { DropIndicator } from './DropIndicator';
@@ -10,6 +8,7 @@ import { AttachButton } from './AttachButton';
 import { EnhanceButton } from './EnhanceButton';
 import { Textarea } from './Textarea';
 import { InputControls } from './InputControls';
+import { ComposerField } from './ComposerField';
 import { InputAttachments } from './InputAttachments';
 import { SelectionAttachments } from './SelectionAttachments';
 import { InputSuggestionsPanel } from './InputSuggestionsPanel';
@@ -71,28 +70,32 @@ function InputLayout() {
         : 'idle';
 
   return (
-    <form ref={meta.formRef} onSubmit={actions.handleSubmit} className={styles.input}>
-      <div
-        {...meta.dragHandlers}
-        className={clsx(styles.field, state.isDragging && stateClasses.DRAGGING)}
-      >
-        <DropIndicator visible={state.isDragging} fileType="any" message="Drop your files here" />
+    <ComposerField
+      ref={meta.formRef}
+      onSubmit={actions.handleSubmit}
+      isDragging={state.isDragging}
+      dragHandlers={meta.dragHandlers}
+      attachments={
+        <>
+          <DropIndicator visible={state.isDragging} fileType="any" message="Drop your files here" />
 
-        {shouldShowAttachedPreview && (
-          <InputAttachments
-            files={state.attachedFiles!}
-            previewUrls={state.previewUrls}
-            onRemoveFile={actions.handleRemoveFile}
-            onEditImage={actions.handleDrawClick}
+          {shouldShowAttachedPreview && (
+            <InputAttachments
+              files={state.attachedFiles!}
+              previewUrls={state.previewUrls}
+              onRemoveFile={actions.handleRemoveFile}
+              onEditImage={actions.handleDrawClick}
+            />
+          )}
+
+          <SelectionAttachments
+            selections={state.attachedSelections}
+            onRemove={actions.handleRemoveSelection}
           />
-        )}
-
-        <SelectionAttachments
-          selections={state.attachedSelections}
-          onRemove={actions.handleRemoveSelection}
-        />
-
-        <div className={styles['textarea-wrap']}>
+        </>
+      }
+      textarea={
+        <>
           <Textarea
             ref={meta.textareaRef}
             message={state.message}
@@ -106,9 +109,10 @@ function InputLayout() {
             compact={state.compact}
           />
           <InputSuggestionsPanel />
-        </div>
-
-        <div className={styles.actions}>
+        </>
+      }
+      actions={
+        <>
           <EnhanceButton
             onEnhance={actions.handleEnhancePrompt}
             isEnhancing={state.isEnhancing}
@@ -128,9 +132,9 @@ function InputLayout() {
             type="button"
             showLoadingSpinner={state.showLoadingSpinner}
           />
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <div className={styles['footer-row']}>
         <div className={styles['context-slot']}>
           {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
@@ -162,6 +166,6 @@ function InputLayout() {
           agents
         </div>
       )}
-    </form>
+    </ComposerField>
   );
 }

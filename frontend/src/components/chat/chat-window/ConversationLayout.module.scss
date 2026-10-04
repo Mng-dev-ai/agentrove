@@ -1,0 +1,68 @@
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/zlayer' as z;
+
+.conversation {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.viewport {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+}
+
+.scroller {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+// Positioning context for the selection-actions layer anchored to message content.
+.content {
+  position: relative;
+}
+
+// Centered message column — full width, capped and centered from the lg breakpoint
+.column {
+  width: 100%;
+
+  @include responsive.media('lg-up') {
+    margin-left: auto;
+    margin-right: auto;
+    // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token
+    max-width: 67.2rem;
+  }
+}
+
+.composer {
+  position: relative;
+}
+
+.composer-surface {
+  position: relative;
+  background-color: var(--theme-surface);
+  padding-bottom: var(--safe-area-bottom);
+}
+
+.composer-inner {
+  position: relative;
+  width: 100%;
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+
+  @include responsive.media('lg-up') {
+    margin-left: auto;
+    margin-right: auto;
+    // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token
+    max-width: 67.2rem;
+  }
+}
+
+.input-slot {
+  @include z.z('raised');
+  position: relative;
+}

@@ -1,0 +1,14 @@
+@use '@/styles/globals/typography' as type;
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--space-2-5);
+  padding-bottom: var(--space-2);
+}
+
+.title {
+  @include type.type-meta;
+  color: var(--theme-text-quaternary);
+}

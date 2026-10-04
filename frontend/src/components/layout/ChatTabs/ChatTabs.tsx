@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
-import { X } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import type { ChatStatusTone } from '@/utils/message';
-import { Button } from '@/components/ui/primitives/Button/Button';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
@@ -13,10 +10,9 @@ import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
 import { paintedChatIds } from '@/utils/tileHelpers';
-import { stateClasses } from '@/config/stateClasses';
+import { TitleBarTab, TitleBarTabs } from '@/components/layout/TitleBarTab/TitleBarTab';
 import styles from './ChatTabs.module.scss';
 
 type ChatTabStatus = 'blocked' | 'streaming' | 'completed';
@@ -50,51 +46,27 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   const agentKind = useChatAgentKind(chatId, chatQuery.data?.session_agent_kind);
 
   return (
-    <div
-      // Middle-click closes (browser/editor tab convention).
-      onAuxClick={(e) => {
-        if (e.button === 1) onClose(chatId);
+    <TitleBarTab
+      icon={
+        status === 'streaming' ? (
+          <AsciiSpinner className={styles['tab-spinner']} />
+        ) : statusDotTone ? (
+          <ChatStatusDot tone={statusDotTone} className={styles['tab-status-dot']} />
+        ) : (
+          agentKind && (
+            <ProviderIcon agentKind={agentKind} className={styles['tab-provider-icon']} />
+          )
+        )
+      }
+      title={title}
+      isActive={isActive}
+      actions={{
+        tooltip: status ? `${title} · ${STATUS_LABELS[status]}` : title,
+        isCurrent,
+        onSelect: () => onSelect(chatId),
+        onClose: () => onClose(chatId),
       }}
-      // Full height centers the label on the title bar; underline-only active state.
-      className={clsx(styles['chat-tab'], isActive && stateClasses.ACTIVE)}
-    >
-      <FloatingTooltip
-        content={status ? `${title} · ${STATUS_LABELS[status]}` : title}
-        className={styles['tab-tooltip']}
-      >
-        <Button
-          variant="unstyled"
-          onClick={() => onSelect(chatId)}
-          aria-current={isCurrent ? 'page' : undefined}
-          className={styles['tab-select']}
-        >
-          {status === 'streaming' ? (
-            <AsciiSpinner className={styles['tab-spinner']} />
-          ) : statusDotTone ? (
-            <ChatStatusDot tone={statusDotTone} className={styles['tab-status-dot']} />
-          ) : (
-            agentKind && (
-              <ProviderIcon agentKind={agentKind} className={styles['tab-provider-icon']} />
-            )
-          )}
-          <span className={styles['tab-title']}>{title}</span>
-        </Button>
-      </FloatingTooltip>
-      {/* Close stays focusable (opacity-0) so keyboard users can still reach it. */}
-      <Button
-        variant="unstyled"
-        onClick={() => onClose(chatId)}
-        className={styles['tab-close']}
-        aria-label={`Close ${title} tab`}
-      >
-        <X className={styles['close-icon']} />
-      </Button>
-      {isActive && (
-        // The strip overlaps the band's hairline by 1px (-mb-px on the
-        // container), so this 2px line covers it and reads as crossing it.
-        <span aria-hidden="true" className={styles['tab-underline']} />
-      )}
-    </div>
+    />
   );
 }
 
@@ -157,7 +129,7 @@ export function ChatTabs() {
   if (isMobile || chatTabs.length === 0) return null;
 
   return (
-    <div className={styles['chat-tabs']}>
+    <TitleBarTabs>
       {chatTabs.map((chatId) => {
         const status: ChatTabStatus | null = blockedChatIdSet.has(chatId)
           ? 'blocked'
@@ -178,6 +150,6 @@ export function ChatTabs() {
           />
         );
       })}
-    </div>
+    </TitleBarTabs>
   );
 }

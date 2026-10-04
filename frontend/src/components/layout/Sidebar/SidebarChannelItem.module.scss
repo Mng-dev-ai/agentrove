@@ -1,0 +1,15 @@
+@use '@/styles/globals/typography' as type;
+
+.icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  flex-shrink: 0;
+  color: var(--theme-text-tertiary);
+}
+
+.members {
+  @include type.type-meta(500);
+  @include type.type-overflow;
+  padding-left: var(--space-5);
+  color: var(--theme-text-quaternary);
+}

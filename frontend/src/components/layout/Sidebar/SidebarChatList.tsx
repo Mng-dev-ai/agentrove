@@ -6,6 +6,7 @@ import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
 import { SidebarFilterMenu } from './SidebarFilterMenu';
+import { SidebarSectionHeader } from './SidebarSectionHeader';
 import type { SidebarChatSection } from './sidebarGrouping';
 import styles from './SidebarChatList.module.scss';
 
@@ -65,14 +66,13 @@ export function SidebarChatList({
 
           {/* Header always renders so the filter menu stays reachable when filters empty the list. */}
           <div>
-            <div className={styles['recents-header']}>
-              <span className={styles['section-title']}>Recents</span>
+            <SidebarSectionHeader title="Recents">
               <SidebarFilterMenu
                 filters={filters}
                 onChange={onChangeFilters}
                 workspaceBadgeById={workspaceBadgeById}
               />
-            </div>
+            </SidebarSectionHeader>
             {visibleRecentChats.length > 0 ? (
               <div>
                 {recentChatSections.map((section) => (

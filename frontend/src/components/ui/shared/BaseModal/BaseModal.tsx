@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { type KeyboardEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import styles from './BaseModal.module.scss';
@@ -28,21 +28,23 @@ export function BaseModal({
 }: BaseModalProps) {
   if (!isOpen) return null;
 
+  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape' && e.target instanceof Node && e.currentTarget.contains(e.target)) {
+      onClose();
+    }
+  };
+
   return createPortal(
     <div
       className={styles.backdrop}
       onClick={onClose}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') onClose();
-      }}
+      onKeyDown={handleKeyDown}
       role="presentation"
     >
       <div
         className={clsx(styles.container, styles[`container--${size}`], className)}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') onClose();
-        }}
+        onKeyDown={handleKeyDown}
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel}

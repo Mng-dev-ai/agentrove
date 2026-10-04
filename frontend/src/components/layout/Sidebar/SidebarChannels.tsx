@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import clsx from 'clsx';
-import { Hash, MoreHorizontal, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { CreateChannelDialog } from '@/components/channels/CreateChannelDialog';
@@ -10,15 +9,12 @@ import { useMountEffect } from '@/hooks/useMountEffect';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
-import { stateClasses } from '@/config/stateClasses';
-import { getRelativeTime } from '@/utils/date';
 import type { Workspace } from '@/types/workspace.types';
 import type { Channel } from '@/types/channel.types';
 import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
-import dropdownStyles from './ChatDropdown.module.scss';
-import filterStyles from './SidebarFilterMenu.module.scss';
-import itemStyles from './SidebarChatItem.module.scss';
-import listStyles from './SidebarChatList.module.scss';
+import { SidebarChannelItem } from './SidebarChannelItem';
+import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
+import { SidebarSectionHeader } from './SidebarSectionHeader';
 import styles from './SidebarChannels.module.scss';
 
 interface SidebarChannelsProps {
@@ -42,7 +38,6 @@ export function SidebarChannels({
   const deleteChannel = useDeleteChannelMutation();
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dropdown, setDropdown] = useState<{
     channel: Channel;
     position: { top: number; left: number };
@@ -94,106 +89,46 @@ export function SidebarChannels({
 
   return (
     <div className={styles.channels}>
-      <div className={listStyles['recents-header']}>
-        <span className={listStyles['section-title']}>Channels</span>
+      <SidebarSectionHeader title="Channels">
         <Button
           variant="unstyled"
           onClick={() => setCreateOpen(true)}
-          className={filterStyles.trigger}
+          className={styles['new-btn']}
           aria-label="New channel"
         >
-          <Plus className={filterStyles['trigger-icon']} />
+          <Plus className={styles['new-icon']} />
         </Button>
-      </div>
-      <div className={listStyles.section}>
-        {channels.map((channel) => {
-          const isActive = channel.id === selectedChannelId;
-          const isRevealed =
-            isActive || hoveredId === channel.id || dropdown?.channel.id === channel.id;
-          return (
-            <div
-              key={channel.id}
-              className={clsx(itemStyles['chat-item'], isActive && stateClasses.ACTIVE)}
-              onMouseEnter={() => setHoveredId(channel.id)}
-              onMouseLeave={() => setHoveredId(null)}
-            >
-              <div className={itemStyles['title-col']}>
-                <div className={itemStyles['title-row']}>
-                  <span className={itemStyles['status-slot']}>
-                    <Hash className={itemStyles['provider-icon']} />
-                  </span>
-                  <Button
-                    variant="unstyled"
-                    onClick={() => navigateToChannel(channel.id)}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={itemStyles['title-btn']}
-                  >
-                    <span
-                      className={clsx(
-                        itemStyles['title-text'],
-                        isActive && itemStyles['title-text--emphasis'],
-                      )}
-                    >
-                      {channel.name}
-                    </span>
-                  </Button>
-                </div>
-                <span
-                  className={clsx(
-                    itemStyles['workspace-badge'],
-                    itemStyles['workspace-badge--indented'],
-                  )}
-                >
-                  <span className={itemStyles['workspace-name']}>
-                    {channel.members.map((member) => member.display_name).join(', ')}
-                  </span>
-                </span>
-              </div>
-              <span
-                className={clsx(
-                  itemStyles.timestamp,
-                  isRevealed && itemStyles['timestamp--hidden'],
-                )}
-              >
-                {getRelativeTime(channel.updated_at)}
-              </span>
-              <Button
-                variant="unstyled"
-                onClick={(e) => handleDropdownClick(e, channel)}
-                onMouseDown={(e) => e.stopPropagation()}
-                className={clsx(
-                  itemStyles['dropdown-btn'],
-                  isRevealed && itemStyles['dropdown-btn--visible'],
-                )}
-                aria-label="Channel options"
-              >
-                <MoreHorizontal className={itemStyles['dropdown-icon']} />
-              </Button>
-            </div>
-          );
-        })}
+      </SidebarSectionHeader>
+      <div className={styles.list}>
+        {channels.map((channel) => (
+          <SidebarChannelItem
+            key={channel.id}
+            channel={channel}
+            isActive={channel.id === selectedChannelId}
+            isDropdownOpen={dropdown?.channel.id === channel.id}
+            onSelect={navigateToChannel}
+            onDropdownClick={handleDropdownClick}
+          />
+        ))}
       </div>
 
       {dropdown && (
-        <div
+        <SidebarMenu
           ref={dropdownRef}
-          role="menu"
-          className={dropdownStyles['chat-dropdown']}
-          style={{ top: `${dropdown.position.top}px`, left: `${dropdown.position.left}px` }}
+          position={dropdown.position}
+          onClose={() => setDropdown(null)}
         >
-          <Button
+          <SidebarMenuItem
+            icon={Trash2}
             onClick={() => {
               setChannelToDelete(dropdown.channel);
               setDropdown(null);
             }}
-            role="menuitem"
-            variant="unstyled"
-            className={dropdownStyles['menu-item-delete']}
+            danger
           >
-            <Trash2 className={dropdownStyles.icon} />
             Delete
-          </Button>
-        </div>
+          </SidebarMenuItem>
+        </SidebarMenu>
       )}
 
       <ConfirmDialog

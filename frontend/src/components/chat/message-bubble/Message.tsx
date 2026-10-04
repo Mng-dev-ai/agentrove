@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, type ReactNode } from 'react';
 import { Undo2 } from 'lucide-react';
 import { UserMessageContent, AssistantMessageContent } from './MessageContent';
 import { MessageActions } from './MessageActions';
@@ -16,6 +16,28 @@ import { useChatContext } from '@/hooks/useChatContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useCheckpointRestore } from '@/hooks/useCheckpointRestore';
 import styles from './Message.module.scss';
+
+export function MessageRow({ children }: { children: ReactNode }) {
+  return (
+    <div className={styles.message}>
+      <div className={styles['message-row']}>
+        <div className={styles['message-body']}>{children}</div>
+      </div>
+    </div>
+  );
+}
+
+export function MessageText({ children }: { children: ReactNode }) {
+  return <div className={styles['message-text']}>{children}</div>;
+}
+
+export function UserBubble({ children }: { children: ReactNode }) {
+  return (
+    <div className={styles['user-bubble']}>
+      <MessageText>{children}</MessageText>
+    </div>
+  );
+}
 
 interface SharedContentProps {
   contentRender: {
@@ -42,29 +64,23 @@ export const UserMessage = memo(function UserMessage({
   const { chatId } = useChatContext();
 
   return (
-    <div className={styles.message}>
-      <div className={styles['message-row']}>
-        <div className={styles['message-body']}>
-          <div className={styles['user-bubble']}>
-            <div className={styles['message-text']}>
-              <UserMessageContent
-                contentRender={contentRender}
-                attachments={attachments}
-                uploadingAttachmentIds={uploadingAttachmentIds}
-                isStreaming={isStreaming}
-                chatId={chatId}
-              />
-            </div>
-          </div>
+    <MessageRow>
+      <UserBubble>
+        <UserMessageContent
+          contentRender={contentRender}
+          attachments={attachments}
+          uploadingAttachmentIds={uploadingAttachmentIds}
+          isStreaming={isStreaming}
+          chatId={chatId}
+        />
+      </UserBubble>
 
-          {contentText.trim() && !isStreaming && (
-            <div className={styles['actions-slot']}>
-              <MessageActions messageId={id} contentText={contentText} />
-            </div>
-          )}
+      {contentText.trim() && !isStreaming && (
+        <div className={styles['actions-slot']}>
+          <MessageActions messageId={id} contentText={contentText} />
         </div>
-      </div>
-    </div>
+      )}
+    </MessageRow>
   );
 });
 
@@ -119,54 +135,50 @@ export const AssistantMessage = memo(function AssistantMessage({
   const showFooter = (hasContentText || checkpointId != null) && !isStreaming;
 
   return (
-    <div className={styles.message}>
-      <div className={styles['message-row']}>
-        <div className={styles['message-body']}>
-          <div className={styles['message-text']}>
-            <AssistantMessageContent
-              contentRender={contentRender}
-              attachments={attachments}
-              isStreaming={isStreaming}
-              chatId={chatId}
-              isLastBotMessage={isLastBotMessage}
-              durationMs={durationMs}
-              onSuggestionSelect={onSuggestionSelect}
-              agentKind={agentKind}
-            />
+    <MessageRow>
+      <MessageText>
+        <AssistantMessageContent
+          contentRender={contentRender}
+          attachments={attachments}
+          isStreaming={isStreaming}
+          chatId={chatId}
+          isLastBotMessage={isLastBotMessage}
+          durationMs={durationMs}
+          onSuggestionSelect={onSuggestionSelect}
+          agentKind={agentKind}
+        />
+      </MessageText>
+
+      {showFooter && (
+        <div className={styles.footer}>
+          <div className={styles['footer-actions']}>
+            {hasContentText && <MessageActions messageId={id} contentText={contentText} />}
+            {checkpointId && (
+              <Tooltip content="Restore to before this run" position="bottom">
+                <Button
+                  onClick={() => setRestoreOpen(true)}
+                  variant="unstyled"
+                  disabled={isRestoring}
+                  aria-label="Restore to before this run"
+                  className={styles['restore-button']}
+                >
+                  <Undo2 className={styles['restore-icon']} />
+                </Button>
+              </Tooltip>
+            )}
           </div>
 
-          {showFooter && (
-            <div className={styles.footer}>
-              <div className={styles['footer-actions']}>
-                {hasContentText && <MessageActions messageId={id} contentText={contentText} />}
-                {checkpointId && (
-                  <Tooltip content="Restore to before this run" position="bottom">
-                    <Button
-                      onClick={() => setRestoreOpen(true)}
-                      variant="unstyled"
-                      disabled={isRestoring}
-                      aria-label="Restore to before this run"
-                      className={styles['restore-button']}
-                    >
-                      <Undo2 className={styles['restore-icon']} />
-                    </Button>
-                  </Tooltip>
-                )}
-              </div>
-
-              <div className={styles['footer-meta']}>
-                {modelName && <span>{modelName}</span>}
-                {modelName && relativeTime && <span>·</span>}
-                {relativeTime && (
-                  <Tooltip content={fullTimestamp} position="bottom">
-                    <span className={styles['footer-time']}>{relativeTime}</span>
-                  </Tooltip>
-                )}
-              </div>
-            </div>
-          )}
+          <div className={styles['footer-meta']}>
+            {modelName && <span>{modelName}</span>}
+            {modelName && relativeTime && <span>·</span>}
+            {relativeTime && (
+              <Tooltip content={fullTimestamp} position="bottom">
+                <span className={styles['footer-time']}>{relativeTime}</span>
+              </Tooltip>
+            )}
+          </div>
         </div>
-      </div>
+      )}
       {restoreOpen && (
         <ConfirmDialog
           isOpen
@@ -177,6 +189,6 @@ export const AssistantMessage = memo(function AssistantMessage({
           confirmLabel="Restore"
         />
       )}
-    </div>
+    </MessageRow>
   );
 });

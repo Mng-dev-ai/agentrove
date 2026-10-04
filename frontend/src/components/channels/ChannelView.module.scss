@@ -1,9 +1,4 @@
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/responsive' as responsive;
-
-.content {
-  padding-block: var(--space-2);
-}
 
 .author {
   display: flex;
@@ -39,7 +34,7 @@
   color: var(--theme-text-tertiary);
 }
 
-.message-text--interrupted {
+.interrupted-text {
   opacity: 0.6;
 }
 

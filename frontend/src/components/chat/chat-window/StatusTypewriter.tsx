@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import styles from './StatusTypewriter.module.scss';
@@ -11,6 +11,33 @@ const GAP_MS = 300;
 
 // Count the in-progress second so the timer reads 1s the moment it appears, not 0s
 const secondsSince = (start: number) => Math.max(1, Math.ceil((Date.now() - start) / 1000));
+
+interface StatusIndicatorProps {
+  text: string;
+  caretBlinking: boolean;
+  leading?: ReactNode;
+  trailing?: ReactNode;
+}
+
+export function StatusIndicator({ text, caretBlinking, leading, trailing }: StatusIndicatorProps) {
+  return (
+    <div className={styles['status-typewriter']}>
+      <div className={styles['status-row']}>
+        {leading}
+        <span className={styles['status-verb']}>
+          {text}
+          <span
+            className={clsx(
+              styles['status-caret'],
+              caretBlinking && styles['status-caret--blinking'],
+            )}
+          />
+        </span>
+        {trailing}
+      </div>
+    </div>
+  );
+}
 
 interface StatusTypewriterProps {
   streamStartTime?: number;
@@ -79,17 +106,10 @@ export const StatusTypewriter = memo(function StatusTypewriter({
   }, [text, deleting, verb]);
 
   return (
-    <div className={styles['status-typewriter']}>
-      <div className={styles['status-row']}>
-        <span className={styles['status-verb']}>
-          {text}
-          <span
-            className={clsx(styles['status-caret'], holding && styles['status-caret--blinking'])}
-          />
-        </span>
-
-        <span className={styles['status-elapsed']}>· {elapsed}s</span>
-      </div>
-    </div>
+    <StatusIndicator
+      text={text}
+      caretBlinking={holding}
+      trailing={<span className={styles['status-elapsed']}>· {elapsed}s</span>}
+    />
   );
 });

@@ -11,6 +11,12 @@
   gap: var(--space-3);
 }
 
+.tab-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+}
+
 .members {
   display: flex;
   min-width: 0;

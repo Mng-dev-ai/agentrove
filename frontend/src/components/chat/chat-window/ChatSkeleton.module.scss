@@ -6,8 +6,7 @@
   margin-right: auto;
   // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token — kept as a raw rem value
   max-width: 67.2rem;
-  padding-left: var(--space-6);
-  padding-right: var(--space-6);
+  padding: var(--space-4) var(--space-6);
 }
 
 .message-skeleton {
