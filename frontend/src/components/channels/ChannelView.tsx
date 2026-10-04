@@ -97,7 +97,7 @@ function AgentChannelMessage({ message, member }: AgentChannelMessageProps) {
         )}
       </div>
       {!isStreaming && message.tool_call_count > 0 && (
-        <WorkedRollup durationMs={null}>
+        <WorkedRollup durationMs={message.duration_ms}>
           <ChannelMessageActivity
             channelId={message.channel_id}
             messageId={message.id}

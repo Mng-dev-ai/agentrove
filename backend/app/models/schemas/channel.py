@@ -91,6 +91,7 @@ class ChannelMessageRead(BaseModel):
     member_id: UUID | None
     content: str
     tool_call_count: int
+    duration_ms: int | None
     attachments: list[MessageAttachment]
     status: Literal["streaming", "completed", "cancelled", "deleted"]
     created_at: datetime

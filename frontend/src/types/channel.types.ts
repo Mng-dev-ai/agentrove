@@ -51,6 +51,7 @@ export interface ChannelMessage {
   status: ChannelMessageStatus;
   attachments: MessageAttachment[];
   tool_call_count: number;
+  duration_ms: number | null;
   created_at: string;
 }
 

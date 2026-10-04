@@ -707,6 +707,7 @@ class ChannelService(BaseDbService[Channel]):
                 status=status,
                 version=message.version,
                 tool_call_count=message.tool_call_count,
+                duration_ms=message.duration_ms,
             )
         )
 
@@ -745,6 +746,24 @@ class ChannelService(BaseDbService[Channel]):
                 if silent:
                     await self.write_message(db, message, "", "deleted")
                 else:
+                    if turn.source_message_id is not None:
+                        duration_ms, created_at = (
+                            await db.execute(
+                                select(Message.duration_ms, Message.created_at).where(
+                                    Message.id == turn.source_message_id
+                                )
+                            )
+                        ).one()
+                        message.duration_ms = (
+                            duration_ms
+                            if duration_ms is not None
+                            else int(
+                                (
+                                    datetime.now(timezone.utc) - created_at
+                                ).total_seconds()
+                                * 1000
+                            )
+                        )
                     await self.write_message(
                         db,
                         message,
