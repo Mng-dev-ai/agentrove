@@ -142,13 +142,33 @@ class ChannelService(BaseDbService[Channel]):
             return list((await db.scalars(query)).all())
 
     async def create(self, user: User, data: ChannelCreate) -> Channel:
+        display_names: list[str] = []
+        used_names: set[str] = set()
         for item in data.members:
-            kind = MODELS[item.model_id].agent_kind
+            model = MODELS[item.model_id]
+            kind = model.agent_kind
             if (
                 item.permission_mode is not None
                 and item.permission_mode not in AGENT_ADAPTERS[kind].session_modes
             ):
                 raise HTTPException(400, f"Invalid permission mode for {kind.value}")
+            if item.display_name is not None:
+                display_name = item.display_name
+                if display_name.lower() in used_names:
+                    raise HTTPException(400, f"Duplicate display name: {display_name}")
+            else:
+                name = re.sub(r"\s+", "-", model.display_name.lower())
+                name = re.sub(r"[^a-z0-9.-]", "", name)
+                name = re.sub(r"-+", "-", name).strip("-.")[:32]
+                name = name or kind.value.lower()
+                display_name = name
+                number = 2
+                while display_name.lower() in used_names:
+                    suffix = f"-{number}"
+                    display_name = f"{name[: 32 - len(suffix)]}{suffix}"
+                    number += 1
+            used_names.add(display_name.lower())
+            display_names.append(display_name)
         async with self.session_factory() as db:
             workspace = await db.scalar(
                 select(Workspace).where(
@@ -179,11 +199,7 @@ class ChannelService(BaseDbService[Channel]):
             )
             db.add(channel)
             await db.flush()
-            counts: dict[str, int] = {}
-            for item in data.members:
-                name = MODELS[item.model_id].agent_kind.value.lower()
-                counts[name] = counts.get(name, 0) + 1
-                display_name = name if counts[name] == 1 else f"{name}-{counts[name]}"
+            for item, display_name in zip(data.members, display_names, strict=True):
                 chat = Chat(
                     title=data.name,
                     user_id=user.id,
