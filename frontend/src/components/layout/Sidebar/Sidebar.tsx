@@ -212,6 +212,7 @@ export function Sidebar({
         <SidebarChannels
           workspaces={workspaces}
           workspaceId={selectedChatWorkspaceId ?? undefined}
+          filterWorkspaceId={filters.workspaceId}
           selectedChannelId={selectedChannelId}
         />
 

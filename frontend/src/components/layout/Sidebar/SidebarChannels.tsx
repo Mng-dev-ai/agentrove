@@ -25,12 +25,14 @@ import styles from './SidebarChannels.module.scss';
 interface SidebarChannelsProps {
   workspaces: Workspace[];
   workspaceId: string | undefined;
+  filterWorkspaceId: string | null;
   selectedChannelId: string | null;
 }
 
 export function SidebarChannels({
   workspaces,
   workspaceId: selectedWorkspaceId,
+  filterWorkspaceId,
   selectedChannelId,
 }: SidebarChannelsProps) {
   const workspaceId = workspaces.some((workspace) => workspace.id === selectedWorkspaceId)
@@ -39,7 +41,7 @@ export function SidebarChannels({
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const { data: channels = [] } = useChannelsQuery(workspaceId, isAuthenticated);
+  const { data: channels = [] } = useChannelsQuery(filterWorkspaceId ?? undefined, isAuthenticated);
   const deleteChannel = useDeleteChannelMutation();
   const renameChannel = useRenameChannelMutation();
 
