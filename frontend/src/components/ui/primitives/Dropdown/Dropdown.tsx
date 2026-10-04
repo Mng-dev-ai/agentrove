@@ -208,7 +208,7 @@ const Dropdown = memo(function Dropdown<T>({
             )}
           />
         )}
-        <FloatingTooltip content={triggerLabel} className={labelSlotClass}>
+        <FloatingTooltip content={isOpen ? '' : triggerLabel} className={labelSlotClass}>
           <span className={styles['trigger-label']}>{triggerLabel}</span>
         </FloatingTooltip>
         {triggerVariant !== 'text' && !disabled && (

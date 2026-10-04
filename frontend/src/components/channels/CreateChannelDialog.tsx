@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import clsx from 'clsx';
 import { ChevronDown, Hash, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -6,6 +6,7 @@ import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { ThinkingModeDropdown } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
 import { PersonaDropdown } from '@/components/chat/persona-selector/PersonaSelector';
@@ -69,8 +70,19 @@ function resolveMember(member: MemberDraft, models: Model[]) {
   };
 }
 
+function memberDisplayNames(members: MemberDraft[], models: Model[]): string[] {
+  const counts = new Map<string, number>();
+  return members.map((member) => {
+    const name = resolveMember(member, models).agentKind.toLowerCase();
+    const count = (counts.get(name) ?? 0) + 1;
+    counts.set(name, count);
+    return count === 1 ? name : `${name}-${count}`;
+  });
+}
+
 interface MemberChipProps {
   member: MemberDraft;
+  displayName: string;
   models: Model[];
   personas: Persona[];
   canRemove: boolean;
@@ -78,30 +90,51 @@ interface MemberChipProps {
   onRemove: () => void;
 }
 
-function MemberChip({ member, models, personas, canRemove, onChange, onRemove }: MemberChipProps) {
+function MemberChip({
+  member,
+  displayName,
+  models,
+  personas,
+  canRemove,
+  onChange,
+  onRemove,
+}: MemberChipProps) {
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const { modelId, modelName, agentKind, hasThinking, supportsPersona } = resolveMember(
     member,
     models,
   );
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      setIsOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, setIsOpen]);
+
   return (
     <div ref={dropdownRef} className={styles['chip-wrap']}>
-      <Button
-        type="button"
-        variant="unstyled"
-        onClick={() => setIsOpen(!isOpen)}
-        aria-haspopup="dialog"
-        aria-expanded={isOpen}
-        className={clsx(styles.chip, isOpen && stateClasses.OPEN)}
-      >
-        <ProviderIcon agentKind={agentKind} className={styles['chip-icon']} />
-        <span className={styles['chip-label']}>{modelName}</span>
-        <ChevronDown className={styles['chip-caret']} />
-      </Button>
+      <FloatingTooltip content={isOpen ? '' : modelName}>
+        <Button
+          type="button"
+          variant="unstyled"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-haspopup="dialog"
+          aria-expanded={isOpen}
+          className={clsx(styles.chip, isOpen && stateClasses.OPEN)}
+        >
+          <ProviderIcon agentKind={agentKind} className={styles['chip-icon']} />
+          <span className={styles['chip-label']}>{displayName}</span>
+          <ChevronDown className={styles['chip-caret']} />
+        </Button>
+      </FloatingTooltip>
 
       {isOpen && (
-        <div role="dialog" aria-label={`${modelName} settings`} className={styles.popover}>
+        <div role="dialog" aria-label={`${displayName} settings`} className={styles.popover}>
           <div className={styles['popover-row']}>
             <span className={styles['popover-label']}>Model</span>
             <ModelSelector
@@ -203,6 +236,8 @@ export function CreateChannelDialog({
     setWorkspaceId(nextWorkspaceId);
     setSelectedBranch(null);
   };
+
+  const displayNames = memberDisplayNames(members, models);
 
   const updateMember = (key: string, patch: Partial<MemberDraft>) =>
     setMembers((prev) => prev.map((m) => (m.key === key ? { ...m, ...patch } : m)));
@@ -310,10 +345,11 @@ export function CreateChannelDialog({
           <div>
             <span className={styles['field-label']}>Members</span>
             <div className={styles.members}>
-              {members.map((member) => (
+              {members.map((member, index) => (
                 <MemberChip
                   key={member.key}
                   member={member}
+                  displayName={displayNames[index]}
                   models={models}
                   personas={personas}
                   canRemove={members.length > 1}
