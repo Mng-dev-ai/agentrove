@@ -660,20 +660,34 @@ class ChannelService(BaseDbService[Channel]):
 
     @classmethod
     def is_silent(cls, text: str) -> bool:
-        if "PASS".startswith(cls.normalized(text).upper()):
-            return True
-        lines = [
-            normalized
-            for line in text.splitlines()
-            if (normalized := cls.normalized(line))
-        ]
+        lines = []
+        fence = ""
+        for line in text.splitlines():
+            if fence:
+                if re.fullmatch(
+                    r" {0,3}" + fence[0] + "{" + str(len(fence)) + r",}\s*", line
+                ):
+                    fence = ""
+                continue
+            if match := re.match(r"^ {0,3}(`{3,}|~{3,})", line):
+                fence = match[1]
+                continue
+            if line.expandtabs(4).startswith("    "):
+                continue
+            if normalized := cls.normalized(line):
+                lines.append(normalized)
         if not lines:
-            return False
+            return not text.strip()
+        if len(lines) == 1 and "PASS".startswith(lines[0].upper()):
+            return True
         return (
-            (lines[0].lower() == "pass" or lines[-1].lower() == "pass")
-            or re.match(r"^PASS(?:\s*[—–:(,.!]|\s+-\s)", lines[0]) is not None
-            or re.match(r"^pass[,.]\s", lines[0], re.IGNORECASE) is not None
-            or re.search(r"(?:^|[.!?:;—–)]\s*)PASS\.?$", lines[-1]) is not None
+            any(
+                line.lower() == "pass"
+                or re.match(r"^PASS(?:\s*[—–:(,.!]|\s+-\s)", line) is not None
+                or re.match(r"^pass[,.]\s", line, re.IGNORECASE) is not None
+                for line in (lines[0], lines[-1])
+            )
+            or re.search(r"(?:^|[.!?;—–)]\s*)PASS\.?$", lines[-1]) is not None
         )
 
     async def text(self, state: ChannelState, turn: MemberTurn, delta: str) -> None:

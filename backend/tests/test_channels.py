@@ -250,6 +250,11 @@ async def source_message(
         ("passes", False),
         ("a", False),
         ("Options:\npass\nor retry", False),
+        ("Here's a stub:\n```python\ndef handler():\n    pass\n```", False),
+        ("Here's a stub:\n    pass", False),
+        ("Ran it.\nunit tests: PASS", False),
+        ("CI: PASS", False),
+        ("Nothing further to add.\nPASS — already covered", True),
     ],
 )
 def test_is_silent(text: str, silent: bool) -> None:
