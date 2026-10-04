@@ -8,7 +8,6 @@ export interface MessageSkeletonProps {
 
 export interface ChatSkeletonProps {
   messageCount?: number;
-  className?: string;
 }
 
 const MessageSkeleton = memo(function MessageSkeleton({ className = '' }: MessageSkeletonProps) {
@@ -37,12 +36,9 @@ const MessageSkeleton = memo(function MessageSkeleton({ className = '' }: Messag
   );
 });
 
-export const ChatSkeleton = memo(function ChatSkeleton({
-  messageCount = 3,
-  className = '',
-}: ChatSkeletonProps) {
+export const ChatSkeleton = memo(function ChatSkeleton({ messageCount = 3 }: ChatSkeletonProps) {
   return (
-    <div className={clsx(styles['chat-skeleton'], className)}>
+    <div className={styles['chat-skeleton']}>
       {Array.from({ length: messageCount }).map((_, index) => (
         <MessageSkeleton
           key={index}

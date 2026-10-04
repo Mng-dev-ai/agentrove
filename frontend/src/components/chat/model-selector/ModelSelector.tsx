@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
-import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 import type { DropdownItemType } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/store/modelStore';
@@ -19,7 +19,7 @@ import styles from './ModelSelector.module.scss';
 export interface ModelSelectorProps {
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
-  dropdownPosition?: 'top' | 'bottom';
+  dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   compact?: boolean;
   lockedAgentKind?: AgentKind | null;

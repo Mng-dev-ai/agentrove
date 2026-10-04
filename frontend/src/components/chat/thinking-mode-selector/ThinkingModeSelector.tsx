@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import clsx from 'clsx';
 import { Brain } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -12,34 +12,35 @@ import type { AgentKind } from '@/types/chat.types';
 import { getThinkingModesForAgent, getThinkingModeOption } from './thinkingModes';
 import styles from './ThinkingModeSelector.module.scss';
 
-export interface ThinkingModeSelectorProps {
-  chatId?: string;
+interface ThinkingModeControlProps {
   agentKind?: AgentKind;
   modelId?: string;
-  dropdownPosition?: 'top' | 'bottom';
+  dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
 }
 
-export const ThinkingModeSelector = memo(function ThinkingModeSelector({
-  chatId,
+export interface ThinkingModeDropdownProps extends ThinkingModeControlProps {
+  value: string;
+  onChange: (mode: string) => void;
+}
+
+export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
+  value,
+  onChange,
   agentKind,
   modelId,
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
   variant = 'default',
-}: ThinkingModeSelectorProps) {
-  const key = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
+}: ThinkingModeDropdownProps) {
   const resolvedAgentKind = agentKind ?? 'claude';
-  const thinkingMode = useChatSettingsStore(
-    (state) => state.thinkingModeByChat[key] ?? DEFAULT_THINKING_MODE,
-  );
   const isSplitMode = useIsSplitMode();
 
   const modes = getThinkingModesForAgent(resolvedAgentKind, modelId);
-  const selectedMode = getThinkingModeOption(thinkingMode, resolvedAgentKind, modelId);
+  const selectedMode = getThinkingModeOption(value, resolvedAgentKind, modelId);
 
   // Some agents (e.g. Cursor) don't expose a thinking-mode control because
   // reasoning effort is chosen at the model level. Hide the selector entirely.
@@ -51,7 +52,7 @@ export const ThinkingModeSelector = memo(function ThinkingModeSelector({
       items={modes}
       getItemKey={(mode) => mode.value}
       getItemLabel={(mode) => mode.label}
-      onSelect={(mode) => useChatSettingsStore.getState().setThinkingMode(key, mode.value)}
+      onSelect={(mode) => onChange(mode.value)}
       leftIcon={Brain}
       width="8rem"
       dropdownPosition={dropdownPosition}
@@ -65,6 +66,28 @@ export const ThinkingModeSelector = memo(function ThinkingModeSelector({
           {mode.label}
         </span>
       )}
+    />
+  );
+});
+
+export interface ThinkingModeSelectorProps extends ThinkingModeControlProps {
+  chatId?: string;
+}
+
+export const ThinkingModeSelector = memo(function ThinkingModeSelector({
+  chatId,
+  ...controlProps
+}: ThinkingModeSelectorProps) {
+  const key = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
+  const thinkingMode = useChatSettingsStore(
+    (state) => state.thinkingModeByChat[key] ?? DEFAULT_THINKING_MODE,
+  );
+
+  return (
+    <ThinkingModeDropdown
+      value={thinkingMode}
+      onChange={(mode) => useChatSettingsStore.getState().setThinkingMode(key, mode)}
+      {...controlProps}
     />
   );
 });

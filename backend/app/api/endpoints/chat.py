@@ -28,6 +28,7 @@ from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.core.config import get_settings
 from app.core.deps import (
     ensure_chat_access,
+    ensure_member_chat_access,
     get_agent_service,
     get_chat_service,
     get_queue_service,
@@ -595,7 +596,7 @@ async def respond_to_permission(
     chat_id: UUID,
     request_id: str,
     option_id: str = Form(""),
-    _chat: Chat = Depends(ensure_chat_access),
+    _chat: Chat = Depends(ensure_member_chat_access),
 ) -> PermissionRespondResponse:
     acp_resolved = session_registry.resolve_permission(
         str(chat_id),
@@ -683,18 +684,11 @@ async def queue_message(
         ws_sandbox = ChatService.sandbox_for_workspace(chat.workspace)
         file_storage = StorageService(ws_sandbox)
         agent_kind = MODELS[model_id].agent_kind
-        attachments = list(
-            await asyncio.gather(
-                *[
-                    file_storage.save_file(
-                        file,
-                        agent_kind=agent_kind,
-                        sandbox_id=chat.workspace.sandbox_id,
-                        user_id=str(current_user.id),
-                    )
-                    for file in files
-                ]
-            )
+        attachments = await file_storage.save_files(
+            files,
+            agent_kind=agent_kind,
+            sandbox_id=chat.workspace.sandbox_id,
+            user_id=str(current_user.id),
         )
     queue_attachments = [dict(item) for item in attachments] if attachments else None
 

@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef } from 'react';
-import { ChevronRight, Cloud, CornerDownRight, MoreHorizontal } from 'lucide-react';
+import { ChevronRight, Cloud, CornerDownRight } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { chatStatusTone, CHAT_STATUS_LABEL, type ChatStatusTone } from '@/utils/message';
@@ -10,9 +10,9 @@ import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
-import { stateClasses } from '@/config/stateClasses';
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
+import { SidebarRow, SidebarRowTitle } from './SidebarRow';
 import styles from './SidebarChatItem.module.scss';
 
 interface SidebarChatItemProps {
@@ -135,56 +135,48 @@ export const SidebarChatItem = memo(function SidebarChatItem({
     statusSlot
   );
   return (
-    <div
+    <SidebarRow
       ref={rowRef}
-      className={clsx(styles['chat-item'], isActive && stateClasses.ACTIVE)}
+      isActive={isActive}
+      isRevealed={isHovered || isActive || isDropdownOpen}
       onMouseEnter={() => onMouseEnter(chat.id)}
       onMouseLeave={onMouseLeave}
-    >
-      {/* Pad for timestamp/dropdown so long titles truncate before them. */}
-      <div className={styles['title-col']}>
-        <div className={styles['title-row']}>
-          {/* Single leading slot keeps titles flush (caret vs icon+status). */}
-          {leadingIcon}
-          {/* Tooltip on title only — icon has its own status tooltip. */}
-          <FloatingTooltip
-            content={
-              onOpenInSplit && canOpenInSplit
-                ? `${chat.title} (Shift-click to open in split)`
-                : chat.title
+      // Single leading slot keeps titles flush (caret vs icon+status).
+      leading={leadingIcon}
+      title={
+        // Tooltip on title only — icon has its own status tooltip.
+        <FloatingTooltip
+          content={
+            onOpenInSplit && canOpenInSplit
+              ? `${chat.title} (Shift-click to open in split)`
+              : chat.title
+          }
+          className={styles['title-tooltip']}
+        >
+          <SidebarRowTitle
+            label={stripMarkdownTitle(chat.title)}
+            isEmphasized={isActive || isUnread}
+            isCurrent={isSelected}
+            onClick={(e) => {
+              if (e.shiftKey && onOpenInSplit && canOpenInSplit && !isActive) {
+                e.preventDefault();
+                onOpenInSplit(chat.id);
+                return;
+              }
+              onSelect(chat.id);
+            }}
+            trailing={
+              // Resting sub-thread hint; caret covers this on hover/expand.
+              hasSubThreads &&
+              !isHovered &&
+              !isSubThreadsExpanded && <CornerDownRight className={styles['subthread-hint']} />
             }
-            className={styles['title-tooltip']}
-          >
-            <Button
-              onClick={(e) => {
-                if (e.shiftKey && onOpenInSplit && canOpenInSplit && !isActive) {
-                  e.preventDefault();
-                  onOpenInSplit(chat.id);
-                  return;
-                }
-                onSelect(chat.id);
-              }}
-              aria-current={isSelected ? 'page' : undefined}
-              variant="unstyled"
-              className={styles['title-btn']}
-            >
-              <span
-                className={clsx(
-                  styles['title-text'],
-                  (isActive || isUnread) && styles['title-text--emphasis'],
-                )}
-              >
-                {stripMarkdownTitle(chat.title)}
-              </span>
-              {/* Resting sub-thread hint; caret covers this on hover/expand. */}
-              {hasSubThreads && !isHovered && !isSubThreadsExpanded && (
-                <CornerDownRight className={styles['subthread-hint']} />
-              )}
-            </Button>
-          </FloatingTooltip>
-        </div>
-        {/* Badge opens workspace menu (flat list has no group headers for those actions). */}
-        {workspaceBadge && (
+          />
+        </FloatingTooltip>
+      }
+      subtitle={
+        // Badge opens workspace menu (flat list has no group headers for those actions).
+        workspaceBadge && (
           <Button
             variant="unstyled"
             type="button"
@@ -199,31 +191,11 @@ export const SidebarChatItem = memo(function SidebarChatItem({
             {workspaceBadge.isCloud && <Cloud className={styles['cloud-icon']} />}
             <span className={styles['workspace-name']}>{workspaceBadge.name}</span>
           </Button>
-        )}
-      </div>
-
-      {/* Timestamp; hides on hover for the dropdown. Status is on the leading icon. */}
-      <span
-        className={clsx(
-          styles.timestamp,
-          (isHovered || isActive || isDropdownOpen) && styles['timestamp--hidden'],
-        )}
-      >
-        {getRelativeTime(chat.updated_at)}
-      </span>
-
-      <Button
-        onClick={(e) => onDropdownClick(e, chat)}
-        onMouseDown={(e) => e.stopPropagation()}
-        variant="unstyled"
-        className={clsx(
-          styles['dropdown-btn'],
-          (isHovered || isActive || isDropdownOpen) && styles['dropdown-btn--visible'],
-        )}
-        aria-label="Chat options"
-      >
-        <MoreHorizontal className={styles['dropdown-icon']} />
-      </Button>
-    </div>
+        )
+      }
+      timestamp={getRelativeTime(chat.updated_at)}
+      dropdownLabel="Chat options"
+      onDropdownClick={(e) => onDropdownClick(e, chat)}
+    />
   );
 });

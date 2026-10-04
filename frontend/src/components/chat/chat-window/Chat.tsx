@@ -10,7 +10,7 @@ import { ChatInlineElicitation } from './ChatInlineElicitation';
 import { StreamActionsBar } from './StreamActionsBar';
 import { Input } from '@/components/chat/message-input/Input';
 import { ChatSkeleton } from './ChatSkeleton';
-import { ScrollButton } from './ScrollButton';
+import { ConversationColumn, ConversationLayout, ConversationScroller } from './ConversationLayout';
 import { MessageTrail } from './MessageTrail';
 import { FindInChat } from './FindInChat';
 import { ChatSelectionActions } from './ChatSelectionActions';
@@ -233,7 +233,7 @@ export const Chat = memo(function Chat() {
       const uploadingAttachmentIds = shouldShowUploadingOverlay ? localAttachmentIds : undefined;
 
       return (
-        <div className={styles.column}>
+        <ConversationColumn>
           {isBotMessage ? (
             <AssistantMessage
               id={msg.id}
@@ -267,7 +267,7 @@ export const Chat = memo(function Chat() {
               <ChatInlineElicitation />
             </>
           )}
-        </div>
+        </ConversationColumn>
       );
     },
     [
@@ -287,7 +287,7 @@ export const Chat = memo(function Chat() {
     }
 
     return (
-      <div className={styles.column}>
+      <ConversationColumn>
         <div className={styles['list-header-row']}>
           {isFetchingNextPage && (
             <div className={styles['loading-more']}>
@@ -296,7 +296,7 @@ export const Chat = memo(function Chat() {
             </div>
           )}
         </div>
-      </div>
+      </ConversationColumn>
     );
   }, [hasNextPage, isFetchingNextPage]);
 
@@ -317,12 +317,12 @@ export const Chat = memo(function Chat() {
     }
 
     return (
-      <div className={styles.column}>
+      <ConversationColumn>
         {showThinking && <StatusTypewriter streamStartTime={streamStartTime} />}
         {showPermissionAtEnd && <ChatInlinePermission />}
         {showElicitationAtEnd && <ChatInlineElicitation />}
         {showStreamActions && chatId && <StreamActionsBar chatId={chatId} />}
-      </div>
+      </ConversationColumn>
     );
   }, [
     chatId,
@@ -334,83 +334,74 @@ export const Chat = memo(function Chat() {
   ]);
 
   return (
-    <div className={styles.chat}>
-      <div className={styles.viewport}>
-        {isInitialLoading && messages.length === 0 ? (
-          <ChatSkeleton messageCount={3} className={styles['skeleton-pad']} />
-        ) : (
-          <>
-            <div key={chatId ?? 'chat'} ref={containerRefCallback} className={styles.scroller}>
-              {/* Single wrapper so the stick-to-bottom ResizeObserver tracks all content */}
-              <div className={styles.content}>
-                {listHeader}
+    <ConversationLayout
+      showScrollButton={showScrollButton}
+      onScrollToBottom={scrollToBottom}
+      composerBanner={
+        <ChatQueueBanner
+          messages={pendingMessages}
+          onCancel={handleCancelMessage}
+          onEdit={handleEditMessage}
+          onSendNow={handleSendNow}
+        />
+      }
+      composer={
+        <Input
+          message={inputMessage}
+          setMessage={setInputMessage}
+          onSubmit={onSubmit}
+          onAttach={onAttach}
+          attachedFiles={attachedFiles}
+          isLoading={isLoading}
+          isStreaming={isStreaming}
+          onStopStream={onStopStream}
+          selectedModelId={selectedModelId}
+          onModelChange={onModelChange}
+          dropdownPosition="top"
+          showAttachedFilesPreview={true}
+          contextUsage={contextUsage}
+          showTip={false}
+          chatId={chatId}
+        />
+      }
+    >
+      {isInitialLoading && messages.length === 0 ? (
+        <ChatSkeleton messageCount={3} />
+      ) : (
+        <>
+          {/* Single wrapper so the stick-to-bottom ResizeObserver tracks all content */}
+          <ConversationScroller key={chatId ?? 'chat'} ref={containerRefCallback}>
+            {listHeader}
 
-                {turns.map((turn, turnIndex) => {
-                  const isLastTurn = turnIndex === turns.length - 1;
-                  return (
-                    <div
-                      key={turn[0].id}
-                      ref={isLastTurn ? turnRef : undefined}
-                      style={
-                        isLastTurn && turnMinHeight > 0 ? { minHeight: turnMinHeight } : undefined
-                      }
-                    >
-                      {turn.map((msg) => (
-                        <div key={msg.id} data-message-id={msg.id}>
-                          {renderMessage(msg)}
-                        </div>
-                      ))}
-                      {isLastTurn && listFooter}
+            {turns.map((turn, turnIndex) => {
+              const isLastTurn = turnIndex === turns.length - 1;
+              return (
+                <div
+                  key={turn[0].id}
+                  ref={isLastTurn ? turnRef : undefined}
+                  style={isLastTurn && turnMinHeight > 0 ? { minHeight: turnMinHeight } : undefined}
+                >
+                  {turn.map((msg) => (
+                    <div key={msg.id} data-message-id={msg.id}>
+                      {renderMessage(msg)}
                     </div>
-                  );
-                })}
+                  ))}
+                  {isLastTurn && listFooter}
+                </div>
+              );
+            })}
 
-                {turns.length === 0 && listFooter}
+            {turns.length === 0 && listFooter}
 
-                {/* Inside the content wrapper so the selection toolbar / ask
-                    panel anchor in content coordinates and scroll with it */}
-                <ChatSelectionActions chatId={chatId} scrollerRef={scrollerRef} />
-              </div>
-            </div>
-            <MessageTrail messages={messages} scrollerRef={scrollerRef} />
-            {/* Keyed by chat so query/match state resets on chat switch */}
-            <FindInChat key={chatId ?? 'chat'} messages={messages} scrollerRef={scrollerRef} />
-          </>
-        )}
-      </div>
-      <div className={styles.composer}>
-        {showScrollButton && <ScrollButton onClick={scrollToBottom} />}
-
-        <div className={styles['composer-surface']}>
-          <div className={styles['composer-inner']}>
-            <ChatQueueBanner
-              messages={pendingMessages}
-              onCancel={handleCancelMessage}
-              onEdit={handleEditMessage}
-              onSendNow={handleSendNow}
-            />
-            <div className={styles['input-slot']}>
-              <Input
-                message={inputMessage}
-                setMessage={setInputMessage}
-                onSubmit={onSubmit}
-                onAttach={onAttach}
-                attachedFiles={attachedFiles}
-                isLoading={isLoading}
-                isStreaming={isStreaming}
-                onStopStream={onStopStream}
-                selectedModelId={selectedModelId}
-                onModelChange={onModelChange}
-                dropdownPosition="top"
-                showAttachedFilesPreview={true}
-                contextUsage={contextUsage}
-                showTip={false}
-                chatId={chatId}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+            {/* Inside the content wrapper so the selection toolbar / ask
+                panel anchor in content coordinates and scroll with it */}
+            <ChatSelectionActions chatId={chatId} scrollerRef={scrollerRef} />
+          </ConversationScroller>
+          <MessageTrail messages={messages} scrollerRef={scrollerRef} />
+          {/* Keyed by chat so query/match state resets on chat switch */}
+          <FindInChat key={chatId ?? 'chat'} messages={messages} scrollerRef={scrollerRef} />
+        </>
+      )}
+    </ConversationLayout>
   );
 });

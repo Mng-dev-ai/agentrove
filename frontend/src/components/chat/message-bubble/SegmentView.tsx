@@ -32,10 +32,19 @@ function TextSegment({
 }) {
   // The segment receiving stream output reveals its text word-by-word instead
   // of jumping a flush-sized chunk at a time.
-  const smoothText = useSmoothText(text, isActive);
+  const [smoothText] = useSmoothText(text, isActive);
   return (
     <div className={styles['text-segment']}>
       <MarkDown content={smoothText} streaming={isActive} highlightMentions={highlightMentions} />
+    </div>
+  );
+}
+
+export function ToolLoadingFallback() {
+  return (
+    <div className={styles['tool-fallback']}>
+      <Spinner size="sm" className={styles['tool-fallback-spinner']} />
+      <span className={styles['tool-fallback-text']}>Loading tool output...</span>
     </div>
   );
 }
@@ -71,14 +80,7 @@ export const SegmentView = memo(function SegmentView({
       const Component = getToolComponent(segment.tool.name, agentKind);
       return (
         <div className={styles['tool-segment']}>
-          <Suspense
-            fallback={
-              <div className={styles['tool-fallback']}>
-                <Spinner size="sm" className={styles['tool-fallback-spinner']} />
-                <span className={styles['tool-fallback-text']}>Loading tool output...</span>
-              </div>
-            }
-          >
+          <Suspense fallback={<ToolLoadingFallback />}>
             <Component tool={segment.tool} chatId={chatId} />
           </Suspense>
         </div>

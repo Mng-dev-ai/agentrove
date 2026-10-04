@@ -6,6 +6,7 @@ import { logger } from '@/utils/logger';
 type StreamApiClient = ReturnType<typeof resolveChatClient>;
 
 interface StreamConnectionHandlers {
+  onOpen: () => void;
   onEnvelopeData: (raw: string) => void;
   onConnectionFailure: (chatIds: string[]) => void;
 }
@@ -37,10 +38,27 @@ const STALL_TIMEOUT_MS = 45000;
 class StreamConnectionManager {
   private connections = new Map<StreamApiClient, ManagedConnection>();
   private handlers: StreamConnectionHandlers | null = null;
+  private retainCounts = new Map<StreamApiClient, number>();
 
   configure(handlers: StreamConnectionHandlers): void {
     this.handlers = handlers;
     useStreamStore.subscribe(() => this.reconcile());
+  }
+
+  // Keeps the client's feed open without chat streams (e.g. a mounted channel page).
+  retain(client: StreamApiClient): () => void {
+    this.retainCounts.set(client, (this.retainCounts.get(client) ?? 0) + 1);
+    this.reconcile();
+    return () => {
+      const remaining = (this.retainCounts.get(client) ?? 1) - 1;
+      if (remaining > 0) this.retainCounts.set(client, remaining);
+      else this.retainCounts.delete(client);
+      this.reconcile();
+    };
+  }
+
+  private isRetained(client: StreamApiClient): boolean {
+    return this.retainCounts.has(client);
   }
 
   // Reopen if needed so this chat is in the replay cursor set.
@@ -61,19 +79,19 @@ class StreamConnectionManager {
 
     for (const [client, connection] of this.connections) {
       const activeChatIds = byClient.get(client);
-      if (!activeChatIds) {
+      if (!activeChatIds && !this.isRetained(client)) {
         this.teardown(client, connection);
         continue;
       }
       // Drop ended streams from replay set so a later turn can force replay again.
       for (const chatId of connection.replayedChatIds) {
-        if (!activeChatIds.has(chatId)) {
+        if (!activeChatIds?.has(chatId)) {
           connection.replayedChatIds.delete(chatId);
         }
       }
     }
 
-    for (const client of byClient.keys()) {
+    for (const client of new Set([...byClient.keys(), ...this.retainCounts.keys()])) {
       if (!this.connections.has(client)) {
         this.open(client);
       }
@@ -115,8 +133,8 @@ class StreamConnectionManager {
     };
     this.connections.set(client, connection);
 
-    const chatIds = this.activeChatIdsByClient().get(client);
-    if (!chatIds || chatIds.size === 0) {
+    const chatIds = this.activeChatIdsByClient().get(client) ?? new Set<string>();
+    if (chatIds.size === 0 && !this.isRetained(client)) {
       this.teardown(client, connection);
       return;
     }
@@ -170,6 +188,7 @@ class StreamConnectionManager {
     });
     source.onopen = () => {
       connection.lastActivityAt = Date.now();
+      this.handlers?.onOpen();
       if (connection.source !== source || connection.stableTimer) return;
       connection.stableTimer = setTimeout(() => {
         connection.stableTimer = null;
@@ -226,6 +245,14 @@ class StreamConnectionManager {
     this.resetSocket(connection);
     if (chatIds && chatIds.size > 0) {
       this.handlers?.onConnectionFailure([...chatIds]);
+    }
+    if (this.isRetained(client)) {
+      // A retained feed (e.g. an open channel) keeps probing so it recovers when connectivity returns.
+      connection.retryTimer = setTimeout(() => {
+        connection.retryTimer = null;
+        this.open(client);
+      }, RECONNECT_MAX_DELAY_MS);
+      return;
     }
     this.teardown(client, connection);
   }

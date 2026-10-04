@@ -29,14 +29,6 @@
   color: var(--theme-text-quaternary);
 }
 
-.recents-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding-top: var(--space-2-5);
-  padding-bottom: var(--space-2);
-}
-
 .group-label {
   @include type.type-meta;
   @include type.type-overflow;

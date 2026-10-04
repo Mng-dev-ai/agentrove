@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    ColumnElement,
     Float,
     ForeignKey,
     Index,
@@ -36,6 +37,9 @@ class Chat(Base):
     )
     workspace_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
+    )
+    channel_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("channels.id", ondelete="CASCADE"), nullable=True, index=True
     )
     session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     session_agent_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -82,6 +86,10 @@ class Chat(Base):
         Index("idx_chats_user_id_updated_at_desc", "user_id", "updated_at"),
         Index("idx_chats_parent_chat_id", "parent_chat_id"),
     )
+
+    @classmethod
+    def is_visible(cls) -> ColumnElement[bool]:
+        return cls.channel_id.is_(None)
 
     @property
     def unread(self) -> bool:

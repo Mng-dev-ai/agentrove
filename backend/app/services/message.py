@@ -376,6 +376,8 @@ class MessageService(BaseDbService[Message]):
         async with self.session_factory() as db:
             query = (
                 select(MessageEvent)
+                .join(Chat, Chat.id == MessageEvent.chat_id)
+                .where(Chat.is_visible())
                 .where(MessageEvent.chat_id == chat_id, MessageEvent.seq > after_seq)
                 .order_by(MessageEvent.seq.asc())
                 .limit(limit)
@@ -408,6 +410,9 @@ class MessageService(BaseDbService[Message]):
         # request-scoped one. Eager-loads message.chat for the ownership check.
         result = await db.execute(
             select(MessageAttachment)
+            .join(Message, Message.id == MessageAttachment.message_id)
+            .join(Chat, Chat.id == Message.chat_id)
+            .where(Chat.is_visible())
             .options(selectinload(MessageAttachment.message).selectinload(Message.chat))
             .where(MessageAttachment.id == attachment_id)
         )

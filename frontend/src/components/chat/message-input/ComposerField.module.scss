@@ -1,0 +1,37 @@
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/state-classes' as state;
+
+.composer {
+  position: relative;
+  padding-inline: var(--space-4);
+
+  @include responsive.media('sm-up') {
+    padding-inline: var(--space-6);
+  }
+}
+
+.field {
+  position: relative;
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-2xl);
+  background-color: var(--theme-surface-secondary);
+  transition: border-color var(--duration-slow);
+
+  &:global(.#{state.$state-dragging}) {
+    border-color: var(--theme-border-hover);
+    transform: scale(1.01);
+  }
+}
+
+.textarea-wrap {
+  position: relative;
+  padding: var(--space-2-5) var(--space-4) 0;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-0-5);
+  padding: var(--space-0-5) var(--space-2) var(--space-2);
+}

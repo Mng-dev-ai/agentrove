@@ -95,7 +95,8 @@ GROK_ASK_USER_QUESTION_METHOD = "x.ai/ask_user_question"
 class AcpClientHandler:
     # ACP client handler: SDK events → StreamEvent on event_queue for SSE.
 
-    def __init__(self, agent_kind: AgentKind) -> None:
+    def __init__(self, agent_kind: AgentKind, *, channel_member: bool = False) -> None:
+        self.channel_member = channel_member
         self.agent_kind = agent_kind
         self.event_queue: asyncio.Queue[StreamEvent | object] = asyncio.Queue()
         self._active_tools: dict[str, ToolPayload] = {}
@@ -267,9 +268,19 @@ class AcpClientHandler:
         future: asyncio.Future[str] = asyncio.get_running_loop().create_future()
         self._pending_permissions[request_id] = future
         try:
+            if self.channel_member:
+                try:
+                    return await asyncio.wait_for(future, timeout=300)
+                except TimeoutError:
+                    return ""
             return await future
         finally:
             self._pending_permissions.pop(request_id, None)
+            self._permission_option_modes.pop(request_id, None)
+            if self.channel_member:
+                self.event_queue.put_nowait(
+                    StreamEvent(type="permission_resolved", request_id=request_id)
+                )
 
     def resolve_permission(
         self,
@@ -297,6 +308,8 @@ class AcpClientHandler:
         mode: ElicitationMode,
         **kwargs: Any,
     ) -> CreateElicitationResponse:
+        if self.channel_member:
+            return DeclineElicitationResponse(action="decline")
         if not isinstance(
             mode, (ElicitationFormSessionMode, ElicitationFormRequestMode)
         ):

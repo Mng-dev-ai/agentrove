@@ -2,6 +2,8 @@ from enum import Enum
 from typing import Any, TypeVar
 from urllib.parse import urlencode, urlsplit
 
+from sqlalchemy import Select, func, select
+
 from sqladmin import ModelView
 from sqladmin.helpers import get_object_identifier
 from app.models.db_models.chat import Chat, Message, MessageAttachment
@@ -95,6 +97,15 @@ class UserAdmin(ModelView, model=User):
 
 
 class ChatAdmin(ModelView, model=Chat):
+    def list_query(self, request: Request) -> Select[tuple[Chat]]:
+        return select(Chat).where(Chat.is_visible())
+
+    def count_query(self, request: Request) -> Select[tuple[int]]:
+        return select(func.count(Chat.id)).where(Chat.is_visible())
+
+    def form_edit_query(self, request: Request) -> Select[tuple[Chat]]:
+        return super().form_edit_query(request).where(Chat.is_visible())
+
     column_list = [
         "id",
         "title",

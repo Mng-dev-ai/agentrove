@@ -1,0 +1,124 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/state-classes' as state;
+
+.row {
+  @include anim.transition-colors;
+  position: relative;
+  display: flex;
+  margin-inline: calc(var(--space-2) * -1);
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-lg);
+  padding-inline: var(--space-2);
+  padding-block: 7px;
+  color: var(--theme-text-secondary);
+
+  // Dark mode rests one step dimmer than light for inactive rows
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-tertiary);
+  }
+
+  // Only inactive rows respond to hover — active rows keep a fixed fill/color
+  &:not(:global(.#{state.$state-active})) {
+    @include responsive.hover {
+      background-color: colors.theme-color('surface-hover', 0.5);
+      color: var(--theme-text-primary);
+
+      :global([data-theme='dark']) & {
+        color: var(--theme-text-secondary);
+      }
+    }
+  }
+
+  &:global(.#{state.$state-active}) {
+    background-color: colors.theme-color('surface-hover', 0.5);
+    color: var(--theme-text-primary);
+  }
+}
+
+// Right padding reserves room for the timestamp/dropdown so long titles truncate
+// before reaching them.
+.title-col {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  padding-right: var(--space-10);
+}
+
+.title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.title-btn {
+  // flex-1 keeps the whole row width as the open-chat hit target, not just the text
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-1-5);
+  text-align: left;
+  // TODO(refactor): no 13px type token exists — sidebar rows use a one-off text-[13px]
+  font-size: 16px;
+}
+
+.title-text {
+  @include type.type-overflow;
+  min-width: 0;
+
+  &--emphasis {
+    font-weight: 500;
+  }
+}
+
+.timestamp {
+  @include type.type-meta;
+  position: absolute;
+  right: var(--space-2);
+  display: flex;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-quaternary);
+  opacity: 1;
+  transition: opacity var(--duration-base);
+
+  &--hidden {
+    opacity: 0;
+  }
+}
+
+.dropdown-btn {
+  @include anim.transition-colors;
+  position: absolute;
+  right: var(--space-2);
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5);
+  color: var(--theme-text-quaternary);
+  opacity: 0;
+  transition: all var(--duration-base);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+
+  // Group-hover reveal: hovering anywhere on the row surfaces the button
+  .row:hover & {
+    opacity: 1;
+  }
+
+  &--visible {
+    opacity: 1;
+  }
+}
+
+.dropdown-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+}

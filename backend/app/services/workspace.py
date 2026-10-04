@@ -28,6 +28,7 @@ from app.models.schemas.workspace import (
     WorkspaceUpdate,
 )
 from app.services.acp.adapters import AgentKind
+from app.services.channel import channel_service
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ErrorCode, WorkspaceException
 from app.services.git import GitService
@@ -161,6 +162,7 @@ class WorkspaceService(BaseDbService[Workspace]):
                     Chat,
                     (Chat.workspace_id == Workspace.id)
                     & (Chat.deleted_at.is_(None))
+                    & (Chat.is_visible())
                     & (Chat.parent_chat_id.is_(None)),
                 )
                 .filter(Workspace.user_id == user.id, Workspace.deleted_at.is_(None))
@@ -280,13 +282,17 @@ class WorkspaceService(BaseDbService[Workspace]):
         # DB commit lands before the session/sandbox teardown tasks so the DB
         # stays consistent even if those fire-and-forget cleanups fail.
         workspace = await self.get_workspace(workspace_id, user)
+        for channel in await channel_service.list_channels(user, workspace_id):
+            await channel_service.delete(channel)
         async with self._session_factory() as db:
             workspace = await db.merge(workspace)
             now = datetime.now(timezone.utc)
             workspace.deleted_at = now
 
             chat_ids_query = select(Chat.id, Chat.worktree_cwd).filter(
-                Chat.workspace_id == workspace_id, Chat.deleted_at.is_(None)
+                Chat.workspace_id == workspace_id,
+                Chat.deleted_at.is_(None),
+                Chat.is_visible(),
             )
             chat_ids_result = await db.execute(chat_ids_query)
             chat_rows = chat_ids_result.all()
@@ -303,7 +309,11 @@ class WorkspaceService(BaseDbService[Workspace]):
 
             await db.execute(
                 update(Chat)
-                .where(Chat.workspace_id == workspace_id, Chat.deleted_at.is_(None))
+                .where(
+                    Chat.workspace_id == workspace_id,
+                    Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
+                )
                 .values(deleted_at=now)
             )
 

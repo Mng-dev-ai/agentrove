@@ -10,6 +10,7 @@ from app.db.sqlite import configure_sqlite
 from app.models.db_models import (  # noqa: F401
     automation,
     chat,
+    channel,
     refresh_token,
     user,
     workspace,

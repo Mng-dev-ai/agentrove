@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import type { Message } from '@/types/chat.types';
 
 const AT_BOTTOM_THRESHOLD_PX = 200;
 const TOP_PAGINATION_TRIGGER_PX = 50;
@@ -7,7 +6,7 @@ const TOP_PAGINATION_ARM_VIEWPORT_MULTIPLIER = 1.5;
 
 interface UseChatScrollParams {
   chatId: string | undefined;
-  messages: Message[];
+  messages: readonly unknown[];
   pendingUserMessageId: string | null;
   latestUserMessageId: string | null;
   hasNextPage: boolean;

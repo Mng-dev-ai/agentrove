@@ -1,0 +1,261 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/state-classes' as state;
+@use '@/styles/globals/zlayer' as z;
+
+.dialog {
+  display: flex;
+  max-height: calc(100dvh - 2 * var(--space-4));
+  flex-direction: column;
+  overflow: visible;
+}
+
+.body {
+  min-height: 0;
+  flex: 1;
+
+  &--scroll {
+    overflow-y: auto;
+  }
+}
+
+.body-content {
+  padding: var(--space-5);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+}
+
+.icon-box {
+  display: flex;
+  height: var(--space-8);
+  width: var(--space-8);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-tertiary);
+}
+
+.header-icon {
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-tertiary);
+}
+
+.header-text {
+  min-width: 0;
+}
+
+.title {
+  @include type.type-body(500);
+  color: var(--theme-text-primary);
+}
+
+.subtitle {
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+}
+
+.field-label {
+  @include type.type-section-header;
+  display: block;
+  margin-bottom: var(--space-1-5);
+}
+
+// Offsets the picker trigger's inner padding so its label lines up with the inputs.
+.workspace-field {
+  margin-left: calc(var(--space-1-5) * -1);
+}
+
+.branch-field {
+  display: flex;
+  margin-left: calc(var(--space-1-5) * -1);
+}
+
+.members {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.chip-wrap {
+  position: relative;
+}
+
+.chip {
+  @include type.type-meta(500);
+  @include anim.transition-colors;
+  display: inline-flex;
+  max-width: 14rem;
+  align-items: center;
+  gap: var(--space-1-5);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-2-5);
+  color: var(--theme-text-primary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
+
+  &:global(.#{state.$state-open}) {
+    background-color: var(--theme-surface-hover);
+  }
+
+  &--error {
+    border-color: colors.status-color('error', 500, 0.6);
+  }
+}
+
+.chip-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  flex-shrink: 0;
+  color: var(--theme-text-secondary);
+}
+
+.chip-label {
+  @include type.type-overflow;
+}
+
+.chip-caret {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  color: var(--theme-text-quaternary);
+}
+
+.popover {
+  @include z.z('dropdown');
+  position: absolute;
+  top: 100%;
+  left: 0;
+  display: flex;
+  width: 17rem;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  margin-top: var(--space-1-5);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-xl);
+  background-color: colors.theme-color('surface-secondary', 0.95);
+  box-shadow: var(--shadow-medium);
+  backdrop-filter: blur(24px) saturate(1.5);
+  padding: var(--space-1-5);
+
+  &--top {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: var(--space-1-5);
+  }
+
+  &--capped {
+    overflow-y: auto;
+  }
+}
+
+.popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2) var(--space-1-5);
+}
+
+.popover-input {
+  @include type.type-meta;
+  height: var(--space-7);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.popover-error {
+  @include type.type-meta;
+  margin-top: 0;
+}
+
+.popover-row {
+  display: flex;
+  min-height: var(--space-7);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: 0 var(--space-2);
+}
+
+.popover-label {
+  @include type.type-meta;
+  flex-shrink: 0;
+  color: var(--theme-text-tertiary);
+}
+
+.popover-divider {
+  height: 1px;
+  margin: var(--space-1) var(--space-1);
+  background-color: colors.theme-color('border', 0.5);
+}
+
+.popover-remove {
+  @include type.type-meta;
+  @include anim.transition-colors;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-1-5) var(--space-2);
+  color: var(--theme-error-text);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
+}
+
+.popover-remove-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+}
+
+.add-chip {
+  @include anim.transition-colors;
+  display: inline-flex;
+  height: var(--space-7);
+  width: var(--space-7);
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--theme-border);
+  border-radius: var(--radius-full);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+}
+
+.add-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.footer {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-3-5) var(--space-5);
+}

@@ -1,3 +1,4 @@
+import asyncio
 import os
 from pathlib import Path
 from uuid import uuid4
@@ -24,10 +25,26 @@ class StorageService:
         for subdir in ["images", "pdfs", "xlsx"]:
             (self.storage_path / subdir).mkdir(exist_ok=True)
 
+    async def save_files(
+        self,
+        files: list[UploadFile],
+        agent_kind: AgentKind | None,
+        sandbox_id: str | None = None,
+        user_id: str | None = None,
+    ) -> list[MessageAttachmentDict]:
+        return list(
+            await asyncio.gather(
+                *(
+                    self.save_file(file, agent_kind, sandbox_id, user_id)
+                    for file in files
+                )
+            )
+        )
+
     async def save_file(
         self,
         file: UploadFile,
-        agent_kind: AgentKind,
+        agent_kind: AgentKind | None,
         sandbox_id: str | None = None,
         user_id: str | None = None,
     ) -> MessageAttachmentDict:
@@ -76,7 +93,11 @@ class StorageService:
 
         file_url = AttachmentURL.build_temp_preview_url(relative_file_path)
 
-        if sandbox_id and file_type not in NATIVE_FILE_TYPES[agent_kind]:
+        if (
+            sandbox_id
+            and agent_kind is not None
+            and file_type not in NATIVE_FILE_TYPES[agent_kind]
+        ):
             # Fail if sandbox copy unavailable (agent reads from sandbox).
             # Skip write for inline ACP types (dead data; pollutes desktop workspaces).
             # Relative filename so both providers resolve under workspace (Host rejects abs).

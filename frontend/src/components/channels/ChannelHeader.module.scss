@@ -1,0 +1,80 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+
+.header {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tab-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+}
+
+.aside {
+  display: flex;
+  min-width: 0;
+  align-self: center;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.branch {
+  @include type.type-meta;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--theme-text-tertiary);
+  cursor: default;
+}
+
+.branch-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+}
+
+.branch-name {
+  @include type.type-overflow;
+  max-width: 12rem;
+}
+
+.members {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.member {
+  @include type.type-meta(500);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-surface-tertiary);
+  padding: var(--space-0-5) var(--space-2);
+  color: var(--theme-text-secondary);
+  cursor: default;
+}
+
+.member-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+}
+
+.member-name {
+  display: none;
+
+  @include responsive.media('sm-up') {
+    display: inline;
+  }
+}

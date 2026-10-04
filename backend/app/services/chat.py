@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import exists, func, select, update
+from sqlalchemy import exists, func, select, update, true
 from sqlalchemy.orm import aliased, selectinload
 
 from app.constants import (
@@ -49,7 +49,11 @@ from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.streaming.types import ChatStreamRequest, StreamEnvelope
+from app.services.streaming.types import (
+    ChannelMemberTurn,
+    ChatStreamRequest,
+    StreamEnvelope,
+)
 from app.services.terminal import teardown_workspace_sandbox
 from app.services.user import UserService
 from app.utils.cache import CacheError, CachePubSub, cache_connection, cache_pubsub
@@ -98,6 +102,7 @@ class ChatService(BaseDbService[Chat]):
             base_filters = [
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),
+                Chat.is_visible(),
             ]
             if not include_sub_threads:
                 base_filters.append(Chat.parent_chat_id.is_(None))
@@ -121,6 +126,7 @@ class ChatService(BaseDbService[Chat]):
                     SubThread.parent_chat_id == Chat.id,
                     SubThread.user_id == user.id,
                     SubThread.deleted_at.is_(None),
+                    SubThread.is_visible(),
                 )
                 .correlate(Chat)
                 .scalar_subquery()
@@ -180,6 +186,7 @@ class ChatService(BaseDbService[Chat]):
                 .where(
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                     Message.deleted_at.is_(None),
                     Message.content_text.icontains(query, autoescape=True),
                 )
@@ -260,7 +267,11 @@ class ChatService(BaseDbService[Chat]):
         after = content[match_end_in_content:end] + suffix
         return before, match_text, after
 
-    async def create_chat(self, user: User, chat_data: ChatCreate) -> Chat:
+    async def create_chat(
+        self,
+        user: User,
+        chat_data: ChatCreate,
+    ) -> Chat:
         async with self.session_factory() as db:
             workspace_id = chat_data.workspace_id
             worktree_cwd: str | None = None
@@ -271,6 +282,7 @@ class ChatService(BaseDbService[Chat]):
                         Chat.id == chat_data.parent_chat_id,
                         Chat.user_id == user.id,
                         Chat.deleted_at.is_(None),
+                        Chat.is_visible(),
                     )
                 )
                 parent = parent_result.scalar_one_or_none()
@@ -367,6 +379,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
             if not parent_exists.scalar_one_or_none():
@@ -384,6 +397,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.parent_chat_id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
                 .order_by(Chat.updated_at.desc())
             )
@@ -399,6 +413,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.id.in_(chat_ids),
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
             owned_ids = list(result.scalars().all())
@@ -430,6 +445,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
             chat: Chat | None = result.scalar_one_or_none()
@@ -461,7 +477,9 @@ class ChatService(BaseDbService[Chat]):
 
             return chat
 
-    async def get_chat(self, chat_id: UUID, user: User) -> Chat:
+    async def get_chat(
+        self, chat_id: UUID, user: User, *, include_channel: bool = False
+    ) -> Chat:
         # Workspace eager-loaded for sandbox_id; messages via /messages. sub_thread_count is caller-side.
         async with self.session_factory() as db:
             query = (
@@ -470,6 +488,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    (Chat.is_visible() if not include_channel else true()),
                 )
                 .options(
                     selectinload(Chat.workspace),
@@ -509,6 +528,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.parent_chat_id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
             return result.scalar() or 0
@@ -547,6 +567,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
             chat = result.scalar_one_or_none()
@@ -570,6 +591,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.parent_chat_id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
             sub_threads = sub_thread_result.all()
@@ -650,6 +672,7 @@ class ChatService(BaseDbService[Chat]):
             chat_query = select(Chat.id, Chat.workspace_id, Chat.worktree_cwd).filter(
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),
+                Chat.is_visible(),
             )
             result = await db.execute(chat_query)
             chat_rows = result.all()
@@ -667,15 +690,35 @@ class ChatService(BaseDbService[Chat]):
                 select(Workspace).filter(
                     Workspace.user_id == user.id,
                     Workspace.deleted_at.is_(None),
+                    ~exists().where(
+                        Chat.workspace_id == Workspace.id, ~Chat.is_visible()
+                    ),
                 )
             )
             workspaces = list(ws_result.scalars().all())
+            surviving_ids = worktrees_by_workspace.keys() - {ws.id for ws in workspaces}
+            surviving_workspaces: list[Workspace] = []
+            if surviving_ids:
+                surviving_result = await db.execute(
+                    select(Workspace).filter(
+                        Workspace.id.in_(surviving_ids),
+                        Workspace.deleted_at.is_(None),
+                        exists().where(
+                            Chat.workspace_id == Workspace.id, ~Chat.is_visible()
+                        ),
+                    )
+                )
+                surviving_workspaces = list(surviving_result.scalars().all())
 
             now = datetime.now(timezone.utc)
 
             await db.execute(
                 update(Chat)
-                .where(Chat.user_id == user.id, Chat.deleted_at.is_(None))
+                .where(
+                    Chat.user_id == user.id,
+                    Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
+                )
                 .values(deleted_at=now)
             )
 
@@ -683,7 +726,9 @@ class ChatService(BaseDbService[Chat]):
                 update(Message)
                 .where(
                     Message.chat_id.in_(
-                        select(Chat.id).filter(Chat.user_id == user.id)
+                        select(Chat.id).filter(
+                            Chat.user_id == user.id, Chat.is_visible()
+                        )
                     ),
                     Message.deleted_at.is_(None),
                 )
@@ -709,6 +754,14 @@ class ChatService(BaseDbService[Chat]):
                         )
                     )
 
+            for ws in surviving_workspaces:
+                if ws.sandbox_id:
+                    git_service = GitService(self.sandbox_for_workspace(ws))
+                    for worktree_cwd in worktrees_by_workspace[ws.id]:
+                        asyncio.create_task(
+                            git_service.remove_worktree(ws.sandbox_id, worktree_cwd)
+                        )
+
             return len(chat_ids)
 
     async def get_chat_messages(
@@ -721,6 +774,7 @@ class ChatService(BaseDbService[Chat]):
                         Chat.id == chat_id,
                         Chat.user_id == user.id,
                         Chat.deleted_at.is_(None),
+                        Chat.is_visible(),
                     )
                 )
             )
@@ -762,6 +816,7 @@ class ChatService(BaseDbService[Chat]):
                     ChatCheckpoint.assistant_message_id == message_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
             row = result.one_or_none()
@@ -854,6 +909,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.id.in_(chat_ids),
                     Chat.user_id == user_id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
             return set(result.scalars().all())
@@ -882,6 +938,10 @@ class ChatService(BaseDbService[Chat]):
                 envelope = json.loads(raw)
             except (json.JSONDecodeError, TypeError):
                 logger.warning("Malformed stream message for user %s", user_id)
+                continue
+
+            if isinstance(envelope, dict) and "channelId" in envelope:
+                yield {"event": StreamEventKind.STREAM.value, "data": raw}
                 continue
 
             if not isinstance(envelope, dict) or "seq" not in envelope:
@@ -976,6 +1036,8 @@ class ChatService(BaseDbService[Chat]):
         self,
         request: ChatRequest,
         current_user: User,
+        *,
+        member_turn: ChannelMemberTurn | None = None,
     ) -> ChatCompletionResult:
         async with ChatStreamRuntime.chat_start_slot(str(request.chat_id)) as reserved:
             if not reserved:
@@ -985,15 +1047,33 @@ class ChatService(BaseDbService[Chat]):
                     error_code=ErrorCode.VALIDATION_ERROR,
                     status_code=409,
                 )
-            return await self._initiate_chat_completion_reserved(request, current_user)
+            return await self._initiate_chat_completion_reserved(
+                request, current_user, member_turn
+            )
 
     async def _initiate_chat_completion_reserved(
         self,
         request: ChatRequest,
         current_user: User,
+        member_turn: ChannelMemberTurn | None,
     ) -> ChatCompletionResult:
         user_settings = await self._user_service.get_user_settings(current_user.id)
-        chat = await self.get_chat(request.chat_id, current_user)
+        chat = await self.get_chat(
+            request.chat_id, current_user, include_channel=member_turn is not None
+        )
+        attachments: list[MessageAttachmentDict] | None
+        if member_turn is not None:
+            attachments = member_turn.attachments
+        elif request.attached_files:
+            ws_sandbox = self.sandbox_for_workspace(chat.workspace)
+            attachments = await StorageService(ws_sandbox).save_files(
+                request.attached_files,
+                agent_kind=MODELS[request.model_id].agent_kind,
+                sandbox_id=chat.sandbox_id,
+                user_id=str(current_user.id),
+            )
+        else:
+            attachments = None
 
         # Bump ordering timestamps at initiation rather than first stream-event
         # persist — open sessions refetch the sidebar on the stream_started
@@ -1011,13 +1091,14 @@ class ChatService(BaseDbService[Chat]):
                     update(Chat)
                     .where(
                         Chat.id == chat.parent_chat_id,
+                        Chat.is_visible(),
                         Chat.last_viewed_at >= Chat.updated_at,
                     )
                     .values(last_viewed_at=now)
                 )
                 await db.execute(
                     update(Chat)
-                    .where(Chat.id == chat.parent_chat_id)
+                    .where(Chat.id == chat.parent_chat_id, Chat.is_visible())
                     .values(updated_at=now)
                 )
             # Record the turn's settings alongside the bump — the server-side
@@ -1036,32 +1117,13 @@ class ChatService(BaseDbService[Chat]):
 
         chat_id = chat.id
 
-        ws_sandbox = self.sandbox_for_workspace(chat.workspace)
-
-        attachments: list[MessageAttachmentDict] | None = None
-        if request.attached_files:
-            file_storage = StorageService(ws_sandbox)
-            agent_kind = MODELS[request.model_id].agent_kind
-            attachments = list(
-                await asyncio.gather(
-                    *[
-                        file_storage.save_file(
-                            file,
-                            agent_kind=agent_kind,
-                            sandbox_id=chat.workspace.sandbox_id,
-                            user_id=str(current_user.id),
-                        )
-                        for file in request.attached_files
-                    ]
-                )
-            )
-
         # Validate before the scaffold writes any rows.
         model = MODELS[request.model_id]
         system_prompt = build_system_prompt_for_chat(
             user_settings,
             agent_kind=model.agent_kind,
             selected_persona_name=request.selected_persona_name,
+            channel_member=member_turn is not None,
         )
 
         async with ChatStreamRuntime.turn_scaffold(
@@ -1073,8 +1135,10 @@ class ChatService(BaseDbService[Chat]):
             worktree=request.worktree,
             base_branch=request.base_branch,
             session_factory=self._session_factory,
+            channel_member=member_turn is not None,
         ) as (_, assistant_message, checkpoint_id):
-            await self._enqueue_chat_task(
+            task = await self._enqueue_chat_task(
+                member_turn=member_turn,
                 prompt=request.prompt,
                 system_prompt=system_prompt,
                 custom_instructions=user_settings.custom_instructions,
@@ -1092,16 +1156,19 @@ class ChatService(BaseDbService[Chat]):
                 selected_persona_name=request.selected_persona_name,
             )
 
-        # Lets open sessions mark this chat "running" even when the turn was
-        # started out-of-band (e.g. via the MCP server) with no client stream.
-        await self.publish_user_chat_event(
-            current_user.id,
-            {
-                "kind": "stream_started",
-                "chat_id": str(chat_id),
-                "message_id": str(assistant_message.id),
-            },
-        )
+        if member_turn is not None:
+            member_turn.task_started(task)
+        else:
+            # Lets open sessions mark this chat "running" even when the turn was
+            # started out-of-band (e.g. via the MCP server) with no client stream.
+            await self.publish_user_chat_event(
+                current_user.id,
+                {
+                    "kind": "stream_started",
+                    "chat_id": str(chat_id),
+                    "message_id": str(assistant_message.id),
+                },
+            )
 
         return {
             "message_id": str(assistant_message.id),
@@ -1117,6 +1184,7 @@ class ChatService(BaseDbService[Chat]):
     async def _enqueue_chat_task(
         self,
         *,
+        member_turn: ChannelMemberTurn | None,
         prompt: str,
         system_prompt: str,
         custom_instructions: str | None,
@@ -1132,13 +1200,14 @@ class ChatService(BaseDbService[Chat]):
         fast_mode: bool = False,
         context_window: int | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
-    ) -> None:
+    ) -> asyncio.Task[str]:
         # Extracted so tests can override and run the stream synchronously.
         stream_attachments = (
             [dict(item) for item in attachments] if attachments else None
         )
         workspace = chat.workspace
         request = ChatStreamRequest(
+            member_turn=member_turn,
             prompt=prompt,
             system_prompt=system_prompt,
             custom_instructions=custom_instructions,
@@ -1166,4 +1235,4 @@ class ChatService(BaseDbService[Chat]):
             attachments=stream_attachments,
             selected_persona_name=selected_persona_name,
         )
-        ChatStreamRuntime.start_background_chat(request=request)
+        return ChatStreamRuntime.start_background_chat(request=request)

@@ -43,6 +43,8 @@ def build_system_prompt_for_chat(
     user_settings: "UserSettings",
     agent_kind: AgentKind,
     selected_persona_name: str = DEFAULT_PERSONA_NAME,
+    *,
+    channel_member: bool = False,
 ) -> str:
     persona_content = ""
     # Persona only for adapters that can replace the base prompt over ACP.
@@ -61,5 +63,8 @@ def build_system_prompt_for_chat(
         )
         if persona:
             persona_content = f"\n{persona['content']}\n"
+
+    if channel_member:
+        return persona_content
 
     return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"

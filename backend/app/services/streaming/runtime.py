@@ -104,6 +104,8 @@ class ChatStreamRuntime:
         session_factory: SessionFactoryType,
     ) -> None:
         chat = Chat.from_dict(request.chat_data)
+        self.publish_user_id = request.publish_user_id
+        self.member_turn = request.member_turn
         self.chat = chat
         self.chat_id = str(chat.id)
         self.stream_id = uuid4()
@@ -146,7 +148,7 @@ class ChatStreamRuntime:
         try:
             start_seq = await self.emit_event(
                 "stream_started",
-                {"status": "started"},
+                {"status": "started", "message_id": self.assistant_message_id},
                 apply_snapshot=False,
             )
             if self.assistant_message_id:
@@ -314,6 +316,9 @@ class ChatStreamRuntime:
         if not self.assistant_message_id:
             return 0
 
+        if self.member_turn is not None:
+            await self.member_turn.event_sink(kind, payload)
+
         audit = {"payload": StreamEnvelope.sanitize_payload(payload)}
         if apply_snapshot and kind in SNAPSHOT_EVENT_KINDS:
             # ACP tool payloads are updated in place as progress arrives, so
@@ -371,9 +376,9 @@ class ChatStreamRuntime:
     async def _publish_to_redis(self, events: list[str]) -> None:
         # Envelopes carry chatId, so all of a user's streams share one channel —
         # the multiplexed SSE feed subscribes once and routes client-side.
-        if not self.cache or not events:
+        if self.publish_user_id is None or not self.cache or not events:
             return
-        channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=self.chat.user_id)
+        channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=self.publish_user_id)
         for raw in events:
             try:
                 await self.cache.publish(channel, raw)
@@ -518,6 +523,8 @@ class ChatStreamRuntime:
     async def _process_next_queued(
         self, *, send_now_only: bool = False, prior_duration_ms: int | None = None
     ) -> bool:
+        if self.member_turn is not None:
+            return False
         next_msg: dict[str, Any] | None = None
         try:
             async with cache_connection() as cache:
@@ -644,6 +651,7 @@ class ChatStreamRuntime:
         worktree: bool,
         base_branch: str | None,
         session_factory: SessionFactoryType,
+        channel_member: bool = False,
     ) -> AsyncIterator[tuple[Message, Message, UUID | None]]:
         # A turn that fails to start leaves no rows behind.
         user_message = None
@@ -663,12 +671,16 @@ class ChatStreamRuntime:
                 model_id=model_id,
                 stream_status=MessageStreamStatus.IN_PROGRESS,
             )
-            checkpoint_id = await cls.create_checkpoint_for_message(
-                chat,
-                assistant_message.id,
-                session_factory,
-                worktree,
-                base_branch,
+            checkpoint_id = (
+                None
+                if channel_member
+                else await cls.create_checkpoint_for_message(
+                    chat,
+                    assistant_message.id,
+                    session_factory,
+                    worktree,
+                    base_branch,
+                )
             )
             yield user_message, assistant_message, checkpoint_id
         except Exception as exc:
@@ -788,7 +800,7 @@ class ChatStreamRuntime:
             )
 
     async def _generate_title(self) -> None:
-        if not self.prompt or not self._is_new_chat:
+        if self.member_turn is not None or not self.prompt or not self._is_new_chat:
             return
 
         ai_service = AgentService(session_factory=self.session_factory)
@@ -982,7 +994,7 @@ class ChatStreamRuntime:
     def start_background_chat(
         cls,
         request: ChatStreamRequest,
-    ) -> None:
+    ) -> asyncio.Task[str]:
         chat_id = str(request.chat_data["id"])
         background_task = asyncio.create_task(
             cls._bootstrap_and_execute(
@@ -993,6 +1005,7 @@ class ChatStreamRuntime:
         background_task.add_done_callback(
             partial(cls._on_background_task_done, chat_id)
         )
+        return background_task
 
     @staticmethod
     def _build_queued_stream_request(
@@ -1065,7 +1078,7 @@ class ChatStreamRuntime:
                     result = await db.execute(
                         select(Chat)
                         .options(selectinload(Chat.workspace))
-                        .filter(Chat.id == UUID(chat_id))
+                        .filter(Chat.id == UUID(chat_id), Chat.is_visible())
                     )
                     chat = result.scalar_one_or_none()
                     if not chat:
@@ -1234,6 +1247,7 @@ class ChatStreamRuntime:
                 base_branch=request.base_branch,
                 selected_persona_name=request.selected_persona_name,
                 fast_mode=request.fast_mode,
+                channel_member=request.member_turn is not None,
             )
 
             session, _ = await session_registry.get_or_create(
@@ -1322,7 +1336,7 @@ class ChatStreamRuntime:
                 assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.INTERRUPTED,
-                user_id=str(request.chat_data["user_id"]),
+                user_id=request.publish_user_id,
             )
             raise
         except Exception as exc:
@@ -1340,7 +1354,7 @@ class ChatStreamRuntime:
                 assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.FAILED,
-                user_id=str(request.chat_data["user_id"]),
+                user_id=request.publish_user_id,
                 error_message=str(exc),
             )
             raise

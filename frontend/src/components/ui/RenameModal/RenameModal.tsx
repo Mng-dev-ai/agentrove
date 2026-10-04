@@ -17,6 +17,7 @@ interface RenameModalProps {
   // Resolves to '' on failure (caller shows the toast) so the input is left untouched.
   onGenerateTitle?: () => Promise<string>;
   isGenerating?: boolean;
+  title?: string;
 }
 
 export function RenameModal({
@@ -27,6 +28,7 @@ export function RenameModal({
   isLoading = false,
   onGenerateTitle,
   isGenerating = false,
+  title: modalTitle = 'Rename Chat',
 }: RenameModalProps) {
   const [title, setTitle] = useState(currentTitle);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -84,7 +86,7 @@ export function RenameModal({
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="md" zIndex="modalHighest">
-      <ModalHeader title="Rename Chat" onClose={onClose} />
+      <ModalHeader title={modalTitle} onClose={onClose} />
 
       <div className={styles.body}>
         <Input

@@ -180,6 +180,21 @@
   &--right {
     right: 0;
   }
+
+  &--capped {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    > * {
+      flex-shrink: 0;
+    }
+
+    > .items {
+      min-height: 0;
+      flex-shrink: 1;
+    }
+  }
 }
 
 .search-box {

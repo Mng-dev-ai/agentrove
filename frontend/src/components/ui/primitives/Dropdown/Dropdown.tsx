@@ -12,6 +12,7 @@ import {
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useDropdown } from '@/hooks/useDropdown';
+import { usePanelFit } from '@/hooks/usePanelFit';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { SelectItem } from '@/components/ui/primitives/SelectItem/SelectItem';
@@ -25,6 +26,8 @@ export type DropdownItemType<T> =
   | { type: 'header'; label: string }
   | { type: 'divider' };
 
+export type DropdownPosition = 'top' | 'bottom' | 'auto';
+
 export interface DropdownProps<T> {
   value: T;
   items: readonly T[] | readonly DropdownItemType<T>[];
@@ -37,7 +40,7 @@ export interface DropdownProps<T> {
   // CSS width for the panel (e.g. '10rem'), not a class name
   width?: string;
   itemClassName?: string;
-  dropdownPosition?: 'top' | 'bottom';
+  dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   compactOnMobile?: boolean;
   forceCompact?: boolean;
@@ -143,6 +146,9 @@ const Dropdown = memo(function Dropdown<T>({
   dropdownAlign = 'left',
 }: DropdownProps<T>) {
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const fit = usePanelFit(dropdownRef, panelRef, isOpen && !disabled, dropdownPosition === 'auto');
+  const panelSide = dropdownPosition === 'auto' ? (fit?.side ?? 'bottom') : dropdownPosition;
   const [searchQuery, setSearchQuery] = useState('');
   const isMobile = useIsMobile();
   const prevIsOpenRef = useRef(isOpen);
@@ -208,7 +214,7 @@ const Dropdown = memo(function Dropdown<T>({
             )}
           />
         )}
-        <FloatingTooltip content={triggerLabel} className={labelSlotClass}>
+        <FloatingTooltip content={isOpen ? '' : triggerLabel} className={labelSlotClass}>
           <span className={styles['trigger-label']}>{triggerLabel}</span>
         </FloatingTooltip>
         {triggerVariant !== 'text' && !disabled && (
@@ -227,12 +233,14 @@ const Dropdown = memo(function Dropdown<T>({
 
       {isOpen && !disabled && (
         <div
+          ref={panelRef}
           role="listbox"
-          style={{ width }}
+          style={{ width, maxHeight: fit?.maxHeight }}
           className={clsx(
             styles.panel,
-            styles[`panel--${dropdownPosition}`],
+            styles[`panel--${panelSide}`],
             styles[`panel--${dropdownAlign}`],
+            fit?.maxHeight !== undefined && styles['panel--capped'],
           )}
         >
           {renderHeader?.()}
