@@ -1,11 +1,16 @@
 import { create } from 'zustand';
-import type { ChannelEnvelope, ChannelMessage } from '@/types/channel.types';
+import type {
+  ChannelEnvelope,
+  ChannelMessage,
+  ChannelPermissionRequest,
+} from '@/types/channel.types';
 
 interface ChannelSlice {
   messages: Record<string, ChannelMessage>;
   // Highest seq below which REST history is known contiguous; only REST syncs advance it.
   syncedSeq: number;
   synced: boolean;
+  permissions: ChannelPermissionRequest[];
 }
 
 interface ChannelState {
@@ -17,12 +22,20 @@ interface ChannelState {
   bumpStreamEpoch: () => void;
   mergeMessages: (channelId: string, messages: ChannelMessage[]) => void;
   syncMessages: (channelId: string, messages: ChannelMessage[]) => void;
+  syncPermissions: (channelId: string, permissions: ChannelPermissionRequest[]) => void;
+  dropPermission: (channelId: string, memberId: string, requestId: string) => void;
   applyEnvelope: (envelope: ChannelEnvelope) => void;
 }
 
 export const EMPTY_MESSAGES: Record<string, ChannelMessage> = {};
+export const EMPTY_PERMISSIONS: ChannelPermissionRequest[] = [];
 
-const EMPTY_SLICE: ChannelSlice = { messages: EMPTY_MESSAGES, syncedSeq: 0, synced: false };
+const EMPTY_SLICE: ChannelSlice = {
+  messages: EMPTY_MESSAGES,
+  syncedSeq: 0,
+  synced: false,
+  permissions: EMPTY_PERMISSIONS,
+};
 
 function upsert(slice: ChannelSlice, incoming: ChannelMessage[]): ChannelSlice {
   const messages = { ...slice.messages };
@@ -30,6 +43,34 @@ function upsert(slice: ChannelSlice, incoming: ChannelMessage[]): ChannelSlice {
     if (message.version > (messages[message.id]?.version ?? 0)) messages[message.id] = message;
   }
   return { ...slice, messages };
+}
+
+function withoutPermission(slice: ChannelSlice, memberId: string, requestId: string): ChannelSlice {
+  return {
+    ...slice,
+    permissions: slice.permissions.filter(
+      (p) => p.member_id !== memberId || p.request.request_id !== requestId,
+    ),
+  };
+}
+
+function applyToSlice(slice: ChannelSlice, envelope: ChannelEnvelope): ChannelSlice {
+  switch (envelope.kind) {
+    case 'channel_message':
+      return upsert(slice, [envelope.payload.message]);
+    case 'channel_permission_request': {
+      const { member_id, request } = envelope.payload;
+      return {
+        ...slice,
+        permissions: [
+          ...withoutPermission(slice, member_id, request.request_id).permissions,
+          envelope.payload,
+        ],
+      };
+    }
+    case 'channel_permission_resolved':
+      return withoutPermission(slice, envelope.payload.member_id, envelope.payload.request_id);
+  }
 }
 
 function withSlice(
@@ -74,8 +115,14 @@ export const useChannelStore = create<ChannelState>((set) => ({
       })),
     ),
 
-  applyEnvelope: (envelope) =>
+  syncPermissions: (channelId, permissions) =>
+    set((state) => withSlice(state, channelId, (slice) => ({ ...slice, permissions }))),
+
+  dropPermission: (channelId, memberId, requestId) =>
     set((state) =>
-      withSlice(state, envelope.channelId, (slice) => upsert(slice, [envelope.payload.message])),
+      withSlice(state, channelId, (slice) => withoutPermission(slice, memberId, requestId)),
     ),
+
+  applyEnvelope: (envelope) =>
+    set((state) => withSlice(state, envelope.channelId, (slice) => applyToSlice(slice, envelope))),
 }));

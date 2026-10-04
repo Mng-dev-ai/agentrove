@@ -15,6 +15,7 @@ import {
   DEFAULT_CHAT_SETTINGS_KEY,
   DEFAULT_WORKTREE,
 } from '@/store/chatSettingsStore';
+import type { GitBranchesData } from '@/types/sandbox.types';
 import styles from './BranchWorktreeSelector.module.scss';
 
 const TOGGLE_OPTIONS: readonly [ToggleDropdownOption, ToggleDropdownOption] = [
@@ -30,6 +31,114 @@ const setWorktree = (enabled: boolean) =>
 
 const setBase = (branch: string | undefined) =>
   useChatSettingsStore.getState().setWorktreeBaseBranch(DEFAULT_CHAT_SETTINGS_KEY, branch);
+
+export interface BranchWorktreeDropdownProps {
+  branchesData: GitBranchesData | undefined;
+  worktree: boolean;
+  onWorktreeChange: (enabled: boolean) => void;
+  // The branch to check out (worktree off) or cut the new worktree from (worktree on).
+  branch: string;
+  onBranchChange: (branch: string) => void;
+  disabled?: boolean;
+}
+
+export const BranchWorktreeDropdown = memo(function BranchWorktreeDropdown({
+  branchesData,
+  worktree,
+  onWorktreeChange,
+  branch,
+  onBranchChange,
+  disabled = false,
+}: BranchWorktreeDropdownProps) {
+  const branches = branchesData?.branches;
+  const currentBranch = branchesData?.current_branch ?? '';
+
+  const visibleBranches = useMemo(
+    () => (worktree ? (branches ?? []).filter((b) => !isWorktreeBranch(b)) : (branches ?? [])),
+    [branches, worktree],
+  );
+
+  const items = useMemo(
+    () => buildBranchItems(visibleBranches, currentBranch),
+    [visibleBranches, currentBranch],
+  );
+
+  const isDegraded = !branchesData?.is_git_repo || (branches?.length ?? 0) === 0;
+
+  if (isDegraded) {
+    return (
+      <ToggleDropdown
+        options={TOGGLE_OPTIONS}
+        value={worktree}
+        onSelect={onWorktreeChange}
+        icon={GitFork}
+        width="9rem"
+        disabled={disabled}
+      />
+    );
+  }
+
+  const renderHeader = () => (
+    <div className={styles.header}>
+      <div
+        role="switch"
+        aria-checked={worktree}
+        tabIndex={0}
+        className={styles['worktree-row']}
+        onClick={() => onWorktreeChange(!worktree)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onWorktreeChange(!worktree);
+          }
+        }}
+      >
+        <GitFork className={styles['worktree-icon']} />
+        <span className={styles['worktree-label']}>Isolated worktree</span>
+        <Switch
+          checked={worktree}
+          size="sm"
+          tabIndex={-1}
+          onClick={(e) => e.stopPropagation()}
+          onCheckedChange={onWorktreeChange}
+        />
+      </div>
+      <div role="separator" className={styles.divider} />
+      <div className={styles['section-label']}>{worktree ? 'Base branch' : 'Branch'}</div>
+    </div>
+  );
+
+  return (
+    <Dropdown
+      value={branch}
+      items={items}
+      getItemKey={(item) => item}
+      getItemLabel={(item) => item}
+      getItemShortLabel={(item) =>
+        worktree ? `${shortenBranchName(item)} → worktree` : shortenBranchName(item)
+      }
+      onSelect={onBranchChange}
+      leftIcon={GitBranch}
+      triggerVariant="toolbar"
+      width="17rem"
+      disabled={disabled}
+      searchable={visibleBranches.length >= 6}
+      searchPlaceholder="Search branches..."
+      searchVariant="underline"
+      itemClassName={styles['item-mono']}
+      renderHeader={renderHeader}
+      renderFooter={
+        worktree
+          ? () => (
+              <div className={styles.footer}>
+                Creates a new worktree from {branch}. Shared workspace untouched.
+              </div>
+            )
+          : undefined
+      }
+    />
+  );
+});
 
 interface BranchWorktreeSelectorProps {
   disabled?: boolean;
@@ -63,31 +172,6 @@ export const BranchWorktreeSelector = memo(function BranchWorktreeSelector({
     }
   }, [branches, storedBase]);
 
-  const visibleBranches = useMemo(
-    () => (worktree ? (branches ?? []).filter((b) => !isWorktreeBranch(b)) : (branches ?? [])),
-    [branches, worktree],
-  );
-
-  const items = useMemo(
-    () => buildBranchItems(visibleBranches, currentBranch),
-    [visibleBranches, currentBranch],
-  );
-
-  const isDegraded = !sandboxId || !branchesData?.is_git_repo || (branches?.length ?? 0) === 0;
-
-  if (isDegraded) {
-    return (
-      <ToggleDropdown
-        options={TOGGLE_OPTIONS}
-        value={worktree}
-        onSelect={setWorktree}
-        icon={GitFork}
-        width="9rem"
-        disabled={disabled}
-      />
-    );
-  }
-
   const base = storedBase && branches?.includes(storedBase) ? storedBase : currentBranch;
 
   const handleSelect = (branch: string) => {
@@ -98,64 +182,14 @@ export const BranchWorktreeSelector = memo(function BranchWorktreeSelector({
     checkout(branch, currentBranch);
   };
 
-  const renderHeader = () => (
-    <div className={styles.header}>
-      <div
-        role="switch"
-        aria-checked={worktree}
-        tabIndex={0}
-        className={styles['worktree-row']}
-        onClick={() => setWorktree(!worktree)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setWorktree(!worktree);
-          }
-        }}
-      >
-        <GitFork className={styles['worktree-icon']} />
-        <span className={styles['worktree-label']}>Isolated worktree</span>
-        <Switch
-          checked={worktree}
-          size="sm"
-          tabIndex={-1}
-          onClick={(e) => e.stopPropagation()}
-          onCheckedChange={setWorktree}
-        />
-      </div>
-      <div role="separator" className={styles.divider} />
-      <div className={styles['section-label']}>{worktree ? 'Base branch' : 'Branch'}</div>
-    </div>
-  );
-
   return (
-    <Dropdown
-      value={worktree ? base : currentBranch}
-      items={items}
-      getItemKey={(branch) => branch}
-      getItemLabel={(branch) => branch}
-      getItemShortLabel={(branch) =>
-        worktree ? `${shortenBranchName(branch)} → worktree` : shortenBranchName(branch)
-      }
-      onSelect={handleSelect}
-      leftIcon={GitBranch}
-      triggerVariant="toolbar"
-      width="17rem"
+    <BranchWorktreeDropdown
+      branchesData={sandboxId ? branchesData : undefined}
+      worktree={worktree}
+      onWorktreeChange={setWorktree}
+      branch={worktree ? base : currentBranch}
+      onBranchChange={handleSelect}
       disabled={disabled || isPending}
-      searchable={visibleBranches.length >= 6}
-      searchPlaceholder="Search branches..."
-      searchVariant="underline"
-      itemClassName={styles['item-mono']}
-      renderHeader={renderHeader}
-      renderFooter={
-        worktree
-          ? () => (
-              <div className={styles.footer}>
-                Creates a new worktree from {base}. Shared workspace untouched.
-              </div>
-            )
-          : undefined
-      }
     />
   );
 });

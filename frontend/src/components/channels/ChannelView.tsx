@@ -1,30 +1,32 @@
 import { memo, useMemo, useState } from 'react';
-import toast from 'react-hot-toast';
 import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import { Tooltip } from '@/components/ui/Tooltip/Tooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
-import { Textarea } from '@/components/chat/message-input/Textarea';
-import { SendButton, type SendButtonStatus } from '@/components/chat/message-input/SendButton';
-import { ComposerField } from '@/components/chat/message-input/ComposerField';
 import {
   ConversationColumn,
   ConversationLayout,
   ConversationScroller,
 } from '@/components/chat/chat-window/ConversationLayout';
 import { ChatSkeleton } from '@/components/chat/chat-window/ChatSkeleton';
+import { InlinePermission } from '@/components/chat/chat-window/ChatInlinePermission';
 import { StatusIndicator } from '@/components/chat/chat-window/StatusTypewriter';
 import { useChatScroll } from '@/components/chat/chat-window/useChatScroll';
 import { MessageRow, MessageText, UserBubble } from '@/components/chat/message-bubble/Message';
+import { MessageAttachments } from '@/components/chat/message-bubble/MessageAttachments';
 import { useChannelLive } from '@/hooks/useChannelLive';
 import { useSmoothText } from '@/hooks/useSmoothText';
-import {
-  usePostChannelMessageMutation,
-  useStopChannelMutation,
-} from '@/hooks/queries/useChannelQueries';
-import { EMPTY_MESSAGES, useChannelStore } from '@/store/channelStore';
+import { permissionService } from '@/services/permissionService';
+import { EMPTY_MESSAGES, EMPTY_PERMISSIONS, useChannelStore } from '@/store/channelStore';
 import { getAgentKindForModelId } from '@/types/chat.types';
 import { formatFullTimestamp, formatRelativeTime } from '@/utils/date';
-import type { Channel, ChannelMember, ChannelMessage } from '@/types/channel.types';
+import { executePermissionResponse } from '@/utils/permissionResponse';
+import type {
+  Channel,
+  ChannelMember,
+  ChannelMessage,
+  ChannelPermissionRequest,
+} from '@/types/channel.types';
+import { ChannelComposer } from './ChannelComposer';
 import styles from './ChannelView.module.scss';
 
 const NO_OLDER_PAGES = () => {};
@@ -72,14 +74,32 @@ function AgentChannelMessage({ message, member }: AgentChannelMessageProps) {
   );
 }
 
-const ChannelTypingRow = memo(function ChannelTypingRow({ members }: { members: ChannelMember[] }) {
-  const names = members.map((member) => member.display_name);
+function memberStatus(members: ChannelMember[], singular: string, plural: string): string {
+  return `${joinNames(members.map((member) => member.display_name))} ${members.length === 1 ? singular : plural}`;
+}
+
+interface ChannelTypingRowProps {
+  typing: ChannelMember[];
+  waiting: ChannelMember[];
+}
+
+const ChannelTypingRow = memo(function ChannelTypingRow({
+  typing,
+  waiting,
+}: ChannelTypingRowProps) {
+  const text = [
+    typing.length > 0 && memberStatus(typing, 'is typing', 'are typing'),
+    waiting.length > 0 &&
+      memberStatus(waiting, 'is waiting for approval', 'are waiting for approval'),
+  ]
+    .filter(Boolean)
+    .join(' · ');
   return (
     <div aria-live="polite">
       <StatusIndicator
         leading={
           <span className={styles['typing-icons']}>
-            {members.map((member) => (
+            {[...typing, ...waiting].map((member) => (
               <ProviderIcon
                 key={member.id}
                 agentKind={getAgentKindForModelId(member.model_id)}
@@ -88,12 +108,56 @@ const ChannelTypingRow = memo(function ChannelTypingRow({ members }: { members: 
             ))}
           </span>
         }
-        text={`${joinNames(names)} ${names.length === 1 ? 'is' : 'are'} typing`}
-        caretBlinking={true}
+        text={text}
+        caretBlinking={typing.length > 0}
       />
     </div>
   );
 });
+
+interface ChannelApprovalProps {
+  channelId: string;
+  permission: ChannelPermissionRequest;
+  member: ChannelMember | undefined;
+}
+
+function ChannelApproval({ channelId, permission, member }: ChannelApprovalProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { chat_id: chatId, member_id: memberId, request } = permission;
+
+  const respond = (optionId: string) =>
+    void executePermissionResponse(
+      () => permissionService.respondToPermission(chatId, request.request_id, optionId),
+      {
+        setIsLoading,
+        setError,
+        errorMessage: 'Failed to respond to approval',
+        clearRequest: () =>
+          useChannelStore.getState().dropPermission(channelId, memberId, request.request_id),
+      },
+    );
+
+  return (
+    <InlinePermission
+      request={request}
+      onApprove={respond}
+      onReject={respond}
+      isLoading={isLoading}
+      error={error}
+      header={
+        <div className={styles.author}>
+          <ProviderIcon
+            agentKind={getAgentKindForModelId(member?.model_id)}
+            className={styles['author-icon']}
+          />
+          <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
+          <span className={styles['author-meta']}>needs approval</span>
+        </div>
+      }
+    />
+  );
+}
 
 function ChannelEmptyState({ channel }: { channel: Channel }) {
   return (
@@ -123,6 +187,9 @@ export function ChannelView({ channel }: { channel: Channel }) {
     (state) => state.channels[channel.id]?.messages ?? EMPTY_MESSAGES,
   );
   const isSynced = useChannelStore((state) => state.channels[channel.id]?.synced ?? false);
+  const permissions = useChannelStore(
+    (state) => state.channels[channel.id]?.permissions ?? EMPTY_PERMISSIONS,
+  );
 
   const messages = useMemo(
     () =>
@@ -139,13 +206,19 @@ export function ChannelView({ channel }: { channel: Channel }) {
     () => new Map(channel.members.map((member) => [member.id, member])),
     [channel.members],
   );
-  const typingMembers = useMemo(() => {
-    const ids = new Set(
+  const { typingMembers, waitingMembers } = useMemo(() => {
+    const waitingIds = new Set(permissions.map((p) => p.member_id));
+    const typingIds = new Set(
       messages.flatMap((m) => (m.status === 'streaming' && m.member_id ? [m.member_id] : [])),
     );
-    return channel.members.filter((member) => ids.has(member.id));
-  }, [messages, channel.members]);
-  const isBusy = typingMembers.length > 0;
+    return {
+      typingMembers: channel.members.filter(
+        (member) => typingIds.has(member.id) && !waitingIds.has(member.id),
+      ),
+      waitingMembers: channel.members.filter((member) => waitingIds.has(member.id)),
+    };
+  }, [messages, permissions, channel.members]);
+  const isBusy = typingMembers.length > 0 || waitingMembers.length > 0;
 
   const { showScrollButton, containerRefCallback, scrollToBottom } = useChatScroll({
     chatId: channel.id,
@@ -157,75 +230,11 @@ export function ChannelView({ channel }: { channel: Channel }) {
     fetchNextPage: NO_OLDER_PAGES,
   });
 
-  const [draft, setDraft] = useState('');
-  const postMessage = usePostChannelMessageMutation();
-  const stopChannel = useStopChannelMutation();
-
-  const handleSend = async () => {
-    const content = draft.trim();
-    if (!content || postMessage.isPending) return;
-    setDraft('');
-    scrollToBottom();
-    try {
-      await postMessage.mutateAsync({ channelId: channel.id, content });
-    } catch (error) {
-      setDraft((current) => (current ? `${content}\n${current}` : content));
-      toast.error(error instanceof Error ? error.message : 'Failed to send message');
-    }
-  };
-
-  const handleStop = () => {
-    stopChannel.mutate(channel.id, {
-      onError: (error) => toast.error(error.message || 'Failed to stop'),
-    });
-  };
-
-  const hasDraft = draft.trim().length > 0;
-  const sendStatus: SendButtonStatus = hasDraft
-    ? 'ready'
-    : isBusy
-      ? 'streaming'
-      : postMessage.isPending
-        ? 'loading'
-        : 'idle';
-
   return (
     <ConversationLayout
       showScrollButton={showScrollButton}
       onScrollToBottom={scrollToBottom}
-      composer={
-        <ComposerField
-          onSubmit={(e) => {
-            e.preventDefault();
-            void handleSend();
-          }}
-          textarea={
-            <Textarea
-              message={draft}
-              setMessage={setDraft}
-              placeholder={`Message #${channel.name}`}
-              isLoading={postMessage.isPending}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  void handleSend();
-                }
-              }}
-            />
-          }
-          actions={
-            <SendButton
-              status={sendStatus}
-              disabled={
-                sendStatus === 'idle' ||
-                sendStatus === 'loading' ||
-                (sendStatus === 'streaming' && stopChannel.isPending)
-              }
-              onClick={hasDraft ? () => void handleSend() : handleStop}
-            />
-          }
-        />
-      }
+      composer={<ChannelComposer channel={channel} isBusy={isBusy} onSend={scrollToBottom} />}
     >
       {messages.length === 0 ? (
         isSynced ? (
@@ -240,6 +249,10 @@ export function ChannelView({ channel }: { channel: Channel }) {
               {message.author_type === 'user' ? (
                 <MessageRow>
                   <UserBubble>
+                    <MessageAttachments
+                      attachments={message.attachments}
+                      className={styles.attachments}
+                    />
                     <MarkDown content={message.content} highlightMentions />
                   </UserBubble>
                 </MessageRow>
@@ -251,9 +264,18 @@ export function ChannelView({ channel }: { channel: Channel }) {
               )}
             </ConversationColumn>
           ))}
+          {permissions.map((permission) => (
+            <ConversationColumn key={`${permission.member_id}:${permission.request.request_id}`}>
+              <ChannelApproval
+                channelId={channel.id}
+                permission={permission}
+                member={membersById.get(permission.member_id)}
+              />
+            </ConversationColumn>
+          ))}
           {isBusy && (
             <ConversationColumn>
-              <ChannelTypingRow members={typingMembers} />
+              <ChannelTypingRow typing={typingMembers} waiting={waitingMembers} />
             </ConversationColumn>
           )}
         </ConversationScroller>

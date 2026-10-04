@@ -1,15 +1,22 @@
+import type { PermissionMode } from '@/store/chatSettingsStore';
+import type { MessageAttachment, ToolPermissionRequest } from '@/types/chat.types';
+
 export interface ChannelMember {
   id: string;
+  chat_id: string;
   model_id: string;
   display_name: string;
   persona: string | null;
   thinking_mode: string | null;
+  permission_mode: PermissionMode;
 }
 
 export interface Channel {
   id: string;
   workspace_id: string;
   name: string;
+  worktree: boolean;
+  branch: string | null;
   created_at: string;
   updated_at: string;
   members: ChannelMember[];
@@ -19,11 +26,14 @@ export interface ChannelMemberCreateRequest {
   model_id: string;
   persona?: string | null;
   thinking_mode?: string | null;
+  permission_mode?: PermissionMode;
 }
 
 export interface ChannelCreateRequest {
   workspace_id: string;
   name: string;
+  worktree: boolean;
+  branch: string | null;
   members: ChannelMemberCreateRequest[];
 }
 
@@ -38,7 +48,14 @@ export interface ChannelMessage {
   member_id: string | null;
   content: string;
   status: ChannelMessageStatus;
+  attachments: MessageAttachment[];
   created_at: string;
+}
+
+export interface ChannelPermissionRequest {
+  member_id: string;
+  chat_id: string;
+  request: ToolPermissionRequest;
 }
 
 interface ChannelEnvelopeBase<K extends string, P> {
@@ -47,7 +64,10 @@ interface ChannelEnvelopeBase<K extends string, P> {
   payload: P;
 }
 
-export type ChannelEnvelope = ChannelEnvelopeBase<'channel_message', { message: ChannelMessage }>;
+export type ChannelEnvelope =
+  | ChannelEnvelopeBase<'channel_message', { message: ChannelMessage }>
+  | ChannelEnvelopeBase<'channel_permission_request', ChannelPermissionRequest>
+  | ChannelEnvelopeBase<'channel_permission_resolved', { member_id: string; request_id: string }>;
 
 export function isChannelEnvelope(value: unknown): value is ChannelEnvelope {
   return typeof value === 'object' && value !== null && 'channelId' in value;

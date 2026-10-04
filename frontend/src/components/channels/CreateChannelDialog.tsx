@@ -1,25 +1,38 @@
 import { useState } from 'react';
-import { Hash, Plus, X } from 'lucide-react';
+import clsx from 'clsx';
+import { ChevronDown, Hash, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
-import { SelectorDot } from '@/components/ui/primitives/SelectorDot/SelectorDot';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { ThinkingModeDropdown } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
 import { PersonaDropdown } from '@/components/chat/persona-selector/PersonaSelector';
+import { PermissionModeDropdown } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
+import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
 import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
+import { BranchWorktreeDropdown } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
 import {
   coerceThinkingModeForAgent,
   getThinkingModesForAgent,
 } from '@/components/chat/thinking-mode-selector/thinkingModes';
+import { useDropdown } from '@/hooks/useDropdown';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
+import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useCreateChannelMutation } from '@/hooks/queries/useChannelQueries';
-import { DEFAULT_PERSONA, DEFAULT_THINKING_MODE } from '@/store/chatSettingsStore';
+import {
+  DEFAULT_PERMISSION_MODE,
+  DEFAULT_PERSONA,
+  DEFAULT_THINKING_MODE,
+  DEFAULT_WORKTREE,
+  type PermissionMode,
+} from '@/store/chatSettingsStore';
 import { useAuthStore } from '@/store/authStore';
+import { stateClasses } from '@/config/stateClasses';
 import type { Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
 import type { ChannelMemberCreateRequest } from '@/types/channel.types';
@@ -30,6 +43,7 @@ interface MemberDraft {
   modelId: string;
   persona: string;
   thinkingMode: string;
+  permissionMode: PermissionMode;
 }
 
 function newMemberDraft(): MemberDraft {
@@ -38,21 +52,24 @@ function newMemberDraft(): MemberDraft {
     modelId: '',
     persona: DEFAULT_PERSONA,
     thinkingMode: DEFAULT_THINKING_MODE,
+    permissionMode: DEFAULT_PERMISSION_MODE,
   };
 }
 
 function resolveMember(member: MemberDraft, models: Model[]) {
   const modelId = member.modelId || models[0]?.model_id || '';
-  const agentKind = models.find((m) => m.model_id === modelId)?.agent_kind ?? 'claude';
+  const model = models.find((m) => m.model_id === modelId);
+  const agentKind = model?.agent_kind ?? 'claude';
   return {
     modelId,
+    modelName: model?.name ?? modelId,
     agentKind,
     hasThinking: getThinkingModesForAgent(agentKind, modelId).length > 0,
     supportsPersona: PERSONAS_SUPPORTED_AGENTS.has(agentKind),
   };
 }
 
-interface MemberRowProps {
+interface MemberChipProps {
   member: MemberDraft;
   models: Model[];
   personas: Persona[];
@@ -61,56 +78,93 @@ interface MemberRowProps {
   onRemove: () => void;
 }
 
-function MemberRow({ member, models, personas, canRemove, onChange, onRemove }: MemberRowProps) {
-  const { modelId, agentKind, hasThinking, supportsPersona } = resolveMember(member, models);
-  const showPersona = supportsPersona && personas.length > 0;
+function MemberChip({ member, models, personas, canRemove, onChange, onRemove }: MemberChipProps) {
+  const { isOpen, dropdownRef, setIsOpen } = useDropdown();
+  const { modelId, modelName, agentKind, hasThinking, supportsPersona } = resolveMember(
+    member,
+    models,
+  );
 
   return (
-    <div className={styles.member}>
-      <ProviderIcon agentKind={agentKind} className={styles['member-icon']} />
-      <div className={styles['member-controls']}>
-        <ModelSelector
-          selectedModelId={modelId}
-          onModelChange={(next) => onChange({ modelId: next })}
-          dropdownPosition="bottom"
-          variant="text"
-        />
-        {hasThinking && (
-          <>
-            <SelectorDot />
-            <ThinkingModeDropdown
-              value={member.thinkingMode}
-              onChange={(thinkingMode) => onChange({ thinkingMode })}
+    <div ref={dropdownRef} className={styles['chip-wrap']}>
+      <Button
+        type="button"
+        variant="unstyled"
+        onClick={() => setIsOpen(!isOpen)}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        className={clsx(styles.chip, isOpen && stateClasses.OPEN)}
+      >
+        <ProviderIcon agentKind={agentKind} className={styles['chip-icon']} />
+        <span className={styles['chip-label']}>{modelName}</span>
+        <ChevronDown className={styles['chip-caret']} />
+      </Button>
+
+      {isOpen && (
+        <div role="dialog" aria-label={`${modelName} settings`} className={styles.popover}>
+          <div className={styles['popover-row']}>
+            <span className={styles['popover-label']}>Model</span>
+            <ModelSelector
+              selectedModelId={modelId}
+              onModelChange={(next) => onChange({ modelId: next })}
+              dropdownPosition="bottom"
+              dropdownAlign="right"
+              variant="text"
+            />
+          </div>
+          {hasThinking && (
+            <div className={styles['popover-row']}>
+              <span className={styles['popover-label']}>Thinking</span>
+              <ThinkingModeDropdown
+                value={member.thinkingMode}
+                onChange={(thinkingMode) => onChange({ thinkingMode })}
+                agentKind={agentKind}
+                modelId={modelId}
+                dropdownPosition="bottom"
+                dropdownAlign="right"
+                variant="text"
+              />
+            </div>
+          )}
+          {supportsPersona && personas.length > 0 && (
+            <div className={styles['popover-row']}>
+              <span className={styles['popover-label']}>Persona</span>
+              <PersonaDropdown
+                personas={personas}
+                value={member.persona}
+                onChange={(persona) => onChange({ persona })}
+                dropdownPosition="bottom"
+                dropdownAlign="right"
+                variant="text"
+              />
+            </div>
+          )}
+          <div className={styles['popover-row']}>
+            <span className={styles['popover-label']}>Permission</span>
+            <PermissionModeDropdown
+              value={member.permissionMode}
+              onChange={(permissionMode) => onChange({ permissionMode })}
               agentKind={agentKind}
-              modelId={modelId}
               dropdownPosition="bottom"
+              dropdownAlign="right"
               variant="text"
             />
-          </>
-        )}
-        {showPersona && (
-          <>
-            <SelectorDot />
-            <PersonaDropdown
-              personas={personas}
-              value={member.persona}
-              onChange={(persona) => onChange({ persona })}
-              dropdownPosition="bottom"
-              variant="text"
-            />
-          </>
-        )}
-      </div>
-      {canRemove && (
-        <Button
-          type="button"
-          variant="unstyled"
-          onClick={onRemove}
-          className={styles['remove-btn']}
-          aria-label="Remove member"
-        >
-          <X className={styles['remove-icon']} />
-        </Button>
+          </div>
+          {canRemove && (
+            <>
+              <div role="separator" className={styles['popover-divider']} />
+              <Button
+                type="button"
+                variant="unstyled"
+                onClick={onRemove}
+                className={styles['popover-remove']}
+              >
+                <Trash2 className={styles['popover-remove-icon']} />
+                Remove member
+              </Button>
+            </>
+          )}
+        </div>
       )}
     </div>
   );
@@ -131,11 +185,24 @@ export function CreateChannelDialog({
   const { data: models = [] } = useModelsQuery({ enabled: isAuthenticated });
   const { data: settings } = useSettingsQuery({ enabled: isAuthenticated });
   const personas = settings?.personas ?? [];
+  const workspaces = useWorkspacesList({ enabled: isAuthenticated });
 
   const [name, setName] = useState('');
   const [workspaceId, setWorkspaceId] = useState(defaultWorkspaceId);
+  const [worktree, setWorktree] = useState(DEFAULT_WORKTREE);
+  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [members, setMembers] = useState<MemberDraft[]>(() => [newMemberDraft()]);
   const createChannel = useCreateChannelMutation();
+
+  const sandboxId = workspaces.find((workspace) => workspace.id === workspaceId)?.sandbox_id;
+  const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId);
+  const hasBranches = !!branchesData?.is_git_repo && branchesData.branches.length > 0;
+  const branch = hasBranches ? (selectedBranch ?? branchesData.current_branch) : null;
+
+  const handleWorkspaceChange = (nextWorkspaceId: string | null) => {
+    setWorkspaceId(nextWorkspaceId);
+    setSelectedBranch(null);
+  };
 
   const updateMember = (key: string, patch: Partial<MemberDraft>) =>
     setMembers((prev) => prev.map((m) => (m.key === key ? { ...m, ...patch } : m)));
@@ -163,6 +230,7 @@ export function CreateChannelDialog({
         thinking_mode: hasThinking
           ? coerceThinkingModeForAgent(member.thinkingMode, agentKind, modelId)
           : null,
+        permission_mode: coercePermissionModeForAgent(member.permissionMode, agentKind),
       };
     });
 
@@ -170,6 +238,8 @@ export function CreateChannelDialog({
       const channel = await createChannel.mutateAsync({
         workspace_id: workspaceId,
         name: trimmedName,
+        worktree,
+        branch,
         members: requestMembers,
       });
       onClose();
@@ -218,8 +288,21 @@ export function CreateChannelDialog({
             <div className={styles['workspace-field']}>
               <WorkspaceSelector
                 selectedWorkspaceId={workspaceId}
-                onWorkspaceChange={setWorkspaceId}
+                onWorkspaceChange={handleWorkspaceChange}
                 enabled={isAuthenticated}
+              />
+            </div>
+          </div>
+
+          <div>
+            <span className={styles['field-label']}>Branch</span>
+            <div className={styles['branch-field']}>
+              <BranchWorktreeDropdown
+                branchesData={sandboxId ? branchesData : undefined}
+                worktree={worktree}
+                onWorktreeChange={setWorktree}
+                branch={branch ?? ''}
+                onBranchChange={setSelectedBranch}
               />
             </div>
           </div>
@@ -228,7 +311,7 @@ export function CreateChannelDialog({
             <span className={styles['field-label']}>Members</span>
             <div className={styles.members}>
               {members.map((member) => (
-                <MemberRow
+                <MemberChip
                   key={member.key}
                   member={member}
                   models={models}
@@ -242,10 +325,10 @@ export function CreateChannelDialog({
                 type="button"
                 variant="unstyled"
                 onClick={() => setMembers((prev) => [...prev, newMemberDraft()])}
-                className={styles['add-member']}
+                className={styles['add-chip']}
+                aria-label="Add member"
               >
                 <Plus className={styles['add-icon']} />
-                Add member
               </Button>
             </div>
           </div>

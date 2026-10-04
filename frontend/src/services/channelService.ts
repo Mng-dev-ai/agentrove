@@ -1,6 +1,11 @@
 import { apiClient } from '@/lib/api';
 import { ensureResponse, serviceCall } from '@/services/base/BaseService';
-import type { Channel, ChannelCreateRequest, ChannelMessage } from '@/types/channel.types';
+import type {
+  Channel,
+  ChannelCreateRequest,
+  ChannelMessage,
+  ChannelPermissionRequest,
+} from '@/types/channel.types';
 
 async function listChannels(workspaceId?: string): Promise<Channel[]> {
   return serviceCall(async () => {
@@ -24,6 +29,13 @@ async function createChannel(data: ChannelCreateRequest): Promise<Channel> {
   });
 }
 
+async function renameChannel(channelId: string, name: string): Promise<Channel> {
+  return serviceCall(async () => {
+    const response = await apiClient.patch<Channel>(`/channels/${channelId}`, { name });
+    return ensureResponse(response, 'Failed to rename channel');
+  });
+}
+
 async function deleteChannel(channelId: string): Promise<void> {
   await serviceCall(async () => {
     await apiClient.delete(`/channels/${channelId}`);
@@ -39,12 +51,29 @@ async function listMessages(channelId: string, afterSeq: number): Promise<Channe
   });
 }
 
-async function postMessage(channelId: string, content: string): Promise<ChannelMessage> {
+async function postMessage(
+  channelId: string,
+  content: string,
+  files: File[],
+): Promise<ChannelMessage> {
   return serviceCall(async () => {
-    const response = await apiClient.post<ChannelMessage>(`/channels/${channelId}/messages`, {
-      content,
-    });
+    const formData = new FormData();
+    formData.append('content', content);
+    files.forEach((file) => formData.append('attached_files', file));
+    const response = await apiClient.postForm<ChannelMessage>(
+      `/channels/${channelId}/messages`,
+      formData,
+    );
     return ensureResponse(response, 'Failed to send message');
+  });
+}
+
+async function listPermissions(channelId: string): Promise<ChannelPermissionRequest[]> {
+  return serviceCall(async () => {
+    const response = await apiClient.get<ChannelPermissionRequest[]>(
+      `/channels/${channelId}/permissions`,
+    );
+    return ensureResponse(response, 'Failed to load channel approvals');
   });
 }
 
@@ -58,8 +87,10 @@ export const channelService = {
   listChannels,
   getChannel,
   createChannel,
+  renameChannel,
   deleteChannel,
   listMessages,
   postMessage,
+  listPermissions,
   stopChannel,
 };

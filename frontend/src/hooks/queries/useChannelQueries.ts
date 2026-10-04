@@ -25,6 +25,18 @@ export const useCreateChannelMutation = createMutation<Channel, Error, ChannelCr
   (queryClient) => queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll }),
 );
 
+export const useRenameChannelMutation = createMutation<
+  Channel,
+  Error,
+  { channelId: string; name: string }
+>(
+  ({ channelId, name }) => channelService.renameChannel(channelId, name),
+  (queryClient, channel) => {
+    queryClient.setQueryData(queryKeys.channel(channel.id), channel);
+    return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
+  },
+);
+
 export const useDeleteChannelMutation = createMutation<void, Error, string>(
   (channelId) => channelService.deleteChannel(channelId),
   (queryClient, _data, channelId) => {
@@ -37,9 +49,9 @@ export const useDeleteChannelMutation = createMutation<void, Error, string>(
 export const usePostChannelMessageMutation = createMutation<
   ChannelMessage,
   Error,
-  { channelId: string; content: string }
+  { channelId: string; content: string; files: File[] }
 >(
-  ({ channelId, content }) => channelService.postMessage(channelId, content),
+  ({ channelId, content, files }) => channelService.postMessage(channelId, content, files),
   (_queryClient, message) =>
     useChannelStore.getState().mergeMessages(message.channel_id, [message]),
 );

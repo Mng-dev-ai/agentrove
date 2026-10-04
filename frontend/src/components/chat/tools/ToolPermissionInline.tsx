@@ -3,7 +3,7 @@ import clsx from 'clsx';
 import { ChevronRight, Folder, ShieldAlert } from 'lucide-react';
 import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import type { PermissionRequest } from '@/types/chat.types';
+import type { ToolPermissionRequest } from '@/types/chat.types';
 import { PermissionApprovalButtons } from '@/components/ui/shared/ApprovalFooter/ApprovalFooter';
 import { filterOptions } from '@/utils/permissionStorage';
 import { formatResult } from '@/utils/format';
@@ -111,7 +111,7 @@ function DetailsList({ details }: DetailsListProps) {
 }
 
 interface ToolPermissionInlineProps {
-  request: PermissionRequest | null;
+  request: ToolPermissionRequest | null;
   onApprove: (optionId: string) => void;
   onReject: (optionId: string) => void;
   isLoading?: boolean;

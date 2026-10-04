@@ -201,11 +201,14 @@ export interface PermissionOption {
   permission_mode?: PermissionMode | null;
 }
 
-export interface PermissionRequest {
+export interface ToolPermissionRequest {
   request_id: string;
   tool_name: string;
   tool_input: Record<string, unknown>;
   options: PermissionOption[];
+}
+
+export interface PermissionRequest extends ToolPermissionRequest {
   // Envelope seq for dedupe on reconnect (request_id can be reused across turns).
   seq: number;
 }

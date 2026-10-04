@@ -1,10 +1,15 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2 } from 'lucide-react';
+import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
+import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
 import { CreateChannelDialog } from '@/components/channels/CreateChannelDialog';
-import { useChannelsQuery, useDeleteChannelMutation } from '@/hooks/queries/useChannelQueries';
+import {
+  useChannelsQuery,
+  useDeleteChannelMutation,
+  useRenameChannelMutation,
+} from '@/hooks/queries/useChannelQueries';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuthStore } from '@/store/authStore';
@@ -36,6 +41,7 @@ export function SidebarChannels({
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: channels = [] } = useChannelsQuery(workspaceId, isAuthenticated);
   const deleteChannel = useDeleteChannelMutation();
+  const renameChannel = useRenameChannelMutation();
 
   const [createOpen, setCreateOpen] = useState(false);
   const [dropdown, setDropdown] = useState<{
@@ -43,6 +49,7 @@ export function SidebarChannels({
     position: { top: number; left: number };
   } | null>(null);
   const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
+  const [channelToRename, setChannelToRename] = useState<Channel | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useMountEffect(() => {
@@ -87,6 +94,16 @@ export function SidebarChannels({
     }
   };
 
+  const saveRename = async (name: string) => {
+    if (!channelToRename) return;
+    await mutateWithToast(
+      () => renameChannel.mutateAsync({ channelId: channelToRename.id, name }),
+      'Channel renamed successfully',
+      'Failed to rename channel',
+    ).catch(() => undefined);
+    setChannelToRename(null);
+  };
+
   return (
     <div className={styles.channels}>
       <SidebarSectionHeader title="Channels">
@@ -119,6 +136,15 @@ export function SidebarChannels({
           onClose={() => setDropdown(null)}
         >
           <SidebarMenuItem
+            icon={Edit2}
+            onClick={() => {
+              setChannelToRename(dropdown.channel);
+              setDropdown(null);
+            }}
+          >
+            Rename
+          </SidebarMenuItem>
+          <SidebarMenuItem
             icon={Trash2}
             onClick={() => {
               setChannelToDelete(dropdown.channel);
@@ -139,6 +165,15 @@ export function SidebarChannels({
         message="Are you sure you want to delete this channel and its messages? This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"
+      />
+
+      <RenameModal
+        isOpen={!!channelToRename}
+        onClose={() => setChannelToRename(null)}
+        onSave={saveRename}
+        currentTitle={channelToRename?.name ?? ''}
+        isLoading={renameChannel.isPending}
+        title="Rename Channel"
       />
 
       {createOpen && (
