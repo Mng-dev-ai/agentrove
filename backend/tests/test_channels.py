@@ -17,7 +17,7 @@ from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChannelChatRequest
-from app.services.acp.adapters import NORMAL_SESSION_MODE
+from app.services.acp.adapters import AgentKind
 from app.services.channel import (
     ChannelService,
     ChannelState,
@@ -67,6 +67,9 @@ class ScriptedTurns:
         self.turns: list[MemberTurn] = []
         self.publications: list[tuple[UUID, str, dict[str, Any]]] = []
         self.duration_ms: int | None = 1234
+        self.gate: asyncio.Event | None = None
+        self.emitted = asyncio.Event()
+        self.provider_tasks: dict[str, asyncio.Task[str]] = {}
 
     async def initiate_chat_completion(
         self,
@@ -82,7 +85,9 @@ class ScriptedTurns:
                 db, request.chat_id, duration_ms=self.duration_ms
             )
         self.sources.append(source)
-        task_started(asyncio.create_task(self.emit(event_sink, source, self.events)))
+        task = asyncio.create_task(self.emit(event_sink, source, self.events))
+        self.provider_tasks[str(request.chat_id)] = task
+        task_started(task)
 
     async def emit(
         self,
@@ -93,6 +98,9 @@ class ScriptedTurns:
         await event_sink("stream_started", {"message_id": str(source.id)})
         for kind, payload in events:
             await event_sink(kind, payload)
+        self.emitted.set()
+        if self.gate is not None:
+            await self.gate.wait()
         return str(source.id)
 
     async def publish(
@@ -101,7 +109,10 @@ class ScriptedTurns:
         self.publications.append((channel.id, kind, payload))
 
     async def cancel_chat_turn(self, chat_id: str, *, timeout: float) -> None:
-        return None
+        task = self.provider_tasks.get(chat_id)
+        if task is not None:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
     async def wake(self, state: ChannelState) -> None:
         state.paused = False
@@ -220,6 +231,7 @@ async def source_message(
         ("PASS.", True),
         ("PASS — nothing new", True),
         ("Pass, nothing to add", True),
+        ("Pass — nothing to add", False),
         ("Looks good.\nPASS", True),
         ("Nothing to add. PASS", True),
         ("LGTM! PASS", True),
@@ -380,6 +392,67 @@ async def test_unsuccessful_turn_redelivers_batch_and_cancelled_duration_falls_b
     assert len(channel_runtime.requests) == 2
 
 
+@pytest.mark.parametrize("action", ["messages", "stop"])
+async def test_running_turn_is_interrupted_by_owner(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+    action: str,
+) -> None:
+    first = await channel_service.new_message(channel_state, "First question")
+    second = await channel_service.new_message(channel_state, "Second question")
+    channel_runtime.events = [("assistant_text", {"text": "Partial reply"})]
+    channel_runtime.gate = asyncio.Event()
+    wake = asyncio.create_task(channel_runtime.wake(channel_state))
+    await asyncio.wait_for(channel_runtime.emitted.wait(), timeout=5)
+    member = channel_state.channel.members[0]
+    turn = channel_state.turns[member.id]
+    assert turn.message is not None
+    reply_id = turn.message.id
+    assert turn.message.status == "streaming"
+    assert turn.provider_task is not None
+    assert not turn.provider_task.done()
+
+    response = await client.post(
+        f"/api/v1/channels/{channel_state.channel.id}/{action}",
+        headers=owner[0],
+        data={"content": "New question"} if action == "messages" else {},
+    )
+    assert response.status_code == (201 if action == "messages" else 204)
+    channel_state.paused = True
+    if channel_state.timer is not None:
+        channel_state.timer.cancel()
+        await asyncio.gather(channel_state.timer, return_exceptions=True)
+        channel_state.timer = None
+    await asyncio.gather(wake, return_exceptions=True)
+    assert wake.cancelled()
+    assert turn.provider_task.cancelled()
+    reply = await db_session.get(ChannelMessage, reply_id)
+    assert reply is not None
+    assert reply.status == "cancelled"
+    assert reply.content == "Partial reply"
+    deliveries = (await db_session.scalars(select(ChannelDelivery))).all()
+    expected = {(member.id, first.id), (member.id, second.id)}
+    if action == "messages":
+        assert deliveries == []
+        expected.add((member.id, UUID(response.json()["id"])))
+    else:
+        assert {(row.member_id, row.message_id) for row in deliveries} == expected
+
+    channel_runtime.gate.set()
+    channel_runtime.events = [("assistant_text", {"text": "PASS"})]
+    await channel_runtime.wake(channel_state)
+    deliveries = (await db_session.scalars(select(ChannelDelivery))).all()
+    assert {(row.member_id, row.message_id) for row in deliveries} == expected
+    assert len(channel_runtime.requests) == (2 if action == "messages" else 1)
+    if action == "messages":
+        assert channel_runtime.requests[-1].prompt.endswith(
+            "[user]: First question\n[user]: Second question\n[user]: New question"
+        )
+
+
 async def test_stop_marks_all_messages_seen_for_every_member(
     client: AsyncClient,
     owner: tuple[dict[str, str], User, Workspace],
@@ -500,6 +573,40 @@ async def test_channel_routes_require_the_owner(
         )
 
 
+async def test_owner_can_read_rename_and_delete_channel(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    channel_id = channel_state.channel.id
+    chat_ids = [member.chat_id for member in channel_state.channel.members]
+    base = f"/api/v1/channels/{channel_id}"
+    for suffix in ("", "/messages", "/permissions", "/member-activity"):
+        response = await client.get(f"{base}{suffix}", headers=owner[0])
+        assert response.status_code == 200, (suffix, response.text)
+
+    response = await client.patch(base, headers=owner[0], json={"name": "Renamed"})
+    assert response.status_code == 200, response.text
+    assert response.json()["name"] == "Renamed"
+    assert channel_state.channel.name == "Renamed"
+    assert (
+        await db_session.scalar(select(Channel.name).where(Channel.id == channel_id))
+        == "Renamed"
+    )
+    assert list(
+        await db_session.scalars(select(Chat.title).where(Chat.id.in_(chat_ids)))
+    ) == ["Renamed"] * len(chat_ids)
+
+    response = await client.delete(base, headers=owner[0])
+    assert response.status_code == 204, response.text
+    assert await db_session.get(Channel, channel_id) is None
+    assert (
+        await db_session.scalars(select(Chat).where(Chat.id.in_(chat_ids)))
+    ).all() == []
+    assert channel_id not in channel_service.states
+
+
 async def test_channel_list_is_scoped_to_user_and_workspace(
     client: AsyncClient,
     db_session: AsyncSession,
@@ -607,16 +714,16 @@ async def test_normal_chat_routes_hide_member_chats(
     source_message: Message,
 ) -> None:
     base = f"/api/v1/chat/chats/{channel_state.channel.members[0].chat_id}"
-    for method, path, kwargs in [
-        ("GET", base, {}),
-        ("GET", f"{base}/messages", {}),
-        ("GET", f"/api/v1/chat/messages/{source_message.id}/events", {}),
-        ("PATCH", base, {"json": {"title": "Renamed"}}),
-        ("DELETE", base, {}),
-        ("DELETE", f"{base}/stream", {}),
+    for method, path, kwargs, expected_status in [
+        ("GET", base, {}, 404),
+        ("GET", f"{base}/messages", {}, 403),
+        ("GET", f"/api/v1/chat/messages/{source_message.id}/events", {}, 404),
+        ("PATCH", base, {"json": {"title": "Renamed"}}, 404),
+        ("DELETE", base, {}, 404),
+        ("DELETE", f"{base}/stream", {}, 404),
     ]:
         response = await client.request(method, path, headers=owner[0], **kwargs)
-        assert response.status_code == 404, (method, path, response.text)
+        assert response.status_code == expected_status, (method, path, response.text)
 
 
 async def test_member_chats_are_hidden_from_list_search_and_delete_all(
@@ -644,6 +751,8 @@ async def test_member_chats_are_hidden_from_list_search_and_delete_all(
 
     response = await client.delete("/api/v1/chat/chats/all", headers=headers)
     assert response.status_code == 204
+    await db_session.refresh(workspace)
+    assert workspace.deleted_at is None
     await db_session.refresh(visible)
     await db_session.refresh(visible_message)
     await db_session.refresh(source_message)
@@ -693,19 +802,26 @@ async def test_default_permission_modes_follow_each_provider(
     channel_data: dict[str, Any],
 ) -> None:
     models_by_kind = {model.agent_kind: model_id for model_id, model in MODELS.items()}
+    expected_modes = {
+        AgentKind.CLAUDE: "default",
+        AgentKind.CODEX: "auto",
+        AgentKind.OPENCODE: "build",
+    }
     channel_data["members"] = [
-        {"model_id": model_id} for model_id in models_by_kind.values()
+        {"model_id": models_by_kind[kind]} for kind in expected_modes
     ]
     response = await client.post(
         "/api/v1/channels", json=channel_data, headers=owner[0]
     )
     assert response.status_code == 201, response.text
     members = response.json()["members"]
-    assert {member["model_id"] for member in members} == set(models_by_kind.values())
+    assert {member["model_id"] for member in members} == {
+        models_by_kind[kind] for kind in expected_modes
+    }
     for member in members:
         assert (
             member["permission_mode"]
-            == NORMAL_SESSION_MODE[MODELS[member["model_id"]].agent_kind]
+            == expected_modes[MODELS[member["model_id"]].agent_kind]
         )
 
 
