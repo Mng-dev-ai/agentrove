@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import clsx from 'clsx';
 import { Shield } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import {
   useChatSettingsStore,
@@ -30,7 +30,7 @@ function renderPermissionItem(mode: PermissionModeOption, isSelected: boolean) {
 
 interface PermissionModeControlProps {
   agentKind?: AgentKind;
-  dropdownPosition?: 'top' | 'bottom';
+  dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';

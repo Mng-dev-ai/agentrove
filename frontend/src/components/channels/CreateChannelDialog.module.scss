@@ -5,12 +5,23 @@
 @use '@/styles/globals/state-classes' as state;
 @use '@/styles/globals/zlayer' as z;
 
-// ModelSelector/Dropdown popovers need to escape the modal's bounds.
 .dialog {
+  display: flex;
+  max-height: calc(100dvh - 2 * var(--space-4));
+  flex-direction: column;
   overflow: visible;
 }
 
 .body {
+  min-height: 0;
+  flex: 1;
+
+  &--scroll {
+    overflow-y: auto;
+  }
+}
+
+.body-content {
   padding: var(--space-5);
 }
 
@@ -141,6 +152,17 @@
   box-shadow: var(--shadow-medium);
   backdrop-filter: blur(24px) saturate(1.5);
   padding: var(--space-1-5);
+
+  &--top {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: var(--space-1-5);
+  }
+
+  &--capped {
+    overflow-y: auto;
+  }
 }
 
 .popover-row {
@@ -208,6 +230,7 @@
 
 .footer {
   display: flex;
+  flex-shrink: 0;
   justify-content: flex-end;
   gap: var(--space-2);
   border-top: 1px solid colors.theme-color('border', 0.5);

@@ -1,6 +1,6 @@
 import { memo, useMemo } from 'react';
 import { UserCircle } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -18,7 +18,7 @@ interface PersonaOption {
 const DEFAULT_OPTION: PersonaOption = { value: DEFAULT_PERSONA, label: 'Default' };
 
 interface PersonaDropdownControlProps {
-  dropdownPosition?: 'top' | 'bottom';
+  dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';

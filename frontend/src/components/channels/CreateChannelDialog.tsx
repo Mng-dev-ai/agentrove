@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import clsx from 'clsx';
 import { ChevronDown, Hash, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -20,6 +20,7 @@ import {
   getThinkingModesForAgent,
 } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import { useDropdown } from '@/hooks/useDropdown';
+import { usePanelFit } from '@/hooks/usePanelFit';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
@@ -80,6 +81,26 @@ function memberDisplayNames(members: MemberDraft[], models: Model[]): string[] {
   });
 }
 
+function useContentOverflows(
+  scrollerRef: RefObject<HTMLElement | null>,
+  contentRef: RefObject<HTMLElement | null>,
+): boolean {
+  const [overflows, setOverflows] = useState(false);
+
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content) return;
+    const measure = () => setOverflows(content.offsetHeight > scroller.clientHeight);
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [scrollerRef, contentRef]);
+
+  return overflows;
+}
+
 interface MemberChipProps {
   member: MemberDraft;
   displayName: string;
@@ -100,6 +121,8 @@ function MemberChip({
   onRemove,
 }: MemberChipProps) {
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const fit = usePanelFit(dropdownRef, popoverRef, isOpen);
   const { modelId, modelName, agentKind, hasThinking, supportsPersona } = resolveMember(
     member,
     models,
@@ -134,13 +157,23 @@ function MemberChip({
       </FloatingTooltip>
 
       {isOpen && (
-        <div role="dialog" aria-label={`${displayName} settings`} className={styles.popover}>
+        <div
+          ref={popoverRef}
+          role="dialog"
+          aria-label={`${displayName} settings`}
+          style={{ maxHeight: fit?.maxHeight }}
+          className={clsx(
+            styles.popover,
+            fit?.side === 'top' && styles['popover--top'],
+            fit?.maxHeight !== undefined && styles['popover--capped'],
+          )}
+        >
           <div className={styles['popover-row']}>
             <span className={styles['popover-label']}>Model</span>
             <ModelSelector
               selectedModelId={modelId}
               onModelChange={(next) => onChange({ modelId: next })}
-              dropdownPosition="bottom"
+              dropdownPosition="auto"
               dropdownAlign="right"
               variant="text"
             />
@@ -153,7 +186,7 @@ function MemberChip({
                 onChange={(thinkingMode) => onChange({ thinkingMode })}
                 agentKind={agentKind}
                 modelId={modelId}
-                dropdownPosition="bottom"
+                dropdownPosition="auto"
                 dropdownAlign="right"
                 variant="text"
               />
@@ -166,7 +199,7 @@ function MemberChip({
                 personas={personas}
                 value={member.persona}
                 onChange={(persona) => onChange({ persona })}
-                dropdownPosition="bottom"
+                dropdownPosition="auto"
                 dropdownAlign="right"
                 variant="text"
               />
@@ -178,7 +211,7 @@ function MemberChip({
               value={member.permissionMode}
               onChange={(permissionMode) => onChange({ permissionMode })}
               agentKind={agentKind}
-              dropdownPosition="bottom"
+              dropdownPosition="auto"
               dropdownAlign="right"
               variant="text"
             />
@@ -226,6 +259,9 @@ export function CreateChannelDialog({
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [members, setMembers] = useState<MemberDraft[]>(() => [newMemberDraft()]);
   const createChannel = useCreateChannelMutation();
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyContentRef = useRef<HTMLDivElement>(null);
+  const bodyOverflows = useContentOverflows(bodyRef, bodyContentRef);
 
   const sandboxId = workspaces.find((workspace) => workspace.id === workspaceId)?.sandbox_id;
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId);
@@ -292,80 +328,85 @@ export function CreateChannelDialog({
       zIndex="modalHighest"
       className={styles.dialog}
     >
-      <div className={styles.body}>
-        <div className={styles.header}>
-          <div className={styles['icon-box']}>
-            <Hash className={styles['header-icon']} />
-          </div>
-          <div className={styles['header-text']}>
-            <h2 className={styles.title}>New channel</h2>
-            <p className={styles.subtitle}>A shared thread where several agents reply together.</p>
-          </div>
-        </div>
-
-        <div className={styles.fields}>
-          <div>
-            <label className={styles['field-label']} htmlFor="channel-name">
-              Name
-            </label>
-            <Input
-              id="channel-name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="design-review"
-              maxLength={255}
-              autoFocus
-            />
-          </div>
-
-          <div>
-            <span className={styles['field-label']}>Workspace</span>
-            <div className={styles['workspace-field']}>
-              <WorkspaceSelector
-                selectedWorkspaceId={workspaceId}
-                onWorkspaceChange={handleWorkspaceChange}
-                enabled={isAuthenticated}
-              />
+      <div ref={bodyRef} className={clsx(styles.body, bodyOverflows && styles['body--scroll'])}>
+        <div ref={bodyContentRef} className={styles['body-content']}>
+          <div className={styles.header}>
+            <div className={styles['icon-box']}>
+              <Hash className={styles['header-icon']} />
+            </div>
+            <div className={styles['header-text']}>
+              <h2 className={styles.title}>New channel</h2>
+              <p className={styles.subtitle}>
+                A shared thread where several agents reply together.
+              </p>
             </div>
           </div>
 
-          <div>
-            <span className={styles['field-label']}>Branch</span>
-            <div className={styles['branch-field']}>
-              <BranchWorktreeDropdown
-                branchesData={sandboxId ? branchesData : undefined}
-                worktree={worktree}
-                onWorktreeChange={setWorktree}
-                branch={branch ?? ''}
-                onBranchChange={setSelectedBranch}
+          <div className={styles.fields}>
+            <div>
+              <label className={styles['field-label']} htmlFor="channel-name">
+                Name
+              </label>
+              <Input
+                id="channel-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="design-review"
+                maxLength={255}
+                autoFocus
               />
             </div>
-          </div>
 
-          <div>
-            <span className={styles['field-label']}>Members</span>
-            <div className={styles.members}>
-              {members.map((member, index) => (
-                <MemberChip
-                  key={member.key}
-                  member={member}
-                  displayName={displayNames[index]}
-                  models={models}
-                  personas={personas}
-                  canRemove={members.length > 1}
-                  onChange={(patch) => updateMember(member.key, patch)}
-                  onRemove={() => setMembers((prev) => prev.filter((m) => m.key !== member.key))}
+            <div>
+              <span className={styles['field-label']}>Workspace</span>
+              <div className={styles['workspace-field']}>
+                <WorkspaceSelector
+                  selectedWorkspaceId={workspaceId}
+                  onWorkspaceChange={handleWorkspaceChange}
+                  enabled={isAuthenticated}
                 />
-              ))}
-              <Button
-                type="button"
-                variant="unstyled"
-                onClick={() => setMembers((prev) => [...prev, newMemberDraft()])}
-                className={styles['add-chip']}
-                aria-label="Add member"
-              >
-                <Plus className={styles['add-icon']} />
-              </Button>
+              </div>
+            </div>
+
+            <div>
+              <span className={styles['field-label']}>Branch</span>
+              <div className={styles['branch-field']}>
+                <BranchWorktreeDropdown
+                  branchesData={sandboxId ? branchesData : undefined}
+                  worktree={worktree}
+                  onWorktreeChange={setWorktree}
+                  branch={branch ?? ''}
+                  onBranchChange={setSelectedBranch}
+                  dropdownPosition="auto"
+                />
+              </div>
+            </div>
+
+            <div>
+              <span className={styles['field-label']}>Members</span>
+              <div className={styles.members}>
+                {members.map((member, index) => (
+                  <MemberChip
+                    key={member.key}
+                    member={member}
+                    displayName={displayNames[index]}
+                    models={models}
+                    personas={personas}
+                    canRemove={members.length > 1}
+                    onChange={(patch) => updateMember(member.key, patch)}
+                    onRemove={() => setMembers((prev) => prev.filter((m) => m.key !== member.key))}
+                  />
+                ))}
+                <Button
+                  type="button"
+                  variant="unstyled"
+                  onClick={() => setMembers((prev) => [...prev, newMemberDraft()])}
+                  className={styles['add-chip']}
+                  aria-label="Add member"
+                >
+                  <Plus className={styles['add-icon']} />
+                </Button>
+              </div>
             </div>
           </div>
         </div>

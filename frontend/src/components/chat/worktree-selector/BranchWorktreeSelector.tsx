@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo } from 'react';
 import { GitBranch, GitFork } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import {
   ToggleDropdown,
@@ -40,6 +40,7 @@ export interface BranchWorktreeDropdownProps {
   branch: string;
   onBranchChange: (branch: string) => void;
   disabled?: boolean;
+  dropdownPosition?: DropdownPosition;
 }
 
 export const BranchWorktreeDropdown = memo(function BranchWorktreeDropdown({
@@ -49,6 +50,7 @@ export const BranchWorktreeDropdown = memo(function BranchWorktreeDropdown({
   branch,
   onBranchChange,
   disabled = false,
+  dropdownPosition,
 }: BranchWorktreeDropdownProps) {
   const branches = branchesData?.branches;
   const currentBranch = branchesData?.current_branch ?? '';
@@ -121,6 +123,7 @@ export const BranchWorktreeDropdown = memo(function BranchWorktreeDropdown({
       leftIcon={GitBranch}
       triggerVariant="toolbar"
       width="17rem"
+      dropdownPosition={dropdownPosition}
       disabled={disabled}
       searchable={visibleBranches.length >= 6}
       searchPlaceholder="Search branches..."
