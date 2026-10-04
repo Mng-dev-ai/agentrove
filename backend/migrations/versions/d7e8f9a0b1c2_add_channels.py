@@ -1,6 +1,6 @@
 """add channels
 
-Revision ID: a4b5c6d7e8f9
+Revision ID: d7e8f9a0b1c2
 Revises: c9d0e1f2a3b4
 """
 
@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 from app.db.types import GUID, UTCDateTime
 
-revision = "a4b5c6d7e8f9"
+revision = "d7e8f9a0b1c2"
 down_revision = "c9d0e1f2a3b4"
 branch_labels = None
 depends_on = None
@@ -44,6 +44,8 @@ def upgrade() -> None:
         ),
         sa.Column("name", sa.String(255), nullable=False),
         *timestamps(),
+        sa.Column("worktree", sa.Boolean(), nullable=False, server_default="0"),
+        sa.Column("branch", sa.String(255), nullable=True),
     )
     op.create_index("ix_channels_user_id", "channels", ["user_id"])
     op.create_index("ix_channels_workspace_id", "channels", ["workspace_id"])
@@ -74,6 +76,9 @@ def upgrade() -> None:
         sa.Column("display_name", sa.String(255), nullable=False),
         sa.Column("introduced", sa.Boolean(), nullable=False, server_default="0"),
         *timestamps(),
+        sa.Column(
+            "permission_mode", sa.String(32), nullable=False, server_default="default"
+        ),
     )
     op.create_index("ix_channel_members_channel_id", "channel_members", ["channel_id"])
     op.create_table(
@@ -93,9 +98,19 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("status", sa.String(10), nullable=False),
         *timestamps(),
-        sa.UniqueConstraint(
-            "channel_id", "seq", name="uq_channel_messages_channel_seq"
+        sa.Column(
+            "source_message_id",
+            GUID(),
+            sa.ForeignKey(
+                "messages.id",
+                name="fk_channel_messages_source_message_id",
+                ondelete="SET NULL",
+            ),
+            nullable=True,
         ),
+        sa.Column("tool_call_count", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("duration_ms", sa.Integer(), nullable=True),
+        sa.UniqueConstraint("channel_id", "seq", name="uq_channel_messages_channel_seq"),
         sa.CheckConstraint(
             "status IN ('streaming', 'completed', 'cancelled', 'deleted')",
             name="ck_channel_message_status",
@@ -119,9 +134,36 @@ def upgrade() -> None:
         *timestamps(),
     )
 
+    op.create_table(
+        "channel_message_attachments",
+        sa.Column("id", GUID(), primary_key=True),
+        sa.Column(
+            "message_id",
+            GUID(),
+            sa.ForeignKey("channel_messages.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("file_url", sa.String(2048), nullable=False),
+        sa.Column("file_path", sa.String(512), nullable=False),
+        sa.Column("file_type", sa.String(10), nullable=False),
+        sa.Column("filename", sa.String(255), nullable=False),
+        sa.Column(
+            "created_at", UTCDateTime(), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", UTCDateTime(), server_default=sa.func.now(), nullable=False
+        ),
+    )
+    op.create_index(
+        "ix_channel_message_attachments_message_id",
+        "channel_message_attachments",
+        ["message_id"],
+    )
+
 
 def downgrade() -> None:
     op.execute("DELETE FROM chats WHERE channel_id IS NOT NULL")
+    op.drop_table("channel_message_attachments")
     op.drop_table("channel_deliveries")
     op.drop_table("channel_messages")
     op.drop_table("channel_members")
