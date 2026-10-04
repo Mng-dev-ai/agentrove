@@ -1,12 +1,16 @@
 import { useState } from 'react';
-import { Brain, Hash, Plus, X } from 'lucide-react';
+import { Hash, Plus, X } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { Input } from '@/components/ui/primitives/Input/Input';
-import { Select } from '@/components/ui/primitives/Select/Select';
+import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
+import { SelectorDot } from '@/components/ui/primitives/SelectorDot/SelectorDot';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
+import { ThinkingModeDropdown } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
+import { PersonaDropdown } from '@/components/chat/persona-selector/PersonaSelector';
+import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
+import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
 import {
   coerceThinkingModeForAgent,
   getThinkingModesForAgent,
@@ -17,6 +21,7 @@ import { useCreateChannelMutation } from '@/hooks/queries/useChannelQueries';
 import { DEFAULT_PERSONA, DEFAULT_THINKING_MODE } from '@/store/chatSettingsStore';
 import { useAuthStore } from '@/store/authStore';
 import type { Model } from '@/types/chat.types';
+import type { Persona } from '@/types/user.types';
 import type { ChannelMemberCreateRequest } from '@/types/channel.types';
 import styles from './CreateChannelDialog.module.scss';
 
@@ -36,88 +41,99 @@ function newMemberDraft(): MemberDraft {
   };
 }
 
-function resolveModel(member: MemberDraft, models: Model[]) {
+function resolveMember(member: MemberDraft, models: Model[]) {
   const modelId = member.modelId || models[0]?.model_id || '';
   const agentKind = models.find((m) => m.model_id === modelId)?.agent_kind ?? 'claude';
-  return { modelId, agentKind };
+  return {
+    modelId,
+    agentKind,
+    hasThinking: getThinkingModesForAgent(agentKind, modelId).length > 0,
+    supportsPersona: PERSONAS_SUPPORTED_AGENTS.has(agentKind),
+  };
 }
 
 interface MemberRowProps {
   member: MemberDraft;
   models: Model[];
-  personas: string[];
+  personas: Persona[];
   canRemove: boolean;
   onChange: (patch: Partial<MemberDraft>) => void;
   onRemove: () => void;
 }
 
 function MemberRow({ member, models, personas, canRemove, onChange, onRemove }: MemberRowProps) {
-  const { modelId, agentKind } = resolveModel(member, models);
-  const thinkingModes = getThinkingModesForAgent(agentKind, modelId);
-  const effectiveMode = coerceThinkingModeForAgent(member.thinkingMode, agentKind, modelId);
-  const selectedThinking = thinkingModes.find((mode) => mode.value === effectiveMode);
+  const { modelId, agentKind, hasThinking, supportsPersona } = resolveMember(member, models);
+  const showPersona = supportsPersona && personas.length > 0;
 
   return (
-    <div className={styles['member-row']}>
+    <div className={styles.member}>
+      <ProviderIcon agentKind={agentKind} className={styles['member-icon']} />
       <div className={styles['member-controls']}>
         <ModelSelector
           selectedModelId={modelId}
           onModelChange={(next) => onChange({ modelId: next })}
           dropdownPosition="bottom"
-          compact={false}
+          variant="text"
         />
-        <Select
-          value={member.persona}
-          onChange={(e) => onChange({ persona: e.target.value })}
-          className={styles['persona-select']}
-          aria-label="Persona"
-        >
-          <option value={DEFAULT_PERSONA}>Default</option>
-          {personas.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </Select>
-        {selectedThinking && (
-          <Dropdown
-            value={selectedThinking}
-            items={thinkingModes}
-            getItemKey={(mode) => mode.value}
-            getItemLabel={(mode) => mode.label}
-            onSelect={(mode) => onChange({ thinkingMode: mode.value })}
-            leftIcon={Brain}
-            dropdownPosition="bottom"
-          />
+        {hasThinking && (
+          <>
+            <SelectorDot />
+            <ThinkingModeDropdown
+              value={member.thinkingMode}
+              onChange={(thinkingMode) => onChange({ thinkingMode })}
+              agentKind={agentKind}
+              modelId={modelId}
+              dropdownPosition="bottom"
+              variant="text"
+            />
+          </>
+        )}
+        {showPersona && (
+          <>
+            <SelectorDot />
+            <PersonaDropdown
+              personas={personas}
+              value={member.persona}
+              onChange={(persona) => onChange({ persona })}
+              dropdownPosition="bottom"
+              variant="text"
+            />
+          </>
         )}
       </div>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={onRemove}
-        disabled={!canRemove}
-        aria-label="Remove member"
-      >
-        <X className={styles['remove-icon']} />
-      </Button>
+      {canRemove && (
+        <Button
+          type="button"
+          variant="unstyled"
+          onClick={onRemove}
+          className={styles['remove-btn']}
+          aria-label="Remove member"
+        >
+          <X className={styles['remove-icon']} />
+        </Button>
+      )}
     </div>
   );
 }
 
 interface CreateChannelDialogProps {
-  workspaceId: string;
+  defaultWorkspaceId: string | null;
   onClose: () => void;
   onCreated: (channelId: string) => void;
 }
 
-export function CreateChannelDialog({ workspaceId, onClose, onCreated }: CreateChannelDialogProps) {
+export function CreateChannelDialog({
+  defaultWorkspaceId,
+  onClose,
+  onCreated,
+}: CreateChannelDialogProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: models = [] } = useModelsQuery({ enabled: isAuthenticated });
   const { data: settings } = useSettingsQuery({ enabled: isAuthenticated });
-  const personaNames = (settings?.personas ?? []).map((persona) => persona.name);
+  const personas = settings?.personas ?? [];
 
   const [name, setName] = useState('');
+  const [workspaceId, setWorkspaceId] = useState(defaultWorkspaceId);
   const [members, setMembers] = useState<MemberDraft[]>(() => [newMemberDraft()]);
   const createChannel = useCreateChannelMutation();
 
@@ -130,17 +146,20 @@ export function CreateChannelDialog({ workspaceId, onClose, onCreated }: CreateC
       toast.error('Please enter a channel name');
       return;
     }
+    if (!workspaceId) {
+      toast.error('Please select a workspace');
+      return;
+    }
     if (models.length === 0) {
       toast.error('No models available');
       return;
     }
 
     const requestMembers: ChannelMemberCreateRequest[] = members.map((member) => {
-      const { modelId, agentKind } = resolveModel(member, models);
-      const hasThinking = getThinkingModesForAgent(agentKind, modelId).length > 0;
+      const { modelId, agentKind, hasThinking, supportsPersona } = resolveMember(member, models);
       return {
         model_id: modelId,
-        persona: member.persona === DEFAULT_PERSONA ? null : member.persona,
+        persona: supportsPersona && member.persona !== DEFAULT_PERSONA ? member.persona : null,
         thinking_mode: hasThinking
           ? coerceThinkingModeForAgent(member.thinkingMode, agentKind, modelId)
           : null,
@@ -173,7 +192,10 @@ export function CreateChannelDialog({ workspaceId, onClose, onCreated }: CreateC
           <div className={styles['icon-box']}>
             <Hash className={styles['header-icon']} />
           </div>
-          <h2 className={styles.title}>New channel</h2>
+          <div className={styles['header-text']}>
+            <h2 className={styles.title}>New channel</h2>
+            <p className={styles.subtitle}>A shared thread where several agents reply together.</p>
+          </div>
         </div>
 
         <div className={styles.fields}>
@@ -192,30 +214,40 @@ export function CreateChannelDialog({ workspaceId, onClose, onCreated }: CreateC
           </div>
 
           <div>
-            <label className={styles['field-label']}>Members</label>
+            <span className={styles['field-label']}>Workspace</span>
+            <div className={styles['workspace-field']}>
+              <WorkspaceSelector
+                selectedWorkspaceId={workspaceId}
+                onWorkspaceChange={setWorkspaceId}
+                enabled={isAuthenticated}
+              />
+            </div>
+          </div>
+
+          <div>
+            <span className={styles['field-label']}>Members</span>
             <div className={styles.members}>
               {members.map((member) => (
                 <MemberRow
                   key={member.key}
                   member={member}
                   models={models}
-                  personas={personaNames}
+                  personas={personas}
                   canRemove={members.length > 1}
                   onChange={(patch) => updateMember(member.key, patch)}
                   onRemove={() => setMembers((prev) => prev.filter((m) => m.key !== member.key))}
                 />
               ))}
+              <Button
+                type="button"
+                variant="unstyled"
+                onClick={() => setMembers((prev) => [...prev, newMemberDraft()])}
+                className={styles['add-member']}
+              >
+                <Plus className={styles['add-icon']} />
+                Add member
+              </Button>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setMembers((prev) => [...prev, newMemberDraft()])}
-              className={styles['add-member']}
-            >
-              <Plus className={styles['add-icon']} />
-              Add member
-            </Button>
           </div>
         </div>
       </div>
@@ -235,7 +267,7 @@ export function CreateChannelDialog({ workspaceId, onClose, onCreated }: CreateC
           variant="primary"
           size="sm"
           onClick={handleCreate}
-          disabled={createChannel.isPending}
+          disabled={createChannel.isPending || !workspaceId}
         >
           {createChannel.isPending ? 'Creating...' : 'Create'}
         </Button>

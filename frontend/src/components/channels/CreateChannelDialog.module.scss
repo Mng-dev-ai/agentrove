@@ -1,5 +1,6 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
 // ModelSelector/Dropdown popovers need to escape the modal's bounds.
@@ -34,16 +35,25 @@
   color: var(--theme-text-tertiary);
 }
 
+.header-text {
+  min-width: 0;
+}
+
 .title {
   @include type.type-body(500);
   color: var(--theme-text-primary);
+}
+
+.subtitle {
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
 }
 
 .fields {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  margin-top: var(--space-4);
+  margin-top: var(--space-5);
 }
 
 .field-label {
@@ -52,16 +62,33 @@
   margin-bottom: var(--space-1-5);
 }
 
+// Offsets the picker trigger's inner padding so its label lines up with the inputs.
+.workspace-field {
+  margin-left: calc(var(--space-1-5) * -1);
+}
+
 .members {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
 }
 
-.member-row {
+.member {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-xl);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-1-5) var(--space-2);
+}
+
+.member-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  flex-shrink: 0;
+  margin-left: var(--space-1);
+  color: var(--theme-text-secondary);
 }
 
 .member-controls {
@@ -70,15 +97,20 @@
   flex: 1;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
-.persona-select {
-  @include type.type-default;
-  height: var(--space-8);
-  padding: var(--space-1-5) var(--space-3);
-  background-color: var(--theme-surface-secondary);
-  color: var(--theme-text-primary);
+.remove-btn {
+  @include anim.transition-colors;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  color: var(--theme-text-quaternary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
 }
 
 .remove-icon {
@@ -87,12 +119,25 @@
 }
 
 .add-member {
-  margin-top: var(--space-2);
+  @include type.type-meta(500);
+  @include anim.transition-colors;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-1-5);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
 }
 
 .add-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  height: var(--space-3);
+  width: var(--space-3);
 }
 
 .footer {

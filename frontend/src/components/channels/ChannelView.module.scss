@@ -1,147 +1,101 @@
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/responsive' as responsive;
 
-.channel {
+.content {
+  padding-block: var(--space-2);
+}
+
+.author {
   display: flex;
-  height: 100%;
-  width: 100%;
   min-width: 0;
-  flex-direction: column;
-  background-color: var(--theme-surface);
-  color: var(--theme-text-primary);
-}
-
-.header {
-  display: flex;
-  flex-shrink: 0;
   align-items: center;
-  gap: var(--space-2);
-  border-bottom: 1px solid colors.theme-color('border', 0.5);
-  padding: var(--space-3) var(--space-5);
+  gap: var(--space-1-5);
+  margin-bottom: var(--space-1);
 }
 
-.header-icon {
-  height: var(--space-4);
-  width: var(--space-4);
+.author-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
   flex-shrink: 0;
-  color: var(--theme-text-tertiary);
+  color: var(--theme-text-secondary);
 }
 
-.channel-name {
-  @include type.type-body(500);
+.author-name {
+  @include type.type-default(500);
   @include type.type-overflow;
   color: var(--theme-text-primary);
 }
 
-.chips {
-  display: flex;
-  min-width: 0;
-  flex-wrap: wrap;
-  gap: var(--space-1-5);
-  margin-left: var(--space-2);
-}
-
-.chip {
-  @include type.type-meta(500);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  border-radius: var(--radius-full);
-  background-color: var(--theme-surface-tertiary);
-  padding: var(--space-0-5) var(--space-2);
-  color: var(--theme-text-secondary);
-}
-
-.chip-icon {
-  height: var(--space-3);
-  width: var(--space-3);
-}
-
-.list {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: var(--space-4);
-  overflow-y: auto;
-  padding: var(--space-4) var(--space-5);
-}
-
-.empty {
-  @include type.type-default;
-  margin: auto;
-  color: var(--theme-text-quaternary);
-}
-
-.message {
-  display: flex;
-  gap: var(--space-3);
-
-  &--cancelled {
-    opacity: 0.55;
-  }
-}
-
-.avatar {
-  display: flex;
-  height: var(--space-6);
-  width: var(--space-6);
+.author-meta {
+  @include type.type-meta;
   flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-}
-
-.provider-icon {
-  height: var(--space-5);
-  width: var(--space-5);
-  color: var(--theme-text-secondary);
-}
-
-.message-body {
-  min-width: 0;
-  flex: 1;
-}
-
-.message-meta {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-2);
-}
-
-.author {
-  @include type.type-default(500);
-  color: var(--theme-text-primary);
+  cursor: default;
+  color: var(--theme-text-quaternary);
 }
 
 .interrupted {
-  @include type.type-meta;
-  font-style: italic;
-  color: var(--theme-text-quaternary);
-}
-
-.typing {
-  @include type.type-meta;
-  min-height: var(--space-5);
+  @include type.type-meta(500);
   flex-shrink: 0;
-  padding-inline: var(--space-5);
   color: var(--theme-text-tertiary);
 }
 
-.composer {
+.message-text--interrupted {
+  opacity: 0.6;
+}
+
+.typing-icons {
   display: flex;
-  flex-shrink: 0;
-  align-items: flex-end;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-5) var(--space-4);
+  align-items: center;
+  gap: var(--space-1);
 }
 
-.textarea {
-  min-width: 0;
-  flex: 1;
-  resize: none;
+.empty {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1-5);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
 }
 
-.action-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+.empty-icons {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--space-2);
+}
+
+.empty-icon-circle {
+  display: flex;
+  height: var(--space-9);
+  width: var(--space-9);
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--theme-surface);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-surface-tertiary);
+
+  & + & {
+    margin-left: calc(var(--space-2) * -1);
+  }
+}
+
+.empty-icon {
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-secondary);
+}
+
+.empty-title {
+  @include type.type-page-title;
+  @include type.type-overflow;
+  max-width: 100%;
+  color: var(--theme-text-primary);
+}
+
+.empty-subtitle {
+  @include type.type-body;
+  max-width: 36rem;
+  color: var(--theme-text-tertiary);
 }

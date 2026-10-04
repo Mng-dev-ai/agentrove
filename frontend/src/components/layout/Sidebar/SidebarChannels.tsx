@@ -11,10 +11,14 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { stateClasses } from '@/config/stateClasses';
+import { getRelativeTime } from '@/utils/date';
 import type { Workspace } from '@/types/workspace.types';
 import type { Channel } from '@/types/channel.types';
 import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
 import dropdownStyles from './ChatDropdown.module.scss';
+import filterStyles from './SidebarFilterMenu.module.scss';
+import itemStyles from './SidebarChatItem.module.scss';
+import listStyles from './SidebarChatList.module.scss';
 import styles from './SidebarChannels.module.scss';
 
 interface SidebarChannelsProps {
@@ -31,7 +35,6 @@ export function SidebarChannels({
   const workspaceId = workspaces.some((workspace) => workspace.id === selectedWorkspaceId)
     ? selectedWorkspaceId
     : undefined;
-  const createWorkspaceId = workspaceId ?? workspaces[0]?.id;
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -39,6 +42,7 @@ export function SidebarChannels({
   const deleteChannel = useDeleteChannelMutation();
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [dropdown, setDropdown] = useState<{
     channel: Channel;
     position: { top: number; left: number };
@@ -90,47 +94,85 @@ export function SidebarChannels({
 
   return (
     <div className={styles.channels}>
-      <div className={styles.header}>
-        <span className={styles.title}>Channels</span>
+      <div className={listStyles['recents-header']}>
+        <span className={listStyles['section-title']}>Channels</span>
         <Button
           variant="unstyled"
           onClick={() => setCreateOpen(true)}
-          disabled={!createWorkspaceId}
-          className={styles['new-btn']}
+          className={filterStyles.trigger}
           aria-label="New channel"
         >
-          <Plus className={styles['new-icon']} />
+          <Plus className={filterStyles['trigger-icon']} />
         </Button>
       </div>
-      {channels.map((channel) => {
-        const isActive = channel.id === selectedChannelId;
-        return (
-          <div key={channel.id} className={clsx(styles.item, isActive && stateClasses.ACTIVE)}>
-            <Button
-              variant="unstyled"
-              onClick={() => navigateToChannel(channel.id)}
-              aria-current={isActive ? 'page' : undefined}
-              className={styles['item-btn']}
+      <div className={listStyles.section}>
+        {channels.map((channel) => {
+          const isActive = channel.id === selectedChannelId;
+          const isRevealed =
+            isActive || hoveredId === channel.id || dropdown?.channel.id === channel.id;
+          return (
+            <div
+              key={channel.id}
+              className={clsx(itemStyles['chat-item'], isActive && stateClasses.ACTIVE)}
+              onMouseEnter={() => setHoveredId(channel.id)}
+              onMouseLeave={() => setHoveredId(null)}
             >
-              <Hash className={styles['item-icon']} />
-              <span className={styles['item-name']}>{channel.name}</span>
-            </Button>
-            <Button
-              variant="unstyled"
-              onClick={(e) => handleDropdownClick(e, channel)}
-              onMouseDown={(e) => e.stopPropagation()}
-              className={clsx(
-                styles['dropdown-btn'],
-                (isActive || dropdown?.channel.id === channel.id) &&
-                  styles['dropdown-btn--visible'],
-              )}
-              aria-label="Channel options"
-            >
-              <MoreHorizontal className={styles['dropdown-icon']} />
-            </Button>
-          </div>
-        );
-      })}
+              <div className={itemStyles['title-col']}>
+                <div className={itemStyles['title-row']}>
+                  <span className={itemStyles['status-slot']}>
+                    <Hash className={itemStyles['provider-icon']} />
+                  </span>
+                  <Button
+                    variant="unstyled"
+                    onClick={() => navigateToChannel(channel.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={itemStyles['title-btn']}
+                  >
+                    <span
+                      className={clsx(
+                        itemStyles['title-text'],
+                        isActive && itemStyles['title-text--emphasis'],
+                      )}
+                    >
+                      {channel.name}
+                    </span>
+                  </Button>
+                </div>
+                <span
+                  className={clsx(
+                    itemStyles['workspace-badge'],
+                    itemStyles['workspace-badge--indented'],
+                  )}
+                >
+                  <span className={itemStyles['workspace-name']}>
+                    {channel.members.map((member) => member.display_name).join(', ')}
+                  </span>
+                </span>
+              </div>
+              <span
+                className={clsx(
+                  itemStyles.timestamp,
+                  isRevealed && itemStyles['timestamp--hidden'],
+                )}
+              >
+                {getRelativeTime(channel.updated_at)}
+              </span>
+              <Button
+                variant="unstyled"
+                onClick={(e) => handleDropdownClick(e, channel)}
+                onMouseDown={(e) => e.stopPropagation()}
+                className={clsx(
+                  itemStyles['dropdown-btn'],
+                  isRevealed && itemStyles['dropdown-btn--visible'],
+                )}
+                aria-label="Channel options"
+              >
+                <MoreHorizontal className={itemStyles['dropdown-icon']} />
+              </Button>
+            </div>
+          );
+        })}
+      </div>
 
       {dropdown && (
         <div
@@ -164,9 +206,9 @@ export function SidebarChannels({
         cancelLabel="Cancel"
       />
 
-      {createOpen && createWorkspaceId && (
+      {createOpen && (
         <CreateChannelDialog
-          workspaceId={createWorkspaceId}
+          defaultWorkspaceId={workspaceId ?? workspaces[0]?.id ?? null}
           onClose={() => setCreateOpen(false)}
           onCreated={navigateToChannel}
         />

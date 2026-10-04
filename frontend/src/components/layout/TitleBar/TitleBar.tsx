@@ -8,6 +8,7 @@ import { ToggleButton } from '@/components/ui/ToggleButton/ToggleButton';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
 import { ChatTabs } from '@/components/layout/ChatTabs/ChatTabs';
+import { ChannelHeader } from '@/components/channels/ChannelHeader';
 import clsx from 'clsx';
 import { IS_MAC_PLATFORM, isDesktopApp } from '@/utils/platform';
 import styles from './TitleBar.module.scss';
@@ -201,6 +202,7 @@ export function TitleBar() {
           {/* Auth gate: macOS desktop still renders the bar logged out; without this,
               persisted chatTabs would hit protected queries and 401-self-close. */}
           {isAuthenticated && (isChatPage || isLandingPage) && <ChatTabs />}
+          {isAuthenticated && isChannelPage && <ChannelHeader />}
         </div>
         {/* No per-view tabs — switcher opens/closes views (landing needs it too). */}
         {(isChatPage || isLandingPage) && <ViewSwitcher />}

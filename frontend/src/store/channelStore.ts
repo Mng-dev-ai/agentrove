@@ -5,6 +5,7 @@ interface ChannelSlice {
   messages: Record<string, ChannelMessage>;
   // Highest seq below which REST history is known contiguous; only REST syncs advance it.
   syncedSeq: number;
+  synced: boolean;
 }
 
 interface ChannelState {
@@ -21,7 +22,7 @@ interface ChannelState {
 
 export const EMPTY_MESSAGES: Record<string, ChannelMessage> = {};
 
-const EMPTY_SLICE: ChannelSlice = { messages: EMPTY_MESSAGES, syncedSeq: 0 };
+const EMPTY_SLICE: ChannelSlice = { messages: EMPTY_MESSAGES, syncedSeq: 0, synced: false };
 
 function upsert(slice: ChannelSlice, incoming: ChannelMessage[]): ChannelSlice {
   const messages = { ...slice.messages };
@@ -69,6 +70,7 @@ export const useChannelStore = create<ChannelState>((set) => ({
       withSlice(state, channelId, (slice) => ({
         ...upsert(slice, messages),
         syncedSeq: Math.max(slice.syncedSeq, ...messages.map((message) => message.seq)),
+        synced: true,
       })),
     ),
 
