@@ -47,6 +47,16 @@ NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
     AgentKind.OPENCODE: "build",
 }
 
+FULL_ACCESS_SESSION_MODES: dict[AgentKind, frozenset[PermissionMode]] = {
+    AgentKind.ANTIGRAVITY: frozenset({"yolo"}),
+    AgentKind.CLAUDE: frozenset({"bypassPermissions"}),
+    AgentKind.CODEX: frozenset({"full-access"}),
+    AgentKind.COPILOT: frozenset(),
+    AgentKind.CURSOR: frozenset(),
+    AgentKind.GROK: frozenset({"always-approve"}),
+    AgentKind.OPENCODE: frozenset(),
+}
+
 # Agents that support persona system-prompt replacement over ACP (Cursor/Copilot ignore it).
 PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
     {

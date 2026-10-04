@@ -198,6 +198,7 @@ class SessionRegistry:
         # the worktree. resume_session_id carries context across the respawn.
         fingerprint_dict: dict[str, Any] = {
             "agent_kind": config.agent_kind.value,
+            "member_session": config.member_session,
             "cwd": config.cwd,
             "env": config.env,
             "mcp_servers": SessionRegistry._redact_mcp_tokens(config.mcp_servers),

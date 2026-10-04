@@ -28,7 +28,12 @@ from app.prompts.generate_pr_description import (
 from app.prompts.inline_chat import INLINE_CHAT_SYSTEM_PROMPT
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.prompts.generate_title import GENERATE_TITLE_SYSTEM_PROMPT
-from app.services.acp.adapters import AGENT_ADAPTERS, NORMAL_SESSION_MODE, AgentKind
+from app.services.acp.adapters import (
+    AGENT_ADAPTERS,
+    FULL_ACCESS_SESSION_MODES,
+    NORMAL_SESSION_MODE,
+    AgentKind,
+)
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import AgentException, ChatException, ErrorCode
@@ -174,9 +179,16 @@ class AgentService:
 
         if member_session:
             config.member_session = True
-            config.mcp_servers = [
-                server for server in config.mcp_servers if server["name"] != "agentrove"
-            ]
+            if permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind]:
+                for server in config.mcp_servers:
+                    if server["name"] == "agentrove":
+                        del server["env"]["AGENTROVE_CURRENT_CHAT_ID"]
+            else:
+                config.mcp_servers = [
+                    server
+                    for server in config.mcp_servers
+                    if server["name"] != "agentrove"
+                ]
         return config
 
     async def stream_response(
