@@ -63,35 +63,39 @@ class AttachmentService:
         )
         return self._build_file_response(file_path, attachment.filename, inline=False)
 
+    async def _get_channel_attachment(
+        self, attachment_id: UUID, db: AsyncSession
+    ) -> tuple[ChannelMessageAttachment, UUID]:
+        row = (
+            await db.execute(
+                select(ChannelMessageAttachment, Channel.user_id)
+                .select_from(ChannelMessageAttachment)
+                .join(
+                    ChannelMessage,
+                    ChannelMessage.id == ChannelMessageAttachment.message_id,
+                )
+                .join(Channel, Channel.id == ChannelMessage.channel_id)
+                .where(ChannelMessageAttachment.id == attachment_id)
+            )
+        ).one_or_none()
+        if row is None:
+            raise AttachmentException(
+                "Attachment not found",
+                error_code=ErrorCode.STORAGE_FILE_NOT_FOUND,
+                status_code=404,
+            )
+        return row[0], row[1]
+
     async def _get_attachment_with_path(
         self, attachment_id: UUID, user_id: UUID, db: AsyncSession
     ) -> tuple[MessageAttachment | ChannelMessageAttachment, Path]:
         attachment: (
             MessageAttachment | ChannelMessageAttachment | None
         ) = await self._message_service.get_attachment(attachment_id, db)
-        owner_id = attachment.message.chat.user_id if attachment else None
         if attachment is None:
-            row = (
-                await db.execute(
-                    select(ChannelMessageAttachment, Channel.user_id)
-                    .select_from(ChannelMessageAttachment)
-                    .join(
-                        ChannelMessage,
-                        ChannelMessage.id == ChannelMessageAttachment.message_id,
-                    )
-                    .join(Channel, Channel.id == ChannelMessage.channel_id)
-                    .where(ChannelMessageAttachment.id == attachment_id)
-                )
-            ).one_or_none()
-            if row is not None:
-                attachment, owner_id = row
-
-        if not attachment:
-            raise AttachmentException(
-                "Attachment not found",
-                error_code=ErrorCode.STORAGE_FILE_NOT_FOUND,
-                status_code=404,
-            )
+            attachment, owner_id = await self._get_channel_attachment(attachment_id, db)
+        else:
+            owner_id = attachment.message.chat.user_id
 
         if owner_id != user_id:
             raise AttachmentException(

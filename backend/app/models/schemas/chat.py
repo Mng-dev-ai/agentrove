@@ -6,7 +6,7 @@ from fastapi import UploadFile
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.db_models.enums import AttachmentType, MessageRole, MessageStreamStatus
-from app.models.types import PermissionMode
+from app.models.types import MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.utils.sandbox import BaseBranch
 
@@ -25,13 +25,12 @@ class MessageAttachment(MessageAttachmentBase):
     created_at: datetime
 
 
-class ChatRequest(BaseModel):
+class ChatRequestBase(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     prompt: str = Field(..., min_length=1, max_length=100000)
     chat_id: UUID
     model_id: str = Field(..., min_length=1, max_length=255)
-    attached_files: list[UploadFile] | None = None
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = Field(None, max_length=50)
     worktree: bool = False
@@ -39,6 +38,14 @@ class ChatRequest(BaseModel):
     # Codex-only: 1.5x speed service tier via codex-acp's fast-mode config.
     fast_mode: bool = False
     selected_persona_name: str = Field(DEFAULT_PERSONA_NAME, max_length=100)
+
+
+class ChatRequest(ChatRequestBase):
+    attached_files: list[UploadFile] | None = None
+
+
+class ChannelChatRequest(ChatRequestBase):
+    attachments: list[MessageAttachmentDict]
 
 
 class MessageBase(BaseModel):

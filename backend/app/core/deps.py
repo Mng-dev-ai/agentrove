@@ -1,6 +1,7 @@
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable, Coroutine
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
@@ -212,18 +213,29 @@ async def get_automation_service(
     )
 
 
-async def ensure_chat_access(
-    chat_id: UUID,
-    current_user: User = Depends(get_current_user),
-    chat_service: ChatService = Depends(get_chat_service),
-) -> Chat:
-    try:
-        return await chat_service.get_chat(chat_id, current_user)
-    except ChatException:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Chat not found or access denied",
-        )
+def chat_access_dependency(
+    *, include_channel: bool = False
+) -> Callable[[UUID, User, ChatService], Coroutine[Any, Any, Chat]]:
+    async def ensure_access(
+        chat_id: UUID,
+        current_user: User = Depends(get_current_user),
+        chat_service: ChatService = Depends(get_chat_service),
+    ) -> Chat:
+        try:
+            return await chat_service.get_chat(
+                chat_id, current_user, include_channel=include_channel
+            )
+        except ChatException:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chat not found or access denied",
+            )
+
+    return ensure_access
+
+
+ensure_chat_access = chat_access_dependency()
+ensure_member_chat_access = chat_access_dependency(include_channel=True)
 
 
 async def get_queue_service() -> AsyncIterator[QueueService]:

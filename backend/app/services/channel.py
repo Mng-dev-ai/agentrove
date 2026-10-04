@@ -26,7 +26,7 @@ from app.models.db_models.chat import Chat
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.channel import ChannelCreate, ChannelMessageRead
-from app.models.schemas.chat import ChatRequest
+from app.models.schemas.chat import ChannelChatRequest
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import (
@@ -213,13 +213,16 @@ class ChannelService(BaseDbService[Channel]):
             raise
         return channel
 
+    async def anchor_chat(self, channel: Channel) -> Chat:
+        member = min(channel.members, key=lambda member: member.chat_id)
+        return await self.chats.get_chat(
+            member.chat_id, User(id=channel.user_id), include_channel=True
+        )
+
     async def prepare_worktree(self, channel: Channel) -> None:
         if not channel.worktree:
             return
-        owner = min(channel.members, key=lambda member: member.chat_id)
-        chat = await self.chats.get_chat(
-            owner.chat_id, User(id=channel.user_id), include_channel=True
-        )
+        chat = await self.anchor_chat(channel)
         cwd = await AgentService(self.session_factory).ensure_worktree_cwd(
             chat, channel.branch
         )
@@ -367,26 +370,24 @@ class ChannelService(BaseDbService[Channel]):
     ) -> ChannelMessage:
         attachments: list[MessageAttachmentDict] = []
         if files:
-            chat = await self.chats.get_chat(
-                channel.members[0].chat_id,
-                User(id=channel.user_id),
-                include_channel=True,
-            )
+            chat = await self.anchor_chat(channel)
             storage = StorageService(self.chats.sandbox_for_workspace(chat.workspace))
-            kinds = [MODELS[member.model_id].agent_kind for member in channel.members]
-            kind = min(kinds, key=lambda kind: len(NATIVE_FILE_TYPES[kind]))
-            for file in files:
-                attachments.append(
-                    await storage.save_file(
-                        file,
-                        agent_kind=kind,
-                        sandbox_id=chat.sandbox_id,
-                        user_id=str(channel.user_id),
-                    )
-                )
+            kinds = [
+                MODELS[member.model_id].agent_kind
+                for member in channel.members
+                if member.model_id in MODELS
+            ]
+            kind = min(
+                kinds, key=lambda kind: len(NATIVE_FILE_TYPES[kind]), default=None
+            )
+            attachments = await storage.save_files(
+                files,
+                agent_kind=kind,
+                sandbox_id=chat.sandbox_id,
+                user_id=str(channel.user_id),
+            )
         state = self.state(channel)
         async with state.control:
-            await self.prepare_worktree(channel)
             turns: list[MemberTurn] = []
             try:
                 async with state.lock:
@@ -516,13 +517,23 @@ class ChannelService(BaseDbService[Channel]):
     async def run_turn(self, state: ChannelState, turn: MemberTurn) -> None:
         member = turn.member
         # Batches combine validated messages and can exceed the single-message limit.
-        request = ChatRequest.model_construct(
+        request = ChannelChatRequest.model_construct(
             chat_id=member.chat_id,
             model_id=member.model_id,
             prompt=self.prompt(state, turn),
             permission_mode=member.permission_mode,
             thinking_mode=member.thinking_mode,
             selected_persona_name=member.persona or DEFAULT_PERSONA_NAME,
+            attachments=[
+                MessageAttachmentDict(
+                    file_url=attachment.file_url,
+                    file_path=attachment.file_path,
+                    file_type=attachment.file_type,
+                    filename=attachment.filename,
+                )
+                for message in turn.batch
+                for attachment in message.attachments
+            ],
         )
         sink = partial(self.handle_event, state, turn)
         try:
@@ -531,17 +542,6 @@ class ChannelService(BaseDbService[Channel]):
                     await self.chats.initiate_chat_completion(
                         request,
                         User(id=state.channel.user_id),
-                        member_turn=True,
-                        stored_attachments=[
-                            MessageAttachmentDict(
-                                file_url=attachment.file_url,
-                                file_path=attachment.file_path,
-                                file_type=attachment.file_type,
-                                filename=attachment.filename,
-                            )
-                            for message in turn.batch
-                            for attachment in message.attachments
-                        ],
                         event_sink=sink,
                         task_started=turn.started,
                     )
@@ -724,16 +724,11 @@ class ChannelService(BaseDbService[Channel]):
             for member in channel.members:
                 await session_registry.terminate(str(member.chat_id))
             if channel.worktree:
-                owner = min(channel.members, key=lambda member: member.chat_id)
-                chat = await self.chats.get_chat(
-                    owner.chat_id, User(id=channel.user_id), include_channel=True
-                )
-                await GitService(
-                    self.chats.sandbox_for_workspace(chat.workspace)
-                ).remove_worktree(
-                    chat.workspace.sandbox_id,
-                    GitService.chat_worktree_path(str(owner.chat_id)),
-                )
+                chat = await self.anchor_chat(channel)
+                if chat.worktree_cwd:
+                    await GitService(
+                        self.chats.sandbox_for_workspace(chat.workspace)
+                    ).remove_worktree(chat.sandbox_id, chat.worktree_cwd)
             async with self.session_factory() as db:
                 await db.execute(delete(Chat).where(Chat.channel_id == channel.id))
                 await db.execute(delete(Channel).where(Channel.id == channel.id))

@@ -22,6 +22,7 @@ from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import Chat as ChatSchema
 from app.models.schemas.chat import (
     ActiveStreamStatus,
+    ChannelChatRequest,
     ChatCreate,
     ChatRequest,
     ChatSearchMatch,
@@ -1011,11 +1012,9 @@ class ChatService(BaseDbService[Chat]):
 
     async def initiate_chat_completion(
         self,
-        request: ChatRequest,
+        request: ChatRequest | ChannelChatRequest,
         current_user: User,
         *,
-        member_turn: bool = False,
-        stored_attachments: list[MessageAttachmentDict] | None = None,
         event_sink: EventSink | None = None,
         task_started: Callable[[asyncio.Task[str]], None] | None = None,
     ) -> ChatCompletionResult:
@@ -1030,26 +1029,36 @@ class ChatService(BaseDbService[Chat]):
             return await self._initiate_chat_completion_reserved(
                 request,
                 current_user,
-                member_turn=member_turn,
-                stored_attachments=stored_attachments,
                 event_sink=event_sink,
                 task_started=task_started,
             )
 
     async def _initiate_chat_completion_reserved(
         self,
-        request: ChatRequest,
+        request: ChatRequest | ChannelChatRequest,
         current_user: User,
         *,
-        member_turn: bool = False,
-        stored_attachments: list[MessageAttachmentDict] | None = None,
         event_sink: EventSink | None = None,
         task_started: Callable[[asyncio.Task[str]], None] | None = None,
     ) -> ChatCompletionResult:
+        member_turn = isinstance(request, ChannelChatRequest)
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(
             request.chat_id, current_user, include_channel=member_turn
         )
+        attachments: list[MessageAttachmentDict] | None
+        if isinstance(request, ChannelChatRequest):
+            attachments = request.attachments
+        elif request.attached_files:
+            ws_sandbox = self.sandbox_for_workspace(chat.workspace)
+            attachments = await StorageService(ws_sandbox).save_files(
+                request.attached_files,
+                agent_kind=MODELS[request.model_id].agent_kind,
+                sandbox_id=chat.sandbox_id,
+                user_id=str(current_user.id),
+            )
+        else:
+            attachments = None
 
         publish_user_id = None if member_turn else str(current_user.id)
 
@@ -1094,26 +1103,6 @@ class ChatService(BaseDbService[Chat]):
             await db.commit()
 
         chat_id = chat.id
-
-        ws_sandbox = self.sandbox_for_workspace(chat.workspace)
-
-        attachments = stored_attachments
-        if request.attached_files:
-            file_storage = StorageService(ws_sandbox)
-            agent_kind = MODELS[request.model_id].agent_kind
-            attachments = list(
-                await asyncio.gather(
-                    *[
-                        file_storage.save_file(
-                            file,
-                            agent_kind=agent_kind,
-                            sandbox_id=chat.workspace.sandbox_id,
-                            user_id=str(current_user.id),
-                        )
-                        for file in request.attached_files
-                    ]
-                )
-            )
 
         # Validate before the scaffold writes any rows.
         model = MODELS[request.model_id]
