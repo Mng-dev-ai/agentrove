@@ -116,6 +116,10 @@
   &:global(.#{state.$state-open}) {
     background-color: var(--theme-surface-hover);
   }
+
+  &--error {
+    border-color: colors.status-color('error', 500, 0.6);
+  }
 }
 
 .chip-icon {
@@ -163,6 +167,25 @@
   &--capped {
     overflow-y: auto;
   }
+}
+
+.popover-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2) var(--space-1-5);
+}
+
+.popover-input {
+  @include type.type-meta;
+  height: var(--space-7);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.popover-error {
+  @include type.type-meta;
+  margin-top: 0;
 }
 
 .popover-row {

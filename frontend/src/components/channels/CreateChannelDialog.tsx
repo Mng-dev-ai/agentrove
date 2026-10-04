@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
+import { Label } from '@/components/ui/primitives/Label/Label';
+import { FieldMessage } from '@/components/ui/primitives/FieldMessage/FieldMessage';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
@@ -40,8 +42,12 @@ import type { Persona } from '@/types/user.types';
 import type { ChannelMemberCreateRequest } from '@/types/channel.types';
 import styles from './CreateChannelDialog.module.scss';
 
+const MEMBER_NAME_MAX_LENGTH = 32;
+const MEMBER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
+
 interface MemberDraft {
   key: string;
+  customName: string | null;
   modelId: string;
   persona: string;
   thinkingMode: string;
@@ -51,6 +57,7 @@ interface MemberDraft {
 function newMemberDraft(): MemberDraft {
   return {
     key: crypto.randomUUID(),
+    customName: null,
     modelId: '',
     persona: DEFAULT_PERSONA,
     thinkingMode: DEFAULT_THINKING_MODE,
@@ -71,13 +78,48 @@ function resolveMember(member: MemberDraft, models: Model[]) {
   };
 }
 
-function memberDisplayNames(members: MemberDraft[], models: Model[]): string[] {
-  const counts = new Map<string, number>();
+function defaultMemberName(modelName: string, agentKind: string): string {
+  const slug = modelName
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9.-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '')
+    .slice(0, MEMBER_NAME_MAX_LENGTH);
+  return slug || agentKind.toLowerCase();
+}
+
+interface MemberName {
+  name: string;
+  error: string | null;
+}
+
+function resolveMemberNames(members: MemberDraft[], models: Model[]): MemberName[] {
+  const taken = new Set<string>();
   return members.map((member) => {
-    const name = resolveMember(member, models).agentKind.toLowerCase();
-    const count = (counts.get(name) ?? 0) + 1;
-    counts.set(name, count);
-    return count === 1 ? name : `${name}-${count}`;
+    if (member.customName) {
+      const name = member.customName;
+      if (!MEMBER_NAME_PATTERN.test(name)) {
+        return {
+          name,
+          error: 'Use up to 32 letters, digits, ".", "_" or "-", starting with a letter or digit',
+        };
+      }
+      if (taken.has(name.toLowerCase())) {
+        return { name, error: 'Another member already has this name' };
+      }
+      taken.add(name.toLowerCase());
+      return { name, error: null };
+    }
+    const { modelName, agentKind } = resolveMember(member, models);
+    const base = defaultMemberName(modelName, agentKind);
+    let name = base;
+    for (let n = 2; taken.has(name.toLowerCase()); n++) {
+      const suffix = `-${n}`;
+      name = base.slice(0, MEMBER_NAME_MAX_LENGTH - suffix.length) + suffix;
+    }
+    taken.add(name.toLowerCase());
+    return { name, error: null };
   });
 }
 
@@ -103,7 +145,7 @@ function useContentOverflows(
 
 interface MemberChipProps {
   member: MemberDraft;
-  displayName: string;
+  memberName: MemberName;
   models: Model[];
   personas: Persona[];
   canRemove: boolean;
@@ -113,7 +155,7 @@ interface MemberChipProps {
 
 function MemberChip({
   member,
-  displayName,
+  memberName,
   models,
   personas,
   canRemove,
@@ -127,6 +169,7 @@ function MemberChip({
     member,
     models,
   );
+  const nameInputId = `member-name-${member.key}`;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -148,10 +191,14 @@ function MemberChip({
           onClick={() => setIsOpen(!isOpen)}
           aria-haspopup="dialog"
           aria-expanded={isOpen}
-          className={clsx(styles.chip, isOpen && stateClasses.OPEN)}
+          className={clsx(
+            styles.chip,
+            memberName.error && styles['chip--error'],
+            isOpen && stateClasses.OPEN,
+          )}
         >
           <ProviderIcon agentKind={agentKind} className={styles['chip-icon']} />
-          <span className={styles['chip-label']}>{displayName}</span>
+          <span className={styles['chip-label']}>{memberName.name}</span>
           <ChevronDown className={styles['chip-caret']} />
         </Button>
       </FloatingTooltip>
@@ -160,7 +207,7 @@ function MemberChip({
         <div
           ref={popoverRef}
           role="dialog"
-          aria-label={`${displayName} settings`}
+          aria-label={`${memberName.name} settings`}
           style={{ maxHeight: fit?.maxHeight }}
           className={clsx(
             styles.popover,
@@ -168,6 +215,23 @@ function MemberChip({
             fit?.maxHeight !== undefined && styles['popover--capped'],
           )}
         >
+          <div className={styles['popover-field']}>
+            <Label htmlFor={nameInputId} className={styles['popover-label']}>
+              Name
+            </Label>
+            <Input
+              id={nameInputId}
+              value={member.customName ?? memberName.name}
+              onChange={(e) => onChange({ customName: e.target.value })}
+              placeholder={memberName.name}
+              maxLength={MEMBER_NAME_MAX_LENGTH}
+              hasError={!!memberName.error}
+              className={styles['popover-input']}
+            />
+            <FieldMessage variant="error" className={styles['popover-error']}>
+              {memberName.error}
+            </FieldMessage>
+          </div>
           <div className={styles['popover-row']}>
             <span className={styles['popover-label']}>Model</span>
             <ModelSelector
@@ -273,7 +337,8 @@ export function CreateChannelDialog({
     setSelectedBranch(null);
   };
 
-  const displayNames = memberDisplayNames(members, models);
+  const memberNames = resolveMemberNames(members, models);
+  const hasInvalidMemberName = memberNames.some((memberName) => memberName.error);
 
   const updateMember = (key: string, patch: Partial<MemberDraft>) =>
     setMembers((prev) => prev.map((m) => (m.key === key ? { ...m, ...patch } : m)));
@@ -302,6 +367,7 @@ export function CreateChannelDialog({
           ? coerceThinkingModeForAgent(member.thinkingMode, agentKind, modelId)
           : null,
         permission_mode: coercePermissionModeForAgent(member.permissionMode, agentKind),
+        display_name: member.customName || undefined,
       };
     });
 
@@ -389,7 +455,7 @@ export function CreateChannelDialog({
                   <MemberChip
                     key={member.key}
                     member={member}
-                    displayName={displayNames[index]}
+                    memberName={memberNames[index]}
                     models={models}
                     personas={personas}
                     canRemove={members.length > 1}
@@ -427,7 +493,7 @@ export function CreateChannelDialog({
           variant="primary"
           size="sm"
           onClick={handleCreate}
-          disabled={createChannel.isPending || !workspaceId}
+          disabled={createChannel.isPending || !workspaceId || hasInvalidMemberName}
         >
           {createChannel.isPending ? 'Creating...' : 'Create'}
         </Button>

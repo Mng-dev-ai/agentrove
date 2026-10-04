@@ -27,6 +27,7 @@ export interface ChannelMemberCreateRequest {
   persona?: string | null;
   thinking_mode?: string | null;
   permission_mode?: PermissionMode;
+  display_name?: string;
 }
 
 export interface ChannelCreateRequest {
