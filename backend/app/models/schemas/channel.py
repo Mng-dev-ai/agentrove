@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Literal
+from typing import Literal, get_args
 from uuid import UUID
 
+from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.constants import MODELS
@@ -15,6 +16,13 @@ class ChannelMemberCreate(BaseModel):
     permission_mode: PermissionMode | None = None
     persona: str | None = Field(None, max_length=100)
     thinking_mode: str | None = Field(None, max_length=50)
+
+    @field_validator("permission_mode", mode="before")
+    @classmethod
+    def valid_permission_mode(cls, value: object) -> object:
+        if value is not None and value not in get_args(PermissionMode):
+            raise HTTPException(400, "Invalid permission mode")
+        return value
 
     @field_validator("model_id")
     @classmethod
