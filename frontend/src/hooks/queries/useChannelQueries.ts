@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, type Query } from '@tanstack/react-query';
 import { channelService } from '@/services/channelService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
@@ -21,11 +21,15 @@ export const useChannelQuery = (channelId: string | undefined) =>
     enabled: !!channelId,
   });
 
+const isActivityInProgress = (query: Query<Message>) =>
+  query.state.data?.stream_status === 'in_progress';
+
 export const useChannelMessageActivityQuery = (channelId: string, messageId: string) =>
   useQuery<Message>({
     queryKey: queryKeys.channelMessageActivity(channelId, messageId),
     queryFn: () => channelService.getMessageActivity(channelId, messageId),
-    staleTime: Infinity,
+    staleTime: (query) => (isActivityInProgress(query) ? 0 : Infinity),
+    refetchInterval: (query) => (isActivityInProgress(query) ? 1000 : false),
     retry: false,
   });
 
