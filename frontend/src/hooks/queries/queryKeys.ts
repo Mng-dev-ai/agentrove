@@ -89,6 +89,8 @@ export const queryKeys = {
   channels: (workspaceId?: string) => ['channels', workspaceId ?? null] as const,
   channelsAll: ['channels'] as const,
   channel: (channelId?: string) => ['channel', channelId] as const,
+  channelMessageActivity: (channelId: string, messageId: string) =>
+    ['channel', channelId, 'activity', messageId] as const,
   models: 'models',
   github: {
     repos: (query: string) => ['github-repos', query] as const,

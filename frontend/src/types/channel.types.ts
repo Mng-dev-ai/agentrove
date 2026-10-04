@@ -50,6 +50,7 @@ export interface ChannelMessage {
   content: string;
   status: ChannelMessageStatus;
   attachments: MessageAttachment[];
+  tool_call_count: number;
   created_at: string;
 }
 

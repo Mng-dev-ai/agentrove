@@ -38,6 +38,11 @@
   opacity: 0.6;
 }
 
+.activity-unavailable {
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
+}
+
 .typing-icons {
   display: flex;
   align-items: center;

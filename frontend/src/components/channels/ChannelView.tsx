@@ -13,11 +13,15 @@ import { StatusIndicator } from '@/components/chat/chat-window/StatusTypewriter'
 import { useChatScroll } from '@/components/chat/chat-window/useChatScroll';
 import { MessageRow, MessageText, UserBubble } from '@/components/chat/message-bubble/Message';
 import { MessageAttachments } from '@/components/chat/message-bubble/MessageAttachments';
+import { MessageRenderer } from '@/components/chat/message-bubble/MessageRenderer';
+import { ToolLoadingFallback } from '@/components/chat/message-bubble/SegmentView';
+import { WorkedRollup } from '@/components/chat/message-bubble/WorkedRollup';
+import { useChannelMessageActivityQuery } from '@/hooks/queries/useChannelQueries';
 import { useChannelLive } from '@/hooks/useChannelLive';
 import { useSmoothText } from '@/hooks/useSmoothText';
 import { permissionService } from '@/services/permissionService';
 import { EMPTY_MESSAGES, EMPTY_PERMISSIONS, useChannelStore } from '@/store/channelStore';
-import { getAgentKindForModelId } from '@/types/chat.types';
+import { getAgentKindForModelId, type AgentKind } from '@/types/chat.types';
 import { formatFullTimestamp, formatRelativeTime } from '@/utils/date';
 import { executePermissionResponse } from '@/utils/permissionResponse';
 import type {
@@ -30,10 +34,35 @@ import { ChannelComposer } from './ChannelComposer';
 import styles from './ChannelView.module.scss';
 
 const NO_OLDER_PAGES = () => {};
+const ACTIVITY_EVENT_TYPES = new Set([
+  'assistant_thinking',
+  'tool_started',
+  'tool_completed',
+  'tool_failed',
+  'plan',
+]);
 
 function joinNames(names: string[]): string {
   if (names.length <= 1) return names.join('');
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
+interface ChannelMessageActivityProps {
+  channelId: string;
+  messageId: string;
+  agentKind: AgentKind;
+}
+
+function ChannelMessageActivity({ channelId, messageId, agentKind }: ChannelMessageActivityProps) {
+  const { data, isPending, isError } = useChannelMessageActivityQuery(channelId, messageId);
+  const events = useMemo(
+    () => data?.content_render.events.filter((event) => ACTIVITY_EVENT_TYPES.has(event.type)),
+    [data],
+  );
+
+  if (isError) return <p className={styles['activity-unavailable']}>Activity unavailable</p>;
+  if (isPending || !events) return <ToolLoadingFallback />;
+  return <MessageRenderer events={events} chatId={data.chat_id} agentKind={agentKind} />;
 }
 
 interface AgentChannelMessageProps {
@@ -44,6 +73,7 @@ interface AgentChannelMessageProps {
 function AgentChannelMessage({ message, member }: AgentChannelMessageProps) {
   const isStreaming = message.status === 'streaming';
   const isInterrupted = message.status === 'cancelled';
+  const agentKind = getAgentKindForModelId(member?.model_id);
   const content = useSmoothText(message.content, isStreaming);
   const text = (
     <MessageText>
@@ -54,10 +84,7 @@ function AgentChannelMessage({ message, member }: AgentChannelMessageProps) {
   return (
     <MessageRow>
       <div className={styles.author}>
-        <ProviderIcon
-          agentKind={getAgentKindForModelId(member?.model_id)}
-          className={styles['author-icon']}
-        />
+        <ProviderIcon agentKind={agentKind} className={styles['author-icon']} />
         <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
         <Tooltip content={formatFullTimestamp(message.created_at)} position="bottom">
           <span className={styles['author-meta']}>{formatRelativeTime(message.created_at)}</span>
@@ -69,6 +96,15 @@ function AgentChannelMessage({ message, member }: AgentChannelMessageProps) {
           </>
         )}
       </div>
+      {!isStreaming && message.tool_call_count > 0 && (
+        <WorkedRollup durationMs={null}>
+          <ChannelMessageActivity
+            channelId={message.channel_id}
+            messageId={message.id}
+            agentKind={agentKind}
+          />
+        </WorkedRollup>
+      )}
       {isInterrupted ? <div className={styles['interrupted-text']}>{text}</div> : text}
     </MessageRow>
   );

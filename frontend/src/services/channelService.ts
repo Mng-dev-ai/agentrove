@@ -6,6 +6,7 @@ import type {
   ChannelMessage,
   ChannelPermissionRequest,
 } from '@/types/channel.types';
+import type { Message } from '@/types/chat.types';
 
 async function listChannels(workspaceId?: string): Promise<Channel[]> {
   return serviceCall(async () => {
@@ -51,6 +52,15 @@ async function listMessages(channelId: string, afterSeq: number): Promise<Channe
   });
 }
 
+async function getMessageActivity(channelId: string, messageId: string): Promise<Message> {
+  return serviceCall(async () => {
+    const response = await apiClient.get<Message>(
+      `/channels/${channelId}/messages/${messageId}/activity`,
+    );
+    return ensureResponse(response, 'Failed to load message activity');
+  });
+}
+
 async function postMessage(
   channelId: string,
   content: string,
@@ -90,6 +100,7 @@ export const channelService = {
   renameChannel,
   deleteChannel,
   listMessages,
+  getMessageActivity,
   postMessage,
   listPermissions,
   stopChannel,

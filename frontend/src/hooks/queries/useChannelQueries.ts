@@ -4,6 +4,7 @@ import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
 import { useChannelStore } from '@/store/channelStore';
 import type { Channel, ChannelCreateRequest, ChannelMessage } from '@/types/channel.types';
+import type { Message } from '@/types/chat.types';
 
 export const useChannelsQuery = (workspaceId: string | undefined, enabled: boolean) =>
   useQuery<Channel[]>({
@@ -18,6 +19,14 @@ export const useChannelQuery = (channelId: string | undefined) =>
     queryKey: queryKeys.channel(channelId),
     queryFn: () => channelService.getChannel(channelId!),
     enabled: !!channelId,
+  });
+
+export const useChannelMessageActivityQuery = (channelId: string, messageId: string) =>
+  useQuery<Message>({
+    queryKey: queryKeys.channelMessageActivity(channelId, messageId),
+    queryFn: () => channelService.getMessageActivity(channelId, messageId),
+    staleTime: Infinity,
+    retry: false,
   });
 
 export const useCreateChannelMutation = createMutation<Channel, Error, ChannelCreateRequest>(

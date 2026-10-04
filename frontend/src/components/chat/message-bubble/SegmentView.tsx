@@ -40,6 +40,15 @@ function TextSegment({
   );
 }
 
+export function ToolLoadingFallback() {
+  return (
+    <div className={styles['tool-fallback']}>
+      <Spinner size="sm" className={styles['tool-fallback-spinner']} />
+      <span className={styles['tool-fallback-text']}>Loading tool output...</span>
+    </div>
+  );
+}
+
 export const SegmentView = memo(function SegmentView({
   segment,
   chatId,
@@ -71,14 +80,7 @@ export const SegmentView = memo(function SegmentView({
       const Component = getToolComponent(segment.tool.name, agentKind);
       return (
         <div className={styles['tool-segment']}>
-          <Suspense
-            fallback={
-              <div className={styles['tool-fallback']}>
-                <Spinner size="sm" className={styles['tool-fallback-spinner']} />
-                <span className={styles['tool-fallback-text']}>Loading tool output...</span>
-              </div>
-            }
-          >
+          <Suspense fallback={<ToolLoadingFallback />}>
             <Component tool={segment.tool} chatId={chatId} />
           </Suspense>
         </div>
