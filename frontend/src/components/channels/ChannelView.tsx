@@ -131,8 +131,8 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
   waiting,
 }: ChannelTypingRowProps) {
   const text = [
-    thinking.length > 0 && memberStatus(thinking, 'is thinking…', 'are thinking…'),
     typing.length > 0 && memberStatus(typing, 'is typing', 'are typing'),
+    thinking.length > 0 && memberStatus(thinking, 'is thinking…', 'are thinking…'),
     waiting.length > 0 &&
       memberStatus(waiting, 'is waiting for approval', 'are waiting for approval'),
   ]
@@ -143,7 +143,7 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
       <StatusIndicator
         leading={
           <span className={styles['typing-icons']}>
-            {[...thinking, ...typing, ...waiting].map((member) => (
+            {[...typing, ...thinking, ...waiting].map((member) => (
               <ProviderIcon
                 key={member.id}
                 agentKind={getAgentKindForModelId(member.model_id)}

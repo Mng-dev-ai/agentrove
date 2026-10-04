@@ -52,7 +52,7 @@ const EMPTY_SLICE: ChannelSlice = {
   synced: false,
   permissions: EMPTY_PERMISSIONS,
   permissionSync: null,
-  activity: { version: 0, member_ids: EMPTY_MEMBER_IDS },
+  activity: { epoch: '', version: 0, member_ids: EMPTY_MEMBER_IDS },
 };
 
 let lastSyncToken = 0;
@@ -122,7 +122,9 @@ function mergeSnapshot(
 }
 
 function applyActivity(slice: ChannelSlice, activity: ChannelMemberActivity): ChannelSlice {
-  return activity.version > slice.activity.version ? { ...slice, activity } : slice;
+  return activity.epoch !== slice.activity.epoch || activity.version > slice.activity.version
+    ? { ...slice, activity }
+    : slice;
 }
 
 function applyToSlice(slice: ChannelSlice, envelope: ChannelEnvelope): ChannelSlice {

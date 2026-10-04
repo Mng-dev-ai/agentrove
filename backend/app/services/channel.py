@@ -2,13 +2,12 @@ import asyncio
 import json
 import logging
 import re
-import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from functools import partial
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, UploadFile
 from sqlalchemy import Select, delete, func, select, update
@@ -49,6 +48,7 @@ from app.utils.attachment_urls import AttachmentURL
 
 logger = logging.getLogger(__name__)
 DEBOUNCE_SECONDS = 2.5
+ACTIVITY_EPOCH = uuid4().hex
 
 INTRODUCTION = (
     "You are {name}, a member of a group chat channel with the user and {others}. "
@@ -70,10 +70,6 @@ class TurnStatus(Enum):
     CANCELLED = "cancelled"
     FAILED = "failed"
     FINISHED = "finished"
-
-
-def activity_version(previous: int = 0) -> int:
-    return max(previous + 1, int(time.time() * 1000))
 
 
 @dataclass
@@ -112,7 +108,7 @@ class ChannelState:
     permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
-    activity_version: int = field(default_factory=activity_version)
+    activity_version: int = 0
     quiet_until: float = 0
     paused: bool = False
     deleted: bool = False
@@ -327,6 +323,7 @@ class ChannelService(BaseDbService[Channel]):
     @staticmethod
     def member_activity(state: ChannelState) -> dict[str, Any]:
         return {
+            "epoch": ACTIVITY_EPOCH,
             "version": state.activity_version,
             "member_ids": state.active_member_ids,
         }
@@ -340,7 +337,7 @@ class ChannelService(BaseDbService[Channel]):
         if member_ids == state.active_member_ids:
             return
         state.active_member_ids = member_ids
-        state.activity_version = activity_version(state.activity_version)
+        state.activity_version += 1
         await self.publish(
             state.channel, "channel_member_activity", self.member_activity(state)
         )

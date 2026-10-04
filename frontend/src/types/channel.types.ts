@@ -62,6 +62,7 @@ export interface ChannelPermissionRequest {
 }
 
 export interface ChannelMemberActivity {
+  epoch: string;
   version: number;
   member_ids: string[];
 }
