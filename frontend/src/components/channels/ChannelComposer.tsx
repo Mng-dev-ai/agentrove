@@ -1,12 +1,9 @@
 import { useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { FileUploadDialog } from '@/components/ui/FileUploadDialog/FileUploadDialog';
-import { DrawingModal } from '@/components/ui/drawing-modal/DrawingModal';
 import { AttachButton } from '@/components/chat/message-input/AttachButton';
+import { ComposerAttachmentSlots } from '@/components/chat/message-input/ComposerAttachmentSlots';
 import { ComposerField } from '@/components/chat/message-input/ComposerField';
-import { DropIndicator } from '@/components/chat/message-input/DropIndicator';
 import { EnhanceButton } from '@/components/chat/message-input/EnhanceButton';
-import { InputAttachments } from '@/components/chat/message-input/InputAttachments';
 import { SendButton, type SendButtonStatus } from '@/components/chat/message-input/SendButton';
 import { Textarea } from '@/components/chat/message-input/Textarea';
 import { useInputAttachments } from '@/hooks/useInputAttachments';
@@ -73,11 +70,6 @@ export function ChannelComposer({ channel, isBusy, onSend }: ChannelComposerProp
         ? 'loading'
         : 'idle';
 
-  const editingUrl =
-    attachments.editingImageIndex !== null
-      ? attachments.previewUrls[attachments.editingImageIndex]
-      : undefined;
-
   return (
     <ComposerField
       onSubmit={(e) => {
@@ -87,19 +79,20 @@ export function ChannelComposer({ channel, isBusy, onSend }: ChannelComposerProp
       isDragging={attachments.isDragging}
       dragHandlers={attachments.dragHandlers}
       attachments={
-        <>
-          <DropIndicator
-            visible={attachments.isDragging}
-            fileType="any"
-            message="Drop your files here"
-          />
-          <InputAttachments
-            files={files}
-            previewUrls={attachments.previewUrls}
-            onRemoveFile={attachments.handleRemoveFile}
-            onEditImage={attachments.handleDrawClick}
-          />
-        </>
+        <ComposerAttachmentSlots
+          isDragging={attachments.isDragging}
+          files={files}
+          previewUrls={attachments.previewUrls}
+          onRemoveFile={attachments.handleRemoveFile}
+          onEditImage={attachments.handleDrawClick}
+          showFileUpload={attachments.showFileUpload}
+          onCloseFileUpload={() => attachments.setShowFileUpload(false)}
+          onFileSelect={attachments.handleFileSelect}
+          editingImageIndex={attachments.editingImageIndex}
+          showDrawingModal={attachments.showDrawingModal}
+          onCloseDrawing={attachments.closeDrawingModal}
+          onSaveDrawing={attachments.handleDrawingSave}
+        />
       }
       textarea={
         <Textarea
@@ -142,20 +135,6 @@ export function ChannelComposer({ channel, isBusy, onSend }: ChannelComposerProp
           />
         </>
       }
-    >
-      <FileUploadDialog
-        isOpen={attachments.showFileUpload}
-        onClose={() => attachments.setShowFileUpload(false)}
-        onFileSelect={attachments.handleFileSelect}
-      />
-      {editingUrl && (
-        <DrawingModal
-          imageUrl={editingUrl}
-          isOpen={attachments.showDrawingModal}
-          onClose={attachments.closeDrawingModal}
-          onSave={attachments.handleDrawingSave}
-        />
-      )}
-    </ComposerField>
+    />
   );
 }

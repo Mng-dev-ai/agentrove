@@ -36,6 +36,7 @@ export function useChannelLive(channelId: string) {
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
     const catchUp = (delayMs: number) => {
+      const token = useChannelStore.getState().beginPermissionSync(channelId);
       Promise.all([
         channelService.listMessages(channelId, catchUpCursor(channelId)),
         channelService.listPermissions(channelId),
@@ -43,7 +44,7 @@ export function useChannelLive(channelId: string) {
         .then(([messages, permissions]) => {
           if (cancelled) return;
           useChannelStore.getState().syncMessages(channelId, messages);
-          useChannelStore.getState().syncPermissions(channelId, permissions);
+          useChannelStore.getState().syncPermissions(channelId, token, permissions);
         })
         .catch((error) => {
           if (cancelled) return;

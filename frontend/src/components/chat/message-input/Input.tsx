@@ -1,7 +1,4 @@
 import { memo } from 'react';
-import { FileUploadDialog } from '@/components/ui/FileUploadDialog/FileUploadDialog';
-import { DrawingModal } from '@/components/ui/drawing-modal/DrawingModal';
-import { DropIndicator } from './DropIndicator';
 import { SendButton } from './SendButton';
 import type { SendButtonStatus } from './SendButton';
 import { AttachButton } from './AttachButton';
@@ -9,7 +6,7 @@ import { EnhanceButton } from './EnhanceButton';
 import { Textarea } from './Textarea';
 import { InputControls } from './InputControls';
 import { ComposerField } from './ComposerField';
-import { InputAttachments } from './InputAttachments';
+import { ComposerAttachmentSlots } from './ComposerAttachmentSlots';
 import { SelectionAttachments } from './SelectionAttachments';
 import { InputSuggestionsPanel } from './InputSuggestionsPanel';
 import { ContextUsageIndicator } from './ContextUsageIndicator';
@@ -53,12 +50,6 @@ export const Input = memo(function Input(props: InputProps) {
 function InputLayout() {
   const { state, actions, meta } = useInputContext();
 
-  const shouldShowAttachedPreview =
-    state.hasAttachments &&
-    state.showPreview &&
-    state.attachedFiles &&
-    state.attachedFiles.length > 0;
-
   const sendStatus: SendButtonStatus = state.isStreaming
     ? state.hasContent
       ? 'ready'
@@ -77,16 +68,20 @@ function InputLayout() {
       dragHandlers={meta.dragHandlers}
       attachments={
         <>
-          <DropIndicator visible={state.isDragging} fileType="any" message="Drop your files here" />
-
-          {shouldShowAttachedPreview && (
-            <InputAttachments
-              files={state.attachedFiles!}
-              previewUrls={state.previewUrls}
-              onRemoveFile={actions.handleRemoveFile}
-              onEditImage={actions.handleDrawClick}
-            />
-          )}
+          <ComposerAttachmentSlots
+            isDragging={state.isDragging}
+            files={state.showPreview && state.attachedFiles ? state.attachedFiles : []}
+            previewUrls={state.previewUrls}
+            onRemoveFile={actions.handleRemoveFile}
+            onEditImage={actions.handleDrawClick}
+            showFileUpload={state.showFileUpload}
+            onCloseFileUpload={() => actions.setShowFileUpload(false)}
+            onFileSelect={actions.handleFileSelect}
+            editingImageIndex={state.editingImageIndex}
+            showDrawingModal={state.showDrawingModal}
+            onCloseDrawing={actions.closeDrawingModal}
+            onSaveDrawing={actions.handleDrawingSave}
+          />
 
           <SelectionAttachments
             selections={state.attachedSelections}
@@ -141,23 +136,6 @@ function InputLayout() {
         </div>
         <InputControls />
       </div>
-
-      <FileUploadDialog
-        isOpen={state.showFileUpload}
-        onClose={() => actions.setShowFileUpload(false)}
-        onFileSelect={actions.handleFileSelect}
-      />
-
-      {state.editingImageIndex !== null &&
-        state.editingImageIndex < state.previewUrls.length &&
-        state.previewUrls[state.editingImageIndex] && (
-          <DrawingModal
-            imageUrl={state.previewUrls[state.editingImageIndex]}
-            isOpen={state.showDrawingModal}
-            onClose={actions.closeDrawingModal}
-            onSave={actions.handleDrawingSave}
-          />
-        )}
 
       {state.showTip && !state.hasAttachments && (
         <div className={styles.tip}>
