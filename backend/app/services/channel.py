@@ -670,7 +670,7 @@ class ChannelService(BaseDbService[Channel]):
         if not lines:
             return False
         return (
-            any(line.lower() == "pass" for line in lines)
+            (lines[0].lower() == "pass" or lines[-1].lower() == "pass")
             or re.match(r"^PASS(?:\s*[—–:(,.!]|\s+-\s)", lines[0]) is not None
             or re.match(r"^pass[,.]\s", lines[0], re.IGNORECASE) is not None
             or re.search(r"(?:^|[.!?:;—–)]\s*)PASS\.?$", lines[-1]) is not None
