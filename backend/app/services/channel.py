@@ -82,7 +82,7 @@ class MemberTurn:
     member: ChannelMember
     batch: list[ChannelMessage]
     source_message_id: UUID | None = None
-    tool_call_count: int = 0
+    tool_call_ids: set[str] = field(default_factory=set)
     text: str = ""
     reset_segment: bool = False
     last_flush_at: float = 0
@@ -330,6 +330,7 @@ class ChannelService(BaseDbService[Channel]):
         member_id: UUID | None = None,
         attachments: list[MessageAttachmentDict] | None = None,
         source_message_id: UUID | None = None,
+        tool_call_count: int = 0,
     ) -> ChannelMessage:
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
@@ -349,6 +350,7 @@ class ChannelService(BaseDbService[Channel]):
                 seq=seq,
                 member_id=member_id,
                 source_message_id=source_message_id,
+                tool_call_count=tool_call_count,
                 content=content,
                 status="streaming" if member_id else "completed",
                 attachments=[
@@ -662,6 +664,7 @@ class ChannelService(BaseDbService[Channel]):
                 await self.begin_speaking(state, turn)
             else:
                 async with self.session_factory() as db:
+                    turn.message.tool_call_count = len(turn.tool_call_ids)
                     await self.write_message(
                         db, turn.message, "" if silent else turn.text, "streaming"
                     )
@@ -689,7 +692,11 @@ class ChannelService(BaseDbService[Channel]):
 
     async def begin_speaking(self, state: ChannelState, turn: MemberTurn) -> None:
         turn.message = await self.new_message(
-            state, turn.text, turn.member.id, source_message_id=turn.source_message_id
+            state,
+            turn.text,
+            turn.member.id,
+            source_message_id=turn.source_message_id,
+            tool_call_count=len(turn.tool_call_ids),
         )
         await self.publish_message(state.channel, turn.message)
 
@@ -714,7 +721,7 @@ class ChannelService(BaseDbService[Channel]):
                     for message in turn.batch
                 )
             if message is not None:
-                message.tool_call_count = turn.tool_call_count
+                message.tool_call_count = len(turn.tool_call_ids)
                 if silent:
                     await self.write_message(db, message, "", "deleted")
                 else:
@@ -913,11 +920,12 @@ class ChannelService(BaseDbService[Channel]):
                 )
         elif kind == "assistant_text":
             await self.text(state, turn, payload["text"])
-        elif kind == "tool_started":
+        elif kind in ("tool_started", "tool_completed", "tool_failed"):
             async with state.lock:
                 if turn.status is TurnStatus.RUNNING:
-                    turn.tool_call_count += 1
-                    turn.reset_segment = True
+                    turn.tool_call_ids.add(payload["tool"]["id"])
+                    if kind == "tool_started":
+                        turn.reset_segment = True
         elif kind == "error" and turn.status is TurnStatus.RUNNING:
             self.fail_turn(state, turn, payload["error"])
         elif kind == "cancelled" and turn.status is TurnStatus.RUNNING:
