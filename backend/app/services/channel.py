@@ -22,11 +22,11 @@ from app.models.db_models.channel import (
     ChannelMessage,
     ChannelMessageAttachment,
 )
-from app.models.db_models.chat import Chat
+from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.channel import ChannelCreate, ChannelMessageRead
-from app.models.schemas.chat import ChannelChatRequest
+from app.models.schemas.chat import ChannelChatRequest, Message as MessageSchema
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import (
@@ -81,6 +81,8 @@ class MemberRetry:
 class MemberTurn:
     member: ChannelMember
     batch: list[ChannelMessage]
+    source_message_id: UUID | None = None
+    tool_call_count: int = 0
     text: str = ""
     reset_segment: bool = False
     last_flush_at: float = 0
@@ -265,6 +267,35 @@ class ChannelService(BaseDbService[Channel]):
                 ).all()
             )
 
+    async def activity(self, channel: Channel, message_id: UUID) -> MessageSchema:
+        async with self.session_factory() as db:
+            row = (
+                await db.execute(
+                    select(Message, ChatCheckpoint.id)
+                    .join(
+                        ChannelMessage, ChannelMessage.source_message_id == Message.id
+                    )
+                    .outerjoin(
+                        ChatCheckpoint,
+                        ChatCheckpoint.assistant_message_id == Message.id,
+                    )
+                    .options(selectinload(Message.attachments))
+                    .where(
+                        ChannelMessage.id == message_id,
+                        ChannelMessage.channel_id == channel.id,
+                        ChannelMessage.member_id.is_not(None),
+                        ChannelMessage.status != "deleted",
+                        Message.deleted_at.is_(None),
+                    )
+                )
+            ).one_or_none()
+            if row is None:
+                raise HTTPException(404, "Message activity not found")
+            message, checkpoint_id = row
+            response: MessageSchema = MessageSchema.model_validate(message)
+            response.checkpoint_id = checkpoint_id
+            return response
+
     def state(self, channel: Channel) -> ChannelState:
         state = self.states.get(channel.id)
         if state is None:
@@ -298,6 +329,7 @@ class ChannelService(BaseDbService[Channel]):
         content: str,
         member_id: UUID | None = None,
         attachments: list[MessageAttachmentDict] | None = None,
+        source_message_id: UUID | None = None,
     ) -> ChannelMessage:
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
@@ -316,6 +348,7 @@ class ChannelService(BaseDbService[Channel]):
                 channel_id=state.channel.id,
                 seq=seq,
                 member_id=member_id,
+                source_message_id=source_message_id,
                 content=content,
                 status="streaming" if member_id else "completed",
                 attachments=[
@@ -646,11 +679,18 @@ class ChannelService(BaseDbService[Channel]):
         await db.execute(
             update(ChannelMessage)
             .where(ChannelMessage.id == message.id)
-            .values(content=content, status=status, version=message.version)
+            .values(
+                content=content,
+                status=status,
+                version=message.version,
+                tool_call_count=message.tool_call_count,
+            )
         )
 
     async def begin_speaking(self, state: ChannelState, turn: MemberTurn) -> None:
-        turn.message = await self.new_message(state, turn.text, turn.member.id)
+        turn.message = await self.new_message(
+            state, turn.text, turn.member.id, source_message_id=turn.source_message_id
+        )
         await self.publish_message(state.channel, turn.message)
 
     async def publish_message(self, channel: Channel, message: ChannelMessage) -> None:
@@ -674,6 +714,7 @@ class ChannelService(BaseDbService[Channel]):
                     for message in turn.batch
                 )
             if message is not None:
+                message.tool_call_count = turn.tool_call_count
                 if silent:
                     await self.write_message(db, message, "", "deleted")
                 else:
@@ -843,7 +884,9 @@ class ChannelService(BaseDbService[Channel]):
                 )
                 await db.commit()
             turn.member.introduced = True
-        if kind == "permission_request":
+        if kind == "stream_started":
+            turn.source_message_id = UUID(payload["message_id"])
+        elif kind == "permission_request":
             async with state.lock:
                 request_id = payload["request_id"]
                 if turn.status is not TurnStatus.RUNNING:
@@ -873,6 +916,7 @@ class ChannelService(BaseDbService[Channel]):
         elif kind == "tool_started":
             async with state.lock:
                 if turn.status is TurnStatus.RUNNING:
+                    turn.tool_call_count += 1
                     turn.reset_segment = True
         elif kind == "error" and turn.status is TurnStatus.RUNNING:
             self.fail_turn(state, turn, payload["error"])

@@ -148,7 +148,7 @@ class ChatStreamRuntime:
         try:
             start_seq = await self.emit_event(
                 "stream_started",
-                {"status": "started"},
+                {"status": "started", "message_id": self.assistant_message_id},
                 apply_snapshot=False,
             )
             if self.assistant_message_id:

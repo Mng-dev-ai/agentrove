@@ -20,6 +20,7 @@ from app.models.schemas.channel import (
     ChannelMessageRead,
     ChannelRead,
 )
+from app.models.schemas.chat import Message as MessageSchema
 from app.services.channel import channel_service
 from app.services.exceptions import ChatException, StorageException, SandboxException
 
@@ -69,6 +70,16 @@ async def list_messages(
         ChannelMessageRead.model_validate(message)
         for message in await channel_service.messages(channel, after_seq)
     ]
+
+
+@router.get(
+    "/{channel_id}/messages/{message_id}/activity", response_model=MessageSchema
+)
+async def message_activity(
+    channel_id: UUID, message_id: UUID, user: User = Depends(get_current_user)
+) -> MessageSchema:
+    channel = await channel_service.get(channel_id, user)
+    return await channel_service.activity(channel, message_id)
 
 
 @router.post(

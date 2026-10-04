@@ -65,6 +65,10 @@ class ChannelMessage(Base):
     member_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("channel_members.id", ondelete="CASCADE")
     )
+    source_message_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("messages.id", ondelete="SET NULL")
+    )
+    tool_call_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     content: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(10))
     attachments: Mapped[list["ChannelMessageAttachment"]] = relationship(
