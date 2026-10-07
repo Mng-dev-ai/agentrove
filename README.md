@@ -107,11 +107,10 @@ npm run ios:dev
 Install on your own iPhone with a free Apple ID — no paid developer account needed
 (the app must be re-signed every 7 days):
 
-1. `npm run tauri ios init` generates the Xcode project (first run only).
-2. Open `frontend/src-tauri/gen/apple/*.xcodeproj` in Xcode once, pick your Team
+1. Open `frontend/src-tauri/gen/apple/*.xcodeproj` in Xcode once, pick your Team
    under **Signing & Capabilities**, and connect your iPhone (Xcode needs to
    register the device and create the provisioning profile).
-3. On the phone, enable Developer Mode (**Settings → Privacy & Security**), then
+2. On the phone, enable Developer Mode (**Settings → Privacy & Security**), then
    after the first install trust the certificate under
    **Settings → General → VPN & Device Management**.
 
@@ -127,10 +126,12 @@ npm run ios:install
 ```
 
 Or run the steps yourself. The `-c` flag injects the team into both the build
-signing and the IPA export, so it stays out of the committed config:
+signing and the IPA export, so it stays out of the committed config. On Xcode 27,
+`CARGO_PROFILE_RELEASE_DEBUG` works around a release-link failure
+([tauri#16130](https://github.com/tauri-apps/tauri/issues/16130)):
 
 ```bash
-npm run ios:build -- --export-method debugging \
+CARGO_PROFILE_RELEASE_DEBUG=line-tables-only npm run ios:build -- --export-method debugging \
   -c '{"bundle":{"iOS":{"developmentTeam":"<YOUR_TEAM_ID>"}}}'
 # -> src-tauri/gen/apple/build/arm64/Agentrove.ipa
 
