@@ -137,6 +137,7 @@ MODELS: dict[str, ModelInfo] = {
     "sonnet": ModelInfo("Sonnet", AgentKind.CLAUDE, 1_000_000),
     "claude-sonnet-5-5": ModelInfo("Sonnet 5.5", AgentKind.CLAUDE, 1_000_000),
     "haiku": ModelInfo("Haiku", AgentKind.CLAUDE, 200_000),
+    "claude-haiku-5-5": ModelInfo("Haiku 5.5", AgentKind.CLAUDE, 1_000_000),
     "claude-fable-5-1": ModelInfo("Fable 5.1", AgentKind.CLAUDE, 1_000_000),
     "claude-fable-5": ModelInfo("Fable 5", AgentKind.CLAUDE, 1_000_000),
     "claude-opus-5-5": ModelInfo("Opus 5.5", AgentKind.CLAUDE, 1_000_000),

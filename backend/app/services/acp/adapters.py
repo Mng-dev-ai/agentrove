@@ -194,11 +194,12 @@ class ClaudeAgentAdapter(AgentAdapter):
             "claude-opus-5-5",
             "claude-opus-5",
             "claude-sonnet-5-5",
+            "claude-haiku-5-5",
         }
     )
     # claude-agent-acp only advertises the "effort" config option for models that
-    # report supportsEffort — Haiku doesn't, so set_config_option("effort") fails
-    # with "Unknown config option: effort".
+    # report supportsEffort — the generic haiku alias doesn't, so
+    # set_config_option("effort") fails with "Unknown config option: effort".
     NO_EFFORT_MODEL_IDS = frozenset({"haiku"})
 
     def build_launch_config(

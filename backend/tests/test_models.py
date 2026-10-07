@@ -48,6 +48,13 @@ async def test_list_models_returns_registered_models(
         "xhigh",
         "max",
     ]
+    assert by_id["claude-haiku-5-5"]["thinking_modes"] == [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+    ]
     assert by_id["claude-fable-5-1"]["thinking_modes"] == [
         "low",
         "medium",
