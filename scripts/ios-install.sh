@@ -21,7 +21,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$SCRIPT_DIR/../frontend"
 
 # 1. Build + sign + export a standalone IPA.
-( cd "$FRONTEND_DIR" && npm run ios:build -- --export-method debugging \
+# Xcode 27's SwiftPM gives @_cdecl exports local visibility in release Swift builds, so the
+# Rust link fails; swift-rs builds Swift in debug config whenever cargo debuginfo is on.
+( cd "$FRONTEND_DIR" && CARGO_PROFILE_RELEASE_DEBUG=line-tables-only npm run ios:build -- --export-method debugging \
     -c "{\"bundle\":{\"iOS\":{\"developmentTeam\":\"$APPLE_DEVELOPMENT_TEAM\"}}}" )
 
 IPA="$(ls -t "$FRONTEND_DIR"/src-tauri/gen/apple/build/*/*.ipa 2>/dev/null | head -1 || true)"
