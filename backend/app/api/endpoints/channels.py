@@ -35,8 +35,7 @@ async def create_channel(
         channel = await channel_service.create(user, data)
     except (ChatException, SandboxException) as exc:
         raise HTTPException(exc.status_code, str(exc)) from exc
-    response: ChannelRead = ChannelRead.model_validate(channel)
-    return response
+    return channel_service.read(channel)
 
 
 @router.get("", response_model=list[ChannelRead])
@@ -44,7 +43,7 @@ async def list_channels(
     workspace_id: UUID | None = None, user: User = Depends(get_current_user)
 ) -> list[ChannelRead]:
     return [
-        ChannelRead.model_validate(channel)
+        channel_service.read(channel)
         for channel in await channel_service.list_channels(user, workspace_id)
     ]
 
@@ -53,10 +52,7 @@ async def list_channels(
 async def get_channel(
     channel_id: UUID, user: User = Depends(get_current_user)
 ) -> ChannelRead:
-    response: ChannelRead = ChannelRead.model_validate(
-        await channel_service.get(channel_id, user)
-    )
-    return response
+    return channel_service.read(await channel_service.get(channel_id, user))
 
 
 @router.get("/{channel_id}/messages", response_model=list[ChannelMessageRead])
@@ -122,10 +118,7 @@ async def rename_channel(
     channel_id: UUID, data: ChannelUpdate, user: User = Depends(get_current_user)
 ) -> ChannelRead:
     channel = await channel_service.get(channel_id, user)
-    response: ChannelRead = ChannelRead.model_validate(
-        await channel_service.rename(channel, data.name)
-    )
-    return response
+    return channel_service.read(await channel_service.rename(channel, data.name))
 
 
 @router.get("/{channel_id}/permissions")

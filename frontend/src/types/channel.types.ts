@@ -20,6 +20,7 @@ export interface Channel {
   created_at: string;
   updated_at: string;
   members: ChannelMember[];
+  activity: ChannelMemberActivity;
 }
 
 export interface ChannelMemberCreateRequest {
@@ -65,6 +66,8 @@ export interface ChannelMemberActivity {
   epoch: string;
   version: number;
   member_ids: string[];
+  waiting_member_ids: string[];
+  retrying_member_ids: string[];
 }
 
 interface ChannelEnvelopeBase<K extends string, P> {

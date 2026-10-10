@@ -1,5 +1,37 @@
 @use '@/styles/globals/typography' as type;
 
+.status-tooltip {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.status-slot {
+  position: relative;
+  display: flex;
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner {
+  @include type.type-title;
+  line-height: 1;
+}
+
+.status-corner {
+  position: absolute;
+  right: calc(var(--space-0-5) * -1);
+  top: calc(var(--space-0-5) * -1);
+}
+
+// 1px halo punching the dot out from the surface behind it
+.status-ring {
+  box-shadow: 0 0 0 1px var(--theme-surface-secondary);
+}
+
 .icon {
   height: var(--space-3-5);
   width: var(--space-3-5);

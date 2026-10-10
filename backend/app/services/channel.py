@@ -25,7 +25,13 @@ from app.models.db_models.channel import (
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
-from app.models.schemas.channel import ChannelCreate, ChannelMessageRead
+from app.models.schemas.channel import (
+    ChannelCreate,
+    ChannelMemberActivity,
+    ChannelMemberRead,
+    ChannelMessageRead,
+    ChannelRead,
+)
 from app.models.schemas.chat import ChatRequest, Message as MessageSchema
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
@@ -109,6 +115,8 @@ class ChannelState:
     permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
+    waiting_member_ids: list[str] = field(default_factory=list)
+    retrying_member_ids: list[str] = field(default_factory=list)
     activity_version: int = 0
     quiet_until: float = 0
     paused: bool = False
@@ -321,12 +329,31 @@ class ChannelService(BaseDbService[Channel]):
         except CacheError:
             logger.warning("Failed to publish channel event for %s", channel.id)
 
+    def read(self, channel: Channel) -> ChannelRead:
+        return ChannelRead(
+            id=channel.id,
+            workspace_id=channel.workspace_id,
+            name=channel.name,
+            worktree=channel.worktree,
+            branch=channel.branch,
+            created_at=channel.created_at,
+            updated_at=channel.updated_at,
+            members=[
+                ChannelMemberRead.model_validate(member) for member in channel.members
+            ],
+            activity=ChannelMemberActivity.model_validate(
+                self.member_activity(self.state(channel))
+            ),
+        )
+
     @staticmethod
     def member_activity(state: ChannelState) -> dict[str, Any]:
         return {
             "epoch": ACTIVITY_EPOCH,
             "version": state.activity_version,
             "member_ids": state.active_member_ids,
+            "waiting_member_ids": state.waiting_member_ids,
+            "retrying_member_ids": state.retrying_member_ids,
         }
 
     async def publish_activity(self, state: ChannelState) -> None:
@@ -335,9 +362,23 @@ class ChannelService(BaseDbService[Channel]):
             for turn in state.turns.values()
             if turn.status is TurnStatus.RUNNING
         ]
-        if member_ids == state.active_member_ids:
+        waiting_member_ids = list(
+            dict.fromkeys(str(member_id) for member_id, _ in state.permissions)
+        )
+        retrying_member_ids = [
+            str(member_id)
+            for member_id in state.retries
+            if str(member_id) not in member_ids
+        ]
+        if (
+            member_ids == state.active_member_ids
+            and waiting_member_ids == state.waiting_member_ids
+            and retrying_member_ids == state.retrying_member_ids
+        ):
             return
         state.active_member_ids = member_ids
+        state.waiting_member_ids = waiting_member_ids
+        state.retrying_member_ids = retrying_member_ids
         state.activity_version += 1
         await self.publish(
             state.channel, "channel_member_activity", self.member_activity(state)
@@ -472,6 +513,7 @@ class ChannelService(BaseDbService[Channel]):
                     if state.deleted:
                         raise HTTPException(404, "Channel not found")
                     state.paused = True
+                    state.retries.clear()
                     turns = list(state.turns.values())
                     await self.cancel_active(state)
                     message = await self.new_message(
@@ -839,6 +881,7 @@ class ChannelService(BaseDbService[Channel]):
             if state.timer is not None:
                 state.timer.cancel()
                 state.timer = None
+            state.retries.clear()
             turns = await self.cancel_active(state)
             async with self.session_factory() as db:
                 for member in state.channel.members:
@@ -956,6 +999,7 @@ class ChannelService(BaseDbService[Channel]):
                     "channel_permission_resolved",
                     {"member_id": str(member_id), "request_id": key[1]},
                 )
+        await self.publish_activity(state)
 
     async def handle_event(
         self, state: ChannelState, turn: MemberTurn, kind: str, payload: dict[str, Any]
@@ -998,6 +1042,7 @@ class ChannelService(BaseDbService[Channel]):
                 }
                 state.permissions[(turn.member.id, request_id)] = pending
                 await self.publish(state.channel, "channel_permission_request", pending)
+                await self.publish_activity(state)
         elif kind == "permission_resolved":
             async with state.lock:
                 await self.resolve_permissions(

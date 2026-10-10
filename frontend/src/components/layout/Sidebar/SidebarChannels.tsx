@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -11,6 +11,9 @@ import {
   useRenameChannelMutation,
 } from '@/hooks/queries/useChannelQueries';
 import { useMountEffect } from '@/hooks/useMountEffect';
+import { apiClient } from '@/lib/api';
+import '@/services/streamService';
+import { streamConnection } from '@/services/streamConnection';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -44,6 +47,11 @@ export function SidebarChannels({
   const { data: channels = [] } = useChannelsQuery(filterWorkspaceId ?? undefined, isAuthenticated);
   const deleteChannel = useDeleteChannelMutation();
   const renameChannel = useRenameChannelMutation();
+  const hasChannels = channels.length > 0;
+
+  useEffect(() => {
+    if (hasChannels) return streamConnection.retain(apiClient);
+  }, [hasChannels]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [dropdown, setDropdown] = useState<{

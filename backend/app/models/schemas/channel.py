@@ -70,8 +70,15 @@ class ChannelMemberRead(BaseModel):
     display_name: str
 
 
+class ChannelMemberActivity(BaseModel):
+    epoch: str
+    version: int
+    member_ids: list[str]
+    waiting_member_ids: list[str]
+    retrying_member_ids: list[str]
+
+
 class ChannelRead(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
     id: UUID
     workspace_id: UUID
     name: str
@@ -80,6 +87,7 @@ class ChannelRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     members: list[ChannelMemberRead]
+    activity: ChannelMemberActivity
 
 
 class ChannelMessageRead(BaseModel):
