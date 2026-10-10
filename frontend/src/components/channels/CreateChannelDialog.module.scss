@@ -86,14 +86,18 @@
 }
 
 .members {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1-5);
 }
 
+// On phones the popover anchors to the whole member row so it can't run off-screen.
 .chip-wrap {
-  position: relative;
+  @include responsive.media('sm-up') {
+    position: relative;
+  }
 }
 
 .chip {
@@ -156,6 +160,11 @@
   box-shadow: var(--shadow-medium);
   backdrop-filter: blur(24px) saturate(1.5);
   padding: var(--space-1-5);
+
+  @include responsive.media('sm-down') {
+    right: 0;
+    width: auto;
+  }
 
   &--top {
     top: auto;

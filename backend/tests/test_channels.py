@@ -138,6 +138,14 @@ class PermissionResolver:
         return request_id == "request-1"
 
 
+def activity_publications(runtime: ScriptedTurns) -> list[dict[str, Any]]:
+    return [
+        payload
+        for _, kind, payload in runtime.publications
+        if kind == "channel_member_activity"
+    ]
+
+
 async def reset_channel_states(turns: list[MemberTurn]) -> None:
     tasks: set[asyncio.Task[Any]] = set()
     for state in channel_service.states.values():
@@ -518,6 +526,10 @@ async def test_backoff_doubles_caps_skips_wakes_and_clears_on_success(
         elapsed = loop.time() - started
         retry = channel_state.retries[member.id]
         assert retry.delay == expected_delay
+        assert activity_publications(channel_runtime)[-1]["member_ids"] == []
+        assert activity_publications(channel_runtime)[-1]["retrying_member_ids"] == [
+            str(member.id)
+        ]
         assert retry.until - started == pytest.approx(
             expected_delay, abs=elapsed + 0.001
         )
@@ -529,9 +541,40 @@ async def test_backoff_doubles_caps_skips_wakes_and_clears_on_success(
     channel_runtime.events = [("assistant_text", {"text": "PASS"})]
     await channel_runtime.wake(channel_state)
     assert member.id not in channel_state.retries
+    assert activity_publications(channel_runtime)[-1]["retrying_member_ids"] == []
     deliveries = (await db_session.scalars(select(ChannelDelivery))).all()
     assert [(row.member_id, row.message_id) for row in deliveries] == [
         (member.id, message.id)
+    ]
+
+
+async def test_activity_reports_members_waiting_for_approval(
+    channel_state: ChannelState, channel_runtime: ScriptedTurns
+) -> None:
+    await channel_service.new_message(channel_state, "Run the migration")
+    channel_runtime.events = [
+        (
+            "permission_request",
+            {
+                "request_id": "request-1",
+                "tool_name": "bash",
+                "tool_input": {},
+                "data": {"options": []},
+            },
+        ),
+        ("assistant_text", {"text": "PASS"}),
+    ]
+    await channel_runtime.wake(channel_state)
+
+    member_id = str(channel_state.channel.members[0].id)
+    assert [
+        (activity["member_ids"], activity["waiting_member_ids"])
+        for activity in activity_publications(channel_runtime)
+    ] == [
+        ([member_id], []),
+        ([member_id], [member_id]),
+        ([member_id], []),
+        ([], []),
     ]
 
 

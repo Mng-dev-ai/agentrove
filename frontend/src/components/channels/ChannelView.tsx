@@ -21,9 +21,9 @@ import { useChannelLive } from '@/hooks/useChannelLive';
 import { useSmoothText } from '@/hooks/useSmoothText';
 import { permissionService } from '@/services/permissionService';
 import {
-  EMPTY_MEMBER_IDS,
   EMPTY_MESSAGES,
   EMPTY_PERMISSIONS,
+  useChannelActivity,
   useChannelStore,
 } from '@/store/channelStore';
 import { getAgentKindForModelId, type AgentKind } from '@/types/chat.types';
@@ -123,18 +123,22 @@ interface ChannelTypingRowProps {
   thinking: ChannelMember[];
   typing: ChannelMember[];
   waiting: ChannelMember[];
+  retrying: ChannelMember[];
 }
 
 const ChannelTypingRow = memo(function ChannelTypingRow({
   thinking,
   typing,
   waiting,
+  retrying,
 }: ChannelTypingRowProps) {
   const text = [
     typing.length > 0 && memberStatus(typing, 'is typing', 'are typing'),
     thinking.length > 0 && memberStatus(thinking, 'is thinking…', 'are thinking…'),
     waiting.length > 0 &&
       memberStatus(waiting, 'is waiting for approval', 'are waiting for approval'),
+    retrying.length > 0 &&
+      memberStatus(retrying, 'hit an error, retrying soon', 'hit errors, retrying soon'),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -143,7 +147,7 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
       <StatusIndicator
         leading={
           <span className={styles['typing-icons']}>
-            {[...typing, ...thinking, ...waiting].map((member) => (
+            {[...typing, ...thinking, ...waiting, ...retrying].map((member) => (
               <ProviderIcon
                 key={member.id}
                 agentKind={getAgentKindForModelId(member.model_id)}
@@ -234,9 +238,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
   const permissions = useChannelStore(
     (state) => state.channels[channel.id]?.permissions ?? EMPTY_PERMISSIONS,
   );
-  const activeMemberIds = useChannelStore(
-    (state) => state.channels[channel.id]?.activity.member_ids ?? EMPTY_MEMBER_IDS,
-  );
+  const activity = useChannelActivity(channel);
 
   const messages = useMemo(
     () =>
@@ -253,12 +255,13 @@ export function ChannelView({ channel }: { channel: Channel }) {
     () => new Map(channel.members.map((member) => [member.id, member])),
     [channel.members],
   );
-  const { thinkingMembers, typingMembers, waitingMembers } = useMemo(() => {
+  const { thinkingMembers, typingMembers, waitingMembers, retryingMembers } = useMemo(() => {
     const waitingIds = new Set(permissions.map((p) => p.member_id));
     const typingIds = new Set(
       messages.flatMap((m) => (m.status === 'streaming' && m.member_id ? [m.member_id] : [])),
     );
-    const activeIds = new Set(activeMemberIds);
+    const activeIds = new Set(activity.member_ids);
+    const retryingIds = new Set(activity.retrying_member_ids);
     return {
       thinkingMembers: channel.members.filter(
         (member) =>
@@ -268,10 +271,14 @@ export function ChannelView({ channel }: { channel: Channel }) {
         (member) => typingIds.has(member.id) && !waitingIds.has(member.id),
       ),
       waitingMembers: channel.members.filter((member) => waitingIds.has(member.id)),
+      retryingMembers: channel.members.filter((member) => retryingIds.has(member.id)),
     };
-  }, [messages, permissions, activeMemberIds, channel.members]);
+  }, [messages, permissions, activity, channel.members]);
   const isBusy =
-    thinkingMembers.length > 0 || typingMembers.length > 0 || waitingMembers.length > 0;
+    thinkingMembers.length > 0 ||
+    typingMembers.length > 0 ||
+    waitingMembers.length > 0 ||
+    retryingMembers.length > 0;
 
   const { showScrollButton, containerRefCallback, scrollToBottom } = useChatScroll({
     chatId: channel.id,
@@ -332,6 +339,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                 thinking={thinkingMembers}
                 typing={typingMembers}
                 waiting={waitingMembers}
+                retrying={retryingMembers}
               />
             </ConversationColumn>
           )}

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type {
+  Channel,
   ChannelEnvelope,
   ChannelMemberActivity,
   ChannelMessage,
@@ -13,7 +14,6 @@ interface ChannelSlice {
   synced: boolean;
   permissions: ChannelPermissionRequest[];
   permissionSync: PermissionSync | null;
-  activity: ChannelMemberActivity;
 }
 
 interface PermissionSync {
@@ -24,6 +24,8 @@ interface PermissionSync {
 
 interface ChannelState {
   channels: Record<string, ChannelSlice>;
+  // Tracked for every channel (not just held ones) so the sidebar can show status.
+  activity: Record<string, ChannelMemberActivity>;
   // Bumped on every SSE (re)open so the open channel refetches what it missed.
   streamEpoch: number;
   holdChannel: (channelId: string) => void;
@@ -44,7 +46,6 @@ interface ChannelState {
 
 export const EMPTY_MESSAGES: Record<string, ChannelMessage> = {};
 export const EMPTY_PERMISSIONS: ChannelPermissionRequest[] = [];
-export const EMPTY_MEMBER_IDS: string[] = [];
 
 const EMPTY_SLICE: ChannelSlice = {
   messages: EMPTY_MESSAGES,
@@ -52,7 +53,6 @@ const EMPTY_SLICE: ChannelSlice = {
   synced: false,
   permissions: EMPTY_PERMISSIONS,
   permissionSync: null,
-  activity: { epoch: '', version: 0, member_ids: EMPTY_MEMBER_IDS },
 };
 
 let lastSyncToken = 0;
@@ -121,13 +121,22 @@ function mergeSnapshot(
   return { ...slice, permissions: [...restored, ...live], permissionSync: null };
 }
 
-function applyActivity(slice: ChannelSlice, activity: ChannelMemberActivity): ChannelSlice {
-  return activity.epoch !== slice.activity.epoch || activity.version > slice.activity.version
-    ? { ...slice, activity }
-    : slice;
+function withActivity(
+  state: ChannelState,
+  channelId: string,
+  activity: ChannelMemberActivity,
+): Partial<ChannelState> {
+  const current = state.activity[channelId];
+  if (current && activity.epoch === current.epoch && activity.version <= current.version) {
+    return state;
+  }
+  return { activity: { ...state.activity, [channelId]: activity } };
 }
 
-function applyToSlice(slice: ChannelSlice, envelope: ChannelEnvelope): ChannelSlice {
+function applyToSlice(
+  slice: ChannelSlice,
+  envelope: Exclude<ChannelEnvelope, { kind: 'channel_member_activity' }>,
+): ChannelSlice {
   switch (envelope.kind) {
     case 'channel_message':
       return upsert(slice, [envelope.payload.message]);
@@ -135,8 +144,6 @@ function applyToSlice(slice: ChannelSlice, envelope: ChannelEnvelope): ChannelSl
       return addPermission(slice, envelope.payload);
     case 'channel_permission_resolved':
       return removePermission(slice, envelope.payload.member_id, envelope.payload.request_id);
-    case 'channel_member_activity':
-      return applyActivity(slice, envelope.payload);
   }
 }
 
@@ -152,6 +159,7 @@ function withSlice(
 
 export const useChannelStore = create<ChannelState>((set) => ({
   channels: {},
+  activity: {},
   streamEpoch: 0,
 
   holdChannel: (channelId) =>
@@ -168,7 +176,8 @@ export const useChannelStore = create<ChannelState>((set) => ({
       ),
     })),
 
-  bumpStreamEpoch: () => set((state) => ({ streamEpoch: state.streamEpoch + 1 })),
+  // Events were missed while disconnected, so live activity is dropped until refetched.
+  bumpStreamEpoch: () => set((state) => ({ streamEpoch: state.streamEpoch + 1, activity: {} })),
 
   mergeMessages: (channelId, messages) =>
     set((state) => withSlice(state, channelId, (slice) => upsert(slice, messages))),
@@ -207,9 +216,19 @@ export const useChannelStore = create<ChannelState>((set) => ({
       withSlice(state, channelId, (slice) => removePermission(slice, memberId, requestId)),
     ),
 
-  syncActivity: (channelId, activity) =>
-    set((state) => withSlice(state, channelId, (slice) => applyActivity(slice, activity))),
+  syncActivity: (channelId, activity) => set((state) => withActivity(state, channelId, activity)),
 
   applyEnvelope: (envelope) =>
-    set((state) => withSlice(state, envelope.channelId, (slice) => applyToSlice(slice, envelope))),
+    set((state) =>
+      envelope.kind === 'channel_member_activity'
+        ? withActivity(state, envelope.channelId, envelope.payload)
+        : withSlice(state, envelope.channelId, (slice) => applyToSlice(slice, envelope)),
+    ),
 }));
+
+// Live activity is cleared on every reconnect, so when epochs differ it is the current one.
+export function useChannelActivity(channel: Channel): ChannelMemberActivity {
+  const live = useChannelStore((state) => state.activity[channel.id]);
+  const fetched = channel.activity;
+  return live && (live.epoch !== fetched.epoch || live.version >= fetched.version) ? live : fetched;
+}

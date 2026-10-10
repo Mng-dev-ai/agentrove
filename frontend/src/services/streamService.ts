@@ -1,3 +1,5 @@
+import { queryKeys } from '@/hooks/queries/queryKeys';
+import { queryClient } from '@/lib/queryClient';
 import { useStreamStore } from '@/store/streamStore';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useChannelStore } from '@/store/channelStore';
@@ -52,7 +54,10 @@ class StreamService {
 
   constructor() {
     streamConnection.configure({
-      onOpen: () => useChannelStore.getState().bumpStreamEpoch(),
+      onOpen: () => {
+        useChannelStore.getState().bumpStreamEpoch();
+        void queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
+      },
       onEnvelopeData: (raw) => this.handleEnvelopeData(raw),
       onConnectionFailure: (chatIds) => this.failStreamsForChats(chatIds),
     });

@@ -45,6 +45,7 @@
 
 .typing-icons {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--space-1);
 }

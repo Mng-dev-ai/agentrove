@@ -43,7 +43,12 @@
 
 .branch-name {
   @include type.type-overflow;
+  display: none;
   max-width: 12rem;
+
+  @include responsive.media('sm-up') {
+    display: inline;
+  }
 }
 
 .members {
@@ -51,11 +56,14 @@
   min-width: 0;
   align-items: center;
   gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .member {
   @include type.type-meta(500);
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--space-1);
   border-radius: var(--radius-full);
