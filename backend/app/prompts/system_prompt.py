@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from app.core.config import get_settings
 from app.services.acp.adapters import AgentKind, PERSONAS_SUPPORTED_AGENTS
 
 if TYPE_CHECKING:
@@ -36,6 +37,16 @@ has_more is true to read the full history).
 """
 
 
+DEV_SERVER_PREVIEW_INSTRUCTIONS = """
+<dev_server_preview_instructions>
+The user cannot open localhost on this machine. Port 3000 is already published on the
+user's private Tailscale network. After starting a dev server on any other port N, run
+`tailscale serve --bg --https=N N`, then `tailscale serve status` to get the URL, and
+include that https://...ts.net URL in your reply so the user can open it.
+</dev_server_preview_instructions>
+"""
+
+
 DEFAULT_PERSONA_NAME = "Default"
 
 
@@ -64,7 +75,9 @@ def build_system_prompt_for_chat(
         if persona:
             persona_content = f"\n{persona['content']}\n"
 
-    if channel_member:
-        return persona_content
+    preview_content = DEV_SERVER_PREVIEW_INSTRUCTIONS if get_settings().TS_AUTHKEY else ""
 
-    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"
+    if channel_member:
+        return f"{persona_content}\n{preview_content}"
+
+    return f"{persona_content}\n{preview_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"
