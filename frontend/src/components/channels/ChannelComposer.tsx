@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import toast from 'react-hot-toast';
 import { AttachButton } from '@/components/chat/message-input/AttachButton';
 import { ComposerAttachmentSlots } from '@/components/chat/message-input/ComposerAttachmentSlots';
@@ -24,10 +24,17 @@ interface ChannelComposerProps {
   channel: Channel;
   isBusy: boolean;
   onSend: () => void;
+  draft: string;
+  setDraft: Dispatch<SetStateAction<string>>;
 }
 
-export function ChannelComposer({ channel, isBusy, onSend }: ChannelComposerProps) {
-  const [draft, setDraft] = useState('');
+export function ChannelComposer({
+  channel,
+  isBusy,
+  onSend,
+  draft,
+  setDraft,
+}: ChannelComposerProps) {
   const [files, setFiles] = useState<File[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const draftRef = useRef(draft);

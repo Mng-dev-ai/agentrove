@@ -37,6 +37,7 @@ import type {
   ChannelMessage,
   ChannelPermissionRequest,
 } from '@/types/channel.types';
+import { SetChatInputMessageContext } from '@/contexts/ChatInputMessageContextDefinition';
 import { ChannelComposer } from './ChannelComposer';
 import styles from './ChannelView.module.scss';
 
@@ -77,7 +78,10 @@ interface AgentChannelMessageProps {
   member: ChannelMember | undefined;
 }
 
-function AgentChannelMessage({ message, member }: AgentChannelMessageProps) {
+const AgentChannelMessage = memo(function AgentChannelMessage({
+  message,
+  member,
+}: AgentChannelMessageProps) {
   const isStreaming = message.status === 'streaming';
   const isInterrupted = message.status === 'cancelled';
   const agentKind = getAgentKindForModelId(member?.model_id);
@@ -115,7 +119,7 @@ function AgentChannelMessage({ message, member }: AgentChannelMessageProps) {
       {isInterrupted ? <div className={styles['interrupted-text']}>{text}</div> : text}
     </MessageRow>
   );
-}
+});
 
 function memberStatus(members: ChannelMember[], singular: string, plural: string): string {
   return `${joinNames(members.map((member) => member.display_name))} ${members.length === 1 ? singular : plural}`;
@@ -232,6 +236,7 @@ function ChannelEmptyState({ channel }: { channel: Channel }) {
 
 export function ChannelView({ channel }: { channel: Channel }) {
   useChannelLive(channel.id);
+  const [draft, setDraft] = useState('');
 
   const messagesById = useChannelStore(
     (state) => state.channels[channel.id]?.messages ?? EMPTY_MESSAGES,
@@ -313,68 +318,78 @@ export function ChannelView({ channel }: { channel: Channel }) {
   });
 
   return (
-    <ConversationLayout
-      showScrollButton={showScrollButton}
-      onScrollToBottom={scrollToBottom}
-      composerBanner={
-        <ChatQueueBanner
-          messages={queuedMessages}
-          onCancel={handleCancelQueued}
-          onEdit={handleEditQueued}
-          onSendNow={handleSendQueuedNow}
-        />
-      }
-      composer={<ChannelComposer channel={channel} isBusy={isBusy} onSend={scrollToBottom} />}
-    >
-      {messages.length === 0 ? (
-        isSynced ? (
-          <ChannelEmptyState channel={channel} />
+    <SetChatInputMessageContext.Provider value={setDraft}>
+      <ConversationLayout
+        showScrollButton={showScrollButton}
+        onScrollToBottom={scrollToBottom}
+        composerBanner={
+          <ChatQueueBanner
+            messages={queuedMessages}
+            onCancel={handleCancelQueued}
+            onEdit={handleEditQueued}
+            onSendNow={handleSendQueuedNow}
+          />
+        }
+        composer={
+          <ChannelComposer
+            channel={channel}
+            isBusy={isBusy}
+            onSend={scrollToBottom}
+            draft={draft}
+            setDraft={setDraft}
+          />
+        }
+      >
+        {messages.length === 0 ? (
+          isSynced ? (
+            <ChannelEmptyState channel={channel} />
+          ) : (
+            <ChatSkeleton messageCount={3} />
+          )
         ) : (
-          <ChatSkeleton messageCount={3} />
-        )
-      ) : (
-        <ConversationScroller ref={containerRefCallback}>
-          {visibleMessages.map((message) => (
-            <ConversationColumn key={message.id}>
-              {message.author_type === 'user' ? (
-                <MessageRow>
-                  <UserBubble>
-                    <MessageAttachments
-                      attachments={message.attachments}
-                      className={styles.attachments}
-                    />
-                    <MarkDown content={message.content} highlightMentions />
-                  </UserBubble>
-                </MessageRow>
-              ) : (
-                <AgentChannelMessage
-                  message={message}
-                  member={message.member_id ? membersById.get(message.member_id) : undefined}
+          <ConversationScroller ref={containerRefCallback}>
+            {visibleMessages.map((message) => (
+              <ConversationColumn key={message.id}>
+                {message.author_type === 'user' ? (
+                  <MessageRow>
+                    <UserBubble>
+                      <MessageAttachments
+                        attachments={message.attachments}
+                        className={styles.attachments}
+                      />
+                      <MarkDown content={message.content} highlightMentions />
+                    </UserBubble>
+                  </MessageRow>
+                ) : (
+                  <AgentChannelMessage
+                    message={message}
+                    member={message.member_id ? membersById.get(message.member_id) : undefined}
+                  />
+                )}
+              </ConversationColumn>
+            ))}
+            {permissions.map((permission) => (
+              <ConversationColumn key={`${permission.member_id}:${permission.request.request_id}`}>
+                <ChannelApproval
+                  channelId={channel.id}
+                  permission={permission}
+                  member={membersById.get(permission.member_id)}
                 />
-              )}
-            </ConversationColumn>
-          ))}
-          {permissions.map((permission) => (
-            <ConversationColumn key={`${permission.member_id}:${permission.request.request_id}`}>
-              <ChannelApproval
-                channelId={channel.id}
-                permission={permission}
-                member={membersById.get(permission.member_id)}
-              />
-            </ConversationColumn>
-          ))}
-          {isBusy && (
-            <ConversationColumn>
-              <ChannelTypingRow
-                thinking={thinkingMembers}
-                typing={typingMembers}
-                waiting={waitingMembers}
-                retrying={retryingMembers}
-              />
-            </ConversationColumn>
-          )}
-        </ConversationScroller>
-      )}
-    </ConversationLayout>
+              </ConversationColumn>
+            ))}
+            {isBusy && (
+              <ConversationColumn>
+                <ChannelTypingRow
+                  thinking={thinkingMembers}
+                  typing={typingMembers}
+                  waiting={waitingMembers}
+                  retrying={retryingMembers}
+                />
+              </ConversationColumn>
+            )}
+          </ConversationScroller>
+        )}
+      </ConversationLayout>
+    </SetChatInputMessageContext.Provider>
   );
 }
