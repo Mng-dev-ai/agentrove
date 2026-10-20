@@ -41,8 +41,11 @@ DEV_SERVER_PREVIEW_INSTRUCTIONS = """
 <dev_server_preview_instructions>
 The user cannot open localhost on this machine. Port 3000 is already published on the
 user's private Tailscale network. After starting a dev server on any other port N, run
-`tailscale serve --bg --https=N N`, then `tailscale serve status` to get the URL, and
-include that https://...ts.net URL in your reply so the user can open it.
+`tailscale serve --bg --https=N N` (if `tailscale serve status` shows N already mapped to a
+different target, pick an unused HTTPS port instead), then `tailscale serve status` to get
+the URL, and include that https://...ts.net URL in your reply so the user can open it.
+Vite rejects unknown hostnames: add the exact preview hostname to `server.allowedHosts`
+in the Vite config, or the user sees a "Blocked request" page.
 </dev_server_preview_instructions>
 """
 
