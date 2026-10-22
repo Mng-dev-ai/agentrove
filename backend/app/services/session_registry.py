@@ -55,10 +55,13 @@ class SessionRegistry:
             await self._close_session(session)
             session = None
 
-        if session is not None and session.fingerprint != fingerprint:
-            # Keep config.resume_session_id: agent kind can't change mid-chat
-            # (blocked upstream), so the respawned process can load_session the
-            # old id and preserve context across model/effort changes.
+        if session is not None and (
+            session.fingerprint != fingerprint
+            or session.acp_session.acp_session_id != config.resume_session_id
+        ):
+            # resume_session_id is the session the turn's handoff was built
+            # against (None = fresh), so a live process on any other session
+            # would get the wrong history; respawn and load_session it instead.
             await self._close_session(session)
             session = None
 

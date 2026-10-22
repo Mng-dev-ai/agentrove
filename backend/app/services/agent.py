@@ -35,7 +35,7 @@ from app.services.acp.adapters import (
 )
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
-from app.services.exceptions import AgentException, ChatException, ErrorCode
+from app.services.exceptions import AgentException
 from app.constants import MODELS
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
@@ -146,13 +146,6 @@ class AgentService:
         workspace_path = chat.workspace_path
 
         agent_kind = MODELS[model_id].agent_kind
-        stored_agent_kind = getattr(chat, "session_agent_kind", None)
-        if stored_agent_kind and stored_agent_kind != agent_kind.value:
-            raise ChatException(
-                f"Cannot switch from {stored_agent_kind} to {agent_kind.value} in the same chat",
-                error_code=ErrorCode.VALIDATION_ERROR,
-            )
-
         cwd = await self.resolve_cwd(chat, worktree, base_branch)
 
         is_custom_persona = selected_persona_name != DEFAULT_PERSONA_NAME
@@ -185,8 +178,11 @@ class AgentService:
         result: StreamResult,
         agent_kind: AgentKind = AgentKind.CLAUDE,
         attachments: list[dict[str, Any]] | None = None,
+        handoff_transcript: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
-        user_content = self.prepare_user_prompt(prompt, custom_instructions)
+        user_content = self.prepare_user_prompt(
+            prompt, custom_instructions, handoff_transcript
+        )
         adapter = AGENT_ADAPTERS[agent_kind]
 
         handler = session.handler
@@ -609,6 +605,7 @@ class AgentService:
     def prepare_user_prompt(
         prompt: str,
         custom_instructions: str | None,
+        handoff_transcript: str | None = None,
     ) -> str:
         # Slash commands (e.g. /review) are passed through verbatim — the agent
         # runtime interprets them directly, so wrapping in XML tags would break them.
@@ -616,6 +613,8 @@ class AgentService:
             return prompt
 
         parts = []
+        if handoff_transcript:
+            parts.append(f"{handoff_transcript}\n\n")
         if custom_instructions and custom_instructions.strip():
             parts.append(
                 f"<user_instructions>\n{custom_instructions.strip()}\n</user_instructions>\n\n"

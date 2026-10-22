@@ -6,6 +6,7 @@ import logging
 import time
 from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
+from dataclasses import replace
 from collections.abc import AsyncIterator, Awaitable, Callable
 from functools import partial
 from typing import Any, cast
@@ -17,6 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
 from app.constants import (
+    ACP_RESOURCE_NOT_FOUND,
     MODELS,
     REDIS_KEY_CHAT_CONTEXT_USAGE,
     REDIS_KEY_USER_STREAMS_LIVE,
@@ -35,8 +37,14 @@ from app.services.agent import (
 )
 from app.services.session_registry import session_registry
 from app.services.db import SessionFactoryType
-from app.services.exceptions import AgentException, SandboxException
+from app.services.exceptions import (
+    AgentException,
+    ChatException,
+    ErrorCode,
+    SandboxException,
+)
 from app.services.git import GitService
+from app.services.handoff import HandoffService
 from app.services.message import MessageService
 from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
@@ -527,6 +535,7 @@ class ChatStreamRuntime:
             active_stream_id=None,
             stream_status=stream_status,
             total_cost_usd=stream_result.total_cost_usd,
+            session_id=self.session_id,
         )
 
     async def _complete_stream(
@@ -1355,12 +1364,18 @@ class ChatStreamRuntime:
             ai_service = AgentService(session_factory=runtime.session_factory)
             user = User(id=runtime.chat.user_id)
 
+            handoff_service = HandoffService(runtime.session_factory)
+            handoff = await handoff_service.build(
+                chat_id=UUID(runtime.chat_id),
+                model_id=request.model_id,
+                assistant_message_id=UUID(request.assistant_message_id),
+            )
             config: AcpSessionConfig = await ai_service.build_session_config(
                 user=user,
                 chat=runtime.chat,
                 model_id=request.model_id,
                 permission_mode=request.permission_mode,
-                session_id=request.session_id,
+                session_id=handoff.resume_session_id,
                 thinking_mode=request.thinking_mode,
                 system_prompt=request.system_prompt,
                 worktree=request.worktree,
@@ -1370,10 +1385,39 @@ class ChatStreamRuntime:
                 channel_member=request.member_turn is not None,
             )
 
-            session, _ = await session_registry.get_or_create(
-                chat_id=runtime.chat_id,
-                config=config,
-            )
+            try:
+                session, _ = await session_registry.get_or_create(
+                    chat_id=runtime.chat_id,
+                    config=config,
+                )
+            except RequestError as exc:
+                # The agent no longer has the resumed session (claude-agent-acp
+                # and codex-acp both answer load_session with resource-not-found);
+                # start a fresh one and hand it the whole history instead.
+                if (
+                    exc.code != ACP_RESOURCE_NOT_FOUND
+                    or config.resume_session_id is None
+                ):
+                    raise
+                handoff = await handoff_service.build(
+                    chat_id=UUID(runtime.chat_id),
+                    model_id=request.model_id,
+                    assistant_message_id=UUID(request.assistant_message_id),
+                    resume=False,
+                )
+                config = replace(config, resume_session_id=None)
+                session, _ = await session_registry.get_or_create(
+                    chat_id=runtime.chat_id,
+                    config=config,
+                )
+            # Slash commands go to the agent verbatim, so there's no room for
+            # the transcript; anchoring on one would drop the handoff for good.
+            if handoff.transcript and request.prompt.startswith("/"):
+                raise ChatException(
+                    "This chat continues from another agent. Send a regular "
+                    "message first, then use slash commands.",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                )
             await runtime._handle_session_update(
                 {"session_id": session.acp_session.acp_session_id}
             )
@@ -1424,6 +1468,7 @@ class ChatStreamRuntime:
                     result=stream_result,
                     agent_kind=config.agent_kind,
                     attachments=request.attachments,
+                    handoff_transcript=handoff.transcript,
                 )
                 return await runtime.run(stream_result, stream)
             except (

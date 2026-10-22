@@ -22,7 +22,6 @@ export interface ModelSelectorProps {
   dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   compact?: boolean;
-  lockedAgentKind?: AgentKind | null;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
 }
@@ -34,7 +33,6 @@ export const ModelSelector = memo(function ModelSelector({
   dropdownAlign,
   disabled = false,
   compact,
-  lockedAgentKind,
   variant = 'default',
 }: ModelSelectorProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -49,11 +47,9 @@ export const ModelSelector = memo(function ModelSelector({
   const filteredModels = useMemo(
     () =>
       models.filter(
-        (m) =>
-          (!lockedAgentKind || m.agent_kind === lockedAgentKind) &&
-          (!m.legacy || m.model_id === selectedModelId || favoriteModelIds.includes(m.model_id)),
+        (m) => !m.legacy || m.model_id === selectedModelId || favoriteModelIds.includes(m.model_id),
       ),
-    [models, lockedAgentKind, selectedModelId, favoriteModelIds],
+    [models, selectedModelId, favoriteModelIds],
   );
 
   const favoriteIdSet = useMemo(() => new Set(favoriteModelIds), [favoriteModelIds]);

@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+from uuid import uuid4
 from typing import Any
 
 from acp.agent.connection import AgentSideConnection
+from acp.exceptions import RequestError
 from acp.schema import (
     AgentCapabilities,
     AgentMessageChunk,
@@ -49,7 +51,6 @@ from acp.stdio import stdio_streams
 # agent binary would fail deterministically at handshake/session-setup time).
 SCENARIO = os.environ.get("FAKE_ACP_SCENARIO", "normal")
 LOG_PATH = os.environ.get("FAKE_ACP_LOG")
-NEW_SESSION_ID = "fake-acp-session-1"
 # Real agents advertise their effort option after a model set; offer every tier
 # under each agent's config id so effort validation sees a live list.
 EFFORT_TIERS = (
@@ -183,7 +184,7 @@ class FakeAgent:
         )
         if SCENARIO == "crash_new_session":
             raise RuntimeError("simulated new_session failure")
-        return NewSessionResponse(session_id=NEW_SESSION_ID)
+        return NewSessionResponse(session_id=f"fake-acp-session-{uuid4().hex}")
 
     async def load_session(
         self,
@@ -195,6 +196,8 @@ class FakeAgent:
         log_event({"event": "load_session", "cwd": cwd, "session_id": session_id})
         if SCENARIO == "crash_load_session":
             raise RuntimeError("simulated load_session failure")
+        if SCENARIO == "load_session_missing":
+            raise RequestError.resource_not_found(session_id)
         if SCENARIO == "load_session_replay" and self._client is not None:
             # Simulates an agent that replays prior history on resume — the
             # real client must mute these via handler.muted during load_session.

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import type { UseQueryOptions } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo } from 'react';
 import { modelService } from '@/services/modelService';
-import type { AgentKind, Model } from '@/types/chat.types';
+import type { Model } from '@/types/chat.types';
 import { useModelStore } from '@/store/modelStore';
 import { queryKeys } from './queryKeys';
 
@@ -22,41 +22,32 @@ export const useModelSelection = (options?: {
   chatId?: string;
   // null = still loading (defer default), undefined = no initial model (use models[0])
   initialModelId?: string | null;
-  // Restricts valid selections to one provider (chats with an established session)
-  lockedAgentKind?: AgentKind | null;
 }) => {
   const chatId = options?.chatId ?? DEFAULT_MODEL_KEY;
   const initialModelId = options?.initialModelId;
-  const lockedAgentKind = options?.lockedAgentKind;
   const { data: models = [] } = useModelsQuery({
     enabled: options?.enabled,
   });
 
   const storedModelId = useModelStore((state) => state.modelByChat[chatId] ?? '');
 
-  // Locked provider once session kind is known; stale/wrong-kind ids are invalid.
-  const candidates = useMemo(
-    () => (lockedAgentKind ? models.filter((m) => m.agent_kind === lockedAgentKind) : models),
-    [models, lockedAgentKind],
-  );
+  const storedIsValid = models.some((m) => m.model_id === storedModelId);
 
-  const storedIsValid = candidates.some((m) => m.model_id === storedModelId);
-
-  // Empty while invalid so a stale cross-provider id can't be submitted mid-resolve.
+  // Empty while invalid so a stale id can't be submitted mid-resolve.
   const selectedModelId = models.length === 0 || storedIsValid ? storedModelId : '';
 
   useEffect(() => {
-    if (candidates.length === 0 || storedIsValid) return;
+    if (models.length === 0 || storedIsValid) return;
 
     // null = still loading history; don't default yet.
     if (initialModelId === null) return;
 
     const fallback =
-      initialModelId && candidates.some((m) => m.model_id === initialModelId)
+      initialModelId && models.some((m) => m.model_id === initialModelId)
         ? initialModelId
-        : candidates.find((m) => !m.legacy)?.model_id;
+        : models.find((m) => !m.legacy)?.model_id;
     if (fallback) useModelStore.getState().selectModel(chatId, fallback);
-  }, [candidates, storedIsValid, chatId, initialModelId]);
+  }, [models, storedIsValid, chatId, initialModelId]);
 
   const selectedModel = useMemo(
     () => models.find((m) => m.model_id === selectedModelId) ?? null,
