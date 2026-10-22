@@ -1370,14 +1370,6 @@ class ChatStreamRuntime:
                 model_id=request.model_id,
                 assistant_message_id=UUID(request.assistant_message_id),
             )
-            # Slash commands go to the agent verbatim, so there's no room for
-            # the transcript; anchoring on one would drop the handoff for good.
-            if handoff.transcript and request.prompt.startswith("/"):
-                raise ChatException(
-                    "This chat continues from another agent. Send a regular "
-                    "message first, then use slash commands.",
-                    error_code=ErrorCode.VALIDATION_ERROR,
-                )
             config: AcpSessionConfig = await ai_service.build_session_config(
                 user=user,
                 chat=runtime.chat,
@@ -1417,6 +1409,14 @@ class ChatStreamRuntime:
                 session, _ = await session_registry.get_or_create(
                     chat_id=runtime.chat_id,
                     config=config,
+                )
+            # Slash commands go to the agent verbatim, so there's no room for
+            # the transcript; anchoring on one would drop the handoff for good.
+            if handoff.transcript and request.prompt.startswith("/"):
+                raise ChatException(
+                    "This chat continues from another agent. Send a regular "
+                    "message first, then use slash commands.",
+                    error_code=ErrorCode.VALIDATION_ERROR,
                 )
             await runtime._handle_session_update(
                 {"session_id": session.acp_session.acp_session_id}

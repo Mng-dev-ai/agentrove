@@ -1606,7 +1606,31 @@ async def test_chat_provider_switch_hands_off_context(
     same_kind = await run_turn("sonnet", "default", "claude four")
     assert "<previous_conversation>" not in same_kind["text"]
 
+    # A tool-only cancel isn't proof of delivery, so Codex's next turn still
+    # carries the Claude turns since its last settled reply.
+    cancelled = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="gpt-5.4",
+        prompt=f"{MARKER_CANCEL} codex cancelled",
+        permission_mode="auto",
+    )
+    cancelled_id = cancelled.json()["message_id"]
+    await wait_for_message_event(
+        client, headers, message_id=cancelled_id, event_type="tool_started"
+    )
+    await client.delete(f"/api/v1/chat/chats/{chat['id']}/stream", headers=headers)
+    interrupted = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=cancelled_id
+    )
+    assert interrupted["stream_status"] == "interrupted"
+    after_cancel = await run_turn("gpt-5.4", "auto", "codex after cancel")
+    assert after_cancel["session_id"] == codex["session_id"]
+    assert "claude four" in after_cancel["text"]
+
     # Codex lost its session: fall back to a fresh one with the whole history.
+    await run_turn("sonnet", "default", "claude five")
     monkeypatch.setenv("FAKE_ACP_SCENARIO", "load_session_missing")
     fallback = await run_turn("gpt-5.4", "auto", "codex five")
     assert fallback["session_id"] not in (codex["session_id"], claude["session_id"])
