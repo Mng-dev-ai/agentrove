@@ -1637,6 +1637,22 @@ async def test_chat_provider_switch_hands_off_context(
     assert "claude one" in fallback["text"]
     assert "claude four" in fallback["text"]
 
+    # The slash guard must also see a transcript the stale-session fallback adds.
+    await session_registry.terminate(chat["id"])
+    stale_slash = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="gpt-5.4",
+        prompt="/review",
+        permission_mode="auto",
+    )
+    stale_slash_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=stale_slash.json()["message_id"]
+    )
+    assert stale_slash_message["stream_status"] == "failed"
+    assert "Send a regular message first" in stale_slash_message["content_text"]
+
     # A slash command can't carry the transcript, so it must not become the anchor.
     slash = await send_message(
         client, headers, chat_id=chat["id"], model_id="sonnet", prompt="/review"
