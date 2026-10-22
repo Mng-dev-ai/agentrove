@@ -117,25 +117,29 @@ npm run ios:dev
 Install on your own iPhone with a free Apple ID — no paid developer account needed
 (the app must be re-signed every 7 days):
 
-1. Open `frontend/src-tauri/gen/apple/*.xcodeproj` in Xcode once, pick your Team
-   under **Signing & Capabilities**, and connect your iPhone (Xcode needs to
-   register the device and create the provisioning profile).
-2. On the phone, enable Developer Mode (**Settings → Privacy & Security**), then
-   after the first install trust the certificate under
-   **Settings → General → VPN & Device Management**.
+1. Add your Apple ID in **Xcode → Settings → Accounts**, then under
+   **Manage Certificates** create an **Apple Development** certificate.
+2. Connect your iPhone over USB, unlock it, and trust the Mac. Enable Developer
+   Mode (**Settings → Privacy & Security**), then after the first install trust the
+   certificate under **Settings → General → VPN & Device Management**.
 
 Build a standalone `.ipa` and install it on the connected iPhone. The easiest path
-is the bundled helper, which builds, signs, exports, and installs in one step. It
-reads your team from `APPLE_DEVELOPMENT_TEAM` (so nothing is hardcoded to anyone
-else's team) and auto-detects the connected device:
+is the bundled helper, which builds, signs, exports, and installs in one step:
 
 ```bash
-export APPLE_DEVELOPMENT_TEAM=<YOUR_TEAM_ID>   # find it in Xcode → Signing & Capabilities
 cd frontend
 npm run ios:install
 ```
 
-Or run the steps yourself. The `-c` flag injects the team into both the build
+It signs as the team of your Apple Development certificate (override with
+`APPLE_DEVELOPMENT_TEAM=<YOUR_TEAM_ID>`), so nothing is hardcoded to anyone else's
+team. It installs on the first connected iPhone/iPad, and when that device has no
+valid provisioning profile yet — a new device, or a free-team profile past its 7
+days — it registers the device with your team and creates the profile first.
+
+Or run the steps yourself (open the Xcode project once with the iPhone connected and
+select it as the run destination, so Xcode registers it and creates the provisioning
+profile). The `-c` flag injects the team into both the build
 signing and the IPA export, so it stays out of the committed config. On Xcode 27,
 `CARGO_PROFILE_RELEASE_DEBUG` works around a release-link failure
 ([tauri#16130](https://github.com/tauri-apps/tauri/issues/16130)):
@@ -150,8 +154,9 @@ xcrun devicectl device install app --device <DEVICE_ID> \
   src-tauri/gen/apple/build/arm64/Agentrove.ipa
 ```
 
-To update the app later, re-run `npm run ios:install` — the standalone build runs on
-the phone without keeping a Mac connected.
+To update the app later, or to re-sign it after a free team's 7 days, re-run
+`npm run ios:install` — the standalone build runs on the phone without keeping a Mac
+connected.
 
 ## Production
 
