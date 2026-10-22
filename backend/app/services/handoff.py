@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
@@ -106,7 +106,7 @@ class HandoffService:
             .order_by(Message.created_at.desc())
             .limit(1)
         )
-        return result.scalar_one_or_none()
+        return cast(Message | None, result.scalar_one_or_none())
 
     @staticmethod
     def _model_ids(agent_kind: AgentKind) -> list[str]:
