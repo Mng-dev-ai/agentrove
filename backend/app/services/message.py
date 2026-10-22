@@ -134,6 +134,7 @@ class MessageService(BaseDbService[Message]):
         active_stream_id: UUID | None,
         stream_status: MessageStreamStatus | None = None,
         total_cost_usd: float | None = None,
+        session_id: str | None = None,
         record_activity: bool = True,
     ) -> int | None:
         # Periodic snapshot write so reconnecting clients can hydrate without
@@ -168,6 +169,8 @@ class MessageService(BaseDbService[Message]):
                         )
             if total_cost_usd is not None:
                 values["total_cost_usd"] = total_cost_usd
+            if session_id is not None:
+                values["session_id"] = session_id
 
             result = await db.execute(
                 update(Message)

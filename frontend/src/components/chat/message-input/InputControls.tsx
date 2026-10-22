@@ -9,7 +9,6 @@ import { BranchSelector } from '@/components/chat/branch-selector/BranchSelector
 import { useInputState, useInputActions } from '@/hooks/useInputContext';
 import { useAuthStore } from '@/store/authStore';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
-import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { SelectorDot } from '@/components/ui/primitives/SelectorDot/SelectorDot';
@@ -23,8 +22,6 @@ export function InputControls() {
   const modelMap = useModelMap(isAuthenticated);
   const selectedModel = modelMap.get(state.selectedModelId);
   const agentKind = selectedModel?.agent_kind;
-  const { data: chat } = useChatQuery(state.chatId, { enabled: !!state.chatId });
-  const lockedAgentKind = chat?.session_agent_kind ?? null;
 
   const { sandboxId, worktreeCwd, personas } = useChatContext();
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
@@ -51,7 +48,6 @@ export function InputControls() {
         dropdownPosition={state.dropdownPosition}
         dropdownAlign="right"
         disabled={state.isLoading}
-        lockedAgentKind={lockedAgentKind}
         variant="text"
       />
 

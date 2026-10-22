@@ -51,7 +51,6 @@ from tests.fake_acp_agent import (
     MARKER_TOOL_TEXT_ERROR,
     MARKER_TOOL_TEXT_RESULT,
     MARKER_TOOL_UNKNOWN_DICT_ERROR,
-    NEW_SESSION_ID,
 )
 from tests.helpers import EndpointCache, create_authenticated_workspace
 
@@ -1530,9 +1529,8 @@ async def test_chat_resume_after_session_eviction_mutes_replayed_history(
     chat_detail = await client.get(f"/api/v1/chat/chats/{chat['id']}", headers=headers)
     assert chat_detail.status_code == 200
     assert chat_detail.json()["session_agent_kind"] == "claude"
-    # session_id isn't exposed on the Chat API schema — the fake agent always
-    # hands back the same fixed id, which load_session() below must be handed.
-    session_id = NEW_SESSION_ID
+    # session_id isn't exposed on the Chat API schema; read it off the prompt.
+    session_id = fake_agent.main_turn_prompts()[-1]["session_id"]
 
     # Evict in-process session so next turn uses create(resume_session_id).
     await session_registry.terminate(chat["id"])
@@ -1558,6 +1556,72 @@ async def test_chat_resume_after_session_eviction_mutes_replayed_history(
     )
     assert "REPLAYED_HISTORY_SHOULD_BE_MUTED" not in all_text
     assert DEFAULT_TURN_TEXT in all_text
+
+
+async def test_chat_provider_switch_hands_off_context(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+
+    async def run_turn(
+        model_id: str, permission_mode: str, prompt: str
+    ) -> dict[str, Any]:
+        response = await send_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            model_id=model_id,
+            prompt=prompt,
+            permission_mode=permission_mode,
+        )
+        message = await wait_for_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            message_id=response.json()["message_id"],
+        )
+        assert message["stream_status"] == "completed"
+        return fake_agent.main_turn_prompts()[-1]
+
+    claude = await run_turn("sonnet", "default", "claude one")
+    codex = await run_turn("gpt-5.4", "auto", "codex two")
+    assert codex["session_id"] != claude["session_id"]
+    assert "<previous_conversation>" in codex["text"]
+    assert "claude one" in codex["text"]
+
+    # Back on Claude: resume its own session and replay only Codex's turn.
+    claude_again = await run_turn("sonnet", "default", "claude three")
+    assert claude_again["session_id"] == claude["session_id"]
+    assert (
+        fake_agent.events_of("load_session")[-1]["session_id"] == claude["session_id"]
+    )
+    assert "codex two" in claude_again["text"]
+    assert "claude one" not in claude_again["text"]
+
+    same_kind = await run_turn("sonnet", "default", "claude four")
+    assert "<previous_conversation>" not in same_kind["text"]
+
+    # Codex lost its session: fall back to a fresh one with the whole history.
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", "load_session_missing")
+    fallback = await run_turn("gpt-5.4", "auto", "codex five")
+    assert fallback["session_id"] not in (codex["session_id"], claude["session_id"])
+    assert "claude one" in fallback["text"]
+    assert "claude four" in fallback["text"]
+
+    # A slash command can't carry the transcript, so it must not become the anchor.
+    slash = await send_message(
+        client, headers, chat_id=chat["id"], model_id="sonnet", prompt="/review"
+    )
+    slash_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=slash.json()["message_id"]
+    )
+    assert slash_message["stream_status"] == "failed"
+    assert "Send a regular message first" in slash_message["content_text"]
 
 
 async def test_chat_mid_session_model_and_mode_switch_survives_config_errors(

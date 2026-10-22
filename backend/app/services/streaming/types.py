@@ -66,7 +66,7 @@ class ChatStreamRequest:
     model_id: str
     permission_mode: PermissionMode
     session_id: str | None
-    assistant_message_id: str | None
+    assistant_message_id: str
     thinking_mode: str | None
     worktree: bool = False
     base_branch: str | None = None
