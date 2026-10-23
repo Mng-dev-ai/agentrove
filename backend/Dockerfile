@@ -37,12 +37,12 @@ RUN . /etc/os-release && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.308 @agentclientprotocol/claude-agent-acp@0.94.0 @agentclientprotocol/codex-acp@2.2.2 @openai/codex@0.163.0 @github/copilot@1.0.102
+RUN npm install -g @anthropic-ai/claude-code@2.1.309 @agentclientprotocol/claude-agent-acp@0.94.0 @agentclientprotocol/codex-acp@2.2.2 @openai/codex@0.164.0 @github/copilot@1.0.103
 
 # Cursor CLI — used for the Cursor ACP server (`cursor-agent acp`). Pinned
 # download replicating cursor.com/install, which always fetches its own latest.
 RUN set -eux; \
-    v=2026.10.19-6bbf2c4; \
+    v=2026.10.22-27dcf5f; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
     dir=/root/.local/share/cursor-agent/versions/$v; \
     mkdir -p "$dir" /root/.local/bin; \
@@ -54,7 +54,7 @@ RUN set -eux; \
 
 # OpenCode CLI — used for the OpenCode ACP server (`opencode acp`); installs to
 # /root/.opencode/bin. Pinned for reproducible builds.
-RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.1.2 && \
+RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.1.3 && \
     cp /root/.opencode/bin/opencode /usr/local/bin/opencode && \
     chmod +x /usr/local/bin/opencode
 
