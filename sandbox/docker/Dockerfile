@@ -81,7 +81,7 @@ COPY --chmod=755 sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --chown=user:user --chmod=755 backend/app/browser_mcp_cloud.py /home/user/browser_mcp_cloud.py
 
 RUN set -eux; \
-    version=1.4.1; \
+    version=1.4.3; \
     case "$(uname -m)" in \
       x86_64|amd64) arch=x86_64 ;; \
       aarch64|arm64) arch=arm64 ;; \
@@ -110,7 +110,7 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | b
     nvm alias default $NODE_VERSION
 
 RUN . "$NVM_DIR/nvm.sh" && \
-    npm install -g @anthropic-ai/claude-code@2.1.309 @agentclientprotocol/claude-agent-acp@0.94.0 @agentclientprotocol/codex-acp@2.2.2 @openai/codex@0.164.0 @github/copilot@1.0.103
+    npm install -g @anthropic-ai/claude-code@2.1.310 @agentclientprotocol/claude-agent-acp@0.95.0 @agentclientprotocol/codex-acp@2.2.2 @openai/codex@0.164.0 @github/copilot@1.0.103
 
 # Cursor CLI — pinned download replicating cursor.com/install (which always
 # fetches its own latest); cursor-agent lands in ~/.local/bin, already on PATH.
@@ -126,7 +126,7 @@ RUN set -eux; \
 
 # OpenCode CLI (installs `opencode` to ~/.opencode/bin; symlink into ~/.local/bin
 # so the ACP binary resolves without modifying PATH). Pinned for reproducible builds.
-RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.1.3 && \
+RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.1.4 && \
     mkdir -p /home/user/.local/bin && \
     ln -sf /home/user/.opencode/bin/opencode /home/user/.local/bin/opencode
 
