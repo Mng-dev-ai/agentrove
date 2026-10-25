@@ -80,7 +80,7 @@ function extractTar(archivePath, destDir) {
 }
 
 function depsStampValue() {
-  const requirements = readFileSync(join(dir, 'requirements.txt'), 'utf-8');
+  const requirements = readFileSync(join(dir, 'requirements.lock'), 'utf-8');
   return JSON.stringify({ requirements, python: PYTHON_STAMP });
 }
 
@@ -195,7 +195,7 @@ function installPyDeps() {
       '-m', 'pip', 'install', '-q',
       '--disable-pip-version-check',
       '--no-warn-script-location',
-      '-r', join(dir, 'requirements.txt'),
+      '-r', join(dir, 'requirements.lock'),
     ],
     { cwd: backendDir, stdio: 'inherit' },
   );
