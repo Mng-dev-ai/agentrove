@@ -52,6 +52,10 @@ start_tailscale() {
 echo "Running database migrations..."
 cd /app && python migrate.py || exit 1
 
+if [ -n "${ADMIN_EMAIL:-}" ] && [ -n "${ADMIN_PASSWORD:-}" ]; then
+    python seed_data.py || exit 1
+fi
+
 ensure_docker_network
 start_tailscale
 
