@@ -56,6 +56,11 @@ services:
       REDIS_URL: redis://${SERVICE_NAME_REDIS:-redis}:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY to a 32+ character value before starting production}
       SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:-}
+      # Set in Coolify preview env so each fresh preview DB gets your superuser
+      # (no-op once a superuser exists).
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       STORAGE_PATH: /data/agentrove/storage
       DOCKER_IMAGE: ${DOCKER_IMAGE:-ghcr.io/mng-dev-ai/agentrove-sandbox:latest}
       # Empty → entrypoint joins/creates the compose sandbox network for this stack

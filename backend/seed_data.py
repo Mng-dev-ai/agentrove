@@ -7,6 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import get_password_hash
 from app.db.session import SessionLocal, engine
+from app.models.db_models import (  # noqa: F401
+    automation,
+    channel,
+    chat,
+    refresh_token,
+    workspace,
+)
 from app.models.db_models.user import User, UserSettings
 
 
@@ -25,9 +32,9 @@ async def seed_admin(session: AsyncSession) -> None:
             print(f"Added missing settings for admin: {existing_admin.email}")
         return
 
-    admin_email = os.getenv("ADMIN_EMAIL", "admin@example.com")
+    admin_email = os.environ["ADMIN_EMAIL"]
     admin_username = os.getenv("ADMIN_USERNAME", "admin")
-    admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
+    admin_password = os.environ["ADMIN_PASSWORD"]
 
     admin_user = User(
         email=admin_email,
