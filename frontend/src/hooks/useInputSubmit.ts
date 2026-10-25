@@ -1,5 +1,8 @@
 import { useCallback, type RefObject } from 'react';
 import toast from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { fetchAutoSteerQueuedMessages } from '@/hooks/queries/useSettingsQueries';
+import { useSendQueuedMessageNow } from '@/hooks/useSendQueuedMessageNow';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
@@ -67,6 +70,9 @@ export function useInputSubmit({
   handleMentionKeyDown,
   handleSlashCommandKeyDown,
 }: UseInputSubmitOptions) {
+  const queryClient = useQueryClient();
+  const sendQueuedMessageNow = useSendQueuedMessageNow();
+
   const handleSubmit = useCallback(
     (event: React.FormEvent) => {
       event.preventDefault();
@@ -109,15 +115,22 @@ export function useInputSubmit({
       const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
       const validPersona = resolvePersona(storedPersona, personas);
       const fullMessage = formatComposerSelections(attachedSelections, messageRef.current.trim());
-      void useMessageQueueStore.getState().queueMessage(chatId, fullMessage, selectedModelId, {
-        permissionMode,
-        thinkingMode,
-        worktree,
-        baseBranch,
-        fastMode,
-        selectedPersonaName: validPersona,
-        files: attachedFiles ?? undefined,
-      });
+      void useMessageQueueStore
+        .getState()
+        .queueMessage(chatId, fullMessage, selectedModelId, {
+          permissionMode,
+          thinkingMode,
+          worktree,
+          baseBranch,
+          fastMode,
+          selectedPersonaName: validPersona,
+          files: attachedFiles ?? undefined,
+        })
+        .then(async (messageId) => {
+          if (await fetchAutoSteerQueuedMessages(queryClient)) {
+            await sendQueuedMessageNow(chatId, messageId);
+          }
+        });
       setMessage('');
       onAttach?.([]);
       if (attachedSelections.length > 0) useUIStore.getState().clearComposerSelections(chatId);
@@ -146,6 +159,8 @@ export function useInputSubmit({
     }) as unknown as React.FormEvent;
     onSubmit(formEvent);
   }, [
+    queryClient,
+    sendQueuedMessageNow,
     disabled,
     hasContent,
     isLoading,

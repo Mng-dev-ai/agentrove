@@ -42,6 +42,15 @@ export async function fetchNotificationsEnabled(queryClient: QueryClient): Promi
   }
 }
 
+export async function fetchAutoSteerQueuedMessages(queryClient: QueryClient): Promise<boolean> {
+  try {
+    const settings = await queryClient.ensureQueryData(settingsQuery());
+    return settings.auto_steer_queued_messages;
+  } catch {
+    return false;
+  }
+}
+
 export const useUpdateSettingsMutation = createMutation<UserSettings, Error, UserSettingsUpdate>(
   (data) => settingsService.updateSettings(data),
   (queryClient, data) => {

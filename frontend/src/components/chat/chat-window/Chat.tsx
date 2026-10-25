@@ -1,5 +1,4 @@
 import { useCallback, useEffect, memo, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { useShallow } from 'zustand/react/shallow';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import { isAssistantMessage } from '@/utils/message';
@@ -23,13 +22,13 @@ import { useChatContext } from '@/hooks/useChatContext';
 import { useChatSessionContext } from '@/hooks/useChatSessionContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useUIStore } from '@/store/uiStore';
-import { queryKeys } from '@/hooks/queries/queryKeys';
+import { useSendQueuedMessageNow } from '@/hooks/useSendQueuedMessageNow';
 import styles from './Chat.module.scss';
 
 export const Chat = memo(function Chat() {
   const { chatId } = useChatContext();
   const { state, actions } = useChatSessionContext();
-  const queryClient = useQueryClient();
+  const sendQueuedMessageNow = useSendQueuedMessageNow();
 
   const {
     messages,
@@ -119,14 +118,9 @@ export const Chat = memo(function Chat() {
 
   const handleSendNow = useCallback(
     async (messageId: string) => {
-      if (!chatId) return;
-      const success = await useMessageQueueStore.getState().sendNow(chatId, messageId);
-      if (success && !isStreaming) {
-        useMessageQueueStore.getState().removeLocalOnly(chatId, messageId);
-        await queryClient.invalidateQueries({ queryKey: queryKeys.messages(chatId) });
-      }
+      if (chatId) await sendQueuedMessageNow(chatId, messageId);
     },
-    [chatId, isStreaming, queryClient],
+    [chatId, sendQueuedMessageNow],
   );
 
   const { lastBotMessage, latestUserMessageId } = useMemo(() => {

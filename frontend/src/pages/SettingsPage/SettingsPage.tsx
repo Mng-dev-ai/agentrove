@@ -87,6 +87,7 @@ export function SettingsPage() {
         'personas',
         'stream_actions',
         'notifications_enabled',
+        'auto_steer_queued_messages',
         'title_model_id',
       ];
 
@@ -160,6 +161,12 @@ export function SettingsPage() {
 
   const handleNotificationsEnabledChange = (enabled: boolean) => {
     void persistSettings((prev) => ({ ...prev, notifications_enabled: enabled })).catch(
+      () => undefined,
+    );
+  };
+
+  const handleAutoSteerQueuedMessagesChange = (enabled: boolean) => {
+    void persistSettings((prev) => ({ ...prev, auto_steer_queued_messages: enabled })).catch(
       () => undefined,
     );
   };
@@ -257,6 +264,7 @@ export function SettingsPage() {
                         onToggleVisibility={toggleFieldVisibility}
                         onDeleteAllChats={handleDeleteAllChats}
                         onNotificationsEnabledChange={handleNotificationsEnabledChange}
+                        onAutoSteerQueuedMessagesChange={handleAutoSteerQueuedMessagesChange}
                         onTitleModelChange={handleTitleModelChange}
                       />
                     </div>

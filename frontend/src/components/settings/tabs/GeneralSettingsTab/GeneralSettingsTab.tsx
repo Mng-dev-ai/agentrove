@@ -20,6 +20,7 @@ interface GeneralSettingsTabProps {
   onToggleVisibility: (field: ApiFieldKey) => void;
   onDeleteAllChats: () => void;
   onNotificationsEnabledChange: (enabled: boolean) => void;
+  onAutoSteerQueuedMessagesChange: (enabled: boolean) => void;
   onTitleModelChange: (modelId: string) => void;
 }
 
@@ -106,6 +107,7 @@ export function GeneralSettingsTab({
   onToggleVisibility,
   onDeleteAllChats,
   onNotificationsEnabledChange,
+  onAutoSteerQueuedMessagesChange,
   onTitleModelChange,
 }: GeneralSettingsTabProps) {
   return (
@@ -142,6 +144,20 @@ export function GeneralSettingsTab({
               checked={settings.notifications_enabled}
               onCheckedChange={onNotificationsEnabledChange}
               aria-label="Notifications"
+            />
+          </div>
+          <div className={styles['pref-row-notif']}>
+            <div className={styles['pref-text']}>
+              <h3 className={styles['setting-title']}>Auto-steer queued messages</h3>
+              <p className={styles['field-desc']}>
+                Send messages typed while the agent is working immediately instead of queuing them
+                until it finishes.
+              </p>
+            </div>
+            <Switch
+              checked={settings.auto_steer_queued_messages}
+              onCheckedChange={onAutoSteerQueuedMessagesChange}
+              aria-label="Auto-steer queued messages"
             />
           </div>
           <div className={styles['pref-row-notif']}>

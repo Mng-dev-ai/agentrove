@@ -90,6 +90,9 @@ class UserSettings(Base):
     notifications_enabled: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    auto_steer_queued_messages: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
     title_model_id: Mapped[str] = mapped_column(
         String(128),
         default=DEFAULT_TITLE_MODEL_ID,
