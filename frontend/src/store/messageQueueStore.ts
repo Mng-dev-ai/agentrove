@@ -1,4 +1,7 @@
 import { create } from 'zustand';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/hooks/queries/queryKeys';
+import { useStreamStore } from '@/store/streamStore';
 import type {
   LocalQueuedMessage,
   QueueAddResponse,
@@ -269,6 +272,15 @@ export const useChannelQueueStore = createQueueStore<[files: File[]]>({
   sendNow: channelService.sendQueuedNow,
   filesOf: (files) => files,
 });
+
+export async function sendQueuedMessageNow(chatId: string, messageId: string) {
+  const queue = useMessageQueueStore.getState();
+  const success = await queue.sendNow(chatId, messageId);
+  if (success && !useStreamStore.getState().getStreamByChat(chatId)) {
+    queue.removeLocalOnly(chatId, messageId);
+    await queryClient.invalidateQueries({ queryKey: queryKeys.messages(chatId) });
+  }
+}
 
 export async function sendChannelQueuedMessageNow(channelId: string, messageId: string) {
   const queue = useChannelQueueStore.getState();

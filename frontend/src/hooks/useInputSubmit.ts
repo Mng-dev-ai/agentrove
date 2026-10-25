@@ -1,9 +1,8 @@
 import { useCallback, type RefObject } from 'react';
 import toast from 'react-hot-toast';
-import { useQueryClient } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
 import { fetchAutoSteerQueuedMessages } from '@/hooks/queries/useSettingsQueries';
-import { useSendQueuedMessageNow } from '@/hooks/useSendQueuedMessageNow';
-import { useMessageQueueStore } from '@/store/messageQueueStore';
+import { sendQueuedMessageNow, useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
 import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
@@ -70,9 +69,6 @@ export function useInputSubmit({
   handleMentionKeyDown,
   handleSlashCommandKeyDown,
 }: UseInputSubmitOptions) {
-  const queryClient = useQueryClient();
-  const sendQueuedMessageNow = useSendQueuedMessageNow();
-
   const handleSubmit = useCallback(
     (event: React.FormEvent) => {
       event.preventDefault();
@@ -159,8 +155,6 @@ export function useInputSubmit({
     }) as unknown as React.FormEvent;
     onSubmit(formEvent);
   }, [
-    queryClient,
-    sendQueuedMessageNow,
     disabled,
     hasContent,
     isLoading,

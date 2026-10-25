@@ -17,18 +17,16 @@ import { StatusTypewriter } from './StatusTypewriter';
 import { useChatScroll } from './useChatScroll';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { useStreamStore } from '@/store/streamStore';
-import { useMessageQueueStore, EMPTY_QUEUE } from '@/store/messageQueueStore';
+import { useMessageQueueStore, EMPTY_QUEUE, sendQueuedMessageNow } from '@/store/messageQueueStore';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useChatSessionContext } from '@/hooks/useChatSessionContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useUIStore } from '@/store/uiStore';
-import { useSendQueuedMessageNow } from '@/hooks/useSendQueuedMessageNow';
 import styles from './Chat.module.scss';
 
 export const Chat = memo(function Chat() {
   const { chatId } = useChatContext();
   const { state, actions } = useChatSessionContext();
-  const sendQueuedMessageNow = useSendQueuedMessageNow();
 
   const {
     messages,
@@ -120,7 +118,7 @@ export const Chat = memo(function Chat() {
     async (messageId: string) => {
       if (chatId) await sendQueuedMessageNow(chatId, messageId);
     },
-    [chatId, sendQueuedMessageNow],
+    [chatId],
   );
 
   const { lastBotMessage, latestUserMessageId } = useMemo(() => {

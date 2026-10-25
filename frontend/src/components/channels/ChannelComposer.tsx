@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import toast from 'react-hot-toast';
-import { useQueryClient } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryClient';
 import { AttachButton } from '@/components/chat/message-input/AttachButton';
 import { ComposerAttachmentSlots } from '@/components/chat/message-input/ComposerAttachmentSlots';
 import { ComposerField } from '@/components/chat/message-input/ComposerField';
@@ -43,7 +43,6 @@ export function ChannelComposer({
   draft,
   setDraft,
 }: ChannelComposerProps) {
-  const queryClient = useQueryClient();
   const [files, setFiles] = useState<File[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const draftRef = useRef(draft);
