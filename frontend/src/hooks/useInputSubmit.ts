@@ -1,6 +1,8 @@
 import { useCallback, type RefObject } from 'react';
 import toast from 'react-hot-toast';
-import { useMessageQueueStore } from '@/store/messageQueueStore';
+import { queryClient } from '@/lib/queryClient';
+import { fetchAutoSteerQueuedMessages } from '@/hooks/queries/useSettingsQueries';
+import { sendQueuedMessageNow, useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
 import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
@@ -109,15 +111,22 @@ export function useInputSubmit({
       const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
       const validPersona = resolvePersona(storedPersona, personas);
       const fullMessage = formatComposerSelections(attachedSelections, messageRef.current.trim());
-      void useMessageQueueStore.getState().queueMessage(chatId, fullMessage, selectedModelId, {
-        permissionMode,
-        thinkingMode,
-        worktree,
-        baseBranch,
-        fastMode,
-        selectedPersonaName: validPersona,
-        files: attachedFiles ?? undefined,
-      });
+      void useMessageQueueStore
+        .getState()
+        .queueMessage(chatId, fullMessage, selectedModelId, {
+          permissionMode,
+          thinkingMode,
+          worktree,
+          baseBranch,
+          fastMode,
+          selectedPersonaName: validPersona,
+          files: attachedFiles ?? undefined,
+        })
+        .then(async (messageId) => {
+          if (await fetchAutoSteerQueuedMessages(queryClient)) {
+            await sendQueuedMessageNow(chatId, messageId);
+          }
+        });
       setMessage('');
       onAttach?.([]);
       if (attachedSelections.length > 0) useUIStore.getState().clearComposerSelections(chatId);

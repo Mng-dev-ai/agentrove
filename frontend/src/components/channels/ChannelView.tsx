@@ -29,7 +29,11 @@ import {
   useChannelActivity,
   useChannelStore,
 } from '@/store/channelStore';
-import { EMPTY_QUEUE, useChannelQueueStore } from '@/store/messageQueueStore';
+import {
+  EMPTY_QUEUE,
+  sendChannelQueuedMessageNow,
+  useChannelQueueStore,
+} from '@/store/messageQueueStore';
 import { getAgentKindForModelId, type AgentKind } from '@/types/chat.types';
 import { formatFullTimestamp, formatRelativeTime } from '@/utils/date';
 import { executePermissionResponse } from '@/utils/permissionResponse';
@@ -269,10 +273,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
     [channel.id],
   );
   const handleSendQueuedNow = useCallback(
-    async (messageId: string) => {
-      const queue = useChannelQueueStore.getState();
-      if (await queue.sendNow(channel.id, messageId)) queue.removeLocalOnly(channel.id, messageId);
-    },
+    (messageId: string) => sendChannelQueuedMessageNow(channel.id, messageId),
     [channel.id],
   );
 
