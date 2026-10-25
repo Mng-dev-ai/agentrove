@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import toast from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { AttachButton } from '@/components/chat/message-input/AttachButton';
 import { ComposerAttachmentSlots } from '@/components/chat/message-input/ComposerAttachmentSlots';
 import { ComposerField } from '@/components/chat/message-input/ComposerField';
@@ -17,7 +18,8 @@ import {
   useStopChannelMutation,
 } from '@/hooks/queries/useChannelQueries';
 import { SelectionAttachments } from '@/components/chat/message-input/SelectionAttachments';
-import { useChannelQueueStore } from '@/store/messageQueueStore';
+import { fetchAutoSteerQueuedMessages } from '@/hooks/queries/useSettingsQueries';
+import { sendChannelQueuedMessageNow, useChannelQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
 import type { Channel } from '@/types/channel.types';
@@ -41,6 +43,7 @@ export function ChannelComposer({
   draft,
   setDraft,
 }: ChannelComposerProps) {
+  const queryClient = useQueryClient();
   const [files, setFiles] = useState<File[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const draftRef = useRef(draft);
@@ -91,9 +94,13 @@ export function ChannelComposer({
     useUIStore.getState().clearComposerSelections(channel.anchor_chat_id);
     onSend();
     try {
-      // Queued messages are sent once every member is idle, without interrupting anyone.
       if (isBusy) {
-        await useChannelQueueStore.getState().queueMessage(channel.id, content, sentFiles);
+        const messageId = await useChannelQueueStore
+          .getState()
+          .queueMessage(channel.id, content, sentFiles);
+        if (await fetchAutoSteerQueuedMessages(queryClient)) {
+          await sendChannelQueuedMessageNow(channel.id, messageId);
+        }
         // The send event can beat the enqueue response and miss the temp id.
         void useChannelQueueStore.getState().fetchQueue(channel.id);
       } else {

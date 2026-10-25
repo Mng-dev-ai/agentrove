@@ -269,3 +269,8 @@ export const useChannelQueueStore = createQueueStore<[files: File[]]>({
   sendNow: channelService.sendQueuedNow,
   filesOf: (files) => files,
 });
+
+export async function sendChannelQueuedMessageNow(channelId: string, messageId: string) {
+  const queue = useChannelQueueStore.getState();
+  if (await queue.sendNow(channelId, messageId)) queue.removeLocalOnly(channelId, messageId);
+}

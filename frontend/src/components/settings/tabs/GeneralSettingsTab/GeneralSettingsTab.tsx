@@ -150,8 +150,8 @@ export function GeneralSettingsTab({
             <div className={styles['pref-text']}>
               <h3 className={styles['setting-title']}>Auto-steer queued messages</h3>
               <p className={styles['field-desc']}>
-                Send messages typed while the agent is working immediately instead of queuing them
-                until it finishes.
+                Send messages typed while agents are working immediately instead of queuing them
+                until they finish.
               </p>
             </div>
             <Switch
