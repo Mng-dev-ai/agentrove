@@ -38,3 +38,4 @@ class QueuedChannelMessage(QueueMessageContent):
 class QueueAddResponse(BaseModel):
     id: UUID
     queued_at: datetime
+    send_now_failed: bool = False

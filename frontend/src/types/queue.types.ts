@@ -38,6 +38,7 @@ export interface QueuedMessage extends QueuedItem {
 
 export interface QueueAddResponse {
   id: string;
+  send_now_failed: boolean;
 }
 
 export interface LocalQueuedMessage {

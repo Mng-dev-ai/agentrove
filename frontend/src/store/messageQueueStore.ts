@@ -27,7 +27,7 @@ interface QueueApi<AddArgs extends unknown[]> {
 
 interface MessageQueueState<AddArgs extends unknown[]> {
   queues: Map<string, LocalQueuedMessage[]>;
-  queueMessage: (chatId: string, content: string, ...args: AddArgs) => Promise<string>;
+  queueMessage: (chatId: string, content: string, ...args: AddArgs) => Promise<QueueAddResponse>;
   updateQueuedMessage: (chatId: string, messageId: string, content: string) => Promise<void>;
   removeMessage: (chatId: string, messageId: string) => Promise<void>;
   getQueue: (chatId: string) => LocalQueuedMessage[];
@@ -44,7 +44,11 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
   create<MessageQueueState<AddArgs>>((set, get) => ({
     queues: new Map<string, LocalQueuedMessage[]>(),
 
-    queueMessage: async (chatId: string, content: string, ...args: AddArgs): Promise<string> => {
+    queueMessage: async (
+      chatId: string,
+      content: string,
+      ...args: AddArgs
+    ): Promise<QueueAddResponse> => {
       const sendNow = api.sendNowOf(...args);
       const tempId = crypto.randomUUID();
       const tempMessage: LocalQueuedMessage = {
@@ -67,7 +71,7 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
       try {
         const result = await api.queueMessage(chatId, content, ...args);
 
-        if (sendNow) return result.id;
+        if (sendNow) return result;
 
         set((state) => {
           const nextQueues = new Map(state.queues);
@@ -79,7 +83,7 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
           return { queues: nextQueues };
         });
 
-        return result.id;
+        return result;
       } catch (error) {
         if (!(error instanceof NetworkError)) {
           get().removeLocalOnly(chatId, tempId);
@@ -93,7 +97,7 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
             return { queues: nextQueues };
           });
         }
-        return tempId;
+        return { id: tempId, send_now_failed: false };
       }
     },
 

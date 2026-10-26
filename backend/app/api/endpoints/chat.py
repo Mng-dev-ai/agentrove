@@ -730,6 +730,7 @@ async def queue_message(
                 chat_id, response.id, chat_service, queue_service
             )
         except Exception:
+            response.send_now_failed = True
             logger.exception(
                 "Failed to send newly queued message %s for chat %s",
                 response.id,

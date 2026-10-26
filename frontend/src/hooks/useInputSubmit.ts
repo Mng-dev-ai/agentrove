@@ -116,17 +116,19 @@ export function useInputSubmit({
       const fullMessage = formatComposerSelections(attachedSelections, text.trim());
       void fetchAutoSteerQueuedMessages(queryClient)
         .then(async (sendNow) => {
-          await useMessageQueueStore.getState().queueMessage(chatId, fullMessage, selectedModelId, {
-            permissionMode,
-            thinkingMode,
-            worktree,
-            baseBranch,
-            fastMode,
-            selectedPersonaName: validPersona,
-            files: attachedFiles ?? undefined,
-            sendNow,
-          });
-          if (sendNow) {
+          const result = await useMessageQueueStore
+            .getState()
+            .queueMessage(chatId, fullMessage, selectedModelId, {
+              permissionMode,
+              thinkingMode,
+              worktree,
+              baseBranch,
+              fastMode,
+              selectedPersonaName: validPersona,
+              files: attachedFiles ?? undefined,
+              sendNow,
+            });
+          if (result.send_now_failed) {
             void useMessageQueueStore.getState().fetchQueue(chatId);
           }
           if (sendNow && !useStreamStore.getState().getStreamByChat(chatId)) {

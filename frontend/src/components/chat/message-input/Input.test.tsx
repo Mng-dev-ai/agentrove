@@ -3,12 +3,15 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Input, type InputProps } from './Input';
+import type { QueueAddResponse } from '@/types/queue.types';
 
 // The composer's send/queue decision lives in the real useInputSubmit hook,
 // which Input wires up through InputProvider. Keep that hook real and mock only
 // the surrounding data sources so the test exercises the actual dispatch logic.
 const mocks = vi.hoisted(() => ({
-  queueMessage: vi.fn<(...args: unknown[]) => Promise<string>>(() => Promise.resolve('queued-id')),
+  queueMessage: vi.fn<(...args: unknown[]) => Promise<QueueAddResponse>>(() =>
+    Promise.resolve({ id: 'queued-id', send_now_failed: false }),
+  ),
   clearComposerSelections: vi.fn(),
   removeComposerSelection: vi.fn(),
   toastError: vi.fn(),

@@ -95,9 +95,13 @@ export function ChannelComposer({
     try {
       if (isBusy) {
         const sendNow = await fetchAutoSteerQueuedMessages(queryClient);
-        await useChannelQueueStore.getState().queueMessage(channel.id, content, sentFiles, sendNow);
+        const result = await useChannelQueueStore
+          .getState()
+          .queueMessage(channel.id, content, sentFiles, sendNow);
         // The send event can beat the enqueue response and miss the temp id.
-        void useChannelQueueStore.getState().fetchQueue(channel.id);
+        if (!sendNow || result.send_now_failed) {
+          void useChannelQueueStore.getState().fetchQueue(channel.id);
+        }
       } else {
         await postMessage.mutateAsync({ channelId: channel.id, content, files: sentFiles });
       }

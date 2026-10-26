@@ -4,9 +4,12 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ComposerSelection } from '@/store/uiStore';
 import type { AgentKind } from '@/types/chat.types';
+import type { QueueAddResponse } from '@/types/queue.types';
 
 const h = vi.hoisted(() => ({
-  queueMessage: vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve()),
+  queueMessage: vi.fn<(...args: unknown[]) => Promise<QueueAddResponse>>(() =>
+    Promise.resolve({ id: 'queued-id', send_now_failed: false }),
+  ),
   clearComposerSelections: vi.fn(),
   removeComposerSelection: vi.fn(),
   toastError: vi.fn(),

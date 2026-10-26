@@ -130,6 +130,7 @@ async def queue_message(
         try:
             await channel_service.send_queued_now(channel, queue_service, response.id)
         except Exception:
+            response.send_now_failed = True
             logger.exception(
                 "Failed to send newly queued message %s for channel %s",
                 response.id,
