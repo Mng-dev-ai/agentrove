@@ -134,6 +134,12 @@ export function Sidebar({
   const hasVisibleContent = visiblePinnedChats.length > 0 || visibleRecentChats.length > 0;
 
   const groupBy = filters.groupBy;
+  const showWorkspaceBadges = useMemo(
+    () =>
+      new Set([...visiblePinnedChats, ...visibleRecentChats].map((chat) => chat.workspace_id))
+        .size > 1,
+    [visiblePinnedChats, visibleRecentChats],
+  );
   const recentChatSections = useMemo(
     () =>
       buildRecentChatSections({
@@ -191,11 +197,11 @@ export function Sidebar({
     blockedChatIdSet,
     completedChatIdSet: completedChatIds,
     workspaceBadgeById,
+    showWorkspaceBadges,
     onChatSelect: chatActions.handleChatSelect,
     onOpenInSplit: chatActions.showSplitAffordance ? chatActions.handleOpenInSplit : undefined,
     canOpenChatInSplit: chatActions.canOpenChatInSplit,
     onDropdownClick: chatActions.handleDropdownClick,
-    onWorkspaceBadgeClick: workspaceActions.handleWorkspaceContextMenu,
     onMouseEnter: chatActions.handleChatMouseEnter,
     onMouseLeave: chatActions.handleChatMouseLeave,
     expandedSubThreads: chatActions.expandedSubThreads,
@@ -210,15 +216,17 @@ export function Sidebar({
       >
         <SidebarActions onNewChat={handleNewChat} onOpenSearch={handleOpenSearch} />
 
-        <SidebarChannels
-          workspaces={workspaces}
-          workspaceId={selectedChatWorkspaceId ?? undefined}
-          filterWorkspaceId={filters.workspaceId}
-          selectedChannelId={selectedChannelId}
-        />
-
         <SidebarChatList
           scrollContainerRef={scrollContainerRef}
+          channels={
+            <SidebarChannels
+              workspaces={workspaces}
+              workspaceId={selectedChatWorkspaceId ?? undefined}
+              filterWorkspaceId={filters.workspaceId}
+              selectedChannelId={selectedChannelId}
+              scrollContainerRef={scrollContainerRef}
+            />
+          }
           isLoadingChats={isLoadingChats}
           hasAnyContent={hasAnyContent}
           visiblePinnedChats={visiblePinnedChats}

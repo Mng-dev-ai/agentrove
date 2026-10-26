@@ -2,10 +2,7 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .channels {
-  flex-shrink: 0;
-  max-height: 30%;
-  overflow-y: auto;
-  padding-inline: var(--space-6);
+  margin-bottom: var(--space-1);
 }
 
 .new-btn {
@@ -25,8 +22,4 @@
 .new-icon {
   height: var(--space-3-5);
   width: var(--space-3-5);
-}
-
-.list {
-  margin-bottom: var(--space-1);
 }

@@ -1,5 +1,5 @@
 import { memo, type Ref } from 'react';
-import { Edit2, Trash2, Pin, PinOff, SplitSquareHorizontal } from 'lucide-react';
+import { Edit2, Folder, Trash2, Pin, PinOff, SplitSquareHorizontal } from 'lucide-react';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import type { Chat } from '@/types/chat.types';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
@@ -12,6 +12,7 @@ interface ChatDropdownProps {
   onRename: (chat: Chat) => void;
   onDelete: (chatId: string) => void;
   onTogglePin: (chat: Chat) => void;
+  onWorkspaceOptions: (chat: Chat) => void;
   onOpenInSplit?: (chatId: string) => void;
   splitDisabled?: boolean;
   onClose?: () => void;
@@ -24,6 +25,7 @@ export const ChatDropdown = memo(function ChatDropdown({
   onRename,
   onDelete,
   onTogglePin,
+  onWorkspaceOptions,
   onOpenInSplit,
   splitDisabled = false,
   onClose,
@@ -52,6 +54,9 @@ export const ChatDropdown = memo(function ChatDropdown({
           </SidebarMenuItem>
         </FloatingTooltip>
       )}
+      <SidebarMenuItem icon={Folder} onClick={() => onWorkspaceOptions(chat)}>
+        Workspace…
+      </SidebarMenuItem>
       <SidebarMenuItem icon={Edit2} onClick={() => onRename(chat)}>
         Rename
       </SidebarMenuItem>

@@ -29,7 +29,6 @@ interface SidebarChatItemProps {
   onOpenInSplit?: (chatId: string) => void;
   canOpenInSplit?: boolean;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
-  onWorkspaceBadgeClick: (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => void;
   onMouseEnter: (chatId: string) => void;
   onMouseLeave: () => void;
   onToggleSubThreads?: (chatId: string) => void;
@@ -50,7 +49,6 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   onOpenInSplit,
   canOpenInSplit = false,
   onDropdownClick,
-  onWorkspaceBadgeClick,
   onMouseEnter,
   onMouseLeave,
   onToggleSubThreads,
@@ -88,7 +86,13 @@ export const SidebarChatItem = memo(function SidebarChatItem({
       {showSpinner ? (
         <AsciiSpinner className={styles['item-spinner']} />
       ) : agentKind ? (
-        <ProviderIcon agentKind={agentKind} className={styles['provider-icon']} />
+        <ProviderIcon
+          agentKind={agentKind}
+          className={clsx(
+            styles['provider-icon'],
+            !isHovered && !isActive && !status && styles['provider-icon--muted'],
+          )}
+        />
       ) : null}
       {statusTone && (
         <ChatStatusDot
@@ -175,14 +179,8 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         </FloatingTooltip>
       }
       subtitle={
-        // Badge opens workspace menu (flat list has no group headers for those actions).
         workspaceBadge && (
-          <Button
-            variant="unstyled"
-            type="button"
-            data-ws-dropdown-trigger
-            onClick={(e) => onWorkspaceBadgeClick(e, chat.workspace_id)}
-            aria-label={`${workspaceBadge.name} workspace options`}
+          <span
             className={clsx(
               styles['workspace-badge'],
               hasLeadingSlot && styles['workspace-badge--indented'],
@@ -190,7 +188,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           >
             {workspaceBadge.isCloud && <Cloud className={styles['cloud-icon']} />}
             <span className={styles['workspace-name']}>{workspaceBadge.name}</span>
-          </Button>
+          </span>
         )
       }
       timestamp={getRelativeTime(chat.updated_at)}

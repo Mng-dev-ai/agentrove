@@ -65,17 +65,17 @@ export function SidebarChannelItem({
         )
       }
       title={
-        <SidebarRowTitle
-          label={channel.name}
-          isEmphasized={isActive}
-          isCurrent={isActive}
-          onClick={() => onSelect(channel.id)}
-        />
-      }
-      subtitle={
-        <span className={styles.members}>
-          {channel.members.map((member) => member.display_name).join(', ')}
-        </span>
+        <FloatingTooltip
+          content={channel.members.map((member) => member.display_name).join(', ')}
+          className={styles['title-tooltip']}
+        >
+          <SidebarRowTitle
+            label={channel.name}
+            isEmphasized={isActive}
+            isCurrent={isActive}
+            onClick={() => onSelect(channel.id)}
+          />
+        </FloatingTooltip>
       }
       timestamp={getRelativeTime(channel.updated_at)}
       dropdownLabel="Channel options"

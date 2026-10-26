@@ -19,16 +19,6 @@
   margin-bottom: var(--space-1);
 }
 
-.section-header {
-  padding-top: var(--space-2-5);
-  padding-bottom: var(--space-2);
-}
-
-.section-title {
-  @include type.type-meta;
-  color: var(--theme-text-quaternary);
-}
-
 .group-label {
   @include type.type-meta;
   @include type.type-overflow;

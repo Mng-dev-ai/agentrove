@@ -12,7 +12,7 @@ import {
 } from '@/hooks/queries/useCloudQueries';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore } from '@/store/uiStore';
-import { mutateWithToast, calculateDropdownPosition } from './sidebarHelpers';
+import { mutateWithToast } from './sidebarHelpers';
 
 interface UseSidebarWorkspaceActionsParams {
   selectedChatId: string | null;
@@ -57,8 +57,7 @@ export function useSidebarWorkspaceActions({
     const handleClickOutside = (event: MouseEvent) => {
       if (
         workspaceDropdownRef.current &&
-        !workspaceDropdownRef.current.contains(event.target as Node) &&
-        !(event.target as HTMLElement).closest('[data-ws-dropdown-trigger]')
+        !workspaceDropdownRef.current.contains(event.target as Node)
       ) {
         setWorkspaceDropdown(null);
       }
@@ -84,8 +83,7 @@ export function useSidebarWorkspaceActions({
   });
 
   const handleNewWorkspaceThread = useCallback(
-    (e: React.MouseEvent, workspaceId: string) => {
-      e.stopPropagation();
+    (workspaceId: string) => {
       navigate('/', { state: { workspaceId } });
       if (isMobile) {
         useUIStore.getState().setSidebarOpen(false);
@@ -95,8 +93,7 @@ export function useSidebarWorkspaceActions({
   );
 
   const handleNewCloudThread = useCallback(
-    (e: React.MouseEvent, workspaceId: string) => {
-      e.stopPropagation();
+    (workspaceId: string) => {
       // Landing composer flips to cloud and preselects this VPS workspace.
       navigate('/', { state: { cloudWorkspaceId: workspaceId } });
       if (isMobile) {
@@ -106,16 +103,10 @@ export function useSidebarWorkspaceActions({
     [navigate, isMobile],
   );
 
-  const handleWorkspaceContextMenu = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => {
-      e.stopPropagation();
-      const rect = e.currentTarget.getBoundingClientRect();
+  const openWorkspaceMenu = useCallback(
+    (workspaceId: string, position: { top: number; left: number }) => {
       const isCloud = workspaceBadgeById.get(workspaceId)?.isCloud ?? false;
-      setWorkspaceDropdown((prev) => {
-        if (prev?.workspaceId === workspaceId) return null;
-        const position = calculateDropdownPosition(rect);
-        return { workspaceId, isCloud, position };
-      });
+      setWorkspaceDropdown({ workspaceId, isCloud, position });
     },
     [workspaceBadgeById],
   );
@@ -190,7 +181,7 @@ export function useSidebarWorkspaceActions({
     cloudUpdateWorkspace,
     handleNewWorkspaceThread,
     handleNewCloudThread,
-    handleWorkspaceContextMenu,
+    openWorkspaceMenu,
     handleRenameWorkspace,
     handleSaveWorkspaceRename,
     handleDeleteWorkspace,
