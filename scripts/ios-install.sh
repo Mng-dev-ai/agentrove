@@ -28,6 +28,15 @@ DEVICE_ID="$(xcrun devicectl list devices 2>/dev/null \
 
 APP_ID="$APPLE_DEVELOPMENT_TEAM.$(plutil -extract identifier raw "$FRONTEND_DIR/src-tauri/tauri.conf.json")"
 
+# Push needs the aps-environment entitlement, which free (personal) teams can't sign, so it's
+# opt-in. Set or clear it on every run so the entitlements file always matches this build.
+ENTITLEMENTS="$FRONTEND_DIR/src-tauri/gen/apple/agentrove-desktop_iOS/agentrove-desktop_iOS.entitlements"
+if [ "${AGENTROVE_IOS_PUSH:-}" = "1" ]; then
+  plutil -replace aps-environment -string development "$ENTITLEMENTS"
+else
+  plutil -remove aps-environment "$ENTITLEMENTS" 2>/dev/null || true
+fi
+
 has_device_profile() {
   local now f p
   now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -37,6 +46,10 @@ has_device_profile() {
     [ -f "$f" ] && security cms -D -i "$f" >"$p" 2>/dev/null || continue
     [ "$(plutil -extract Entitlements.application-identifier raw "$p" 2>/dev/null)" = "$APP_ID" ] || continue
     [[ "$(plutil -extract ExpirationDate raw "$p")" > "$now" ]] || continue
+    # A profile made before push was enabled lacks the entitlement and can't sign a push build.
+    if [ "${AGENTROVE_IOS_PUSH:-}" = "1" ]; then
+      plutil -extract Entitlements.aps-environment raw "$p" >/dev/null 2>&1 || continue
+    fi
     plutil -extract ProvisionedDevices xml1 -o - "$p" 2>/dev/null | grep -q "<string>$DEVICE_ID</string>" \
       && { rm -f "$p"; return 0; }
   done
@@ -55,15 +68,6 @@ if ! has_device_profile; then
     -allowProvisioningUpdates -allowProvisioningDeviceRegistration \
     DEVELOPMENT_TEAM="$APPLE_DEVELOPMENT_TEAM" >"$REGISTER_LOG" 2>&1 || true
   has_device_profile || { grep -E 'error:' "$REGISTER_LOG" >&2; echo "error: device registration failed (full log: $REGISTER_LOG)" >&2; exit 1; }
-fi
-
-# Push needs the aps-environment entitlement, which free (personal) teams can't sign, so it's
-# opt-in. Set or clear it on every run so the entitlements file always matches this build.
-ENTITLEMENTS="$FRONTEND_DIR/src-tauri/gen/apple/agentrove-desktop_iOS/agentrove-desktop_iOS.entitlements"
-if [ "${AGENTROVE_IOS_PUSH:-}" = "1" ]; then
-  plutil -replace aps-environment -string development "$ENTITLEMENTS"
-else
-  plutil -remove aps-environment "$ENTITLEMENTS" 2>/dev/null || true
 fi
 
 # Build + sign + export a standalone IPA.

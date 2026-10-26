@@ -6,10 +6,8 @@ import { isMobileApp } from '@/utils/platform';
 import { registerPushDevice } from '@/utils/push';
 import { logger } from '@/utils/logger';
 
-interface PushRegistration {
-  token: string;
-  sandbox: boolean;
-}
+// token is null when the user declined notifications.
+type PushRegistration = { token: string; sandbox: boolean } | { token: null };
 
 // iOS shell only: register this phone for APNs and open the chat a tapped push points at.
 export function usePushNotifications(enabled: boolean): void {
@@ -23,10 +21,11 @@ export function usePushNotifications(enabled: boolean): void {
     // The OS permission prompt can outlive a logout; don't register after it.
     let cancelled = false;
     invoke<PushRegistration>('plugin:push|register')
-      .then(({ token, sandbox }) => {
-        if (!cancelled) return registerPushDevice(token, sandbox);
+      .then((registration) => {
+        if (cancelled || registration.token === null) return;
+        return registerPushDevice(registration.token, registration.sandbox);
       })
-      .catch((error) => logger.debug('Push registration failed', 'push', error));
+      .catch((error) => logger.warn('Push registration failed', 'push', error));
     return () => {
       cancelled = true;
     };

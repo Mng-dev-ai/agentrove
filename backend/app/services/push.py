@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from datetime import datetime, timedelta, timezone
@@ -35,6 +36,8 @@ SEND_BATCH_SIZE = 100
 
 class PushService:
     _provider_token: tuple[str, float] | None = None
+    # Set on enqueue to wake the maintenance sender before its next poll.
+    wake = asyncio.Event()
 
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         self.session_factory = session_factory or SessionLocal
@@ -167,10 +170,15 @@ class PushService:
                 await db.commit()
         except Exception:
             logger.exception("Failed to enqueue push %s", event_key)
+            return
+        PushService.wake.set()
 
     async def send_due(self) -> dict[str, Any]:
         if not self.enabled():
             return {}
+        # Fail on a bad key before claiming anything, so queued deliveries stay
+        # pending until the configuration is fixed instead of burning attempts.
+        self._get_provider_token()
         now = datetime.now(timezone.utc)
         async with self.session_factory() as db:
             # Sent rows stay until expiry so a re-enqueued event still dedups.
