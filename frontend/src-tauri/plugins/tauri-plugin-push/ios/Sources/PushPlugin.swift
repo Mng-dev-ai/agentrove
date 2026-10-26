@@ -25,12 +25,20 @@ class PushPlugin: Plugin, UNUserNotificationCenterDelegate {
     let center = UNUserNotificationCenter.current()
     localDelegate = center.delegate
     center.delegate = self
-    hooksInstalled = PushPlugin.installAppDelegateHooks()
   }
 
   @objc func register(_ invoke: Invoke) {
+    DispatchQueue.main.async { self.requestRegistration(invoke) }
+  }
+
+  private func requestRegistration(_ invoke: Invoke) {
+    // Plugins load before UIApplicationMain creates the app delegate, so the
+    // token callbacks can only be added once the app is running.
+    if !hooksInstalled {
+      hooksInstalled = PushPlugin.installAppDelegateHooks()
+    }
     guard hooksInstalled else {
-      invoke.reject("App delegate already implements remote notification registration")
+      invoke.reject("Could not add remote notification callbacks to the app delegate")
       return
     }
     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) {
@@ -110,7 +118,8 @@ class PushPlugin: Plugin, UNUserNotificationCenterDelegate {
   }
 
   // Adds (never replaces) the token callbacks on tao's app delegate class, which
-  // doesn't implement them. Returns false if something else already does.
+  // doesn't implement them. Returns false if there's no delegate yet or something
+  // else already implements them.
   private static func installAppDelegateHooks() -> Bool {
     guard let delegate = UIApplication.shared.delegate else { return false }
     let cls: AnyClass = type(of: delegate)
