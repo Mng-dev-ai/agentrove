@@ -37,6 +37,15 @@ has_more is true to read the full history).
 """
 
 
+FILE_ATTACHMENT_INSTRUCTIONS = """
+<file_attachment_instructions>
+The user cannot see files you create on disk (e.g. screenshots in /tmp). To show the
+user a screenshot or other output image, PDF, or XLSX file, call the agentrove MCP
+attach_file tool with its path; it is shown in the chat with your response.
+</file_attachment_instructions>
+"""
+
+
 DEFAULT_PERSONA_NAME = "Default"
 
 
@@ -68,4 +77,4 @@ def build_system_prompt_for_chat(
     if channel_member:
         return persona_content
 
-    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"
+    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{FILE_ATTACHMENT_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"

@@ -91,22 +91,37 @@ class MessageService(BaseDbService[Message]):
 
             if attachments:
                 for attachment_data in attachments:
-                    attachment = MessageAttachment(
-                        message_id=message.id,
-                        file_url=attachment_data["file_url"],
-                        file_path=attachment_data.get("file_path"),
-                        file_type=attachment_data["file_type"],
-                        filename=attachment_data.get("filename"),
-                    )
-                    db.add(attachment)
-                    await db.flush()
-
-                    attachment.file_url = AttachmentURL.build_preview_url(attachment.id)
+                    await self._add_attachment(db, message.id, attachment_data)
 
                 await db.commit()
                 await db.refresh(message, ["attachments"])
 
             return message
+
+    async def create_attachment(
+        self, message_id: UUID, attachment_data: MessageAttachmentDict
+    ) -> MessageAttachment:
+        async with self.session_factory() as db:
+            attachment = await self._add_attachment(db, message_id, attachment_data)
+            await db.commit()
+            await db.refresh(attachment)
+            return attachment
+
+    @staticmethod
+    async def _add_attachment(
+        db: AsyncSession, message_id: UUID, attachment_data: MessageAttachmentDict
+    ) -> MessageAttachment:
+        attachment = MessageAttachment(
+            message_id=message_id,
+            file_url=attachment_data["file_url"],
+            file_path=attachment_data.get("file_path"),
+            file_type=attachment_data["file_type"],
+            filename=attachment_data.get("filename"),
+        )
+        db.add(attachment)
+        await db.flush()
+        attachment.file_url = AttachmentURL.build_preview_url(attachment.id)
+        return attachment
 
     async def get_message(self, message_id: UUID) -> Message | None:
         async with self.session_factory() as db:

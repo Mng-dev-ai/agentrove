@@ -137,8 +137,8 @@ async def get_current_chat() -> dict[str, Any]:
 async def attach_file(path: str) -> dict[str, Any]:
     """Attach a local file to the current assistant message for the user to view or download.
 
-    Use this for screenshots, PDFs, and other output files the user should see.
-    Accepts an absolute path (including /tmp) or a path relative to the server's
+    Use this for screenshots and other output files the user should see. Supported
+    types: PNG, JPEG, GIF, WebP, PDF and XLSX, up to 5 MB. Accepts an absolute path (including /tmp) or a path relative to the server's
     working directory. The file is copied into chat storage and remains available
     after the sandbox is deleted. Requires an active turn in an AgentRove chat.
     """
