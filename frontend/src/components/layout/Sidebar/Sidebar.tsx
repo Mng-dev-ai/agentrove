@@ -202,7 +202,6 @@ export function Sidebar({
     onOpenInSplit: chatActions.showSplitAffordance ? chatActions.handleOpenInSplit : undefined,
     canOpenChatInSplit: chatActions.canOpenChatInSplit,
     onDropdownClick: chatActions.handleDropdownClick,
-    onWorkspaceBadgeClick: workspaceActions.handleWorkspaceContextMenu,
     onMouseEnter: chatActions.handleChatMouseEnter,
     onMouseLeave: chatActions.handleChatMouseLeave,
     expandedSubThreads: chatActions.expandedSubThreads,

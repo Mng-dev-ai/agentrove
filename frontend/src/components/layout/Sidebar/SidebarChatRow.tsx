@@ -19,7 +19,6 @@ export interface ChatRowProps {
   onOpenInSplit?: (chatId: string) => void;
   canOpenChatInSplit: (chatId: string) => boolean;
   onDropdownClick: (e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => void;
-  onWorkspaceBadgeClick: (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => void;
   onMouseEnter: (chatId: string) => void;
   onMouseLeave: () => void;
   expandedSubThreads: Set<string>;
@@ -41,7 +40,6 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
     onOpenInSplit,
     canOpenChatInSplit,
     onDropdownClick,
-    onWorkspaceBadgeClick,
     onMouseEnter,
     onMouseLeave,
     expandedSubThreads,
@@ -65,7 +63,6 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
         onOpenInSplit={onOpenInSplit}
         canOpenInSplit={canOpenChatInSplit(chat.id)}
         onDropdownClick={onDropdownClick}
-        onWorkspaceBadgeClick={onWorkspaceBadgeClick}
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onToggleSubThreads={hasSubThreads ? onToggleSubThreads : undefined}

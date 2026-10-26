@@ -94,17 +94,12 @@
 
 .workspace-badge {
   @include type.type-meta(500);
-  @include anim.transition-colors;
   display: flex;
   max-width: 100%;
   align-items: center;
   gap: var(--space-1);
   align-self: flex-start;
   color: var(--theme-text-quaternary);
-
-  @include responsive.hover {
-    color: var(--theme-text-primary);
-  }
 
   // pl-5 (icon 14px + gap 6px) indents the name under the title, not the icon
   &--indented {

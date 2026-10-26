@@ -12,7 +12,7 @@ import {
 } from '@/hooks/queries/useCloudQueries';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore } from '@/store/uiStore';
-import { mutateWithToast, calculateDropdownPosition } from './sidebarHelpers';
+import { mutateWithToast } from './sidebarHelpers';
 
 interface UseSidebarWorkspaceActionsParams {
   selectedChatId: string | null;
@@ -57,8 +57,7 @@ export function useSidebarWorkspaceActions({
     const handleClickOutside = (event: MouseEvent) => {
       if (
         workspaceDropdownRef.current &&
-        !workspaceDropdownRef.current.contains(event.target as Node) &&
-        !(event.target as HTMLElement).closest('[data-ws-dropdown-trigger]')
+        !workspaceDropdownRef.current.contains(event.target as Node)
       ) {
         setWorkspaceDropdown(null);
       }
@@ -102,20 +101,6 @@ export function useSidebarWorkspaceActions({
       }
     },
     [navigate, isMobile],
-  );
-
-  const handleWorkspaceContextMenu = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>, workspaceId: string) => {
-      e.stopPropagation();
-      const rect = e.currentTarget.getBoundingClientRect();
-      const isCloud = workspaceBadgeById.get(workspaceId)?.isCloud ?? false;
-      setWorkspaceDropdown((prev) => {
-        if (prev?.workspaceId === workspaceId) return null;
-        const position = calculateDropdownPosition(rect);
-        return { workspaceId, isCloud, position };
-      });
-    },
-    [workspaceBadgeById],
   );
 
   const openWorkspaceMenu = useCallback(
@@ -196,7 +181,6 @@ export function useSidebarWorkspaceActions({
     cloudUpdateWorkspace,
     handleNewWorkspaceThread,
     handleNewCloudThread,
-    handleWorkspaceContextMenu,
     openWorkspaceMenu,
     handleRenameWorkspace,
     handleSaveWorkspaceRename,
