@@ -32,6 +32,8 @@ class MaintenanceJob:
     name: str
     interval_seconds: float
     run: Callable[[], Awaitable[dict[str, Any]]]
+    # Lets producers run the job before its interval elapses; signals coalesce.
+    wake: asyncio.Event | None = None
 
 
 class MaintenanceService:
@@ -77,6 +79,7 @@ class MaintenanceService:
             name="push_send",
             interval_seconds=SEND_INTERVAL_SECONDS,
             run=PushService().send_due,
+            wake=PushService.wake,
         )
 
     def _idle_session_cleanup_job(self) -> MaintenanceJob:
@@ -95,6 +98,9 @@ class MaintenanceService:
 
     async def _run_job_loop(self, job: MaintenanceJob) -> None:
         while not self._stop_event.is_set():
+            # Cleared before running so a signal raised during the run isn't lost.
+            if job.wake is not None:
+                job.wake.clear()
             try:
                 result = await job.run()
                 if result.get("error"):
@@ -103,11 +109,13 @@ class MaintenanceService:
                     )
             except Exception:
                 logger.exception("Maintenance job %s crashed", job.name)
-            # Interval sleep; wake immediately on shutdown.
-            try:
-                await asyncio.wait_for(
-                    self._stop_event.wait(),
-                    timeout=job.interval_seconds,
-                )
-            except asyncio.TimeoutError:
-                continue
+            # Interval sleep; wake immediately on shutdown or the job's signal.
+            events = [self._stop_event] + ([job.wake] if job.wake is not None else [])
+            waiters = [asyncio.create_task(event.wait()) for event in events]
+            await asyncio.wait(
+                waiters,
+                timeout=job.interval_seconds,
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for waiter in waiters:
+                waiter.cancel()
