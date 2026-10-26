@@ -40,10 +40,10 @@ beforeEach(() => {
 
 describe('queueMessage', () => {
   it('optimistically adds a message, then swaps in the server id and marks it synced', async () => {
-    svc.queueMessage.mockResolvedValue({ id: 'server-1' });
+    svc.queueMessage.mockResolvedValue({ id: 'server-1', send_now_failed: false });
     const returned = await useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5');
 
-    expect(returned).toBe('server-1');
+    expect(returned).toEqual({ id: 'server-1', send_now_failed: false });
     const queue = queueOf('c1');
     expect(queue).toHaveLength(1);
     expect(queue[0]).toMatchObject({
@@ -59,7 +59,7 @@ describe('queueMessage', () => {
 
     const queue = queueOf('c1');
     expect(queue).toHaveLength(1);
-    expect(queue[0].id).toBe(returned);
+    expect(queue[0].id).toBe(returned.id);
     expect(queue[0].synced).toBe(false);
   });
 

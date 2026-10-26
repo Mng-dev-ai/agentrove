@@ -4,9 +4,12 @@ import { renderHook, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ComposerSelection } from '@/store/uiStore';
 import type { AgentKind } from '@/types/chat.types';
+import type { QueueAddResponse } from '@/types/queue.types';
 
 const h = vi.hoisted(() => ({
-  queueMessage: vi.fn<(...args: unknown[]) => Promise<void>>(() => Promise.resolve()),
+  queueMessage: vi.fn<(...args: unknown[]) => Promise<QueueAddResponse>>(() =>
+    Promise.resolve({ id: 'queued-id', send_now_failed: false }),
+  ),
   clearComposerSelections: vi.fn(),
   removeComposerSelection: vi.fn(),
   toastError: vi.fn(),
@@ -20,6 +23,9 @@ const h = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/hooks/queries/useSettingsQueries', () => ({
+  fetchAutoSteerQueuedMessages: () => Promise.resolve(false),
+}));
 vi.mock('react-hot-toast', () => ({ default: { error: h.toastError } }));
 vi.mock('@/store/messageQueueStore', () => ({
   useMessageQueueStore: { getState: () => ({ queueMessage: h.queueMessage }) },
@@ -130,10 +136,10 @@ describe('useInputSubmit — submitOrStop stop paths', () => {
 });
 
 describe('useInputSubmit — submitOrStop queue path', () => {
-  it('queues the message, clears the draft, and dismisses the preview', () => {
+  it('queues the message, clears the draft, and dismisses the preview', async () => {
     const opts = makeOptions({ isStreaming: true, hasContent: true });
     const { result } = renderHook(() => useInputSubmit(opts));
-    act(() => result.current.submitOrStop());
+    await act(async () => result.current.submitOrStop());
 
     expect(h.queueMessage).toHaveBeenCalledTimes(1);
     const [chatId, message, modelId] = h.queueMessage.mock.calls[0];
@@ -145,12 +151,12 @@ describe('useInputSubmit — submitOrStop queue path', () => {
     expect(opts.setPreviewDismissed).toHaveBeenCalledWith(true);
   });
 
-  it('threads the per-chat worktree and base branch into the queued options', () => {
+  it('threads the per-chat worktree and base branch into the queued options', async () => {
     h.settings.worktreeByChat = { 'chat-1': true };
     h.settings.worktreeBaseBranchByChat = { 'chat-1': 'develop' };
     const opts = makeOptions({ isStreaming: true, hasContent: true });
     const { result } = renderHook(() => useInputSubmit(opts));
-    act(() => result.current.submitOrStop());
+    await act(async () => result.current.submitOrStop());
 
     const options = h.queueMessage.mock.calls[0][3] as { worktree: boolean; baseBranch?: string };
     expect(options.worktree).toBe(true);

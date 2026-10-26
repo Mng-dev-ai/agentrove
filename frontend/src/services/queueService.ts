@@ -22,12 +22,14 @@ async function queueMessage(
     fastMode = false,
     selectedPersonaName = DEFAULT_PERSONA,
     files,
+    sendNow,
   } = options;
 
   return serviceCall(async () => {
     const formData = new FormData();
     formData.append('content', content);
     formData.append('model_id', modelId);
+    if (sendNow) formData.append('send_now', 'true');
     formData.append('permission_mode', permissionMode);
     if (thinkingMode) {
       formData.append('thinking_mode', thinkingMode);

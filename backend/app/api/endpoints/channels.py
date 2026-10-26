@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -31,6 +32,7 @@ from app.services.channel import channel_service
 from app.services.queue import ChannelQueueService
 from app.services.exceptions import ChatException, StorageException, SandboxException
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -109,6 +111,7 @@ async def post_message(
 async def queue_message(
     channel_id: UUID,
     content: str = Form(..., min_length=1, max_length=100000),
+    send_now: bool = Form(False),
     attached_files: list[UploadFile] | None = File(None),
     user: User = Depends(get_current_user),
     queue_service: ChannelQueueService = Depends(get_channel_queue_service),
@@ -123,8 +126,19 @@ async def queue_message(
         QueueMessageContent(content=content),
         [dict(item) for item in attachments] or None,
     )
-    # The channel may have gone idle before the message landed in the queue.
-    await channel_service.dispatch_queued(channel)
+    if send_now:
+        try:
+            await channel_service.send_queued_now(channel, queue_service, response.id)
+        except Exception:
+            response.send_now_failed = True
+            logger.exception(
+                "Failed to send newly queued message %s for channel %s",
+                response.id,
+                channel_id,
+            )
+    else:
+        # The channel may have gone idle before the message landed in the queue.
+        await channel_service.dispatch_queued(channel)
     return response
 
 

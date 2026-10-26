@@ -22,11 +22,12 @@ interface QueueApi<AddArgs extends unknown[]> {
   deleteQueuedMessage: (queueId: string, messageId: string) => Promise<void>;
   sendNow: (queueId: string, messageId: string) => Promise<void>;
   filesOf: (...args: AddArgs) => File[] | undefined;
+  sendNowOf: (...args: AddArgs) => boolean | undefined;
 }
 
 interface MessageQueueState<AddArgs extends unknown[]> {
   queues: Map<string, LocalQueuedMessage[]>;
-  queueMessage: (chatId: string, content: string, ...args: AddArgs) => Promise<string>;
+  queueMessage: (chatId: string, content: string, ...args: AddArgs) => Promise<QueueAddResponse>;
   updateQueuedMessage: (chatId: string, messageId: string, content: string) => Promise<void>;
   removeMessage: (chatId: string, messageId: string) => Promise<void>;
   getQueue: (chatId: string) => LocalQueuedMessage[];
@@ -43,8 +44,12 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
   create<MessageQueueState<AddArgs>>((set, get) => ({
     queues: new Map<string, LocalQueuedMessage[]>(),
 
-    queueMessage: async (chatId: string, content: string, ...args: AddArgs): Promise<string> => {
-      const currentQueue = get().queues.get(chatId) || [];
+    queueMessage: async (
+      chatId: string,
+      content: string,
+      ...args: AddArgs
+    ): Promise<QueueAddResponse> => {
+      const sendNow = api.sendNowOf(...args);
       const tempId = crypto.randomUUID();
       const tempMessage: LocalQueuedMessage = {
         id: tempId,
@@ -55,14 +60,18 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
         sendingNow: false,
       };
 
-      set((state) => {
-        const nextQueues = new Map(state.queues);
-        nextQueues.set(chatId, [...currentQueue, tempMessage]);
-        return { queues: nextQueues };
-      });
+      if (!sendNow) {
+        set((state) => {
+          const nextQueues = new Map(state.queues);
+          nextQueues.set(chatId, [...(nextQueues.get(chatId) || []), tempMessage]);
+          return { queues: nextQueues };
+        });
+      }
 
       try {
         const result = await api.queueMessage(chatId, content, ...args);
+
+        if (sendNow) return result;
 
         set((state) => {
           const nextQueues = new Map(state.queues);
@@ -74,14 +83,21 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
           return { queues: nextQueues };
         });
 
-        return result.id;
+        return result;
       } catch (error) {
         if (!(error instanceof NetworkError)) {
           get().removeLocalOnly(chatId, tempId);
           throw error;
         }
 
-        return tempId;
+        if (sendNow) {
+          set((state) => {
+            const nextQueues = new Map(state.queues);
+            nextQueues.set(chatId, [...(nextQueues.get(chatId) || []), tempMessage]);
+            return { queues: nextQueues };
+          });
+        }
+        return { id: tempId, send_now_failed: false };
       }
     },
 
@@ -262,15 +278,17 @@ export const useMessageQueueStore = createQueueStore<
 >({
   ...queueService,
   filesOf: (_modelId, options) => options?.files,
+  sendNowOf: (_modelId, options) => options?.sendNow,
 });
 
-export const useChannelQueueStore = createQueueStore<[files: File[]]>({
+export const useChannelQueueStore = createQueueStore<[files: File[], sendNow?: boolean]>({
   queueMessage: channelService.queueMessage,
   getQueue: channelService.getQueue,
   updateQueuedMessage: channelService.updateQueuedMessage,
   deleteQueuedMessage: channelService.deleteQueuedMessage,
   sendNow: channelService.sendQueuedNow,
   filesOf: (files) => files,
+  sendNowOf: (_files, sendNow) => sendNow,
 });
 
 export async function sendQueuedMessageNow(chatId: string, messageId: string) {
