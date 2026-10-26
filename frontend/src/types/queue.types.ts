@@ -9,6 +9,7 @@ export interface QueueMessageAttachment {
 
 // Named options for queueMessage (avoids a growing positional boolean list).
 export interface QueueMessageOptions {
+  sendNow?: boolean;
   permissionMode?: PermissionMode;
   thinkingMode?: string | null;
   worktree?: boolean;

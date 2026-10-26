@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Input, type InputProps } from './Input';
 
@@ -46,6 +46,9 @@ vi.mock('@/store/uiStore', () => {
   return { useUIStore };
 });
 
+vi.mock('@/hooks/queries/useSettingsQueries', () => ({
+  fetchAutoSteerQueuedMessages: () => Promise.resolve(false),
+}));
 vi.mock('@/store/messageQueueStore', () => ({
   useMessageQueueStore: { getState: () => ({ queueMessage: mocks.queueMessage }) },
 }));
@@ -136,11 +139,11 @@ describe('Input send/queue path', () => {
     expect(mocks.queueMessage).not.toHaveBeenCalled();
   });
 
-  it('queues the message and clears the draft while a response is streaming', () => {
+  it('queues the message and clears the draft while a response is streaming', async () => {
     const { onSubmit, setMessage } = renderInput({ isStreaming: true });
     pressEnter();
 
-    expect(mocks.queueMessage).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mocks.queueMessage).toHaveBeenCalledTimes(1));
     const [chatId, content, modelId] = mocks.queueMessage.mock.calls[0];
     expect(chatId).toBe('chat-1');
     expect(content).toBe('hello world');

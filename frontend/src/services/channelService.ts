@@ -88,11 +88,14 @@ async function queueMessage(
   channelId: string,
   content: string,
   files: File[],
+  sendNow?: boolean,
 ): Promise<QueueAddResponse> {
   return serviceCall(async () => {
+    const formData = messageForm(content, files);
+    if (sendNow) formData.append('send_now', 'true');
     const response = await apiClient.postForm<QueueAddResponse>(
       `/channels/${channelId}/queue`,
-      messageForm(content, files),
+      formData,
     );
     return ensureResponse(response, 'Failed to queue message');
   });

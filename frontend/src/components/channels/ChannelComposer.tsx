@@ -19,7 +19,7 @@ import {
 } from '@/hooks/queries/useChannelQueries';
 import { SelectionAttachments } from '@/components/chat/message-input/SelectionAttachments';
 import { fetchAutoSteerQueuedMessages } from '@/hooks/queries/useSettingsQueries';
-import { sendChannelQueuedMessageNow, useChannelQueueStore } from '@/store/messageQueueStore';
+import { useChannelQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
 import type { Channel } from '@/types/channel.types';
@@ -94,12 +94,8 @@ export function ChannelComposer({
     onSend();
     try {
       if (isBusy) {
-        const messageId = await useChannelQueueStore
-          .getState()
-          .queueMessage(channel.id, content, sentFiles);
-        if (await fetchAutoSteerQueuedMessages(queryClient)) {
-          await sendChannelQueuedMessageNow(channel.id, messageId);
-        }
+        const sendNow = await fetchAutoSteerQueuedMessages(queryClient);
+        await useChannelQueueStore.getState().queueMessage(channel.id, content, sentFiles, sendNow);
         // The send event can beat the enqueue response and miss the temp id.
         void useChannelQueueStore.getState().fetchQueue(channel.id);
       } else {

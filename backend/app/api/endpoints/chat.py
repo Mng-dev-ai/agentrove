@@ -678,6 +678,7 @@ async def respond_to_elicitation(
 async def queue_message(
     chat_id: UUID,
     content: str = Form(...),
+    send_now: bool = Form(False),
     model_id: str = Form(...),
     permission_mode: PermissionMode = Form("bypassPermissions"),
     thinking_mode: str | None = Form(None),
@@ -689,6 +690,7 @@ async def queue_message(
     chat: Chat = Depends(ensure_chat_access),
     current_user: User = Depends(get_current_user),
     queue_service: QueueService = Depends(get_queue_service),
+    chat_service: ChatService = Depends(get_chat_service),
 ) -> QueueAddResponse:
     try:
         queued_message = QueuedMessageBase(
@@ -718,9 +720,15 @@ async def queue_message(
         )
     queue_attachments = [dict(item) for item in attachments] if attachments else None
 
-    return await queue_service.add_message(
+    response = await queue_service.add_message(
         str(chat_id), queued_message, queue_attachments
     )
+
+    if send_now:
+        await _send_now_queued_message(
+            chat_id, response.id, chat_service, queue_service
+        )
+    return response
 
 
 @router.get(
@@ -786,6 +794,15 @@ async def send_now_queued_message(
     chat_service: ChatService = Depends(get_chat_service),
     queue_service: QueueService = Depends(get_queue_service),
 ) -> None:
+    await _send_now_queued_message(chat_id, message_id, chat_service, queue_service)
+
+
+async def _send_now_queued_message(
+    chat_id: UUID,
+    message_id: UUID,
+    chat_service: ChatService,
+    queue_service: QueueService,
+) -> None:
     found = await queue_service.mark_send_now(str(chat_id), str(message_id))
     if not found:
         raise HTTPException(
@@ -798,8 +815,6 @@ async def send_now_queued_message(
     if ChatStreamRuntime.has_active_chat(
         str(chat_id)
     ) or ChatStreamRuntime.has_pending_start(str(chat_id)):
-        # Cancel so send-now is picked up without waiting for the current turn —
-        # a reserved start consumes the flag at bootstrap and interrupts the same way.
         await session_registry.cancel_generation(str(chat_id))
     else:
         try:

@@ -109,6 +109,7 @@ async def post_message(
 async def queue_message(
     channel_id: UUID,
     content: str = Form(..., min_length=1, max_length=100000),
+    send_now: bool = Form(False),
     attached_files: list[UploadFile] | None = File(None),
     user: User = Depends(get_current_user),
     queue_service: ChannelQueueService = Depends(get_channel_queue_service),
@@ -123,8 +124,10 @@ async def queue_message(
         QueueMessageContent(content=content),
         [dict(item) for item in attachments] or None,
     )
-    # The channel may have gone idle before the message landed in the queue.
-    await channel_service.dispatch_queued(channel)
+    if send_now:
+        await channel_service.send_queued_now(channel, queue_service, response.id)
+    else:
+        await channel_service.dispatch_queued(channel)
     return response
 
 

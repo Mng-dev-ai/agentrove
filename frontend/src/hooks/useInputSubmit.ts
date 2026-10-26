@@ -1,8 +1,10 @@
 import { useCallback, type RefObject } from 'react';
 import toast from 'react-hot-toast';
 import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/hooks/queries/queryKeys';
+import { useStreamStore } from '@/store/streamStore';
 import { fetchAutoSteerQueuedMessages } from '@/hooks/queries/useSettingsQueries';
-import { sendQueuedMessageNow, useMessageQueueStore } from '@/store/messageQueueStore';
+import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
 import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
@@ -90,7 +92,6 @@ export function useInputSubmit({
     if (disabled) return;
 
     if (isStreaming && hasContent && chatId) {
-      // Fire-and-forget queue + clear draft — guard model or the message is lost.
       if (!selectedModelId) {
         toast.error('Please select an AI model');
         return;
@@ -110,22 +111,31 @@ export function useInputSubmit({
       const fastMode = settings.fastModeByChat[chatId] ?? DEFAULT_FAST_MODE;
       const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
       const validPersona = resolvePersona(storedPersona, personas);
-      const fullMessage = formatComposerSelections(attachedSelections, messageRef.current.trim());
-      void useMessageQueueStore
-        .getState()
-        .queueMessage(chatId, fullMessage, selectedModelId, {
-          permissionMode,
-          thinkingMode,
-          worktree,
-          baseBranch,
-          fastMode,
-          selectedPersonaName: validPersona,
-          files: attachedFiles ?? undefined,
-        })
-        .then(async (messageId) => {
-          if (await fetchAutoSteerQueuedMessages(queryClient)) {
-            await sendQueuedMessageNow(chatId, messageId);
+      const text = messageRef.current;
+      const fullMessage = formatComposerSelections(attachedSelections, text.trim());
+      void fetchAutoSteerQueuedMessages(queryClient)
+        .then(async (sendNow) => {
+          await useMessageQueueStore.getState().queueMessage(chatId, fullMessage, selectedModelId, {
+            permissionMode,
+            thinkingMode,
+            worktree,
+            baseBranch,
+            fastMode,
+            selectedPersonaName: validPersona,
+            files: attachedFiles ?? undefined,
+            sendNow,
+          });
+          if (sendNow && !useStreamStore.getState().getStreamByChat(chatId)) {
+            void queryClient.invalidateQueries({ queryKey: queryKeys.messages(chatId) });
           }
+        })
+        .catch((error: unknown) => {
+          setMessage(messageRef.current ? `${text}\n${messageRef.current}` : text);
+          onAttach?.(attachedFiles ?? []);
+          attachedSelections.forEach((selection) =>
+            useUIStore.getState().addComposerSelection(chatId, selection),
+          );
+          toast.error(error instanceof Error ? error.message : 'Failed to send message');
         });
       setMessage('');
       onAttach?.([]);
