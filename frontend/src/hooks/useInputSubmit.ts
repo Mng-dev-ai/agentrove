@@ -92,6 +92,7 @@ export function useInputSubmit({
     if (disabled) return;
 
     if (isStreaming && hasContent && chatId) {
+      // Fire-and-forget queue + clear draft — guard model or the message is lost.
       if (!selectedModelId) {
         toast.error('Please select an AI model');
         return;

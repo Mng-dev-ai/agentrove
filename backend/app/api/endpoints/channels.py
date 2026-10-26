@@ -125,8 +125,13 @@ async def queue_message(
         [dict(item) for item in attachments] or None,
     )
     if send_now:
-        await channel_service.send_queued_now(channel, queue_service, response.id)
+        try:
+            await channel_service.send_queued_now(channel, queue_service, response.id)
+        except Exception:
+            await queue_service.delete_message(str(channel_id), str(response.id))
+            raise
     else:
+        # The channel may have gone idle before the message landed in the queue.
         await channel_service.dispatch_queued(channel)
     return response
 

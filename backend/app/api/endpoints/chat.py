@@ -725,9 +725,13 @@ async def queue_message(
     )
 
     if send_now:
-        await _send_now_queued_message(
-            chat_id, response.id, chat_service, queue_service
-        )
+        try:
+            await _send_now_queued_message(
+                chat_id, response.id, chat_service, queue_service
+            )
+        except Exception:
+            await queue_service.delete_message(str(chat_id), str(response.id))
+            raise
     return response
 
 
@@ -815,6 +819,8 @@ async def _send_now_queued_message(
     if ChatStreamRuntime.has_active_chat(
         str(chat_id)
     ) or ChatStreamRuntime.has_pending_start(str(chat_id)):
+        # Cancel so send-now is picked up without waiting for the current turn —
+        # a reserved start consumes the flag at bootstrap and interrupts the same way.
         await session_registry.cancel_generation(str(chat_id))
     else:
         try:
