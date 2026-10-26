@@ -1,3 +1,5 @@
+import mimetypes
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -177,6 +179,21 @@ class AgentroveClient:
         if persona:
             data["selected_persona_name"] = persona
         resp = await self.request("POST", "/chat/chat", data=data)
+        return resp.json()
+
+    async def attach_file(self, chat_id: str, path: str) -> dict[str, Any]:
+        file_path = Path(path)
+        content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        try:
+            with file_path.open("rb") as file:
+                resp = await self.request(
+                    "POST",
+                    f"/chat/chats/{chat_id}/attachments",
+                    files={"file": (file_path.name, file, content_type)},
+                    expected=(201,),
+                )
+        except OSError as exc:
+            raise AgentroveError(f"Cannot read attachment {path!r}: {exc}") from exc
         return resp.json()
 
     async def stop_chat(self, chat_id: str) -> None:

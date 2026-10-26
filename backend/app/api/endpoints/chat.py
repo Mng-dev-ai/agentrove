@@ -35,7 +35,7 @@ from app.core.deps import (
 )
 from app.core.security import get_current_user
 from app.db.session import get_db
-from app.models.db_models.chat import Chat
+from app.models.db_models.chat import Chat, MessageAttachment
 from app.models.db_models.user import User
 from app.models.types import MessageAttachmentDict, PermissionMode
 from app.models.schemas.chat import (
@@ -54,6 +54,7 @@ from app.models.schemas.chat import (
     EnhancePromptResponse,
     GenerateTitleResponse,
     Message as MessageSchema,
+    MessageAttachment as MessageAttachmentSchema,
     MessageEvent,
     PermissionRespondResponse,
 )
@@ -78,6 +79,7 @@ from app.services.exceptions import (
     AgentException,
     ChatException,
     SandboxException,
+    StorageException,
 )
 from app.services.queue import QueueService
 from app.services.session_registry import session_registry
@@ -611,6 +613,34 @@ async def cancel_stream(
     await ChatStreamRuntime.cancel_chat_turn(
         str(chat_id), timeout=CANCEL_UNWIND_TIMEOUT_SECONDS
     )
+
+
+@router.post(
+    "/chats/{chat_id}/attachments",
+    response_model=MessageAttachmentSchema,
+    status_code=status.HTTP_201_CREATED,
+)
+async def attach_file_to_current_message(
+    chat_id: UUID,
+    file: UploadFile = File(...),
+    chat: Chat = Depends(ensure_chat_access),
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> MessageAttachment:
+    message_service = chat_service.message_service
+    message = await message_service.get_in_progress_assistant_message(chat_id)
+    if message is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No assistant turn is in progress for this chat",
+        )
+    try:
+        attachment_data = await StorageService(
+            ChatService.sandbox_for_workspace(chat.workspace)
+        ).save_file(file, agent_kind=None, user_id=str(current_user.id))
+    except StorageException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await message_service.create_attachment(message.id, attachment_data)
 
 
 @router.post(
