@@ -36,8 +36,8 @@ SEND_BATCH_SIZE = 100
 
 class PushService:
     _provider_token: tuple[str, float] | None = None
-    # Strong refs so in-flight immediate sends aren't garbage-collected.
-    _send_tasks: set[asyncio.Task[None]] = set()
+    # Set on enqueue to wake the maintenance sender before its next poll.
+    wake = asyncio.Event()
 
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         self.session_factory = session_factory or SessionLocal
@@ -171,17 +171,7 @@ class PushService:
         except Exception:
             logger.exception("Failed to enqueue push %s", event_key)
             return
-        # Send now rather than on the next poll; the poll still handles retries,
-        # and the per-row claim keeps the two from sending the same delivery.
-        task = asyncio.create_task(self._send_now())
-        PushService._send_tasks.add(task)
-        task.add_done_callback(PushService._send_tasks.discard)
-
-    async def _send_now(self) -> None:
-        try:
-            await self.send_due()
-        except Exception:
-            logger.exception("Immediate push send failed")
+        PushService.wake.set()
 
     async def send_due(self) -> dict[str, Any]:
         if not self.enabled():
