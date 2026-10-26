@@ -112,10 +112,14 @@ class MaintenanceService:
             # Interval sleep; wake immediately on shutdown or the job's signal.
             events = [self._stop_event] + ([job.wake] if job.wake is not None else [])
             waiters = [asyncio.create_task(event.wait()) for event in events]
-            await asyncio.wait(
-                waiters,
-                timeout=job.interval_seconds,
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            for waiter in waiters:
-                waiter.cancel()
+            try:
+                await asyncio.wait(
+                    waiters,
+                    timeout=job.interval_seconds,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+            finally:
+                # Also runs when stop() cancels this loop mid-wait.
+                for waiter in waiters:
+                    waiter.cancel()
+                await asyncio.gather(*waiters, return_exceptions=True)
