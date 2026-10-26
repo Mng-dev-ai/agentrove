@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from datetime import datetime, timedelta, timezone
@@ -35,6 +36,8 @@ SEND_BATCH_SIZE = 100
 
 class PushService:
     _provider_token: tuple[str, float] | None = None
+    # Strong refs so in-flight immediate sends aren't garbage-collected.
+    _send_tasks: set[asyncio.Task[None]] = set()
 
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         self.session_factory = session_factory or SessionLocal
@@ -167,10 +170,25 @@ class PushService:
                 await db.commit()
         except Exception:
             logger.exception("Failed to enqueue push %s", event_key)
+            return
+        # Send now rather than on the next poll; the poll still handles retries,
+        # and the per-row claim keeps the two from sending the same delivery.
+        task = asyncio.create_task(self._send_now())
+        PushService._send_tasks.add(task)
+        task.add_done_callback(PushService._send_tasks.discard)
+
+    async def _send_now(self) -> None:
+        try:
+            await self.send_due()
+        except Exception:
+            logger.exception("Immediate push send failed")
 
     async def send_due(self) -> dict[str, Any]:
         if not self.enabled():
             return {}
+        # Fail on a bad key before claiming anything, so queued deliveries stay
+        # pending until the configuration is fixed instead of burning attempts.
+        self._get_provider_token()
         now = datetime.now(timezone.utc)
         async with self.session_factory() as db:
             # Sent rows stay until expiry so a re-enqueued event still dedups.
