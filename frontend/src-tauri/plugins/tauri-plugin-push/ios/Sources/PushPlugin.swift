@@ -39,7 +39,8 @@ class PushPlugin: Plugin, UNUserNotificationCenterDelegate {
         if let error = error {
           invoke.reject(error.localizedDescription)
         } else if !granted {
-          invoke.reject("Notification permission denied")
+          // A user choice, not a failure: resolve with no token.
+          invoke.resolve(["token": nil])
         } else {
           self.pendingRegistrations.append(invoke)
           UIApplication.shared.registerForRemoteNotifications()
