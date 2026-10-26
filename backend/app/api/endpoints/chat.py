@@ -730,8 +730,11 @@ async def queue_message(
                 chat_id, response.id, chat_service, queue_service
             )
         except Exception:
-            await queue_service.delete_message(str(chat_id), str(response.id))
-            raise
+            logger.exception(
+                "Failed to send newly queued message %s for chat %s",
+                response.id,
+                chat_id,
+            )
     return response
 
 

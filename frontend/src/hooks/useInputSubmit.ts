@@ -126,6 +126,9 @@ export function useInputSubmit({
             files: attachedFiles ?? undefined,
             sendNow,
           });
+          if (sendNow) {
+            void useMessageQueueStore.getState().fetchQueue(chatId);
+          }
           if (sendNow && !useStreamStore.getState().getStreamByChat(chatId)) {
             void queryClient.invalidateQueries({ queryKey: queryKeys.messages(chatId) });
           }

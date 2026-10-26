@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -31,6 +32,7 @@ from app.services.channel import channel_service
 from app.services.queue import ChannelQueueService
 from app.services.exceptions import ChatException, StorageException, SandboxException
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -128,8 +130,11 @@ async def queue_message(
         try:
             await channel_service.send_queued_now(channel, queue_service, response.id)
         except Exception:
-            await queue_service.delete_message(str(channel_id), str(response.id))
-            raise
+            logger.exception(
+                "Failed to send newly queued message %s for channel %s",
+                response.id,
+                channel_id,
+            )
     else:
         # The channel may have gone idle before the message landed in the queue.
         await channel_service.dispatch_queued(channel)
