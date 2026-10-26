@@ -43,6 +43,7 @@ from app.services.acp.adapters import (
 )
 from app.services.agent import AgentService
 from app.services.git import GitService
+from app.services.push import PushService
 from app.services.queue import ChannelQueueService
 from app.services.storage import StorageService
 from app.services.chat import ChatService
@@ -1204,6 +1205,12 @@ class ChannelService(BaseDbService[Channel]):
                 state.permissions[(turn.member.id, request_id)] = pending
                 await self.publish(state.channel, "channel_permission_request", pending)
                 await self.publish_activity(state)
+            await PushService(self.session_factory).notify_permission(
+                user_id=state.channel.user_id,
+                path=f"/channels/{state.channel.id}",
+                request_id=request_id,
+                tool_name=payload["tool_name"],
+            )
         elif kind == "permission_resolved":
             async with state.lock:
                 await self.resolve_permissions(

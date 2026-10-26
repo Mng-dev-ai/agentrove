@@ -1,0 +1,8 @@
+[default]
+description = "Allows registering for APNs and reading the push notification that was tapped."
+permissions = [
+  "allow-register",
+  "allow-take-launch-path",
+  "allow-register-listener",
+  "allow-remove-listener",
+]

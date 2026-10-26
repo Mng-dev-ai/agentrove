@@ -158,6 +158,43 @@ To update the app later, or to re-sign it after a free team's 7 days, re-run
 `npm run ios:install` — the standalone build runs on the phone without keeping a Mac
 connected.
 
+### Push notifications
+
+The iOS app gets "task completed" and "permission needed" pushes from your backend
+while it's in the background or the phone is locked. Tapping one opens the chat or
+channel. The lock-screen text is generic; no prompts, code, or replies are sent to Apple.
+
+Push needs a paid Apple Developer Program membership; free-team installs can't
+receive it. In the developer portal:
+
+1. Register an App ID `com.agentrove.desktop` with the **Push Notifications** capability.
+2. Create a key with **Apple Push Notifications service (APNs)** enabled (Team
+   Scoped, Sandbox & Production) and download the `.p8`.
+
+Then set these on the backend; push stays off until all three are set:
+
+```bash
+APNS_KEY="$(awk '{printf "%s\\n", $0}' AuthKey_XXXXXXXXXX.p8)"
+APNS_KEY_ID=XXXXXXXXXX
+APNS_TEAM_ID=<YOUR_TEAM_ID>
+# APNS_TOPIC=com.agentrove.desktop  (default; change if you use another bundle ID)
+```
+
+Push is opt-in on the app side because it needs the `aps-environment` entitlement,
+which free teams can't sign. Build with it enabled:
+
+```bash
+cd frontend
+AGENTROVE_IOS_PUSH=1 npm run ios:install
+```
+
+This writes the entitlement into the generated Xcode project's entitlements file (a
+plain `npm run ios:install` removes it again). The app picks the sandbox or
+production APNs host from its provisioning profile.
+Pushes respect the **Notifications** setting. Tapping a push while the app is
+suspended opens its chat, but a tap that cold-launches the app may open the app's
+start page instead.
+
 ## Production
 
 For a single-host Docker deployment:

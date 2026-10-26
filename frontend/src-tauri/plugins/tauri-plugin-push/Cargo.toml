@@ -1,0 +1,12 @@
+[package]
+name = "tauri-plugin-push"
+version = "0.1.0"
+edition = "2021"
+publish = false
+links = "tauri-plugin-push"
+
+[dependencies]
+tauri = { version = "2.12.1", features = [] }
+
+[build-dependencies]
+tauri-plugin = { version = "2.7.1", features = ["build"] }

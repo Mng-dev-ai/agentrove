@@ -57,6 +57,15 @@ if ! has_device_profile; then
   has_device_profile || { grep -E 'error:' "$REGISTER_LOG" >&2; echo "error: device registration failed (full log: $REGISTER_LOG)" >&2; exit 1; }
 fi
 
+# Push needs the aps-environment entitlement, which free (personal) teams can't sign, so it's
+# opt-in. Set or clear it on every run so the entitlements file always matches this build.
+ENTITLEMENTS="$FRONTEND_DIR/src-tauri/gen/apple/agentrove-desktop_iOS/agentrove-desktop_iOS.entitlements"
+if [ "${AGENTROVE_IOS_PUSH:-}" = "1" ]; then
+  plutil -replace aps-environment -string development "$ENTITLEMENTS"
+else
+  plutil -remove aps-environment "$ENTITLEMENTS" 2>/dev/null || true
+fi
+
 # Build + sign + export a standalone IPA.
 # Xcode 27's SwiftPM gives @_cdecl exports local visibility in release Swift builds, so the
 # Rust link fails; swift-rs builds Swift in debug config whenever cargo debuginfo is on.

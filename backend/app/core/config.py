@@ -141,6 +141,12 @@ class Settings(BaseSettings):
 
     BLOCK_DISPOSABLE_EMAILS: bool = True
 
+    # iOS push via APNs token auth; push is off unless key, key id and team id are all set.
+    APNS_KEY: str = ""
+    APNS_KEY_ID: str = ""
+    APNS_TEAM_ID: str = ""
+    APNS_TOPIC: str = "com.agentrove.desktop"
+
     LOG_LEVEL: str = "INFO"
 
     GIT_AUTHOR_NAME: str = ""

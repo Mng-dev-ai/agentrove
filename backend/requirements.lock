@@ -89,6 +89,10 @@ h11==0.16.0
     # via
     #   httpcore
     #   uvicorn
+h2==4.4.1
+    # via httpx
+hpack==4.2.0
+    # via h2
 httpcore==1.0.9
     # via httpx
 httptools==0.7.1
@@ -99,6 +103,8 @@ httpx==0.28.1
     #   mcp
 httpx-sse==0.4.3
     # via mcp
+hyperframe==6.1.0
+    # via h2
 idna==3.11
     # via
     #   anyio
