@@ -1,9 +1,10 @@
-import { type Ref } from 'react';
+import { type ReactNode, type Ref } from 'react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { clearSidebarFilters, type SidebarFilters } from '@/store/sidebarFilters';
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
+import { useUIStore } from '@/store/uiStore';
 import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
 import { SidebarFilterMenu } from './SidebarFilterMenu';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
@@ -12,6 +13,7 @@ import styles from './SidebarChatList.module.scss';
 
 interface SidebarChatListProps {
   scrollContainerRef: Ref<HTMLDivElement>;
+  channels: ReactNode;
   isLoadingChats: boolean;
   hasAnyContent: boolean;
   visiblePinnedChats: Chat[];
@@ -29,6 +31,7 @@ interface SidebarChatListProps {
 
 export function SidebarChatList({
   scrollContainerRef,
+  channels,
   isLoadingChats,
   hasAnyContent,
   visiblePinnedChats,
@@ -43,8 +46,18 @@ export function SidebarChatList({
   isFetchingMore,
   onLoadMore,
 }: SidebarChatListProps) {
+  const collapsedSections = useUIStore((state) => state.collapsedSidebarSections);
+  const isPinnedCollapsed = collapsedSections.includes('pinned');
+  const isRecentsCollapsed = collapsedSections.includes('recents');
+  // Workspace group labels already name the workspace; pinned chats have no such header
+  // A collapsed section still shows its open chats, so the current selection never disappears
+  const isOpenChat = (chat: Chat) =>
+    chat.id === rowProps.selectedChatId || rowProps.splitChatIds.includes(chat.id);
+  const recentRowProps =
+    filters.groupBy === 'workspace' ? { ...rowProps, showWorkspaceBadges: false } : rowProps;
   return (
     <div ref={scrollContainerRef} className={styles.scroll}>
+      {channels}
       {!hasAnyContent ? (
         isLoadingChats ? null : (
           <p className={styles.empty}>No chats yet</p>
@@ -53,33 +66,37 @@ export function SidebarChatList({
         <div>
           {visiblePinnedChats.length > 0 && (
             <div className={styles.section}>
-              <div className={styles['section-header']}>
-                <span className={styles['section-title']}>Pinned</span>
-              </div>
-              <div>
-                {visiblePinnedChats.map((chat) => (
+              <SidebarSectionHeader title="Pinned" section="pinned" />
+              {(isPinnedCollapsed ? visiblePinnedChats.filter(isOpenChat) : visiblePinnedChats).map(
+                (chat) => (
                   <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
-                ))}
-              </div>
+                ),
+              )}
             </div>
           )}
 
           {/* Header always renders so the filter menu stays reachable when filters empty the list. */}
           <div>
-            <SidebarSectionHeader title="Recents">
+            <SidebarSectionHeader title="Recents" section="recents">
               <SidebarFilterMenu
                 filters={filters}
                 onChange={onChangeFilters}
                 workspaceBadgeById={workspaceBadgeById}
               />
             </SidebarSectionHeader>
-            {visibleRecentChats.length > 0 ? (
+            {isRecentsCollapsed ? (
+              visibleRecentChats
+                .filter(isOpenChat)
+                .map((chat) => (
+                  <SidebarChatRow key={chat.id} chat={chat} rowProps={recentRowProps} />
+                ))
+            ) : visibleRecentChats.length > 0 ? (
               <div>
                 {recentChatSections.map((section) => (
                   <div key={section.key} className={section.label ? styles.section : undefined}>
                     {section.label && <div className={styles['group-label']}>{section.label}</div>}
                     {section.chats.map((chat) => (
-                      <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
+                      <SidebarChatRow key={chat.id} chat={chat} rowProps={recentRowProps} />
                     ))}
                   </div>
                 ))}

@@ -34,6 +34,11 @@
   height: var(--space-3-5);
   width: var(--space-3-5);
   color: var(--theme-text-tertiary);
+  transition: opacity var(--duration-base);
+
+  &--muted {
+    opacity: 0.45;
+  }
 }
 
 // Corner overlay when the dot sits on top of a provider icon/caret

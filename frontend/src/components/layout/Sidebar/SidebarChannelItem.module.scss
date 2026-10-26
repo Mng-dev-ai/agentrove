@@ -39,9 +39,8 @@
   color: var(--theme-text-tertiary);
 }
 
-.members {
-  @include type.type-meta(500);
-  @include type.type-overflow;
-  padding-left: var(--space-5);
-  color: var(--theme-text-quaternary);
+.title-tooltip {
+  display: flex;
+  min-width: 0;
+  flex: 1;
 }

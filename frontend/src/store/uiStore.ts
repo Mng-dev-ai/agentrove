@@ -59,6 +59,8 @@ export interface ChatTextSelection {
 
 export type ComposerSelection = EditorCodeSelection | ChatTextSelection;
 
+export type SidebarSection = 'channels' | 'pinned' | 'recents';
+
 type UIStoreState = ThemeState &
   Pick<UIState, 'sidebarOpen' | 'sidebarWidth'> &
   Pick<UIActions, 'setSidebarOpen' | 'setSidebarWidth'> &
@@ -67,6 +69,8 @@ type UIStoreState = ThemeState &
     // Persisted so reload keeps the narrowed sidebar view.
     sidebarFilters: SidebarFilters;
     setSidebarFilters: (filters: SidebarFilters) => void;
+    collapsedSidebarSections: SidebarSection[];
+    toggleSidebarSection: (section: SidebarSection) => void;
     commandMenuOpen: boolean;
     setCommandMenuOpen: (open: boolean) => void;
     // Mode-switch commands set this; CommandMenu consumes it on next open.
@@ -268,6 +272,13 @@ export const useUIStore = create<UIStoreState>()(
       },
       sidebarFilters: EMPTY_SIDEBAR_FILTERS,
       setSidebarFilters: (filters) => set({ sidebarFilters: filters }),
+      collapsedSidebarSections: [],
+      toggleSidebarSection: (section) =>
+        set((state) => ({
+          collapsedSidebarSections: state.collapsedSidebarSections.includes(section)
+            ? state.collapsedSidebarSections.filter((s) => s !== section)
+            : [...state.collapsedSidebarSections, section],
+        })),
 
       commandMenuOpen: false,
       setCommandMenuOpen: (open) => set({ commandMenuOpen: open }),
@@ -626,6 +637,7 @@ export const useUIStore = create<UIStoreState>()(
         sessionPanelOpen: state.sessionPanelOpen,
         // Status filters are session-only (empty at mount) — don't persist them.
         sidebarFilters: { ...state.sidebarFilters, statuses: [] },
+        collapsedSidebarSections: state.collapsedSidebarSections,
         splitChatIds: state.splitChatIds,
         // Live workspace + currentWorkspaceChatId so refresh doesn't reset layout.
         openTabs: state.openTabs,

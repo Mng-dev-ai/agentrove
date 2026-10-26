@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -30,6 +30,7 @@ interface SidebarChannelsProps {
   workspaceId: string | undefined;
   filterWorkspaceId: string | null;
   selectedChannelId: string | null;
+  scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
 export function SidebarChannels({
@@ -37,6 +38,7 @@ export function SidebarChannels({
   workspaceId: selectedWorkspaceId,
   filterWorkspaceId,
   selectedChannelId,
+  scrollContainerRef,
 }: SidebarChannelsProps) {
   const workspaceId = workspaces.some((workspace) => workspace.id === selectedWorkspaceId)
     ? selectedWorkspaceId
@@ -48,6 +50,7 @@ export function SidebarChannels({
   const deleteChannel = useDeleteChannelMutation();
   const renameChannel = useRenameChannelMutation();
   const hasChannels = channels.length > 0;
+  const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes('channels'));
 
   useEffect(() => {
     if (hasChannels) return streamConnection.retain(apiClient);
@@ -70,6 +73,15 @@ export function SidebarChannels({
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
+  });
+
+  // The menu is fixed-positioned, so it would float at a stale spot once the list scrolls
+  useMountEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+    const handleScroll = () => setDropdown(null);
+    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
   });
 
   const navigateToChannel = (channelId: string) => {
@@ -116,7 +128,7 @@ export function SidebarChannels({
 
   return (
     <div className={styles.channels}>
-      <SidebarSectionHeader title="Channels">
+      <SidebarSectionHeader title="Channels" section="channels">
         <Button
           variant="unstyled"
           onClick={() => setCreateOpen(true)}
@@ -126,18 +138,19 @@ export function SidebarChannels({
           <Plus className={styles['new-icon']} />
         </Button>
       </SidebarSectionHeader>
-      <div className={styles.list}>
-        {channels.map((channel) => (
-          <SidebarChannelItem
-            key={channel.id}
-            channel={channel}
-            isActive={channel.id === selectedChannelId}
-            isDropdownOpen={dropdown?.channel.id === channel.id}
-            onSelect={navigateToChannel}
-            onDropdownClick={handleDropdownClick}
-          />
-        ))}
-      </div>
+      {(isCollapsed
+        ? channels.filter((channel) => channel.id === selectedChannelId)
+        : channels
+      ).map((channel) => (
+        <SidebarChannelItem
+          key={channel.id}
+          channel={channel}
+          isActive={channel.id === selectedChannelId}
+          isDropdownOpen={dropdown?.channel.id === channel.id}
+          onSelect={navigateToChannel}
+          onDropdownClick={handleDropdownClick}
+        />
+      ))}
 
       {dropdown && (
         <SidebarMenu

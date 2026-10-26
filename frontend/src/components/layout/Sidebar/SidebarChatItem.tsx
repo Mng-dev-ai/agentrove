@@ -88,7 +88,13 @@ export const SidebarChatItem = memo(function SidebarChatItem({
       {showSpinner ? (
         <AsciiSpinner className={styles['item-spinner']} />
       ) : agentKind ? (
-        <ProviderIcon agentKind={agentKind} className={styles['provider-icon']} />
+        <ProviderIcon
+          agentKind={agentKind}
+          className={clsx(
+            styles['provider-icon'],
+            !isHovered && !isActive && !status && styles['provider-icon--muted'],
+          )}
+        />
       ) : null}
       {statusTone && (
         <ChatStatusDot

@@ -84,8 +84,7 @@ export function useSidebarWorkspaceActions({
   });
 
   const handleNewWorkspaceThread = useCallback(
-    (e: React.MouseEvent, workspaceId: string) => {
-      e.stopPropagation();
+    (workspaceId: string) => {
       navigate('/', { state: { workspaceId } });
       if (isMobile) {
         useUIStore.getState().setSidebarOpen(false);
@@ -95,8 +94,7 @@ export function useSidebarWorkspaceActions({
   );
 
   const handleNewCloudThread = useCallback(
-    (e: React.MouseEvent, workspaceId: string) => {
-      e.stopPropagation();
+    (workspaceId: string) => {
       // Landing composer flips to cloud and preselects this VPS workspace.
       navigate('/', { state: { cloudWorkspaceId: workspaceId } });
       if (isMobile) {
@@ -116,6 +114,14 @@ export function useSidebarWorkspaceActions({
         const position = calculateDropdownPosition(rect);
         return { workspaceId, isCloud, position };
       });
+    },
+    [workspaceBadgeById],
+  );
+
+  const openWorkspaceMenu = useCallback(
+    (workspaceId: string, position: { top: number; left: number }) => {
+      const isCloud = workspaceBadgeById.get(workspaceId)?.isCloud ?? false;
+      setWorkspaceDropdown({ workspaceId, isCloud, position });
     },
     [workspaceBadgeById],
   );
@@ -191,6 +197,7 @@ export function useSidebarWorkspaceActions({
     handleNewWorkspaceThread,
     handleNewCloudThread,
     handleWorkspaceContextMenu,
+    openWorkspaceMenu,
     handleRenameWorkspace,
     handleSaveWorkspaceRename,
     handleDeleteWorkspace,

@@ -29,6 +29,11 @@ export function SidebarOverlays({
           onRename={chat.handleRenameClick}
           onDelete={chat.handleDeleteChat}
           onTogglePin={chat.handleTogglePin}
+          onWorkspaceOptions={(target) => {
+            const { position } = chat.dropdown!;
+            chat.setDropdown(null);
+            workspace.openWorkspaceMenu(target.workspace_id, position);
+          }}
           onOpenInSplit={chat.dropdownShowSplit ? chat.handleDropdownOpenInSplit : undefined}
           splitDisabled={!chat.dropdownCanSplit}
           onClose={() => chat.setDropdown(null)}
@@ -39,11 +44,10 @@ export function SidebarOverlays({
         <WorkspaceContextMenu
           ref={workspace.workspaceDropdownRef}
           position={workspace.workspaceDropdown.position}
-          onNewThread={(e) => {
+          onNewThread={() => {
             const { workspaceId, isCloud } = workspace.workspaceDropdown!;
             workspace.setWorkspaceDropdown(null);
             (isCloud ? workspace.handleNewCloudThread : workspace.handleNewWorkspaceThread)(
-              e,
               workspaceId,
             );
           }}
@@ -60,6 +64,7 @@ export function SidebarOverlays({
               workspace.workspaceDropdown!.isCloud,
             )
           }
+          onClose={() => workspace.setWorkspaceDropdown(null)}
         />
       )}
 

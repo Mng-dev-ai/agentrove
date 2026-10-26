@@ -1,14 +1,47 @@
 @use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
 
 .header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-top: var(--space-2-5);
+  padding-top: var(--space-4);
   padding-bottom: var(--space-2);
+}
+
+.toggle {
+  @include anim.transition-colors;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--theme-text-quaternary);
+
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
+  }
 }
 
 .title {
   @include type.type-meta;
-  color: var(--theme-text-quaternary);
+}
+
+// Chevron only shows on header hover or when collapsed, so resting headers stay plain text
+.chevron {
+  height: var(--space-3);
+  width: var(--space-3);
+  opacity: 0;
+  transition:
+    transform var(--duration-base),
+    opacity var(--duration-base);
+
+  &--expanded {
+    transform: rotate(90deg);
+  }
+
+  .header:hover &,
+  .toggle:focus-visible &,
+  .toggle[aria-expanded='false'] & {
+    opacity: 1;
+  }
 }
