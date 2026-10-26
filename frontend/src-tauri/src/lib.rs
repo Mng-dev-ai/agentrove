@@ -15,6 +15,8 @@ pub fn run() {
         tauri::Builder::default()
             .plugin(tauri_plugin_store::Builder::new().build())
             .plugin(tauri_plugin_notification::init())
+            // After notification: it wraps that plugin's notification-center delegate.
+            .plugin(tauri_plugin_push::init())
             .plugin(tauri_plugin_dialog::init())
             .plugin(tauri_plugin_opener::init())
             .run(tauri::generate_context!())

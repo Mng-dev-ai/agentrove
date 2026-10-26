@@ -7,6 +7,7 @@ import { fetchNotificationsEnabled } from '@/hooks/queries/useSettingsQueries';
 import { paintedChatIds, paintedLayout } from '@/utils/tileHelpers';
 import { logger } from '@/utils/logger';
 import { bumpAppBadge, type NotifyOptions } from '@/utils/notifications';
+import { isPushRegistered } from '@/utils/push';
 
 // Suppress only when the event's chat is painted on screen in a focused window.
 // Panes stay mounted while hidden, so mount state can't stand in for visibility.
@@ -35,6 +36,9 @@ export function useBackgroundNotify(): (
         );
         if (painted.has(targetChatId)) return;
       }
+
+      // Once backgrounded, the server push covers the event; a local one would duplicate it.
+      if (isPushRegistered() && document.visibilityState !== 'visible') return;
 
       void (async () => {
         if (!(await fetchNotificationsEnabled(queryClient))) return;

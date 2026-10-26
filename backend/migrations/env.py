@@ -11,6 +11,7 @@ from app.models.db_models import (  # noqa: F401
     automation,
     chat,
     channel,
+    push,
     refresh_token,
     user,
     workspace,

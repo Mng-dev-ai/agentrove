@@ -19,6 +19,7 @@ from app.api.endpoints import (
     chat,
     channels,
     github,
+    push,
     sandbox,
     workspace,
 )
@@ -168,6 +169,11 @@ def create_application() -> FastAPI:
         automations.router,
         prefix=f"{settings.API_V1_STR}/automations",
         tags=["Automations"],
+    )
+    application.include_router(
+        push.router,
+        prefix=f"{settings.API_V1_STR}/push",
+        tags=["Push"],
     )
     application.openapi = partial(custom_openapi, application)
 

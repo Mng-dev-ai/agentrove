@@ -56,7 +56,7 @@ export const safeSetItem = (key: string, value: string): void => {
   }
 };
 
-const safeRemoveItem = (key: string): void => {
+export const safeRemoveItem = (key: string): void => {
   const storageInstance = getStorage();
   if (!storageInstance) {
     return;

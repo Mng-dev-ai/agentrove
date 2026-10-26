@@ -46,6 +46,7 @@ from app.services.exceptions import (
 from app.services.git import GitService
 from app.services.handoff import HandoffService
 from app.services.message import MessageService
+from app.services.push import PushService
 from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
@@ -446,6 +447,14 @@ class ChatStreamRuntime:
         )
         self.last_seq = seq
         await self._publish_to_redis([self._serialize_envelope(seq, kind, payload)])
+        # Channel member turns push from ChannelService, which knows the channel route.
+        if kind == "permission_request" and self.member_turn is None:
+            await PushService(self.session_factory).notify_permission(
+                user_id=self.chat.user_id,
+                path=f"/chat/{self.chat_id}",
+                request_id=payload["request_id"],
+                tool_name=payload["tool_name"],
+            )
         return seq
 
     async def _flush_event_buffer(self) -> None:
@@ -560,6 +569,7 @@ class ChatStreamRuntime:
                     {"status": "completed", "duration_ms": duration_ms},
                     apply_snapshot=False,
                 )
+                await self._push_completion(failed=False)
         elif status == MessageStreamStatus.INTERRUPTED:
             # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
             await self._close_stream()
@@ -581,8 +591,19 @@ class ChatStreamRuntime:
                 {"status": status.value, "duration_ms": duration_ms},
                 apply_snapshot=False,
             )
+            await self._push_completion(failed=True)
 
         return final_content
+
+    async def _push_completion(self, *, failed: bool) -> None:
+        if self.member_turn is not None or not self.assistant_message_id:
+            return
+        await PushService(self.session_factory).notify_completion(
+            user_id=self.chat.user_id,
+            chat_id=self.chat_id,
+            message_id=self.assistant_message_id,
+            failed=failed,
+        )
 
     async def _close_stream(self) -> None:
         stream = self._stream

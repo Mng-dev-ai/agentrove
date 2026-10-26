@@ -14,6 +14,7 @@ from app.services.session_registry import (
     IDLE_CHECK_INTERVAL_SECONDS,
     session_registry,
 )
+from app.services.push import SEND_INTERVAL_SECONDS, PushService
 from app.services.refresh_token import RefreshTokenService
 from app.services.user import UserService
 
@@ -44,6 +45,7 @@ class MaintenanceService:
             asyncio.create_task(self._run_job_loop(self._refresh_tokens_job())),
             asyncio.create_task(self._run_job_loop(self._idle_session_cleanup_job())),
             asyncio.create_task(self._run_job_loop(self._automation_dispatch_job())),
+            asyncio.create_task(self._run_job_loop(self._push_send_job())),
         ]
 
     async def stop(self) -> None:
@@ -67,6 +69,14 @@ class MaintenanceService:
             name="automation_dispatch",
             interval_seconds=AUTOMATION_DISPATCH_INTERVAL_SECONDS,
             run=self._automation_service.run_due_automations,
+        )
+
+    @staticmethod
+    def _push_send_job() -> MaintenanceJob:
+        return MaintenanceJob(
+            name="push_send",
+            interval_seconds=SEND_INTERVAL_SECONDS,
+            run=PushService().send_due,
         )
 
     def _idle_session_cleanup_job(self) -> MaintenanceJob:

@@ -2,6 +2,7 @@ import { apiClient } from '@/lib/api';
 import { ensureResponse, serviceCall, withAuth } from '@/services/base/BaseService';
 import { ValidationError } from '@/services/base/ServiceError';
 import type { AuthResponse, User } from '@/types/user.types';
+import { unregisterPushDevice } from '@/utils/push';
 import { authStorage } from '@/utils/storage';
 import {
   validateRequired,
@@ -105,6 +106,7 @@ async function getCurrentUser(): Promise<User> {
 async function logout(): Promise<void> {
   const currentRefreshToken = authStorage.getRefreshToken();
   try {
+    await unregisterPushDevice();
     if (currentRefreshToken) {
       await apiClient.post('/auth/jwt/logout', { refresh_token: currentRefreshToken });
     }

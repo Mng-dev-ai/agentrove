@@ -26,6 +26,7 @@ import { isDesktopApp, isMobileApp } from '@/utils/platform';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { authStorage, cloudAuthStorage } from '@/utils/storage';
 import { useNotificationPermissionPrompt } from '@/hooks/useNotificationPermissionPrompt';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { clearCloudOrigins } from '@/utils/chatOrigin';
 import { PALETTES } from '@/styles/palettes';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
@@ -76,6 +77,7 @@ function AppContent() {
   useChatEvents({ enabled: isSessionAuthenticated });
   useCloudChatEvents({ enabled: isSessionAuthenticated });
   useNotificationPermissionPrompt(isSessionAuthenticated);
+  usePushNotifications(isSessionAuthenticated);
 
   const showLoading = hasToken && isLoading;
 
