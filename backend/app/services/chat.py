@@ -47,6 +47,7 @@ from app.services.message import MessageService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
+from app.services.subthread_report_ledger import create_report, link_wake_turn
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import (
@@ -1069,6 +1070,12 @@ class ChatService(BaseDbService[Chat]):
         chat = await self.get_chat(
             request.chat_id, current_user, include_channel=member_turn is not None
         )
+        if request.report_to_parent and chat.parent_chat_id is None:
+            raise ChatException(
+                "report_to_parent requires a sub-thread",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=400,
+            )
         attachments: list[MessageAttachmentDict] | None
         if member_turn is not None:
             attachments = member_turn.attachments
@@ -1145,6 +1152,9 @@ class ChatService(BaseDbService[Chat]):
             session_factory=self._session_factory,
             channel_member=member_turn is not None,
         ) as (_, assistant_message, checkpoint_id):
+            # Before the task is enqueued so the turn cannot finish ahead of its
+            # report row; a failure here discards the turn's messages.
+            await self._record_report_state(request, chat, assistant_message.id)
             task = await self._enqueue_chat_task(
                 member_turn=member_turn,
                 prompt=request.prompt,
@@ -1188,6 +1198,27 @@ class ChatService(BaseDbService[Chat]):
             # of making the client wait for the stream config event.
             "worktree_cwd": chat.worktree_cwd,
         }
+
+    async def _record_report_state(
+        self, request: ChatRequest, chat: Chat, assistant_message_id: UUID
+    ) -> None:
+        if not request.report_to_parent and not request.wake_report_ids:
+            return
+        async with self.session_factory() as db:
+            if request.report_to_parent and chat.parent_chat_id is not None:
+                await create_report(
+                    db,
+                    parent_chat_id=chat.parent_chat_id,
+                    child_chat_id=chat.id,
+                    child_message_id=assistant_message_id,
+                )
+            if request.wake_report_ids:
+                await link_wake_turn(
+                    db,
+                    report_ids=request.wake_report_ids,
+                    message_id=assistant_message_id,
+                )
+            await db.commit()
 
     async def _enqueue_chat_task(
         self,

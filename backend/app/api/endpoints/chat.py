@@ -142,6 +142,7 @@ async def send_message(
     base_branch: str | None = Form(None),
     fast_mode: bool = Form(False),
     selected_persona_name: str = Form(DEFAULT_PERSONA_NAME),
+    report_to_parent: bool = Form(False),
     attached_files: list[UploadFile] | None = File(None),
     chat_service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
@@ -159,6 +160,7 @@ async def send_message(
             base_branch=base_branch,
             fast_mode=fast_mode,
             selected_persona_name=selected_persona_name,
+            report_to_parent=report_to_parent,
         )
         result = await chat_service.initiate_chat_completion(
             request,

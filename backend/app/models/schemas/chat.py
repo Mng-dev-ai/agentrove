@@ -39,6 +39,10 @@ class ChatRequest(BaseModel):
     fast_mode: bool = False
     selected_persona_name: str = Field(DEFAULT_PERSONA_NAME, max_length=100)
     attached_files: list[UploadFile] | None = None
+    # Sub-thread turns only: the parent owes the user a report once this turn ends.
+    report_to_parent: bool = False
+    # Set by the dispatcher on the parent's report turn, never by API clients.
+    wake_report_ids: list[UUID] | None = Field(None, exclude=True)
 
 
 class MessageBase(BaseModel):

@@ -20,6 +20,11 @@ from app.models.schemas.pagination import CursorPaginatedResponse
 from app.models.types import MessageAttachmentDict
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ErrorCode, MessageException
+from app.services.subthread_report_ledger import (
+    discard_message_reports,
+    record_child_terminal,
+    settle_wake_turn,
+)
 from app.utils.attachment_urls import AttachmentURL
 from app.utils.cursor import Cursor, InvalidCursorError
 
@@ -207,6 +212,18 @@ class MessageService(BaseDbService[Message]):
             ):
                 await db.execute(
                     delete(MessageEvent).where(MessageEvent.message_id == message_id)
+                )
+                # Same transaction as the terminal status: a finished child and
+                # the outcome of a parent's report turn are never persisted apart.
+                await record_child_terminal(
+                    db, message_id=message_id, status=stream_status, now=now
+                )
+                await settle_wake_turn(
+                    db,
+                    message_id=message_id,
+                    status=stream_status,
+                    content_text=content_text,
+                    now=now,
                 )
 
             await db.commit()
@@ -516,5 +533,6 @@ class MessageService(BaseDbService[Message]):
                 .values(deleted_at=now)
             )
             result = await db.execute(stmt)
+            await discard_message_reports(db, message_id=message_id, now=now)
             await db.commit()
             return int(getattr(result, "rowcount", 0)) > 0
