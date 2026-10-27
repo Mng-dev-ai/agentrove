@@ -217,22 +217,15 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             if model_id is None or model_id not in MODELS:
                 await self._defer(batch)
                 return 0
-            prompt = self._build_prompt(
-                batch, running, titles, results, delivered, len(finished) - len(batch)
-            )
-            if len(prompt) > PROMPT_BUDGET_CHARS:
-                # Unreachable while the sections are capped; the notice has no
-                # prompt limit, so a report that cannot fit is still delivered.
-                return await self._post_results(
-                    parent_id,
-                    user.id,
+            request = ChatRequest(
+                prompt=self._build_prompt(
                     batch,
+                    running,
                     titles,
                     results,
+                    delivered,
                     len(finished) - len(batch),
-                )
-            request = ChatRequest(
-                prompt=prompt,
+                ),
                 chat_id=parent_id,
                 model_id=model_id,
                 permission_mode=_wake_permission_mode(parent, model_id),
