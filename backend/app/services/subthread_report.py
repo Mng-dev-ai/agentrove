@@ -250,8 +250,8 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         reports: list[SubThreadReport],
         render: Callable[[list[SubThreadReport]], str],
     ) -> list[SubThreadReport]:
-        # Reports arrive oldest-first and the first is always taken, so an oversized
-        # result can't be skipped forever while newer ones keep fitting.
+        # The oldest is always taken so it can't starve; its capped excerpt plus the
+        # capped running and delivered lists stay far below the budget.
         batch: list[SubThreadReport] = []
         for report in reports[:MAX_BATCH_REPORTS]:
             if batch and len(render([*batch, report])) > PROMPT_BUDGET_CHARS:
