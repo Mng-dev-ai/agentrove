@@ -3,11 +3,15 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.constants import MODELS
-from app.models.db_models.chat import Chat
-from app.models.db_models.enums import SubThreadReportStatus
+from app.models.db_models.chat import Chat, Message
+from app.models.db_models.enums import (
+    MessageRole,
+    MessageStreamStatus,
+    SubThreadReportStatus,
+)
 from app.models.db_models.subthread_report import SubThreadReport
 from app.models.db_models.user import User
 from app.models.schemas.chat import ChatRequest
@@ -18,14 +22,20 @@ from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.message import MessageService
 from app.services.subthread_report_ledger import (
     acknowledge_parent_reports,
+    acknowledge_reports,
     defer_reports,
 )
 
 logger = logging.getLogger(__name__)
 
 DISPATCH_INTERVAL_SECONDS = 5.0
+# A parent that released its results uncovered this many times gets them posted
+# as a message instead of another turn.
+FALLBACK_AFTER_ATTEMPTS = 2
+RESULT_EXCERPT_CHARS = 4000
 Status = SubThreadReportStatus
 
 
@@ -112,8 +122,24 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                     )
                 ).all()
             )
+            results = dict(
+                (
+                    await db.execute(
+                        select(Message.id, Message.content_text).where(
+                            Message.id.in_([r.child_message_id for r in finished])
+                        )
+                    )
+                ).all()
+            )
         if not finished or user is None:
             return 0
+        if max(r.attempts for r in finished) >= FALLBACK_AFTER_ATTEMPTS:
+            try:
+                await self._post_results(parent_id, finished, titles, results)
+            except Exception:
+                await self._defer(finished)
+                raise
+            return 1
 
         report_ids = [report.id for report in finished]
         model_id = parent.last_model_id
@@ -121,7 +147,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             await self._defer(finished)
             return 0
         request = ChatRequest(
-            prompt=self._build_prompt(finished, running, titles),
+            prompt=self._build_prompt(finished, running, titles, results),
             chat_id=parent_id,
             model_id=model_id,
             permission_mode=_wake_permission_mode(parent, model_id),
@@ -151,11 +177,72 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             )
             await db.commit()
 
+    async def _post_results(
+        self,
+        parent_id: UUID,
+        finished: list[SubThreadReport],
+        titles: dict[UUID, str],
+        results: dict[UUID, str],
+    ) -> None:
+        # Posted before the rows are acknowledged: a crash in between repeats the
+        # message rather than losing the result.
+        text = self._build_results_message(finished, titles, results)
+        messages = MessageService(self.session_factory)
+        message = await messages.create_message(
+            parent_id,
+            "",
+            MessageRole.ASSISTANT,
+            stream_status=MessageStreamStatus.COMPLETED,
+        )
+        await messages.update_message_snapshot(
+            message.id,
+            content_text=text,
+            content_render={"events": [{"type": "assistant_text", "text": text}]},
+            last_seq=0,
+            active_stream_id=None,
+            stream_status=MessageStreamStatus.COMPLETED,
+        )
+        async with self.session_factory() as db:
+            # Flags the parent unread; the message is new activity for the user.
+            await db.execute(
+                update(Chat)
+                .where(Chat.id == parent_id)
+                .values(updated_at=datetime.now(timezone.utc))
+            )
+            await acknowledge_reports(db, report_ids=[r.id for r in finished])
+            await db.commit()
+
     @staticmethod
+    def _excerpt(text: str) -> str:
+        text = text.strip()
+        if len(text) <= RESULT_EXCERPT_CHARS:
+            return text
+        return text[:RESULT_EXCERPT_CHARS] + "\n[truncated]"
+
+    @classmethod
+    def _build_results_message(
+        cls,
+        finished: list[SubThreadReport],
+        titles: dict[UUID, str],
+        results: dict[UUID, str],
+    ) -> str:
+        sections = ["Sub-thread results that could not be summarised automatically:"]
+        for report in finished:
+            title = titles.get(report.child_chat_id, "Untitled")
+            body = cls._excerpt(results.get(report.child_message_id, ""))
+            sections.append(
+                f"**{title}** ({report.outcome}) - /chat/{report.child_chat_id}\n\n"
+                f"{body or '(no final response)'}"
+            )
+        return "\n\n".join(sections)
+
+    @classmethod
     def _build_prompt(
+        cls,
         finished: list[SubThreadReport],
         running: list[SubThreadReport],
         titles: dict[UUID, str],
+        results: dict[UUID, str],
     ) -> str:
         lines = [
             "[Automated sub-thread update] The sub-threads you delegated finished. "
@@ -163,12 +250,13 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             "",
             "Finished:",
         ]
-        lines += [
-            f'- "{titles.get(r.child_chat_id, "Untitled")}" '
-            f"(chat_id {r.child_chat_id}, message_id {r.child_message_id}): "
-            f"{r.outcome}"
-            for r in finished
-        ]
+        for r in finished:
+            lines += [
+                f'- "{titles.get(r.child_chat_id, "Untitled")}" '
+                f"(message_id {r.child_message_id}): {r.outcome}",
+                "  Final response:",
+                cls._excerpt(results.get(r.child_message_id, "")) or "(none)",
+            ]
         if running:
             lines += ["", "Still running:"]
             lines += [
@@ -178,8 +266,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             ]
         lines += [
             "",
-            "Read each finished sub-thread's result (get_messages with its chat_id), "
-            "reply to the user with a brief summary of what finished, and in the "
+            "Reply to the user with a brief summary of what finished, and in the "
             "same turn call report_subthreads_covered with the message_ids your reply "
             "covers. Results you do not cover are re-delivered later.",
         ]
