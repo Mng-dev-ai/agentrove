@@ -1058,6 +1058,12 @@ class ChatStreamRuntime:
         return chat_id in cls._background_task_chat_ids.values()
 
     @classmethod
+    def has_pending_prompt(cls, chat_id: str) -> bool:
+        runtime = cls._active_runtimes.get(chat_id)
+        session = runtime._acp_session if runtime is not None else None
+        return session is not None and session.handler.has_pending_prompt
+
+    @classmethod
     def has_pending_start(cls, chat_id: str) -> bool:
         return chat_id in cls._starting_chat_ids
 

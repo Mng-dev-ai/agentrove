@@ -218,3 +218,17 @@ async def acknowledge_parent_reports(db: AsyncSession, *, parent_chat_id: UUID) 
         )
         .values(status=Status.ACKNOWLEDGED)
     )
+
+
+async def prune_delivered_reports(
+    db: AsyncSession, *, delivered_before: datetime
+) -> int:
+    # Bookkeeping only: chats and messages are untouched. Kept for a while after
+    # delivery so a late wake still sees what was already reported.
+    result = await db.execute(
+        delete(SubThreadReport).where(
+            SubThreadReport.status.in_((Status.ACKNOWLEDGED, Status.NOTIFIED)),
+            SubThreadReport.updated_at < delivered_before,
+        )
+    )
+    return int(getattr(result, "rowcount", 0))

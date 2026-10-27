@@ -1,11 +1,12 @@
 import logging
 import re
 from datetime import datetime, timedelta, timezone
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import MODELS
 from app.models.db_models.chat import Chat, Message
@@ -23,8 +24,9 @@ from app.services.message import MessageService
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_report_ledger import (
     acknowledge_parent_reports,
-    notify_reports,
     defer_reports,
+    notify_reports,
+    prune_delivered_reports,
 )
 
 logger = logging.getLogger(__name__)
@@ -42,11 +44,23 @@ MAX_BATCH_REPORTS = 10
 WAKE_TURN_DEADLINE_SECONDS = 600.0
 CANCEL_UNWIND_TIMEOUT_SECONDS = 10.0
 DELIVERED_NOTICES_IN_PROMPT = 5
+# A sub-thread waiting on an unanswered approval or question this long is
+# surfaced in the parent chat.
+ATTENTION_AFTER_SECONDS = 120.0
+# Delivered reports are bookkeeping only; kept this long so a late wake still
+# sees what was already reported.
+PRUNE_DELIVERED_AFTER = timedelta(days=7)
+PRUNE_INTERVAL = timedelta(hours=1)
 Status = SubThreadReportStatus
 
 
 def _outcome(report: SubThreadReport) -> str:
     return report.outcome.value if report.outcome else "unknown"
+
+
+def _chat_link(title: str, chat_id: UUID) -> str:
+    label = title.replace("[", "\\[").replace("]", "\\]")
+    return f"**[{label}](/chat/{chat_id})**"
 
 
 def _wake_permission_mode(parent: Chat, model_id: str) -> PermissionMode:
@@ -66,10 +80,19 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
     ) -> None:
         super().__init__(session_factory)
         self._chat_service = chat_service
+        # In-process, like the runtimes they observe; a restart ends those streams.
+        self._waiting_since: dict[UUID, datetime] = {}
+        self._attention_sent: set[UUID] = set()
+        self._last_prune: datetime | None = None
 
     async def dispatch_due(self) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
         await self._cancel_wedged_wakes(now)
+        try:
+            await self._notify_attention(now)
+            await self._prune(now)
+        except Exception:
+            logger.exception("Sub-thread report housekeeping failed")
         async with self.session_factory() as db:
             parent_ids = (
                 await db.scalars(
@@ -289,6 +312,22 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         more: int,
     ) -> int:
         text = self._build_results_message(finished, titles, results, more)
+        report_ids = [r.id for r in finished]
+
+        async def mark_notified(db: AsyncSession, message_id: UUID) -> None:
+            await notify_reports(
+                db, report_ids=report_ids, notice_message_id=message_id
+            )
+
+        return await self._post_notice(parent_id, user_id, text, mark_notified)
+
+    async def _post_notice(
+        self,
+        parent_id: UUID,
+        user_id: UUID,
+        text: str,
+        in_transaction: Callable[[AsyncSession, UUID], Awaitable[None]] | None = None,
+    ) -> int:
         # Same guard a user's send takes, so the notice never lands mid-start.
         async with ChatStreamRuntime.chat_start_slot(str(parent_id)) as reserved:
             if not reserved:
@@ -303,11 +342,8 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                     .where(Chat.id == parent_id)
                     .values(updated_at=datetime.now(timezone.utc))
                 )
-                await notify_reports(
-                    db,
-                    report_ids=[r.id for r in finished],
-                    notice_message_id=message.id,
-                )
+                if in_transaction is not None:
+                    await in_transaction(db, message.id)
                 await db.commit()
         # Open sessions refetch the parent's messages; best-effort after commit.
         await ChatService.publish_user_chat_event(
@@ -315,6 +351,54 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             {"kind": "message_appended", "chat_id": str(parent_id)},
         )
         return 1
+
+    async def _notify_attention(self, now: datetime) -> None:
+        async with self.session_factory() as db:
+            running = (
+                await db.execute(
+                    select(
+                        SubThreadReport.id,
+                        SubThreadReport.parent_chat_id,
+                        SubThreadReport.child_chat_id,
+                        Chat.title,
+                    )
+                    .join(Chat, Chat.id == SubThreadReport.child_chat_id)
+                    .where(SubThreadReport.status == Status.RUNNING)
+                )
+            ).all()
+        running_ids = {row.id for row in running}
+        self._waiting_since = {
+            k: v for k, v in self._waiting_since.items() if k in running_ids
+        }
+        self._attention_sent &= running_ids
+        for report_id, parent_id, child_id, title in running:
+            if report_id in self._attention_sent:
+                continue
+            if not ChatStreamRuntime.has_pending_prompt(str(child_id)):
+                self._waiting_since.pop(report_id, None)
+                continue
+            since = self._waiting_since.setdefault(report_id, now)
+            if (now - since).total_seconds() < ATTENTION_AFTER_SECONDS:
+                continue
+            async with self.session_factory() as db:
+                parent = await db.get(Chat, parent_id)
+            if parent is None or parent.deleted_at is not None:
+                continue
+            text = f"{_chat_link(title, child_id)} is waiting for your response."
+            if await self._post_notice(parent_id, parent.user_id, text):
+                self._attention_sent.add(report_id)
+
+    async def _prune(self, now: datetime) -> None:
+        if self._last_prune is not None and now - self._last_prune < PRUNE_INTERVAL:
+            return
+        async with self.session_factory() as db:
+            pruned = await prune_delivered_reports(
+                db, delivered_before=now - PRUNE_DELIVERED_AFTER
+            )
+            await db.commit()
+        self._last_prune = now
+        if pruned:
+            logger.info("Pruned %d delivered sub-thread reports", pruned)
 
     @staticmethod
     def _excerpt(text: str) -> str:
@@ -343,9 +427,8 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         for report in finished:
             title = titles.get(report.child_chat_id, "Untitled")
             body = cls._excerpt(results.get(report.child_message_id, ""))
-            label = title.replace("[", "\\[").replace("]", "\\]")
             sections.append(
-                f"**[{label}](/chat/{report.child_chat_id})** ({_outcome(report)})\n\n"
+                f"{_chat_link(title, report.child_chat_id)} ({_outcome(report)})\n\n"
                 f"{body or '(no final response)'}"
             )
         if more:
