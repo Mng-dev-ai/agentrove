@@ -283,8 +283,9 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         for report in finished:
             title = titles.get(report.child_chat_id, "Untitled")
             body = cls._excerpt(results.get(report.child_message_id, ""))
+            label = title.replace("[", "\\[").replace("]", "\\]")
             sections.append(
-                f"**{title}** ({report.outcome}) - /chat/{report.child_chat_id}\n\n"
+                f"**[{label}](/chat/{report.child_chat_id})** ({report.outcome})\n\n"
                 f"{body or '(no final response)'}"
             )
         return "\n\n".join(sections)
