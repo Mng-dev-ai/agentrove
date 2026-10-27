@@ -34,8 +34,20 @@ def upgrade() -> None:
             nullable=False,
             unique=True,
         ),
+        sa.Column(
+            "status",
+            sa.Enum(
+                "running",
+                "pending",
+                "waking",
+                "covered",
+                "acknowledged",
+                name="subthreadreportstatus",
+            ),
+            server_default="running",
+            nullable=False,
+        ),
         sa.Column("outcome", sa.String(16), nullable=True),
-        sa.Column("finished_at", UTCDateTime(), nullable=True),
         sa.Column("next_attempt_at", UTCDateTime(), nullable=True),
         sa.Column("attempts", sa.Integer(), server_default="0", nullable=False),
         sa.Column(
@@ -44,8 +56,6 @@ def upgrade() -> None:
             sa.ForeignKey("messages.id", ondelete="SET NULL"),
             nullable=True,
         ),
-        sa.Column("covered_at", UTCDateTime(), nullable=True),
-        sa.Column("acknowledged_at", UTCDateTime(), nullable=True),
         sa.Column(
             "created_at", UTCDateTime(), server_default=sa.func.now(), nullable=False
         ),
@@ -54,19 +64,17 @@ def upgrade() -> None:
         ),
     )
     op.create_index(
-        "idx_subthread_reports_parent_chat_id", "subthread_reports", ["parent_chat_id"]
+        "idx_subthread_reports_parent_status",
+        "subthread_reports",
+        ["parent_chat_id", "status"],
     )
     op.create_index(
         "idx_subthread_reports_wake_message_id",
         "subthread_reports",
         ["wake_message_id"],
     )
-    op.create_index(
-        "idx_subthread_reports_next_attempt_at",
-        "subthread_reports",
-        ["next_attempt_at"],
-    )
 
 
 def downgrade() -> None:
     op.drop_table("subthread_reports")
+    sa.Enum(name="subthreadreportstatus").drop(op.get_bind(), checkfirst=True)

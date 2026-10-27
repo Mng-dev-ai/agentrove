@@ -5,8 +5,17 @@ from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.chat import Message
-from app.models.db_models.enums import MessageStreamStatus
+from app.models.db_models.enums import MessageStreamStatus, SubThreadReportStatus
 from app.models.db_models.subthread_report import SubThreadReport
+
+# Every SubThreadReport write lives here. The lifecycle, with each transition a
+# guarded UPDATE on the source status:
+#   running -> pending      child reached a terminal status
+#   pending -> waking       a parent turn was started to report it
+#   waking  -> covered      the parent named it as covered by that turn
+#   covered -> acknowledged the turn completed with a reply
+#   waking/covered -> pending   the turn did not deliver; retried after backoff
+Status = SubThreadReportStatus
 
 # Lets a burst of child completions land in a single parent turn.
 WAKE_DEBOUNCE_SECONDS = 10.0
@@ -19,6 +28,24 @@ def retry_delay(attempts: int) -> timedelta:
     # finished child.
     return timedelta(
         seconds=min(WAKE_RETRY_SECONDS * 2 ** min(attempts, 10), WAKE_RETRY_CAP_SECONDS)
+    )
+
+
+async def create_report(
+    db: AsyncSession,
+    *,
+    parent_chat_id: UUID,
+    child_chat_id: UUID,
+    child_message_id: UUID,
+) -> None:
+    await db.execute(
+        insert(SubThreadReport).values(
+            id=uuid4(),
+            parent_chat_id=parent_chat_id,
+            child_chat_id=child_chat_id,
+            child_message_id=child_message_id,
+            status=Status.RUNNING,
+        )
     )
 
 
@@ -35,49 +62,41 @@ async def record_child_terminal(
         update(SubThreadReport)
         .where(
             SubThreadReport.child_message_id == message_id,
-            SubThreadReport.finished_at.is_(None),
+            SubThreadReport.status == Status.RUNNING,
         )
         .values(
+            status=Status.PENDING,
             outcome=status.value,
-            finished_at=now,
             next_attempt_at=now + timedelta(seconds=WAKE_DEBOUNCE_SECONDS),
         )
     )
 
 
-async def settle_wake_turn(
-    db: AsyncSession,
-    *,
-    message_id: UUID,
-    status: MessageStreamStatus,
-    content_text: str,
-    now: datetime,
+async def link_wake_turn(
+    db: AsyncSession, *, report_ids: list[UUID], message_id: UUID, now: datetime
 ) -> None:
-    # Only the results this turn was composed for are touched; anything that
-    # finished while it ran has no link to it and stays pending.
-    delivered = status == MessageStreamStatus.COMPLETED and bool(content_text.strip())
-    linked = (
-        SubThreadReport.wake_message_id == message_id,
-        SubThreadReport.acknowledged_at.is_(None),
-    )
-    if delivered:
-        await db.execute(
-            update(SubThreadReport)
-            .where(*linked, SubThreadReport.covered_at.is_not(None))
-            .values(acknowledged_at=now)
-        )
-    # Whatever the reply did not explicitly cover goes back to the queue.
+    # The next attempt time is fixed here, so a turn that fails to deliver needs
+    # no per-row computation when it is settled.
     rows = (
-        (await db.execute(select(SubThreadReport).where(*linked))).scalars().all()
-    )
-    for row in rows:
+        await db.execute(
+            select(SubThreadReport.id, SubThreadReport.attempts).where(
+                SubThreadReport.id.in_(report_ids),
+                SubThreadReport.status == Status.PENDING,
+            )
+        )
+    ).all()
+    for report_id, attempts in rows:
         await db.execute(
             update(SubThreadReport)
-            .where(SubThreadReport.id == row.id)
+            .where(
+                SubThreadReport.id == report_id,
+                SubThreadReport.status == Status.PENDING,
+            )
             .values(
-                wake_message_id=None,
-                covered_at=None,
-                next_attempt_at=now + retry_delay(row.attempts),
+                status=Status.WAKING,
+                wake_message_id=message_id,
+                attempts=attempts + 1,
+                next_attempt_at=now + retry_delay(attempts),
             )
         )
 
@@ -87,7 +106,6 @@ async def mark_covered(
     *,
     parent_chat_id: UUID,
     child_message_ids: list[UUID],
-    now: datetime,
 ) -> int:
     # Only rows linked to the parent's running wake turn can be covered, so a
     # failed attempt's coverage never carries into a later reply.
@@ -101,62 +119,80 @@ async def mark_covered(
         .where(
             SubThreadReport.parent_chat_id == parent_chat_id,
             SubThreadReport.child_message_id.in_(child_message_ids),
+            SubThreadReport.status == Status.WAKING,
             SubThreadReport.wake_message_id.in_(running_turn),
-            SubThreadReport.acknowledged_at.is_(None),
         )
-        .values(covered_at=now)
+        .values(status=Status.COVERED)
     )
     return int(getattr(result, "rowcount", 0))
 
 
-async def create_report(
-    db: AsyncSession,
-    *,
-    parent_chat_id: UUID,
-    child_chat_id: UUID,
-    child_message_id: UUID,
-) -> None:
-    await db.execute(
-        insert(SubThreadReport).values(
-            id=uuid4(),
-            parent_chat_id=parent_chat_id,
-            child_chat_id=child_chat_id,
-            child_message_id=child_message_id,
-        )
-    )
-
-
-async def link_wake_turn(
-    db: AsyncSession, *, report_ids: list[UUID], message_id: UUID
-) -> None:
+async def _release_wake_turn(db: AsyncSession, message_id: UUID) -> None:
     await db.execute(
         update(SubThreadReport)
         .where(
-            SubThreadReport.id.in_(report_ids),
-            SubThreadReport.wake_message_id.is_(None),
-            SubThreadReport.acknowledged_at.is_(None),
+            SubThreadReport.wake_message_id == message_id,
+            SubThreadReport.status.in_((Status.WAKING, Status.COVERED)),
         )
-        .values(
-            wake_message_id=message_id,
-            covered_at=None,
-            attempts=SubThreadReport.attempts + 1,
-        )
+        .values(status=Status.PENDING, wake_message_id=None)
     )
 
 
-async def discard_message_reports(
-    db: AsyncSession, *, message_id: UUID, now: datetime
+async def settle_wake_turn(
+    db: AsyncSession,
+    *,
+    message_id: UUID,
+    status: MessageStreamStatus,
+    content_text: str,
 ) -> None:
+    # Only the results this turn was composed for are touched; anything that
+    # finished while it ran has no link to it and stays pending.
+    if status == MessageStreamStatus.COMPLETED and content_text.strip():
+        await db.execute(
+            update(SubThreadReport)
+            .where(
+                SubThreadReport.wake_message_id == message_id,
+                SubThreadReport.status == Status.COVERED,
+            )
+            .values(status=Status.ACKNOWLEDGED)
+        )
+    # Whatever the reply did not explicitly cover goes back to the queue.
+    await _release_wake_turn(db, message_id)
+
+
+async def discard_message_reports(db: AsyncSession, *, message_id: UUID) -> None:
     # A discarded child can never finish, and a discarded wake turn never
     # delivers; leaving either row behind would stall or strand its report.
     await db.execute(
         delete(SubThreadReport).where(SubThreadReport.child_message_id == message_id)
     )
+    await _release_wake_turn(db, message_id)
+
+
+async def defer_reports(
+    db: AsyncSession, *, reports: list[tuple[UUID, int]], now: datetime
+) -> None:
+    for report_id, attempts in reports:
+        await db.execute(
+            update(SubThreadReport)
+            .where(
+                SubThreadReport.id == report_id,
+                SubThreadReport.status == Status.PENDING,
+            )
+            .values(
+                next_attempt_at=now + retry_delay(attempts),
+                attempts=attempts + 1,
+            )
+        )
+
+
+async def acknowledge_parent_reports(db: AsyncSession, *, parent_chat_id: UUID) -> None:
+    # The parent no longer exists to report to.
     await db.execute(
         update(SubThreadReport)
         .where(
-            SubThreadReport.wake_message_id == message_id,
-            SubThreadReport.acknowledged_at.is_(None),
+            SubThreadReport.parent_chat_id == parent_chat_id,
+            SubThreadReport.status != Status.ACKNOWLEDGED,
         )
-        .values(wake_message_id=None, covered_at=None, next_attempt_at=now)
+        .values(status=Status.ACKNOWLEDGED)
     )

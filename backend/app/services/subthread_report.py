@@ -1,26 +1,39 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 
 from app.constants import MODELS
 from app.models.db_models.chat import Chat
+from app.models.db_models.enums import SubThreadReportStatus
 from app.models.db_models.subthread_report import SubThreadReport
 from app.models.db_models.user import User
 from app.models.schemas.chat import ChatRequest
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
+from app.services.acp.adapters import FULL_ACCESS_SESSION_MODES, NORMAL_SESSION_MODE
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.subthread_report_ledger import retry_delay
+from app.services.subthread_report_ledger import (
+    acknowledge_parent_reports,
+    defer_reports,
+)
 
 logger = logging.getLogger(__name__)
 
 DISPATCH_INTERVAL_SECONDS = 5.0
+Status = SubThreadReportStatus
+
+
+def _unattended_permission_mode(model_id: str) -> PermissionMode:
+    # Full-execution where the agent has one; otherwise its normal mode.
+    agent_kind = MODELS[model_id].agent_kind
+    full_access = FULL_ACCESS_SESSION_MODES[agent_kind]
+    return next(iter(full_access), None) or NORMAL_SESSION_MODE[agent_kind]
 
 
 class SubThreadReportService(BaseDbService[SubThreadReport]):
@@ -38,7 +51,10 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             parent_ids = (
                 await db.scalars(
                     select(SubThreadReport.parent_chat_id)
-                    .where(*self._unreported(), SubThreadReport.next_attempt_at <= now)
+                    .where(
+                        SubThreadReport.status == Status.PENDING,
+                        SubThreadReport.next_attempt_at <= now,
+                    )
                     .distinct()
                 )
             ).all()
@@ -50,14 +66,6 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                 logger.exception("Sub-thread report wake failed for chat %s", parent_id)
         return {"woken": woken}
 
-    @staticmethod
-    def _unreported() -> list[Any]:
-        return [
-            SubThreadReport.finished_at.is_not(None),
-            SubThreadReport.acknowledged_at.is_(None),
-            SubThreadReport.wake_message_id.is_(None),
-        ]
-
     async def _wake_parent(self, parent_id: UUID) -> int:
         # Never interrupt a running parent turn; the rows stay due and the next
         # tick retries once it closes.
@@ -68,32 +76,26 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         async with self.session_factory() as db:
             parent = await db.get(Chat, parent_id)
             if parent is None or parent.deleted_at is not None:
-                await db.execute(
-                    update(SubThreadReport)
-                    .where(
-                        SubThreadReport.parent_chat_id == parent_id,
-                        SubThreadReport.acknowledged_at.is_(None),
-                    )
-                    .values(acknowledged_at=datetime.now(timezone.utc))
-                )
+                await acknowledge_parent_reports(db, parent_chat_id=parent_id)
                 await db.commit()
                 return 0
             user = await db.get(User, parent.user_id)
+            # Every finished, unreported child rides along, not only the due ones.
             finished = (
                 await db.scalars(
                     select(SubThreadReport)
                     .where(
                         SubThreadReport.parent_chat_id == parent_id,
-                        *self._unreported(),
+                        SubThreadReport.status == Status.PENDING,
                     )
-                    .order_by(SubThreadReport.finished_at)
+                    .order_by(SubThreadReport.created_at)
                 )
             ).all()
             running = (
                 await db.scalars(
                     select(SubThreadReport).where(
                         SubThreadReport.parent_chat_id == parent_id,
-                        SubThreadReport.finished_at.is_(None),
+                        SubThreadReport.status == Status.RUNNING,
                     )
                 )
             ).all()
@@ -112,20 +114,22 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             return 0
 
         report_ids = [report.id for report in finished]
-        if parent.last_model_id not in MODELS:
+        model_id = parent.last_model_id
+        if model_id is None or model_id not in MODELS:
             await self._defer(finished)
             return 0
         request = ChatRequest(
             prompt=self._build_prompt(finished, running, titles),
             chat_id=parent_id,
-            model_id=cast(str, parent.last_model_id),
-            permission_mode=cast(PermissionMode, "bypassPermissions"),
+            model_id=model_id,
+            permission_mode=_unattended_permission_mode(model_id),
             thinking_mode=parent.last_thinking_mode,
             selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
-            wake_report_ids=report_ids,
         )
         try:
-            await self._chat_service.initiate_chat_completion(request, user)
+            await self._chat_service.initiate_chat_completion(
+                request, user, wake_report_ids=report_ids
+            )
         except ChatException as exc:
             if exc.status_code == 409:
                 return 0
@@ -137,20 +141,12 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         return 1
 
     async def _defer(self, reports: list[SubThreadReport]) -> None:
-        now = datetime.now(timezone.utc)
         async with self.session_factory() as db:
-            for report in reports:
-                await db.execute(
-                    update(SubThreadReport)
-                    .where(
-                        SubThreadReport.id == report.id,
-                        SubThreadReport.wake_message_id.is_(None),
-                    )
-                    .values(
-                        next_attempt_at=now + retry_delay(report.attempts),
-                        attempts=SubThreadReport.attempts + 1,
-                    )
-                )
+            await defer_reports(
+                db,
+                reports=[(r.id, r.attempts) for r in reports],
+                now=datetime.now(timezone.utc),
+            )
             await db.commit()
 
     @staticmethod

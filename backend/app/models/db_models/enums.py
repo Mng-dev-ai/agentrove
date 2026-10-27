@@ -19,6 +19,14 @@ class MessageStreamStatus(str, enum.Enum):
     INTERRUPTED = "interrupted"
 
 
+class SubThreadReportStatus(str, enum.Enum):
+    RUNNING = "running"
+    PENDING = "pending"
+    WAKING = "waking"
+    COVERED = "covered"
+    ACKNOWLEDGED = "acknowledged"
+
+
 class ToolStatus(str, enum.Enum):
     STARTED = "started"
     COMPLETED = "completed"

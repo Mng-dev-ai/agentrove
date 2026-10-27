@@ -2,12 +2,14 @@ import uuid
 from datetime import datetime
 from uuid import UUID
 
+from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy import ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
 from app.db.migration_helpers import uuid_server_default
-from app.db.types import GUID, UTCDateTime
+from app.db.types import GUID, UTCDateTime, enum_values
+from app.models.db_models.enums import SubThreadReportStatus
 
 
 class SubThreadReport(Base):
@@ -34,29 +36,31 @@ class SubThreadReport(Base):
         nullable=False,
         unique=True,
     )
+    status: Mapped[SubThreadReportStatus] = mapped_column(
+        SQLAlchemyEnum(
+            SubThreadReportStatus,
+            name="subthreadreportstatus",
+            values_callable=enum_values,
+        ),
+        nullable=False,
+        default=SubThreadReportStatus.RUNNING,
+        server_default=SubThreadReportStatus.RUNNING.value,
+    )
     # MessageStreamStatus value of the child turn; null while it is running.
     outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
-    # Earliest time the dispatcher may wake the parent for this row.
+    # Earliest time the dispatcher may wake the parent for a pending row.
     next_attempt_at: Mapped[datetime | None] = mapped_column(
         UTCDateTime(), nullable=True
     )
     attempts: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )
-    # The parent turn composing the report; cleared if that turn does not deliver.
+    # The parent turn composing the report while the row is waking or covered.
     wake_message_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
     )
-    # The parent named this run as covered by its current wake turn.
-    covered_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
-    # Set only once the wake turn completed with a reply covering this run.
-    acknowledged_at: Mapped[datetime | None] = mapped_column(
-        UTCDateTime(), nullable=True
-    )
 
     __table_args__ = (
-        Index("idx_subthread_reports_parent_chat_id", "parent_chat_id"),
+        Index("idx_subthread_reports_parent_status", "parent_chat_id", "status"),
         Index("idx_subthread_reports_wake_message_id", "wake_message_id"),
-        Index("idx_subthread_reports_next_attempt_at", "next_attempt_at"),
     )

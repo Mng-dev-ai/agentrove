@@ -1051,6 +1051,7 @@ class ChatService(BaseDbService[Chat]):
         current_user: User,
         *,
         member_turn: ChannelMemberTurn | None = None,
+        wake_report_ids: list[UUID] | None = None,
     ) -> ChatCompletionResult:
         async with ChatStreamRuntime.chat_start_slot(str(request.chat_id)) as reserved:
             if not reserved:
@@ -1061,7 +1062,7 @@ class ChatService(BaseDbService[Chat]):
                     status_code=409,
                 )
             return await self._initiate_chat_completion_reserved(
-                request, current_user, member_turn
+                request, current_user, member_turn, wake_report_ids
             )
 
     async def _initiate_chat_completion_reserved(
@@ -1069,6 +1070,7 @@ class ChatService(BaseDbService[Chat]):
         request: ChatRequest,
         current_user: User,
         member_turn: ChannelMemberTurn | None,
+        wake_report_ids: list[UUID] | None = None,
     ) -> ChatCompletionResult:
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(
@@ -1158,7 +1160,9 @@ class ChatService(BaseDbService[Chat]):
         ) as (_, assistant_message, checkpoint_id):
             # Before the task is enqueued so the turn cannot finish ahead of its
             # report row; a failure here discards the turn's messages.
-            await self._record_report_state(request, chat, assistant_message.id)
+            await self._record_report_state(
+                request, chat, assistant_message.id, wake_report_ids
+            )
             task = await self._enqueue_chat_task(
                 member_turn=member_turn,
                 prompt=request.prompt,
@@ -1211,15 +1215,18 @@ class ChatService(BaseDbService[Chat]):
                 db,
                 parent_chat_id=parent_chat_id,
                 child_message_ids=child_message_ids,
-                now=datetime.now(timezone.utc),
             )
             await db.commit()
         return covered
 
     async def _record_report_state(
-        self, request: ChatRequest, chat: Chat, assistant_message_id: UUID
+        self,
+        request: ChatRequest,
+        chat: Chat,
+        assistant_message_id: UUID,
+        wake_report_ids: list[UUID] | None,
     ) -> None:
-        if not request.report_to_parent and not request.wake_report_ids:
+        if not request.report_to_parent and not wake_report_ids:
             return
         async with self.session_factory() as db:
             if request.report_to_parent and chat.parent_chat_id is not None:
@@ -1229,11 +1236,12 @@ class ChatService(BaseDbService[Chat]):
                     child_chat_id=chat.id,
                     child_message_id=assistant_message_id,
                 )
-            if request.wake_report_ids:
+            if wake_report_ids:
                 await link_wake_turn(
                     db,
-                    report_ids=request.wake_report_ids,
+                    report_ids=wake_report_ids,
                     message_id=assistant_message_id,
+                    now=datetime.now(timezone.utc),
                 )
             await db.commit()
 
