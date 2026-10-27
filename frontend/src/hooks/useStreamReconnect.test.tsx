@@ -2,6 +2,7 @@
 
 import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { StreamMetadata } from '@/types/stream.types';
 
 const { checkChatStatus, getStreamByChat, reconcileElicitationRequests } = vi.hoisted(() => ({
   checkChatStatus: vi.fn(),
@@ -10,9 +11,14 @@ const { checkChatStatus, getStreamByChat, reconcileElicitationRequests } = vi.ho
 }));
 
 vi.mock('@/services/chatService', () => ({ chatService: { checkChatStatus } }));
-vi.mock('@/store/streamStore', () => ({
-  useStreamStore: { getState: () => ({ getStreamByChat }) },
-}));
+vi.mock('@/store/streamStore', () => {
+  const state = { activeStreamMetadata: [], getStreamByChat };
+  const useStreamStore = (
+    selector: (state: { activeStreamMetadata: StreamMetadata[] }) => unknown,
+  ) => selector(state);
+  useStreamStore.getState = () => state;
+  return { useStreamStore };
+});
 vi.mock('@/store/elicitationStore', () => ({
   useElicitationStore: { getState: () => ({ reconcileElicitationRequests }) },
 }));
