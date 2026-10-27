@@ -104,7 +104,8 @@ export interface Chat {
 export type ChatEvent =
   | { kind: 'chat_created'; chat: Chat }
   | { kind: 'stream_started'; chat_id: string; message_id: string }
-  | { kind: 'title_updated'; chat_id: string; title: string };
+  | { kind: 'title_updated'; chat_id: string; title: string }
+  | { kind: 'message_appended'; chat_id: string };
 
 export interface ChatRequest {
   prompt: string;

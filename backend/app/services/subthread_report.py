@@ -24,7 +24,7 @@ from app.services.exceptions import ChatException
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_report_ledger import (
     acknowledge_parent_reports,
-    acknowledge_reports,
+    notify_reports,
     defer_reports,
 )
 
@@ -150,8 +150,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                     select(SubThreadReport)
                     .where(
                         SubThreadReport.parent_chat_id == parent_id,
-                        SubThreadReport.status == Status.ACKNOWLEDGED,
-                        SubThreadReport.notice_message_id.is_not(None),
+                        SubThreadReport.status == Status.NOTIFIED,
                     )
                     .order_by(SubThreadReport.updated_at.desc())
                     .limit(DELIVERED_NOTICES_IN_PROMPT)
@@ -178,7 +177,9 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             return 0
         if max(r.attempts for r in finished) >= FALLBACK_AFTER_ATTEMPTS:
             try:
-                return await self._post_results(parent_id, finished, titles, results)
+                return await self._post_results(
+                    parent_id, user.id, finished, titles, results
+                )
             except Exception:
                 await self._defer(finished)
                 raise
@@ -222,6 +223,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
     async def _post_results(
         self,
         parent_id: UUID,
+        user_id: UUID,
         finished: list[SubThreadReport],
         titles: dict[UUID, str],
         results: dict[UUID, str],
@@ -250,12 +252,17 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                     .where(Chat.id == parent_id)
                     .values(updated_at=datetime.now(timezone.utc))
                 )
-                await acknowledge_reports(
+                await notify_reports(
                     db,
                     report_ids=[r.id for r in finished],
                     notice_message_id=message.id,
                 )
                 await db.commit()
+        # Open sessions refetch the parent's messages; best-effort after commit.
+        await ChatService.publish_user_chat_event(
+            user_id,
+            {"kind": "message_appended", "chat_id": str(parent_id)},
+        )
         return 1
 
     @staticmethod

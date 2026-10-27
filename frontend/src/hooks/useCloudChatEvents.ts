@@ -70,6 +70,14 @@ export function useCloudChatEvents(options?: { enabled?: boolean }) {
         return;
       }
 
+      if (parsed.kind === 'message_appended') {
+        // App-generated message (e.g. a sub-thread result) — refetch so an open chat shows it.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messages(parsed.chat_id) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
+        invalidateCloudLists(queryClient);
+        return;
+      }
+
       if (parsed.kind === 'stream_started') {
         // Mark cloud-owned before reconnect — turn may be on a chat this device never listed.
         markCloudChats([parsed.chat_id]);

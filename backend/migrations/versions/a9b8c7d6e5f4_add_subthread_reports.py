@@ -42,6 +42,7 @@ def upgrade() -> None:
                 "waking",
                 "covered",
                 "acknowledged",
+                "notified",
                 name="subthreadreportstatus",
             ),
             server_default="running",
@@ -52,12 +53,6 @@ def upgrade() -> None:
         sa.Column("attempts", sa.Integer(), server_default="0", nullable=False),
         sa.Column(
             "wake_message_id",
-            GUID(),
-            sa.ForeignKey("messages.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.Column(
-            "notice_message_id",
             GUID(),
             sa.ForeignKey("messages.id", ondelete="SET NULL"),
             nullable=True,

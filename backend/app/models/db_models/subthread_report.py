@@ -55,13 +55,9 @@ class SubThreadReport(Base):
     attempts: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )
-    # The parent turn composing the report while the row is waking or covered.
+    # The parent message carrying the report: the wake turn while waking or
+    # covered, and the delivering message once acknowledged or notified.
     wake_message_id: Mapped[UUID | None] = mapped_column(
-        GUID(), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
-    )
-
-    # The app-generated parent message that delivered this result, if any.
-    notice_message_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
     )
 

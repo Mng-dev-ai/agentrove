@@ -15,6 +15,7 @@ from app.models.db_models.subthread_report import SubThreadReport
 #   pending -> waking       a parent turn was started to report it
 #   waking  -> covered      the parent named it as covered by that turn
 #   covered -> acknowledged the turn completed with a reply
+#   pending -> notified     an app-generated parent message delivered the result
 #   waking/covered -> pending   the turn did not deliver; retried after backoff
 #                               counted from the end of that turn
 Status = SubThreadReportStatus
@@ -176,7 +177,7 @@ async def discard_message_reports(
     await _release_wake_turn(db, message_id, now)
 
 
-async def acknowledge_reports(
+async def notify_reports(
     db: AsyncSession, *, report_ids: list[UUID], notice_message_id: UUID
 ) -> None:
     # Delivered by an app-generated message, with no parent turn involved.
@@ -186,7 +187,7 @@ async def acknowledge_reports(
             SubThreadReport.id.in_(report_ids),
             SubThreadReport.status == Status.PENDING,
         )
-        .values(status=Status.ACKNOWLEDGED, notice_message_id=notice_message_id)
+        .values(status=Status.NOTIFIED, wake_message_id=notice_message_id)
     )
 
 
@@ -213,7 +214,7 @@ async def acknowledge_parent_reports(db: AsyncSession, *, parent_chat_id: UUID) 
         update(SubThreadReport)
         .where(
             SubThreadReport.parent_chat_id == parent_chat_id,
-            SubThreadReport.status != Status.ACKNOWLEDGED,
+            SubThreadReport.status.not_in((Status.ACKNOWLEDGED, Status.NOTIFIED)),
         )
         .values(status=Status.ACKNOWLEDGED)
     )

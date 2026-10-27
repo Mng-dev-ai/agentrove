@@ -25,6 +25,8 @@ class SubThreadReportStatus(str, enum.Enum):
     WAKING = "waking"
     COVERED = "covered"
     ACKNOWLEDGED = "acknowledged"
+    # Delivered by an app-generated parent message instead of a model turn.
+    NOTIFIED = "notified"
 
 
 class ToolStatus(str, enum.Enum):
