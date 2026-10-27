@@ -5,12 +5,12 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { useAskAboutCodeMutation } from '@/hooks/queries/useChatQueries';
-import { useChatSessionState } from '@/hooks/useChatSessionContext';
 import type { ComposerSelection } from '@/store/uiStore';
 import styles from './InlineAskPanel.module.scss';
 
 interface InlineAskPanelProps {
   chatId: string;
+  defaultModelId: string;
   selection: ComposerSelection;
   // Owned by the host: Monaco attaches the portal node synchronously and the
   // chat overlay mounts inline, so each decides when focusing can succeed.
@@ -19,13 +19,18 @@ interface InlineAskPanelProps {
 }
 
 // Selection ask panel — Monaco content widget or chat-page selection overlay.
-export function InlineAskPanel({ chatId, selection, inputRef, onClose }: InlineAskPanelProps) {
+export function InlineAskPanel({
+  chatId,
+  defaultModelId,
+  selection,
+  inputRef,
+  onClose,
+}: InlineAskPanelProps) {
   const [question, setQuestion] = useState('');
-  const { selectedModelId } = useChatSessionState();
   // Panel-local override falling back to the composer selection (which may
   // resolve after mount) — picking here shouldn't retarget the main chat.
   const [modelId, setModelId] = useState('');
-  const effectiveModelId = modelId || selectedModelId;
+  const effectiveModelId = modelId || defaultModelId;
   const askMutation = useAskAboutCodeMutation();
 
   const handleSubmit = () => {

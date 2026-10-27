@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type * as monacoNs from 'monaco-editor';
 import { InlineAskPanel } from '@/components/chat/inline-ask/InlineAskPanel';
+import { useChatSessionState } from '@/hooks/useChatSessionContext';
 import type { EditorCodeSelection } from '@/store/uiStore';
 
 type Monaco = typeof import('monaco-editor');
@@ -25,6 +26,7 @@ export function InlineChatWidget({
   // portals the panel into this node so it stays inside the provider tree.
   const [widgetNode] = useState(() => document.createElement('div'));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const { selectedModelId } = useChatSessionState();
 
   useLayoutEffect(() => {
     const widget: monacoNs.editor.IContentWidget = {
@@ -66,6 +68,7 @@ export function InlineChatWidget({
   return createPortal(
     <InlineAskPanel
       chatId={chatId}
+      defaultModelId={selectedModelId}
       selection={selection}
       inputRef={textareaRef}
       onClose={handleClose}
