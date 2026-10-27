@@ -40,6 +40,7 @@ RESULT_EXCERPT_CHARS = 4000
 # Whole-prompt budget, below ChatRequest's 100000-character prompt limit.
 PROMPT_BUDGET_CHARS = 80000
 MAX_RUNNING_LISTED = 20
+MAX_BATCH_REPORTS = 10
 # A wake turn that is still running after this is treated as wedged and cancelled.
 WAKE_TURN_DEADLINE_SECONDS = 600.0
 CANCEL_UNWIND_TIMEOUT_SECONDS = 10.0
@@ -186,11 +187,18 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         if exhausted:
             batch = self._fit_batch(
                 exhausted,
-                lambda picked: self._build_results_message(picked, titles, results),
+                lambda picked: self._build_results_message(
+                    picked, titles, results, len(exhausted) - len(picked)
+                ),
             )
             try:
                 return await self._post_results(
-                    parent_id, user.id, batch, titles, results
+                    parent_id,
+                    user.id,
+                    batch,
+                    titles,
+                    results,
+                    len(exhausted) - len(batch),
                 )
             except Exception:
                 await self._defer(batch)
@@ -201,7 +209,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         batch = self._fit_batch(
             finished,
             lambda picked: self._build_prompt(
-                picked, running, titles, results, delivered
+                picked, running, titles, results, delivered, len(finished) - len(picked)
             ),
         )
         try:
@@ -210,7 +218,14 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                 await self._defer(batch)
                 return 0
             request = ChatRequest(
-                prompt=self._build_prompt(batch, running, titles, results, delivered),
+                prompt=self._build_prompt(
+                    batch,
+                    running,
+                    titles,
+                    results,
+                    delivered,
+                    len(finished) - len(batch),
+                ),
                 chat_id=parent_id,
                 model_id=model_id,
                 permission_mode=_wake_permission_mode(parent, model_id),
@@ -235,9 +250,10 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         reports: list[SubThreadReport],
         render: Callable[[list[SubThreadReport]], str],
     ) -> list[SubThreadReport]:
-        # Always at least one report, so a single oversized entry can't stall a parent.
+        # Reports arrive oldest-first and the first is always taken, so an oversized
+        # result can't be skipped forever while newer ones keep fitting.
         batch: list[SubThreadReport] = []
-        for report in reports:
+        for report in reports[:MAX_BATCH_REPORTS]:
             if batch and len(render([*batch, report])) > PROMPT_BUDGET_CHARS:
                 break
             batch.append(report)
@@ -259,8 +275,9 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         finished: list[SubThreadReport],
         titles: dict[UUID, str],
         results: dict[UUID, str],
+        more: int,
     ) -> int:
-        text = self._build_results_message(finished, titles, results)
+        text = self._build_results_message(finished, titles, results, more)
         # Same guard a user's send takes, so the notice never lands mid-start.
         async with ChatStreamRuntime.chat_start_slot(str(parent_id)) as reserved:
             if not reserved:
@@ -318,6 +335,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         finished: list[SubThreadReport],
         titles: dict[UUID, str],
         results: dict[UUID, str],
+        more: int,
     ) -> str:
         sections = ["Sub-thread results that could not be summarised automatically:"]
         for report in finished:
@@ -328,6 +346,8 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                 f"**[{label}](/chat/{report.child_chat_id})** ({report.outcome})\n\n"
                 f"{body or '(no final response)'}"
             )
+        if more:
+            sections.append(f"{more} more sub-thread results are still pending.")
         return "\n\n".join(sections)
 
     @classmethod
@@ -338,6 +358,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         titles: dict[UUID, str],
         results: dict[UUID, str],
         delivered: list[SubThreadReport],
+        more: int,
     ) -> str:
         lines = [
             "[Automated sub-thread update] The sub-threads you delegated finished. "
@@ -371,6 +392,12 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                 f'- "{titles.get(r.child_chat_id, "Untitled")}" '
                 f"({r.outcome})"
                 for r in delivered
+            ]
+        if more:
+            lines += [
+                "",
+                f"{more} more finished results are not listed here and will arrive in "
+                "a later update. Do not present this list as everything that finished.",
             ]
         lines += [
             "",
