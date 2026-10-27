@@ -20,7 +20,7 @@ interface ImagePreviewModalProps {
   imageStates: Record<string, ImageState>;
   currentIndex: number;
   onIndexChange: (index: number) => void;
-  onDownload: (url: string, filename: string) => void;
+  onDownload: (url: string | File, filename: string) => void;
 }
 
 export const ImagePreviewModal = memo(function ImagePreviewModal({

@@ -44,20 +44,7 @@ export function createInitialMessage(
     stream_status: 'completed',
     role: 'user',
     is_bot: false,
-    attachments:
-      attachedFiles && attachedFiles.length > 0
-        ? attachedFiles.map((file) => {
-            const fileUrl = URL.createObjectURL(file);
-            return {
-              id: crypto.randomUUID(),
-              message_id: crypto.randomUUID(),
-              file_url: fileUrl,
-              file_type: detectFileType(file.name, file.type),
-              filename: file.name,
-              created_at: new Date().toISOString(),
-            };
-          })
-        : [],
+    attachments: createAttachmentsFromFiles(attachedFiles) ?? [],
     created_at: new Date().toISOString(),
     model_id: modelId,
     duration_ms: null,
@@ -66,24 +53,15 @@ export function createInitialMessage(
   };
 }
 
-export function createAttachmentsFromFiles(
-  files: File[] | null,
-  storeBlobUrl: (file: File, url: string) => void,
-) {
+export function createAttachmentsFromFiles(files: File[] | null) {
   if (!files || files.length === 0) return undefined;
 
   return files.map((file) => {
     const fileType = detectFileType(file.name, file.type);
-    const blobUrl = URL.createObjectURL(file);
-
-    if (fileType === 'pdf') {
-      storeBlobUrl(file, blobUrl);
-    }
-
     return {
       id: crypto.randomUUID(),
       message_id: Date.now().toString(),
-      file_url: blobUrl,
+      file_url: file,
       file_type: fileType,
       filename: file.name,
       created_at: new Date().toISOString(),

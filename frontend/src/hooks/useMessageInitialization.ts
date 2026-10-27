@@ -124,7 +124,10 @@ export function useMessageInitialization({
           return normalizedMessages.map((message) => {
             const existing = existingById.get(message.id);
             return message.role === 'user' &&
-              existing?.attachments.some((attachment) => isBrowserObjectUrl(attachment.file_url))
+              existing?.attachments.some(
+                (attachment) =>
+                  attachment.file_url instanceof File || isBrowserObjectUrl(attachment.file_url),
+              )
               ? { ...message, attachments: existing.attachments }
               : message;
           });

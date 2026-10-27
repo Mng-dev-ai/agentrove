@@ -12,7 +12,6 @@ import type {
   PermissionRequest,
 } from '@/types/chat.types';
 import type { StreamState } from '@/types/stream.types';
-import { cleanupExpiredPdfBlobs, storePdfBlobUrl } from '@/hooks/usePdfBlobCache';
 import { chatStorage } from '@/utils/storage';
 import { useMessageActions } from '@/hooks/useMessageActions';
 import { useInputState } from '@/hooks/useInputState';
@@ -226,7 +225,6 @@ export function useChatStreaming({
     setMessages,
     addMessageToCache,
     startStream,
-    storeBlobUrl: storePdfBlobUrl,
     setPendingUserMessageId,
     isLoading,
     isStreaming,
@@ -315,10 +313,7 @@ export function useChatStreaming({
   ]);
 
   useMountEffect(() => {
-    cleanupExpiredPdfBlobs();
     chatStorage.pruneStaleEntries();
-    const interval = setInterval(cleanupExpiredPdfBlobs, 1000 * 60 * 30);
-    return () => clearInterval(interval);
   });
 
   const handleMessageSend = useCallback(

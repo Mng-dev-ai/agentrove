@@ -27,7 +27,6 @@ interface UseMessageActionsParams {
     request: ChatRequest,
     signal?: AbortSignal,
   ) => Promise<{ messageId: string; checkpointId: string | null }>;
-  storeBlobUrl: (file: File, url: string) => void;
   setPendingUserMessageId: (id: string | null) => void;
   isLoading: boolean;
   isStreaming: boolean;
@@ -54,7 +53,6 @@ export function useMessageActions({
   setMessages,
   addMessageToCache,
   startStream,
-  storeBlobUrl,
   setPendingUserMessageId,
   isLoading,
   isStreaming,
@@ -225,7 +223,7 @@ export function useMessageActions({
         is_bot: false,
         model_id: selectedModelId,
         created_at: new Date().toISOString(),
-        attachments: createAttachmentsFromFiles(inputFiles, storeBlobUrl) ?? [],
+        attachments: createAttachmentsFromFiles(inputFiles) ?? [],
         duration_ms: null,
         checkpoint_id: null,
         tool_results_omitted: false,
@@ -250,7 +248,6 @@ export function useMessageActions({
       isStreaming,
       selectedModelId,
       sendMessage,
-      storeBlobUrl,
       setPendingUserMessageId,
       setMessages,
     ],

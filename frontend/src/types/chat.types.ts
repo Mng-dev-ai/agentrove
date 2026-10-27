@@ -4,7 +4,7 @@ import type { PermissionMode } from '@/store/chatSettingsStore';
 export interface MessageAttachment {
   id: string;
   message_id: string;
-  file_url: string;
+  file_url: string | File;
   file_type: 'image' | 'pdf' | 'xlsx';
   filename?: string;
   created_at: string;
