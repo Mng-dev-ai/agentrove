@@ -81,8 +81,10 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         super().__init__(session_factory)
         self._chat_service = chat_service
         # In-process, like the runtimes they observe; a restart ends those streams.
-        self._waiting_since: dict[UUID, datetime] = {}
-        self._attention_sent: set[UUID] = set()
+        # Keyed by (report, request id) so each approval or question has its own
+        # clock and its own notice, and resolving one forgets it.
+        self._prompt_first_seen: dict[tuple[UUID, str], datetime] = {}
+        self._prompt_notified: set[tuple[UUID, str]] = set()
         self._last_prune: datetime | None = None
 
     async def dispatch_due(self) -> dict[str, Any]:
@@ -366,27 +368,31 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                     .where(SubThreadReport.status == Status.RUNNING)
                 )
             ).all()
-        running_ids = {row.id for row in running}
-        self._waiting_since = {
-            k: v for k, v in self._waiting_since.items() if k in running_ids
+        waiting = {
+            (row.id, request_id): row
+            for row in running
+            for request_id in ChatStreamRuntime.pending_prompt_ids(
+                str(row.child_chat_id)
+            )
         }
-        self._attention_sent &= running_ids
-        for report_id, parent_id, child_id, title in running:
-            if report_id in self._attention_sent:
+        self._prompt_first_seen = {
+            key: seen for key, seen in self._prompt_first_seen.items() if key in waiting
+        }
+        self._prompt_notified &= waiting.keys()
+        for key, row in waiting.items():
+            since = self._prompt_first_seen.setdefault(key, now)
+            if key in self._prompt_notified:
                 continue
-            if not ChatStreamRuntime.has_pending_prompt(str(child_id)):
-                self._waiting_since.pop(report_id, None)
-                continue
-            since = self._waiting_since.setdefault(report_id, now)
             if (now - since).total_seconds() < ATTENTION_AFTER_SECONDS:
                 continue
             async with self.session_factory() as db:
-                parent = await db.get(Chat, parent_id)
+                parent = await db.get(Chat, row.parent_chat_id)
             if parent is None or parent.deleted_at is not None:
                 continue
-            text = f"{_chat_link(title, child_id)} is waiting for your response."
-            if await self._post_notice(parent_id, parent.user_id, text):
-                self._attention_sent.add(report_id)
+            link = _chat_link(row.title, row.child_chat_id)
+            text = f"{link} is waiting for your response."
+            if await self._post_notice(row.parent_chat_id, parent.user_id, text):
+                self._prompt_notified.add(key)
 
     async def _prune(self, now: datetime) -> None:
         if self._last_prune is not None and now - self._last_prune < PRUNE_INTERVAL:

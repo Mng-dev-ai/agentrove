@@ -18,6 +18,39 @@ interface UseMessageInitializationParams {
   setInitialPrompt: (prompt: string) => void;
 }
 
+const normalizeMessage = (msg: Message) => {
+  const attachments = Array.isArray(msg.attachments) ? msg.attachments : [];
+  const processedAttachments = attachments.map((attachment) => {
+    const fileType = detectFileType(
+      attachment.filename || '',
+      attachment.file_type === 'image' ? 'image/jpeg' : undefined,
+    );
+
+    return { ...attachment, file_type: fileType };
+  });
+
+  return {
+    id: msg.id,
+    chat_id: msg.chat_id,
+    content_text: msg.content_text,
+    content_render: msg.content_render,
+    last_seq: msg.last_seq,
+    active_stream_id: msg.active_stream_id,
+    stream_status: msg.stream_status,
+    role: msg.role,
+    is_bot: msg.role === 'assistant',
+    attachments: processedAttachments,
+    created_at: msg.created_at,
+    model_id: msg.model_id,
+    duration_ms: msg.duration_ms,
+    checkpoint_id: msg.checkpoint_id,
+    tool_results_omitted: msg.tool_results_omitted,
+  };
+};
+
+const isAppNotice = (msg: Message) =>
+  msg.content_render?.events?.some((event) => event.type === 'app_notice') ?? false;
+
 // Normalize fetched messages into local state; inject synthetic user msg for route initial prompts.
 export function useMessageInitialization({
   fetchedMessages,
@@ -35,40 +68,25 @@ export function useMessageInitialization({
   const initializedChatRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!fetchedMessages || !chatId || isLoading || wasAborted) return;
+    if (!fetchedMessages || !chatId || isLoading) return;
+
+    if (wasAborted) {
+      // A stop keeps local state as-is, but a notice has no stream and only ever arrives via a fetch.
+      const notices = fetchedMessages.filter(isAppNotice).map(normalizeMessage);
+      if (notices.length > 0) {
+        setMessages((prev) => {
+          const known = new Set(prev.map((message) => message.id));
+          const added = notices.filter((message) => !known.has(message.id));
+          return added.length > 0 ? [...prev, ...added] : prev;
+        });
+      }
+      return;
+    }
 
     // Skip reprocess while streaming (attachment refs / image flash), but re-init on chat switch.
     if (isStreaming && initializedChatRef.current === chatId) return;
 
-    const normalizedMessages = fetchedMessages.map((msg: Message) => {
-      const attachments = Array.isArray(msg.attachments) ? msg.attachments : [];
-      const processedAttachments = attachments.map((attachment) => {
-        const fileType = detectFileType(
-          attachment.filename || '',
-          attachment.file_type === 'image' ? 'image/jpeg' : undefined,
-        );
-
-        return { ...attachment, file_type: fileType };
-      });
-
-      return {
-        id: msg.id,
-        chat_id: msg.chat_id,
-        content_text: msg.content_text,
-        content_render: msg.content_render,
-        last_seq: msg.last_seq,
-        active_stream_id: msg.active_stream_id,
-        stream_status: msg.stream_status,
-        role: msg.role,
-        is_bot: msg.role === 'assistant',
-        attachments: processedAttachments,
-        created_at: msg.created_at,
-        model_id: msg.model_id,
-        duration_ms: msg.duration_ms,
-        checkpoint_id: msg.checkpoint_id,
-        tool_results_omitted: msg.tool_results_omitted,
-      };
-    });
+    const normalizedMessages = fetchedMessages.map(normalizeMessage);
 
     // Persist the highest seq from fetched messages so stream reconnection
     // (useStreamReconnect) can resume from the correct cursor on page refresh.

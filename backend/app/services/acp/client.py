@@ -193,9 +193,9 @@ class AcpClientHandler:
         self.event_queue.put_nowait(_SENTINEL)
 
     @property
-    def has_pending_prompt(self) -> bool:
-        # An approval or question is waiting on the user.
-        return bool(self._pending_permissions or self._pending_elicitations)
+    def pending_prompt_ids(self) -> frozenset[str]:
+        # Approvals and questions currently waiting on the user.
+        return frozenset([*self._pending_permissions, *self._pending_elicitations])
 
     def dismiss_pending_permissions(self) -> None:
         # Agent still alive: "" resolves as a proper DeniedOutcome("cancelled") RPC response.

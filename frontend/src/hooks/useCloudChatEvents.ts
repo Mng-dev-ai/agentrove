@@ -99,6 +99,8 @@ export function useCloudChatEvents(options?: { enabled?: boolean }) {
       onResync: () => {
         invalidateCloudLists(queryClient);
         void queryClient.invalidateQueries({ queryKey: ['chat'] });
+        // Notices have no stream to replay, so a dropped feed can only be healed by refetching.
+        void queryClient.invalidateQueries({ queryKey: ['messages'] });
         resyncActiveStreams(
           () => cloudChatService.getActiveStreams(),
           () => cancelled,

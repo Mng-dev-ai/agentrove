@@ -82,6 +82,8 @@ export function useChatEvents(options?: { enabled?: boolean }) {
         void queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
         void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
         void queryClient.invalidateQueries({ queryKey: ['chat'] });
+        // Notices have no stream to replay, so a dropped feed can only be healed by refetching.
+        void queryClient.invalidateQueries({ queryKey: ['messages'] });
         resyncActiveStreams(
           () => chatService.getActiveStreams(),
           () => cancelled,

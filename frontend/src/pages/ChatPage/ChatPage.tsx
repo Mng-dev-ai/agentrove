@@ -88,6 +88,11 @@ export function ChatPage() {
   useEffect(() => {
     if (chatId) void markChatViewed(queryClient, chatId);
   }, [chatId, queryClient]);
+  // An app-posted message (e.g. a sub-thread notice) bumps the chat unread while it is open.
+  const isViewedChatUnread = currentChat?.unread === true;
+  useEffect(() => {
+    if (chatId && isViewedChatUnread) void markChatViewed(queryClient, chatId);
+  }, [chatId, isViewedChatUnread, queryClient]);
   useEffect(() => {
     // Mobile keeps split ids but doesn't show panes — don't mark those seen.
     if (!isMobile) {
