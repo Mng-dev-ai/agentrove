@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { detectFileType } from '@/utils/fileTypes';
 import { createInitialMessage } from '@/utils/message';
 import { chatStorage } from '@/utils/storage';
+import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import { insertMessagesById } from '@/hooks/stream/messageUpdates';
 import type { Message } from '@/types/chat.types';
 
@@ -118,7 +119,16 @@ export function useMessageInitialization({
       if (isStreaming) {
         setMessages((prev) => insertMessagesById(prev, normalizedMessages));
       } else {
-        setMessages(normalizedMessages);
+        setMessages((prev) => {
+          const existingById = new Map(prev.map((message) => [message.id, message]));
+          return normalizedMessages.map((message) => {
+            const existing = existingById.get(message.id);
+            return message.role === 'user' &&
+              existing?.attachments.some((attachment) => isBrowserObjectUrl(attachment.file_url))
+              ? { ...message, attachments: existing.attachments }
+              : message;
+          });
+        });
       }
     }
   }, [
