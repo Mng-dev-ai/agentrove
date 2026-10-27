@@ -1132,6 +1132,7 @@ class ChatService(BaseDbService[Chat]):
                     last_model_id=request.model_id,
                     last_thinking_mode=request.thinking_mode,
                     last_persona_name=request.selected_persona_name,
+                    last_permission_mode=request.permission_mode,
                 )
             )
             await db.commit()

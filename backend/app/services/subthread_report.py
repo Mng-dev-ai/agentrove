@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -13,7 +13,7 @@ from app.models.db_models.user import User
 from app.models.schemas.chat import ChatRequest
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
-from app.services.acp.adapters import FULL_ACCESS_SESSION_MODES, NORMAL_SESSION_MODE
+from app.services.acp.adapters import NORMAL_SESSION_MODE
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
@@ -29,11 +29,13 @@ DISPATCH_INTERVAL_SECONDS = 5.0
 Status = SubThreadReportStatus
 
 
-def _unattended_permission_mode(model_id: str) -> PermissionMode:
-    # Full-execution where the agent has one; otherwise its normal mode.
-    agent_kind = MODELS[model_id].agent_kind
-    full_access = FULL_ACCESS_SESSION_MODES[agent_kind]
-    return next(iter(full_access), None) or NORMAL_SESSION_MODE[agent_kind]
+def _wake_permission_mode(parent: Chat, model_id: str) -> PermissionMode:
+    # Never more permissive than the parent's last turn; chats that predate the
+    # saved mode fall back to the agent's normal mode.
+    return cast(
+        PermissionMode,
+        parent.last_permission_mode or NORMAL_SESSION_MODE[MODELS[model_id].agent_kind],
+    )
 
 
 class SubThreadReportService(BaseDbService[SubThreadReport]):
@@ -122,7 +124,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             prompt=self._build_prompt(finished, running, titles),
             chat_id=parent_id,
             model_id=model_id,
-            permission_mode=_unattended_permission_mode(model_id),
+            permission_mode=_wake_permission_mode(parent, model_id),
             thinking_mode=parent.last_thinking_mode,
             selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
         )
