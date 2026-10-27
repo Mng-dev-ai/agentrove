@@ -339,10 +339,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         results: dict[UUID, str],
         more: int,
     ) -> str:
-        sections = [
-            "**Automated update** - posted by Agentrove, not written by the assistant.",
-            "Sub-thread results that could not be summarised automatically:",
-        ]
+        sections: list[str] = []
         for report in finished:
             title = titles.get(report.child_chat_id, "Untitled")
             body = cls._excerpt(results.get(report.child_message_id, ""))

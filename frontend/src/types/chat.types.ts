@@ -40,6 +40,8 @@ export interface PlanEntry {
 
 export type AssistantStreamEvent =
   | { type: 'assistant_text'; text: string }
+  // Written by the app, not the model (e.g. a sub-thread result notice).
+  | { type: 'app_notice'; text: string }
   | { type: 'assistant_thinking'; thinking: string }
   | { type: 'tool_started'; tool: ToolEventPayload }
   | { type: 'tool_completed'; tool: ToolEventPayload }

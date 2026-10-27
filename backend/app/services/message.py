@@ -112,7 +112,7 @@ class MessageService(BaseDbService[Message]):
             chat_id=chat_id,
             role=MessageRole.ASSISTANT,
             content_text=text,
-            content_render={"events": [{"type": "assistant_text", "text": text}]},
+            content_render={"events": [{"type": "app_notice", "text": text}]},
             last_seq=0,
             stream_status=MessageStreamStatus.COMPLETED,
         )

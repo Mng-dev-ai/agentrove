@@ -190,7 +190,7 @@ class HandoffService:
     @staticmethod
     def _render_event(event: dict[str, Any]) -> str:
         kind = event.get("type")
-        if kind == "assistant_text":
+        if kind in ("assistant_text", "app_notice"):
             text = str(event.get("text") or "")
             return PROMPT_SUGGESTIONS_RE.sub("", text).strip()
         if kind in ("tool_completed", "tool_failed"):
