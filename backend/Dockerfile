@@ -37,7 +37,7 @@ RUN . /etc/os-release && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.310 @agentclientprotocol/claude-agent-acp@0.95.0 @agentclientprotocol/codex-acp@2.2.2 @openai/codex@0.164.0 @github/copilot@1.0.103
+RUN npm install -g @anthropic-ai/claude-code@2.1.311 @agentclientprotocol/claude-agent-acp@0.97.0 @agentclientprotocol/codex-acp@2.3.0 @openai/codex@0.164.0 @github/copilot@1.0.104
 
 # Playwright + Chromium for browser-testing local dev servers.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
