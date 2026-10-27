@@ -44,7 +44,7 @@ from tests.helpers import (
 )
 
 
-TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-5@20250929"
+TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-6@default"
 TEST_CONTEXT_WINDOW = MODELS[TEST_MODEL_ID].context_window
 
 pytestmark = pytest.mark.anyio

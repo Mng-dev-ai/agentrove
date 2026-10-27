@@ -32,7 +32,7 @@ from tests.conftest import LoginClient, UserFactory
 from tests.helpers import FakeProviderFactory, create_authenticated_workspace
 
 
-TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-5@20250929"
+TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-6@default"
 
 pytestmark = pytest.mark.anyio
 
