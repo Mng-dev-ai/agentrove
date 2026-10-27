@@ -7,8 +7,11 @@ import {
   ConversationLayout,
   ConversationScroller,
 } from '@/components/chat/chat-window/ConversationLayout';
+import { ChatSelectionActions } from '@/components/chat/chat-window/ChatSelectionActions';
 import { ChatQueueBanner } from '@/components/chat/chat-window/ChatQueueBanner';
 import { ChatSkeleton } from '@/components/chat/chat-window/ChatSkeleton';
+import { FindInChat } from '@/components/chat/chat-window/FindInChat';
+import { MessageTrail, type TrailMessage } from '@/components/chat/chat-window/MessageTrail';
 import { InlinePermission } from '@/components/chat/chat-window/ChatInlinePermission';
 import { StatusIndicator } from '@/components/chat/chat-window/StatusTypewriter';
 import { useChatScroll } from '@/components/chat/chat-window/useChatScroll';
@@ -317,7 +320,17 @@ export function ChannelView({ channel }: { channel: Channel }) {
     waitingMembers.length > 0 ||
     retryingMembers.length > 0;
 
-  const { showScrollButton, containerRefCallback, scrollToBottom } = useChatScroll({
+  const trailMessages = useMemo<TrailMessage[]>(
+    () =>
+      visibleMessages.map((message) => ({
+        id: message.id,
+        content_text: message.content,
+        role: message.author_type === 'agent' ? 'assistant' : 'user',
+      })),
+    [visibleMessages],
+  );
+
+  const { scrollerRef, showScrollButton, containerRefCallback, scrollToBottom } = useChatScroll({
     chatId: channel.id,
     messages: visibleMessages,
     pendingUserMessageId: null,
@@ -358,54 +371,70 @@ export function ChannelView({ channel }: { channel: Channel }) {
               <ChatSkeleton messageCount={3} />
             )
           ) : (
-            <ConversationScroller ref={containerRefCallback}>
-              {visibleMessages.map((message) => (
-                <ConversationColumn key={message.id}>
-                  {message.author_type === 'user' ? (
-                    <MessageRow>
-                      <UserBubble>
-                        <MessageAttachments
-                          attachments={message.attachments}
-                          className={styles.attachments}
+            <>
+              <ConversationScroller ref={containerRefCallback}>
+                {visibleMessages.map((message) => (
+                  <div key={message.id} data-message-id={message.id}>
+                    <ConversationColumn>
+                      {message.author_type === 'user' ? (
+                        <MessageRow>
+                          <UserBubble>
+                            <MessageAttachments
+                              attachments={message.attachments}
+                              className={styles.attachments}
+                            />
+                            <MarkDown content={message.content} highlightMentions />
+                          </UserBubble>
+                          {message.content.trim() && (
+                            <div className={styles['actions-slot']}>
+                              <MessageActions
+                                messageId={message.id}
+                                contentText={message.content}
+                              />
+                            </div>
+                          )}
+                        </MessageRow>
+                      ) : (
+                        <AgentChannelMessage
+                          message={message}
+                          member={
+                            message.member_id ? membersById.get(message.member_id) : undefined
+                          }
                         />
-                        <MarkDown content={message.content} highlightMentions />
-                      </UserBubble>
-                      {message.content.trim() && (
-                        <div className={styles['actions-slot']}>
-                          <MessageActions messageId={message.id} contentText={message.content} />
-                        </div>
                       )}
-                    </MessageRow>
-                  ) : (
-                    <AgentChannelMessage
-                      message={message}
-                      member={message.member_id ? membersById.get(message.member_id) : undefined}
+                    </ConversationColumn>
+                  </div>
+                ))}
+                {permissions.map((permission) => (
+                  <ConversationColumn
+                    key={`${permission.member_id}:${permission.request.request_id}`}
+                  >
+                    <ChannelApproval
+                      channelId={channel.id}
+                      permission={permission}
+                      member={membersById.get(permission.member_id)}
                     />
-                  )}
-                </ConversationColumn>
-              ))}
-              {permissions.map((permission) => (
-                <ConversationColumn
-                  key={`${permission.member_id}:${permission.request.request_id}`}
-                >
-                  <ChannelApproval
-                    channelId={channel.id}
-                    permission={permission}
-                    member={membersById.get(permission.member_id)}
-                  />
-                </ConversationColumn>
-              ))}
-              {isBusy && (
-                <ConversationColumn>
-                  <ChannelTypingRow
-                    thinking={thinkingMembers}
-                    typing={typingMembers}
-                    waiting={waitingMembers}
-                    retrying={retryingMembers}
-                  />
-                </ConversationColumn>
-              )}
-            </ConversationScroller>
+                  </ConversationColumn>
+                ))}
+                {isBusy && (
+                  <ConversationColumn>
+                    <ChannelTypingRow
+                      thinking={thinkingMembers}
+                      typing={typingMembers}
+                      waiting={waitingMembers}
+                      retrying={retryingMembers}
+                    />
+                  </ConversationColumn>
+                )}
+                <ChatSelectionActions
+                  chatId={channel.anchor_chat_id}
+                  defaultModelId={channel.members[0].model_id}
+                  scrollerRef={scrollerRef}
+                />
+              </ConversationScroller>
+              <MessageTrail messages={trailMessages} scrollerRef={scrollerRef} />
+              <FindInChat key={channel.id} messages={visibleMessages} scrollerRef={scrollerRef} />
+            </>
           )}
         </ConversationLayout>
       </ChatCopiedMessageProvider>

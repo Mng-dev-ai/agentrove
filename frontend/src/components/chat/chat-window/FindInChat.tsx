@@ -5,7 +5,6 @@ import { Input } from '@/components/ui/primitives/Input/Input';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUIStore } from '@/store/uiStore';
-import type { Message } from '@/types/chat.types';
 import styles from './FindInChat.module.scss';
 
 // Registry names referenced by the ::highlight() rules in FindInChat.module.scss
@@ -24,7 +23,7 @@ function isEmbeddedEditor(target: EventTarget | null): boolean {
 }
 
 interface FindInChatProps {
-  messages: Message[];
+  messages: readonly object[];
   scrollerRef: RefObject<HTMLDivElement | null>;
 }
 

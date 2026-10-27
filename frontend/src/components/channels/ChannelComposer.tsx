@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import toast from 'react-hot-toast';
+import { useRecentChatsQuery } from '@/hooks/queries/useChatQueries';
 import { queryClient } from '@/lib/queryClient';
 import { AttachButton } from '@/components/chat/message-input/AttachButton';
 import { ComposerAttachmentSlots } from '@/components/chat/message-input/ComposerAttachmentSlots';
@@ -20,6 +21,7 @@ import {
 import { SelectionAttachments } from '@/components/chat/message-input/SelectionAttachments';
 import { fetchAutoSteerQueuedMessages } from '@/hooks/queries/useSettingsQueries';
 import { useChannelQueueStore } from '@/store/messageQueueStore';
+import { useAuthStore } from '@/store/authStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
 import type { Channel } from '@/types/channel.types';
@@ -49,6 +51,8 @@ export function ChannelComposer({
   draftRef.current = draft;
   const [cursorPosition, setCursorPosition] = useState(0);
   const { fileStructure } = useChatContext();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { data: recentChats } = useRecentChatsQuery(isAuthenticated);
   const memberNames = useMemo(
     () => [...channel.members.map((member) => member.display_name), 'all'],
     [channel.members],
@@ -59,7 +63,7 @@ export function ChannelComposer({
     message: draft,
     cursorPosition,
     fileStructure,
-    chats: NO_CHATS,
+    chats: recentChats?.items ?? NO_CHATS,
     members: memberNames,
     onSelect: (item, startPos, endPos) => insertTokenAt(`@${item.path}`, startPos, endPos),
   });
@@ -167,7 +171,7 @@ export function ChannelComposer({
             ref={textareaRef}
             message={draft}
             setMessage={setDraft}
-            placeholder={`Message #${channel.name}`}
+            placeholder={isBusy ? 'Type to queue message...' : `Message #${channel.name}`}
             isLoading={postMessage.isPending}
             onPaste={attachments.handlePaste}
             onCursorPositionChange={setCursorPosition}

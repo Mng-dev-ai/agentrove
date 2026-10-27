@@ -23,7 +23,8 @@ export const CHAT_STATUS_LABEL: Record<ChatStatusTone, string> = {
   unread: 'Unread',
 };
 
-export const isAssistantMessage = (msg: Message) => msg.is_bot ?? msg.role === 'assistant';
+export const isAssistantMessage = (msg: Pick<Message, 'role' | 'is_bot'>) =>
+  msg.is_bot ?? msg.role === 'assistant';
 
 export function createInitialMessage(
   prompt: string,

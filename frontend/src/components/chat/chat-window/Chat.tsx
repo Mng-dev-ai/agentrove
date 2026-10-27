@@ -388,7 +388,11 @@ export const Chat = memo(function Chat() {
 
             {/* Inside the content wrapper so the selection toolbar / ask
                 panel anchor in content coordinates and scroll with it */}
-            <ChatSelectionActions chatId={chatId} scrollerRef={scrollerRef} />
+            <ChatSelectionActions
+              chatId={chatId}
+              defaultModelId={selectedModelId}
+              scrollerRef={scrollerRef}
+            />
           </ConversationScroller>
           <MessageTrail messages={messages} scrollerRef={scrollerRef} />
           {/* Keyed by chat so query/match state resets on chat switch */}

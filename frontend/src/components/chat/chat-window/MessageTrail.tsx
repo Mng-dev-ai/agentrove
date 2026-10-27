@@ -19,8 +19,10 @@ interface TrailTurn {
   assistantText: string;
 }
 
+export type TrailMessage = Pick<Message, 'id' | 'content_text' | 'role' | 'is_bot'>;
+
 interface MessageTrailProps {
-  messages: Message[];
+  messages: TrailMessage[];
   scrollerRef: RefObject<HTMLDivElement | null>;
 }
 

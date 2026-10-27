@@ -29,12 +29,14 @@ interface SelectionAnchor {
 
 interface ChatSelectionActionsProps {
   chatId: string | undefined;
+  defaultModelId: string;
   scrollerRef: RefObject<HTMLDivElement | null>;
 }
 
 // Chat-page counterpart of the editor selection actions ("Add to chat" / "Ask").
 export const ChatSelectionActions = memo(function ChatSelectionActions({
   chatId,
+  defaultModelId,
   scrollerRef,
 }: ChatSelectionActionsProps) {
   const [anchor, setAnchor] = useState<SelectionAnchor | null>(null);
@@ -175,6 +177,7 @@ export const ChatSelectionActions = memo(function ChatSelectionActions({
         >
           <InlineAskPanel
             chatId={chatId}
+            defaultModelId={defaultModelId}
             selection={ask.selection}
             inputRef={askInputRef}
             onClose={() => setAsk(null)}
