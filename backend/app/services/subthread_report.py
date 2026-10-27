@@ -1,6 +1,7 @@
 import logging
 import re
 from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
 from typing import Any, cast
 from uuid import UUID
 
@@ -36,6 +37,9 @@ DISPATCH_INTERVAL_SECONDS = 5.0
 # as a message instead of another turn.
 FALLBACK_AFTER_ATTEMPTS = 2
 RESULT_EXCERPT_CHARS = 4000
+# Whole-prompt budget, below ChatRequest's 100000-character prompt limit.
+PROMPT_BUDGET_CHARS = 80000
+MAX_RUNNING_LISTED = 20
 # A wake turn that is still running after this is treated as wedged and cancelled.
 WAKE_TURN_DEADLINE_SECONDS = 600.0
 CANCEL_UNWIND_TIMEOUT_SECONDS = 10.0
@@ -176,41 +180,68 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             )
         if not finished or user is None:
             return 0
-        if max(r.attempts for r in finished) >= FALLBACK_AFTER_ATTEMPTS:
+        # Results whose wakes already failed are posted directly; the rest still
+        # get a model turn.
+        exhausted = [r for r in finished if r.attempts >= FALLBACK_AFTER_ATTEMPTS]
+        if exhausted:
+            batch = self._fit_batch(
+                exhausted,
+                lambda picked: self._build_results_message(picked, titles, results),
+            )
             try:
                 return await self._post_results(
-                    parent_id, user.id, finished, titles, results
+                    parent_id, user.id, batch, titles, results
                 )
             except Exception:
-                await self._defer(finished)
+                await self._defer(batch)
                 raise
 
-        report_ids = [report.id for report in finished]
-        model_id = parent.last_model_id
-        if model_id is None or model_id not in MODELS:
-            await self._defer(finished)
-            return 0
-        request = ChatRequest(
-            prompt=self._build_prompt(finished, running, titles, results, delivered),
-            chat_id=parent_id,
-            model_id=model_id,
-            permission_mode=_wake_permission_mode(parent, model_id),
-            thinking_mode=parent.last_thinking_mode,
-            selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
+        # Only the reports whose entries fit the prompt are linked to the wake;
+        # the rest stay pending for the next one.
+        batch = self._fit_batch(
+            finished,
+            lambda picked: self._build_prompt(
+                picked, running, titles, results, delivered
+            ),
         )
         try:
+            model_id = parent.last_model_id
+            if model_id is None or model_id not in MODELS:
+                await self._defer(batch)
+                return 0
+            request = ChatRequest(
+                prompt=self._build_prompt(batch, running, titles, results, delivered),
+                chat_id=parent_id,
+                model_id=model_id,
+                permission_mode=_wake_permission_mode(parent, model_id),
+                thinking_mode=parent.last_thinking_mode,
+                selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
+            )
             await self._chat_service.initiate_chat_completion(
-                request, user, wake_report_ids=report_ids
+                request, user, wake_report_ids=[r.id for r in batch]
             )
         except ChatException as exc:
             if exc.status_code == 409:
                 return 0
-            await self._defer(finished)
+            await self._defer(batch)
             raise
         except Exception:
-            await self._defer(finished)
+            await self._defer(batch)
             raise
         return 1
+
+    @staticmethod
+    def _fit_batch(
+        reports: list[SubThreadReport],
+        render: Callable[[list[SubThreadReport]], str],
+    ) -> list[SubThreadReport]:
+        # Always at least one report, so a single oversized entry can't stall a parent.
+        batch: list[SubThreadReport] = []
+        for report in reports:
+            if batch and len(render([*batch, report])) > PROMPT_BUDGET_CHARS:
+                break
+            batch.append(report)
+        return batch
 
     async def _defer(self, reports: list[SubThreadReport]) -> None:
         async with self.session_factory() as db:
@@ -326,8 +357,10 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             lines += [
                 f'- "{titles.get(r.child_chat_id, "Untitled")}" '
                 f"(chat_id {r.child_chat_id})"
-                for r in running
+                for r in running[:MAX_RUNNING_LISTED]
             ]
+            if len(running) > MAX_RUNNING_LISTED:
+                lines.append(f"- and {len(running) - MAX_RUNNING_LISTED} more")
         if delivered:
             lines += [
                 "",

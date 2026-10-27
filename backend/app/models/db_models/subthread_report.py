@@ -63,5 +63,6 @@ class SubThreadReport(Base):
 
     __table_args__ = (
         Index("idx_subthread_reports_parent_status", "parent_chat_id", "status"),
+        Index("idx_subthread_reports_status_next_attempt", "status", "next_attempt_at"),
         Index("idx_subthread_reports_wake_message_id", "wake_message_id"),
     )

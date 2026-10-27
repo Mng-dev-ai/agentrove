@@ -70,6 +70,11 @@ def upgrade() -> None:
         ["parent_chat_id", "status"],
     )
     op.create_index(
+        "idx_subthread_reports_status_next_attempt",
+        "subthread_reports",
+        ["status", "next_attempt_at"],
+    )
+    op.create_index(
         "idx_subthread_reports_wake_message_id",
         "subthread_reports",
         ["wake_message_id"],
