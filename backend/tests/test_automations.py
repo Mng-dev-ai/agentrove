@@ -24,7 +24,7 @@ from tests.helpers import create_authenticated_workspace
 pytestmark = pytest.mark.anyio
 
 
-TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-5@20250929"
+TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-6@default"
 
 
 class FakeChatService:

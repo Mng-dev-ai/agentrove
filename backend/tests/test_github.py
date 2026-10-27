@@ -27,7 +27,7 @@ from tests.helpers import get_user_settings
 pytestmark = pytest.mark.anyio
 
 
-TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-5@20250929"
+TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-6@default"
 
 
 class FakeGitHubService:
