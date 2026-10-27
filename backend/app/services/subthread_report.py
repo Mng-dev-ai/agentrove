@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from uuid import UUID
@@ -270,7 +271,15 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         text = text.strip()
         if len(text) <= RESULT_EXCERPT_CHARS:
             return text
-        return text[:RESULT_EXCERPT_CHARS] + "\n[truncated]"
+        cut = text[:RESULT_EXCERPT_CHARS]
+        if not text[RESULT_EXCERPT_CHARS].isspace():
+            # Back up to a word boundary rather than cutting mid-word.
+            cut = re.sub(r"\s+\S*$", "", cut) or cut
+        omitted = len(text) - len(cut)
+        return (
+            f"{cut.rstrip()}\n\n[truncated: {omitted} more characters in the "
+            "sub-thread's full response]"
+        )
 
     @classmethod
     def _build_results_message(
