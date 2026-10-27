@@ -96,6 +96,7 @@ export interface Chat {
   session_agent_kind: AgentKind | null;
   unread: boolean;
   last_model_id: string | null;
+  last_permission_mode?: PermissionMode | null;
   last_thinking_mode: string | null;
   last_persona_name: string | null;
 }
@@ -111,6 +112,9 @@ export type ChatEvent =
       content?: string;
       attachments: MessageAttachment[] | null;
       model_id: string;
+      thinking_mode?: string | null;
+      permission_mode?: PermissionMode;
+      selected_persona_name?: string;
       checkpoint_id: string | null;
     }
   | { kind: 'title_updated'; chat_id: string; title: string };

@@ -37,8 +37,6 @@ export const ModelSelector = memo(function ModelSelector({
 }: ModelSelectorProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isSplitMode = useIsSplitMode();
-  // Read-only models query — useModelSelection would run the per-chat defaulting
-  // effect and persist models[0] before the owner derives the model from history.
   const { data: models = [], isLoading } = useModelsQuery({ enabled: isAuthenticated });
   const favoriteModelIds = useModelStore((state) => state.favoriteModelIds);
 

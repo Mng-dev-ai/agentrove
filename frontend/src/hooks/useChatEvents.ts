@@ -56,7 +56,6 @@ export function useChatEvents(options?: { enabled?: boolean }) {
         // Server bumps updated_at — refetch so chats outside loaded pages surface.
         queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-        // Drop cached detail so toolbar seeds model/thinking/persona from this turn.
         queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
         insertStartedTurnInCache(queryClient, parsed);
         // Self-starts already have addStream; settled orphans pruned by useGlobalStream.

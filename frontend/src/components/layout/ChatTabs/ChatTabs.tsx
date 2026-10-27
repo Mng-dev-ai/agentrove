@@ -43,7 +43,11 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   const title = chatQuery.data?.title ? stripMarkdownTitle(chatQuery.data.title) : '…';
   // Streaming uses AsciiSpinner; blocked/completed map straight to ChatStatusDot.
   const statusDotTone: ChatStatusTone | null = status && status !== 'streaming' ? status : null;
-  const agentKind = useChatAgentKind(chatId, chatQuery.data?.session_agent_kind);
+  const agentKind = useChatAgentKind(
+    chatId,
+    chatQuery.data?.session_agent_kind,
+    chatQuery.data?.last_model_id,
+  );
 
   return (
     <TitleBarTab

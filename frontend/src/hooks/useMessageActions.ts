@@ -3,13 +3,7 @@ import toast from 'react-hot-toast';
 import { logger } from '@/utils/logger';
 import { createAttachmentsFromFiles } from '@/utils/message';
 import { MAX_MESSAGE_SIZE_BYTES } from '@/config/constants';
-import {
-  useChatSettingsStore,
-  DEFAULT_CHAT_SETTINGS_KEY,
-  DEFAULT_PERSONA,
-  DEFAULT_THINKING_MODE,
-} from '@/store/chatSettingsStore';
-import type { PermissionMode } from '@/store/chatSettingsStore';
+import { useChatSettings } from '@/hooks/useChatSettings';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
@@ -21,8 +15,6 @@ const textEncoder = new TextEncoder();
 interface UseMessageActionsParams {
   chatId: string | undefined;
   selectedModelId: string | null | undefined;
-  permissionMode: PermissionMode;
-  thinkingMode: string | null | undefined;
   worktree: boolean;
   baseBranch: string | undefined;
   fastMode: boolean;
@@ -53,8 +45,6 @@ const isEmptyBotPlaceholder = (msg?: Message) =>
 export function useMessageActions({
   chatId,
   selectedModelId,
-  permissionMode,
-  thinkingMode,
   worktree,
   baseBranch,
   fastMode,
@@ -71,6 +61,7 @@ export function useMessageActions({
 }: UseMessageActionsParams) {
   const { personas } = useChatContext();
   const modelMap = useModelMap();
+  const { permissionMode, thinkingMode, persona } = useChatSettings(chatId);
   const pendingStartControllerRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
@@ -100,10 +91,6 @@ export function useMessageActions({
       pendingStartControllerRef.current = startController;
 
       try {
-        const personaKey = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
-        const storedPersona =
-          useChatSettingsStore.getState().personaByChat[personaKey] ?? DEFAULT_PERSONA;
-
         const request: ChatRequest = {
           prompt: normalizedPrompt,
           user_message_id: userMessage?.id,
@@ -115,11 +102,11 @@ export function useMessageActions({
             modelMap,
             {
               permissionMode,
-              thinkingMode: thinkingMode ?? DEFAULT_THINKING_MODE,
+              thinkingMode,
               worktree,
               baseBranch,
               fastMode,
-              persona: storedPersona,
+              persona,
             },
             personas,
           ),
@@ -181,6 +168,7 @@ export function useMessageActions({
       addMessageToCache,
       modelMap,
       personas,
+      persona,
       permissionMode,
       selectedModelId,
       startStream,

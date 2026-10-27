@@ -11,7 +11,6 @@ import type {
   Message,
   PermissionRequest,
 } from '@/types/chat.types';
-import type { PermissionMode } from '@/store/chatSettingsStore';
 import type { StreamState } from '@/types/stream.types';
 import { cleanupExpiredPdfBlobs, storePdfBlobUrl } from '@/hooks/usePdfBlobCache';
 import { chatStorage } from '@/utils/storage';
@@ -33,8 +32,6 @@ interface UseChatStreamingParams {
   queryClient: QueryClient;
   onContextUsageUpdate?: (data: ContextUsage, chatId?: string) => void;
   selectedModelId: string | null | undefined;
-  permissionMode: PermissionMode;
-  thinkingMode: string | null | undefined;
   worktree: boolean;
   baseBranch: string | undefined;
   fastMode: boolean;
@@ -80,8 +77,6 @@ export function useChatStreaming({
   queryClient,
   onContextUsageUpdate,
   selectedModelId,
-  permissionMode,
-  thinkingMode,
   worktree,
   baseBranch,
   fastMode,
@@ -222,8 +217,6 @@ export function useChatStreaming({
   } = useMessageActions({
     chatId,
     selectedModelId,
-    permissionMode,
-    thinkingMode,
     worktree,
     baseBranch,
     fastMode,

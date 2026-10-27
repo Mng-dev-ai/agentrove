@@ -91,6 +91,15 @@ export function insertStartedTurnInCache(
   queryClient: QueryClient,
   event: Extract<ChatEvent, { kind: 'stream_started' }>,
 ): void {
+  patchChatInCache(queryClient, event.chat_id, (chat) => ({
+    ...chat,
+    last_model_id: event.model_id,
+    ...(event.thinking_mode !== undefined && { last_thinking_mode: event.thinking_mode }),
+    ...(event.permission_mode !== undefined && { last_permission_mode: event.permission_mode }),
+    ...(event.selected_persona_name !== undefined && {
+      last_persona_name: event.selected_persona_name,
+    }),
+  }));
   if (!event.user_message_id || event.content === undefined) return;
   insertMessagesInCache(
     queryClient,

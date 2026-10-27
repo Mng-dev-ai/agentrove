@@ -83,16 +83,10 @@ function Row({ icon, children, hint }: { icon: ReactNode; children: ReactNode; h
   );
 }
 
-function ModelRow({
-  chatId,
-  sessionAgentKind,
-}: {
-  chatId: string;
-  sessionAgentKind: Chat['session_agent_kind'];
-}) {
+function ModelRow({ chat }: { chat: Chat }) {
   const { selectedModelId } = useChatSessionState();
   const modelMap = useModelMap();
-  const agentKind = useChatAgentKind(chatId, sessionAgentKind);
+  const agentKind = useChatAgentKind(chat.id, chat.session_agent_kind, chat.last_model_id);
   const model = modelMap.get(selectedModelId);
   if (!selectedModelId) return null;
   return (
@@ -214,7 +208,7 @@ function ContextCard({ chat }: { chat: Chat }) {
 }
 
 function SubThreadRow({ thread, onSelect }: { thread: Chat; onSelect: (chatId: string) => void }) {
-  const agentKind = useChatAgentKind(thread.id, thread.session_agent_kind);
+  const agentKind = useChatAgentKind(thread.id, thread.session_agent_kind, thread.last_model_id);
   const isStreaming = useStreamStore((s) =>
     s.activeStreamMetadata.some((meta) => meta.chatId === thread.id),
   );
@@ -457,7 +451,7 @@ export const SessionPanel = memo(function SessionPanel({
   return (
     <aside className={styles.panel} aria-label="Session details">
       <EnvironmentCard chat={chat} workspace={workspace} branch={branch}>
-        {!channel && <ModelRow chatId={chat.id} sessionAgentKind={chat.session_agent_kind} />}
+        {!channel && <ModelRow chat={chat} />}
       </EnvironmentCard>
       {channel ? (
         <MembersCard channel={channel} />

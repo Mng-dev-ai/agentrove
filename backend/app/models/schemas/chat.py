@@ -98,6 +98,7 @@ class Chat(ChatBase):
     session_agent_kind: str | None = None
     unread: bool = False
     last_model_id: str | None = None
+    last_permission_mode: PermissionMode | None = None
     last_thinking_mode: str | None = None
     last_persona_name: str | None = None
 
