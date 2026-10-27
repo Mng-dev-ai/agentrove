@@ -103,6 +103,23 @@ class MessageService(BaseDbService[Message]):
 
             return message
 
+    @staticmethod
+    async def add_app_message(
+        db: AsyncSession, *, chat_id: UUID, text: str
+    ) -> Message:
+        # Joins the caller's transaction so the message commits with its other writes.
+        message = Message(
+            chat_id=chat_id,
+            role=MessageRole.ASSISTANT,
+            content_text=text,
+            content_render={"events": [{"type": "assistant_text", "text": text}]},
+            last_seq=0,
+            stream_status=MessageStreamStatus.COMPLETED,
+        )
+        db.add(message)
+        await db.flush()
+        return message
+
     async def create_attachment(
         self, message_id: UUID, attachment_data: MessageAttachmentDict
     ) -> MessageAttachment:

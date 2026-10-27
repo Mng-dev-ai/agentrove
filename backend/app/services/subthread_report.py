@@ -9,11 +9,7 @@ from sqlalchemy import select, update
 
 from app.constants import MODELS
 from app.models.db_models.chat import Chat, Message
-from app.models.db_models.enums import (
-    MessageRole,
-    MessageStreamStatus,
-    SubThreadReportStatus,
-)
+from app.models.db_models.enums import MessageStreamStatus, SubThreadReportStatus
 from app.models.db_models.subthread_report import SubThreadReport
 from app.models.db_models.user import User
 from app.models.schemas.chat import ChatRequest
@@ -23,6 +19,7 @@ from app.services.acp.adapters import NORMAL_SESSION_MODE
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
+from app.services.message import MessageService
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_report_ledger import (
     acknowledge_parent_reports,
@@ -46,6 +43,10 @@ WAKE_TURN_DEADLINE_SECONDS = 600.0
 CANCEL_UNWIND_TIMEOUT_SECONDS = 10.0
 DELIVERED_NOTICES_IN_PROMPT = 5
 Status = SubThreadReportStatus
+
+
+def _outcome(report: SubThreadReport) -> str:
+    return report.outcome.value if report.outcome else "unknown"
 
 
 def _wake_permission_mode(parent: Chat, model_id: str) -> PermissionMode:
@@ -293,18 +294,9 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             if not reserved:
                 return 0
             async with self.session_factory() as db:
-                message = Message(
-                    chat_id=parent_id,
-                    role=MessageRole.ASSISTANT,
-                    content_text=text,
-                    content_render={
-                        "events": [{"type": "assistant_text", "text": text}]
-                    },
-                    last_seq=0,
-                    stream_status=MessageStreamStatus.COMPLETED,
+                message = await MessageService.add_app_message(
+                    db, chat_id=parent_id, text=text
                 )
-                db.add(message)
-                await db.flush()
                 # New activity for the user: flags the parent unread.
                 await db.execute(
                     update(Chat)
@@ -353,7 +345,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             body = cls._excerpt(results.get(report.child_message_id, ""))
             label = title.replace("[", "\\[").replace("]", "\\]")
             sections.append(
-                f"**[{label}](/chat/{report.child_chat_id})** ({report.outcome})\n\n"
+                f"**[{label}](/chat/{report.child_chat_id})** ({_outcome(report)})\n\n"
                 f"{body or '(no final response)'}"
             )
         if more:
@@ -379,7 +371,8 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         for r in finished:
             lines += [
                 f'- "{titles.get(r.child_chat_id, "Untitled")}" '
-                f"(message_id {r.child_message_id}): {r.outcome}",
+                f"(message_id {r.child_message_id}): "
+                f"{_outcome(r)}",
                 "  Final response:",
                 cls._excerpt(results.get(r.child_message_id, "")) or "(none)",
             ]
@@ -400,7 +393,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             ]
             lines += [
                 f'- "{titles.get(r.child_chat_id, "Untitled")}" '
-                f"({r.outcome})"
+                f"({_outcome(r)})"
                 for r in delivered
             ]
         if more:

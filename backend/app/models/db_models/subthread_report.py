@@ -3,13 +3,13 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Enum as SQLAlchemyEnum
-from sqlalchemy import ForeignKey, Index, Integer, String
+from sqlalchemy import ForeignKey, Index, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
 from app.db.migration_helpers import uuid_server_default
 from app.db.types import GUID, UTCDateTime, enum_values
-from app.models.db_models.enums import SubThreadReportStatus
+from app.models.db_models.enums import MessageStreamStatus, SubThreadReportStatus
 
 
 class SubThreadReport(Base):
@@ -46,8 +46,17 @@ class SubThreadReport(Base):
         default=SubThreadReportStatus.RUNNING,
         server_default=SubThreadReportStatus.RUNNING.value,
     )
-    # MessageStreamStatus value of the child turn; null while it is running.
-    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # Terminal status of the child turn; null while it is running.
+    outcome: Mapped[MessageStreamStatus | None] = mapped_column(
+        SQLAlchemyEnum(
+            MessageStreamStatus,
+            name="subthreadreportoutcome",
+            values_callable=enum_values,
+            native_enum=False,
+            length=16,
+        ),
+        nullable=True,
+    )
     # Earliest time the dispatcher may wake the parent for a pending row.
     next_attempt_at: Mapped[datetime | None] = mapped_column(
         UTCDateTime(), nullable=True

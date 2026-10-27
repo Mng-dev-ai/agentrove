@@ -48,7 +48,19 @@ def upgrade() -> None:
             server_default="running",
             nullable=False,
         ),
-        sa.Column("outcome", sa.String(16), nullable=True),
+        sa.Column(
+            "outcome",
+            sa.Enum(
+                "in_progress",
+                "completed",
+                "failed",
+                "interrupted",
+                name="subthreadreportoutcome",
+                native_enum=False,
+                length=16,
+            ),
+            nullable=True,
+        ),
         sa.Column("next_attempt_at", UTCDateTime(), nullable=True),
         sa.Column("attempts", sa.Integer(), server_default="0", nullable=False),
         sa.Column(

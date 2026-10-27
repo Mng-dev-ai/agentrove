@@ -69,7 +69,7 @@ async def record_child_terminal(
         )
         .values(
             status=Status.PENDING,
-            outcome=status.value,
+            outcome=status,
             next_attempt_at=now + timedelta(seconds=WAKE_DEBOUNCE_SECONDS),
         )
     )
