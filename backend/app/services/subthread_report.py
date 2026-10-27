@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 from uuid import UUID
 
@@ -22,7 +22,6 @@ from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.message import MessageService
 from app.services.subthread_report_ledger import (
     acknowledge_parent_reports,
     acknowledge_reports,
@@ -36,6 +35,10 @@ DISPATCH_INTERVAL_SECONDS = 5.0
 # as a message instead of another turn.
 FALLBACK_AFTER_ATTEMPTS = 2
 RESULT_EXCERPT_CHARS = 4000
+# A wake turn that is still running after this is treated as wedged and cancelled.
+WAKE_TURN_DEADLINE_SECONDS = 600.0
+CANCEL_UNWIND_TIMEOUT_SECONDS = 10.0
+DELIVERED_NOTICES_IN_PROMPT = 5
 Status = SubThreadReportStatus
 
 
@@ -59,6 +62,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
 
     async def dispatch_due(self) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
+        await self._cancel_wedged_wakes(now)
         async with self.session_factory() as db:
             parent_ids = (
                 await db.scalars(
@@ -77,6 +81,36 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             except Exception:
                 logger.exception("Sub-thread report wake failed for chat %s", parent_id)
         return {"woken": woken}
+
+    async def _cancel_wedged_wakes(self, now: datetime) -> None:
+        # The cancelled turn lands interrupted, which releases its rows for retry.
+        async with self.session_factory() as db:
+            wedged = (
+                await db.execute(
+                    select(Message.chat_id, Message.id)
+                    .where(
+                        Message.id.in_(
+                            select(SubThreadReport.wake_message_id).where(
+                                SubThreadReport.status.in_(
+                                    (Status.WAKING, Status.COVERED)
+                                )
+                            )
+                        ),
+                        Message.stream_status == MessageStreamStatus.IN_PROGRESS,
+                        Message.created_at
+                        < now - timedelta(seconds=WAKE_TURN_DEADLINE_SECONDS),
+                    )
+                    .distinct()
+                )
+            ).all()
+        for chat_id, message_id in wedged:
+            try:
+                if await ChatStreamRuntime.cancel_chat_turn_if_current(
+                    str(chat_id), str(message_id), CANCEL_UNWIND_TIMEOUT_SECONDS
+                ):
+                    logger.warning("Cancelled wedged wake turn %s", message_id)
+            except Exception:
+                logger.exception("Failed to cancel wake turn %s", message_id)
 
     async def _wake_parent(self, parent_id: UUID) -> int:
         # Never interrupt a running parent turn; the rows stay due and the next
@@ -111,14 +145,23 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                     )
                 )
             ).all()
+            delivered = (
+                await db.scalars(
+                    select(SubThreadReport)
+                    .where(
+                        SubThreadReport.parent_chat_id == parent_id,
+                        SubThreadReport.status == Status.ACKNOWLEDGED,
+                        SubThreadReport.notice_message_id.is_not(None),
+                    )
+                    .order_by(SubThreadReport.updated_at.desc())
+                    .limit(DELIVERED_NOTICES_IN_PROMPT)
+                )
+            ).all()
+            child_ids = {r.child_chat_id for r in [*finished, *running, *delivered]}
             titles = dict(
                 (
                     await db.execute(
-                        select(Chat.id, Chat.title).where(
-                            Chat.id.in_(
-                                {r.child_chat_id for r in [*finished, *running]}
-                            )
-                        )
+                        select(Chat.id, Chat.title).where(Chat.id.in_(child_ids))
                     )
                 ).all()
             )
@@ -135,11 +178,10 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             return 0
         if max(r.attempts for r in finished) >= FALLBACK_AFTER_ATTEMPTS:
             try:
-                await self._post_results(parent_id, finished, titles, results)
+                return await self._post_results(parent_id, finished, titles, results)
             except Exception:
                 await self._defer(finished)
                 raise
-            return 1
 
         report_ids = [report.id for report in finished]
         model_id = parent.last_model_id
@@ -147,7 +189,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             await self._defer(finished)
             return 0
         request = ChatRequest(
-            prompt=self._build_prompt(finished, running, titles, results),
+            prompt=self._build_prompt(finished, running, titles, results, delivered),
             chat_id=parent_id,
             model_id=model_id,
             permission_mode=_wake_permission_mode(parent, model_id),
@@ -183,34 +225,38 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         finished: list[SubThreadReport],
         titles: dict[UUID, str],
         results: dict[UUID, str],
-    ) -> None:
-        # Posted before the rows are acknowledged: a crash in between repeats the
-        # message rather than losing the result.
+    ) -> int:
         text = self._build_results_message(finished, titles, results)
-        messages = MessageService(self.session_factory)
-        message = await messages.create_message(
-            parent_id,
-            "",
-            MessageRole.ASSISTANT,
-            stream_status=MessageStreamStatus.COMPLETED,
-        )
-        await messages.update_message_snapshot(
-            message.id,
-            content_text=text,
-            content_render={"events": [{"type": "assistant_text", "text": text}]},
-            last_seq=0,
-            active_stream_id=None,
-            stream_status=MessageStreamStatus.COMPLETED,
-        )
-        async with self.session_factory() as db:
-            # Flags the parent unread; the message is new activity for the user.
-            await db.execute(
-                update(Chat)
-                .where(Chat.id == parent_id)
-                .values(updated_at=datetime.now(timezone.utc))
-            )
-            await acknowledge_reports(db, report_ids=[r.id for r in finished])
-            await db.commit()
+        # Same guard a user's send takes, so the notice never lands mid-start.
+        async with ChatStreamRuntime.chat_start_slot(str(parent_id)) as reserved:
+            if not reserved:
+                return 0
+            async with self.session_factory() as db:
+                message = Message(
+                    chat_id=parent_id,
+                    role=MessageRole.ASSISTANT,
+                    content_text=text,
+                    content_render={
+                        "events": [{"type": "assistant_text", "text": text}]
+                    },
+                    last_seq=0,
+                    stream_status=MessageStreamStatus.COMPLETED,
+                )
+                db.add(message)
+                await db.flush()
+                # New activity for the user: flags the parent unread.
+                await db.execute(
+                    update(Chat)
+                    .where(Chat.id == parent_id)
+                    .values(updated_at=datetime.now(timezone.utc))
+                )
+                await acknowledge_reports(
+                    db,
+                    report_ids=[r.id for r in finished],
+                    notice_message_id=message.id,
+                )
+                await db.commit()
+        return 1
 
     @staticmethod
     def _excerpt(text: str) -> str:
@@ -243,6 +289,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         running: list[SubThreadReport],
         titles: dict[UUID, str],
         results: dict[UUID, str],
+        delivered: list[SubThreadReport],
     ) -> str:
         lines = [
             "[Automated sub-thread update] The sub-threads you delegated finished. "
@@ -263,6 +310,17 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                 f'- "{titles.get(r.child_chat_id, "Untitled")}" '
                 f"(chat_id {r.child_chat_id})"
                 for r in running
+            ]
+        if delivered:
+            lines += [
+                "",
+                "Already delivered to the user as an automated notice in this chat "
+                "(do not report these again):",
+            ]
+            lines += [
+                f'- "{titles.get(r.child_chat_id, "Untitled")}" '
+                f"({r.outcome})"
+                for r in delivered
             ]
         lines += [
             "",

@@ -1091,6 +1091,18 @@ class ChatStreamRuntime:
         await asyncio.wait(tasks, timeout=timeout)
 
     @classmethod
+    async def cancel_chat_turn_if_current(
+        cls, chat_id: str, assistant_message_id: str, timeout: float
+    ) -> bool:
+        # No await between this check and the cancel's first step, so a user's
+        # newer turn on the same chat can never be the one that gets cancelled.
+        runtime = cls._active_runtimes.get(chat_id)
+        if runtime is None or runtime.assistant_message_id != assistant_message_id:
+            return False
+        await cls.cancel_chat_turn(chat_id, timeout)
+        return True
+
+    @classmethod
     def active_chat_ids(cls) -> set[str]:
         cls._prune_done_tasks()
         return set(cls._background_task_chat_ids.values())

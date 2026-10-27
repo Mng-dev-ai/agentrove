@@ -176,7 +176,9 @@ async def discard_message_reports(
     await _release_wake_turn(db, message_id, now)
 
 
-async def acknowledge_reports(db: AsyncSession, *, report_ids: list[UUID]) -> None:
+async def acknowledge_reports(
+    db: AsyncSession, *, report_ids: list[UUID], notice_message_id: UUID
+) -> None:
     # Delivered by an app-generated message, with no parent turn involved.
     await db.execute(
         update(SubThreadReport)
@@ -184,7 +186,7 @@ async def acknowledge_reports(db: AsyncSession, *, report_ids: list[UUID]) -> No
             SubThreadReport.id.in_(report_ids),
             SubThreadReport.status == Status.PENDING,
         )
-        .values(status=Status.ACKNOWLEDGED)
+        .values(status=Status.ACKNOWLEDGED, notice_message_id=notice_message_id)
     )
 
 

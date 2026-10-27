@@ -60,6 +60,11 @@ class SubThreadReport(Base):
         GUID(), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
     )
 
+    # The app-generated parent message that delivered this result, if any.
+    notice_message_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
+    )
+
     __table_args__ = (
         Index("idx_subthread_reports_parent_status", "parent_chat_id", "status"),
         Index("idx_subthread_reports_wake_message_id", "wake_message_id"),

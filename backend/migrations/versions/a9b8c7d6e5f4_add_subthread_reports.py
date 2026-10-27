@@ -57,6 +57,12 @@ def upgrade() -> None:
             nullable=True,
         ),
         sa.Column(
+            "notice_message_id",
+            GUID(),
+            sa.ForeignKey("messages.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column(
             "created_at", UTCDateTime(), server_default=sa.func.now(), nullable=False
         ),
         sa.Column(
