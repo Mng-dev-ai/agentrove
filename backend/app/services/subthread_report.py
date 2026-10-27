@@ -115,6 +115,15 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                     str(chat_id), str(message_id), CANCEL_UNWIND_TIMEOUT_SECONDS
                 ):
                     logger.warning("Cancelled wedged wake turn %s", message_id)
+                    continue
+                # No runtime owns the turn (e.g. its terminal write failed), so
+                # nothing will ever settle it; finalizing releases its reports.
+                await ChatStreamRuntime.finalize_dead_stream(
+                    assistant_message_id=str(message_id),
+                    session_factory=self.session_factory,
+                    stream_status=MessageStreamStatus.INTERRUPTED,
+                    record_activity=False,
+                )
             except Exception:
                 logger.exception("Failed to cancel wake turn %s", message_id)
 
@@ -170,20 +179,21 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                     )
                 ).all()
             )
+            # Results whose wakes already failed are posted directly; the rest
+            # still get a model turn.
+            exhausted = [r for r in finished if r.attempts >= FALLBACK_AFTER_ATTEMPTS]
+            pool = (exhausted or finished)[:MAX_BATCH_REPORTS]
             results = dict(
                 (
                     await db.execute(
                         select(Message.id, Message.content_text).where(
-                            Message.id.in_([r.child_message_id for r in finished])
+                            Message.id.in_([r.child_message_id for r in pool])
                         )
                     )
                 ).all()
             )
         if not finished or user is None:
             return 0
-        # Results whose wakes already failed are posted directly; the rest still
-        # get a model turn.
-        exhausted = [r for r in finished if r.attempts >= FALLBACK_AFTER_ATTEMPTS]
         if exhausted:
             batch = self._fit_batch(
                 exhausted,
