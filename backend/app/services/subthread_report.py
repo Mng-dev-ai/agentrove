@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
@@ -16,13 +16,11 @@ from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.subthread_report_ledger import WAKE_RETRY_SECONDS
+from app.services.subthread_report_ledger import retry_delay
 
 logger = logging.getLogger(__name__)
 
 DISPATCH_INTERVAL_SECONDS = 5.0
-# Wakes that end without a delivered reply stop being retried past this.
-MAX_WAKE_ATTEMPTS = 5
 
 
 class SubThreadReportService(BaseDbService[SubThreadReport]):
@@ -58,7 +56,6 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             SubThreadReport.finished_at.is_not(None),
             SubThreadReport.acknowledged_at.is_(None),
             SubThreadReport.wake_message_id.is_(None),
-            SubThreadReport.attempts < MAX_WAKE_ATTEMPTS,
         ]
 
     async def _wake_parent(self, parent_id: UUID) -> int:
@@ -116,7 +113,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
 
         report_ids = [report.id for report in finished]
         if parent.last_model_id not in MODELS:
-            await self._defer(report_ids)
+            await self._defer(finished)
             return 0
         request = ChatRequest(
             prompt=self._build_prompt(finished, running, titles),
@@ -132,27 +129,28 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         except ChatException as exc:
             if exc.status_code == 409:
                 return 0
-            await self._defer(report_ids)
+            await self._defer(finished)
             raise
         except Exception:
-            await self._defer(report_ids)
+            await self._defer(finished)
             raise
         return 1
 
-    async def _defer(self, report_ids: list[UUID]) -> None:
+    async def _defer(self, reports: list[SubThreadReport]) -> None:
+        now = datetime.now(timezone.utc)
         async with self.session_factory() as db:
-            await db.execute(
-                update(SubThreadReport)
-                .where(
-                    SubThreadReport.id.in_(report_ids),
-                    SubThreadReport.wake_message_id.is_(None),
+            for report in reports:
+                await db.execute(
+                    update(SubThreadReport)
+                    .where(
+                        SubThreadReport.id == report.id,
+                        SubThreadReport.wake_message_id.is_(None),
+                    )
+                    .values(
+                        next_attempt_at=now + retry_delay(report.attempts),
+                        attempts=SubThreadReport.attempts + 1,
+                    )
                 )
-                .values(
-                    next_attempt_at=datetime.now(timezone.utc)
-                    + timedelta(seconds=WAKE_RETRY_SECONDS),
-                    attempts=SubThreadReport.attempts + 1,
-                )
-            )
             await db.commit()
 
     @staticmethod

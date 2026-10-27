@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, insert, update
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.enums import MessageStreamStatus
@@ -10,6 +10,15 @@ from app.models.db_models.subthread_report import SubThreadReport
 # Lets a burst of child completions land in a single parent turn.
 WAKE_DEBOUNCE_SECONDS = 10.0
 WAKE_RETRY_SECONDS = 60.0
+WAKE_RETRY_CAP_SECONDS = 900.0
+
+
+def retry_delay(attempts: int) -> timedelta:
+    # Capped rather than bounded in count so a transient failure never strands a
+    # finished child.
+    return timedelta(
+        seconds=min(WAKE_RETRY_SECONDS * 2 ** min(attempts, 10), WAKE_RETRY_CAP_SECONDS)
+    )
 
 
 async def record_child_terminal(
@@ -46,22 +55,25 @@ async def settle_wake_turn(
     # Only the results this turn was composed for are touched; anything that
     # finished while it ran has no link to it and stays pending.
     delivered = status == MessageStreamStatus.COMPLETED and bool(content_text.strip())
-    values: dict[str, datetime | None] = (
-        {"acknowledged_at": now}
-        if delivered
-        else {
-            "wake_message_id": None,
-            "next_attempt_at": now + timedelta(seconds=WAKE_RETRY_SECONDS),
-        }
+    where = (
+        SubThreadReport.wake_message_id == message_id,
+        SubThreadReport.acknowledged_at.is_(None),
     )
-    await db.execute(
-        update(SubThreadReport)
-        .where(
-            SubThreadReport.wake_message_id == message_id,
-            SubThreadReport.acknowledged_at.is_(None),
+    if delivered:
+        await db.execute(
+            update(SubThreadReport).where(*where).values(acknowledged_at=now)
         )
-        .values(**values)
-    )
+        return
+    rows = (await db.execute(select(SubThreadReport).where(*where))).scalars().all()
+    for row in rows:
+        await db.execute(
+            update(SubThreadReport)
+            .where(SubThreadReport.id == row.id)
+            .values(
+                wake_message_id=None,
+                next_attempt_at=now + retry_delay(row.attempts),
+            )
+        )
 
 
 async def create_report(
