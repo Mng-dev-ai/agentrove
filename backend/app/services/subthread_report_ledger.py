@@ -1,11 +1,12 @@
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import case, delete, insert, literal, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.chat import Message
 from app.models.db_models.enums import MessageStreamStatus, SubThreadReportStatus
+from app.db.types import UTCDateTime
 from app.models.db_models.subthread_report import SubThreadReport
 
 # Every SubThreadReport write lives here. The lifecycle, with each transition a
@@ -15,6 +16,7 @@ from app.models.db_models.subthread_report import SubThreadReport
 #   waking  -> covered      the parent named it as covered by that turn
 #   covered -> acknowledged the turn completed with a reply
 #   waking/covered -> pending   the turn did not deliver; retried after backoff
+#                               counted from the end of that turn
 Status = SubThreadReportStatus
 
 # Lets a burst of child completions land in a single parent turn.
@@ -73,32 +75,20 @@ async def record_child_terminal(
 
 
 async def link_wake_turn(
-    db: AsyncSession, *, report_ids: list[UUID], message_id: UUID, now: datetime
+    db: AsyncSession, *, report_ids: list[UUID], message_id: UUID
 ) -> None:
-    # The next attempt time is fixed here, so a turn that fails to deliver needs
-    # no per-row computation when it is settled.
-    rows = (
-        await db.execute(
-            select(SubThreadReport.id, SubThreadReport.attempts).where(
-                SubThreadReport.id.in_(report_ids),
-                SubThreadReport.status == Status.PENDING,
-            )
+    await db.execute(
+        update(SubThreadReport)
+        .where(
+            SubThreadReport.id.in_(report_ids),
+            SubThreadReport.status == Status.PENDING,
         )
-    ).all()
-    for report_id, attempts in rows:
-        await db.execute(
-            update(SubThreadReport)
-            .where(
-                SubThreadReport.id == report_id,
-                SubThreadReport.status == Status.PENDING,
-            )
-            .values(
-                status=Status.WAKING,
-                wake_message_id=message_id,
-                attempts=attempts + 1,
-                next_attempt_at=now + retry_delay(attempts),
-            )
+        .values(
+            status=Status.WAKING,
+            wake_message_id=message_id,
+            attempts=SubThreadReport.attempts + 1,
         )
+    )
 
 
 async def mark_covered(
@@ -127,14 +117,28 @@ async def mark_covered(
     return int(getattr(result, "rowcount", 0))
 
 
-async def _release_wake_turn(db: AsyncSession, message_id: UUID) -> None:
+async def _release_wake_turn(
+    db: AsyncSession, message_id: UUID, now: datetime
+) -> None:
+    # The retry deadline starts when the turn ends, so a long wake never uses up
+    # its own backoff. attempts was bumped when the row was linked.
+    retry_at = case(
+        *(
+            (
+                SubThreadReport.attempts == attempts,
+                literal(now + retry_delay(attempts - 1), UTCDateTime()),
+            )
+            for attempts in range(1, 6)
+        ),
+        else_=literal(now + retry_delay(10), UTCDateTime()),
+    )
     await db.execute(
         update(SubThreadReport)
         .where(
             SubThreadReport.wake_message_id == message_id,
             SubThreadReport.status.in_((Status.WAKING, Status.COVERED)),
         )
-        .values(status=Status.PENDING, wake_message_id=None)
+        .values(status=Status.PENDING, wake_message_id=None, next_attempt_at=retry_at)
     )
 
 
@@ -144,6 +148,7 @@ async def settle_wake_turn(
     message_id: UUID,
     status: MessageStreamStatus,
     content_text: str,
+    now: datetime,
 ) -> None:
     # Only the results this turn was composed for are touched; anything that
     # finished while it ran has no link to it and stays pending.
@@ -157,16 +162,18 @@ async def settle_wake_turn(
             .values(status=Status.ACKNOWLEDGED)
         )
     # Whatever the reply did not explicitly cover goes back to the queue.
-    await _release_wake_turn(db, message_id)
+    await _release_wake_turn(db, message_id, now)
 
 
-async def discard_message_reports(db: AsyncSession, *, message_id: UUID) -> None:
+async def discard_message_reports(
+    db: AsyncSession, *, message_id: UUID, now: datetime
+) -> None:
     # A discarded child can never finish, and a discarded wake turn never
     # delivers; leaving either row behind would stall or strand its report.
     await db.execute(
         delete(SubThreadReport).where(SubThreadReport.child_message_id == message_id)
     )
-    await _release_wake_turn(db, message_id)
+    await _release_wake_turn(db, message_id, now)
 
 
 async def defer_reports(

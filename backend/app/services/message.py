@@ -223,6 +223,7 @@ class MessageService(BaseDbService[Message]):
                     message_id=message_id,
                     status=stream_status,
                     content_text=content_text,
+                    now=now,
                 )
 
             await db.commit()
@@ -532,6 +533,6 @@ class MessageService(BaseDbService[Message]):
                 .values(deleted_at=now)
             )
             result = await db.execute(stmt)
-            await discard_message_reports(db, message_id=message_id)
+            await discard_message_reports(db, message_id=message_id, now=now)
             await db.commit()
             return int(getattr(result, "rowcount", 0)) > 0

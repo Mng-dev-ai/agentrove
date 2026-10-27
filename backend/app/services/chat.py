@@ -1242,7 +1242,6 @@ class ChatService(BaseDbService[Chat]):
                     db,
                     report_ids=wake_report_ids,
                     message_id=assistant_message_id,
-                    now=datetime.now(timezone.utc),
                 )
             await db.commit()
 
