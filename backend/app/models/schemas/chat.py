@@ -45,6 +45,15 @@ class ChatRequest(BaseModel):
     wake_report_ids: list[UUID] | None = Field(None, exclude=True)
 
 
+class SubThreadCoverageRequest(BaseModel):
+    # Child message ids, one per delegated run the reply covers.
+    message_ids: list[UUID] = Field(..., min_length=1, max_length=100)
+
+
+class SubThreadCoverageResponse(BaseModel):
+    covered: int
+
+
 class MessageBase(BaseModel):
     content_text: str = ""
     content_render: dict[str, Any] = Field(default_factory=lambda: {"events": []})

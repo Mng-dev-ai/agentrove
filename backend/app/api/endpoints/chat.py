@@ -57,6 +57,8 @@ from app.models.schemas.chat import (
     MessageAttachment as MessageAttachmentSchema,
     MessageEvent,
     PermissionRespondResponse,
+    SubThreadCoverageRequest,
+    SubThreadCoverageResponse,
 )
 from app.models.schemas.sandbox import (
     GitCommandResponse,
@@ -700,6 +702,19 @@ async def respond_to_elicitation(
         )
 
     return PermissionRespondResponse(success=True)
+
+
+@router.post(
+    "/chats/{chat_id}/subthread-reports/covered",
+    response_model=SubThreadCoverageResponse,
+)
+async def cover_subthread_reports(
+    body: SubThreadCoverageRequest,
+    chat: Chat = Depends(ensure_chat_access),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> SubThreadCoverageResponse:
+    covered = await chat_service.cover_subthread_reports(chat.id, body.message_ids)
+    return SubThreadCoverageResponse(covered=covered)
 
 
 @router.post(

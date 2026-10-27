@@ -4,6 +4,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import delete, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.db_models.chat import Message
 from app.models.db_models.enums import MessageStreamStatus
 from app.models.db_models.subthread_report import SubThreadReport
 
@@ -55,25 +56,57 @@ async def settle_wake_turn(
     # Only the results this turn was composed for are touched; anything that
     # finished while it ran has no link to it and stays pending.
     delivered = status == MessageStreamStatus.COMPLETED and bool(content_text.strip())
-    where = (
+    linked = (
         SubThreadReport.wake_message_id == message_id,
         SubThreadReport.acknowledged_at.is_(None),
     )
     if delivered:
         await db.execute(
-            update(SubThreadReport).where(*where).values(acknowledged_at=now)
+            update(SubThreadReport)
+            .where(*linked, SubThreadReport.covered_at.is_not(None))
+            .values(acknowledged_at=now)
         )
-        return
-    rows = (await db.execute(select(SubThreadReport).where(*where))).scalars().all()
+    # Whatever the reply did not explicitly cover goes back to the queue.
+    rows = (
+        (await db.execute(select(SubThreadReport).where(*linked))).scalars().all()
+    )
     for row in rows:
         await db.execute(
             update(SubThreadReport)
             .where(SubThreadReport.id == row.id)
             .values(
                 wake_message_id=None,
+                covered_at=None,
                 next_attempt_at=now + retry_delay(row.attempts),
             )
         )
+
+
+async def mark_covered(
+    db: AsyncSession,
+    *,
+    parent_chat_id: UUID,
+    child_message_ids: list[UUID],
+    now: datetime,
+) -> int:
+    # Only rows linked to the parent's running wake turn can be covered, so a
+    # failed attempt's coverage never carries into a later reply.
+    running_turn = select(Message.id).where(
+        Message.chat_id == parent_chat_id,
+        Message.stream_status == MessageStreamStatus.IN_PROGRESS,
+        Message.deleted_at.is_(None),
+    )
+    result = await db.execute(
+        update(SubThreadReport)
+        .where(
+            SubThreadReport.parent_chat_id == parent_chat_id,
+            SubThreadReport.child_message_id.in_(child_message_ids),
+            SubThreadReport.wake_message_id.in_(running_turn),
+            SubThreadReport.acknowledged_at.is_(None),
+        )
+        .values(covered_at=now)
+    )
+    return int(getattr(result, "rowcount", 0))
 
 
 async def create_report(
@@ -103,7 +136,11 @@ async def link_wake_turn(
             SubThreadReport.wake_message_id.is_(None),
             SubThreadReport.acknowledged_at.is_(None),
         )
-        .values(wake_message_id=message_id, attempts=SubThreadReport.attempts + 1)
+        .values(
+            wake_message_id=message_id,
+            covered_at=None,
+            attempts=SubThreadReport.attempts + 1,
+        )
     )
 
 
@@ -121,5 +158,5 @@ async def discard_message_reports(
             SubThreadReport.wake_message_id == message_id,
             SubThreadReport.acknowledged_at.is_(None),
         )
-        .values(wake_message_id=None, next_attempt_at=now)
+        .values(wake_message_id=None, covered_at=None, next_attempt_at=now)
     )

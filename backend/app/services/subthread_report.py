@@ -167,7 +167,8 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         ]
         lines += [
             f'- "{titles.get(r.child_chat_id, "Untitled")}" '
-            f"(chat_id {r.child_chat_id}): {r.outcome}"
+            f"(chat_id {r.child_chat_id}, message_id {r.child_message_id}): "
+            f"{r.outcome}"
             for r in finished
         ]
         if running:
@@ -180,6 +181,8 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         lines += [
             "",
             "Read each finished sub-thread's result (get_messages with its chat_id), "
-            "then reply to the user with a brief summary of what finished.",
+            "reply to the user with a brief summary of what finished, and in the "
+            "same turn call report_subthreads_covered with the message_ids your reply "
+            "covers. Results you do not cover are re-delivered later.",
         ]
         return "\n".join(lines)

@@ -44,6 +44,7 @@ def upgrade() -> None:
             sa.ForeignKey("messages.id", ondelete="SET NULL"),
             nullable=True,
         ),
+        sa.Column("covered_at", UTCDateTime(), nullable=True),
         sa.Column("acknowledged_at", UTCDateTime(), nullable=True),
         sa.Column(
             "created_at", UTCDateTime(), server_default=sa.func.now(), nullable=False

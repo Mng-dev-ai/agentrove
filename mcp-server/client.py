@@ -183,6 +183,16 @@ class AgentroveClient:
         resp = await self.request("POST", "/chat/chat", data=data)
         return resp.json()
 
+    async def cover_subthread_reports(
+        self, parent_chat_id: str, message_ids: list[str]
+    ) -> dict[str, Any]:
+        resp = await self.request(
+            "POST",
+            f"/chat/chats/{parent_chat_id}/subthread-reports/covered",
+            json={"message_ids": message_ids},
+        )
+        return resp.json()
+
     async def attach_file(self, chat_id: str, path: str) -> dict[str, Any]:
         file_path = Path(path)
         content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"

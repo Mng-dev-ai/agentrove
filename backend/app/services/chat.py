@@ -47,7 +47,11 @@ from app.services.message import MessageService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
-from app.services.subthread_report_ledger import create_report, link_wake_turn
+from app.services.subthread_report_ledger import (
+    create_report,
+    link_wake_turn,
+    mark_covered,
+)
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import (
@@ -1198,6 +1202,19 @@ class ChatService(BaseDbService[Chat]):
             # of making the client wait for the stream config event.
             "worktree_cwd": chat.worktree_cwd,
         }
+
+    async def cover_subthread_reports(
+        self, parent_chat_id: UUID, child_message_ids: list[UUID]
+    ) -> int:
+        async with self.session_factory() as db:
+            covered = await mark_covered(
+                db,
+                parent_chat_id=parent_chat_id,
+                child_message_ids=child_message_ids,
+                now=datetime.now(timezone.utc),
+            )
+            await db.commit()
+        return covered
 
     async def _record_report_state(
         self, request: ChatRequest, chat: Chat, assistant_message_id: UUID

@@ -134,6 +134,20 @@ async def get_current_chat() -> dict[str, Any]:
 
 
 @mcp.tool()
+async def report_subthreads_covered(message_ids: list[str]) -> dict[str, Any]:
+    """Record which finished sub-thread results your reply to the user covers.
+
+    Call this in the same turn as an automated sub-thread update, with the message_id
+    of each finished sub-thread run you summarised in your reply. Results you leave out
+    stay pending and are delivered again later. Returns {"covered": <count>}.
+    """
+    parent_chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
+    if not parent_chat_id:
+        raise AgentroveError("The current chat is unknown, so coverage can't be recorded.")
+    return await client.cover_subthread_reports(parent_chat_id, message_ids)
+
+
+@mcp.tool()
 async def attach_file(path: str) -> dict[str, Any]:
     """Attach a local file to the current assistant message for the user to view or download.
 

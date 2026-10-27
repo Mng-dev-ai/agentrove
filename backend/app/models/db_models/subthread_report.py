@@ -48,7 +48,9 @@ class SubThreadReport(Base):
     wake_message_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
     )
-    # Set only once the wake turn completed with a user-visible reply.
+    # The parent named this run as covered by its current wake turn.
+    covered_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    # Set only once the wake turn completed with a reply covering this run.
     acknowledged_at: Mapped[datetime | None] = mapped_column(
         UTCDateTime(), nullable=True
     )
