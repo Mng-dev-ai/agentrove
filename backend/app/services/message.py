@@ -59,6 +59,7 @@ class MessageService(BaseDbService[Message]):
         model_id: str | None = None,
         session_id: str | None = None,
         stream_status: MessageStreamStatus | None = None,
+        message_id: UUID | None = None,
     ) -> Message:
         # Assistants start empty (stream fills via update_message_snapshot); users go in whole.
         async with self.session_factory() as db:
@@ -81,6 +82,8 @@ class MessageService(BaseDbService[Message]):
                 "model_id": model_id,
                 "session_id": session_id,
             }
+            if message_id is not None:
+                message_kwargs["id"] = message_id
             if stream_status is not None:
                 message_kwargs["stream_status"] = stream_status
 

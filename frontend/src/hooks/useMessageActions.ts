@@ -106,6 +106,7 @@ export function useMessageActions({
 
         const request: ChatRequest = {
           prompt: normalizedPrompt,
+          user_message_id: userMessage?.id,
           model_id: selectedModelId,
           ...(chatIdOverride && { chat_id: chatIdOverride }),
           attached_files: filesToSend && filesToSend.length > 0 ? filesToSend : undefined,
@@ -149,6 +150,7 @@ export function useMessageActions({
         };
 
         setMessages((prev) => {
+          if (prev.some((message) => message.id === messageId)) return prev;
           const lastMessage = prev[prev.length - 1];
           if (isEmptyBotPlaceholder(lastMessage)) {
             return [...prev.slice(0, -1), initialMessage];

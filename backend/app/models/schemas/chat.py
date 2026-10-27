@@ -30,6 +30,7 @@ class ChatRequest(BaseModel):
 
     prompt: str = Field(..., min_length=1, max_length=100000)
     chat_id: UUID
+    user_message_id: UUID | None = None
     model_id: str = Field(..., min_length=1, max_length=255)
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = Field(None, max_length=50)

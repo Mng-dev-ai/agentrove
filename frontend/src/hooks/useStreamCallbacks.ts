@@ -23,16 +23,17 @@ import { useMessageCache } from '@/hooks/useMessageCache';
 import { streamService } from '@/services/streamService';
 import type { StreamOptions } from '@/services/streamService';
 import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
-import type { PaginatedMessages } from '@/types/api.types';
 import {
   findMessageInCache,
+  insertMessagesInCache,
   patchChatWorktreeCwd,
   updateMessageInCacheForChat,
 } from '@/hooks/stream/cachePatch';
 import {
   buildContentFlushUpdate,
   buildFailedMessageUpdate,
-  createEmptyRenderSnapshot,
+  createTurnMessages,
+  insertMessagesById,
   getStreamErrorMessage,
 } from '@/hooks/stream/messageUpdates';
 import { envelopeToRenderEvent, extractPayloadData } from '@/hooks/stream/envelopeTranslation';
@@ -584,66 +585,12 @@ export function useStreamCallbacks({
         }
       }
 
-      const userMessage: Message = {
-        id: data.userMessageId,
-        chat_id: chatId,
-        role: 'user',
-        content_text: data.content,
-        content_render: {
-          events: [{ type: 'user_text', text: data.content }],
-        },
-        last_seq: 0,
-        active_stream_id: null,
-        stream_status: 'completed',
-        created_at: new Date().toISOString(),
-        attachments: data.attachments || [],
-        is_bot: false,
-        model_id: null,
-        duration_ms: null,
-        checkpoint_id: null,
-        tool_results_omitted: false,
-      };
-
-      const assistantMessage: Message = {
-        id: data.assistantMessageId,
-        chat_id: chatId,
-        role: 'assistant',
-        content_text: '',
-        content_render: createEmptyRenderSnapshot(),
-        last_seq: 0,
-        active_stream_id: null,
-        stream_status: 'in_progress',
-        created_at: new Date().toISOString(),
-        model_id: data.modelId,
-        attachments: [],
-        is_bot: true,
-        duration_ms: null,
-        checkpoint_id: data.checkpointId,
-        tool_results_omitted: false,
-      };
-
-      // Cache even off-screen; single setQueryData for both msgs to avoid double churn.
-      queryClient.setQueryData(
-        queryKeys.messages(chatId),
-        (oldData: { pages: PaginatedMessages[]; pageParams: unknown[] } | undefined) => {
-          if (!oldData?.pages || oldData.pages.length === 0) return oldData;
-          const items = [...oldData.pages[0].items];
-          if (!items.some((msg) => msg.id === userMessage.id)) {
-            items.unshift(userMessage);
-          }
-          if (!items.some((msg) => msg.id === assistantMessage.id)) {
-            items.unshift(assistantMessage);
-          }
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page, idx) => (idx === 0 ? { ...page, items } : page)),
-          };
-        },
-      );
+      const turnMessages = createTurnMessages(chatId, data);
+      insertMessagesInCache(queryClient, chatId, turnMessages);
 
       if (!isCurrentChat) return;
 
-      setMessages((prev) => [...prev, userMessage, assistantMessage]);
+      setMessages((prev) => insertMessagesById(prev, turnMessages));
       setCurrentMessageId(data.assistantMessageId);
       // Anchor handshake keys off pending user message id (same as normal send).
       setPendingUserMessageId(data.userMessageId);

@@ -10,6 +10,7 @@ import { queryKeys } from '@/hooks/queries/queryKeys';
 import { subscribeChatEventsFeed } from '@/utils/chatEventsFeed';
 import { resyncActiveStreams } from '@/utils/activeStreams';
 import { logger } from '@/utils/logger';
+import { insertStartedTurnInCache } from '@/hooks/stream/cachePatch';
 import type { ChatEvent } from '@/types/chat.types';
 
 // Full refetch is simpler than local's optimistic insert — cloud lists reorder server-side.
@@ -76,6 +77,7 @@ export function useCloudChatEvents(options?: { enabled?: boolean }) {
         useUIStore.getState().openChatTab(parsed.chat_id);
         invalidateCloudLists(queryClient);
         void queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
+        insertStartedTurnInCache(queryClient, parsed);
         useStreamStore.getState().addStreamMetadataIfAbsent({
           chatId: parsed.chat_id,
           messageId: parsed.message_id,
