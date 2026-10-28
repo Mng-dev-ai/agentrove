@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useLayoutEffect } from 'react';
 import { logger } from '@/utils/logger';
 import { isUploadedImageFile } from '@/utils/fileTypes';
 import { filterChatAttachmentFiles } from '@/utils/file';
@@ -10,16 +10,13 @@ interface UseFileHandlingOptions {
 
 export function useFileHandling({ initialFiles = null, onChange }: UseFileHandlingOptions = {}) {
   const [files, setFiles] = useState<File[]>(initialFiles ?? []);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
   useEffect(() => {
     setFiles(initialFiles ?? []);
   }, [initialFiles]);
 
-  const previewUrls = useMemo(() => {
-    if (files.length === 0) {
-      return [];
-    }
-
+  useLayoutEffect(() => {
     const urls = files.map((file) => {
       if (isUploadedImageFile(file)) {
         try {
@@ -33,20 +30,16 @@ export function useFileHandling({ initialFiles = null, onChange }: UseFileHandli
       return '';
     });
 
-    return urls;
-  }, [files]);
-
-  useEffect(() => {
-    const currentUrls = previewUrls.filter((url) => url !== '');
+    setPreviewUrls(urls);
 
     return () => {
-      currentUrls.forEach((url) => {
+      urls.forEach((url) => {
         if (url) {
           URL.revokeObjectURL(url);
         }
       });
     };
-  }, [previewUrls]);
+  }, [files]);
 
   const addFiles = useCallback(
     (newFiles: File[]) => {
