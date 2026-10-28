@@ -329,6 +329,7 @@ class ChatService(BaseDbService[Chat]):
 
             chat = Chat(
                 title=chat_data.title,
+                last_model_id=chat_data.model_id,
                 user_id=user.id,
                 workspace_id=workspace.id,
                 parent_chat_id=chat_data.parent_chat_id,
@@ -1117,6 +1118,7 @@ class ChatService(BaseDbService[Chat]):
                 .values(
                     updated_at=now,
                     last_model_id=request.model_id,
+                    last_permission_mode=request.permission_mode,
                     last_thinking_mode=request.thinking_mode,
                     last_persona_name=request.selected_persona_name,
                 )
@@ -1144,7 +1146,8 @@ class ChatService(BaseDbService[Chat]):
             base_branch=request.base_branch,
             session_factory=self._session_factory,
             channel_member=member_turn is not None,
-        ) as (_, assistant_message, checkpoint_id):
+            user_message_id=request.user_message_id,
+        ) as (user_message, assistant_message, checkpoint_id):
             task = await self._enqueue_chat_task(
                 member_turn=member_turn,
                 prompt=request.prompt,
@@ -1175,6 +1178,16 @@ class ChatService(BaseDbService[Chat]):
                     "kind": "stream_started",
                     "chat_id": str(chat_id),
                     "message_id": str(assistant_message.id),
+                    "user_message_id": str(user_message.id),
+                    "content": user_message.content_text,
+                    "attachments": MessageService.serialize_attachments(
+                        {"attachments": attachments}, user_message
+                    ),
+                    "model_id": request.model_id,
+                    "thinking_mode": request.thinking_mode,
+                    "permission_mode": request.permission_mode,
+                    "selected_persona_name": request.selected_persona_name,
+                    "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
                 },
             )
 

@@ -3,13 +3,7 @@ import toast from 'react-hot-toast';
 import { logger } from '@/utils/logger';
 import { createAttachmentsFromFiles } from '@/utils/message';
 import { MAX_MESSAGE_SIZE_BYTES } from '@/config/constants';
-import {
-  useChatSettingsStore,
-  DEFAULT_CHAT_SETTINGS_KEY,
-  DEFAULT_PERSONA,
-  DEFAULT_THINKING_MODE,
-} from '@/store/chatSettingsStore';
-import type { PermissionMode } from '@/store/chatSettingsStore';
+import { useChatSettings } from '@/hooks/useChatSettings';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
@@ -21,8 +15,6 @@ const textEncoder = new TextEncoder();
 interface UseMessageActionsParams {
   chatId: string | undefined;
   selectedModelId: string | null | undefined;
-  permissionMode: PermissionMode;
-  thinkingMode: string | null | undefined;
   worktree: boolean;
   baseBranch: string | undefined;
   fastMode: boolean;
@@ -35,7 +27,6 @@ interface UseMessageActionsParams {
     request: ChatRequest,
     signal?: AbortSignal,
   ) => Promise<{ messageId: string; checkpointId: string | null }>;
-  storeBlobUrl: (file: File, url: string) => void;
   setPendingUserMessageId: (id: string | null) => void;
   isLoading: boolean;
   isStreaming: boolean;
@@ -53,8 +44,6 @@ const isEmptyBotPlaceholder = (msg?: Message) =>
 export function useMessageActions({
   chatId,
   selectedModelId,
-  permissionMode,
-  thinkingMode,
   worktree,
   baseBranch,
   fastMode,
@@ -64,13 +53,13 @@ export function useMessageActions({
   setMessages,
   addMessageToCache,
   startStream,
-  storeBlobUrl,
   setPendingUserMessageId,
   isLoading,
   isStreaming,
 }: UseMessageActionsParams) {
   const { personas } = useChatContext();
   const modelMap = useModelMap();
+  const { permissionMode, thinkingMode, persona } = useChatSettings(chatId);
   const pendingStartControllerRef = useRef<AbortController | null>(null);
 
   const sendMessage = useCallback(
@@ -100,12 +89,9 @@ export function useMessageActions({
       pendingStartControllerRef.current = startController;
 
       try {
-        const personaKey = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
-        const storedPersona =
-          useChatSettingsStore.getState().personaByChat[personaKey] ?? DEFAULT_PERSONA;
-
         const request: ChatRequest = {
           prompt: normalizedPrompt,
+          user_message_id: userMessage?.id,
           model_id: selectedModelId,
           ...(chatIdOverride && { chat_id: chatIdOverride }),
           attached_files: filesToSend && filesToSend.length > 0 ? filesToSend : undefined,
@@ -114,11 +100,11 @@ export function useMessageActions({
             modelMap,
             {
               permissionMode,
-              thinkingMode: thinkingMode ?? DEFAULT_THINKING_MODE,
+              thinkingMode,
               worktree,
               baseBranch,
               fastMode,
-              persona: storedPersona,
+              persona,
             },
             personas,
           ),
@@ -149,6 +135,7 @@ export function useMessageActions({
         };
 
         setMessages((prev) => {
+          if (prev.some((message) => message.id === messageId)) return prev;
           const lastMessage = prev[prev.length - 1];
           if (isEmptyBotPlaceholder(lastMessage)) {
             return [...prev.slice(0, -1), initialMessage];
@@ -179,6 +166,7 @@ export function useMessageActions({
       addMessageToCache,
       modelMap,
       personas,
+      persona,
       permissionMode,
       selectedModelId,
       startStream,
@@ -235,7 +223,7 @@ export function useMessageActions({
         is_bot: false,
         model_id: selectedModelId,
         created_at: new Date().toISOString(),
-        attachments: createAttachmentsFromFiles(inputFiles, storeBlobUrl) ?? [],
+        attachments: createAttachmentsFromFiles(inputFiles) ?? [],
         duration_ms: null,
         checkpoint_id: null,
         tool_results_omitted: false,
@@ -260,7 +248,6 @@ export function useMessageActions({
       isStreaming,
       selectedModelId,
       sendMessage,
-      storeBlobUrl,
       setPendingUserMessageId,
       setMessages,
     ],

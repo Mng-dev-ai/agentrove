@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import type { Message } from '@/types/chat.types';
 import { isAssistantMessage, createInitialMessage, createAttachmentsFromFiles } from './message';
 
@@ -56,7 +56,7 @@ describe('createInitialMessage', () => {
     const [att] = m.attachments;
     expect(att.filename).toBe('shot.png');
     expect(att.file_type).toBe('image');
-    expect(att.file_url).toMatch(/^blob:/);
+    expect(att.file_url).toBe(file);
   });
 
   it('produces an empty attachments array for an empty file list', () => {
@@ -66,25 +66,20 @@ describe('createInitialMessage', () => {
 
 describe('createAttachmentsFromFiles', () => {
   it('returns undefined for null or empty input', () => {
-    const store = vi.fn();
-    expect(createAttachmentsFromFiles(null, store)).toBeUndefined();
-    expect(createAttachmentsFromFiles([], store)).toBeUndefined();
-    expect(store).not.toHaveBeenCalled();
+    expect(createAttachmentsFromFiles(null)).toBeUndefined();
+    expect(createAttachmentsFromFiles([])).toBeUndefined();
   });
 
-  it('maps files to attachments and stores the blob url only for pdfs', () => {
-    const store = vi.fn();
+  it('maps files to attachments without creating blob urls', () => {
     const png = new File(['x'], 'a.png', { type: 'image/png' });
     const pdf = new File(['y'], 'b.pdf', { type: 'application/pdf' });
-    const atts = createAttachmentsFromFiles([png, pdf], store);
+    const atts = createAttachmentsFromFiles([png, pdf]);
 
     expect(atts).toHaveLength(2);
     expect(atts?.[0].file_type).toBe('image');
     expect(atts?.[1].file_type).toBe('pdf');
-    expect(atts?.[1].file_url).toMatch(/^blob:/);
-    // storeBlobUrl fires for the pdf only, with the file and its blob url.
-    expect(store).toHaveBeenCalledTimes(1);
-    expect(store).toHaveBeenCalledWith(pdf, atts?.[1].file_url);
+    expect(atts?.[0].file_url).toBe(png);
+    expect(atts?.[1].file_url).toBe(pdf);
     // message_id is a millisecond timestamp string.
     expect(atts?.[0].message_id).toMatch(/^\d+$/);
   });

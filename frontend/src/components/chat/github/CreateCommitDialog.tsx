@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { useActiveChat } from '@/hooks/useActiveChat';
-import { useModelStore } from '@/store/modelStore';
+import { useModelSelection } from '@/hooks/queries/useModelQueries';
 import { useGitCommitMutation, useGitDiffQuery } from '@/hooks/queries/useSandboxQueries';
 import { useGenerateCommitMessageMutation } from '@/hooks/queries/useGitHubQueries';
 import { MAX_DIFF_LENGTH } from '@/config/constants';
@@ -31,12 +31,9 @@ export function CreateCommitDialog({ onClose }: CreateCommitDialogProps) {
     false,
     worktreeCwd,
   );
-  // Resolve the model from the active git chat (modelStore is keyed per chat), not
-  // the primary chat session — in split view this dialog targets the active split pane.
-  const selectedModelId = useModelStore((s) =>
-    currentChat ? (s.modelByChat[currentChat.id] ?? '') : '',
-  );
-
+  const { selectedModelId } = useModelSelection({
+    chatId: currentChat?.id,
+  });
   const hasDiff = !!diffData?.diff && !isPlaceholderData;
   const hasModel = !!selectedModelId.trim();
   const canGenerate = hasDiff && hasModel && !generateMessage.isPending;

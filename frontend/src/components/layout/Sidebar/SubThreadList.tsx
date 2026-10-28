@@ -40,7 +40,7 @@ const SubThreadRow = memo(function SubThreadRow({
   onMouseEnter,
   onMouseLeave,
 }: SubThreadRowProps) {
-  const agentKind = useChatAgentKind(thread.id, thread.session_agent_kind);
+  const agentKind = useChatAgentKind(thread.id, thread.session_agent_kind, thread.last_model_id);
   // Same status language as top-level rows: red dot = needs you, braille spinner =
   // running, green dot = done. Persistent on the leading icon (visible on hover).
   const status = chatStatusTone({

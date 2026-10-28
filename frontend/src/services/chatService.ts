@@ -23,6 +23,9 @@ export function buildChatFormData(request: ChatRequest): FormData {
   // Shared with cloudChatService so multipart fields can't drift.
   const formData = new FormData();
   formData.append('prompt', request.prompt);
+  if (request.user_message_id) {
+    formData.append('user_message_id', request.user_message_id);
+  }
 
   if (request.chat_id) {
     formData.append('chat_id', request.chat_id);

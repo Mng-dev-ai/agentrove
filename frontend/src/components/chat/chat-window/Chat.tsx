@@ -214,7 +214,9 @@ export const Chat = memo(function Chat() {
       }
       const attachments = msg.attachments ?? [];
       const localAttachmentIds = attachments.reduce<string[]>((acc, attachment) => {
-        if (isBrowserObjectUrl(attachment.file_url)) acc.push(attachment.id);
+        if (attachment.file_url instanceof File || isBrowserObjectUrl(attachment.file_url)) {
+          acc.push(attachment.id);
+        }
         return acc;
       }, []);
       const isLatestUserMessage = !isBotMessage && msg.id === latestUserMessageId;

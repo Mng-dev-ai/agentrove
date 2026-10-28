@@ -1,4 +1,5 @@
 import { useCallback, type RefObject } from 'react';
+import { useChatSettings } from '@/hooks/useChatSettings';
 import toast from 'react-hot-toast';
 import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/hooks/queries/queryKeys';
@@ -11,11 +12,8 @@ import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-
 import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import {
   useChatSettingsStore,
-  DEFAULT_PERMISSION_MODE,
-  DEFAULT_THINKING_MODE,
   DEFAULT_WORKTREE,
   DEFAULT_FAST_MODE,
-  DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
 import { useTokenDeleteKeyDown } from '@/hooks/useComposerTokens';
@@ -71,6 +69,7 @@ export function useInputSubmit({
   handleMentionKeyDown,
   handleSlashCommandKeyDown,
 }: UseInputSubmitOptions) {
+  const { permissionMode, thinkingMode, persona } = useChatSettings(chatId);
   const handleSubmit = useCallback(
     (event: React.FormEvent) => {
       event.preventDefault();
@@ -98,20 +97,16 @@ export function useInputSubmit({
         return;
       }
       const settings = useChatSettingsStore.getState();
-      const permissionMode = coercePermissionModeForAgent(
-        settings.permissionModeByChat[chatId] ?? DEFAULT_PERMISSION_MODE,
-        agentKind,
-      );
-      const thinkingMode = coerceThinkingModeForAgent(
-        settings.thinkingModeByChat[chatId] ?? DEFAULT_THINKING_MODE,
+      const effectivePermissionMode = coercePermissionModeForAgent(permissionMode, agentKind);
+      const effectiveThinkingMode = coerceThinkingModeForAgent(
+        thinkingMode,
         agentKind,
         selectedModel,
       );
       const worktree = settings.worktreeByChat[chatId] ?? DEFAULT_WORKTREE;
       const baseBranch = settings.worktreeBaseBranchByChat[chatId];
       const fastMode = settings.fastModeByChat[chatId] ?? DEFAULT_FAST_MODE;
-      const storedPersona = settings.personaByChat[chatId] ?? DEFAULT_PERSONA;
-      const validPersona = resolvePersona(storedPersona, personas);
+      const validPersona = resolvePersona(persona, personas);
       const text = messageRef.current;
       const fullMessage = formatComposerSelections(attachedSelections, text.trim());
       void fetchAutoSteerQueuedMessages(queryClient)
@@ -119,8 +114,8 @@ export function useInputSubmit({
           const result = await useMessageQueueStore
             .getState()
             .queueMessage(chatId, fullMessage, selectedModelId, {
-              permissionMode,
-              thinkingMode,
+              permissionMode: effectivePermissionMode,
+              thinkingMode: effectiveThinkingMode,
               worktree,
               baseBranch,
               fastMode,
@@ -186,6 +181,9 @@ export function useInputSubmit({
     selectedModelId,
     selectedModel,
     personas,
+    permissionMode,
+    thinkingMode,
+    persona,
     formRef,
     messageRef,
     setPreviewDismissed,

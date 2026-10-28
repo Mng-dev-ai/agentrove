@@ -4,7 +4,7 @@ import type { PermissionMode } from '@/store/chatSettingsStore';
 export interface MessageAttachment {
   id: string;
   message_id: string;
-  file_url: string;
+  file_url: string | File;
   file_type: 'image' | 'pdf' | 'xlsx';
   filename?: string;
   created_at: string;
@@ -96,6 +96,7 @@ export interface Chat {
   session_agent_kind: AgentKind | null;
   unread: boolean;
   last_model_id: string | null;
+  last_permission_mode?: PermissionMode | null;
   last_thinking_mode: string | null;
   last_persona_name: string | null;
 }
@@ -103,12 +104,25 @@ export interface Chat {
 // /chat/chats/events SSE — useChatEvents (local) / useCloudChatEvents (VPS).
 export type ChatEvent =
   | { kind: 'chat_created'; chat: Chat }
-  | { kind: 'stream_started'; chat_id: string; message_id: string }
+  | {
+      kind: 'stream_started';
+      chat_id: string;
+      message_id: string;
+      user_message_id?: string;
+      content?: string;
+      attachments: MessageAttachment[] | null;
+      model_id: string;
+      thinking_mode?: string | null;
+      permission_mode?: PermissionMode;
+      selected_persona_name?: string;
+      checkpoint_id: string | null;
+    }
   | { kind: 'title_updated'; chat_id: string; title: string };
 
 export interface ChatRequest {
   prompt: string;
   chat_id?: string;
+  user_message_id?: string;
   model_id: string;
   attached_files?: File[];
   permission_mode: PermissionMode;

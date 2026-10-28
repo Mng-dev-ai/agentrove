@@ -135,6 +135,7 @@ async def create_chat(
 async def send_message(
     prompt: str = Form(...),
     chat_id: str = Form(...),
+    user_message_id: UUID | None = Form(None),
     model_id: str = Form(...),
     permission_mode: PermissionMode = Form("bypassPermissions"),
     thinking_mode: str | None = Form(None),
@@ -151,6 +152,7 @@ async def send_message(
         request = ChatRequest(
             prompt=prompt,
             chat_id=UUID(chat_id),
+            user_message_id=user_message_id,
             model_id=model_id,
             attached_files=files,
             permission_mode=permission_mode,

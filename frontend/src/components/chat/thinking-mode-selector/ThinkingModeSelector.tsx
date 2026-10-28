@@ -1,12 +1,9 @@
 import { memo } from 'react';
+import { useChatSettings } from '@/hooks/useChatSettings';
 import clsx from 'clsx';
 import { Brain } from 'lucide-react';
 import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
-import {
-  useChatSettingsStore,
-  DEFAULT_CHAT_SETTINGS_KEY,
-  DEFAULT_THINKING_MODE,
-} from '@/store/chatSettingsStore';
+import { useChatSettingsStore, DEFAULT_CHAT_SETTINGS_KEY } from '@/store/chatSettingsStore';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import type { AgentKind, Model } from '@/types/chat.types';
 import { getThinkingModeOption, getThinkingModesForAgent } from './thinkingModes';
@@ -79,9 +76,7 @@ export const ThinkingModeSelector = memo(function ThinkingModeSelector({
   ...controlProps
 }: ThinkingModeSelectorProps) {
   const key = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
-  const thinkingMode = useChatSettingsStore(
-    (state) => state.thinkingModeByChat[key] ?? DEFAULT_THINKING_MODE,
-  );
+  const { thinkingMode } = useChatSettings(chatId);
 
   return (
     <ThinkingModeDropdown

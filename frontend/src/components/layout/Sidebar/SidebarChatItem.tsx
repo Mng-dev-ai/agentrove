@@ -63,7 +63,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   }, [isActive]);
   // The open chat is being read — no unread signal for it
   const isUnread = !isActive && chat.unread;
-  const agentKind = useChatAgentKind(chat.id, chat.session_agent_kind);
+  const agentKind = useChatAgentKind(chat.id, chat.session_agent_kind, chat.last_model_id);
   // Persistent status on the leading icon (visible even on hover), mirroring the
   // sidebar precedence. Running shows the spinner; the other three show a dot.
   const status = chatStatusTone({

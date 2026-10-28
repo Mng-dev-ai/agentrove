@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { useChatSettings } from '@/hooks/useChatSettings';
 import clsx from 'clsx';
 import { Shield } from 'lucide-react';
 import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
@@ -6,7 +7,6 @@ import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
-  DEFAULT_PERMISSION_MODE,
   type PermissionMode,
 } from '@/store/chatSettingsStore';
 import type { AgentKind } from '@/types/chat.types';
@@ -86,9 +86,7 @@ export const PermissionModeSelector = memo(function PermissionModeSelector({
   ...controlProps
 }: PermissionModeSelectorProps) {
   const key = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
-  const permissionMode = useChatSettingsStore(
-    (state) => state.permissionModeByChat[key] ?? DEFAULT_PERMISSION_MODE,
-  );
+  const { permissionMode } = useChatSettings(chatId);
 
   return (
     <PermissionModeDropdown

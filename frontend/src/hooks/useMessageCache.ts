@@ -3,6 +3,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import type { Message } from '@/types/chat.types';
 import type { PaginatedMessages } from '@/types/api.types';
+import { insertMessagesInCache } from '@/hooks/stream/cachePatch';
 
 interface UseMessageCacheParams {
   chatId: string | undefined;
@@ -17,32 +18,7 @@ export function useMessageCache({ chatId, queryClient }: UseMessageCacheParams) 
     (message: Message, userMessage?: Message) => {
       if (!chatId) return;
 
-      queryClient.setQueryData(
-        queryKeys.messages(chatId),
-        (oldData: { pages: PaginatedMessages[]; pageParams: unknown[] } | undefined) => {
-          if (!oldData?.pages || oldData.pages.length === 0) return oldData;
-
-          const newFirstPageItems = [...oldData.pages[0].items];
-
-          if (userMessage && !newFirstPageItems.some((msg) => msg.id === userMessage.id)) {
-            newFirstPageItems.unshift(userMessage);
-          }
-
-          const existingIndex = newFirstPageItems.findIndex((msg) => msg.id === message.id);
-          if (existingIndex >= 0) {
-            newFirstPageItems[existingIndex] = message;
-          } else {
-            newFirstPageItems.unshift(message);
-          }
-
-          return {
-            ...oldData,
-            pages: oldData.pages.map((page, idx) =>
-              idx === 0 ? { ...page, items: newFirstPageItems } : page,
-            ),
-          };
-        },
-      );
+      insertMessagesInCache(queryClient, chatId, userMessage ? [userMessage, message] : [message]);
     },
     [chatId, queryClient],
   );

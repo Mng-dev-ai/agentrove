@@ -40,6 +40,9 @@ export function useStreamReconnect({
   addMessageToCache,
   replayStream,
 }: UseStreamReconnectParams): void {
+  const announcedMessageId = useStreamStore(
+    (state) => state.activeStreamMetadata.find((stream) => stream.chatId === chatId)?.messageId,
+  );
   const fetchedMessagesRef = useRef(fetchedMessages);
   fetchedMessagesRef.current = fetchedMessages;
   const selectedModelIdRef = useRef(selectedModelId);
@@ -137,6 +140,7 @@ export function useStreamReconnect({
     };
   }, [
     chatId,
+    announcedMessageId,
     currentMessageId,
     hasFetchedMessages,
     isInitialLoading,

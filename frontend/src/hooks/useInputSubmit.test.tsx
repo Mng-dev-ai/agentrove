@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 
 import { renderHook, act } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ComposerSelection } from '@/store/uiStore';
 import type { AgentKind } from '@/types/chat.types';
@@ -23,6 +25,10 @@ const h = vi.hoisted(() => ({
   },
 }));
 
+vi.mock('@/services/chatService', () => ({
+  chatService: { getChat: vi.fn().mockResolvedValue({ id: 'chat-1' }) },
+}));
+
 vi.mock('@/hooks/queries/useSettingsQueries', () => ({
   fetchAutoSteerQueuedMessages: () => Promise.resolve(false),
 }));
@@ -38,18 +44,29 @@ vi.mock('@/store/uiStore', () => ({
     }),
   },
 }));
-vi.mock('@/store/chatSettingsStore', () => ({
-  useChatSettingsStore: {
-    getState: () => h.settings,
-  },
-  DEFAULT_PERMISSION_MODE: 'bypassPermissions',
-  DEFAULT_THINKING_MODE: 'high',
-  DEFAULT_WORKTREE: false,
-  DEFAULT_FAST_MODE: false,
-  DEFAULT_PERSONA: 'Default',
-}));
+vi.mock('@/store/chatSettingsStore', () => {
+  const useChatSettingsStore = (selector: (state: typeof h.settings) => unknown) =>
+    selector(h.settings);
+  useChatSettingsStore.getState = () => h.settings;
+  return {
+    useChatSettingsStore,
+    DEFAULT_CHAT_SETTINGS_KEY: '__default__',
+    DEFAULT_PERMISSION_MODE: 'bypassPermissions',
+    DEFAULT_THINKING_MODE: 'high',
+    DEFAULT_WORKTREE: false,
+    DEFAULT_FAST_MODE: false,
+    DEFAULT_PERSONA: 'Default',
+  };
+});
 
 import { useInputSubmit } from './useInputSubmit';
+
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false } },
+});
+const wrapper = ({ children }: { children: ReactNode }) => (
+  <QueryClientProvider client={testQueryClient}>{children}</QueryClientProvider>
+);
 
 function makeOptions(overrides: Record<string, unknown> = {}) {
   return {
@@ -84,6 +101,7 @@ function formEvent() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  testQueryClient.clear();
   h.settings.permissionModeByChat = {};
   h.settings.thinkingModeByChat = {};
   h.settings.worktreeByChat = {};
@@ -95,7 +113,7 @@ beforeEach(() => {
 describe('useInputSubmit — handleSubmit', () => {
   it('submits content and dismisses the preview', () => {
     const opts = makeOptions();
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     const e = formEvent();
     act(() => result.current.handleSubmit(e));
     expect(e.preventDefault).toHaveBeenCalled();
@@ -105,14 +123,14 @@ describe('useInputSubmit — handleSubmit', () => {
 
   it('bails when disabled', () => {
     const opts = makeOptions({ disabled: true });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.handleSubmit(formEvent()));
     expect(opts.onSubmit).not.toHaveBeenCalled();
   });
 
   it('bails when there is no content', () => {
     const opts = makeOptions({ hasContent: false });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.handleSubmit(formEvent()));
     expect(opts.onSubmit).not.toHaveBeenCalled();
   });
@@ -121,7 +139,7 @@ describe('useInputSubmit — handleSubmit', () => {
 describe('useInputSubmit — submitOrStop stop paths', () => {
   it('stops the stream when streaming with an empty composer', () => {
     const opts = makeOptions({ isStreaming: true, hasContent: false });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.submitOrStop());
     expect(opts.onStopStream).toHaveBeenCalledTimes(1);
     expect(h.queueMessage).not.toHaveBeenCalled();
@@ -129,7 +147,7 @@ describe('useInputSubmit — submitOrStop stop paths', () => {
 
   it('stops the pending start when loading', () => {
     const opts = makeOptions({ isLoading: true, hasContent: false });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.submitOrStop());
     expect(opts.onStopStream).toHaveBeenCalledTimes(1);
   });
@@ -138,7 +156,7 @@ describe('useInputSubmit — submitOrStop stop paths', () => {
 describe('useInputSubmit — submitOrStop queue path', () => {
   it('queues the message, clears the draft, and dismisses the preview', async () => {
     const opts = makeOptions({ isStreaming: true, hasContent: true });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     await act(async () => result.current.submitOrStop());
 
     expect(h.queueMessage).toHaveBeenCalledTimes(1);
@@ -155,7 +173,7 @@ describe('useInputSubmit — submitOrStop queue path', () => {
     h.settings.worktreeByChat = { 'chat-1': true };
     h.settings.worktreeBaseBranchByChat = { 'chat-1': 'develop' };
     const opts = makeOptions({ isStreaming: true, hasContent: true });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     await act(async () => result.current.submitOrStop());
 
     const options = h.queueMessage.mock.calls[0][3] as { worktree: boolean; baseBranch?: string };
@@ -165,7 +183,7 @@ describe('useInputSubmit — submitOrStop queue path', () => {
 
   it('refuses to queue and warns when no model is selected — the draft survives', () => {
     const opts = makeOptions({ isStreaming: true, hasContent: true, selectedModelId: '' });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.submitOrStop());
 
     expect(h.toastError).toHaveBeenCalledWith('Please select an AI model');
@@ -180,7 +198,7 @@ describe('useInputSubmit — submitOrStop queue path', () => {
       hasContent: true,
       attachedSelections: selections,
     });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.submitOrStop());
     expect(h.clearComposerSelections).toHaveBeenCalledWith('chat-1');
   });
@@ -191,7 +209,7 @@ describe('useInputSubmit — submitOrStop send path', () => {
     const requestSubmit = vi.fn();
     const form = { requestSubmit } as unknown as HTMLFormElement;
     const opts = makeOptions({ formRef: { current: form } });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.submitOrStop());
     expect(requestSubmit).toHaveBeenCalledTimes(1);
     expect(opts.setPreviewDismissed).toHaveBeenCalledWith(true);
@@ -199,14 +217,14 @@ describe('useInputSubmit — submitOrStop send path', () => {
 
   it('falls back to a synthetic submit event when the form lacks requestSubmit', () => {
     const opts = makeOptions({ formRef: { current: null } });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.submitOrStop());
     expect(opts.onSubmit).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing when disabled and not streaming', () => {
     const opts = makeOptions({ disabled: true });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.submitOrStop());
     expect(opts.onSubmit).not.toHaveBeenCalled();
     expect(opts.onStopStream).not.toHaveBeenCalled();
@@ -218,7 +236,7 @@ describe('useInputSubmit — keyboard handling', () => {
     const opts = makeOptions({
       formRef: { current: { requestSubmit: vi.fn() } as unknown as HTMLFormElement },
     });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     const e = {
       key: 'Enter',
       shiftKey: false,
@@ -232,7 +250,7 @@ describe('useInputSubmit — keyboard handling', () => {
 
   it('lets a mention-menu handler swallow Enter without submitting', () => {
     const opts = makeOptions({ handleMentionKeyDown: vi.fn(() => true) });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     const e = {
       key: 'Enter',
       shiftKey: false,
@@ -245,7 +263,7 @@ describe('useInputSubmit — keyboard handling', () => {
 
   it('Shift+Enter inserts a newline (no submit)', () => {
     const opts = makeOptions();
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     const e = {
       key: 'Enter',
       shiftKey: true,
@@ -260,14 +278,14 @@ describe('useInputSubmit — keyboard handling', () => {
 describe('useInputSubmit — selection removal', () => {
   it('removes a selection by index for the active chat', () => {
     const opts = makeOptions();
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.handleRemoveSelection(2));
     expect(h.removeComposerSelection).toHaveBeenCalledWith('chat-1', 2);
   });
 
   it('is a no-op without a chatId', () => {
     const opts = makeOptions({ chatId: undefined });
-    const { result } = renderHook(() => useInputSubmit(opts));
+    const { result } = renderHook(() => useInputSubmit(opts), { wrapper });
     act(() => result.current.handleRemoveSelection(0));
     expect(h.removeComposerSelection).not.toHaveBeenCalled();
   });

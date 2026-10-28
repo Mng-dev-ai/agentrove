@@ -780,6 +780,7 @@ class ChatStreamRuntime:
         base_branch: str | None,
         session_factory: SessionFactoryType,
         channel_member: bool = False,
+        user_message_id: UUID | None = None,
     ) -> AsyncIterator[tuple[Message, Message, UUID | None]]:
         # A turn that fails to start leaves no rows behind.
         user_message = None
@@ -791,6 +792,7 @@ class ChatStreamRuntime:
                 prompt,
                 MessageRole.USER,
                 attachments=attachments,
+                message_id=user_message_id,
             )
             assistant_message = await message_service.create_message(
                 chat_uuid,
