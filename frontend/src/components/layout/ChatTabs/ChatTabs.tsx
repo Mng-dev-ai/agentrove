@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
+import { CopyX } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import type { ChatStatusTone } from '@/utils/message';
@@ -12,6 +13,8 @@ import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { stripMarkdownTitle } from '@/utils/format';
 import { paintedChatIds } from '@/utils/tileHelpers';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { TitleBarTab, TitleBarTabs } from '@/components/layout/TitleBarTab/TitleBarTab';
 import styles from './ChatTabs.module.scss';
 
@@ -130,30 +133,51 @@ export function ChatTabs() {
     [navigate, routedChatId],
   );
 
+  const handleCloseAll = useCallback(() => {
+    useUIStore.getState().closeAllChatTabs();
+    if (routedChatId) navigate('/');
+  }, [navigate, routedChatId]);
+
   if (isMobile || chatTabs.length === 0) return null;
 
   return (
-    <TitleBarTabs>
-      {chatTabs.map((chatId) => {
-        const status: ChatTabStatus | null = blockedChatIdSet.has(chatId)
-          ? 'blocked'
-          : streamingChatIdSet.has(chatId)
-            ? 'streaming'
-            : completedChatIds.has(chatId)
-              ? 'completed'
-              : null;
-        return (
-          <ChatTab
-            key={chatId}
-            chatId={chatId}
-            isActive={visibleChatIds.has(chatId)}
-            isCurrent={chatId === routedChatId}
-            status={status}
-            onSelect={handleSelect}
-            onClose={handleClose}
-          />
-        );
-      })}
-    </TitleBarTabs>
+    <>
+      <TitleBarTabs>
+        {chatTabs.map((chatId) => {
+          const status: ChatTabStatus | null = blockedChatIdSet.has(chatId)
+            ? 'blocked'
+            : streamingChatIdSet.has(chatId)
+              ? 'streaming'
+              : completedChatIds.has(chatId)
+                ? 'completed'
+                : null;
+          return (
+            <ChatTab
+              key={chatId}
+              chatId={chatId}
+              isActive={visibleChatIds.has(chatId)}
+              isCurrent={chatId === routedChatId}
+              status={status}
+              onSelect={handleSelect}
+              onClose={handleClose}
+            />
+          );
+        })}
+      </TitleBarTabs>
+      {chatTabs.length > 1 && (
+        <FloatingTooltip content="Close all tabs" className={styles['close-all']}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={styles['close-all-button']}
+            onClick={handleCloseAll}
+            aria-label="Close all tabs"
+          >
+            <CopyX className={styles['close-all-icon']} />
+          </Button>
+        </FloatingTooltip>
+      )}
+    </>
   );
 }

@@ -21,3 +21,21 @@
   width: var(--space-3);
   flex-shrink: 0;
 }
+
+// Tabs area bottom-aligns its children; center the button in the bar instead.
+.close-all {
+  display: flex;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.close-all-button {
+  height: var(--space-6);
+  width: var(--space-6);
+}
+
+.close-all-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-tertiary);
+}

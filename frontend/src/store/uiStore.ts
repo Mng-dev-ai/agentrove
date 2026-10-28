@@ -112,6 +112,7 @@ type UIStoreState = ThemeState &
     chatTabs: string[];
     openChatTab: (chatId: string) => void;
     closeChatTab: (chatId: string) => void;
+    closeAllChatTabs: () => void;
   };
 
 const getInitialSidebarState = (): boolean => {
@@ -331,6 +332,10 @@ export const useUIStore = create<UIStoreState>()(
         const { chatTabs } = get();
         if (!chatTabs.includes(chatId)) return;
         set({ chatTabs: chatTabs.filter((id) => id !== chatId) });
+      },
+      closeAllChatTabs: () => {
+        get().closeSplitChat();
+        set({ chatTabs: [] });
       },
 
       pendingFileOpen: null,
