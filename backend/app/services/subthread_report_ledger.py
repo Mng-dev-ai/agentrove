@@ -15,6 +15,7 @@ from app.models.db_models.subthread_report import SubThreadReport
 #   pending -> waking       a parent turn was started to report it
 #   waking  -> covered      the parent named it as covered by that turn
 #   covered -> acknowledged the turn completed with a reply
+#   pending -> acknowledged the parent named it as reported in an ordinary turn
 #   pending -> notified     an app-generated parent message delivered the result
 #   waking/covered -> pending   the turn did not deliver; retried after backoff
 #                               counted from the end of that turn
@@ -105,7 +106,7 @@ async def mark_covered(
         Message.stream_status == MessageStreamStatus.IN_PROGRESS,
         Message.deleted_at.is_(None),
     )
-    result = await db.execute(
+    covered = await db.execute(
         update(SubThreadReport)
         .where(
             SubThreadReport.parent_chat_id == parent_chat_id,
@@ -115,7 +116,18 @@ async def mark_covered(
         )
         .values(status=Status.COVERED)
     )
-    return int(getattr(result, "rowcount", 0))
+    # A finished result the parent reported in an ordinary turn has no wake to
+    # settle it, so naming it here is what clears the obligation.
+    reported = await db.execute(
+        update(SubThreadReport)
+        .where(
+            SubThreadReport.parent_chat_id == parent_chat_id,
+            SubThreadReport.child_message_id.in_(child_message_ids),
+            SubThreadReport.status == Status.PENDING,
+        )
+        .values(status=Status.ACKNOWLEDGED)
+    )
+    return int(getattr(covered, "rowcount", 0)) + int(getattr(reported, "rowcount", 0))
 
 
 async def _release_wake_turn(

@@ -138,8 +138,10 @@ async def report_subthreads_covered(message_ids: list[str]) -> dict[str, Any]:
     """Record which finished sub-thread results your reply to the user covers.
 
     Call this in the same turn as an automated sub-thread update, with the message_id
-    of each finished sub-thread run you summarised in your reply. Results you leave out
-    stay pending and are delivered again later. Returns {"covered": <count>}.
+    of each finished sub-thread run you summarised in your reply. Also call it when you
+    report a finished sub-thread's result in an ordinary turn, so it isn't reported
+    again. Results you leave out stay pending and are delivered again later. Returns
+    {"covered": <count>}.
     """
     parent_chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
     if not parent_chat_id:
