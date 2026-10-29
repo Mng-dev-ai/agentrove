@@ -473,8 +473,9 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
     ) -> str:
         lines = [
             "This message was sent automatically by Agentrove, not typed by the user. "
-            "The sub-threads you delegated finished. "
-            "None of these results has been reported to the user yet.",
+            "The sub-threads you delegated finished. The user has not seen any of "
+            "the results below, and your reply is the only way they will learn what "
+            "these sub-threads did.",
             "",
             "Finished:",
         ]
@@ -514,8 +515,20 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             ]
         lines += [
             "",
-            "Reply to the user with a brief summary of what finished, and in the "
-            "same turn call report_subthreads_covered with the message_ids your reply "
-            "covers. Results you do not cover are re-delivered later.",
+            "Write your reply to the user now. For each finished sub-thread, say in "
+            "your own words what it did and what it produced: what changed or was "
+            "committed and where (branch, worktree, commit), what was verified and "
+            "how, and anything that failed, was not done, or needs the user's "
+            "decision. Include the specifics the user would otherwise have to open "
+            "the sub-thread to find. Say plainly when an outcome is failed or "
+            "interrupted. Speak to the user directly and do not mention this "
+            "automated message or the tools you call.",
+            "",
+            "Then call report_subthreads_covered with the message_ids of the "
+            "sub-threads your reply covered, and only after your reply contains "
+            "their substance. Acknowledging a result without reporting what it "
+            "contains is a failure: it is marked delivered and the user never "
+            "learns it. A reply that only says you reported, marked or acknowledged "
+            "something is wrong. Results you do not cover are delivered again later.",
         ]
         return "\n".join(lines)
