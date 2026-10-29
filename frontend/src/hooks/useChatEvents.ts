@@ -50,6 +50,14 @@ export function useChatEvents(options?: { enabled?: boolean }) {
         return;
       }
 
+      if (parsed.kind === 'message_appended') {
+        // App-generated message (e.g. a sub-thread result) — refetch so an open chat shows it.
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messages(parsed.chat_id) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
+        queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
+        return;
+      }
+
       if (parsed.kind === 'stream_started') {
         // Out-of-band turns on existing chats skip chat_created — open the tab here.
         useUIStore.getState().openChatTab(parsed.chat_id);
@@ -75,6 +83,8 @@ export function useChatEvents(options?: { enabled?: boolean }) {
         void queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
         void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
         void queryClient.invalidateQueries({ queryKey: ['chat'] });
+        // Notices have no stream to replay, so a dropped feed can only be healed by refetching.
+        void queryClient.invalidateQueries({ queryKey: ['messages'] });
         resyncActiveStreams(
           () => chatService.getActiveStreams(),
           () => cancelled,

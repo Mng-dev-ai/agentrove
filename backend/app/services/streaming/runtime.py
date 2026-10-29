@@ -780,6 +780,7 @@ class ChatStreamRuntime:
         base_branch: str | None,
         session_factory: SessionFactoryType,
         channel_member: bool = False,
+        user_app_notice: str | None = None,
         user_message_id: UUID | None = None,
     ) -> AsyncIterator[tuple[Message, Message, UUID | None]]:
         # A turn that fails to start leaves no rows behind.
@@ -792,6 +793,7 @@ class ChatStreamRuntime:
                 prompt,
                 MessageRole.USER,
                 attachments=attachments,
+                app_notice=user_app_notice,
                 message_id=user_message_id,
             )
             assistant_message = await message_service.create_message(
@@ -1060,6 +1062,14 @@ class ChatStreamRuntime:
         return chat_id in cls._background_task_chat_ids.values()
 
     @classmethod
+    def pending_prompt_ids(cls, chat_id: str) -> frozenset[str]:
+        runtime = cls._active_runtimes.get(chat_id)
+        session = runtime._acp_session if runtime is not None else None
+        return (
+            session.handler.pending_prompt_ids if session is not None else frozenset()
+        )
+
+    @classmethod
     def has_pending_start(cls, chat_id: str) -> bool:
         return chat_id in cls._starting_chat_ids
 
@@ -1091,6 +1101,18 @@ class ChatStreamRuntime:
             return
         # asyncio.wait leaves the tasks running on timeout.
         await asyncio.wait(tasks, timeout=timeout)
+
+    @classmethod
+    async def cancel_chat_turn_if_current(
+        cls, chat_id: str, assistant_message_id: str, timeout: float
+    ) -> bool:
+        # No await between this check and the cancel's first step, so a user's
+        # newer turn on the same chat can never be the one that gets cancelled.
+        runtime = cls._active_runtimes.get(chat_id)
+        if runtime is None or runtime.assistant_message_id != assistant_message_id:
+            return False
+        await cls.cancel_chat_turn(chat_id, timeout)
+        return True
 
     @classmethod
     def active_chat_ids(cls) -> set[str]:

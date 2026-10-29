@@ -20,6 +20,11 @@ from app.models.schemas.pagination import CursorPaginatedResponse
 from app.models.types import MessageAttachmentDict
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ErrorCode, MessageException
+from app.services.subthread_report_ledger import (
+    discard_message_reports,
+    record_child_terminal,
+    settle_wake_turn,
+)
 from app.utils.attachment_urls import AttachmentURL
 from app.utils.cursor import Cursor, InvalidCursorError
 
@@ -59,17 +64,25 @@ class MessageService(BaseDbService[Message]):
         model_id: str | None = None,
         session_id: str | None = None,
         stream_status: MessageStreamStatus | None = None,
+        app_notice: str | None = None,
         message_id: UUID | None = None,
     ) -> Message:
         # Assistants start empty (stream fills via update_message_snapshot); users go in whole.
+        # app_notice renders an app-sent user-role message as a notice, not typed text.
         async with self.session_factory() as db:
             if role == MessageRole.ASSISTANT:
                 content_text = ""
                 content_render: dict[str, Any] = {"events": []}
             else:
                 content_text = content
+                event_type = "app_notice" if app_notice is not None else "user_text"
                 content_render = {
-                    "events": [{"type": "user_text", "text": content}],
+                    "events": [
+                        {
+                            "type": event_type,
+                            "text": app_notice if app_notice is not None else content,
+                        }
+                    ],
                 }
 
             message_kwargs: dict[str, Any] = {
@@ -100,6 +113,21 @@ class MessageService(BaseDbService[Message]):
                 await db.refresh(message, ["attachments"])
 
             return message
+
+    @staticmethod
+    async def add_app_message(db: AsyncSession, *, chat_id: UUID, text: str) -> Message:
+        # Joins the caller's transaction so the message commits with its other writes.
+        message = Message(
+            chat_id=chat_id,
+            role=MessageRole.ASSISTANT,
+            content_text=text,
+            content_render={"events": [{"type": "app_notice", "text": text}]},
+            last_seq=0,
+            stream_status=MessageStreamStatus.COMPLETED,
+        )
+        db.add(message)
+        await db.flush()
+        return message
 
     async def create_attachment(
         self, message_id: UUID, attachment_data: MessageAttachmentDict
@@ -210,6 +238,18 @@ class MessageService(BaseDbService[Message]):
             ):
                 await db.execute(
                     delete(MessageEvent).where(MessageEvent.message_id == message_id)
+                )
+                # Same transaction as the terminal status: a finished child and
+                # the outcome of a parent's report turn are never persisted apart.
+                await record_child_terminal(
+                    db, message_id=message_id, status=stream_status, now=now
+                )
+                await settle_wake_turn(
+                    db,
+                    message_id=message_id,
+                    status=stream_status,
+                    content_text=content_text,
+                    now=now,
                 )
 
             await db.commit()
@@ -519,5 +559,6 @@ class MessageService(BaseDbService[Message]):
                 .values(deleted_at=now)
             )
             result = await db.execute(stmt)
+            await discard_message_reports(db, message_id=message_id, now=now)
             await db.commit()
             return int(getattr(result, "rowcount", 0)) > 0

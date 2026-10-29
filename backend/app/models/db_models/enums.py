@@ -19,6 +19,16 @@ class MessageStreamStatus(str, enum.Enum):
     INTERRUPTED = "interrupted"
 
 
+class SubThreadReportStatus(str, enum.Enum):
+    RUNNING = "running"
+    PENDING = "pending"
+    WAKING = "waking"
+    COVERED = "covered"
+    ACKNOWLEDGED = "acknowledged"
+    # Delivered by an app-generated parent message instead of a model turn.
+    NOTIFIED = "notified"
+
+
 class ToolStatus(str, enum.Enum):
     STARTED = "started"
     COMPLETED = "completed"

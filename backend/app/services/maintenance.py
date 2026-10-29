@@ -16,6 +16,10 @@ from app.services.session_registry import (
 )
 from app.services.push import SEND_INTERVAL_SECONDS, PushService
 from app.services.refresh_token import RefreshTokenService
+from app.services.subthread_report import (
+    DISPATCH_INTERVAL_SECONDS as SUBTHREAD_REPORT_INTERVAL_SECONDS,
+    SubThreadReportService,
+)
 from app.services.user import UserService
 
 settings = get_settings()
@@ -40,7 +44,9 @@ class MaintenanceService:
     def __init__(self) -> None:
         self._stop_event = asyncio.Event()
         self._tasks: list[asyncio.Task[None]] = []
-        self._automation_service = AutomationService(ChatService(UserService()))
+        chat_service = ChatService(UserService())
+        self._automation_service = AutomationService(chat_service)
+        self._subthread_report_service = SubThreadReportService(chat_service)
 
     async def start(self) -> None:
         self._tasks = [
@@ -48,6 +54,9 @@ class MaintenanceService:
             asyncio.create_task(self._run_job_loop(self._idle_session_cleanup_job())),
             asyncio.create_task(self._run_job_loop(self._automation_dispatch_job())),
             asyncio.create_task(self._run_job_loop(self._push_send_job())),
+            asyncio.create_task(
+                self._run_job_loop(self._subthread_report_dispatch_job())
+            ),
         ]
 
     async def stop(self) -> None:
@@ -71,6 +80,13 @@ class MaintenanceService:
             name="automation_dispatch",
             interval_seconds=AUTOMATION_DISPATCH_INTERVAL_SECONDS,
             run=self._automation_service.run_due_automations,
+        )
+
+    def _subthread_report_dispatch_job(self) -> MaintenanceJob:
+        return MaintenanceJob(
+            name="subthread_report_dispatch",
+            interval_seconds=SUBTHREAD_REPORT_INTERVAL_SECONDS,
+            run=self._subthread_report_service.dispatch_due,
         )
 
     @staticmethod
