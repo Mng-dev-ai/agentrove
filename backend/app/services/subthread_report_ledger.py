@@ -136,9 +136,7 @@ async def mark_covered(
     return recorded
 
 
-async def _release_wake_turn(
-    db: AsyncSession, message_id: UUID, now: datetime
-) -> None:
+async def _release_wake_turn(db: AsyncSession, message_id: UUID, now: datetime) -> None:
     # The retry deadline starts when the turn ends, so a long wake never uses up
     # its own backoff. attempts was bumped when the row was linked.
     retry_at = case(

@@ -115,9 +115,7 @@ class MessageService(BaseDbService[Message]):
             return message
 
     @staticmethod
-    async def add_app_message(
-        db: AsyncSession, *, chat_id: UUID, text: str
-    ) -> Message:
+    async def add_app_message(db: AsyncSession, *, chat_id: UUID, text: str) -> Message:
         # Joins the caller's transaction so the message commits with its other writes.
         message = Message(
             chat_id=chat_id,

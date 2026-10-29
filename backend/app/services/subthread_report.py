@@ -505,8 +505,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                 "(do not report these again):",
             ]
             lines += [
-                f'- "{titles.get(r.child_chat_id, "Untitled")}" '
-                f"({_outcome(r)})"
+                f'- "{titles.get(r.child_chat_id, "Untitled")}" ({_outcome(r)})'
                 for r in delivered
             ]
         if more:
