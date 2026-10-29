@@ -72,7 +72,7 @@ export const UserMessage = memo(function UserMessage({
   if (noticeText) {
     return (
       <MessageRow>
-        <NoticeCard text={noticeText} />
+        <NoticeCard text={noticeText} collapsible />
       </MessageRow>
     );
   }

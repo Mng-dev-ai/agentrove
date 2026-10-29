@@ -23,3 +23,35 @@
   width: var(--space-3-5);
   flex-shrink: 0;
 }
+
+.collapsed {
+  padding-block: var(--space-1-5);
+
+  .badge {
+    margin-bottom: 0;
+  }
+}
+
+.badge-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+
+  &:hover {
+    color: var(--theme-text-secondary);
+  }
+}
+
+.chevron {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.chevron-open {
+  transform: rotate(90deg);
+}
