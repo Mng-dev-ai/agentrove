@@ -526,6 +526,11 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             "interrupted. Speak to the user directly and do not mention this "
             "automated message or the tools you call.",
             "",
+            "None of the results above has been seen by the user. Anything they must "
+            "act on, such as commands to run, decisions to make, credentials or "
+            "links, has to be restated in full in your reply. Never refer to it as "
+            "already provided or already sent.",
+            "",
             "Then call report_subthreads_covered with one entry per sub-thread your "
             "reply covered: its message_id and a summary of what you told the user "
             "about it. The call is refused for any entry without a summary, and a "
