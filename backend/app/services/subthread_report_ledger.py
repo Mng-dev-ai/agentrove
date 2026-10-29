@@ -97,8 +97,10 @@ async def mark_covered(
     db: AsyncSession,
     *,
     parent_chat_id: UUID,
-    child_message_ids: list[UUID],
-) -> int:
+    summaries: dict[UUID, str],
+) -> list[UUID]:
+    # Keyed by child message id; each carries what the parent told the user. Returns
+    # the ids that were recorded, so the caller can report which were not.
     # Only rows linked to the parent's running wake turn can be covered, so a
     # failed attempt's coverage never carries into a later reply.
     running_turn = select(Message.id).where(
@@ -106,28 +108,32 @@ async def mark_covered(
         Message.stream_status == MessageStreamStatus.IN_PROGRESS,
         Message.deleted_at.is_(None),
     )
-    covered = await db.execute(
-        update(SubThreadReport)
-        .where(
-            SubThreadReport.parent_chat_id == parent_chat_id,
-            SubThreadReport.child_message_id.in_(child_message_ids),
-            SubThreadReport.status == Status.WAKING,
-            SubThreadReport.wake_message_id.in_(running_turn),
+    recorded: list[UUID] = []
+    for child_message_id, summary in summaries.items():
+        covered = await db.execute(
+            update(SubThreadReport)
+            .where(
+                SubThreadReport.parent_chat_id == parent_chat_id,
+                SubThreadReport.child_message_id == child_message_id,
+                SubThreadReport.status == Status.WAKING,
+                SubThreadReport.wake_message_id.in_(running_turn),
+            )
+            .values(status=Status.COVERED, summary=summary)
         )
-        .values(status=Status.COVERED)
-    )
-    # A finished result the parent reported in an ordinary turn has no wake to
-    # settle it, so naming it here is what clears the obligation.
-    reported = await db.execute(
-        update(SubThreadReport)
-        .where(
-            SubThreadReport.parent_chat_id == parent_chat_id,
-            SubThreadReport.child_message_id.in_(child_message_ids),
-            SubThreadReport.status == Status.PENDING,
+        # A finished result the parent reported in an ordinary turn has no wake to
+        # settle it, so naming it here is what clears the obligation.
+        reported = await db.execute(
+            update(SubThreadReport)
+            .where(
+                SubThreadReport.parent_chat_id == parent_chat_id,
+                SubThreadReport.child_message_id == child_message_id,
+                SubThreadReport.status == Status.PENDING,
+            )
+            .values(status=Status.ACKNOWLEDGED, summary=summary)
         )
-        .values(status=Status.ACKNOWLEDGED)
-    )
-    return int(getattr(covered, "rowcount", 0)) + int(getattr(reported, "rowcount", 0))
+        if int(getattr(covered, "rowcount", 0)) + int(getattr(reported, "rowcount", 0)):
+            recorded.append(child_message_id)
+    return recorded
 
 
 async def _release_wake_turn(

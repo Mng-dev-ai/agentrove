@@ -438,6 +438,8 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         for report in finished:
             title = titles.get(report.child_chat_id, "Untitled")
             body = cls._excerpt(results.get(report.child_message_id, ""))
+            if report.summary:
+                body = f"{report.summary}\n\n{body}" if body else report.summary
             sections.append(
                 f"{_chat_link(title, report.child_chat_id)} ({_outcome(report)})\n\n"
                 f"{body or '(no final response)'}"
@@ -524,11 +526,12 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             "interrupted. Speak to the user directly and do not mention this "
             "automated message or the tools you call.",
             "",
-            "Then call report_subthreads_covered with the message_ids of the "
-            "sub-threads your reply covered, and only after your reply contains "
-            "their substance. Acknowledging a result without reporting what it "
-            "contains is a failure: it is marked delivered and the user never "
-            "learns it. A reply that only says you reported, marked or acknowledged "
-            "something is wrong. Results you do not cover are delivered again later.",
+            "Then call report_subthreads_covered with one entry per sub-thread your "
+            "reply covered: its message_id and a summary of what you told the user "
+            "about it. The call is refused for any entry without a summary, and a "
+            "summary that only says you reported something is not one. Acknowledging "
+            "a result without reporting what it contains is a failure: it is marked "
+            "delivered and the user never learns it. Results you do not cover are "
+            "delivered again later.",
         ]
         return "\n".join(lines)

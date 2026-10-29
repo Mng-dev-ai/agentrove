@@ -184,12 +184,12 @@ class AgentroveClient:
         return resp.json()
 
     async def cover_subthread_reports(
-        self, parent_chat_id: str, message_ids: list[str]
+        self, parent_chat_id: str, reports: list[dict[str, str]]
     ) -> dict[str, Any]:
         resp = await self.request(
             "POST",
             f"/chat/chats/{parent_chat_id}/subthread-reports/covered",
-            json={"message_ids": message_ids},
+            json={"reports": reports},
         )
         return resp.json()
 

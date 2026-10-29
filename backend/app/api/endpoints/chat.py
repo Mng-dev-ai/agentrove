@@ -713,8 +713,12 @@ async def cover_subthread_reports(
     chat: Chat = Depends(ensure_chat_access),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> SubThreadCoverageResponse:
-    covered = await chat_service.cover_subthread_reports(chat.id, body.message_ids)
-    return SubThreadCoverageResponse(covered=covered)
+    summaries = {item.message_id: item.summary for item in body.reports}
+    recorded = await chat_service.cover_subthread_reports(chat.id, summaries)
+    return SubThreadCoverageResponse(
+        covered=len(recorded),
+        skipped=[message_id for message_id in summaries if message_id not in recorded],
+    )
 
 
 @router.post(

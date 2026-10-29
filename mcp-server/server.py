@@ -133,20 +133,31 @@ async def get_current_chat() -> dict[str, Any]:
     return {"chat_id": os.environ.get("AGENTROVE_CURRENT_CHAT_ID")}
 
 
-@mcp.tool()
-async def report_subthreads_covered(message_ids: list[str]) -> dict[str, Any]:
-    """Record which finished sub-thread results your reply to the user covers.
+class SubThreadReportEntry(BaseModel):
+    message_id: str
+    summary: str
 
-    Call this in the same turn as an automated sub-thread update, with the message_id
-    of each finished sub-thread run you summarised in your reply. Also call it when you
-    report a finished sub-thread's result in an ordinary turn, so it isn't reported
-    again. Results you leave out stay pending and are delivered again later. Returns
-    {"covered": <count>}.
+
+@mcp.tool()
+async def report_subthreads_covered(reports: list[SubThreadReportEntry]) -> dict[str, Any]:
+    """Record which finished sub-thread results your reply to the user covered.
+
+    Call this after you have told the user what each sub-thread produced, with one entry
+    per sub-thread: its message_id and a summary of what you told the user about it
+    (what it did, what changed or was committed and where, what needs their decision).
+    An entry without a real summary is refused, and acknowledging a result without
+    reporting what it contains means the user never learns it. Use it in the same turn
+    as an automated sub-thread update, and also when you report a finished sub-thread's
+    result in an ordinary turn so it isn't reported again. Entries you leave out stay
+    pending and are delivered again later. Returns {"covered": <count>, "skipped": [...]},
+    where skipped lists message_ids that matched no deliverable result.
     """
     parent_chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
     if not parent_chat_id:
         raise AgentroveError("The current chat is unknown, so coverage can't be recorded.")
-    return await client.cover_subthread_reports(parent_chat_id, message_ids)
+    return await client.cover_subthread_reports(
+        parent_chat_id, [entry.model_dump() for entry in reports]
+    )
 
 
 @mcp.tool()

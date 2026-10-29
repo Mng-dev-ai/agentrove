@@ -1212,16 +1212,14 @@ class ChatService(BaseDbService[Chat]):
         }
 
     async def cover_subthread_reports(
-        self, parent_chat_id: UUID, child_message_ids: list[UUID]
-    ) -> int:
+        self, parent_chat_id: UUID, summaries: dict[UUID, str]
+    ) -> list[UUID]:
         async with self.session_factory() as db:
-            covered = await mark_covered(
-                db,
-                parent_chat_id=parent_chat_id,
-                child_message_ids=child_message_ids,
+            recorded = await mark_covered(
+                db, parent_chat_id=parent_chat_id, summaries=summaries
             )
             await db.commit()
-        return covered
+        return recorded
 
     async def _record_report_state(
         self,

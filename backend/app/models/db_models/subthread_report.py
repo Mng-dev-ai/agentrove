@@ -3,7 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Enum as SQLAlchemyEnum
-from sqlalchemy import ForeignKey, Index, Integer
+from sqlalchemy import ForeignKey, Index, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
@@ -69,6 +69,9 @@ class SubThreadReport(Base):
     wake_message_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("messages.id", ondelete="SET NULL"), nullable=True
     )
+
+    # What the parent told the user about this result, recorded when it acknowledged it.
+    summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         Index("idx_subthread_reports_parent_status", "parent_chat_id", "status"),
