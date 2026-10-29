@@ -4,7 +4,7 @@ from app.db.migration_helpers import uuid_server_default
 from app.db.types import GUID, UTCDateTime
 
 revision = "a9b8c7d6e5f4"
-down_revision = "d95e6132d914"
+down_revision = "a6c328fe1290"
 branch_labels = None
 depends_on = None
 

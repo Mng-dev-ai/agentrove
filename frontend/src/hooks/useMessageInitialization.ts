@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { detectFileType } from '@/utils/fileTypes';
 import { createInitialMessage } from '@/utils/message';
 import { chatStorage } from '@/utils/storage';
+import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
+import { insertMessagesById } from '@/hooks/stream/messageUpdates';
 import type { Message } from '@/types/chat.types';
 
 interface UseMessageInitializationParams {
@@ -18,7 +20,7 @@ interface UseMessageInitializationParams {
   setInitialPrompt: (prompt: string) => void;
 }
 
-const normalizeMessage = (msg: Message) => {
+function normalizeMessage(msg: Message): Message {
   const attachments = Array.isArray(msg.attachments) ? msg.attachments : [];
   const processedAttachments = attachments.map((attachment) => {
     const fileType = detectFileType(
@@ -46,7 +48,7 @@ const normalizeMessage = (msg: Message) => {
     checkpoint_id: msg.checkpoint_id,
     tool_results_omitted: msg.tool_results_omitted,
   };
-};
+}
 
 const isAppNotice = (msg: Message) =>
   msg.content_render?.events?.some((event) => event.type === 'app_notice') ?? false;
@@ -66,9 +68,10 @@ export function useMessageInitialization({
   setInitialPrompt,
 }: UseMessageInitializationParams) {
   const initializedChatRef = useRef<string | undefined>(undefined);
+  const lastMergedIdsRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!fetchedMessages || !chatId || isLoading) return;
+    if (!fetchedMessages || !chatId) return;
 
     if (wasAborted) {
       // A stop keeps local state as-is, but a notice has no stream and only ever arrives via a fetch.
@@ -83,9 +86,22 @@ export function useMessageInitialization({
       return;
     }
 
-    // Skip reprocess while streaming (attachment refs / image flash), but re-init on chat switch.
-    if (isStreaming && initializedChatRef.current === chatId) return;
+    if (isLoading || (isStreaming && initializedChatRef.current === chatId)) {
+      const fetchedIds = `${chatId}:${fetchedMessages.map((message) => message.id).join(',')}`;
+      if (lastMergedIdsRef.current === fetchedIds) return;
+      lastMergedIdsRef.current = fetchedIds;
+      setMessages((prev) => {
+        const existingIds = new Set(prev.map((message) => message.id));
+        if (fetchedMessages.every((message) => existingIds.has(message.id))) return prev;
+        const incoming = fetchedMessages.map((message) =>
+          existingIds.has(message.id) ? message : normalizeMessage(message),
+        );
+        return insertMessagesById(prev, incoming);
+      });
+      return;
+    }
 
+    lastMergedIdsRef.current = undefined;
     const normalizedMessages = fetchedMessages.map(normalizeMessage);
 
     // Persist the highest seq from fetched messages so stream reconnection
@@ -100,6 +116,7 @@ export function useMessageInitialization({
 
     if (
       initialPromptFromRoute &&
+      initializedChatRef.current !== chatId &&
       normalizedMessages.length === 0 &&
       !initialPromptSent &&
       selectedModelId
@@ -115,7 +132,23 @@ export function useMessageInitialization({
       setInitialPrompt(initialPromptFromRoute);
     } else if (normalizedMessages.length > 0) {
       initializedChatRef.current = chatId;
-      setMessages(normalizedMessages);
+      if (isStreaming) {
+        setMessages((prev) => insertMessagesById(prev, normalizedMessages));
+      } else {
+        setMessages((prev) => {
+          const existingById = new Map(prev.map((message) => [message.id, message]));
+          return normalizedMessages.map((message) => {
+            const existing = existingById.get(message.id);
+            return message.role === 'user' &&
+              existing?.attachments.some(
+                (attachment) =>
+                  attachment.file_url instanceof File || isBrowserObjectUrl(attachment.file_url),
+              )
+              ? { ...message, attachments: existing.attachments }
+              : message;
+          });
+        });
+      }
     }
   }, [
     fetchedMessages,

@@ -37,6 +37,7 @@ vi.mock('@/hooks/queries/useModelQueries', () => ({
 
 vi.mock('@/hooks/queries/useChatQueries', () => ({
   useRecentChatsQuery: () => ({ data: undefined }),
+  useChatQuery: () => ({ data: undefined }),
 }));
 
 const uiState = { composerSelectionsByChat: {} as Record<string, unknown[]> };

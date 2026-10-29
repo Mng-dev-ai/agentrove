@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import { useChatSettings } from '@/hooks/useChatSettings';
 import { UserCircle } from 'lucide-react';
 import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 import {
@@ -79,14 +80,12 @@ export const PersonaSelector = memo(function PersonaSelector({
 }: PersonaSelectorProps) {
   const { personas } = useChatContext();
   const key = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
-  const selectedPersona = useChatSettingsStore(
-    (state) => state.personaByChat[key] ?? DEFAULT_PERSONA,
-  );
+  const { persona } = useChatSettings(chatId);
 
   return (
     <PersonaDropdown
       personas={personas}
-      value={selectedPersona}
+      value={persona}
       onChange={(persona) => useChatSettingsStore.getState().setPersona(key, persona)}
       {...controlProps}
     />

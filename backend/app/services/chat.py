@@ -334,6 +334,7 @@ class ChatService(BaseDbService[Chat]):
 
             chat = Chat(
                 title=chat_data.title,
+                last_model_id=chat_data.model_id,
                 user_id=user.id,
                 workspace_id=workspace.id,
                 parent_chat_id=chat_data.parent_chat_id,
@@ -1132,9 +1133,9 @@ class ChatService(BaseDbService[Chat]):
                 .values(
                     updated_at=now,
                     last_model_id=request.model_id,
+                    last_permission_mode=request.permission_mode,
                     last_thinking_mode=request.thinking_mode,
                     last_persona_name=request.selected_persona_name,
-                    last_permission_mode=request.permission_mode,
                 )
             )
             await db.commit()
@@ -1161,7 +1162,8 @@ class ChatService(BaseDbService[Chat]):
             session_factory=self._session_factory,
             channel_member=member_turn is not None,
             user_app_notice=user_app_notice,
-        ) as (_, assistant_message, checkpoint_id):
+            user_message_id=request.user_message_id,
+        ) as (user_message, assistant_message, checkpoint_id):
             # Before the task is enqueued so the turn cannot finish ahead of its
             # report row; a failure here discards the turn's messages.
             await self._record_report_state(
@@ -1197,6 +1199,18 @@ class ChatService(BaseDbService[Chat]):
                     "kind": "stream_started",
                     "chat_id": str(chat_id),
                     "message_id": str(assistant_message.id),
+                    "user_message_id": str(user_message.id),
+                    # The model-facing prompt of an app-sent turn stays out of the event.
+                    "content": user_app_notice or user_message.content_text,
+                    "app_notice": user_app_notice is not None,
+                    "attachments": MessageService.serialize_attachments(
+                        {"attachments": attachments}, user_message
+                    ),
+                    "model_id": request.model_id,
+                    "thinking_mode": request.thinking_mode,
+                    "permission_mode": request.permission_mode,
+                    "selected_persona_name": request.selected_persona_name,
+                    "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
                 },
             )
 

@@ -1,10 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import type { UseQueryOptions } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { modelService } from '@/services/modelService';
 import type { Model } from '@/types/chat.types';
 import { useModelStore } from '@/store/modelStore';
 import { queryKeys } from './queryKeys';
+import { useChatQuery, useInfiniteMessagesQuery } from './useChatQueries';
 
 const EMPTY_MODEL_MAP = new Map<string, Model>();
 const DEFAULT_MODEL_KEY = '__default__';
@@ -17,14 +18,16 @@ export const useModelsQuery = (options?: Partial<UseQueryOptions<Model[]>>) => {
   });
 };
 
-export const useModelSelection = (options?: {
-  enabled?: boolean;
-  chatId?: string;
-  // null = still loading (defer default), undefined = no initial model (use models[0])
-  initialModelId?: string | null;
-}) => {
+export const useModelSelection = (options?: { enabled?: boolean; chatId?: string }) => {
   const chatId = options?.chatId ?? DEFAULT_MODEL_KEY;
-  const initialModelId = options?.initialModelId;
+  const { data: chat } = useChatQuery(options?.chatId);
+  const messagesQuery = useInfiniteMessagesQuery(chat?.last_model_id ? undefined : options?.chatId);
+  const initialModelId =
+    chat?.last_model_id ??
+    messagesQuery.data?.pages
+      .flatMap((page) => page.items)
+      .find((message) => message.role === 'assistant' && message.model_id)?.model_id ??
+    (messagesQuery.isLoading ? null : undefined);
   const { data: models = [] } = useModelsQuery({
     enabled: options?.enabled,
   });
@@ -33,21 +36,13 @@ export const useModelSelection = (options?: {
 
   const storedIsValid = models.some((m) => m.model_id === storedModelId);
 
-  // Empty while invalid so a stale id can't be submitted mid-resolve.
-  const selectedModelId = models.length === 0 || storedIsValid ? storedModelId : '';
-
-  useEffect(() => {
-    if (models.length === 0 || storedIsValid) return;
-
-    // null = still loading history; don't default yet.
-    if (initialModelId === null) return;
-
-    const fallback =
-      initialModelId && models.some((m) => m.model_id === initialModelId)
-        ? initialModelId
-        : models.find((m) => !m.legacy)?.model_id;
-    if (fallback) useModelStore.getState().selectModel(chatId, fallback);
-  }, [models, storedIsValid, chatId, initialModelId]);
+  const fallbackModelId =
+    initialModelId && models.some((m) => m.model_id === initialModelId)
+      ? initialModelId
+      : initialModelId === null
+        ? ''
+        : (models.find((m) => !m.legacy)?.model_id ?? '');
+  const selectedModelId = storedIsValid ? storedModelId : fallbackModelId;
 
   const selectedModel = useMemo(
     () => models.find((m) => m.model_id === selectedModelId) ?? null,

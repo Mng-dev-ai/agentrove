@@ -65,6 +65,7 @@ class MessageService(BaseDbService[Message]):
         session_id: str | None = None,
         stream_status: MessageStreamStatus | None = None,
         app_notice: str | None = None,
+        message_id: UUID | None = None,
     ) -> Message:
         # Assistants start empty (stream fills via update_message_snapshot); users go in whole.
         # app_notice renders an app-sent user-role message as a notice, not typed text.
@@ -94,6 +95,8 @@ class MessageService(BaseDbService[Message]):
                 "model_id": model_id,
                 "session_id": session_id,
             }
+            if message_id is not None:
+                message_kwargs["id"] = message_id
             if stream_status is not None:
                 message_kwargs["stream_status"] = stream_status
 

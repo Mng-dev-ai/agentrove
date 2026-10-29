@@ -49,7 +49,7 @@ const LoadingProgressOverlay = memo(function LoadingProgressOverlay() {
 
 interface ThumbnailWrapperProps {
   attachment: MessageAttachment;
-  onDownload: (url: string, filename: string) => void;
+  onDownload: (url: string | File, filename: string) => void;
   onPreview?: () => void;
   children: ReactNode;
 }

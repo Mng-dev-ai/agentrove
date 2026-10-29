@@ -60,9 +60,9 @@ class Chat(Base):
     )
     # Last turn settings — source of truth for MCP/UI follow-ups.
     last_model_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    last_permission_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
     last_thinking_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     last_persona_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    last_permission_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     user = relationship("User", back_populates="chats")
     workspace = relationship("Workspace", back_populates="chats")

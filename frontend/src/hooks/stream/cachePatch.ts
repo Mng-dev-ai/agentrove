@@ -1,8 +1,9 @@
 import { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { patchChatInCache } from '@/hooks/queries/useChatQueries';
-import type { Message } from '@/types/chat.types';
+import type { ChatEvent, Message } from '@/types/chat.types';
 import type { PaginatedMessages } from '@/types/api.types';
+import { createTurnMessages, insertMessagesById } from '@/hooks/stream/messageUpdates';
 
 // Explicit chatId (unlike useMessageCache) — needed when off-screen streams flush.
 export function updateMessageInCacheForChat(
@@ -48,4 +49,69 @@ export function findMessageInCache(
     if (msg) return msg;
   }
   return undefined;
+}
+
+export function insertMessagesInCache(
+  queryClient: QueryClient,
+  chatId: string,
+  messages: Message[],
+): void {
+  const query = queryClient
+    .getQueryCache()
+    .find({ queryKey: queryKeys.messages(chatId), exact: true });
+  if (query?.state.fetchStatus === 'fetching') {
+    void query.promise?.then(
+      () => insertMessagesInCache(queryClient, chatId, messages),
+      () => undefined,
+    );
+  }
+  queryClient.setQueryData(
+    queryKeys.messages(chatId),
+    (oldData: { pages: PaginatedMessages[]; pageParams: unknown[] } | undefined) => {
+      if (!oldData?.pages.length) return oldData;
+      const ids = new Set(
+        oldData.pages.slice(1).flatMap((page) => page.items.map((message) => message.id)),
+      );
+      const current = [...oldData.pages[0].items].reverse();
+      const merged = insertMessagesById(
+        current,
+        messages.filter((message) => !ids.has(message.id)),
+      );
+      if (merged === current) return oldData;
+      const items = merged.reverse();
+      return {
+        ...oldData,
+        pages: oldData.pages.map((page, index) => (index === 0 ? { ...page, items } : page)),
+      };
+    },
+  );
+}
+
+export function insertStartedTurnInCache(
+  queryClient: QueryClient,
+  event: Extract<ChatEvent, { kind: 'stream_started' }>,
+): void {
+  patchChatInCache(queryClient, event.chat_id, (chat) => ({
+    ...chat,
+    last_model_id: event.model_id,
+    ...(event.thinking_mode !== undefined && { last_thinking_mode: event.thinking_mode }),
+    ...(event.permission_mode !== undefined && { last_permission_mode: event.permission_mode }),
+    ...(event.selected_persona_name !== undefined && {
+      last_persona_name: event.selected_persona_name,
+    }),
+  }));
+  if (!event.user_message_id || event.content === undefined) return;
+  insertMessagesInCache(
+    queryClient,
+    event.chat_id,
+    createTurnMessages(event.chat_id, {
+      userMessageId: event.user_message_id,
+      assistantMessageId: event.message_id,
+      content: event.content,
+      appNotice: event.app_notice,
+      attachments: event.attachments ?? [],
+      modelId: event.model_id,
+      checkpointId: event.checkpoint_id,
+    }),
+  );
 }

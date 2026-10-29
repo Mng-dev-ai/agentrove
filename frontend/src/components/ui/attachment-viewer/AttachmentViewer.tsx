@@ -31,14 +31,14 @@ export const AttachmentViewer = memo(function AttachmentViewer({
   // Lightbox index into imageAttachments; null = closed.
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const loadedIdsRef = useRef<Set<string>>(new Set());
-  const ownedObjectUrlsRef = useRef<Set<string>>(new Set());
+  const ownedObjectUrlsRef = useRef<Map<string, string>>(new Map());
   const uploadingIdSet = useMemo(
     () => new Set(uploadingAttachmentIds ?? []),
     [uploadingAttachmentIds],
   );
 
   const handleDownload = useCallback(
-    async (url: string, fileName: string) => {
+    async (url: string | File, fileName: string) => {
       if (!url) return;
       try {
         await downloadAttachmentFile(url, fileName, resolveChatClient(chatId));
@@ -66,9 +66,15 @@ export const AttachmentViewer = memo(function AttachmentViewer({
   const handleClosePreview = useCallback(() => setPreviewIndex(null), []);
 
   useEffect(() => {
-    if (imageAttachments.length === 0) return;
-
     const loadedIds = loadedIdsRef.current;
+    const imageIds = new Set(imageAttachments.map((attachment) => attachment.id));
+    for (const [id, url] of ownedObjectUrlsRef.current) {
+      if (!imageIds.has(id)) {
+        URL.revokeObjectURL(url);
+        ownedObjectUrlsRef.current.delete(id);
+        loadedIds.delete(id);
+      }
+    }
     const newAttachments = imageAttachments.filter((a) => !loadedIds.has(a.id));
     if (newAttachments.length === 0) return;
 
@@ -87,21 +93,25 @@ export const AttachmentViewer = memo(function AttachmentViewer({
       newAttachments.map(async (attachment) => {
         const key = attachment.id;
         try {
-          if (isBrowserObjectUrl(attachment.file_url)) {
+          const source = attachment.file_url;
+          if (typeof source === 'string' && isBrowserObjectUrl(source)) {
             if (!cancelled) {
               completedIds.add(key);
               setImageStates((prev) => ({
                 ...prev,
-                [key]: { isLoading: false, error: false, imageSrc: attachment.file_url },
+                [key]: { isLoading: false, error: false, imageSrc: source },
               }));
             }
             return;
           }
 
-          const blob = await fetchAttachmentBlob(attachment.file_url, resolveChatClient(chatId));
+          const blob =
+            source instanceof File
+              ? source
+              : await fetchAttachmentBlob(source, resolveChatClient(chatId));
           if (cancelled) return;
           const blobUrl = URL.createObjectURL(blob);
-          ownedObjectUrlsRef.current.add(blobUrl);
+          ownedObjectUrlsRef.current.set(key, blobUrl);
           completedIds.add(key);
 
           setImageStates((prev) => ({

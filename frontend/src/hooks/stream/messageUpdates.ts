@@ -1,6 +1,6 @@
 import { StreamContentBuffer } from '@/utils/stream';
 import type { AssistantStreamEvent, Message } from '@/types/chat.types';
-import { StreamProcessingError } from '@/types/stream.types';
+import { StreamProcessingError, type QueueProcessingData } from '@/types/stream.types';
 
 export interface StreamSessionState {
   messageId: string;
@@ -60,4 +60,67 @@ export function buildContentFlushUpdate(
     last_seq: nextSeq,
     active_stream_id: streamId,
   });
+}
+
+export function createTurnMessages(
+  chatId: string,
+  data: Pick<
+    QueueProcessingData,
+    'userMessageId' | 'assistantMessageId' | 'content' | 'modelId' | 'checkpointId' | 'attachments'
+  > & {
+    // The user-role message was sent by the app, not typed by the user.
+    appNotice?: boolean;
+  },
+): Message[] {
+  const userMessage: Message = {
+    id: data.userMessageId,
+    chat_id: chatId,
+    role: 'user',
+    content_text: data.content,
+    content_render: {
+      events: [{ type: data.appNotice ? 'app_notice' : 'user_text', text: data.content }],
+    },
+    last_seq: 0,
+    active_stream_id: null,
+    stream_status: 'completed',
+    created_at: new Date().toISOString(),
+    attachments: data.attachments || [],
+    is_bot: false,
+    model_id: null,
+    duration_ms: null,
+    checkpoint_id: null,
+    tool_results_omitted: false,
+  };
+
+  const assistantMessage: Message = {
+    id: data.assistantMessageId,
+    chat_id: chatId,
+    role: 'assistant',
+    content_text: '',
+    content_render: createEmptyRenderSnapshot(),
+    last_seq: 0,
+    active_stream_id: null,
+    stream_status: 'in_progress',
+    created_at: new Date().toISOString(),
+    model_id: data.modelId,
+    attachments: [],
+    is_bot: true,
+    duration_ms: null,
+    checkpoint_id: data.checkpointId,
+    tool_results_omitted: false,
+  };
+
+  return [userMessage, assistantMessage];
+}
+
+export function insertMessagesById(existing: Message[], incoming: Message[]): Message[] {
+  let merged = existing;
+  for (let index = incoming.length - 1; index >= 0; index--) {
+    const message = incoming[index];
+    if (merged.some((item) => item.id === message.id)) continue;
+    const nextIndex = merged.findIndex((item) => item.id === incoming[index + 1]?.id);
+    const insertIndex = nextIndex < 0 ? merged.length : nextIndex;
+    merged = [...merged.slice(0, insertIndex), message, ...merged.slice(insertIndex)];
+  }
+  return merged;
 }

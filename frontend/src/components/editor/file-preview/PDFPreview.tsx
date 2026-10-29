@@ -1,4 +1,4 @@
-import { memo, useMemo, useEffect, useState, useRef } from 'react';
+import { memo, useLayoutEffect, useState } from 'react';
 import { logger } from '@/utils/logger';
 import { base64ToUint8Array } from '@/utils/base64';
 import type { FileStructure } from '@/types/file-system.types';
@@ -20,31 +20,27 @@ export const PDFPreview = memo(function PDFPreview({
 }: PDFPreviewProps) {
   const fileName = getDisplayFileName(file, 'document.pdf');
   const [iframeError, setIframeError] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-  const pdfUrl = useMemo(() => {
-    if (!file.content || !isValidBase64(file.content)) return null;
-
-    try {
-      const bytes = base64ToUint8Array(file.content);
-      const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
-      return URL.createObjectURL(blob);
-    } catch (err) {
-      logger.error('PDF preview load failed', 'PDFPreview', err);
-      return null;
+  useLayoutEffect(() => {
+    let url: string | null = null;
+    if (file.content && isValidBase64(file.content)) {
+      try {
+        const bytes = base64ToUint8Array(file.content);
+        const blob = new Blob([bytes as unknown as BlobPart], { type: 'application/pdf' });
+        url = URL.createObjectURL(blob);
+      } catch (err) {
+        logger.error('PDF preview load failed', 'PDFPreview', err);
+      }
     }
-  }, [file.content]);
 
-  const prevPdfUrlRef = useRef(pdfUrl);
-  if (prevPdfUrlRef.current !== pdfUrl) {
-    prevPdfUrlRef.current = pdfUrl;
+    setPdfUrl(url);
     setIframeError(false);
-  }
 
-  useEffect(() => {
     return () => {
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl);
+      if (url) URL.revokeObjectURL(url);
     };
-  }, [pdfUrl]);
+  }, [file.content]);
 
   if (!pdfUrl || iframeError) {
     return (

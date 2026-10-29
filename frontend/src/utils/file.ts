@@ -319,11 +319,11 @@ export async function fetchAttachmentBlob(
 }
 
 export async function downloadAttachmentFile(
-  fileUrl: string,
+  fileUrl: string | File,
   fileName: string,
   apiClient: { getBlob: (endpoint: string, signal?: AbortSignal) => Promise<Blob> },
 ): Promise<void> {
-  if (isBrowserObjectUrl(fileUrl)) {
+  if (typeof fileUrl === 'string' && isBrowserObjectUrl(fileUrl)) {
     const link = document.createElement('a');
     link.href = fileUrl;
     link.download = fileName;
@@ -333,8 +333,10 @@ export async function downloadAttachmentFile(
     return;
   }
 
-  const downloadUrl = toDownloadUrl(fileUrl);
-  const blob = await fetchAttachmentBlob(downloadUrl, apiClient);
+  const blob =
+    fileUrl instanceof File
+      ? fileUrl
+      : await fetchAttachmentBlob(toDownloadUrl(fileUrl), apiClient);
   const blobUrl = URL.createObjectURL(blob);
 
   try {
