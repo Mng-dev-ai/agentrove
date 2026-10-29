@@ -1,7 +1,7 @@
 import logging
 import re
 from datetime import datetime, timedelta, timezone
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any, cast
 from uuid import UUID
 
@@ -198,26 +198,20 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                 )
             ).all()
             child_ids = {r.child_chat_id for r in [*finished, *running, *delivered]}
-            titles = dict(
-                (
-                    await db.execute(
-                        select(Chat.id, Chat.title).where(Chat.id.in_(child_ids))
-                    )
-                ).all()
+            title_rows = await db.execute(
+                select(Chat.id, Chat.title).where(Chat.id.in_(child_ids))
             )
+            titles: dict[UUID, str] = {row.id: row.title for row in title_rows}
             # Results whose wakes already failed are posted directly; the rest
             # still get a model turn.
             exhausted = [r for r in finished if r.attempts >= FALLBACK_AFTER_ATTEMPTS]
             pool = (exhausted or finished)[:MAX_BATCH_REPORTS]
-            results = dict(
-                (
-                    await db.execute(
-                        select(Message.id, Message.content_text).where(
-                            Message.id.in_([r.child_message_id for r in pool])
-                        )
-                    )
-                ).all()
+            result_rows = await db.execute(
+                select(Message.id, Message.content_text).where(
+                    Message.id.in_([r.child_message_id for r in pool])
+                )
             )
+            results: dict[UUID, str] = {row.id: row.content_text for row in result_rows}
         if not finished or user is None:
             return 0
         if exhausted:
@@ -288,7 +282,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
 
     @staticmethod
     def _fit_batch(
-        reports: list[SubThreadReport],
+        reports: Sequence[SubThreadReport],
         render: Callable[[list[SubThreadReport]], str],
     ) -> list[SubThreadReport]:
         # The oldest is always taken so it can't starve; its capped excerpt plus the
@@ -300,7 +294,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             batch.append(report)
         return batch
 
-    async def _defer(self, reports: list[SubThreadReport]) -> None:
+    async def _defer(self, reports: Sequence[SubThreadReport]) -> None:
         async with self.session_factory() as db:
             await defer_reports(
                 db,
@@ -313,7 +307,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         self,
         parent_id: UUID,
         user_id: UUID,
-        finished: list[SubThreadReport],
+        finished: Sequence[SubThreadReport],
         titles: dict[UUID, str],
         results: dict[UUID, str],
         more: int,
@@ -429,7 +423,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
     @classmethod
     def _build_results_message(
         cls,
-        finished: list[SubThreadReport],
+        finished: Sequence[SubThreadReport],
         titles: dict[UUID, str],
         results: dict[UUID, str],
         more: int,
@@ -450,7 +444,7 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
 
     @staticmethod
     def _build_trigger_notice(
-        batch: list[SubThreadReport], titles: dict[UUID, str], more: int
+        batch: Sequence[SubThreadReport], titles: dict[UUID, str], more: int
     ) -> str:
         # What the user sees in place of the prompt text sent to the model.
         lines = ["Finished sub-threads:"]
@@ -466,11 +460,11 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
     @classmethod
     def _build_prompt(
         cls,
-        finished: list[SubThreadReport],
-        running: list[SubThreadReport],
+        finished: Sequence[SubThreadReport],
+        running: Sequence[SubThreadReport],
         titles: dict[UUID, str],
         results: dict[UUID, str],
-        delivered: list[SubThreadReport],
+        delivered: Sequence[SubThreadReport],
         more: int,
     ) -> str:
         lines = [
