@@ -269,7 +269,12 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
                 selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
             )
             await self._chat_service.initiate_chat_completion(
-                request, user, wake_report_ids=[r.id for r in batch]
+                request,
+                user,
+                wake_report_ids=[r.id for r in batch],
+                user_app_notice=self._build_trigger_notice(
+                    batch, titles, len(finished) - len(batch)
+                ),
             )
         except ChatException as exc:
             if exc.status_code == 409:
@@ -441,6 +446,21 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
             sections.append(f"{more} more sub-thread results are still pending.")
         return "\n\n".join(sections)
 
+    @staticmethod
+    def _build_trigger_notice(
+        batch: list[SubThreadReport], titles: dict[UUID, str], more: int
+    ) -> str:
+        # What the user sees in place of the prompt text sent to the model.
+        lines = ["Finished sub-threads:"]
+        lines += [
+            f"- {_chat_link(titles.get(r.child_chat_id, 'Untitled'), r.child_chat_id)}"
+            f" ({_outcome(r)})"
+            for r in batch
+        ]
+        if more:
+            lines.append(f"- and {more} more queued for a following update")
+        return "\n".join(lines)
+
     @classmethod
     def _build_prompt(
         cls,
@@ -452,7 +472,8 @@ class SubThreadReportService(BaseDbService[SubThreadReport]):
         more: int,
     ) -> str:
         lines = [
-            "[Automated sub-thread update] The sub-threads you delegated finished. "
+            "This message was sent automatically by Agentrove, not typed by the user. "
+            "The sub-threads you delegated finished. "
             "None of these results has been reported to the user yet.",
             "",
             "Finished:",

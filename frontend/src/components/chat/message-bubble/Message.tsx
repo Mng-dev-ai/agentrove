@@ -2,6 +2,7 @@ import { memo, useMemo, useState, type ReactNode } from 'react';
 import { Undo2 } from 'lucide-react';
 import { UserMessageContent, AssistantMessageContent } from './MessageContent';
 import { MessageActions } from './MessageActions';
+import { NoticeCard } from './NoticeCard';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import {
   getAgentKindForModelId,
@@ -62,6 +63,19 @@ export const UserMessage = memo(function UserMessage({
   isStreaming,
 }: UserMessageProps) {
   const { chatId } = useChatContext();
+
+  // Sent by the app, not typed by the user: shown as a notice, not as a user bubble.
+  const noticeText = contentRender.events
+    .filter((event) => event.type === 'app_notice')
+    .map((event) => event.text)
+    .join('\n\n');
+  if (noticeText) {
+    return (
+      <MessageRow>
+        <NoticeCard text={noticeText} />
+      </MessageRow>
+    );
+  }
 
   return (
     <MessageRow>

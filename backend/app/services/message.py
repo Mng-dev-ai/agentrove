@@ -64,16 +64,24 @@ class MessageService(BaseDbService[Message]):
         model_id: str | None = None,
         session_id: str | None = None,
         stream_status: MessageStreamStatus | None = None,
+        app_notice: str | None = None,
     ) -> Message:
         # Assistants start empty (stream fills via update_message_snapshot); users go in whole.
+        # app_notice renders an app-sent user-role message as a notice, not typed text.
         async with self.session_factory() as db:
             if role == MessageRole.ASSISTANT:
                 content_text = ""
                 content_render: dict[str, Any] = {"events": []}
             else:
                 content_text = content
+                event_type = "app_notice" if app_notice is not None else "user_text"
                 content_render = {
-                    "events": [{"type": "user_text", "text": content}],
+                    "events": [
+                        {
+                            "type": event_type,
+                            "text": app_notice if app_notice is not None else content,
+                        }
+                    ],
                 }
 
             message_kwargs: dict[str, Any] = {

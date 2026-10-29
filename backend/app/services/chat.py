@@ -1052,6 +1052,7 @@ class ChatService(BaseDbService[Chat]):
         *,
         member_turn: ChannelMemberTurn | None = None,
         wake_report_ids: list[UUID] | None = None,
+        user_app_notice: str | None = None,
     ) -> ChatCompletionResult:
         async with ChatStreamRuntime.chat_start_slot(str(request.chat_id)) as reserved:
             if not reserved:
@@ -1062,7 +1063,7 @@ class ChatService(BaseDbService[Chat]):
                     status_code=409,
                 )
             return await self._initiate_chat_completion_reserved(
-                request, current_user, member_turn, wake_report_ids
+                request, current_user, member_turn, wake_report_ids, user_app_notice
             )
 
     async def _initiate_chat_completion_reserved(
@@ -1071,6 +1072,7 @@ class ChatService(BaseDbService[Chat]):
         current_user: User,
         member_turn: ChannelMemberTurn | None,
         wake_report_ids: list[UUID] | None = None,
+        user_app_notice: str | None = None,
     ) -> ChatCompletionResult:
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(
@@ -1158,6 +1160,7 @@ class ChatService(BaseDbService[Chat]):
             base_branch=request.base_branch,
             session_factory=self._session_factory,
             channel_member=member_turn is not None,
+            user_app_notice=user_app_notice,
         ) as (_, assistant_message, checkpoint_id):
             # Before the task is enqueued so the turn cannot finish ahead of its
             # report row; a failure here discards the turn's messages.
