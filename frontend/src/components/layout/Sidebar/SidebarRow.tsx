@@ -12,9 +12,9 @@ interface SidebarRowProps {
   leading?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
-  timestamp: ReactNode;
-  dropdownLabel?: string;
-  onDropdownClick?: (e: MouseEvent<HTMLButtonElement>) => void;
+  timestamp: string;
+  dropdownLabel: string;
+  onDropdownClick: (e: MouseEvent<HTMLButtonElement>) => void;
   onMouseEnter: () => void;
   onMouseLeave: () => void;
 }
@@ -53,17 +53,15 @@ export function SidebarRow({
         {timestamp}
       </span>
 
-      {onDropdownClick && (
-        <Button
-          onClick={onDropdownClick}
-          onMouseDown={(e) => e.stopPropagation()}
-          variant="unstyled"
-          className={clsx(styles['dropdown-btn'], isRevealed && styles['dropdown-btn--visible'])}
-          aria-label={dropdownLabel}
-        >
-          <MoreHorizontal className={styles['dropdown-icon']} />
-        </Button>
-      )}
+      <Button
+        onClick={onDropdownClick}
+        onMouseDown={(e) => e.stopPropagation()}
+        variant="unstyled"
+        className={clsx(styles['dropdown-btn'], isRevealed && styles['dropdown-btn--visible'])}
+        aria-label={dropdownLabel}
+      >
+        <MoreHorizontal className={styles['dropdown-icon']} />
+      </Button>
     </div>
   );
 }

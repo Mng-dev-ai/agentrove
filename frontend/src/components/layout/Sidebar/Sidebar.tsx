@@ -15,7 +15,6 @@ import { UserProfileMenu } from '@/components/layout/UserProfileMenu/UserProfile
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { SidebarActions } from './SidebarActions';
 import { SidebarChannels } from './SidebarChannels';
-import { SidebarInbox } from './SidebarInbox';
 import { SidebarChatList } from './SidebarChatList';
 import { SidebarOverlays } from './SidebarOverlays';
 import { type ChatRowProps } from './SidebarChatRow';
@@ -181,6 +180,13 @@ export function Sidebar({
     }
   }, [navigate, isMobile]);
 
+  const handleOpenInbox = useCallback(() => {
+    navigate('/inbox');
+    if (isMobile) {
+      useUIStore.getState().setSidebarOpen(false);
+    }
+  }, [navigate, isMobile]);
+
   const handleOpenSearch = useCallback(() => {
     useUIStore.getState().setCommandMenuOpen(true);
     // Close the drawer on mobile so the destination isn't hidden behind it after picking a result
@@ -215,11 +221,14 @@ export function Sidebar({
         aria-label="Chat history"
         className={clsx(styles.sidebar, sidebarOpen && styles['sidebar--open'])}
       >
-        <SidebarActions onNewChat={handleNewChat} onOpenSearch={handleOpenSearch} />
+        <SidebarActions
+          onNewChat={handleNewChat}
+          onOpenSearch={handleOpenSearch}
+          onOpenInbox={handleOpenInbox}
+        />
 
         <SidebarChatList
           scrollContainerRef={scrollContainerRef}
-          inbox={<SidebarInbox />}
           channels={
             <SidebarChannels
               workspaces={workspaces}

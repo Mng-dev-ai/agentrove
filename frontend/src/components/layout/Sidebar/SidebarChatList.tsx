@@ -13,7 +13,6 @@ import styles from './SidebarChatList.module.scss';
 
 interface SidebarChatListProps {
   scrollContainerRef: Ref<HTMLDivElement>;
-  inbox: ReactNode;
   channels: ReactNode;
   isLoadingChats: boolean;
   hasAnyContent: boolean;
@@ -32,7 +31,6 @@ interface SidebarChatListProps {
 
 export function SidebarChatList({
   scrollContainerRef,
-  inbox,
   channels,
   isLoadingChats,
   hasAnyContent,
@@ -59,7 +57,6 @@ export function SidebarChatList({
     filters.groupBy === 'workspace' ? { ...rowProps, showWorkspaceBadges: false } : rowProps;
   return (
     <div ref={scrollContainerRef} className={styles.scroll}>
-      {inbox}
       {channels}
       {!hasAnyContent ? (
         isLoadingChats ? null : (
