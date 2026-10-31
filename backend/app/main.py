@@ -19,6 +19,7 @@ from app.api.endpoints import (
     chat,
     channels,
     github,
+    inbox,
     push,
     sandbox,
     workspace,
@@ -169,6 +170,11 @@ def create_application() -> FastAPI:
         automations.router,
         prefix=f"{settings.API_V1_STR}/automations",
         tags=["Automations"],
+    )
+    application.include_router(
+        inbox.router,
+        prefix=f"{settings.API_V1_STR}/inbox",
+        tags=["Inbox"],
     )
     application.include_router(
         push.router,

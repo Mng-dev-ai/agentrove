@@ -15,6 +15,7 @@ import { UserProfileMenu } from '@/components/layout/UserProfileMenu/UserProfile
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { SidebarActions } from './SidebarActions';
 import { SidebarChannels } from './SidebarChannels';
+import { SidebarInbox } from './SidebarInbox';
 import { SidebarChatList } from './SidebarChatList';
 import { SidebarOverlays } from './SidebarOverlays';
 import { type ChatRowProps } from './SidebarChatRow';
@@ -218,6 +219,7 @@ export function Sidebar({
 
         <SidebarChatList
           scrollContainerRef={scrollContainerRef}
+          inbox={<SidebarInbox />}
           channels={
             <SidebarChannels
               workspaces={workspaces}

@@ -37,6 +37,7 @@ import styles from './App.module.scss';
 const LandingPage = lazyNamed(() => import('@/pages/LandingPage/LandingPage'), 'LandingPage');
 const ChatPage = lazyNamed(() => import('@/pages/ChatPage/ChatPage'), 'ChatPage');
 const ChannelPage = lazyNamed(() => import('@/pages/ChannelPage/ChannelPage'), 'ChannelPage');
+const InboxPage = lazyNamed(() => import('@/pages/InboxPage/InboxPage'), 'InboxPage');
 const LoginPage = lazyNamed(() => import('@/pages/LoginPage/LoginPage'), 'LoginPage');
 const SignupPage = lazyNamed(() => import('@/pages/SignupPage/SignupPage'), 'SignupPage');
 const EmailVerificationPage = lazyNamed(
@@ -150,6 +151,18 @@ function AppContent() {
               showLoading={showLoading}
             >
               <ChannelPage />
+            </AuthRoute>
+          }
+        />
+        <Route
+          path="/inbox"
+          element={
+            <AuthRoute
+              isAuthenticated={isSessionAuthenticated}
+              requireAuth={true}
+              showLoading={showLoading}
+            >
+              <InboxPage />
             </AuthRoute>
           }
         />

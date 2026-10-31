@@ -59,7 +59,7 @@ export interface ChatTextSelection {
 
 export type ComposerSelection = EditorCodeSelection | ChatTextSelection;
 
-export type SidebarSection = 'channels' | 'pinned' | 'recents';
+export type SidebarSection = 'inbox' | 'channels' | 'pinned' | 'recents';
 
 type UIStoreState = ThemeState &
   Pick<UIState, 'sidebarOpen' | 'sidebarWidth'> &

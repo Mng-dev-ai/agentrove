@@ -262,6 +262,15 @@ class AgentroveClient:
         resp = await self.request("PATCH", f"/automations/{automation_id}", json=body)
         return resp.json()
 
+    async def notify_user(self, chat_id: str, title: str, body: str) -> dict[str, Any]:
+        resp = await self.request(
+            "POST",
+            "/inbox/messages",
+            json={"chat_id": chat_id, "title": title, "body": body},
+            expected=(201,),
+        )
+        return resp.json()
+
     async def delete_automation(self, automation_id: str) -> None:
         await self.request("DELETE", f"/automations/{automation_id}", expected=(204,))
 
