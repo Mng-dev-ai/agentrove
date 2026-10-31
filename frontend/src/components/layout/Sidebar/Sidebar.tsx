@@ -180,6 +180,13 @@ export function Sidebar({
     }
   }, [navigate, isMobile]);
 
+  const handleOpenInbox = useCallback(() => {
+    navigate('/inbox');
+    if (isMobile) {
+      useUIStore.getState().setSidebarOpen(false);
+    }
+  }, [navigate, isMobile]);
+
   const handleOpenSearch = useCallback(() => {
     useUIStore.getState().setCommandMenuOpen(true);
     // Close the drawer on mobile so the destination isn't hidden behind it after picking a result
@@ -214,7 +221,11 @@ export function Sidebar({
         aria-label="Chat history"
         className={clsx(styles.sidebar, sidebarOpen && styles['sidebar--open'])}
       >
-        <SidebarActions onNewChat={handleNewChat} onOpenSearch={handleOpenSearch} />
+        <SidebarActions
+          onNewChat={handleNewChat}
+          onOpenSearch={handleOpenSearch}
+          onOpenInbox={handleOpenInbox}
+        />
 
         <SidebarChatList
           scrollContainerRef={scrollContainerRef}

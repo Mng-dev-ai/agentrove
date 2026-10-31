@@ -16,6 +16,7 @@ from app.models.db_models.workspace import Workspace
 from app.models.db_models.user import User
 from app.services.attachment import AttachmentService
 from app.services.automation import AutomationService
+from app.services.inbox import InboxService
 from app.services.chat import ChatService
 from app.services.agent import AgentService
 from app.services.exceptions import ChatException, UserException
@@ -211,6 +212,10 @@ async def get_automation_service(
         ChatService(user_service, session_factory=SessionLocal),
         session_factory=SessionLocal,
     )
+
+
+def get_inbox_service() -> InboxService:
+    return InboxService(session_factory=SessionLocal)
 
 
 def chat_access_dependency(
