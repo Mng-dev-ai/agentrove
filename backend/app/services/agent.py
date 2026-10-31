@@ -87,7 +87,7 @@ class AgentService:
         self, chat: Chat, base_branch: str | None = None
     ) -> str:
         if chat.worktree_cwd:
-            return chat.worktree_cwd
+            return cast(str, chat.worktree_cwd)
 
         sandbox_id = chat.sandbox_id
         if not sandbox_id:
