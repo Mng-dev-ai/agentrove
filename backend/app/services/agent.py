@@ -50,10 +50,6 @@ logger = logging.getLogger(__name__)
 # MCP server ships next to the backend (bundled into the sidecar by run_build.mjs),
 # so its path derives from this file: app/services/agent.py -> ../../mcp-server/server.py
 MCP_SERVER_PATH = Path(__file__).resolve().parents[2] / "mcp-server" / "server.py"
-BROWSER_MCP_CLOUD_PATH = Path(__file__).resolve().parents[1] / "browser_mcp_cloud.py"
-BROWSER_USE_PYTHON_PATH = (
-    BROWSER_MCP_CLOUD_PATH.parents[1] / "browser-use" / "bin" / "python"
-)
 
 
 class StreamResult:
@@ -91,7 +87,7 @@ class AgentService:
         self, chat: Chat, base_branch: str | None = None
     ) -> str:
         if chat.worktree_cwd:
-            return cast(str, chat.worktree_cwd)
+            return chat.worktree_cwd
 
         sandbox_id = chat.sandbox_id
         if not sandbox_id:
@@ -468,7 +464,6 @@ class AgentService:
 
     @staticmethod
     def _build_mcp_server_configs(
-        chat_id: str | None,
         user_id: str,
         sandbox_provider: SandboxProviderType,
         *,
@@ -504,21 +499,6 @@ class AgentService:
                     "command": sys.executable,
                     "args": [str(MCP_SERVER_PATH)],
                     "env": env,
-                }
-            )
-        if chat_id and settings.BROWSER_USE_API_KEY:
-            if sandbox_provider is SandboxProviderType.DOCKER:
-                command = "/home/user/.local/share/uv/tools/browser-use/bin/python"
-                args = ["/home/user/browser_mcp_cloud.py"]
-            else:
-                command = str(BROWSER_USE_PYTHON_PATH)
-                args = [str(BROWSER_MCP_CLOUD_PATH)]
-            servers.append(
-                {
-                    "name": "browser",
-                    "command": command,
-                    "args": args,
-                    "env": {"BROWSER_USE_API_KEY": settings.BROWSER_USE_API_KEY},
                 }
             )
         return servers
@@ -581,7 +561,6 @@ class AgentService:
             agent_kind=agent_kind,
             env=env,
             mcp_servers=self._build_mcp_server_configs(
-                chat_id,
                 user_id,
                 sandbox_provider,
                 agentrove_mcp=not channel_member

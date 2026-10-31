@@ -159,7 +159,6 @@ class Settings(BaseSettings):
     # Opt-in stdio MCP server (mcp-server/server.py); calls this backend at
     # BASE_URL with a per-user access token minted at session spawn.
     AGENTROVE_MCP_ENABLED: bool = False
-    BROWSER_USE_API_KEY: str = ""
     AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS: int = 604800
 
     DOCKER_IMAGE: str = "ghcr.io/mng-dev-ai/agentrove-sandbox:latest"
