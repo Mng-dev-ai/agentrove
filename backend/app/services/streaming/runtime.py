@@ -569,7 +569,7 @@ class ChatStreamRuntime:
                     {"status": "completed", "duration_ms": duration_ms},
                     apply_snapshot=False,
                 )
-                await self._push_completion(failed=False)
+                await self._push_completion(failed=False, reply=final_content)
         elif status == MessageStreamStatus.INTERRUPTED:
             # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
             await self._close_stream()
@@ -591,11 +591,11 @@ class ChatStreamRuntime:
                 {"status": status.value, "duration_ms": duration_ms},
                 apply_snapshot=False,
             )
-            await self._push_completion(failed=True)
+            await self._push_completion(failed=True, reply=final_content)
 
         return final_content
 
-    async def _push_completion(self, *, failed: bool) -> None:
+    async def _push_completion(self, *, failed: bool, reply: str) -> None:
         if self.member_turn is not None or not self.assistant_message_id:
             return
         await PushService(self.session_factory).notify_completion(
@@ -603,6 +603,7 @@ class ChatStreamRuntime:
             chat_id=self.chat_id,
             message_id=self.assistant_message_id,
             failed=failed,
+            reply=reply,
         )
 
     async def _close_stream(self) -> None:

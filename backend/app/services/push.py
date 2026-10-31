@@ -22,6 +22,7 @@ settings = get_settings()
 
 PERMISSION_TTL_SECONDS = 600
 COMPLETION_TTL_SECONDS = 3600
+BODY_MAX_CHARS = 200
 SEND_INTERVAL_SECONDS = 5.0
 MAX_ATTEMPTS = 5
 CLAIM_LEASE_SECONDS = 60
@@ -103,13 +104,18 @@ class PushService:
         )
 
     async def notify_completion(
-        self, *, user_id: UUID, chat_id: str, message_id: str, failed: bool
+        self, *, user_id: UUID, chat_id: str, message_id: str, failed: bool, reply: str
     ) -> None:
+        body = reply.strip()
+        if not body:
+            body = "Open the chat to see the result."
+        elif len(body) > BODY_MAX_CHARS:
+            body = body[:BODY_MAX_CHARS].rstrip() + "…"
         await self.enqueue(
             user_id=user_id,
             event_key=f"{message_id}:complete",
             title="Task failed" if failed else "Task completed",
-            body="Open the chat to see the result.",
+            body=body,
             path=f"/chat/{chat_id}",
             collapse_id=f"{chat_id}:complete",
             ttl_seconds=COMPLETION_TTL_SECONDS,
