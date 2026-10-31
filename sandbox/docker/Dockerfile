@@ -78,7 +78,6 @@ RUN useradd -m -s /bin/bash -u 1000 user && \
     chown -R user:user /home/user
 
 COPY --chmod=755 sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-COPY --chown=user:user --chmod=755 backend/app/browser_mcp_cloud.py /home/user/browser_mcp_cloud.py
 
 RUN set -eux; \
     version=1.4.5; \
@@ -147,11 +146,6 @@ RUN set -eux; \
 RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
     uv
-
-RUN uv tool install --python python3.12 'browser-use[cli]==0.13.8' && \
-    command -v browser-use && \
-    /home/user/.local/share/uv/tools/browser-use/bin/python -c \
-      "from browser_mcp_cloud import CloudBrowserUseServer"
 
 RUN echo '#!/bin/bash\nexec echo $GITHUB_TOKEN' > /home/user/.git-askpass.sh && \
     chmod +x /home/user/.git-askpass.sh
