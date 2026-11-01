@@ -169,14 +169,15 @@ GIT_FETCH_BASE_CMD = (
     " esac;"
 )
 
-# Skips when FETCH_HEAD was written in the last minute; prints `fetched` only
-# when a fetch ran and succeeded. `find -mmin` works on GNU and BSD.
+# Skips when any worktree of the repo attempted a fetch in the last minute
+# (FETCH_HEAD is per-worktree, so the stamp lives in the common dir); prints
+# `fetched` only when a fetch ran and succeeded. `find -mmin` works on GNU and BSD.
 GIT_FETCH_BASE_THROTTLED_CMD = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     'cd "$(git rev-parse --show-toplevel)"; '
     + GIT_DETECT_BASE_CMD
-    + " fp=$(git rev-parse --git-path FETCH_HEAD);"
-    ' if [ -z "$(find "$fp" -mmin -1 2>/dev/null)" ]; then'
+    + ' fp="$(git rev-parse --git-common-dir)/agentrove-fetch-base";'
+    ' if [ -z "$(find "$fp" -mmin -1 2>/dev/null)" ]; then touch "$fp" 2>/dev/null;'
     + GIT_FETCH_BASE_CMD
     + " fi; true"
 )
