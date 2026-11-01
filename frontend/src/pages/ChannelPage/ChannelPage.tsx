@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
@@ -16,7 +16,6 @@ import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useChatStore } from '@/store/chatStore';
 import { useUIStore } from '@/store/uiStore';
-import { useMountEffect } from '@/hooks/useMountEffect';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import type { Channel } from '@/types/channel.types';
 import type { TileId } from '@/types/ui.types';
@@ -32,6 +31,7 @@ function ChannelWorkspace({
   const workspaceChatId = channel.anchor_chat_id;
   const { data: workspaceChat } = useChatQuery(workspaceChatId);
   const { fileStructure } = useSandboxFiles(workspaceChat, workspaceChatId);
+  const isWorkspaceLoaded = useUIStore((s) => s.currentWorkspaceChatId === channel.id);
 
   // Chat-scoped git actions (commit, PR, branch) resolve the channel's worktree through it.
   useEffect(() => {
@@ -60,14 +60,16 @@ function ChannelWorkspace({
       worktreeCwd={workspaceChat?.worktree_cwd ?? undefined}
       fileStructure={fileStructure}
     >
-      <WorkspaceSurface
-        renderView={renderView}
-        sessionPanel={
-          workspaceChat && (
-            <SessionPanel chat={workspaceChat} workspace={workspace} channel={channel} />
-          )
-        }
-      />
+      {isWorkspaceLoaded && (
+        <WorkspaceSurface
+          renderView={renderView}
+          sessionPanel={
+            workspaceChat && (
+              <SessionPanel chat={workspaceChat} workspace={workspace} channel={channel} />
+            )
+          }
+        />
+      )}
     </ChatProvider>
   );
 }
@@ -78,14 +80,13 @@ export function ChannelPage() {
   useCommandMenu();
 
   // Split chats are chat-only; each channel keeps its own view layout.
-  const loadedChannelIdRef = useRef<string>(undefined);
-  if (channelId && loadedChannelIdRef.current !== channelId) {
-    loadedChannelIdRef.current = channelId;
+  useLayoutEffect(() => {
+    if (!channelId) return;
     const ui = useUIStore.getState();
     ui.closeSplitChat();
     ui.loadWorkspace(channelId);
-  }
-  useMountEffect(() => () => useUIStore.getState().stashWorkspace());
+    return () => useUIStore.getState().stashWorkspace();
+  }, [channelId]);
 
   const workspaces = useWorkspacesList();
   const { data: channel, isError } = useChannelQuery(channelId);
