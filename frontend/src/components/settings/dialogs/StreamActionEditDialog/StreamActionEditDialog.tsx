@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GitBranch, Brain, Shield } from 'lucide-react';
-import type { CustomSkill, Persona, StreamAction } from '@/types/user.types';
+import type { Persona, StreamAction } from '@/types/user.types';
 import type { SlashCommand } from '@/types/ui.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
@@ -28,8 +28,6 @@ import { EMPTY_BUILTIN_COMMANDS } from '@/config/constants';
 import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
 import styles from './StreamActionEditDialog.module.scss';
 
-const EMPTY_SKILLS: CustomSkill[] = [];
-
 interface StreamActionEditDialogProps {
   isOpen: boolean;
   isEditing: boolean;
@@ -52,7 +50,6 @@ export function StreamActionEditDialog({
   onActionChange,
 }: StreamActionEditDialogProps) {
   const { data: models = [] } = useModelsQuery();
-  // Builtins only — stream actions are global and the clicked chat may lack a custom skill.
   const workspaces = useWorkspacesList();
   const { data: resources } = useWorkspaceResourcesQuery(workspaces[0]?.id);
   const builtinSlashCommands = resources?.builtin_slash_commands ?? EMPTY_BUILTIN_COMMANDS;
@@ -109,7 +106,6 @@ export function StreamActionEditDialog({
     message: action.command,
     cursorPosition,
     onSelect: handleSlashCommandSelect,
-    customSkills: EMPTY_SKILLS,
     builtinSlashCommands,
     agentKind,
   });
@@ -213,7 +209,7 @@ export function StreamActionEditDialog({
               />
             </div>
             <p className={styles.hint}>
-              A slash command, skill, or prompt — sent verbatim to the sub-thread.
+              A slash command or prompt — sent verbatim to the sub-thread.
             </p>
           </div>
         </div>

@@ -180,7 +180,7 @@ export function LandingPage() {
     setMessage(initialMessage);
   }
 
-  // Skills/commands are per-instance — VPS list for cloud before a chat exists.
+  // Slash commands are per-instance — VPS list for cloud before a chat exists.
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
     selectedWorkspaceId ?? undefined,
     undefined,
@@ -559,7 +559,6 @@ export function LandingPage() {
     <ChatProvider
       sandboxId={selectedSandboxId}
       fileStructure={fileStructure}
-      customSkills={resolvedWorkspaceResources?.skills}
       builtinSlashCommands={resolvedWorkspaceResources?.builtin_slash_commands}
       personas={resolvedPersonas}
     >

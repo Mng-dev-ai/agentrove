@@ -59,7 +59,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
   });
   const [permissionMode, setPermissionMode] = useState<PermissionMode>(DEFAULT_PERMISSION_MODE);
 
-  const { customSkills, builtinSlashCommands } = useChatContext();
+  const { builtinSlashCommands } = useChatContext();
 
   const selectedModel = models.find((m) => m.model_id === selectedModelId);
   const agentKind = selectedModel?.agent_kind ?? 'claude';
@@ -108,7 +108,6 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
     message,
     cursorPosition,
     onSelect: handleSlashCommandSelect,
-    customSkills,
     builtinSlashCommands,
     agentKind,
   });

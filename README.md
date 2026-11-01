@@ -16,7 +16,7 @@ Self-hosted AI coding workspace for running and orchestrating Antigravity, Claud
 - Combines chat, code editor, terminal, file tree, diffs, secrets, and git tools in one workspace.
 - Supports workspaces from empty folders, git clones, existing local folders, or GitHub repositories.
 - Streams agent sessions with cancellation, permission prompts, queued follow-up messages, file mentions, slash commands, and attachments.
-- Includes sub-threads, pinned chats, worktree mode, personas, custom instructions, environment variables, and installed agent skills.
+- Includes sub-threads, pinned chats, worktree mode, personas, custom instructions, and environment variables.
 - Orchestrates multi-agent workflows through the bundled MCP server: a lead chat spawns worker sub-threads on any installed agent, model, and persona — in parallel worktrees when needed — then reviews their results.
 - Hosts channels: group chats where you and several agents, each with its own model and persona, discuss and work in one shared workspace.
 - Provides GitHub-assisted repository browsing, pull request review, PR creation, reviewer selection, and git branch/commit/push/pull helpers.

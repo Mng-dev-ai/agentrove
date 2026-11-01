@@ -67,7 +67,6 @@ module = [
     "prometheus_fastapi_instrumentator.*",
     "uvicorn.*",
     "acp.*",
-    "yaml",
     "fastapi_users.*",
     "fastapi_users_db_sqlalchemy.*",
 ]
@@ -90,7 +89,6 @@ exclude = [
 
 [tool.deptry.package_module_name_map]
 "python-jose" = "jose"
-"PyYAML" = "yaml"
 "python-json-logger" = "pythonjsonlogger"
 "email-validator" = "email_validator"
 "fastapi-users" = "fastapi_users"

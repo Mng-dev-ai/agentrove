@@ -35,16 +35,6 @@ class CustomEnvVarDict(TypedDict):
     value: str
 
 
-class CustomSkillDict(TypedDict):
-    name: str
-    description: str
-    size_bytes: int
-    file_count: int
-    # Agent kinds that scan this skill dir (overlapping namespaces possible).
-    sources: list[str]
-    read_only: bool
-
-
 class PersonaDict(TypedDict):
     name: str
     content: str
@@ -73,10 +63,6 @@ class ChatCompletionResult(TypedDict):
     last_seq: int
     checkpoint_id: str | None
     worktree_cwd: str | None
-
-
-class YamlMetadata(TypedDict, total=False):
-    description: str
 
 
 class EnabledResourceInfo(TypedDict):

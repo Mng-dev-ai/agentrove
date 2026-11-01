@@ -9,7 +9,6 @@ import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import toast from 'react-hot-toast';
 import { GeneralSettingsTab } from '@/components/settings/tabs/GeneralSettingsTab/GeneralSettingsTab';
-import { SkillsSettingsTab } from '@/components/settings/tabs/SkillsSettingsTab/SkillsSettingsTab';
 import { CloudSettingsTab } from '@/components/settings/tabs/CloudSettingsTab/CloudSettingsTab';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
@@ -267,12 +266,6 @@ export function SettingsPage() {
                         onAutoSteerQueuedMessagesChange={handleAutoSteerQueuedMessagesChange}
                         onTitleModelChange={handleTitleModelChange}
                       />
-                    </div>
-                  )}
-
-                  {activeTab === 'skills' && (
-                    <div role="tabpanel" id="skills-panel" aria-labelledby="skills-tab">
-                      <SkillsSettingsTab />
                     </div>
                   )}
 

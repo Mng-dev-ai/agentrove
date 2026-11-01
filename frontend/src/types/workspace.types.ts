@@ -1,4 +1,4 @@
-import type { CustomSkill, SandboxProviderType } from './user.types';
+import type { SandboxProviderType } from './user.types';
 import type { AgentKind } from './chat.types';
 import type { SlashCommand } from './ui.types';
 
@@ -32,6 +32,5 @@ export interface UpdateWorkspaceRequest {
 }
 
 export interface WorkspaceResources {
-  skills: CustomSkill[];
   builtin_slash_commands: Record<AgentKind, SlashCommand[]>;
 }

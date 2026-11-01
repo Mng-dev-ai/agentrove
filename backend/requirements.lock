@@ -189,9 +189,7 @@ python-multipart==0.0.9
     #   mcp
     #   sqladmin
 pyyaml==6.0.3
-    # via
-    #   -r backend/requirements.txt
-    #   uvicorn
+    # via uvicorn
 redis==6.4.0
     # via -r backend/requirements.txt
 referencing==0.37.0

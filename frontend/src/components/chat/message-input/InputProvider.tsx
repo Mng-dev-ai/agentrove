@@ -48,7 +48,7 @@ export function InputProvider({
   disabled = false,
   children,
 }: InputProps & { children: ReactNode }) {
-  const { fileStructure, customSkills, builtinSlashCommands, personas } = useChatContext();
+  const { fileStructure, builtinSlashCommands, personas } = useChatContext();
   // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const modelMap = useModelMap(isAuthenticated);
@@ -130,7 +130,6 @@ export function InputProvider({
     fileStructure,
     mentionChats: recentChats?.items ?? NO_CHATS,
     chatId,
-    customSkills,
     builtinSlashCommands,
     agentKind,
   });

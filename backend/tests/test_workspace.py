@@ -188,7 +188,6 @@ async def test_workspace_resources_returns_owner_resources(
 
     assert owner_response.status_code == 200
     body = owner_response.json()
-    assert isinstance(body["skills"], list)
     assert set(body["builtin_slash_commands"]) >= {"claude", "codex"}
     assert other_response.status_code == 404
 

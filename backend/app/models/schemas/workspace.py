@@ -7,15 +7,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.services.sandbox_providers.types import SandboxProviderType
 
 
-class CustomSkill(BaseModel):
-    name: str
-    description: str
-    size_bytes: int
-    file_count: int
-    sources: list[str]
-    read_only: bool
-
-
 class BuiltinSlashCommand(BaseModel):
     value: str
     label: str
@@ -52,7 +43,6 @@ class Workspace(BaseModel):
 
 
 class WorkspaceResources(BaseModel):
-    skills: list[CustomSkill] = Field(default_factory=list)
     builtin_slash_commands: dict[str, list[BuiltinSlashCommand]] = Field(
         default_factory=dict
     )
