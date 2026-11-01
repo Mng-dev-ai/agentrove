@@ -147,6 +147,7 @@ export const useChatQuery = (
     queryKey: queryKeys.chat(chatId),
     queryFn: () => chatService.getChat(chatId!),
     enabled: !!chatId,
+    gcTime: 1000 * 60 * 30,
     ...options,
   });
 };
