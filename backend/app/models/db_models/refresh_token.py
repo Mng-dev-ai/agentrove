@@ -22,6 +22,9 @@ class RefreshToken(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), nullable=True, index=True
+    )
     user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
 
