@@ -101,29 +101,26 @@ export function ChatPage() {
 
   const prevViewsRef = useRef<{
     views: ViewType[];
-    sandboxId: string | null;
+    chatId: string | undefined;
   }>({
-    views: [],
-    sandboxId: null,
+    views: activeViews,
+    chatId,
   });
 
   useEffect(() => {
     if (!currentChat?.sandbox_id) return;
 
     const prev = prevViewsRef.current;
-    const editorNowActive = activeViews.includes('editor');
-    const editorWasActive = prev.views.includes('editor');
-    const switchedSandbox = prev.sandboxId !== currentChat.sandbox_id;
+    prevViewsRef.current = { views: activeViews, chatId };
 
-    if ((editorNowActive && !editorWasActive) || (editorNowActive && switchedSandbox)) {
+    if (
+      prev.chatId === chatId &&
+      activeViews.includes('editor') &&
+      !prev.views.includes('editor')
+    ) {
       refetchFilesMetadata();
     }
-
-    prevViewsRef.current = {
-      views: activeViews,
-      sandboxId: currentChat.sandbox_id,
-    };
-  }, [activeViews, currentChat?.sandbox_id, refetchFilesMetadata]);
+  }, [activeViews, chatId, currentChat?.sandbox_id, refetchFilesMetadata]);
 
   const workspaces = useWorkspacesList();
   // Cloud chats' workspaces live on the VPS, not in the local list.
