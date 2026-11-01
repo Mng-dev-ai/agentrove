@@ -1246,13 +1246,6 @@ async def test_checkpoint_restore_returns_tree_to_pre_run_state(
     assert list(repo.rglob(".agentrove-checkpoint-*")) == []
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason="Checkpoint captures untracked files relative to the workspace dir "
-    "but restores (reset/clean/apply) from the repo toplevel, so a workspace "
-    "inside a larger repo loses untracked files outside it and misplaces its own.",
-)
 async def test_checkpoint_restore_in_workspace_below_repo_root(
     tmp_path: Path,
 ) -> None:
