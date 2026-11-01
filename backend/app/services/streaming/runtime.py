@@ -1171,6 +1171,7 @@ class ChatStreamRuntime:
             user_settings,
             agent_kind=model.agent_kind,
             selected_persona_name=selected_persona_name,
+            sub_thread=chat.parent_chat_id is not None,
         )
         context_window = model.context_window
         resolved_session_id = session_id_override or chat.session_id
