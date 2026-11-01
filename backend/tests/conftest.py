@@ -18,6 +18,7 @@ from app.db.session import SessionLocal, engine
 from app.main import create_application
 from app.models.db_models.user import User, UserSettings
 from app.services.email import email_service
+from app.services.session_registry import session_registry
 
 TEST_DIR = tests.bootstrap.TEST_DIR
 
@@ -138,6 +139,13 @@ async def database(schema: None) -> None:
     async with engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
             await conn.execute(table.delete())
+
+
+@pytest.fixture(autouse=True)
+async def terminate_agent_sessions(anyio_backend: str) -> AsyncIterator[None]:
+    # Agent processes are bound to this test's event loop; don't leak them.
+    yield
+    await session_registry.terminate_all()
 
 
 @pytest.fixture(autouse=True)

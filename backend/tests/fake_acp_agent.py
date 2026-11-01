@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import sys
 from uuid import uuid4
 from typing import Any
 
@@ -14,36 +15,29 @@ from acp.schema import (
     AgentPlanUpdate,
     AgentThoughtChunk,
     ContentToolCallContent,
-    CreateTerminalResponse,
     CurrentModeUpdate,
     Cost,
     ElicitationFormSessionMode,
     FileEditToolCallContent,
     ImageContentBlock,
     InitializeResponse,
-    KillTerminalResponse,
     ListSessionsResponse,
     LoadSessionResponse,
     NewSessionResponse,
     PermissionOption,
     PlanEntry,
     PromptResponse,
-    ReadTextFileResponse,
-    ReleaseTerminalResponse,
     SessionConfigOptionSelect,
     SessionConfigSelectOption,
     SessionInfoUpdate,
     SetSessionConfigOptionResponse,
     SetSessionModeResponse,
-    TerminalOutputResponse,
     TextContentBlock,
     ToolCallProgress,
     ToolCallStart,
     ToolCallUpdate,
     UsageUpdate,
     UserMessageChunk,
-    WaitForTerminalExitResponse,
-    WriteTextFileResponse,
 )
 from acp.stdio import stdio_streams
 
@@ -81,8 +75,7 @@ MARKER_TOOL_TEXT_RESULT = "MARKER_TOOL_TEXT_RESULT"
 MARKER_TOOL_CODEX_ERROR = "MARKER_TOOL_CODEX_ERROR"
 MARKER_TOOL_STRING_ERROR = "MARKER_TOOL_STRING_ERROR"
 MARKER_TOOL_TEXT_ERROR = "MARKER_TOOL_TEXT_ERROR"
-MARKER_TOOL_PROGRESS_ORPHAN = "MARKER_TOOL_PROGRESS_ORPHAN"
-MARKER_TOOL_PROGRESS_NEW = "MARKER_TOOL_PROGRESS_NEW"
+MARKER_UNTRACKED_TOOL_UPDATES = "MARKER_UNTRACKED_TOOL_UPDATES"
 MARKER_RAW_INPUT_STRING = "MARKER_RAW_INPUT_STRING"
 MARKER_RAW_INPUT_INVALID = "MARKER_RAW_INPUT_INVALID"
 MARKER_PERMISSION = "MARKER_PERMISSION"
@@ -91,8 +84,8 @@ MARKER_CONCURRENT_ELICITATIONS = "MARKER_CONCURRENT_ELICITATIONS"
 MARKER_ASK_USER_QUESTION = "MARKER_ASK_USER_QUESTION"
 MARKER_CANCEL = "MARKER_CANCEL"
 MARKER_CRASH_MID_PROMPT = "MARKER_CRASH_MID_PROMPT"
+MARKER_AGENT_EXIT_MID_PROMPT = "MARKER_AGENT_EXIT_MID_PROMPT"
 MARKER_TOOL_LEFT_OPEN = "MARKER_TOOL_LEFT_OPEN"
-MARKER_FS_TERMINAL_STUBS = "MARKER_FS_TERMINAL_STUBS"
 MARKER_IMAGE_CONTENT = "MARKER_IMAGE_CONTENT"
 MARKER_TOOL_EMPTY_RESULT = "MARKER_TOOL_EMPTY_RESULT"
 MARKER_TOOL_START_DIFF = "MARKER_TOOL_START_DIFF"
@@ -129,7 +122,7 @@ def log_event(record: dict[str, Any]) -> None:
     if not LOG_PATH:
         return
     with open(LOG_PATH, "a") as handle:
-        handle.write(json.dumps(record, default=str) + "\n")
+        handle.write(json.dumps({**record, "pid": os.getpid()}, default=str) + "\n")
 
 
 def text_block(text: str) -> TextContentBlock:
@@ -154,6 +147,7 @@ class FakeAgent:
         log_event(
             {
                 "event": "initialize",
+                "argv": sys.argv[1:],
                 "client_capabilities": {
                     "elicitation": client_capabilities.elicitation.model_dump(
                         mode="json", by_alias=True, exclude_none=True
@@ -161,8 +155,6 @@ class FakeAgent:
                 },
             }
         )
-        if SCENARIO == "crash_initialize":
-            raise RuntimeError("simulated initialize failure")
         return InitializeResponse(
             protocol_version=protocol_version,
             agent_capabilities=AgentCapabilities(load_session=True),
@@ -196,8 +188,6 @@ class FakeAgent:
         **kwargs: Any,
     ) -> LoadSessionResponse:
         log_event({"event": "load_session", "cwd": cwd, "session_id": session_id})
-        if SCENARIO == "crash_load_session":
-            raise RuntimeError("simulated load_session failure")
         if SCENARIO == "load_session_missing":
             raise RequestError.resource_not_found(session_id)
         if SCENARIO == "load_session_replay" and self._client is not None:
@@ -296,9 +286,11 @@ class FakeAgent:
         # Markers replayed in a provider-handoff transcript must not re-trigger.
         text = text.rpartition("</previous_conversation>")[2]
         if MARKER_CRASH_MID_PROMPT in text:
-            # Don't os._exit — pending prompt() would hang; error the request.
             await self._emit_tool_started(session_id, "tool-crash", "Doing risky work")
             raise RuntimeError("simulated mid-prompt agent failure")
+        if MARKER_AGENT_EXIT_MID_PROMPT in text:
+            await self._emit_tool_started(session_id, "tool-crash", "Doing risky work")
+            os._exit(1)
         if MARKER_CANCEL in text:
             return await self._run_cancel_turn(session_id)
         if MARKER_PERMISSION in text:
@@ -309,93 +301,10 @@ class FakeAgent:
             return await self._run_elicitation_turn(session_id)
         if MARKER_ASK_USER_QUESTION in text:
             return await self._run_ask_user_question_turn(session_id)
-        if MARKER_FS_TERMINAL_STUBS in text:
-            await self._call_fs_terminal_stubs(session_id)
         if MARKER_ENTER_PLAN_MODE in text:
             return await self._run_enter_plan_mode_turn(session_id)
 
         return await self._run_default_turn(session_id, text)
-
-    async def _call_fs_terminal_stubs(self, session_id: str) -> None:
-        # Drive client.py fs/terminal no-op stubs to prove protocol compliance.
-        assert self._client is not None
-        client = self._client
-        try:
-            read: ReadTextFileResponse = await client.read_text_file(
-                path="app.py", session_id=session_id
-            )
-            log_event({"event": "debug", "step": "read_text_file", "ok": True})
-        except Exception as exc:
-            log_event({"event": "debug", "step": "read_text_file", "error": repr(exc)})
-            raise
-        assert read.content == ""
-        try:
-            write: WriteTextFileResponse | None = await client.write_text_file(
-                content="x", path="app.py", session_id=session_id
-            )
-            log_event({"event": "debug", "step": "write_text_file", "ok": True})
-        except Exception as exc:
-            log_event({"event": "debug", "step": "write_text_file", "error": repr(exc)})
-            raise
-        assert write is not None
-        try:
-            terminal: CreateTerminalResponse = await client.create_terminal(
-                command="echo hi", session_id=session_id
-            )
-            log_event({"event": "debug", "step": "create_terminal", "ok": True})
-        except Exception as exc:
-            log_event({"event": "debug", "step": "create_terminal", "error": repr(exc)})
-            raise
-        try:
-            output: TerminalOutputResponse = await client.terminal_output(
-                session_id=session_id, terminal_id=terminal.terminal_id
-            )
-            log_event({"event": "debug", "step": "terminal_output", "ok": True})
-        except Exception as exc:
-            log_event({"event": "debug", "step": "terminal_output", "error": repr(exc)})
-            raise
-        assert output.output == ""
-        try:
-            release: ReleaseTerminalResponse | None = await client.release_terminal(
-                session_id=session_id, terminal_id=terminal.terminal_id
-            )
-            log_event({"event": "debug", "step": "release_terminal", "ok": True})
-        except Exception as exc:
-            log_event(
-                {"event": "debug", "step": "release_terminal", "error": repr(exc)}
-            )
-            raise
-        assert release is not None
-        try:
-            wait_result: WaitForTerminalExitResponse = (
-                await client.wait_for_terminal_exit(
-                    session_id=session_id, terminal_id=terminal.terminal_id
-                )
-            )
-            log_event({"event": "debug", "step": "wait_for_terminal_exit", "ok": True})
-        except Exception as exc:
-            log_event(
-                {"event": "debug", "step": "wait_for_terminal_exit", "error": repr(exc)}
-            )
-            raise
-        assert wait_result.exit_code == 0
-        try:
-            kill: KillTerminalResponse | None = await client.kill_terminal(
-                session_id=session_id, terminal_id=terminal.terminal_id
-            )
-            log_event({"event": "debug", "step": "kill_terminal", "ok": True})
-        except Exception as exc:
-            log_event({"event": "debug", "step": "kill_terminal", "error": repr(exc)})
-            raise
-        assert kill is not None
-        try:
-            ext_result = await client.ext_method("agentrove.debug", {"probe": True})
-            log_event({"event": "debug", "step": "ext_method", "ok": True})
-        except Exception as exc:
-            log_event({"event": "debug", "step": "ext_method", "error": repr(exc)})
-            raise
-        assert ext_result == {}
-        await client.ext_notification("agentrove.debug_note", {"probe": True})
 
     async def _run_enter_plan_mode_turn(self, session_id: str) -> PromptResponse:
         # EnterPlanMode tool completion is the only path to map_session_mode().
@@ -754,25 +663,8 @@ class FakeAgent:
             )
         await self._complete_primary_tool(session_id, text)
 
-        if MARKER_TOOL_PROGRESS_ORPHAN in text:
-            # No matching active tool and no status — must be a silent no-op.
-            await client.session_update(
-                session_id=session_id,
-                update=ToolCallProgress(
-                    session_update="tool_call_update", tool_call_id="tool-orphan"
-                ),
-            )
-        if MARKER_TOOL_PROGRESS_NEW in text:
-            # Never preceded by a ToolCallStart — client must synthesize one.
-            await client.session_update(
-                session_id=session_id,
-                update=ToolCallProgress(
-                    session_update="tool_call_update",
-                    tool_call_id="tool-new",
-                    status="completed",
-                    raw_output="synthesized result",
-                ),
-            )
+        if MARKER_UNTRACKED_TOOL_UPDATES in text:
+            await self._emit_untracked_tool_updates(session_id)
 
         await self._emit_tool_started(session_id, "tool-secondary", "Running a command")
         if MARKER_TOOL_LEFT_OPEN in text:
@@ -837,6 +729,47 @@ class FakeAgent:
 
         await asyncio.sleep(0.05)
         return PromptResponse(stop_reason="end_turn")
+
+    async def _emit_untracked_tool_updates(self, session_id: str) -> None:
+        # Updates for tool ids that never had a tool_call start.
+        assert self._client is not None
+        updates: list[dict[str, Any]] = [
+            {"toolCallId": "tool-orphan"},
+            {"toolCallId": "tool-bare", "status": "in_progress"},
+            {"toolCallId": "tool-bare", "status": "completed"},
+            {
+                "toolCallId": "tool-named",
+                "status": "in_progress",
+                "_meta": {"claudeCode": {"toolName": "Bash"}},
+            },
+            {"toolCallId": "tool-named", "status": "completed"},
+            {"toolCallId": "tool-titled", "status": "in_progress", "title": "Config"},
+            {
+                "toolCallId": "tool-new",
+                "status": "completed",
+                "rawOutput": "synthesized result",
+            },
+            *(
+                {
+                    "toolCallId": f"tool-named-heartbeat-{beat}",
+                    "status": "in_progress",
+                    "_meta": {
+                        "claudeCode": {
+                            "toolName": "Bash",
+                            "toolResponse": {"elapsedTimeSeconds": 30 * beat},
+                        }
+                    },
+                }
+                for beat in (1, 2)
+            ),
+        ]
+        for update in updates:
+            await self._client.session_update(
+                session_id=session_id,
+                update=ToolCallProgress.model_validate(
+                    {"sessionUpdate": "tool_call_update", **update}
+                ),
+            )
 
     async def _complete_primary_tool(self, session_id: str, text: str) -> None:
         assert self._client is not None

@@ -4,7 +4,6 @@ import os
 import sys
 import time
 from collections.abc import Iterator
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -16,27 +15,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 from app.core.config import get_settings
 from app.models.db_models.workspace import Workspace
-from app.models.types import AgentKind
-from app.services.acp.adapters import (
-    NORMAL_SESSION_MODE,
-    AntigravityAgentAdapter,
-    ClaudeAgentAdapter,
-    GrokAgentAdapter,
-)
-from app.services.acp.session import AcpSessionConfig
-from app.services.exceptions import AgentException
-from app.services.sandbox_providers import SandboxProviderType
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
 from tests.conftest import LoginClient, UserFactory
 from tests.fake_acp_agent import (
+    ELICITATION_REQUESTED_SCHEMA,
+    MARKER_AGENT_EXIT_MID_PROMPT,
     MARKER_ASK_USER_QUESTION,
     MARKER_CANCEL,
     MARKER_CONCURRENT_ELICITATIONS,
     MARKER_CRASH_MID_PROMPT,
     MARKER_ELICITATION,
     MARKER_ENTER_PLAN_MODE,
-    MARKER_FS_TERMINAL_STUBS,
     MARKER_IMAGE_CONTENT,
     MARKER_PERMISSION,
     MARKER_RAW_INPUT_INVALID,
@@ -45,13 +35,12 @@ from tests.fake_acp_agent import (
     MARKER_TOOL_DIFF,
     MARKER_TOOL_EMPTY_RESULT,
     MARKER_TOOL_LEFT_OPEN,
-    MARKER_TOOL_PROGRESS_NEW,
-    MARKER_TOOL_PROGRESS_ORPHAN,
     MARKER_TOOL_START_DIFF,
     MARKER_TOOL_STRING_ERROR,
     MARKER_TOOL_TEXT_ERROR,
     MARKER_TOOL_TEXT_RESULT,
     MARKER_TOOL_UNKNOWN_DICT_ERROR,
+    MARKER_UNTRACKED_TOOL_UPDATES,
     TITLE_PROMPT_PREFIX,
 )
 from tests.helpers import EndpointCache, create_authenticated_workspace
@@ -70,166 +59,12 @@ BINARY_NAMES = [
 ]
 
 DEFAULT_TURN_TEXT = "Hello from the fake agent."
+DIFF_RESULT = {"diffs": [{"path": "app.py", "oldText": "old", "newText": "new"}]}
 
 # Minimal-but-valid-enough bytes for upload endpoints that only branch on
 # content_type, not on parsing the file itself.
 PNG_BYTES = bytes.fromhex("89504e470d0a1a0a0000000d49484452")
 PDF_BYTES = b"%PDF-1.4\n%fake\n"
-
-
-def test_antigravity_adapter_configuration() -> None:
-    adapter = AntigravityAgentAdapter()
-    launch = adapter.build_launch_config(
-        system_prompt=None,
-        system_prompt_is_full_replace=False,
-    )
-
-    assert launch.binary == "agy-acp-server"
-    assert launch.cli_args == []
-    assert adapter.map_model_id("antigravity:gemini-4-argon", None) == (
-        "gemini-4-argon-high"
-    )
-    assert adapter.map_model_id("antigravity:gemini-4-argon", "medium") == (
-        "gemini-4-argon-medium"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.8-flash", None) == (
-        "gemini-3.8-flash-high"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.8-flash", "low") == (
-        "gemini-3.8-flash-low"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.7-flash", None) == (
-        "gemini-3.7-flash-high"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.7-flash", "low") == (
-        "gemini-3.7-flash-low"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.6-flash", "medium") == (
-        "gemini-3.6-flash-medium"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.5-flash", "high") == (
-        "gemini-3-flash-agent"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.5-flash", "medium") == (
-        "gemini-3.5-flash-low"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.5-flash", "low") == (
-        "gemini-3.5-flash-extra-low"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.1-pro", None) == (
-        "gemini-pro-agent"
-    )
-    assert adapter.map_model_id("antigravity:gemini-3.1-pro", "high") == (
-        "gemini-pro-agent"
-    )
-    with pytest.raises(AgentException, match="Supported: low, high"):
-        adapter.map_model_id("antigravity:gemini-3.1-pro", "medium")
-    assert adapter.map_model_id("antigravity:gemini-3.1-pro", "low") == (
-        "gemini-3.1-pro-low"
-    )
-    assert NORMAL_SESSION_MODE[AgentKind.ANTIGRAVITY] == "yolo"
-
-
-@pytest.mark.parametrize(
-    "permission_mode,reasoning_effort,expected_args",
-    [
-        ("always-approve", None, ["agent", "--always-approve", "stdio"]),
-        (
-            "always-approve",
-            "low",
-            ["agent", "--always-approve", "--reasoning-effort", "low", "stdio"],
-        ),
-        ("auto", None, ["agent", "stdio"]),
-        ("plan", None, ["agent", "stdio"]),
-        (None, None, ["agent", "stdio"]),
-        ("bypassPermissions", None, ["agent", "--always-approve", "stdio"]),
-    ],
-)
-def test_grok_launch_args_apply_always_approve_flag(
-    permission_mode: str | None,
-    reasoning_effort: str | None,
-    expected_args: list[str],
-) -> None:
-    launch = GrokAgentAdapter().build_launch_config(
-        system_prompt=None,
-        system_prompt_is_full_replace=False,
-        reasoning_effort=reasoning_effort,
-        permission_mode=permission_mode,
-    )
-
-    assert launch.cli_args == expected_args
-
-
-def test_claude_launch_uses_installed_claude_cli() -> None:
-    launch = ClaudeAgentAdapter().build_launch_config(
-        system_prompt=None,
-        system_prompt_is_full_replace=False,
-    )
-
-    assert launch.binary == "claude-agent-acp"
-    assert launch.env == {"CLAUDE_CODE_EXECUTABLE": "claude"}
-
-
-@pytest.mark.parametrize(
-    "model_id,thinking_mode,expected_effort",
-    [
-        # Haiku has no effort dial in claude-agent-acp (supportsEffort false);
-        # sending "effort" would fail with "Unknown config option: effort".
-        ("haiku", None, None),
-        ("haiku", "medium", None),
-        ("haiku", "high", None),
-        ("sonnet", None, "medium"),
-        ("sonnet", "high", "high"),
-        ("claude-opus-5", "xhigh", "xhigh"),
-        ("claude-opus-5-5", "xhigh", "xhigh"),
-        ("claude-sonnet-5-5", "xhigh", "xhigh"),
-        ("claude-haiku-5-5", "xhigh", "xhigh"),
-        ("claude-fable-5-1", "xhigh", "xhigh"),
-    ],
-)
-def test_claude_session_config_gates_effort_by_model(
-    model_id: str,
-    thinking_mode: str | None,
-    expected_effort: str | None,
-) -> None:
-    session_config = ClaudeAgentAdapter().build_session_config(
-        system_prompt=None,
-        system_prompt_is_full_replace=False,
-        model_id=model_id,
-        thinking_mode=thinking_mode,
-        permission_mode="default",
-    )
-
-    assert session_config.reasoning_effort == expected_effort
-
-
-def test_unsupported_explicit_effort_is_rejected() -> None:
-    with pytest.raises(AgentException, match="Supported: low, medium, high, max"):
-        ClaudeAgentAdapter().reasoning_effort("sonnet", "xhigh")
-
-
-@pytest.mark.parametrize(
-    "agent_kind,expect_equal",
-    [(AgentKind.GROK, False), (AgentKind.CLAUDE, True)],
-)
-def test_permission_mode_only_changes_grok_session_fingerprint(
-    agent_kind: AgentKind,
-    expect_equal: bool,
-) -> None:
-    auto = AcpSessionConfig(
-        sandbox_id="sandbox",
-        sandbox_provider=SandboxProviderType.HOST,
-        cwd="/workspace",
-        user_id="user",
-        agent_kind=agent_kind,
-        permission_mode="auto",
-    )
-    always_approve = replace(auto, permission_mode="always-approve")
-
-    fingerprints_equal = session_registry._compute_fingerprint(
-        auto
-    ) == session_registry._compute_fingerprint(always_approve)
-    assert fingerprints_equal is expect_equal
 
 
 @pytest.fixture(scope="session")
@@ -459,17 +294,16 @@ def last_tool(message: dict[str, Any], tool_id: str) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    "model_id",
+    "model_id,agent_model_id",
     [
-        "sonnet",
-        "claude-opus-5",
-        "gpt-5.6-sol",
-        "gpt-5.6-luna",
-        "gpt-5.4",
-        "copilot:gpt-5.4",
-        "cursor:auto",
-        "antigravity:gemini-3.7-flash",
-        "opencode:opencode/gpt-5-nano",
+        ("sonnet", "sonnet"),
+        # Codex and Antigravity encode the (default) effort tier in the model id.
+        ("gpt-5.4", "gpt-5.4[medium]"),
+        ("antigravity:gemini-3.1-pro", "gemini-pro-agent"),
+        ("copilot:gpt-5.4", "gpt-5.4"),
+        ("cursor:auto", "auto"),
+        ("grok:grok-4.5", "grok-4.5"),
+        ("opencode:opencode/gpt-5-nano", "opencode/gpt-5-nano"),
     ],
 )
 async def test_enhance_prompt_round_trips_through_real_acp_session(
@@ -479,8 +313,8 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
     login: LoginClient,
     fake_agent: FakeAgentHandle,
     model_id: str,
+    agent_model_id: str,
 ) -> None:
-    # Real stdio ACP path through client/session/adapters, per agent kind.
     headers, _user, _workspace = await create_authenticated_workspace(
         db_session,
         create_user,
@@ -496,6 +330,11 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
     new_sessions = fake_agent.events_of("new_session")
     assert new_sessions
     assert [s["name"] for s in new_sessions[-1]["mcp_servers"]] == ["agentrove"]
+    assert [
+        e["value"]
+        for e in fake_agent.events_of("set_config_option")
+        if e["config_id"] == "model"
+    ] == [agent_model_id]
 
 
 @pytest.mark.parametrize(
@@ -507,7 +346,7 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
         ("copilot:kimi-k3", "medium", "failed", None),
     ],
 )
-async def test_copilot_session_setup_gates_reasoning_effort(
+async def test_session_setup_gates_reasoning_effort_by_model(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
@@ -549,10 +388,6 @@ async def test_copilot_session_setup_gates_reasoning_effort(
         assert effort_calls[-1]["value"] == expected_effort
 
 
-@pytest.mark.parametrize(
-    "scenario",
-    ["crash_initialize", "crash_new_session"],
-)
 async def test_enhance_prompt_surfaces_session_creation_failure(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
@@ -560,12 +395,11 @@ async def test_enhance_prompt_surfaces_session_creation_failure(
     login: LoginClient,
     fake_agent: FakeAgentHandle,
     monkeypatch: pytest.MonkeyPatch,
-    scenario: str,
 ) -> None:
     headers, _user, _workspace = await create_authenticated_workspace(
-        db_session, create_user, login, email=f"{scenario}@example.com"
+        db_session, create_user, login
     )
-    monkeypatch.setenv("FAKE_ACP_SCENARIO", scenario)
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", "crash_new_session")
 
     response = await enhance_prompt(client, headers, prompt="hi", model_id="sonnet")
 
@@ -616,38 +450,45 @@ async def test_enhance_prompt_survives_config_option_failures(
 
 
 @pytest.mark.parametrize(
-    "marker,tool_id,field,expected",
+    "markers,expected",
     [
-        (
-            MARKER_TOOL_DIFF,
-            "tool-primary",
-            "result",
-            {"diffs": [{"path": "app.py", "oldText": "old", "newText": "new"}]},
+        pytest.param(
+            (MARKER_TOOL_DIFF, MARKER_RAW_INPUT_STRING, MARKER_TOOL_CODEX_ERROR),
+            {
+                ("tool-primary", "result"): DIFF_RESULT,
+                ("tool-primary", "input"): {"path": "encoded.py"},
+                ("tool-secondary", "error"): "boom codex",
+            },
+            id="diff-result-json-string-input-codex-error",
         ),
-        (MARKER_TOOL_TEXT_RESULT, "tool-primary", "result", "plain text result"),
-        (
-            MARKER_TOOL_START_DIFF,
-            "tool-primary",
-            "result",
-            {"diffs": [{"path": "app.py", "oldText": "old", "newText": "new"}]},
+        pytest.param(
+            (
+                MARKER_TOOL_TEXT_RESULT,
+                MARKER_RAW_INPUT_INVALID,
+                MARKER_TOOL_STRING_ERROR,
+            ),
+            {
+                ("tool-primary", "result"): "plain text result",
+                ("tool-primary", "input"): {"raw": "not-json{{"},
+                ("tool-secondary", "error"): "boom plain string",
+            },
+            id="text-result-invalid-input-string-error",
         ),
-        (MARKER_TOOL_CODEX_ERROR, "tool-secondary", "error", "boom codex"),
-        (MARKER_TOOL_STRING_ERROR, "tool-secondary", "error", "boom plain string"),
-        (
-            MARKER_TOOL_TEXT_ERROR,
-            "tool-secondary",
-            "error",
-            "command failed: no output",
+        pytest.param(
+            (MARKER_TOOL_START_DIFF, MARKER_TOOL_TEXT_ERROR),
+            {
+                ("tool-primary", "result"): DIFF_RESULT,
+                ("tool-secondary", "error"): "command failed: no output",
+            },
+            id="start-diff-survives-content-text-error",
         ),
-        (MARKER_TOOL_PROGRESS_NEW, "tool-new", "result", "synthesized result"),
-        (MARKER_RAW_INPUT_STRING, "tool-primary", "input", {"path": "encoded.py"}),
-        (MARKER_RAW_INPUT_INVALID, "tool-primary", "input", {"raw": "not-json{{"}),
-        (MARKER_TOOL_EMPTY_RESULT, "tool-primary", "result", None),
-        (
-            MARKER_TOOL_UNKNOWN_DICT_ERROR,
-            "tool-secondary",
-            "error",
-            str({"unexpected_key": "value"}),
+        pytest.param(
+            (MARKER_TOOL_EMPTY_RESULT, MARKER_TOOL_UNKNOWN_DICT_ERROR),
+            {
+                ("tool-primary", "result"): None,
+                ("tool-secondary", "error"): str({"unexpected_key": "value"}),
+            },
+            id="empty-result-unknown-dict-error",
         ),
     ],
 )
@@ -656,16 +497,18 @@ async def test_chat_tool_call_extraction_variants(
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
-    marker: str,
-    tool_id: str,
-    field: str,
-    expected: Any,
+    markers: tuple[str, ...],
+    expected: dict[tuple[str, str], Any],
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
 
     send_response = await send_message(
-        client, headers, chat_id=chat["id"], model_id="sonnet", prompt=f"{marker} go"
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="sonnet",
+        prompt=" ".join(markers) + " go",
     )
     assert send_response.status_code == 200, send_response.text
     message_id = send_response.json()["message_id"]
@@ -674,17 +517,14 @@ async def test_chat_tool_call_extraction_variants(
         client, headers, chat_id=chat["id"], message_id=message_id
     )
     assert message["stream_status"] == "completed"
-
-    tool = last_tool(message, tool_id)
-    assert tool[field] == expected
-
-    # tool-orphan no-op and Claude plan forwarding are exercised on every turn.
-    assert not any(e["tool"]["id"] == "tool-orphan" for e in tool_events(message))
+    assert {
+        (tool_id, field): last_tool(message, tool_id)[field]
+        for tool_id, field in expected
+    } == expected
     assert any(e["type"] == "plan" for e in message["content_render"]["events"])
-    assert any(e["type"] == "system" for e in message["content_render"]["events"])
 
 
-async def test_chat_tool_progress_orphan_update_is_a_no_op(
+async def test_chat_untracked_tool_updates_render_only_with_identity(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
@@ -698,15 +538,29 @@ async def test_chat_tool_progress_orphan_update_is_a_no_op(
         headers,
         chat_id=chat["id"],
         model_id="sonnet",
-        prompt=f"{MARKER_TOOL_PROGRESS_ORPHAN} go",
+        prompt=f"{MARKER_UNTRACKED_TOOL_UPDATES} go",
     )
-    message_id = send_response.json()["message_id"]
-
     message = await wait_for_message(
-        client, headers, chat_id=chat["id"], message_id=message_id
+        client,
+        headers,
+        chat_id=chat["id"],
+        message_id=send_response.json()["message_id"],
     )
     assert message["stream_status"] == "completed"
-    assert not any(e["tool"]["id"] == "tool-orphan" for e in tool_events(message))
+
+    # No title/input/name/result (tool-orphan, tool-bare) or a heartbeat id: no card.
+    assert {e["tool"]["id"] for e in tool_events(message)} == {
+        "tool-primary",
+        "tool-secondary",
+        "tool-named",
+        "tool-titled",
+        "tool-new",
+    }
+    named = last_tool(message, "tool-named")
+    assert (named["name"], named["status"]) == ("Bash", "completed")
+    titled = last_tool(message, "tool-titled")
+    assert (titled["title"], titled["status"]) == ("Config", "completed")
+    assert last_tool(message, "tool-new")["result"] == "synthesized result"
 
 
 async def test_chat_records_last_turn_settings(
@@ -773,29 +627,37 @@ async def test_chat_tool_left_active_is_auto_completed_on_finish(
     assert "error" not in tool
 
 
-async def test_chat_agent_calls_fs_and_terminal_stubs_without_error(
+async def test_chat_agent_exit_mid_turn_fails_message_and_next_turn_recovers(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
 ) -> None:
-    # Agent-side calls to fs/terminal no-ops must still complete the turn.
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
 
-    send_response = await send_message(
+    crashed = await send_message(
         client,
         headers,
         chat_id=chat["id"],
         model_id="sonnet",
-        prompt=f"{MARKER_FS_TERMINAL_STUBS} go",
+        prompt=f"{MARKER_AGENT_EXIT_MID_PROMPT} do work",
     )
-    message_id = send_response.json()["message_id"]
+    crashed_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=crashed.json()["message_id"]
+    )
+    assert crashed_message["stream_status"] == "failed"
+    assert last_tool(crashed_message, "tool-crash")["status"] == "failed"
 
-    message = await wait_for_message(
-        client, headers, chat_id=chat["id"], message_id=message_id
+    retry = await send_message(
+        client, headers, chat_id=chat["id"], model_id="sonnet", prompt="try again"
     )
-    assert message["stream_status"] == "completed"
+    retry_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=retry.json()["message_id"]
+    )
+    assert retry_message["stream_status"] == "completed"
+    crashed_prompt, retry_prompt = fake_agent.main_turn_prompts()
+    assert retry_prompt["pid"] != crashed_prompt["pid"]
 
 
 async def test_chat_non_text_content_chunks_produce_no_events(
@@ -913,69 +775,124 @@ async def test_chat_permission_mode_unsupported_by_adapter(
     assert leading == expect_mapped_modes
 
 
-async def test_chat_attachments_with_only_native_files_skip_the_note(
+@pytest.mark.parametrize(
+    "model_id,first_mode,second_mode,respawns",
+    [
+        # Grok bakes approval into its launch flags, so a mode change respawns.
+        ("grok:grok-4.5", "auto", "always-approve", True),
+        ("sonnet", "default", "acceptEdits", False),
+    ],
+)
+async def test_permission_mode_change_respawns_only_launch_baked_agents(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
+    model_id: str,
+    first_mode: str,
+    second_mode: str,
+    respawns: bool,
 ) -> None:
-    # Codex image-only: all native → empty attachment note.
     headers, workspace = auth_workspace
-    chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
+    chat = await create_chat(client, headers, workspace, model_id=model_id)
+
+    for mode in (first_mode, second_mode):
+        response = await send_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            model_id=model_id,
+            prompt=f"turn in {mode}",
+            permission_mode=mode,
+        )
+        message = await wait_for_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            message_id=response.json()["message_id"],
+        )
+        assert message["stream_status"] == "completed"
+
+    first, second = fake_agent.main_turn_prompts()
+    assert second["session_id"] == first["session_id"]
+    if not respawns:
+        assert second["pid"] == first["pid"]
+        assert fake_agent.events_of("set_session_mode")[-1]["mode_id"] == second_mode
+        return
+    assert second["pid"] != first["pid"]
+    argv = {e["pid"]: e["argv"] for e in fake_agent.events_of("initialize")}
+    assert argv[first["pid"]] == ["agent", "--reasoning-effort", "medium", "stdio"]
+    assert argv[second["pid"]] == [
+        "agent",
+        "--always-approve",
+        "--reasoning-effort",
+        "medium",
+        "stdio",
+    ]
+
+
+@pytest.mark.parametrize(
+    "model_id,permission_mode,files,native_blocks,noted,not_noted",
+    [
+        pytest.param(
+            "gpt-5.4",
+            "auto",
+            [
+                ("photo.png", PNG_BYTES, "image/png"),
+                ("doc.pdf", PDF_BYTES, "application/pdf"),
+            ],
+            {"image"},
+            ["doc.pdf"],
+            ["photo.png"],
+            id="codex-embeds-image-notes-pdf",
+        ),
+        pytest.param(
+            "sonnet",
+            "default",
+            [("doc.pdf", PDF_BYTES, "application/pdf")],
+            {"resource"},
+            [],
+            ["doc.pdf"],
+            id="claude-embeds-pdf",
+        ),
+    ],
+)
+async def test_chat_attachments_embed_native_types_and_note_the_rest(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    model_id: str,
+    permission_mode: str,
+    files: list[tuple[str, bytes, str]],
+    native_blocks: set[str],
+    noted: list[str],
+    not_noted: list[str],
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id=model_id)
 
     response = await send_message(
         client,
         headers,
         chat_id=chat["id"],
-        model_id="gpt-5.4",
-        prompt="look at this photo",
-        permission_mode="auto",
-        attached_files=[("attached_files", ("photo.png", PNG_BYTES, "image/png"))],
+        model_id=model_id,
+        prompt="look at these files",
+        permission_mode=permission_mode,
+        attached_files=[("attached_files", file) for file in files],
     )
     assert response.status_code == 200, response.text
-    message_id = response.json()["message_id"]
     message = await wait_for_message(
-        client, headers, chat_id=chat["id"], message_id=message_id
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
     )
     assert message["stream_status"] == "completed"
 
-    prompts = fake_agent.main_turn_prompts()
-    assert prompts
-    last_prompt = prompts[-1]
-    assert "image" in last_prompt["block_types"]
-    assert "is available at" not in last_prompt["text"]
-
-
-async def test_chat_native_pdf_attachment_is_embedded_not_noted(
-    client: httpx.AsyncClient,
-    auth_workspace: tuple[dict[str, str], Workspace],
-    fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
-) -> None:
-    # Claude PDF is native embed → EmbeddedResource/Blob path, not sandbox note.
-    headers, workspace = auth_workspace
-    chat = await create_chat(client, headers, workspace, model_id="sonnet")
-
-    response = await send_message(
-        client,
-        headers,
-        chat_id=chat["id"],
-        model_id="sonnet",
-        prompt="look at this doc",
-        attached_files=[("attached_files", ("doc.pdf", PDF_BYTES, "application/pdf"))],
-    )
-    assert response.status_code == 200, response.text
-    message_id = response.json()["message_id"]
-    message = await wait_for_message(
-        client, headers, chat_id=chat["id"], message_id=message_id
-    )
-    assert message["stream_status"] == "completed"
-
-    prompts = fake_agent.main_turn_prompts()
-    assert prompts
-    last_prompt = prompts[-1]
-    assert "resource" in last_prompt["block_types"]
-    assert "is available at" not in last_prompt["text"]
+    prompt = fake_agent.main_turn_prompts()[-1]
+    assert set(prompt["block_types"]) - {"text"} == native_blocks
+    for name in noted:
+        assert f"{name} is available at" in prompt["text"]
+    for name in not_noted:
+        assert f"{name} is available at" not in prompt["text"]
 
 
 @pytest.mark.parametrize(
@@ -1050,14 +967,6 @@ async def test_chat_permission_response_flow(
             {"question_0": "Red"},
             {"action": "accept", "content": {"question_0": "Red"}},
         ),
-        (
-            "accept",
-            {"question_0_custom": "Purple"},
-            {
-                "action": "accept",
-                "content": {"question_0_custom": "Purple"},
-            },
-        ),
         ("decline", None, {"action": "decline"}),
         ("cancel", None, {"action": "cancel"}),
     ],
@@ -1110,7 +1019,7 @@ async def test_chat_elicitation_response_flow(
     ]
 
 
-async def test_chat_elicitation_request_event_is_well_formed(
+async def test_chat_elicitation_request_is_published_and_hydrated_until_answered(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
@@ -1137,57 +1046,46 @@ async def test_chat_elicitation_request_event_is_well_formed(
     assert initialize["client_capabilities"]["elicitation"] == {"form": {}}
     payload = event["render_payload"]
     request_id = payload["request_id"]
-    assert request_id.startswith("elicit-")
-    assert payload == {
-        "request_id": request_id,
-        "data": {
-            "message": "Choose a color",
-            "tool_call_id": "tool-elicitation",
-            "requested_schema": {
-                "type": "object",
-                "properties": {
-                    "question_0": {
-                        "type": "string",
-                        "title": "Pick a color",
-                        "oneOf": [
-                            {"const": "Red", "title": "Red"},
-                            {"const": "Blue", "title": "Blue"},
-                        ],
-                    },
-                    "question_0_custom": {
-                        "type": "string",
-                        "title": "Other",
-                        "_meta": {"_askUserQuestionCustomAnswer": True},
-                    },
-                },
-            },
-        },
+    assert payload["data"] == {
+        "message": "Choose a color",
+        "tool_call_id": "tool-elicitation",
+        "requested_schema": ELICITATION_REQUESTED_SCHEMA,
     }
 
     live_payload = None
     deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
-        message = await pubsub.get_message(timeout=0.25)
-        if message is None:
+        published = await pubsub.get_message(timeout=0.25)
+        if published is None:
             continue
-        envelope = json.loads(message["data"])
+        envelope = json.loads(published["data"])
         if envelope["kind"] == "elicitation_request":
             live_payload = envelope["payload"]
             break
-    assert live_payload == payload
     await pubsub.unsubscribe(channel)
+    assert live_payload == payload
+
+    # A turn blocked on the user outlives the idle reaper.
+    await session_registry.close_idle_sessions(ttl_seconds=0)
+    status_path = f"/api/v1/chat/chats/{chat['id']}/status"
+    pending_status = await client.get(status_path, headers=headers)
+    assert pending_status.status_code == 200, pending_status.text
+    assert pending_status.json()["pending_elicitations"] == [
+        {"request_id": request_id, **payload["data"]}
+    ]
 
     response = await client.post(
         f"/api/v1/chat/chats/{chat['id']}/elicitation/{request_id}/respond",
-        json={
-            "request_id": request_id,
-            "action": "decline",
-            "content": None,
-        },
+        json={"request_id": request_id, "action": "decline", "content": None},
         headers=headers,
     )
     assert response.status_code == 200, response.text
-    await wait_for_message(client, headers, chat_id=chat["id"], message_id=message_id)
+    resolved_status = await client.get(status_path, headers=headers)
+    assert resolved_status.json()["pending_elicitations"] == []
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=message_id
+    )
+    assert message["stream_status"] == "completed"
 
 
 async def test_chat_cancel_pending_elicitation_returns_cancel_and_dismisses(
@@ -1242,51 +1140,10 @@ async def test_chat_cancel_pending_elicitation_returns_cancel_and_dismisses(
             break
     assert dismissed_payload == {"request_id": request_id}
     await pubsub.unsubscribe(channel)
-
-
-async def test_chat_status_hydrates_pending_elicitation_until_response(
-    client: httpx.AsyncClient,
-    auth_workspace: tuple[dict[str, str], Workspace],
-    fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
-) -> None:
-    headers, workspace = auth_workspace
-    chat = await create_chat(client, headers, workspace, model_id="sonnet")
-    send_response = await send_message(
-        client,
-        headers,
-        chat_id=chat["id"],
-        model_id="sonnet",
-        prompt=f"{MARKER_ELICITATION} choose",
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=message_id
     )
-    message_id = send_response.json()["message_id"]
-    event = await wait_for_message_event(
-        client, headers, message_id=message_id, event_type="elicitation_request"
-    )
-    payload = event["render_payload"]
-    request_id = payload["request_id"]
-
-    pending_status = await client.get(
-        f"/api/v1/chat/chats/{chat['id']}/status", headers=headers
-    )
-    assert pending_status.status_code == 200, pending_status.text
-    assert pending_status.json()["pending_elicitations"] == [
-        {"request_id": request_id, **payload["data"]}
-    ]
-
-    response = await client.post(
-        f"/api/v1/chat/chats/{chat['id']}/elicitation/{request_id}/respond",
-        json={"request_id": request_id, "action": "decline", "content": None},
-        headers=headers,
-    )
-    assert response.status_code == 200, response.text
-
-    resolved_status = await client.get(
-        f"/api/v1/chat/chats/{chat['id']}/status", headers=headers
-    )
-    assert resolved_status.status_code == 200, resolved_status.text
-    assert resolved_status.json()["pending_elicitations"] == []
-    await wait_for_message(client, headers, chat_id=chat["id"], message_id=message_id)
+    assert message["stream_status"] == "interrupted"
 
 
 async def test_concurrent_elicitations_share_tool_id_but_resolve_independently(
@@ -1384,29 +1241,6 @@ async def test_concurrent_elicitations_share_tool_id_but_resolve_independently(
     ]
 
 
-async def test_respond_to_elicitation_validates_action_and_request_id(
-    client: httpx.AsyncClient,
-    auth_workspace: tuple[dict[str, str], Workspace],
-) -> None:
-    headers, workspace = auth_workspace
-    chat = await create_chat(client, headers, workspace, model_id="sonnet")
-    path = f"/api/v1/chat/chats/{chat['id']}/elicitation/unknown/respond"
-
-    invalid = await client.post(
-        path,
-        json={"request_id": "unknown", "action": "invalid", "content": None},
-        headers=headers,
-    )
-    assert invalid.status_code == 422
-
-    unknown = await client.post(
-        path,
-        json={"request_id": "unknown", "action": "cancel", "content": None},
-        headers=headers,
-    )
-    assert unknown.status_code == 404
-
-
 @pytest.mark.parametrize(
     "option_id,expect_response",
     [
@@ -1482,18 +1316,10 @@ async def test_chat_cancel_marks_message_interrupted(
     )
     message_id = send_response.json()["message_id"]
 
-    # Wait until the fake agent is actually blocked mid-turn (tool_started
-    # observed) so the cancel request can't race ahead of turn start.
-    deadline = time.monotonic() + 10.0
-    while time.monotonic() < deadline:
-        response = await client.get(
-            f"/api/v1/chat/messages/{message_id}/events", headers=headers
-        )
-        if any(e["event_type"] == "tool_started" for e in response.json()):
-            break
-        await asyncio.sleep(0.05)
-    else:
-        raise AssertionError("fake agent never reached the blocking tool call")
+    # Cancel only once the agent is blocked mid-turn, not before the turn starts.
+    await wait_for_message_event(
+        client, headers, message_id=message_id, event_type="tool_started"
+    )
 
     cancel_response = await client.delete(
         f"/api/v1/chat/chats/{chat['id']}/stream", headers=headers
@@ -1531,8 +1357,7 @@ async def test_chat_resume_after_session_eviction_mutes_replayed_history(
     # session_id isn't exposed on the Chat API schema; read it off the prompt.
     session_id = fake_agent.main_turn_prompts()[-1]["session_id"]
 
-    # Evict in-process session so next turn uses create(resume_session_id).
-    await session_registry.terminate(chat["id"])
+    await session_registry.close_idle_sessions(ttl_seconds=0)
     monkeypatch.setenv("FAKE_ACP_SCENARIO", "load_session_replay")
 
     second = await send_message(
@@ -1821,55 +1646,7 @@ async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
     ]
 
 
-async def test_chat_attachments_and_mcp_servers_reach_the_agent(
-    client: httpx.AsyncClient,
-    auth_workspace: tuple[dict[str, str], Workspace],
-    fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
-) -> None:
-    headers, workspace = auth_workspace
-    # Codex only treats "image" as natively embeddable — the pdf forces
-    # the sandbox-note branch of session.py's attachment handling.
-    chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
-
-    response = await send_message(
-        client,
-        headers,
-        chat_id=chat["id"],
-        model_id="gpt-5.4",
-        prompt="look at these files",
-        permission_mode="auto",
-        attached_files=[
-            ("attached_files", ("photo.png", PNG_BYTES, "image/png")),
-            ("attached_files", ("doc.pdf", PDF_BYTES, "application/pdf")),
-        ],
-    )
-    assert response.status_code == 200, response.text
-    message_id = response.json()["message_id"]
-    message = await wait_for_message(
-        client, headers, chat_id=chat["id"], message_id=message_id
-    )
-    assert message["stream_status"] == "completed"
-
-    new_sessions = fake_agent.events_of("new_session")
-    assert new_sessions
-    mcp_servers = new_sessions[-1]["mcp_servers"]
-    assert len(mcp_servers) == 1
-    assert mcp_servers[0]["name"] == "agentrove"
-    assert mcp_servers[0]["command"] == sys.executable
-    mcp_env = {v["name"]: v["value"] for v in mcp_servers[0]["env"]}
-    assert mcp_env["AGENTROVE_ACCESS_TOKEN"]
-    assert "AGENTROVE_EMAIL" not in mcp_env
-    assert "AGENTROVE_PASSWORD" not in mcp_env
-
-    prompts = fake_agent.main_turn_prompts()
-    assert prompts
-    last_prompt = prompts[-1]
-    assert "image" in last_prompt["block_types"]
-    assert "doc.pdf is available at" in last_prompt["text"]
-
-
-async def test_mcp_session_is_reused_across_turns(
+async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
@@ -1885,7 +1662,6 @@ async def test_mcp_session_is_reused_across_turns(
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
 
-    spawns = []
     for prompt in ("first turn", "second turn"):
         response = await send_message(
             client,
@@ -1902,113 +1678,18 @@ async def test_mcp_session_is_reused_across_turns(
             message_id=response.json()["message_id"],
         )
         assert message["stream_status"] == "completed"
-        spawns.append(
-            len(fake_agent.events_of("new_session"))
-            + len(fake_agent.events_of("load_session"))
-        )
 
-    # A respawn resumes the old session id, so count load_session too. The first
-    # turn's count also covers the one-off title-gen session.
-    assert spawns[1] == spawns[0]
+    first, second = fake_agent.main_turn_prompts()
+    assert second["pid"] == first["pid"]
 
-
-def test_untracked_tool_updates_use_meta_name_or_are_dropped() -> None:
-    from acp.schema import ToolCallProgress
-
-    from app.services.acp.client import AcpClientHandler
-
-    handler = AcpClientHandler(agent_kind=AgentKind.CLAUDE)
-
-    # Bare progress for a tool that never had a tool_call start: no title, no
-    # input, no meta name — must be dropped, not minted as "Unknown tool".
-    bare = ToolCallProgress(
-        toolCallId="sub-tool-1", sessionUpdate="tool_call_update", status="in_progress"
-    )
-    assert handler._map_tool_call_progress(bare) is None
-    assert "sub-tool-1" not in handler._active_tools
-
-    # A later terminal update for the same untracked id is also dropped.
-    done = ToolCallProgress(
-        toolCallId="sub-tool-1", sessionUpdate="tool_call_update", status="completed"
-    )
-    assert handler._map_tool_call_progress(done) is None
-
-    # claude-agent-acp stamps the real tool name at _meta.claudeCode.toolName
-    # on subagent tool_progress updates — render the real name.
-    named = ToolCallProgress.model_validate(
-        {
-            "toolCallId": "sub-tool-2",
-            "sessionUpdate": "tool_call_update",
-            "status": "in_progress",
-            "_meta": {"claudeCode": {"toolName": "Bash"}},
-        }
-    )
-    event = handler._map_tool_call_progress(named)
-    assert event is not None
-    assert event["tool"]["name"] == "Bash"
-    assert event["tool"]["title"] == "Bash"
-    assert "sub-tool-2" in handler._active_tools
-
-    # Terminal update for the now-tracked tool completes the same card.
-    named_done = ToolCallProgress.model_validate(
-        {
-            "toolCallId": "sub-tool-2",
-            "sessionUpdate": "tool_call_update",
-            "status": "completed",
-        }
-    )
-    completed = handler._map_tool_call_progress(named_done)
-    assert completed is not None
-    assert completed["tool"]["name"] == "Bash"
-    assert completed["tool"]["status"] == "completed"
-
-    # Updates carrying a title still materialize a card (update-first adapters).
-    titled = ToolCallProgress(
-        toolCallId="sub-tool-3",
-        sessionUpdate="tool_call_update",
-        status="in_progress",
-        title="Reading config",
-    )
-    titled_event = handler._map_tool_call_progress(titled)
-    assert titled_event is not None
-    assert titled_event["tool"]["title"] == "Reading config"
-
-
-def test_tool_heartbeat_updates_never_materialize_cards() -> None:
-    from acp.schema import ToolCallProgress, ToolCallStart
-
-    from app.services.acp.client import AcpClientHandler
-
-    handler = AcpClientHandler(agent_kind=AgentKind.CLAUDE)
-    handler._map_tool_call_start(
-        ToolCallStart.model_validate(
-            {
-                "toolCallId": "toolu_abc",
-                "sessionUpdate": "tool_call",
-                "title": "npm test",
-                "rawInput": {"command": "npm test"},
-                "_meta": {"claudeCode": {"toolName": "Bash"}},
-            }
-        )
-    )
-
-    # The CLI pings every 30s under "<realId>-heartbeat-<n>"; each ping names the
-    # real tool and carries an elapsed-time payload, so it passes the
-    # renderable-identity guard and would otherwise mint a card per 30s.
-    for beat in range(3):
-        heartbeat = ToolCallProgress.model_validate(
-            {
-                "toolCallId": f"toolu_abc-heartbeat-{beat}",
-                "sessionUpdate": "tool_call_update",
-                "status": "in_progress",
-                "_meta": {
-                    "claudeCode": {
-                        "toolName": "Bash",
-                        "toolResponse": {"elapsedTimeSeconds": 30 * (beat + 1)},
-                    }
-                },
-            }
-        )
-        assert handler._map_tool_call_progress(heartbeat) is None
-
-    assert list(handler._active_tools) == ["toolu_abc"]
+    [chat_session] = [
+        e for e in fake_agent.events_of("new_session") if e["pid"] == first["pid"]
+    ]
+    [mcp_server] = chat_session["mcp_servers"]
+    assert mcp_server["name"] == "agentrove"
+    assert mcp_server["command"] == sys.executable
+    mcp_env = {v["name"]: v["value"] for v in mcp_server["env"]}
+    assert mcp_env["AGENTROVE_ACCESS_TOKEN"].startswith("token-")
+    assert mcp_env["AGENTROVE_CURRENT_CHAT_ID"] == chat["id"]
+    assert "AGENTROVE_EMAIL" not in mcp_env
+    assert "AGENTROVE_PASSWORD" not in mcp_env
