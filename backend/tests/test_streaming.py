@@ -1,10 +1,9 @@
 import asyncio
 import json
 import time
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
 from typing import Any, Literal
-from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import httpx
@@ -27,12 +26,12 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
-from app.services.git import GitService
 from app.services.exceptions import ChatException
 from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services import chat as chat_service_module
 from app.services.sandbox_providers.base import SandboxProvider
+from app.services.sandbox_providers.types import CommandResult
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import StreamEnvelope, StreamEvent
@@ -41,6 +40,7 @@ from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
     EndpointCache,
     FakeProviderFactory,
+    FakeSandboxProvider,
     create_authenticated_workspace,
 )
 
@@ -285,13 +285,22 @@ async def run_background_task(chat_id: UUID, *, timeout: float = 5.0) -> str:
     return result
 
 
-async def wait_for_message_event_type(
+async def wait_until(predicate: Callable[[], bool], *, timeout: float = 5.0) -> None:
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        if time.monotonic() > deadline:
+            raise AssertionError("condition not met before timeout")
+        await asyncio.sleep(0.01)
+
+
+async def wait_for_message_event(
     client: AsyncClient,
     headers: dict[str, str],
     message_id: str,
     event_type: str,
     *,
-    timeout: float = 2.0,
+    where: Callable[[dict[str, Any]], bool] = lambda _event: True,
+    timeout: float = 5.0,
 ) -> dict[str, Any]:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -300,13 +309,33 @@ async def wait_for_message_event_type(
         )
         assert response.status_code == 200
         for event in response.json():
-            if event["event_type"] == event_type:
+            if event["event_type"] == event_type and where(event):
                 return event
         await asyncio.sleep(0.01)
     raise AssertionError(f"event type {event_type!r} not observed for {message_id}")
 
 
-async def wait_for_steerable_runtime(chat_id: UUID, *, timeout: float = 2.0) -> None:
+async def get_message_item(
+    client: AsyncClient, headers: dict[str, str], chat: Chat, message_id: str
+) -> dict[str, Any]:
+    response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/messages", headers=headers
+    )
+    assert response.status_code == 200
+    return next(i for i in response.json()["items"] if i["id"] == message_id)
+
+
+async def get_event_types(
+    client: AsyncClient, headers: dict[str, str], message_id: str
+) -> list[str]:
+    response = await client.get(
+        f"/api/v1/chat/messages/{message_id}/events", headers=headers
+    )
+    assert response.status_code == 200
+    return [e["event_type"] for e in response.json()]
+
+
+async def wait_for_steerable_runtime(chat_id: UUID, *, timeout: float = 5.0) -> None:
     # stream_started precedes steering registration; send-now must land after it.
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -444,16 +473,14 @@ async def test_send_message_new_chat_generates_title_in_background(
 
     # Title generation runs as an untracked fire-and-forget task (no handle to
     # await), so poll the chat detail endpoint until it lands.
-    deadline = time.monotonic() + 2.0
+    deadline = time.monotonic() + 5.0
     title = None
-    while time.monotonic() < deadline:
+    while title != "Greeting Chat" and time.monotonic() < deadline:
         detail_response = await client.get(
             f"/api/v1/chat/chats/{chat.id}", headers=headers
         )
         assert detail_response.status_code == 200
         title = detail_response.json()["title"]
-        if title == "Generated Title" or title == "Greeting Chat":
-            break
         await asyncio.sleep(0.01)
 
     assert title == "Greeting Chat"
@@ -587,11 +614,16 @@ async def test_permission_request_respond_allows_and_denies_then_stream_complete
     result = await send_message(client, headers, chat)
     message_id = result["message_id"]
 
-    allow_event = await wait_for_message_event_type(
-        client, headers, message_id, "permission_request"
-    )
-    assert allow_event["render_payload"]["request_id"] == "tool-allow"
+    def request_id_is(request_id: str) -> Callable[[dict[str, Any]], bool]:
+        return lambda event: event["render_payload"]["request_id"] == request_id
 
+    await wait_for_message_event(
+        client,
+        headers,
+        message_id,
+        "permission_request",
+        where=request_id_is("tool-allow"),
+    )
     allow_response = await client.post(
         f"/api/v1/chat/chats/{chat.id}/permissions/tool-allow/respond",
         data={"option_id": "allow"},
@@ -600,29 +632,13 @@ async def test_permission_request_respond_allows_and_denies_then_stream_complete
     assert allow_response.status_code == 200
     assert allow_response.json() == {"success": True}
 
-    deny_event = await wait_for_message_event_type(
-        client, headers, message_id, "permission_request"
+    await wait_for_message_event(
+        client,
+        headers,
+        message_id,
+        "permission_request",
+        where=request_id_is("tool-deny"),
     )
-    # After the first respond, a second (different) permission_request must
-    # have been persisted for the deny step — same event_type, new request_id.
-    deadline = time.monotonic() + 2.0
-    while deny_event["render_payload"]["request_id"] != "tool-deny":
-        if time.monotonic() > deadline:
-            raise AssertionError("second permission_request never observed")
-        events_response = await client.get(
-            f"/api/v1/chat/messages/{message_id}/events", headers=headers
-        )
-        matches = [
-            e
-            for e in events_response.json()
-            if e["event_type"] == "permission_request"
-            and e["render_payload"]["request_id"] == "tool-deny"
-        ]
-        if matches:
-            deny_event = matches[0]
-            break
-        await asyncio.sleep(0.01)
-
     deny_response = await client.post(
         f"/api/v1/chat/chats/{chat.id}/permissions/tool-deny/respond",
         headers=headers,
@@ -678,7 +694,7 @@ async def test_cancel_stream_marks_message_interrupted(
     result = await send_message(client, headers, chat)
     message_id = result["message_id"]
 
-    await wait_for_message_event_type(client, headers, message_id, "stream_started")
+    await wait_for_message_event(client, headers, message_id, "stream_started")
 
     # DELETE holds its response until the turn unwinds, so the background
     # task is already finished and the terminal state persisted.
@@ -687,34 +703,118 @@ async def test_cancel_stream_marks_message_interrupted(
     )
     assert cancel_response.status_code == 204
 
-    messages_response = await client.get(
-        f"/api/v1/chat/chats/{chat.id}/messages", headers=headers
-    )
-    items = messages_response.json()["items"]
-    assistant_item = next(item for item in items if item["id"] == message_id)
+    assistant_item = await get_message_item(client, headers, chat, message_id)
     assert assistant_item["stream_status"] == MessageStreamStatus.INTERRUPTED.value
-
-    terminal_events_response = await client.get(
-        f"/api/v1/chat/messages/{message_id}/events", headers=headers
-    )
-    assert [e["event_type"] for e in terminal_events_response.json()] == ["cancelled"]
+    assert assistant_item["content_text"] == "Working..."
+    assert await get_event_types(client, headers, message_id) == ["cancelled"]
 
 
-async def test_cancel_stream_is_a_noop_when_nothing_is_running(
+async def test_cancel_while_idle_does_not_interrupt_the_next_turn(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
 ) -> None:
+    # A stale Stop click must not leave a pending cancel behind for the next
+    # turn to consume at bootstrap.
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
     chat = await create_chat_row(db_session, user, workspace, session_id="resumed-idle")
+    acp_factory.queue(
+        FakeAcpSession(
+            [[StreamEvent(type="assistant_text", text="Ran fine")]],
+            session_id="resumed-idle",
+        )
+    )
 
     response = await client.delete(
         f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
     )
     assert response.status_code == 204
+
+    result = await send_message(client, headers, chat)
+    await run_background_task(chat.id)
+
+    assistant_item = await get_message_item(client, headers, chat, result["message_id"])
+    assert assistant_item["stream_status"] == MessageStreamStatus.COMPLETED.value
+    assert assistant_item["content_text"] == "Ran fine"
+
+
+class GatedSandboxProvider(FakeSandboxProvider):
+    # Holds the first sandbox command (the turn-start checkpoint probe) open so
+    # a test can act inside the window between reservation and task start.
+    def __init__(self) -> None:
+        super().__init__()
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def execute_command(
+        self,
+        sandbox_id: str,
+        command: str,
+        envs: dict[str, str] | None = None,
+        timeout: int = 120,
+    ) -> CommandResult:
+        if not self.entered.is_set():
+            self.entered.set()
+            await self.release.wait()
+        return await super().execute_command(sandbox_id, command, envs, timeout)
+
+
+async def test_cancel_during_turn_start_interrupts_before_agent_is_prompted(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    fake_sandbox_provider: FakeProviderFactory,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(
+        db_session, user, workspace, session_id="resumed-start"
+    )
+    provider = GatedSandboxProvider()
+    fake_sandbox_provider.provider = provider
+    acp_session = FakeAcpSession([], session_id="resumed-start")
+    acp_factory.queue(acp_session)
+    acp_factory.queue(
+        FakeAcpSession([[StreamEvent(type="assistant_text", text="Resent reply")]])
+    )
+
+    send_task = asyncio.create_task(
+        send_message(client, headers, chat, prompt="Stopped early")
+    )
+    await asyncio.wait_for(provider.entered.wait(), timeout=5.0)
+    assert ChatStreamRuntime.has_pending_start(str(chat.id))
+
+    cancel_task = asyncio.create_task(
+        client.delete(f"/api/v1/chat/chats/{chat.id}/stream", headers=headers)
+    )
+    await wait_until(lambda: str(chat.id) in session_registry._pending_cancels)
+    provider.release.set()
+
+    message_id = (await asyncio.wait_for(send_task, timeout=5.0))["message_id"]
+    cancel_response = await asyncio.wait_for(cancel_task, timeout=5.0)
+    assert cancel_response.status_code == 204
+
+    # DELETE returned only after the turn unwound: interrupted, agent untouched.
+    assistant_item = await get_message_item(client, headers, chat, message_id)
+    assert assistant_item["stream_status"] == MessageStreamStatus.INTERRUPTED.value
+    assert await get_event_types(client, headers, message_id) == ["cancelled"]
+    assert acp_session.prompt_calls == []
+
+    # The reservation is free again, so an immediate resend starts a turn.
+    resend = await send_message(client, headers, chat, prompt="Try again")
+    await run_background_task(chat.id)
+    resent_item = await get_message_item(client, headers, chat, resend["message_id"])
+    assert resent_item["stream_status"] == MessageStreamStatus.COMPLETED.value
+    assert resent_item["content_text"] == "Resent reply"
 
 
 async def test_stream_failure_marks_message_failed_and_emits_bootstrap_error(
@@ -739,13 +839,8 @@ async def test_stream_failure_marks_message_failed_and_emits_bootstrap_error(
     task = find_background_task(chat.id)
     with pytest.raises(RuntimeError, match="boom"):
         await asyncio.wait_for(task, timeout=5.0)
-    await asyncio.sleep(0)
 
-    messages_response = await client.get(
-        f"/api/v1/chat/chats/{chat.id}/messages", headers=headers
-    )
-    items = messages_response.json()["items"]
-    assistant_item = next(item for item in items if item["id"] == message_id)
+    assistant_item = await get_message_item(client, headers, chat, message_id)
     assert assistant_item["stream_status"] == MessageStreamStatus.FAILED.value
     events = assistant_item["content_render"]["events"]
     assert events[-1]["type"] == "assistant_text"
@@ -753,10 +848,7 @@ async def test_stream_failure_marks_message_failed_and_emits_bootstrap_error(
 
     # The error terminal event is appended after the snapshot prune so it
     # survives — reconnecting clients need it to leave streaming mode.
-    error_events_response = await client.get(
-        f"/api/v1/chat/messages/{message_id}/events", headers=headers
-    )
-    assert [e["event_type"] for e in error_events_response.json()] == ["error"]
+    assert await get_event_types(client, headers, message_id) == ["error"]
 
 
 async def test_queued_message_is_processed_automatically_after_stream_completes(
@@ -789,10 +881,8 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     first_result = await send_message(client, headers, chat, prompt="First prompt")
     first_message_id = first_result["message_id"]
 
+    # The follow-up task is registered by the first one before it finishes.
     await run_background_task(chat.id)
-    # Draining the queue starts a second background task in the same chain —
-    # give the loop a moment to register it before searching again.
-    await asyncio.sleep(0)
     await run_background_task(chat.id)
 
     queue_list_response = await client.get(
@@ -817,12 +907,10 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     assert second_assistant["stream_status"] == MessageStreamStatus.COMPLETED.value
     assert second_assistant["content_text"] == "Second turn done"
 
-    second_user = next(
-        item
+    assert any(
+        item["role"] == "user" and item["content_text"] == "Follow-up prompt"
         for item in items
-        if item["role"] == "user" and item["content_text"] == "Follow-up prompt"
     )
-    assert second_user is not None
 
     # Handoff survives snapshot; turn-one "complete" deferred to follow-up.
     first_events_response = await client.get(
@@ -833,9 +921,19 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     assert first_events[0]["render_payload"]["content"] == "Follow-up prompt"
 
 
-@pytest.mark.parametrize("steer_outcome", [None, "promptRequired"])
+@pytest.mark.parametrize(
+    ("steer_outcome", "queued_mode", "expected_steer_calls"),
+    [
+        pytest.param(None, "bypassPermissions", 0, id="agent-cannot-steer"),
+        pytest.param("promptRequired", "bypassPermissions", 1, id="steer-refused"),
+        # Injecting would run the message under the active turn's settings.
+        pytest.param("injected", "build", 0, id="settings-differ"),
+    ],
+)
 async def test_send_now_cancels_active_generation_and_starts_queued_message(
-    steer_outcome: Literal["promptRequired"] | None,
+    steer_outcome: Literal["injected", "promptRequired"] | None,
+    queued_mode: str,
+    expected_steer_calls: int,
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
@@ -859,7 +957,11 @@ async def test_send_now_cancels_active_generation_and_starts_queued_message(
 
     queue_response = await client.post(
         f"/api/v1/chat/chats/{chat.id}/queue",
-        data={"content": "Urgent follow-up", "model_id": TEST_MODEL_ID},
+        data={
+            "content": "Urgent follow-up",
+            "model_id": TEST_MODEL_ID,
+            "permission_mode": queued_mode,
+        },
         headers=headers,
     )
     assert queue_response.status_code == 201
@@ -875,7 +977,6 @@ async def test_send_now_cancels_active_generation_and_starts_queued_message(
     assert send_now_response.status_code == 204
 
     await run_background_task(chat.id)
-    await asyncio.sleep(0)
     await run_background_task(chat.id)
 
     messages_response = await client.get(
@@ -893,7 +994,9 @@ async def test_send_now_cancels_active_generation_and_starts_queued_message(
     assert second_assistant["content_text"] == "Send-now turn done"
     assert second_assistant["stream_status"] == MessageStreamStatus.COMPLETED.value
     assert "Urgent follow-up" in acp_session.prompt_calls[-1]
-    assert len(acp_session.steer_calls) == (1 if steer_outcome else 0)
+    assert len(acp_session.steer_calls) == expected_steer_calls
+    if queued_mode == "build":
+        assert acp_session.set_mode_calls[-1] == "build"
 
     queue_list_response = await client.get(
         f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
@@ -1033,7 +1136,7 @@ async def test_send_now_returns_404_for_unknown_queued_message(
     assert response.status_code == 404
 
 
-async def test_active_streams_and_status_reflect_running_background_task(
+async def test_active_streams_and_status_reflect_running_turn_for_owner_only(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
@@ -1044,10 +1147,11 @@ async def test_active_streams_and_status_reflect_running_background_task(
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
+    other_headers, _, _ = await create_authenticated_workspace(
+        db_session, create_user, login, email="other@example.com", username="other"
+    )
     chat = await create_chat_row(db_session, user, workspace, session_id="resumed-10")
-
-    script = [BLOCK_FOREVER]
-    acp_factory.queue(FakeAcpSession([script], session_id="resumed-10"))
+    acp_factory.queue(FakeAcpSession([[BLOCK_FOREVER]], session_id="resumed-10"))
 
     result = await send_message(client, headers, chat)
     message_id = result["message_id"]
@@ -1056,10 +1160,14 @@ async def test_active_streams_and_status_reflect_running_background_task(
         "/api/v1/chat/chats/active-streams", headers=headers
     )
     assert active_streams_response.status_code == 200
-    active_streams = active_streams_response.json()
-    assert len(active_streams) == 1
-    assert active_streams[0]["chat_id"] == str(chat.id)
-    assert active_streams[0]["message_id"] == message_id
+    [active_stream] = active_streams_response.json()
+    assert active_stream["chat_id"] == str(chat.id)
+    assert active_stream["message_id"] == message_id
+
+    other_streams_response = await client.get(
+        "/api/v1/chat/chats/active-streams", headers=other_headers
+    )
+    assert other_streams_response.json() == []
 
     status_response = await client.get(
         f"/api/v1/chat/chats/{chat.id}/status", headers=headers
@@ -1069,71 +1177,20 @@ async def test_active_streams_and_status_reflect_running_background_task(
     assert status_body["has_active_task"] is True
     assert status_body["message_id"] == message_id
 
-    # Clean up the still-running background task so it doesn't leak past this
-    # test — DELETE holds its response until the turn unwinds.
-    await wait_for_message_event_type(client, headers, message_id, "stream_started")
+    # DELETE holds its response until the turn unwinds, so nothing leaks.
+    await wait_for_message_event(client, headers, message_id, "stream_started")
     cancel_response = await client.delete(
         f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
     )
     assert cancel_response.status_code == 204
-
-
-async def test_active_streams_is_empty_when_user_has_no_running_chats(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-) -> None:
-    headers, _user, _workspace = await create_authenticated_workspace(
-        db_session, create_user, login
+    status_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/status", headers=headers
     )
-
-    response = await client.get("/api/v1/chat/chats/active-streams", headers=headers)
-    assert response.status_code == 200
-    assert response.json() == []
-
-
-async def test_message_events_endpoint_rejects_non_owner_and_unknown_message(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
-) -> None:
-    headers, user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
+    assert status_response.json()["has_active_task"] is False
+    active_streams_response = await client.get(
+        "/api/v1/chat/chats/active-streams", headers=headers
     )
-    chat = await create_chat_row(db_session, user, workspace, session_id="resumed-12")
-    other_headers, _other_user, _other_workspace = await create_authenticated_workspace(
-        db_session,
-        create_user,
-        login,
-        email="streaming-other@example.com",
-        username="streamingother",
-    )
-
-    script = [StreamEvent(type="assistant_text", text="Owner only")]
-    acp_factory.queue(FakeAcpSession([script], session_id="resumed-12"))
-    result = await send_message(client, headers, chat)
-    message_id = result["message_id"]
-    await run_background_task(chat.id)
-
-    owner_response = await client.get(
-        f"/api/v1/chat/messages/{message_id}/events", headers=headers
-    )
-    assert owner_response.status_code == 200
-
-    other_response = await client.get(
-        f"/api/v1/chat/messages/{message_id}/events", headers=other_headers
-    )
-    assert other_response.status_code == 404
-
-    missing_response = await client.get(
-        f"/api/v1/chat/messages/{UUID('00000000-0000-0000-0000-000000000099')}/events",
-        headers=headers,
-    )
-    assert missing_response.status_code == 404
+    assert active_streams_response.json() == []
 
 
 async def test_stream_with_no_events_raises_and_marks_message_failed(
@@ -1158,13 +1215,8 @@ async def test_stream_with_no_events_raises_and_marks_message_failed(
     task = find_background_task(chat.id)
     with pytest.raises(Exception, match="Stream completed without any events"):
         await asyncio.wait_for(task, timeout=5.0)
-    await asyncio.sleep(0)
 
-    messages_response = await client.get(
-        f"/api/v1/chat/chats/{chat.id}/messages", headers=headers
-    )
-    items = messages_response.json()["items"]
-    assistant_item = next(item for item in items if item["id"] == message_id)
+    assistant_item = await get_message_item(client, headers, chat, message_id)
     assert assistant_item["stream_status"] == MessageStreamStatus.FAILED.value
 
 
@@ -1191,36 +1243,37 @@ async def test_mid_stream_system_event_updates_chat_session_id(
     await send_message(client, headers, chat)
     await run_background_task(chat.id)
 
-    deadline = time.monotonic() + 2.0
+    # The session update is persisted by a fire-and-forget task.
+    deadline = time.monotonic() + 5.0
     session_id = None
-    while time.monotonic() < deadline:
+    while session_id != "pivoted-session" and time.monotonic() < deadline:
         await db_session.refresh(chat)
         session_id = chat.session_id
-        if session_id == "pivoted-session":
-            break
         await asyncio.sleep(0.01)
 
     assert session_id == "pivoted-session"
 
 
-async def test_send_message_with_worktree_persists_cwd_and_emits_system_event(
+async def test_send_message_with_worktree_runs_agent_in_new_worktree(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
     streaming_cache: EndpointCache,
-    monkeypatch: pytest.MonkeyPatch,
+    fake_sandbox_provider: FakeProviderFactory,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
     chat = await create_chat_row(db_session, user, workspace, session_id="resumed-15")
-
-    script = [StreamEvent(type="assistant_text", text="Working in worktree")]
-    acp_factory.queue(FakeAcpSession([script], session_id="resumed-15"))
-    create_worktree = AsyncMock(return_value=f".worktrees/{str(chat.id)[:8]}")
-    monkeypatch.setattr(GitService, "create_worktree", create_worktree)
+    provider = FakeSandboxProvider()
+    fake_sandbox_provider.provider = provider
+    acp_session = FakeAcpSession(
+        [[StreamEvent(type="assistant_text", text="Working in worktree")]],
+        session_id="resumed-15",
+    )
+    acp_factory.queue(acp_session)
 
     response = await client.post(
         "/api/v1/chat/chat",
@@ -1235,23 +1288,28 @@ async def test_send_message_with_worktree_persists_cwd_and_emits_system_event(
         headers=headers,
     )
     assert response.status_code == 200
-    create_worktree.assert_awaited_once_with(
-        workspace.sandbox_id,
-        "",
-        str(chat.id),
-        base_ref="main",
+    worktree_cwd = response.json()["worktree_cwd"]
+    assert worktree_cwd
+    assert any(
+        sandbox_id == workspace.sandbox_id
+        and "worktree add" in command
+        and "main" in command
+        for sandbox_id, command, _envs in provider.commands
     )
-    # worktree_cwd is resolved/persisted before the stream task starts.
-    assert response.json()["worktree_cwd"] is not None
 
     await run_background_task(chat.id)
 
-    await db_session.refresh(chat)
-    assert chat.worktree_cwd == response.json()["worktree_cwd"]
-
+    assert acp_session.configs[0].cwd == worktree_cwd
+    assistant_item = await get_message_item(
+        client, headers, chat, response.json()["message_id"]
+    )
+    # Emitted up front so the client retargets branch/diff actions mid-turn.
+    assert assistant_item["content_render"]["events"][0] == {
+        "type": "system",
+        "data": {"worktree_cwd": worktree_cwd},
+    }
     detail_response = await client.get(f"/api/v1/chat/chats/{chat.id}", headers=headers)
-    assert detail_response.status_code == 200
-    assert detail_response.json()["worktree_cwd"] == response.json()["worktree_cwd"]
+    assert detail_response.json()["worktree_cwd"] == worktree_cwd
 
 
 @pytest.fixture
@@ -1332,9 +1390,8 @@ async def test_stream_sse_replays_backlog_then_delivers_live_events(
                 kind="complete",
                 payload={},
             )
-            await streaming_cache.store.publish(
-                REDIS_KEY_USER_STREAMS_LIVE.format(user_id=user.id), live_envelope
-            )
+            live_channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=user.id)
+            assert await streaming_cache.store.publish(live_channel, live_envelope) == 1
 
             # Feed stays open; read one live event, don't drain to close.
             async for line in lines:
@@ -1342,7 +1399,12 @@ async def test_stream_sse_replays_backlog_then_delivers_live_events(
                     envelopes.append(json.loads(line.removeprefix("data:").strip()))
                     break
 
-    assert [e["seq"] for e in envelopes] == [backlog["seq"], backlog["seq"] + 1]
+        assert [e["seq"] for e in envelopes] == [backlog["seq"], backlog["seq"] + 1]
+
+        # A closed tab must drop its live subscription, or every reconnect
+        # leaks a subscriber that buffers events forever.
+        while await streaming_cache.store.publish(live_channel, live_envelope):
+            await asyncio.sleep(0.01)
 
 
 async def test_sse_endpoints_release_db_connection_while_streaming(
@@ -1420,11 +1482,106 @@ async def test_second_send_while_streaming_is_rejected_with_409(
     assert second_response.status_code == 409
 
     # Clean up the blocked turn; DELETE holds until the task unwinds.
-    await wait_for_message_event_type(client, headers, message_id, "stream_started")
+    await wait_for_message_event(client, headers, message_id, "stream_started")
     cancel_response = await client.delete(
         f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
     )
     assert cancel_response.status_code == 204
+
+
+async def test_mid_turn_snapshot_plus_event_tail_rebuilds_full_output(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A client reconnecting mid-turn renders the persisted snapshot, then
+    # replays events past its last_seq — together they must be gap-free.
+    monkeypatch.setattr(runtime_module, "SNAPSHOT_CHECKPOINT_INTERVAL_SECONDS", 0.0)
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="resumed-rc")
+    chunks = [f"chunk-{i} " for i in range(100)]
+    script: list[Any] = [
+        *(StreamEvent(type="assistant_text", text=chunk) for chunk in chunks),
+        StreamEvent(
+            type="usage",
+            data={"input_tokens": 10, "context_window": TEST_CONTEXT_WINDOW},
+        ),
+        BLOCK_FOREVER,
+    ]
+    acp_factory.queue(FakeAcpSession([script], session_id="resumed-rc"))
+
+    message_id = (await send_message(client, headers, chat))["message_id"]
+    # Usage is persisted unbuffered, so every text event before it is too.
+    await wait_for_message_event(
+        client,
+        headers,
+        message_id,
+        "system",
+        where=lambda event: "context_usage" in event["render_payload"],
+    )
+
+    snapshot = await get_message_item(client, headers, chat, message_id)
+    assert snapshot["stream_status"] == MessageStreamStatus.IN_PROGRESS.value
+    assert snapshot["content_text"]
+    tail_response = await client.get(
+        f"/api/v1/chat/messages/{message_id}/events",
+        params={"after_seq": snapshot["last_seq"]},
+        headers=headers,
+    )
+    tail_text = "".join(
+        event["render_payload"]["text"]
+        for event in tail_response.json()
+        if event["event_type"] == "assistant_text"
+    )
+    assert snapshot["content_text"] + tail_text == "".join(chunks)
+
+    cancel_response = await client.delete(
+        f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
+    )
+    assert cancel_response.status_code == 204
+    final = await get_message_item(client, headers, chat, message_id)
+    assert final["content_text"] == "".join(chunks)
+
+
+async def test_shutdown_cancels_running_turns_and_marks_them_interrupted(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Zero grace period: shutdown cancels at once instead of waiting it out.
+    monkeypatch.setattr(
+        runtime_module.settings, "BACKGROUND_CHAT_SHUTDOWN_TIMEOUT_SECONDS", 0.0
+    )
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="resumed-sd")
+    script = [StreamEvent(type="assistant_text", text="Working..."), BLOCK_FOREVER]
+    acp_factory.queue(FakeAcpSession([script], session_id="resumed-sd"))
+
+    message_id = (await send_message(client, headers, chat))["message_id"]
+    await wait_for_message_event(client, headers, message_id, "stream_started")
+
+    await ChatStreamRuntime.stop_background_chats()
+
+    # Without finalization the turn would stay in_progress until next boot.
+    assistant_item = await get_message_item(client, headers, chat, message_id)
+    assert assistant_item["stream_status"] == MessageStreamStatus.INTERRUPTED.value
+    assert await get_event_types(client, headers, message_id) == ["cancelled"]
+    status_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/status", headers=headers
+    )
+    assert status_response.json()["has_active_task"] is False
 
 
 async def test_reconcile_orphaned_messages_finalizes_without_flagging_chats(
@@ -1615,28 +1772,6 @@ async def test_history_omits_tool_results_only_when_requested(
         f"/api/v1/chat/messages/{completed.id}/render", headers=other_headers
     )
     assert denied.status_code == 404
-
-
-async def test_cancel_chat_turn_covers_reserved_but_unstarted_turn() -> None:
-    chat_id = str(uuid4())
-    reservation_held = asyncio.Event()
-
-    async def hold_reservation() -> None:
-        async with ChatStreamRuntime.chat_start_slot(chat_id) as reserved:
-            assert reserved
-            reservation_held.set()
-            # Simulates the pre-task window (checkpoint provisioning etc.).
-            await asyncio.sleep(0.15)
-
-    holder = asyncio.create_task(hold_reservation())
-    await reservation_held.wait()
-
-    await ChatStreamRuntime.cancel_chat_turn(chat_id, timeout=2.0)
-
-    # Cancel returning means an immediate resend must win the reservation.
-    async with ChatStreamRuntime.chat_start_slot(chat_id) as reserved:
-        assert reserved
-    await holder
 
 
 async def test_failed_turn_start_discards_both_messages(

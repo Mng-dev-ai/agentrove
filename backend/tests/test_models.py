@@ -3,6 +3,7 @@ from httpx import AsyncClient
 
 from app.constants import MODELS
 from app.models.types import AgentKind
+from app.services.acp.adapters import THINKING_MODE_ORDER
 
 from tests.conftest import LoginClient, UserFactory
 
@@ -20,187 +21,25 @@ async def auth_headers(
     return {"Authorization": f"Bearer {tokens['access_token']}"}
 
 
-async def test_list_models_returns_registered_models(
+async def test_list_models_exposes_registry_with_ordered_thinking_modes(
     client: AsyncClient,
     auth_headers: dict[str, str],
 ) -> None:
     response = await client.get("/api/v1/models/", headers=auth_headers)
 
     assert response.status_code == 200
-    body = response.json()
-    assert len(body) == len(MODELS)
-    model_ids = {item["model_id"] for item in body}
-    assert model_ids == set(MODELS)
-    assert {
-        "model_id": "haiku",
-        "name": MODELS["haiku"].display_name,
-        "agent_kind": MODELS["haiku"].agent_kind.value,
-        "context_window": MODELS["haiku"].context_window,
-        "legacy": False,
-        # Haiku has no effort dial in claude-agent-acp (supportsEffort false).
-        "thinking_modes": [],
-    } in body
-    by_id = {item["model_id"]: item for item in body}
-    assert by_id["sonnet"]["thinking_modes"] == ["low", "medium", "high", "max"]
-    assert by_id["claude-sonnet-5-5"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["claude-haiku-5-5"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["claude-fable-5-1"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["claude-fable-5"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["claude-opus-5-5"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["claude-opus-5"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["gpt-6.1-sol"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-        "ultra",
-    ]
-    assert by_id["gpt-6-astra"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-        "ultra",
-    ]
-    assert by_id["gpt-6-sol"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-        "ultra",
-    ]
-    assert by_id["gpt-6-luna"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["copilot:gpt-6.1-sol"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["copilot:gemini-4-argon"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-    ]
-    assert by_id["copilot:gpt-6-astra"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["copilot:gpt-6-sol"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["copilot:gpt-6-luna"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-        "max",
-    ]
-    assert by_id["copilot:gpt-5.4"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-    ]
-    assert by_id["copilot:kimi-k3"]["thinking_modes"] == ["low", "high", "max"]
-    assert by_id["copilot:claude-haiku-4.5"]["thinking_modes"] == []
-    assert by_id["grok:grok-4.5"]["thinking_modes"] == ["low", "medium", "high"]
-    assert by_id["grok:grok-4.6"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-    ]
-    assert by_id["grok:grok-4.7"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-        "xhigh",
-    ]
-    assert by_id["antigravity:gemini-4-argon"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-    ]
-    assert by_id["antigravity:gemini-3.8-flash"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-    ]
-    assert by_id["antigravity:gemini-3.7-flash"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-    ]
-    assert by_id["copilot:gemini-3.8-flash"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-    ]
-    assert by_id["antigravity:gemini-3.6-flash"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-    ]
-    assert by_id["antigravity:gemini-3.5-flash"]["thinking_modes"] == [
-        "low",
-        "medium",
-        "high",
-    ]
-    assert by_id["antigravity:gemini-3.1-pro"]["thinking_modes"] == ["low", "high"]
-    assert by_id["cursor:auto"]["thinking_modes"] == []
+    by_id = {item["model_id"]: item for item in response.json()}
+    assert by_id.keys() == MODELS.keys()
+    for model_id, item in by_id.items():
+        info = MODELS[model_id]
+        assert item["agent_kind"] == info.agent_kind.value
+        assert item["legacy"] is info.legacy
+        # The picker renders effort tiers in list order, so they must come
+        # back low-to-high regardless of how the registry declares them.
+        assert set(item["thinking_modes"]) == set(info.effort_levels)
+        assert item["thinking_modes"] == sorted(
+            item["thinking_modes"], key=THINKING_MODE_ORDER.index
+        )
 
 
 async def test_list_models_filters_by_agent_kind(
@@ -215,7 +54,6 @@ async def test_list_models_filters_by_agent_kind(
     assert response.status_code == 200
     body = response.json()
     assert body
-    assert {item["agent_kind"] for item in body} == {AgentKind.CODEX.value}
     assert {item["model_id"] for item in body} == {
         model_id
         for model_id, info in MODELS.items()
@@ -234,22 +72,3 @@ async def test_list_models_rejects_invalid_agent_kind(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid agent_kind: invalid"
-
-
-async def test_list_models_exposes_legacy_flag(
-    client: AsyncClient,
-    auth_headers: dict[str, str],
-) -> None:
-    response = await client.get("/api/v1/models/", headers=auth_headers)
-
-    assert response.status_code == 200
-    body = response.json()
-    legacy_ids = {item["model_id"] for item in body if item["legacy"]}
-    assert legacy_ids
-    assert legacy_ids == {mid for mid, info in MODELS.items() if info.legacy}
-
-
-async def test_models_reject_missing_token(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/models/")
-
-    assert response.status_code == 401

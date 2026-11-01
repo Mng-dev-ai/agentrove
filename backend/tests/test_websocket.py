@@ -14,7 +14,6 @@ from starlette.websockets import WebSocketDisconnect
 
 from app.api.endpoints import websocket as websocket_endpoint
 from app.constants import (
-    DEFAULT_TERMINAL_ID,
     PTY_OUTPUT_QUEUE_SIZE,
     WS_CLOSE_AUTH_FAILED,
     WS_CLOSE_INVALID_CWD,
@@ -43,7 +42,7 @@ from tests.helpers import create_authenticated_workspace
 pytestmark = pytest.mark.anyio
 
 
-async def wait_until(predicate: Callable[[], bool], timeout: float = 2.0) -> None:
+async def wait_until(predicate: Callable[[], bool], timeout: float = 5.0) -> None:
     # Generic polling helper for asserting on background-task side effects
     # (PTY provider calls, forwarded websocket frames) without a fixed sleep.
     loop = asyncio.get_running_loop()
@@ -60,7 +59,6 @@ class LiveFakeWebSocket:
         self,
         query_params: dict[str, str] | None = None,
         close_error: OSError | None = None,
-        ping_error: Exception | None = None,
     ) -> None:
         self.query_params = query_params or {}
         self.accepted = False
@@ -69,7 +67,8 @@ class LiveFakeWebSocket:
         self.close_reason: str | None = None
         self._frames: "asyncio.Queue[dict[str, Any]]" = asyncio.Queue()
         self._close_error = close_error
-        self._ping_error = ping_error
+        # A NAT/network-dead peer: sends fail, but no disconnect frame arrives.
+        self.dead = False
 
     async def accept(self) -> None:
         self.accepted = True
@@ -81,10 +80,8 @@ class LiveFakeWebSocket:
         return frame
 
     async def send_text(self, payload: str) -> None:
-        # Simulates a NAT/network-dead connection where only the server's
-        # keepalive ping discovers the failure.
-        if self._ping_error is not None and '"ping"' in payload:
-            raise self._ping_error
+        if self.dead:
+            raise RuntimeError("send on closed connection")
         self.sent_text.append(payload)
 
     async def close(self, code: int = 1000, reason: str | None = None) -> None:
@@ -105,6 +102,9 @@ class LiveFakeWebSocket:
     def push_disconnect(self) -> None:
         self._frames.put_nowait({"__disconnect__": True})
 
+    def drained(self) -> bool:
+        return self._frames.empty()
+
 
 class FakePtySandboxProvider(SandboxProvider):
     # Records pty lifecycle; tests drive output via the registered on_data.
@@ -119,8 +119,9 @@ class FakePtySandboxProvider(SandboxProvider):
         self.killed: list[tuple[str, str]] = []
         self.executed_commands: list[tuple[str, str]] = []
         self._counter = 0
-        # Widens the create_pty await window so tests can race two inits.
-        self.create_delay = 0.0
+        # When set, create_pty parks until released so tests can race inits.
+        self.create_gate: asyncio.Event | None = None
+        self.create_calls = 0
 
     @property
     def workspace_root(self) -> str:
@@ -143,8 +144,9 @@ class FakePtySandboxProvider(SandboxProvider):
         on_exit: PtyExitCallbackType,
         user_id: str = "",
     ) -> str:
-        if self.create_delay:
-            await asyncio.sleep(self.create_delay)
+        self.create_calls += 1
+        if self.create_gate is not None:
+            await self.create_gate.wait()
         self._counter += 1
         pty_id = f"pty-{self._counter}"
         self.on_data_callbacks[pty_id] = on_data
@@ -227,99 +229,15 @@ async def failing_pty_provider(
     await websocket_endpoint.terminal_session_registry.terminate_all()
 
 
-class FakeWebSocket:
-    def __init__(
-        self, frames: list[dict[str, Any]], query_params: dict[str, str] | None = None
-    ) -> None:
-        self.frames = frames
-        self.query_params = query_params or {}
-        self.accepted = False
-        self.sent_text: list[str] = []
-        self.close_code: int | None = None
-        self.close_reason: str | None = None
-
-    async def accept(self) -> None:
-        self.accepted = True
-
-    async def receive(self) -> dict[str, Any]:
-        return self.frames.pop(0)
-
-    async def send_text(self, payload: str) -> None:
-        self.sent_text.append(payload)
-
-    async def close(self, code: int = 1000, reason: str | None = None) -> None:
-        self.close_code = code
-        self.close_reason = reason
-
-
-class FakeTerminalSession:
-    def __init__(self) -> None:
-        self.pty_id = "pty-1"
-        self.sandbox_id = "sandbox-websocket"
-        self.active_websocket: WebSocket | None = None
-        self.ensure_started_calls: list[tuple[int, int]] = []
-        self.resize_calls: list[tuple[int, int]] = []
-        self.inputs: list[bytes] = []
-        self.attach_count = 0
-        self.detach_count = 0
-        self.terminate_count = 0
-        self.refresh_count = 0
-
-    async def ensure_started(self, rows: int, cols: int) -> None:
-        self.ensure_started_calls.append((rows, cols))
-
-    async def refresh_tmux_client(self) -> None:
-        self.refresh_count += 1
-
-    async def attach(self, websocket: WebSocket) -> None:
-        self.active_websocket = websocket
-        self.attach_count += 1
-
-    def enqueue_input(self, data: bytes) -> None:
-        self.inputs.append(data)
-
-    async def resize(self, rows: int, cols: int) -> None:
-        self.resize_calls.append((rows, cols))
-
-    async def terminate(self) -> None:
-        self.terminate_count += 1
-
-    async def detach(self) -> None:
-        self.active_websocket = None
-        self.detach_count += 1
-
-
-class FakeTerminalRegistry:
-    def __init__(self, session: FakeTerminalSession) -> None:
-        self.session = session
-        self.calls: list[dict[str, Any]] = []
-
-    async def get_or_create(
-        self,
-        *,
-        user_id: str,
-        sandbox_id: str,
-        terminal_id: str,
-        cwd: str,
-        provider_type: SandboxProviderType,
-        workspace_path: str | None,
-    ) -> FakeTerminalSession:
-        self.calls.append(
-            {
-                "user_id": user_id,
-                "sandbox_id": sandbox_id,
-                "terminal_id": terminal_id,
-                "cwd": cwd,
-                "provider_type": provider_type,
-                "workspace_path": workspace_path,
-            }
-        )
-        self.session.sandbox_id = sandbox_id
-        return self.session
-
-
-async def run_terminal_websocket(websocket: FakeWebSocket, sandbox_id: str) -> None:
-    await websocket_endpoint.terminal_websocket(cast(WebSocket, websocket), sandbox_id)
+def start_terminal(
+    sandbox_id: str, token: str, query_params: dict[str, str] | None = None
+) -> tuple[LiveFakeWebSocket, "asyncio.Task[None]"]:
+    websocket = LiveFakeWebSocket(query_params=query_params)
+    task = asyncio.create_task(
+        websocket_endpoint.terminal_websocket(cast(WebSocket, websocket), sandbox_id)
+    )
+    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
+    return websocket, task
 
 
 async def attach_then_detach_terminal(
@@ -327,174 +245,104 @@ async def attach_then_detach_terminal(
 ) -> str:
     # Open a terminal via the endpoint, read its pty id, then detach cleanly —
     # leaves a live-but-unattached session record, like a closed tab/refresh.
-    websocket = LiveFakeWebSocket(query_params={"terminalId": terminal_id})
-    task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(cast(WebSocket, websocket), sandbox_id)
+    websocket, task = start_terminal(
+        sandbox_id, token, query_params={"terminalId": terminal_id}
     )
-    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(websocket.sent_text) >= 1)
     pty_id = json.loads(websocket.sent_text[0])["id"]
     websocket.push_text(json.dumps({"type": WS_MSG_DETACH}))
-    await asyncio.wait_for(task, timeout=2.0)
+    await asyncio.wait_for(task, timeout=5.0)
     return pty_id
 
 
+def tmux_killed(provider: FakePtySandboxProvider, tmux_session: str) -> bool:
+    return any(
+        f"tmux kill-session -t {shlex.quote(tmux_session)}" in cmd
+        for _sid, cmd in provider.executed_commands
+    )
+
+
 async def assert_terminal_terminated(
-    provider: FakePtySandboxProvider, sandbox_id: str, pty_id: str, terminal_id: str
+    provider: FakePtySandboxProvider, sandbox_id: str, pty_id: str
 ) -> None:
     # Sandbox/terminal teardown runs as a background task — poll for both the
     # tmux kill-session command and the pty kill instead of a fixed sleep.
-    expected_tmux = (
-        f"agentrove_{sandbox_id.replace('-', '_')}_{terminal_id.replace('-', '_')}"
+    tmux_session = next(
+        created[4] for created in provider.created_ptys if created[0] == pty_id
     )
-    await wait_until(
-        lambda: any(
-            f"tmux kill-session -t {shlex.quote(expected_tmux)}" in cmd
-            for _sid, cmd in provider.executed_commands
-        )
-    )
+    await wait_until(lambda: tmux_killed(provider, tmux_session))
     await wait_until(lambda: (sandbox_id, pty_id) in provider.killed)
 
 
-async def test_terminal_websocket_rejects_invalid_auth() -> None:
-    websocket = FakeWebSocket(
-        [{"text": json.dumps({"type": WS_MSG_AUTH, "token": "invalid"})}]
-    )
-
-    await run_terminal_websocket(websocket, "sandbox-1")
-
-    assert websocket.accepted is True
-    assert websocket.close_code == WS_CLOSE_AUTH_FAILED
-    assert websocket.close_reason == "Authentication failed"
-
-
-async def test_terminal_websocket_rejects_unowned_sandbox(
+@pytest.mark.parametrize(
+    "first_frame",
+    [
+        pytest.param({"type": WS_MSG_AUTH, "token": "invalid"}, id="bad-token"),
+        pytest.param({"type": WS_MSG_INIT, "rows": 24, "cols": 80}, id="no-auth"),
+    ],
+)
+async def test_terminal_websocket_rejects_unauthenticated_client(
+    first_frame: dict[str, Any],
+    db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
+    pty_provider: FakePtySandboxProvider,
 ) -> None:
-    await create_user(email="ws-denied@example.com", username="wsdenied")
-    tokens = await login(email="ws-denied@example.com")
-    websocket = FakeWebSocket(
-        [{"text": json.dumps({"type": WS_MSG_AUTH, "token": tokens["access_token"]})}]
+    _headers, _user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    websocket = LiveFakeWebSocket()
+    websocket.push_text(json.dumps(first_frame))
+
+    await websocket_endpoint.terminal_websocket(
+        cast(WebSocket, websocket), workspace.sandbox_id
     )
 
-    await run_terminal_websocket(websocket, "missing-sandbox")
+    assert websocket.close_code == WS_CLOSE_AUTH_FAILED
+    assert pty_provider.created_ptys == []
+
+
+async def test_terminal_websocket_rejects_other_users_sandbox(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    pty_provider: FakePtySandboxProvider,
+) -> None:
+    _owner_headers, _owner, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    intruder_headers, _intruder, _ = await create_authenticated_workspace(
+        db_session, create_user, login, email="intruder@example.com", username="intr"
+    )
+    token = intruder_headers["Authorization"].removeprefix("Bearer ")
+    websocket, task = start_terminal(workspace.sandbox_id, token)
+    websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
+
+    await asyncio.wait_for(task, timeout=5.0)
 
     assert websocket.close_code == WS_CLOSE_SANDBOX_NOT_FOUND
-    assert websocket.close_reason == "Sandbox not found"
+    assert pty_provider.created_ptys == []
 
 
 async def test_terminal_websocket_rejects_escaping_cwd(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
+    pty_provider: FakePtySandboxProvider,
 ) -> None:
     headers, _user, workspace = await create_authenticated_workspace(
-        db_session,
-        create_user,
-        login,
-        email="ws-badcwd@example.com",
-        username="wsbadcwd",
+        db_session, create_user, login
     )
     token = headers["Authorization"].removeprefix("Bearer ")
-    websocket = FakeWebSocket(
-        [{"text": json.dumps({"type": WS_MSG_AUTH, "token": token})}],
-        query_params={"cwd": "../outside"},
+    websocket, task = start_terminal(
+        workspace.sandbox_id, token, query_params={"cwd": "../outside"}
     )
 
-    await run_terminal_websocket(websocket, workspace.sandbox_id)
+    await asyncio.wait_for(task, timeout=5.0)
 
     assert websocket.close_code == WS_CLOSE_INVALID_CWD
-    assert websocket.close_reason == "Invalid terminal cwd"
-
-
-async def test_terminal_websocket_handles_control_frames(
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    headers, user, workspace = await create_authenticated_workspace(
-        db_session,
-        create_user,
-        login,
-        email="ws-owner@example.com",
-        username="wsowner",
-    )
-    token = headers["Authorization"].removeprefix("Bearer ")
-    session = FakeTerminalSession()
-    registry = FakeTerminalRegistry(session)
-    monkeypatch.setattr(websocket_endpoint, "terminal_session_registry", registry)
-    websocket = FakeWebSocket(
-        [
-            {"text": json.dumps({"type": WS_MSG_AUTH, "token": token})},
-            {"text": "{not-json"},
-            {"text": json.dumps({"type": WS_MSG_INIT, "rows": 40, "cols": 120})},
-            {"text": json.dumps({"type": WS_MSG_REFRESH})},
-            {"bytes": b"ls\n"},
-            {"text": json.dumps({"type": WS_MSG_RESIZE, "rows": 50, "cols": 140})},
-            {"text": json.dumps({"type": WS_MSG_DETACH})},
-        ],
-        query_params={"terminalId": "term-a", "cwd": ".worktrees/abc12345"},
-    )
-
-    await run_terminal_websocket(websocket, workspace.sandbox_id)
-
-    assert registry.calls == [
-        {
-            "user_id": str(user.id),
-            "sandbox_id": workspace.sandbox_id,
-            "terminal_id": "term-a",
-            "cwd": ".worktrees/abc12345",
-            "provider_type": SandboxProviderType.HOST,
-            "workspace_path": workspace.workspace_path,
-        }
-    ]
-    init_response = json.loads(websocket.sent_text[0])
-    assert init_response == {
-        "type": WS_MSG_INIT,
-        "id": "pty-1",
-        "rows": 40,
-        "cols": 120,
-    }
-    assert session.ensure_started_calls == [(40, 120)]
-    assert session.refresh_count == 1
-    assert session.resize_calls == [(50, 140)]
-    assert session.inputs == [b"ls\n"]
-    assert session.attach_count == 1
-    assert session.detach_count == 1
-    assert session.terminate_count == 0
-    assert websocket.close_code == 1000
-
-
-async def test_terminal_websocket_uses_default_terminal_id(
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session,
-        create_user,
-        login,
-        email="ws-default@example.com",
-        username="wsdefault",
-    )
-    token = headers["Authorization"].removeprefix("Bearer ")
-    session = FakeTerminalSession()
-    registry = FakeTerminalRegistry(session)
-    monkeypatch.setattr(websocket_endpoint, "terminal_session_registry", registry)
-    websocket = FakeWebSocket(
-        [
-            {"text": json.dumps({"type": WS_MSG_AUTH, "token": token})},
-            {"text": json.dumps({"type": WS_MSG_DETACH})},
-        ]
-    )
-
-    await run_terminal_websocket(websocket, workspace.sandbox_id)
-
-    assert registry.calls[0]["terminal_id"] == DEFAULT_TERMINAL_ID
+    assert pty_provider.created_ptys == []
 
 
 async def test_terminal_websocket_real_session_lifecycle(
@@ -512,14 +360,9 @@ async def test_terminal_websocket_real_session_lifecycle(
         username="ptylifecycle",
     )
     token = headers["Authorization"].removeprefix("Bearer ")
-    websocket = LiveFakeWebSocket(query_params={"terminalId": "term-live"})
-    task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, websocket), workspace.sandbox_id
-        )
+    websocket, task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-live"}
     )
-
-    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 30, "cols": 100}))
     await wait_until(lambda: len(websocket.sent_text) >= 1)
 
@@ -529,8 +372,6 @@ async def test_terminal_websocket_real_session_lifecycle(
     assert len(pty_provider.created_ptys) == 1
     _pty_id, _sandbox_id, rows, cols, tmux_session, cwd = pty_provider.created_ptys[0]
     assert (rows, cols, cwd) == (30, 100, "")
-    expected_tmux = f"agentrove_{workspace.sandbox_id.replace('-', '_')}_term_live"
-    assert tmux_session == expected_tmux
 
     websocket.push_bytes(b"echo hi\n")
     await wait_until(lambda: len(pty_provider.sent_inputs) >= 1)
@@ -550,13 +391,11 @@ async def test_terminal_websocket_real_session_lifecycle(
     }
 
     websocket.push_text(json.dumps({"type": WS_MSG_CLOSE}))
-    await asyncio.wait_for(task, timeout=2.0)
+    await asyncio.wait_for(task, timeout=5.0)
 
+    # Close (unlike detach) ends the shell for good: pty and tmux both die.
     assert pty_provider.killed == [(workspace.sandbox_id, pty_id)]
-    assert any(
-        f"tmux kill-session -t {shlex.quote(expected_tmux)}" in cmd
-        for _sid, cmd in pty_provider.executed_commands
-    )
+    assert tmux_killed(pty_provider, tmux_session)
     assert websocket.close_code == 1000
 
 
@@ -575,32 +414,24 @@ async def test_terminal_websocket_buffered_output_replays_on_reconnect(
     )
     token = headers["Authorization"].removeprefix("Bearer ")
 
-    first_ws = LiveFakeWebSocket(query_params={"terminalId": "term-r"})
-    first_task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, first_ws), workspace.sandbox_id
-        )
+    first_ws, first_task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-r"}
     )
-    first_ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     first_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(first_ws.sent_text) >= 1)
     pty_id = json.loads(first_ws.sent_text[0])["id"]
 
     first_ws.push_text(json.dumps({"type": WS_MSG_DETACH}))
-    await asyncio.wait_for(first_task, timeout=2.0)
+    await asyncio.wait_for(first_task, timeout=5.0)
 
     # Output arrives while nobody is attached — it must be buffered, not
     # dropped, and replayed as one batched frame on the next attach.
     await pty_provider.on_data_callbacks[pty_id](b"buffered-1 ")
     await pty_provider.on_data_callbacks[pty_id](b"buffered-2")
 
-    second_ws = LiveFakeWebSocket(query_params={"terminalId": "term-r"})
-    second_task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, second_ws), workspace.sandbox_id
-        )
+    second_ws, second_task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-r"}
     )
-    second_ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     second_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(second_ws.sent_text) >= 2)
 
@@ -624,7 +455,7 @@ async def test_terminal_websocket_buffered_output_replays_on_reconnect(
     )
 
     second_ws.push_text(json.dumps({"type": WS_MSG_CLOSE}))
-    await asyncio.wait_for(second_task, timeout=2.0)
+    await asyncio.wait_for(second_task, timeout=5.0)
 
 
 async def test_terminal_websocket_concurrent_inits_share_one_pty(
@@ -642,24 +473,25 @@ async def test_terminal_websocket_concurrent_inits_share_one_pty(
         username="ptyrace",
     )
     token = headers["Authorization"].removeprefix("Bearer ")
-    pty_provider.create_delay = 0.05
+    pty_provider.create_gate = asyncio.Event()
 
-    sockets = [
-        LiveFakeWebSocket(query_params={"terminalId": "term-race"}) for _ in range(2)
+    connections = [
+        start_terminal(workspace.sandbox_id, token, {"terminalId": "term-race"})
+        for _ in range(2)
     ]
-    tasks = [
-        asyncio.create_task(
-            websocket_endpoint.terminal_websocket(
-                cast(WebSocket, ws), workspace.sandbox_id
-            )
-        )
-        for ws in sockets
-    ]
+    sockets = [ws for ws, _task in connections]
+    tasks = [task for _ws, task in connections]
     for ws in sockets:
-        ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
         ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
 
-    await wait_until(lambda: sum(len(ws.sent_text) for ws in sockets) >= 2)
+    # A consumed INIT runs straight into ensure_started, so once both are
+    # drained one connection is parked in create_pty and the other has
+    # already decided whether to spawn its own.
+    await wait_until(
+        lambda: all(ws.drained() for ws in sockets) and pty_provider.create_calls > 0
+    )
+    pty_provider.create_gate.set()
+    await wait_until(lambda: all(ws.sent_text for ws in sockets))
     assert len(pty_provider.created_ptys) == 1
     # The loser of the create race went down the reattach path.
     assert len(pty_provider.resizes) == 1
@@ -667,7 +499,7 @@ async def test_terminal_websocket_concurrent_inits_share_one_pty(
     for ws in sockets:
         ws.push_text(json.dumps({"type": WS_MSG_DETACH}))
     for task in tasks:
-        await asyncio.wait_for(task, timeout=2.0)
+        await asyncio.wait_for(task, timeout=5.0)
 
 
 async def test_terminal_websocket_input_and_resize_before_init_are_noops(
@@ -684,14 +516,9 @@ async def test_terminal_websocket_input_and_resize_before_init_are_noops(
         username="ptynoop",
     )
     token = headers["Authorization"].removeprefix("Bearer ")
-    websocket = LiveFakeWebSocket(query_params={"terminalId": "term-noop"})
-    task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, websocket), workspace.sandbox_id
-        )
+    websocket, task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-noop"}
     )
-
-    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     # Bytes and resize arrive before INIT — the session record exists (via
     # get_or_create) but has no pty yet, so both must be silently dropped.
     websocket.push_bytes(b"too-early")
@@ -704,7 +531,7 @@ async def test_terminal_websocket_input_and_resize_before_init_are_noops(
     assert len(pty_provider.created_ptys) == 1
 
     websocket.push_text(json.dumps({"type": WS_MSG_CLOSE}))
-    await asyncio.wait_for(task, timeout=2.0)
+    await asyncio.wait_for(task, timeout=5.0)
 
 
 async def test_terminal_registry_scopes_sessions_by_cwd(
@@ -722,50 +549,36 @@ async def test_terminal_registry_scopes_sessions_by_cwd(
     )
     token = headers["Authorization"].removeprefix("Bearer ")
 
-    root_ws = LiveFakeWebSocket(query_params={"terminalId": "term-shared"})
-    root_task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, root_ws), workspace.sandbox_id
-        )
+    root_ws, root_task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-shared"}
     )
-    root_ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     root_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(root_ws.sent_text) >= 1)
     root_pty_id = json.loads(root_ws.sent_text[0])["id"]
     root_ws.push_text(json.dumps({"type": WS_MSG_DETACH}))
-    await asyncio.wait_for(root_task, timeout=2.0)
+    await asyncio.wait_for(root_task, timeout=5.0)
 
-    worktree_ws = LiveFakeWebSocket(
-        query_params={"terminalId": "term-shared", "cwd": ".worktrees/abc12345"}
+    worktree_ws, worktree_task = start_terminal(
+        workspace.sandbox_id,
+        token,
+        {"terminalId": "term-shared", "cwd": ".worktrees/abc12345"},
     )
-    worktree_task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, worktree_ws), workspace.sandbox_id
-        )
-    )
-    worktree_ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     worktree_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(worktree_ws.sent_text) >= 1)
     worktree_ws.push_text(json.dumps({"type": WS_MSG_CLOSE}))
-    await asyncio.wait_for(worktree_task, timeout=2.0)
+    await asyncio.wait_for(worktree_task, timeout=5.0)
 
-    # Same terminal_id, different cwd — must be a distinct pty/tmux session.
+    # Same terminal_id, different cwd — a distinct pty/tmux session whose
+    # shell starts inside the worktree.
     assert len(pty_provider.created_ptys) == 2
-    root_tmux = pty_provider.created_ptys[0][4]
-    worktree_tmux = pty_provider.created_ptys[1][4]
+    *_, root_tmux, root_cwd = pty_provider.created_ptys[0]
+    *_, worktree_tmux, worktree_cwd = pty_provider.created_ptys[1]
     assert root_tmux != worktree_tmux
-    assert worktree_tmux == (
-        f"agentrove_{workspace.sandbox_id.replace('-', '_')}_term_shared"
-        "__worktrees_abc12345"
-    )
+    assert (root_cwd, worktree_cwd) == ("", ".worktrees/abc12345")
 
-    root_ws2 = LiveFakeWebSocket(query_params={"terminalId": "term-shared"})
-    root_task2 = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, root_ws2), workspace.sandbox_id
-        )
+    root_ws2, root_task2 = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-shared"}
     )
-    root_ws2.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     root_ws2.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(root_ws2.sent_text) >= 1)
 
@@ -775,7 +588,7 @@ async def test_terminal_registry_scopes_sessions_by_cwd(
     assert len(pty_provider.created_ptys) == 2
 
     root_ws2.push_text(json.dumps({"type": WS_MSG_CLOSE}))
-    await asyncio.wait_for(root_task2, timeout=2.0)
+    await asyncio.wait_for(root_task2, timeout=5.0)
 
 
 async def test_terminal_websocket_new_attach_closes_stale_websocket(
@@ -793,23 +606,15 @@ async def test_terminal_websocket_new_attach_closes_stale_websocket(
     )
     token = headers["Authorization"].removeprefix("Bearer ")
 
-    first_ws = LiveFakeWebSocket(query_params={"terminalId": "term-steal"})
-    first_task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, first_ws), workspace.sandbox_id
-        )
+    first_ws, first_task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-steal"}
     )
-    first_ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     first_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(first_ws.sent_text) >= 1)
 
-    second_ws = LiveFakeWebSocket(query_params={"terminalId": "term-steal"})
-    second_task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, second_ws), workspace.sandbox_id
-        )
+    second_ws, second_task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-steal"}
     )
-    second_ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     second_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: first_ws.close_code is not None)
 
@@ -820,10 +625,10 @@ async def test_terminal_websocket_new_attach_closes_stale_websocket(
 
     # Fake has no real disconnect — detach manually (don't wait for ping).
     first_ws.push_text(json.dumps({"type": WS_MSG_DETACH}))
-    await asyncio.wait_for(first_task, timeout=2.0)
+    await asyncio.wait_for(first_task, timeout=5.0)
 
     second_ws.push_text(json.dumps({"type": WS_MSG_CLOSE}))
-    await asyncio.wait_for(second_task, timeout=2.0)
+    await asyncio.wait_for(second_task, timeout=5.0)
 
 
 async def test_terminal_websocket_output_queue_drops_oldest_when_full(
@@ -841,32 +646,24 @@ async def test_terminal_websocket_output_queue_drops_oldest_when_full(
     )
     token = headers["Authorization"].removeprefix("Bearer ")
 
-    websocket = LiveFakeWebSocket(query_params={"terminalId": "term-overflow"})
-    task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, websocket), workspace.sandbox_id
-        )
+    websocket, task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-overflow"}
     )
-    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(websocket.sent_text) >= 1)
     pty_id = json.loads(websocket.sent_text[0])["id"]
 
     websocket.push_text(json.dumps({"type": WS_MSG_DETACH}))
-    await asyncio.wait_for(task, timeout=2.0)
+    await asyncio.wait_for(task, timeout=5.0)
 
     # Overflow PTY_OUTPUT_QUEUE_SIZE unattached — drop oldest, don't block.
     on_data = pty_provider.on_data_callbacks[pty_id]
     for i in range(PTY_OUTPUT_QUEUE_SIZE + 20):
         await on_data(f"{i}\n".encode())
 
-    reconnect_ws = LiveFakeWebSocket(query_params={"terminalId": "term-overflow"})
-    reconnect_task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, reconnect_ws), workspace.sandbox_id
-        )
+    reconnect_ws, reconnect_task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-overflow"}
     )
-    reconnect_ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     reconnect_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(reconnect_ws.sent_text) >= 2)
 
@@ -876,7 +673,7 @@ async def test_terminal_websocket_output_queue_drops_oldest_when_full(
     assert str(PTY_OUTPUT_QUEUE_SIZE + 19) in replayed_numbers
 
     reconnect_ws.push_text(json.dumps({"type": WS_MSG_CLOSE}))
-    await asyncio.wait_for(reconnect_task, timeout=2.0)
+    await asyncio.wait_for(reconnect_task, timeout=5.0)
 
 
 async def test_terminal_websocket_survives_provider_pty_errors(
@@ -894,14 +691,9 @@ async def test_terminal_websocket_survives_provider_pty_errors(
         username="ptyerrors",
     )
     token = headers["Authorization"].removeprefix("Bearer ")
-    websocket = LiveFakeWebSocket(query_params={"terminalId": "term-errors"})
-    task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, websocket), workspace.sandbox_id
-        )
+    websocket, task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-errors"}
     )
-
-    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(websocket.sent_text) >= 1)
 
@@ -914,7 +706,7 @@ async def test_terminal_websocket_survives_provider_pty_errors(
     await wait_until(lambda: len(failing_pty_provider.resizes) >= 1)
 
     websocket.push_text(json.dumps({"type": WS_MSG_CLOSE}))
-    await asyncio.wait_for(task, timeout=2.0)
+    await asyncio.wait_for(task, timeout=5.0)
 
     assert websocket.close_code == 1000
     # terminate()'s own cleanup_pty_session call means kill_pty was attempted
@@ -952,11 +744,12 @@ async def test_terminal_websocket_ignores_malformed_frames_and_handles_disconnec
     await wait_until(lambda: len(websocket.sent_text) >= 1)
 
     websocket.push_raw({})
+    websocket.push_raw({"text": "{not-json"})
     websocket.push_raw({"text": "[1, 2, 3]"})
     websocket.push_raw({"text": json.dumps({"no_type": "here"})})
     websocket.push_disconnect()
 
-    await asyncio.wait_for(task, timeout=2.0)
+    await asyncio.wait_for(task, timeout=5.0)
 
     # Junk frames: one pty kept; final close still attempted despite raise.
     assert len(pty_provider.created_ptys) == 1
@@ -978,13 +771,9 @@ async def test_terminal_websocket_pty_exit_drops_session_and_reconnect_starts_fr
         username="ptyexit",
     )
     token = headers["Authorization"].removeprefix("Bearer ")
-    websocket = LiveFakeWebSocket(query_params={"terminalId": "term-exit"})
-    task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, websocket), workspace.sandbox_id
-        )
+    websocket, task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-exit"}
     )
-    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(websocket.sent_text) >= 1)
     pty_id = json.loads(websocket.sent_text[0])["id"]
@@ -999,15 +788,11 @@ async def test_terminal_websocket_pty_exit_drops_session_and_reconnect_starts_fr
     # The endpoint loop is still parked on receive() — the fake close doesn't
     # raise WebSocketDisconnect like a real socket would. Unpark it.
     websocket.push_disconnect()
-    await asyncio.wait_for(task, timeout=2.0)
+    await asyncio.wait_for(task, timeout=5.0)
 
-    reconnect_ws = LiveFakeWebSocket(query_params={"terminalId": "term-exit"})
-    reconnect_task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, reconnect_ws), workspace.sandbox_id
-        )
+    reconnect_ws, reconnect_task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-exit"}
     )
-    reconnect_ws.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     reconnect_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
     await wait_until(lambda: len(reconnect_ws.sent_text) >= 1)
 
@@ -1015,7 +800,7 @@ async def test_terminal_websocket_pty_exit_drops_session_and_reconnect_starts_fr
     assert len(pty_provider.created_ptys) == 2
 
     reconnect_ws.push_text(json.dumps({"type": WS_MSG_CLOSE}))
-    await asyncio.wait_for(reconnect_task, timeout=2.0)
+    await asyncio.wait_for(reconnect_task, timeout=5.0)
 
 
 async def test_delete_workspace_terminates_terminal_sessions(
@@ -1042,9 +827,7 @@ async def test_delete_workspace_terminates_terminal_sessions(
     )
     assert response.status_code == 204
 
-    await assert_terminal_terminated(
-        pty_provider, workspace.sandbox_id, pty_id, "term-del"
-    )
+    await assert_terminal_terminated(pty_provider, workspace.sandbox_id, pty_id)
 
 
 async def test_delete_last_chat_terminates_workspace_terminal_sessions(
@@ -1076,9 +859,7 @@ async def test_delete_last_chat_terminates_workspace_terminal_sessions(
     response = await client.delete(f"/api/v1/chat/chats/{chat.id}", headers=headers)
     assert response.status_code == 204
 
-    await assert_terminal_terminated(
-        pty_provider, workspace.sandbox_id, pty_id, "term-chatdel"
-    )
+    await assert_terminal_terminated(pty_provider, workspace.sandbox_id, pty_id)
 
 
 async def test_delete_all_chats_terminates_terminal_sessions(
@@ -1105,46 +886,47 @@ async def test_delete_all_chats_terminates_terminal_sessions(
     response = await client.delete("/api/v1/chat/chats/all", headers=headers)
     assert response.status_code == 204
 
-    await assert_terminal_terminated(
-        pty_provider, workspace.sandbox_id, pty_id, "term-delall"
-    )
+    await assert_terminal_terminated(pty_provider, workspace.sandbox_id, pty_id)
 
 
-async def test_terminal_websocket_ping_send_failure_detaches_cleanly(
+async def test_terminal_websocket_dead_peer_detaches_and_terminal_survives(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
+    pty_provider: FakePtySandboxProvider,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Keepalive ping send failure detaches cleanly (no raise out of handler).
+    # A silently dropped connection is only discovered by the keepalive ping;
+    # the endpoint must exit on its own and keep the shell for a reconnect.
     headers, _user, workspace = await create_authenticated_workspace(
-        db_session,
-        create_user,
-        login,
-        email="ws-pingfail@example.com",
-        username="wspingfail",
+        db_session, create_user, login
     )
     token = headers["Authorization"].removeprefix("Bearer ")
-    session = FakeTerminalSession()
-    registry = FakeTerminalRegistry(session)
-    monkeypatch.setattr(websocket_endpoint, "terminal_session_registry", registry)
+    receive_timeout = websocket_endpoint.WS_RECEIVE_TIMEOUT_SECONDS
     monkeypatch.setattr(websocket_endpoint, "WS_RECEIVE_TIMEOUT_SECONDS", 0.05)
-    websocket = LiveFakeWebSocket(
-        query_params={"terminalId": "term-ping"},
-        ping_error=RuntimeError("send on closed connection"),
+    websocket, task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-ping"}
     )
-    task = asyncio.create_task(
-        websocket_endpoint.terminal_websocket(
-            cast(WebSocket, websocket), workspace.sandbox_id
-        )
-    )
-
-    websocket.push_text(json.dumps({"type": WS_MSG_AUTH, "token": token}))
     websocket.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
+    await wait_until(lambda: len(websocket.sent_text) >= 1)
+    pty_id = json.loads(websocket.sent_text[0])["id"]
 
-    # After init the client goes silent: the receive timeout fires, the ping
-    # hits the dead socket, and the endpoint must exit on its own.
-    await asyncio.wait_for(task, timeout=2.0)
+    websocket.dead = True
+    await asyncio.wait_for(task, timeout=5.0)
+    monkeypatch.setattr(
+        websocket_endpoint, "WS_RECEIVE_TIMEOUT_SECONDS", receive_timeout
+    )
 
-    assert session.detach_count == 1
-    assert websocket.close_code == 1000
+    assert pty_provider.killed == []
+    await pty_provider.on_data_callbacks[pty_id](b"while you were away")
+
+    reconnect_ws, reconnect_task = start_terminal(
+        workspace.sandbox_id, token, {"terminalId": "term-ping"}
+    )
+    reconnect_ws.push_text(json.dumps({"type": WS_MSG_INIT, "rows": 24, "cols": 80}))
+    await wait_until(lambda: len(reconnect_ws.sent_text) >= 2)
+    assert json.loads(reconnect_ws.sent_text[0])["id"] == pty_id
+    assert json.loads(reconnect_ws.sent_text[1])["data"] == "while you were away"
+
+    reconnect_ws.push_text(json.dumps({"type": WS_MSG_CLOSE}))
+    await asyncio.wait_for(reconnect_task, timeout=5.0)

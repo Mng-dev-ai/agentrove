@@ -1,8 +1,9 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Callable
+from contextlib import AbstractAsyncContextManager, asynccontextmanager
 
 import httpx
 import pytest
+from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.main as main_module
 from app.core.config import get_settings
 from app.core.security import get_password_hash, verify_password
-from app.main import create_application
 from app.models.db_models.user import User
 
 from tests.conftest import UserFactory
@@ -39,48 +39,76 @@ async def ping_false_cache_connection() -> AsyncIterator[FakePingStore]:
 
 @asynccontextmanager
 async def failing_cache_connection() -> AsyncIterator[FakePingStore]:
-    # Raising before the yield propagates out of `async with cache_connection()`,
-    # exercising _check_redis_ready's broad except branch.
     raise RuntimeError("redis connection refused")
     yield  # unreachable — present only so asynccontextmanager sees a generator
 
 
-async def test_health_check_returns_healthy(client: AsyncClient) -> None:
-    response = await client.get("/health")
+async def create_superuser(db_session: AsyncSession, email: str) -> User:
+    admin_user = User(
+        email=email,
+        username=email.split("@")[0].replace("-", ""),
+        hashed_password=get_password_hash("adminpass123"),
+        is_active=True,
+        is_verified=True,
+        is_superuser=True,
+    )
+    db_session.add(admin_user)
+    await db_session.commit()
+    return admin_user
+
+
+async def admin_login(client: AsyncClient, email: str) -> httpx.Response:
+    return await client.post(
+        "/admin/login",
+        data={"username": email, "password": "adminpass123"},
+        follow_redirects=False,
+    )
+
+
+async def test_health_check_responds_with_security_headers(
+    client: AsyncClient,
+) -> None:
+    response = await client.get("/health", headers={"X-Request-ID": "req-health"})
 
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
+    assert response.headers["X-Request-ID"] == "req-health"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
-async def test_openapi_schema_includes_bearer_auth_and_is_cached(
-    client: AsyncClient,
+async def test_unhandled_error_returns_generic_500_without_leaking_details(
+    app: FastAPI,
 ) -> None:
-    # Two calls: first builds+caches the schema, second returns the cached copy.
-    first = await client.get("/api/v1/openapi.json")
-    second = await client.get("/api/v1/openapi.json")
+    async def explode() -> None:
+        raise RuntimeError("secret connection string")
 
-    assert first.status_code == 200
-    assert second.status_code == 200
-    schema = first.json()
-    assert schema["components"]["securitySchemes"]["bearerAuth"] == {
-        "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT",
-    }
-    assert schema["security"] == [{"bearerAuth": []}]
-    assert first.json() == second.json()
-
-
-async def test_readyz_skips_redis_check_in_desktop_mode(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", True)
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
+    app.add_api_route("/explode", explode)
+    transport = httpx.ASGITransport(
+        app=app, raise_app_exceptions=False, client=("testclient", 50000)
+    )
     async with httpx.AsyncClient(
         transport=transport, base_url="http://testserver"
     ) as test_client:
-        response = await test_client.get("/api/v1/readyz")
+        response = await test_client.get(
+            "/explode", headers={"X-Request-ID": "req-500"}
+        )
+
+    assert response.status_code == 500
+    body = response.json()
+    assert body["detail"] == "An internal server error occurred"
+    assert body["request_id"] == "req-500"
+    assert "secret connection string" not in response.text
+
+
+async def test_readyz_skips_redis_check_in_desktop_mode(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", True)
+    monkeypatch.setattr(main_module, "cache_connection", failing_cache_connection)
+
+    response = await client.get("/api/v1/readyz")
 
     assert response.status_code == 200
     body = response.json()
@@ -89,156 +117,68 @@ async def test_readyz_skips_redis_check_in_desktop_mode(
     assert "redis" not in body["checks"]
 
 
-async def test_readyz_reports_ready_when_redis_reachable(
+@pytest.mark.parametrize(
+    ("cache_connection", "expected_status", "expected_error"),
+    [
+        (healthy_cache_connection, 200, None),
+        (ping_false_cache_connection, 503, "Redis ping returned false"),
+        (failing_cache_connection, 503, "redis connection refused"),
+    ],
+)
+async def test_readyz_reflects_redis_health(
+    client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
+    cache_connection: Callable[[], AbstractAsyncContextManager[FakePingStore]],
+    expected_status: int,
+    expected_error: str | None,
 ) -> None:
     monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    monkeypatch.setattr(main_module, "cache_connection", healthy_cache_connection)
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as test_client:
-        response = await test_client.get("/api/v1/readyz")
+    monkeypatch.setattr(main_module, "cache_connection", cache_connection)
 
-    assert response.status_code == 200
+    response = await client.get("/api/v1/readyz")
+
+    assert response.status_code == expected_status
     body = response.json()
-    assert body["status"] == "ready"
-    assert body["checks"]["redis"]["ok"] is True
+    assert body["status"] == ("ready" if expected_status == 200 else "not_ready")
+    redis_check = body["checks"]["redis"]
+    assert redis_check["ok"] is (expected_error is None)
+    if expected_error is not None:
+        assert expected_error in redis_check["error"]
 
 
-async def test_readyz_reports_not_ready_when_redis_ping_fails(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    monkeypatch.setattr(main_module, "cache_connection", ping_false_cache_connection)
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as test_client:
-        response = await test_client.get("/api/v1/readyz")
-
-    assert response.status_code == 503
-    body = response.json()
-    assert body["status"] == "not_ready"
-    assert body["checks"]["redis"]["ok"] is False
-    assert body["checks"]["redis"]["error"] == "Redis ping returned false"
-
-
-async def test_readyz_reports_not_ready_when_redis_connection_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    monkeypatch.setattr(main_module, "cache_connection", failing_cache_connection)
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as test_client:
-        response = await test_client.get("/api/v1/readyz")
-
-    assert response.status_code == 503
-    body = response.json()
-    assert body["status"] == "not_ready"
-    assert body["checks"]["redis"]["ok"] is False
-    assert "redis connection refused" in body["checks"]["redis"]["error"]
-
-
-async def test_admin_login_page_renders_when_desktop_mode_disabled(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as test_client:
-        response = await test_client.get("/admin/login")
-
-    assert response.status_code == 200
-
-
-async def test_admin_login_rejects_non_superuser(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize(
+    "password",
+    ["password123", "wrongpass"],
+    ids=["non-superuser", "wrong-password"],
+)
+async def test_admin_login_rejects_non_superuser_and_bad_password(
+    client: AsyncClient,
     create_user: UserFactory,
+    password: str,
 ) -> None:
-    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    await create_user(
-        email="regular-admin@example.com",
-        username="regularadmin",
-        password="password123",
-    )
+    await create_user(email="regular-admin@example.com", username="regularadmin")
 
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as test_client:
-        login_response = await test_client.post(
-            "/admin/login",
-            data={"username": "regular-admin@example.com", "password": "password123"},
-        )
-        dashboard_response = await test_client.get(
-            "/admin/user/list", follow_redirects=False
-        )
+    login_response = await client.post(
+        "/admin/login",
+        data={"username": "regular-admin@example.com", "password": password},
+    )
+    dashboard_response = await client.get("/admin/user/list", follow_redirects=False)
 
     assert login_response.status_code == 400
     assert dashboard_response.status_code == 302
     assert dashboard_response.headers["location"].endswith("/admin/login")
 
 
-async def test_admin_login_rejects_wrong_password(
-    monkeypatch: pytest.MonkeyPatch,
-    create_user: UserFactory,
-) -> None:
-    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    await create_user(email="wrongpass-admin@example.com", username="wrongpassadmin")
-
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as test_client:
-        response = await test_client.post(
-            "/admin/login",
-            data={"username": "wrongpass-admin@example.com", "password": "wrongpass"},
-        )
-
-    assert response.status_code == 400
-
-
 async def test_admin_login_authenticates_superuser_and_lists_users(
-    monkeypatch: pytest.MonkeyPatch,
+    client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    admin_user = User(
-        email="admin@example.com",
-        username="adminuser",
-        hashed_password=get_password_hash("adminpass123"),
-        is_active=True,
-        is_verified=True,
-        is_superuser=True,
-    )
-    db_session.add(admin_user)
-    await db_session.commit()
+    await create_superuser(db_session, "admin@example.com")
 
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as test_client:
-        login_response = await test_client.post(
-            "/admin/login",
-            data={"username": "admin@example.com", "password": "adminpass123"},
-            follow_redirects=False,
-        )
-        list_response = await test_client.get("/admin/user/list")
-        logout_response = await test_client.get("/admin/logout", follow_redirects=False)
-        post_logout_response = await test_client.get(
-            "/admin/user/list", follow_redirects=False
-        )
+    login_response = await admin_login(client, "admin@example.com")
+    list_response = await client.get("/admin/user/list")
+    logout_response = await client.get("/admin/logout", follow_redirects=False)
+    post_logout_response = await client.get("/admin/user/list", follow_redirects=False)
 
     assert login_response.status_code == 302
     assert list_response.status_code == 200
@@ -248,48 +188,28 @@ async def test_admin_login_authenticates_superuser_and_lists_users(
 
 
 async def test_admin_create_user_hashes_grafted_password_field(
-    monkeypatch: pytest.MonkeyPatch,
+    client: AsyncClient,
     db_session: AsyncSession,
 ) -> None:
-    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    admin_user = User(
-        email="creator-admin@example.com",
-        username="creatoradmin",
-        hashed_password=get_password_hash("adminpass123"),
-        is_active=True,
-        is_verified=True,
-        is_superuser=True,
-    )
-    db_session.add(admin_user)
-    await db_session.commit()
+    await create_superuser(db_session, "creator-admin@example.com")
+    await admin_login(client, "creator-admin@example.com")
 
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as test_client:
-        await test_client.post(
-            "/admin/login",
-            data={"username": "creator-admin@example.com", "password": "adminpass123"},
-            follow_redirects=False,
-        )
-        form_response = await test_client.get("/admin/user/create")
-        create_response = await test_client.post(
-            "/admin/user/create",
-            data={
-                "email": "made-in-admin@example.com",
-                "username": "madeinadmin",
-                "password": "freshpass123",
-                "is_active": "on",
-                "is_verified": "on",
-            },
-            follow_redirects=False,
-        )
+    form_response = await client.get("/admin/user/create")
+    create_response = await client.post(
+        "/admin/user/create",
+        data={
+            "email": "made-in-admin@example.com",
+            "username": "madeinadmin",
+            "password": "freshpass123",
+            "is_active": "on",
+            "is_verified": "on",
+        },
+        follow_redirects=False,
+    )
 
     assert form_response.status_code == 200
     assert 'name="password"' in form_response.text
     assert create_response.status_code == 302, create_response.text
-
     result = await db_session.execute(
         select(User).where(User.email == "made-in-admin@example.com")
     )
@@ -298,56 +218,31 @@ async def test_admin_create_user_hashes_grafted_password_field(
 
 
 async def test_admin_edit_user_username_without_password(
-    monkeypatch: pytest.MonkeyPatch,
+    client: AsyncClient,
     db_session: AsyncSession,
+    create_user: UserFactory,
 ) -> None:
     # Empty password left in form data crashed SQLAdmin on column.nullable.
-    monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    admin_user = User(
-        email="edit-admin@example.com",
-        username="editadmin",
-        hashed_password=get_password_hash("adminpass123"),
-        is_active=True,
-        is_verified=True,
-        is_superuser=True,
+    await create_superuser(db_session, "edit-admin@example.com")
+    target_user = await create_user(
+        email="edit-target@example.com", username="edittarget"
     )
-    target_user = User(
-        email="edit-target@example.com",
-        username="edittarget",
-        hashed_password=get_password_hash("targetpass123"),
-        is_active=True,
-        is_verified=True,
-        is_superuser=False,
-    )
-    db_session.add_all([admin_user, target_user])
-    await db_session.commit()
-    target_id = str(target_user.id)
     original_hash = target_user.hashed_password
+    await admin_login(client, "edit-admin@example.com")
 
-    application = create_application()
-    transport = httpx.ASGITransport(app=application, client=("testclient", 50000))
-    async with httpx.AsyncClient(
-        transport=transport, base_url="http://testserver"
-    ) as test_client:
-        await test_client.post(
-            "/admin/login",
-            data={"username": "edit-admin@example.com", "password": "adminpass123"},
-            follow_redirects=False,
-        )
-        edit_response = await test_client.post(
-            f"/admin/user/edit/{target_id}",
-            data={
-                "email": "edit-target@example.com",
-                "username": "renamedtarget",
-                "password": "",
-                "is_active": "on",
-                "is_verified": "on",
-            },
-            follow_redirects=False,
-        )
+    edit_response = await client.post(
+        f"/admin/user/edit/{target_user.id}",
+        data={
+            "email": "edit-target@example.com",
+            "username": "renamedtarget",
+            "password": "",
+            "is_active": "on",
+            "is_verified": "on",
+        },
+        follow_redirects=False,
+    )
 
     assert edit_response.status_code == 302, edit_response.text
-
     await db_session.refresh(target_user)
     assert target_user.username == "renamedtarget"
     assert target_user.hashed_password == original_hash

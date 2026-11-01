@@ -21,6 +21,8 @@ from app.services.sandbox_providers.types import (
     PtySize,
 )
 
+from tests.bootstrap import TEST_DIR
+
 if TYPE_CHECKING:
     from tests.conftest import LoginClient, UserFactory
 
@@ -222,7 +224,7 @@ async def create_authenticated_workspace(
         user_id=user.id,
         sandbox_id=f"sandbox-{username}",
         sandbox_provider="host",
-        workspace_path=f"/tmp/agentrove-test-{username}",
+        workspace_path=str(TEST_DIR / f"workspace-{username}"),
         source_type="empty",
         source_url=None,
     )
