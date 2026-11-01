@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useRef, ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useCallback, useRef, ReactNode } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
@@ -99,6 +99,7 @@ export function ChatPage() {
 
   const worktreeCwd = currentChat?.worktree_cwd ?? undefined;
 
+  const workspaceChatId = useUIStore((s) => s.currentWorkspaceChatId);
   const prevViewsRef = useRef<{
     views: ViewType[];
     chatId: string | undefined;
@@ -108,7 +109,7 @@ export function ChatPage() {
   });
 
   useEffect(() => {
-    if (!currentChat?.sandbox_id) return;
+    if (!currentChat?.sandbox_id || workspaceChatId !== chatId) return;
 
     const prev = prevViewsRef.current;
     prevViewsRef.current = { views: activeViews, chatId };
@@ -120,7 +121,7 @@ export function ChatPage() {
     ) {
       refetchFilesMetadata();
     }
-  }, [activeViews, chatId, currentChat?.sandbox_id, refetchFilesMetadata]);
+  }, [activeViews, chatId, workspaceChatId, currentChat?.sandbox_id, refetchFilesMetadata]);
 
   const workspaces = useWorkspacesList();
   // Cloud chats' workspaces live on the VPS, not in the local list.
@@ -151,7 +152,8 @@ export function ChatPage() {
     navigate(`/channels/${channelId}`, { replace: true });
   }, [channelId, chatId, navigate]);
 
-  if (prevChatIdForResetRef.current !== chatId) {
+  useLayoutEffect(() => {
+    if (prevChatIdForResetRef.current === chatId) return;
     prevChatIdForResetRef.current = chatId;
     const ui = useUIStore.getState();
     if (chatId) ui.loadWorkspaceForChat(chatId);
@@ -169,7 +171,7 @@ export function ChatPage() {
       focusedTile: null,
       activeAgentTile: 'agent:primary',
     });
-  }
+  }, [chatId]);
 
   const handleChatSelect = useCallback(
     (selectedChatId: string) => {
