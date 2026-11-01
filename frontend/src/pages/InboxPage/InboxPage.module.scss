@@ -107,13 +107,21 @@
 
 .row {
   @include anim.transition-colors;
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    border-color: colors.theme-color('border', 0.5);
+  }
+}
+
+.open-btn {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2-5);
   width: 100%;
   padding: var(--space-3) var(--space-2-5);
-  border-radius: var(--radius-lg);
-  border: 1px solid transparent;
   text-align: left;
 
   @include responsive.media('mobile') {
@@ -126,10 +134,20 @@
   @include responsive.media('md-up') {
     padding-block: var(--space-2);
   }
+}
+
+.footer {
+  display: flex;
+  gap: var(--space-3);
+  padding: 0 var(--space-2-5) var(--space-2) calc(var(--space-2-5) * 2 + var(--space-3-5));
+}
+
+.footer-btn {
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
 
   @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    border-color: colors.theme-color('border', 0.5);
+    color: var(--theme-text-primary);
   }
 }
 
@@ -174,9 +192,17 @@
   @include type.type-lineclamp(3);
   color: var(--theme-text-tertiary);
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 
   @include responsive.media('mobile') {
     grid-column: 2;
+  }
+
+  &--expanded {
+    display: block;
+    -webkit-line-clamp: unset;
+    line-clamp: unset;
+    overflow: visible;
   }
 }
 

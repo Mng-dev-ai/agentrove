@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { Inbox } from 'lucide-react';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
@@ -15,8 +16,89 @@ import {
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { formatRelativeTime } from '@/utils/date';
+import { logger } from '@/utils/logger';
 import type { InboxItem } from '@/types/inbox.types';
 import styles from './InboxPage.module.scss';
+
+interface InboxRowProps {
+  item: InboxItem;
+  onOpen: (item: InboxItem) => void;
+}
+
+function InboxRow({ item, onOpen }: InboxRowProps) {
+  const bodyRef = useRef<HTMLSpanElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (!body || expanded) return;
+    const measure = () => setOverflows(body.scrollHeight > body.clientHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [expanded, item.body]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timeout = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timeout);
+  }, [copied]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(item.body);
+      setCopied(true);
+    } catch (error) {
+      logger.error('Clipboard copy failed', 'InboxPage', error);
+    }
+  };
+
+  return (
+    <div className={styles.row}>
+      <Button
+        type="button"
+        variant="unstyled"
+        onClick={() => onOpen(item)}
+        className={styles['open-btn']}
+      >
+        <span className={styles['status-slot']}>
+          {!item.read_at && <ChatStatusDot tone="unread" />}
+        </span>
+        <span className={styles.text}>
+          <span className={styles['item-title']}>{item.title}</span>
+          <span ref={bodyRef} className={clsx(styles.body, expanded && styles['body--expanded'])}>
+            {item.body}
+          </span>
+        </span>
+        <span className={styles.time}>{formatRelativeTime(item.created_at)}</span>
+      </Button>
+      <div className={styles.footer}>
+        {(overflows || expanded) && (
+          <Button
+            type="button"
+            variant="unstyled"
+            className={styles['footer-btn']}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            {expanded ? 'Show less' : 'Show more'}
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="unstyled"
+          className={styles['footer-btn']}
+          onClick={() => void handleCopy()}
+        >
+          {copied ? 'Copied' : 'Copy'}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function InboxPage() {
   const navigate = useNavigate();
@@ -95,22 +177,7 @@ export function InboxPage() {
         ) : (
           <div className={styles.list}>
             {items.map((item) => (
-              <Button
-                key={item.id}
-                type="button"
-                variant="unstyled"
-                onClick={() => openItem(item)}
-                className={styles.row}
-              >
-                <span className={styles['status-slot']}>
-                  {!item.read_at && <ChatStatusDot tone="unread" />}
-                </span>
-                <span className={styles.text}>
-                  <span className={styles['item-title']}>{item.title}</span>
-                  <span className={styles.body}>{item.body}</span>
-                </span>
-                <span className={styles.time}>{formatRelativeTime(item.created_at)}</span>
-              </Button>
+              <InboxRow key={item.id} item={item} onOpen={openItem} />
             ))}
             {hasNextPage && (
               <Button
