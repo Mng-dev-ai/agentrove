@@ -98,6 +98,8 @@ MARKER_TOOL_EMPTY_RESULT = "MARKER_TOOL_EMPTY_RESULT"
 MARKER_TOOL_START_DIFF = "MARKER_TOOL_START_DIFF"
 MARKER_TOOL_UNKNOWN_DICT_ERROR = "MARKER_TOOL_UNKNOWN_DICT_ERROR"
 MARKER_ENTER_PLAN_MODE = "MARKER_ENTER_PLAN_MODE"
+# Title generation echoes the user's prompt, markers included.
+TITLE_PROMPT_PREFIX = "Generate a title for this message:"
 # 1x1 transparent PNG, reused wherever the protocol needs inline image bytes.
 TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 
@@ -289,6 +291,10 @@ class FakeAgent:
             }
         )
 
+        if text.startswith(TITLE_PROMPT_PREFIX):
+            return await self._run_default_turn(session_id, text)
+        # Markers replayed in a provider-handoff transcript must not re-trigger.
+        text = text.rpartition("</previous_conversation>")[2]
         if MARKER_CRASH_MID_PROMPT in text:
             # Don't os._exit — pending prompt() would hang; error the request.
             await self._emit_tool_started(session_id, "tool-crash", "Doing risky work")

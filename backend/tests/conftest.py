@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
 
@@ -122,14 +123,21 @@ def anyio_backend() -> str:
     return "asyncio"
 
 
-@pytest_asyncio.fixture(autouse=True)
-async def database() -> AsyncIterator[None]:
+async def create_schema() -> None:
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
-    yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def schema() -> None:
+    asyncio.run(create_schema())
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def database(schema: None) -> None:
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        for table in reversed(Base.metadata.sorted_tables):
+            await conn.execute(table.delete())
 
 
 @pytest.fixture(autouse=True)

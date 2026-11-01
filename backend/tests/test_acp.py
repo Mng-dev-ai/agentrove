@@ -27,6 +27,7 @@ from app.services.acp.session import AcpSessionConfig
 from app.services.exceptions import AgentException
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.session_registry import session_registry
+from app.services.streaming.runtime import ChatStreamRuntime
 from tests.conftest import LoginClient, UserFactory
 from tests.fake_acp_agent import (
     MARKER_ASK_USER_QUESTION,
@@ -51,6 +52,7 @@ from tests.fake_acp_agent import (
     MARKER_TOOL_TEXT_ERROR,
     MARKER_TOOL_TEXT_RESULT,
     MARKER_TOOL_UNKNOWN_DICT_ERROR,
+    TITLE_PROMPT_PREFIX,
 )
 from tests.helpers import EndpointCache, create_authenticated_workspace
 
@@ -267,7 +269,7 @@ class FakeAgentHandle:
         return [
             e
             for e in self.events_of("prompt")
-            if not e["text"].startswith("Generate a title for this message:")
+            if not e["text"].startswith(TITLE_PROMPT_PREFIX)
         ]
 
 
@@ -399,6 +401,10 @@ async def wait_for_message(
             params={"limit": 50},
         )
         assert response.status_code == 200, response.text
+        # The turn task outlives the status flip; a resend before it unwinds 409s.
+        if ChatStreamRuntime.has_active_chat(chat_id):
+            await asyncio.sleep(0.05)
+            continue
         for item in response.json()["items"]:
             if item["id"] == message_id and item["stream_status"] != "in_progress":
                 await _settle_background_chat_work()
@@ -1609,6 +1615,7 @@ async def test_chat_provider_switch_hands_off_context(
         prompt=f"{MARKER_CANCEL} codex cancelled",
         permission_mode="auto",
     )
+    assert cancelled.status_code == 200, cancelled.text
     cancelled_id = cancelled.json()["message_id"]
     await wait_for_message_event(
         client, headers, message_id=cancelled_id, event_type="tool_started"

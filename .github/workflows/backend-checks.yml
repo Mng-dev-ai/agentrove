@@ -72,23 +72,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.12'
-
-      - name: Cache Python dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-backend-tests-${{ hashFiles('backend/requirements.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-backend-tests-
-            ${{ runner.os }}-pip-
+          enable-cache: true
+          cache-dependency-glob: backend/requirements.txt
+          activate-environment: true
 
       - name: Install test dependencies
-        run: |
-          pip install -r backend/requirements.txt pytest pytest-asyncio pytest-cov
+        run: uv pip install -r backend/requirements.txt pytest pytest-asyncio pytest-cov pytest-xdist
 
       - name: Run backend tests
         # sysmon core: the default C tracer drops lines executed through
@@ -97,4 +90,4 @@ jobs:
           COVERAGE_CORE: sysmon
         run: |
           cd backend
-          pytest tests --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=85 --durations=60
+          pytest tests -n auto --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=85 --durations=20
