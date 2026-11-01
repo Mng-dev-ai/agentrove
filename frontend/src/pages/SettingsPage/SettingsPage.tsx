@@ -24,6 +24,10 @@ const PersonasSettingsTab = lazyNamed(
   () => import('@/components/settings/tabs/PersonasSettingsTab/PersonasSettingsTab'),
   'PersonasSettingsTab',
 );
+const MemorySettingsTab = lazyNamed(
+  () => import('@/components/settings/tabs/MemorySettingsTab/MemorySettingsTab'),
+  'MemorySettingsTab',
+);
 const StreamActionsSettingsTab = lazyNamed(
   () => import('@/components/settings/tabs/StreamActionsSettingsTab/StreamActionsSettingsTab'),
   'StreamActionsSettingsTab',
@@ -273,6 +277,14 @@ export function SettingsPage() {
                     <div role="tabpanel" id="personas-panel" aria-labelledby="personas-tab">
                       <Suspense fallback={tabLoadingFallback}>
                         <PersonasSettingsTab />
+                      </Suspense>
+                    </div>
+                  )}
+
+                  {activeTab === 'memory' && (
+                    <div role="tabpanel" id="memory-panel" aria-labelledby="memory-tab">
+                      <Suspense fallback={tabLoadingFallback}>
+                        <MemorySettingsTab />
                       </Suspense>
                     </div>
                   )}

@@ -1,0 +1,66 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+
+.filter {
+  margin-bottom: var(--space-3);
+
+  @include responsive.media('sm-up') {
+    max-width: 16rem;
+  }
+}
+
+.filter-select {
+  @include type.type-default;
+}
+
+.item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.item-title {
+  @include type.type-default(500);
+  @include type.type-overflow;
+  color: var(--theme-text-primary);
+}
+
+.chip {
+  @include type.type-meta;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-tertiary);
+}
+
+.chip-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+}
+
+.item-content {
+  @include type.type-mono(0.75rem, 1.625);
+  @include type.type-lineclamp(3);
+  color: var(--theme-text-quaternary);
+}
+
+.pin-btn {
+  height: var(--space-7);
+  width: var(--space-7);
+  color: var(--theme-text-quaternary);
+
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
+  }
+}
+
+.pin-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}

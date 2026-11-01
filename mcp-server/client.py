@@ -271,6 +271,26 @@ class AgentroveClient:
         )
         return resp.json()
 
+    async def create_memory(self, body: dict[str, Any]) -> dict[str, Any]:
+        resp = await self.request("POST", "/memories", json=body, expected=(201,))
+        return resp.json()
+
+    async def update_memory(self, memory_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        resp = await self.request("PATCH", f"/memories/{memory_id}", json=body)
+        return resp.json()
+
+    async def search_memories(
+        self, query: str, workspace_id: str | None
+    ) -> list[dict[str, Any]]:
+        params = {"query": query}
+        if workspace_id:
+            params["workspace_id"] = workspace_id
+        resp = await self.request("GET", "/memories", params=params)
+        return resp.json()
+
+    async def delete_memory(self, memory_id: str) -> None:
+        await self.request("DELETE", f"/memories/{memory_id}", expected=(204,))
+
     async def delete_automation(self, automation_id: str) -> None:
         await self.request("DELETE", f"/automations/{automation_id}", expected=(204,))
 

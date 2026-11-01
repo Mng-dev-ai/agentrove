@@ -45,6 +45,7 @@ from app.services.exceptions import (
 )
 from app.services.git import GitService
 from app.services.handoff import HandoffService
+from app.services.memory import MemoryService
 from app.services.message import MessageService
 from app.services.push import PushService
 from app.services.queue import QueueService
@@ -1434,6 +1435,13 @@ class ChatStreamRuntime:
                     chat_id=runtime.chat_id,
                     config=config,
                 )
+            memory_block = (
+                await MemoryService(runtime.session_factory).build_prompt_block(
+                    runtime.chat.user_id, runtime.chat.workspace_id
+                )
+                if config.resume_session_id is None and request.member_turn is None
+                else None
+            )
             # Slash commands go to the agent verbatim, so there's no room for
             # the transcript; anchoring on one would drop the handoff for good.
             if handoff.transcript and request.prompt.startswith("/"):
@@ -1493,6 +1501,7 @@ class ChatStreamRuntime:
                     agent_kind=config.agent_kind,
                     attachments=request.attachments,
                     handoff_transcript=handoff.transcript,
+                    memory_block=memory_block,
                 )
                 return await runtime.run(stream_result, stream)
             except (

@@ -25,6 +25,7 @@ interface ListManagementTabProps<T> {
   onDelete: (index: number) => void | Promise<void>;
   renderItem: (item: T, index: number) => ReactNode;
   renderItemActions?: (item: T, index: number) => ReactNode;
+  headerContent?: ReactNode;
   footerContent?: ReactNode;
   logContext: string;
 }
@@ -45,6 +46,7 @@ export function ListManagementTab<T>({
   onDelete,
   renderItem,
   renderItemActions,
+  headerContent,
   footerContent,
   logContext,
 }: ListManagementTabProps<T>) {
@@ -90,6 +92,8 @@ export function ListManagementTab<T>({
             {addButtonText}
           </Button>
         </div>
+
+        {headerContent}
 
         {items === null ? (
           // null means the list is still loading — stay invisible for 300ms so

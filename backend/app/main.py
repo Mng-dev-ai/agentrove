@@ -20,6 +20,7 @@ from app.api.endpoints import (
     channels,
     github,
     inbox,
+    memories,
     push,
     sandbox,
     workspace,
@@ -170,6 +171,11 @@ def create_application() -> FastAPI:
         inbox.router,
         prefix=f"{settings.API_V1_STR}/inbox",
         tags=["Inbox"],
+    )
+    application.include_router(
+        memories.router,
+        prefix=f"{settings.API_V1_STR}/memories",
+        tags=["Memories"],
     )
     application.include_router(
         push.router,
