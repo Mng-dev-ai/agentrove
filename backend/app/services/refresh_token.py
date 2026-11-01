@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import delete, or_, select, update
+from sqlalchemy import ColumnElement, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
@@ -82,10 +82,7 @@ class RefreshTokenService:
             await db.execute(
                 update(RefreshToken)
                 .where(
-                    or_(
-                        RefreshToken.id == refresh_token.parent_id,
-                        RefreshToken.parent_id == refresh_token.parent_id,
-                    ),
+                    self._with_children(refresh_token.parent_id),
                     RefreshToken.id != refresh_token.id,
                     RefreshToken.revoked_at.is_(None),
                 )
@@ -110,6 +107,10 @@ class RefreshTokenService:
 
         return user, new_token
 
+    @staticmethod
+    def _with_children(token_id: UUID) -> ColumnElement[bool]:
+        return or_(RefreshToken.id == token_id, RefreshToken.parent_id == token_id)
+
     async def revoke_token(self, token: str, db: AsyncSession) -> bool:
         token_hash = hash_refresh_token(token)
 
@@ -120,16 +121,10 @@ class RefreshTokenService:
         if refresh_token is None:
             return False
 
-        chain = [
-            RefreshToken.id == refresh_token.id,
-            RefreshToken.parent_id == refresh_token.id,
-        ]
+        chain = self._with_children(refresh_token.id)
         if refresh_token.parent_id is not None:
-            chain += [
-                RefreshToken.id == refresh_token.parent_id,
-                RefreshToken.parent_id == refresh_token.parent_id,
-            ]
-        await db.execute(delete(RefreshToken).where(or_(*chain)))
+            chain = or_(chain, self._with_children(refresh_token.parent_id))
+        await db.execute(delete(RefreshToken).where(chain))
         await db.commit()
 
         return True

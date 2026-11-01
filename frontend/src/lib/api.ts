@@ -164,14 +164,27 @@ class APIClient {
       throw new RefreshTokenError(0);
     });
 
-    if (!response.ok) {
-      if (response.status === 401 && this.auth.getRefreshToken() !== refreshToken) {
-        return this.performTokenRefresh();
+    const data: TokenResponse | null = response.ok ? await response.json() : null;
+
+    const currentRefreshToken = this.auth.getRefreshToken();
+    if (currentRefreshToken !== refreshToken) {
+      if (!currentRefreshToken) {
+        throw new RefreshTokenError(401, 'No refresh token available');
       }
-      throw new RefreshTokenError(response.status);
+      const currentToken = this.auth.getToken();
+      if (!currentToken || accessTokenExpiresSoon(currentToken)) {
+        throw new RefreshTokenError(0);
+      }
+      return {
+        access_token: currentToken,
+        refresh_token: currentRefreshToken,
+        token_type: 'bearer',
+      };
     }
 
-    const data: TokenResponse = await response.json();
+    if (!data) {
+      throw new RefreshTokenError(response.status);
+    }
     // Await: desktop persist is disk; quit mid-write can leave the rotated-away token.
     await this.auth.setTokens(data.access_token, data.refresh_token);
     return data;
