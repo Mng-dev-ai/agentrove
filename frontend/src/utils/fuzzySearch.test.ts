@@ -6,32 +6,27 @@ describe('fuzzySearch', () => {
     expect(fuzzySearch('anything', [], { limit: 5 })).toEqual([]);
   });
 
-  it('returns the first `limit` items when the query is empty', () => {
-    expect(fuzzySearch('', ['a', 'b', 'c'], { limit: 2 })).toEqual(['a', 'b']);
-  });
+  it.each([[''], ['   '], [undefined]])(
+    'returns the first `limit` items unfiltered for blank query %j',
+    (query) => {
+      expect(fuzzySearch(query, ['a', 'b', 'c'], { limit: 2 })).toEqual(['a', 'b']);
+    },
+  );
 
-  it('treats a whitespace-only query as empty', () => {
-    expect(fuzzySearch('   ', ['a', 'b', 'c'], { limit: 2 })).toEqual(['a', 'b']);
-  });
-
-  it('treats an undefined query as empty', () => {
-    expect(fuzzySearch(undefined, ['a', 'b'], { limit: 5 })).toEqual(['a', 'b']);
-  });
-
-  it('ranks the best match first for a string list', () => {
+  it('ranks and filters a string list, returning the strings', () => {
     const result = fuzzySearch('app', ['grape', 'apple', 'banana'], { limit: 10 });
     expect(result[0]).toBe('apple');
     expect(result).not.toContain('banana');
   });
 
   it('searches by object keys and returns the source objects', () => {
-    const items = [{ name: 'apple' }, { name: 'banana' }];
-    const result = fuzzySearch('apple', items, { keys: ['name'], limit: 10 });
-    expect(result[0]).toEqual({ name: 'apple' });
+    const apple = { name: 'apple' };
+    const result = fuzzySearch('apple', [{ name: 'banana' }, apple], { keys: ['name'], limit: 10 });
+    expect(result).toEqual([apple]);
+    expect(result[0]).toBe(apple);
   });
 
   it('honors the limit for matched results', () => {
-    const result = fuzzySearch('a', ['a', 'ba', 'ca', 'da'], { limit: 2 });
-    expect(result).toHaveLength(2);
+    expect(fuzzySearch('a', ['a', 'ba', 'ca', 'da'], { limit: 2 })).toHaveLength(2);
   });
 });

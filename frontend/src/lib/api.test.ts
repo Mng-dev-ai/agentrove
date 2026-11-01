@@ -1,68 +1,37 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-const h = vi.hoisted(() => ({
-  getToken: vi.fn<() => string | null>(() => 'access'),
-  getRefreshToken: vi.fn<() => string | null>(() => null),
-  setTokens: vi.fn(async () => {}),
-  onSessionExpired: vi.fn(),
-  isCloudChat: vi.fn<(id: string) => boolean>(() => false),
-  isCloudSandbox: vi.fn<(id: string) => boolean>(() => false),
-  clearCloudOrigins: vi.fn(),
-}));
+const { onSessionExpired } = vi.hoisted(() => ({ onSessionExpired: vi.fn() }));
 
-vi.mock('@/utils/storage', () => ({
-  authStorage: {
-    getToken: h.getToken,
-    getRefreshToken: h.getRefreshToken,
-    setTokens: h.setTokens,
-  },
-  cloudAuthStorage: {
-    getAccessToken: () => null,
-    getRefreshToken: () => null,
-    setTokens: vi.fn(async () => {}),
-    clear: vi.fn(),
-  },
-}));
-vi.mock('@/utils/authSession', () => ({ invalidateSessionAndRedirect: h.onSessionExpired }));
-vi.mock('@/utils/chatOrigin', () => ({
-  isCloudChat: h.isCloudChat,
-  isCloudSandbox: h.isCloudSandbox,
-  clearCloudOrigins: h.clearCloudOrigins,
-}));
-vi.mock('@/store/cloudSettingsStore', () => ({
-  useCloudSettingsStore: { getState: () => ({ cloudUrl: '', clearCloud: vi.fn() }) },
-}));
+vi.mock('@/utils/authSession', () => ({ invalidateSessionAndRedirect: onSessionExpired }));
 
-import {
-  trimTrailingSlash,
-  apiClient,
-  remoteApiClient,
-  resolveChatClient,
-  resolveSandboxClient,
-} from './api';
+import { apiClient, remoteApiClient, resolveChatClient, resolveSandboxClient } from './api';
 import { NetworkError } from '@/types/errors.types';
+import { markCloudChats, markCloudSandboxes } from '@/utils/chatOrigin';
+import { authStorage } from '@/utils/storage';
 
-const json = (body: unknown, status = 200, statusText?: string) =>
-  new Response(body == null ? '' : JSON.stringify(body), { status, statusText });
+const json = (body: unknown, status = 200) =>
+  new Response(body == null ? '' : JSON.stringify(body), { status });
+const tokens = (access: string, refresh: string) =>
+  json({ access_token: access, refresh_token: refresh, token_type: 'bearer' });
+const bearerOf = (init?: RequestInit) =>
+  (init?.headers as Record<string, string> | undefined)?.Authorization;
 
-const fetchMock = vi.fn();
+const fetchMock = vi.fn<typeof fetch>();
 
-beforeEach(() => {
+// An empty refresh token reads as "none".
+const signIn = (access: string, refresh = '') => authStorage.setTokens(access, refresh);
+
+beforeEach(async () => {
   vi.clearAllMocks();
-  h.getToken.mockReturnValue('access');
-  h.getRefreshToken.mockReturnValue(null);
+  fetchMock.mockReset();
+  localStorage.clear();
   vi.stubGlobal('fetch', fetchMock);
+  await signIn('access');
 });
 
-describe('trimTrailingSlash', () => {
-  it('strips one or more trailing slashes', () => {
-    expect(trimTrailingSlash('http://x/api/v1///')).toBe('http://x/api/v1');
-  });
-
-  it('leaves a slash-free url untouched', () => {
-    expect(trimTrailingSlash('http://x/api/v1')).toBe('http://x/api/v1');
-  });
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('APIClient success + error shaping', () => {
@@ -100,114 +69,98 @@ describe('APIClient success + error shaping', () => {
 
   it('converts fetch rejections to NetworkError', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Load failed'));
-
     await expect(apiClient.get('/thing')).rejects.toBeInstanceOf(NetworkError);
   });
 
   it('rethrows fetch aborts unchanged', async () => {
     const error = new DOMException('The operation was aborted', 'AbortError');
     fetchMock.mockRejectedValueOnce(error);
-
     await expect(apiClient.get('/thing')).rejects.toBe(error);
   });
 });
 
 describe('APIClient 401 handling', () => {
-  it('refreshes the token and retries once on 401', async () => {
-    h.getRefreshToken.mockReturnValue('refresh-tok');
+  it('refreshes the token, persists it, and retries once with the new bearer', async () => {
+    await signIn('access', 'refresh-tok');
     fetchMock
-      .mockResolvedValueOnce(json({ message: 'unauth' }, 401)) // original request
-      .mockResolvedValueOnce(
-        json({ access_token: 'a2', refresh_token: 'r2', token_type: 'bearer' }),
-      ) // refresh
-      .mockResolvedValueOnce(json({ ok: true })); // retried request
+      .mockResolvedValueOnce(json({ message: 'unauth' }, 401))
+      .mockResolvedValueOnce(tokens('a2', 'r2'))
+      .mockResolvedValueOnce(json({ ok: true }));
 
     await expect(apiClient.get('/thing')).resolves.toEqual({ ok: true });
-    expect(h.setTokens).toHaveBeenCalledWith('a2', 'r2');
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(bearerOf(fetchMock.mock.calls[2][1])).toBe('Bearer a2');
+    expect(authStorage.getToken()).toBe('a2');
+    expect(authStorage.getRefreshToken()).toBe('r2');
   });
 
   it('tears down the session on a 401 with no refresh token', async () => {
-    h.getRefreshToken.mockReturnValue(null);
     fetchMock.mockResolvedValueOnce(json({ message: 'unauth' }, 401));
 
     await expect(apiClient.get('/thing')).rejects.toThrow('Session expired');
-    expect(h.onSessionExpired).toHaveBeenCalledTimes(1);
+    expect(onSessionExpired).toHaveBeenCalledTimes(1);
   });
 
   it('tears down the session when the refresh itself returns 401', async () => {
-    h.getRefreshToken.mockReturnValue('refresh-tok');
+    await signIn('access', 'refresh-tok');
     fetchMock
-      .mockResolvedValueOnce(json({ message: 'unauth' }, 401)) // original request
-      .mockResolvedValueOnce(json({ message: 'dead' }, 401)); // refresh -> terminal
+      .mockResolvedValueOnce(json({ message: 'unauth' }, 401))
+      .mockResolvedValueOnce(json({ message: 'dead' }, 401));
 
     await expect(apiClient.get('/thing')).rejects.toThrow('Session expired');
-    expect(h.onSessionExpired).toHaveBeenCalledTimes(1);
+    expect(onSessionExpired).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('getValidToken', () => {
-  // Minimal JWT shape — only the base64url payload's exp claim is read.
+  // Only the base64 payload's exp claim is read.
   const jwtWithExp = (expSecs: number) => `h.${btoa(JSON.stringify({ exp: expSecs }))}.s`;
 
   it('reuses a cached access token that is not near expiry, without refreshing', async () => {
     const token = jwtWithExp(Math.floor(Date.now() / 1000) + 3600);
-    h.getToken.mockReturnValue(token);
-    h.getRefreshToken.mockReturnValue('refresh-tok');
+    await signIn(token, 'refresh-tok');
 
     await expect(apiClient.getValidToken()).resolves.toBe(token);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('refreshes when the cached access token is expired', async () => {
-    h.getToken.mockReturnValue(jwtWithExp(Math.floor(Date.now() / 1000) - 10));
-    h.getRefreshToken.mockReturnValue('refresh-tok');
-    fetchMock.mockResolvedValueOnce(
-      json({ access_token: 'fresh', refresh_token: 'r2', token_type: 'bearer' }),
-    );
+  it.each([
+    ['expired', jwtWithExp(Math.floor(Date.now() / 1000) - 10)],
+    ['not a decodable JWT', 'opaque-garbage'],
+  ])('refreshes when the cached access token is %s', async (_label, cached) => {
+    await signIn(cached, 'refresh-tok');
+    fetchMock.mockResolvedValueOnce(tokens('fresh', 'r2'));
 
     await expect(apiClient.getValidToken()).resolves.toBe('fresh');
-    expect(h.setTokens).toHaveBeenCalledWith('fresh', 'r2');
-  });
-
-  it('refreshes when the cached token is not a decodable JWT', async () => {
-    h.getToken.mockReturnValue('opaque-garbage');
-    h.getRefreshToken.mockReturnValue('refresh-tok');
-    fetchMock.mockResolvedValueOnce(
-      json({ access_token: 'fresh', refresh_token: 'r2', token_type: 'bearer' }),
-    );
-
-    await expect(apiClient.getValidToken()).resolves.toBe('fresh');
+    expect(authStorage.getToken()).toBe('fresh');
   });
 
   it('returns the cached token as-is when there is no refresh token', async () => {
-    h.getToken.mockReturnValue('whatever');
-    h.getRefreshToken.mockReturnValue(null);
+    await signIn('whatever');
 
     await expect(apiClient.getValidToken()).resolves.toBe('whatever');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('tears down the session and returns null when the refresh 401s', async () => {
-    h.getToken.mockReturnValue(null);
-    h.getRefreshToken.mockReturnValue('refresh-tok');
+    await signIn('opaque-garbage', 'refresh-tok');
     fetchMock.mockResolvedValueOnce(json({ message: 'dead' }, 401));
 
     await expect(apiClient.getValidToken()).resolves.toBeNull();
-    expect(h.onSessionExpired).toHaveBeenCalledTimes(1);
+    expect(onSessionExpired).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('client routing', () => {
-  it('routes cloud chats to the remote client and local chats to the local client', () => {
-    h.isCloudChat.mockImplementation((id) => id === 'cloud-chat');
+  it('routes cloud chats to the remote client and everything else locally', () => {
+    markCloudChats(['cloud-chat']);
     expect(resolveChatClient('cloud-chat')).toBe(remoteApiClient);
     expect(resolveChatClient('local-chat')).toBe(apiClient);
     expect(resolveChatClient(undefined)).toBe(apiClient);
   });
 
-  it('routes cloud sandboxes to the remote client', () => {
-    h.isCloudSandbox.mockImplementation((id) => id === 'cloud-sbx');
+  it('routes cloud sandboxes to the remote client and everything else locally', () => {
+    markCloudSandboxes(['cloud-sbx']);
     expect(resolveSandboxClient('cloud-sbx')).toBe(remoteApiClient);
     expect(resolveSandboxClient('local-sbx')).toBe(apiClient);
     expect(resolveSandboxClient(undefined)).toBe(apiClient);

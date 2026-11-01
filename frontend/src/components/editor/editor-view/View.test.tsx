@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, fireEvent, screen, act } from '@testing-library/react';
+import { render, fireEvent, screen, act, cleanup } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { FileStructure } from '@/types/file-system.types';
 import { View, type ViewProps } from './View';
@@ -8,7 +8,6 @@ const h = vi.hoisted(() => ({
   fileContent: undefined as { path: string; content: string } | undefined,
   pendingRaf: null as (() => void) | null,
   models: new Map<string, { content: string; reveals: number[] }>(),
-  // 0 simulates a jump into a display:none tile (re-centered on first layout).
   layoutHeight: 300,
   layoutChangeCb: null as ((info: { height: number }) => void) | null,
 }));
@@ -35,11 +34,10 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   vi.unstubAllGlobals();
 });
 
-// Fake @monaco-editor/react: registers a model per path, syncs `value` into it,
-// and hands onMount a minimal editor whose reveal calls are recorded per model.
 vi.mock('@monaco-editor/react', async () => {
   const { useEffect } = await import('react');
   function makeMonaco() {
@@ -132,28 +130,6 @@ vi.mock('@/hooks/useResolvedTheme', () => ({ useResolvedTheme: () => 'light' }))
 vi.mock('react-hot-toast', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/components/editor/file-preview/FilePreview', () => ({ FilePreview: () => null }));
 
-async function renderView(overrides: Partial<ViewProps> = {}) {
-  const props: ViewProps = {
-    selectedFile: null,
-    fileStructure: [],
-    sandboxId: 'sbx',
-    chatId: undefined,
-    cwd: undefined,
-    targetLine: null,
-    openFiles: [],
-    onFileSelect: vi.fn(),
-    onCloseFile: vi.fn(),
-    ...overrides,
-  };
-  // The editor is loaded through React.lazy — await the async act so the
-  // Suspense fallback resolves before the jump effect runs.
-  let result!: ReturnType<typeof render>;
-  await act(async () => {
-    result = render(<View {...props} />);
-  });
-  return result;
-}
-
 function viewProps(file: FileStructure, targetLine: ViewProps['targetLine']): ViewProps {
   return {
     selectedFile: file,
@@ -168,6 +144,16 @@ function viewProps(file: FileStructure, targetLine: ViewProps['targetLine']): Vi
   };
 }
 
+// The editor is loaded through React.lazy — await the async act so the
+// Suspense fallback resolves before the jump effect runs.
+async function renderView(file: FileStructure, targetLine: ViewProps['targetLine'] = null) {
+  let result!: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(<View {...viewProps(file, targetLine)} />);
+  });
+  return result;
+}
+
 function modelPath(path: string): string {
   return `sandbox://sbx/${path}`;
 }
@@ -176,12 +162,7 @@ describe('View jump-to-line reveal', () => {
   it('reveals the requested line when jumping to the open file', async () => {
     const file: FileStructure = { path: 'src/b.ts', type: 'file', content: '' };
     h.fileContent = { path: 'src/b.ts', content: lines(30) };
-    await renderView({
-      selectedFile: file,
-      fileStructure: [file],
-      openFiles: [file],
-      targetLine: { path: 'src/b.ts', line: 12, nonce: 1 },
-    });
+    await renderView(file, { path: 'src/b.ts', line: 12, nonce: 1 });
     await act(async () => {
       h.pendingRaf?.();
     });
@@ -191,18 +172,12 @@ describe('View jump-to-line reveal', () => {
   it('re-reveals the same path/line when the nonce bumps', async () => {
     const file: FileStructure = { path: 'src/b.ts', type: 'file', content: '' };
     h.fileContent = { path: 'src/b.ts', content: lines(30) };
-    const { rerender } = await renderView({
-      selectedFile: file,
-      fileStructure: [file],
-      openFiles: [file],
-      targetLine: { path: 'src/b.ts', line: 12, nonce: 1 },
-    });
+    const { rerender } = await renderView(file, { path: 'src/b.ts', line: 12, nonce: 1 });
     await act(async () => {
       h.pendingRaf?.();
     });
     const model = h.models.get(modelPath('src/b.ts'));
     expect(model?.reveals).toEqual([12]);
-    // Re-clicking the same result bumps only the nonce — the reveal must re-fire.
     await act(async () => {
       rerender(<View {...viewProps(file, { path: 'src/b.ts', line: 12, nonce: 2 })} />);
     });
@@ -215,17 +190,13 @@ describe('View jump-to-line reveal', () => {
   it('reveals the target after jumping from preview back to code for the same file', async () => {
     const file: FileStructure = { path: 'notes.md', type: 'file', content: '' };
     h.fileContent = { path: 'notes.md', content: lines(10) };
-    const { rerender } = await renderView({
-      selectedFile: file,
-      fileStructure: [file],
-      openFiles: [file],
-    });
+    const { rerender } = await renderView(file);
     // notes.md defaults to preview; open in code, return to preview, then jump.
     await act(async () => {
-      fireEvent.click(screen.getByText('Raw'));
+      fireEvent.click(screen.getByRole('button', { name: 'Raw' }));
     });
     await act(async () => {
-      fireEvent.click(screen.getByText('Preview'));
+      fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
     });
     await act(async () => {
       rerender(<View {...viewProps(file, { path: 'notes.md', line: 4, nonce: 1 })} />);
@@ -239,19 +210,12 @@ describe('View jump-to-line reveal', () => {
   it('re-reveals the true line after the buffer catches up to a clamped jump', async () => {
     const file: FileStructure = { path: 'src/c.ts', type: 'file', content: '' };
     h.fileContent = { path: 'src/c.ts', content: lines(50) };
-    const { rerender } = await renderView({
-      selectedFile: file,
-      fileStructure: [file],
-      openFiles: [file],
-      targetLine: { path: 'src/c.ts', line: 90, nonce: 1 },
-    });
+    const { rerender } = await renderView(file, { path: 'src/c.ts', line: 90, nonce: 1 });
     await act(async () => {
       h.pendingRaf?.();
     });
     const model = h.models.get(modelPath('src/c.ts'));
-    // Buffer (50 lines) is shorter than the requested line — clamped to its end.
     expect(model?.reveals).toEqual([50]);
-    // Disk content catches up to the search hit; the jump should land for real.
     h.fileContent = { path: 'src/c.ts', content: lines(100) };
     await act(async () => {
       rerender(<View {...viewProps(file, { path: 'src/c.ts', line: 90, nonce: 1 })} />);
@@ -267,18 +231,12 @@ describe('View jump-to-line reveal', () => {
     h.fileContent = { path: 'src/d.ts', content: lines(30) };
     // Jump fires while the editor tile is still display:none (0-high layout).
     h.layoutHeight = 0;
-    await renderView({
-      selectedFile: file,
-      fileStructure: [file],
-      openFiles: [file],
-      targetLine: { path: 'src/d.ts', line: 12, nonce: 1 },
-    });
+    await renderView(file, { path: 'src/d.ts', line: 12, nonce: 1 });
     await act(async () => {
       h.pendingRaf?.();
     });
     const model = h.models.get(modelPath('src/d.ts'));
     expect(model?.reveals).toEqual([12]);
-    // The tile becomes visible and Monaco lays out — the reveal re-centers once.
     h.layoutHeight = 300;
     await act(async () => {
       h.layoutChangeCb?.({ height: 300 });

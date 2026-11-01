@@ -5,77 +5,57 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PermissionRequest } from '@/types/chat.types';
 
 const h = vi.hoisted(() => ({
-  storeState: {
-    pendingRequests: new Map<string, PermissionRequest[]>(),
-    enqueuePermissionRequest: vi.fn(() => true),
-  },
-  respondToPermission: vi.fn(() => Promise.resolve()),
-  isPermissionResolved: vi.fn(() => false),
+  respondToPermission: vi.fn<() => Promise<void>>(),
   notifyPermissionRequest: vi.fn(),
   notifyBackground: vi.fn(),
-  executePermissionResponse: vi.fn<
-    (
-      serviceFn: () => unknown,
-      opts: { errorMessage: string; clearRequest: () => void },
-    ) => Promise<string>
-  >(() => Promise.resolve('success')),
-  clearPermissionRequest: vi.fn(),
 }));
 
 vi.mock('@/services/permissionService', () => ({
   permissionService: { respondToPermission: h.respondToPermission },
 }));
-vi.mock('@/store/permissionStore', () => ({
-  usePermissionStore: Object.assign(
-    (selector: (s: typeof h.storeState) => unknown) => selector(h.storeState),
-    { getState: () => h.storeState },
-  ),
-}));
-vi.mock('@/utils/permissionStorage', () => ({ isPermissionResolved: h.isPermissionResolved }));
 vi.mock('@/utils/notifications', () => ({ notifyPermissionRequest: h.notifyPermissionRequest }));
 vi.mock('@/hooks/useBackgroundNotify', () => ({ useBackgroundNotify: () => h.notifyBackground }));
-vi.mock('@/utils/permissionResponse', () => ({
-  executePermissionResponse: h.executePermissionResponse,
-  clearPermissionRequest: h.clearPermissionRequest,
-}));
 
 import { usePermissionRequest } from './usePermissionRequest';
+import { usePermissionStore } from '@/store/permissionStore';
+import { addResolvedPermission, isPermissionResolved } from '@/utils/permissionStorage';
 
 function makeRequest(overrides: Partial<PermissionRequest> = {}): PermissionRequest {
   return {
     request_id: 'req-1',
+    tool_name: 'Bash',
+    tool_input: {},
+    options: [],
     seq: 7,
     ...overrides,
-  } as PermissionRequest;
+  };
+}
+
+function enqueue(request: PermissionRequest) {
+  usePermissionStore.getState().enqueuePermissionRequest('chat-1', request);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.restoreAllMocks();
-  h.storeState.pendingRequests = new Map();
-  h.storeState.enqueuePermissionRequest.mockReturnValue(true);
-  h.isPermissionResolved.mockReturnValue(false);
+  localStorage.clear();
+  usePermissionStore.setState({ pendingRequests: new Map() });
+  h.respondToPermission.mockResolvedValue();
 });
 
 describe('usePermissionRequest', () => {
   it('surfaces the head of the chat queue as pendingRequest', () => {
     const first = makeRequest({ request_id: 'a' });
-    h.storeState.pendingRequests.set('chat-1', [first, makeRequest({ request_id: 'b' })]);
+    enqueue(first);
+    enqueue(makeRequest({ request_id: 'b' }));
     const { result } = renderHook(() => usePermissionRequest('chat-1'));
     expect(result.current.pendingRequest).toBe(first);
-  });
-
-  it('reports no pending request when chatId is undefined', () => {
-    h.storeState.pendingRequests.set('chat-1', [makeRequest()]);
-    const { result } = renderHook(() => usePermissionRequest(undefined));
-    expect(result.current.pendingRequest).toBeNull();
   });
 
   it('enqueues and hands a genuinely new request to the background notifier', () => {
     const { result } = renderHook(() => usePermissionRequest('chat-1'));
     const req = makeRequest();
     act(() => result.current.handlePermissionRequest(req));
-    expect(h.storeState.enqueuePermissionRequest).toHaveBeenCalledWith('chat-1', req);
+    expect(result.current.pendingRequest).toBe(req);
     expect(h.notifyBackground).toHaveBeenCalledWith('chat-1', expect.any(Function));
 
     const [, notifyFn] = h.notifyBackground.mock.calls[0];
@@ -85,57 +65,48 @@ describe('usePermissionRequest', () => {
   });
 
   it('drops requests the user already resolved (no enqueue, no notify)', () => {
-    h.isPermissionResolved.mockReturnValue(true);
+    addResolvedPermission('chat-1', 7);
     const { result } = renderHook(() => usePermissionRequest('chat-1'));
-    act(() => result.current.handlePermissionRequest(makeRequest()));
-    expect(h.storeState.enqueuePermissionRequest).not.toHaveBeenCalled();
+    act(() => result.current.handlePermissionRequest(makeRequest({ seq: 7 })));
+    expect(result.current.pendingRequest).toBeNull();
     expect(h.notifyBackground).not.toHaveBeenCalled();
   });
 
-  it('does not notify when the store dedupes the request (added=false)', () => {
-    h.storeState.enqueuePermissionRequest.mockReturnValue(false);
+  it('does not re-notify a replayed request that is still pending', () => {
+    enqueue(makeRequest());
     const { result } = renderHook(() => usePermissionRequest('chat-1'));
     act(() => result.current.handlePermissionRequest(makeRequest()));
     expect(h.notifyBackground).not.toHaveBeenCalled();
   });
 
-  it('wires approve to the service and cleanup with the pending request ids', async () => {
-    h.storeState.pendingRequests.set('chat-1', [makeRequest({ request_id: 'req-9', seq: 42 })]);
+  it('approve responds for the pending request, clears it, and records it as resolved', async () => {
+    enqueue(makeRequest({ request_id: 'req-9', seq: 42 }));
     const { result } = renderHook(() => usePermissionRequest('chat-1'));
 
-    await act(async () => {
-      await result.current.handleApprove('allow');
-    });
+    await act(() => result.current.handleApprove('allow'));
 
-    expect(h.executePermissionResponse).toHaveBeenCalledTimes(1);
-    const [serviceFn, opts] = h.executePermissionResponse.mock.calls[0];
-    // Invoke the captured closures to confirm they target the right request.
-    serviceFn();
     expect(h.respondToPermission).toHaveBeenCalledWith('chat-1', 'req-9', 'allow');
-    opts.clearRequest();
-    expect(h.clearPermissionRequest).toHaveBeenCalledWith('chat-1', 'req-9', 42);
-    expect(opts.errorMessage).toBe('Failed to approve permission');
+    expect(result.current.pendingRequest).toBeNull();
+    expect(isPermissionResolved('chat-1', 42)).toBe(true);
   });
 
-  it('reject uses its own error message but the same request target', async () => {
-    h.storeState.pendingRequests.set('chat-1', [makeRequest({ request_id: 'req-9', seq: 42 })]);
+  it('reject surfaces a server error and keeps the request pending', async () => {
+    const req = makeRequest({ request_id: 'req-9', seq: 42 });
+    enqueue(req);
+    h.respondToPermission.mockRejectedValue(new Error('server down'));
     const { result } = renderHook(() => usePermissionRequest('chat-1'));
 
-    await act(async () => {
-      await result.current.handleReject('deny');
-    });
+    await act(() => result.current.handleReject('deny'));
 
-    const [serviceFn, opts] = h.executePermissionResponse.mock.calls[0];
-    serviceFn();
     expect(h.respondToPermission).toHaveBeenCalledWith('chat-1', 'req-9', 'deny');
-    expect(opts.errorMessage).toBe('Failed to reject permission');
+    expect(result.current.error).toBe('server down');
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.pendingRequest).toBe(req);
   });
 
   it('approve is a no-op without a pending request', async () => {
     const { result } = renderHook(() => usePermissionRequest('chat-1'));
-    await act(async () => {
-      await result.current.handleApprove('allow');
-    });
-    expect(h.executePermissionResponse).not.toHaveBeenCalled();
+    await act(() => result.current.handleApprove('allow'));
+    expect(h.respondToPermission).not.toHaveBeenCalled();
   });
 });

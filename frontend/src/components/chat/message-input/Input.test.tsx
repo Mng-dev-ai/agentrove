@@ -1,177 +1,124 @@
 // @vitest-environment jsdom
 
+import { useState, type FormEvent } from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { Toaster } from 'react-hot-toast';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Input, type InputProps } from './Input';
-import type { QueueAddResponse } from '@/types/queue.types';
+import { Input } from './Input';
+import { ChatProvider } from '@/contexts/ChatContext';
+import { queryClient } from '@/lib/queryClient';
+import { queueService } from '@/services/queueService';
+import { useAuthStore } from '@/store/authStore';
+import { useMessageQueueStore } from '@/store/messageQueueStore';
 
-// The composer's send/queue decision lives in the real useInputSubmit hook,
-// which Input wires up through InputProvider. Keep that hook real and mock only
-// the surrounding data sources so the test exercises the actual dispatch logic.
-const mocks = vi.hoisted(() => ({
-  queueMessage: vi.fn<(...args: unknown[]) => Promise<QueueAddResponse>>(() =>
-    Promise.resolve({ id: 'queued-id', send_now_failed: false }),
-  ),
-  clearComposerSelections: vi.fn(),
-  removeComposerSelection: vi.fn(),
-  toastError: vi.fn(),
+vi.mock('@/services/queueService', () => ({
+  queueService: {
+    queueMessage: vi.fn(() => Promise.resolve({ id: 'queued-id', send_now_failed: false })),
+  },
+}));
+vi.mock('@/services/settingsService', () => ({
+  settingsService: { getSettings: () => Promise.resolve({ auto_steer_queued_messages: false }) },
+}));
+vi.mock('@/services/chatService', () => ({
+  chatService: { getChat: () => new Promise(() => {}) },
 }));
 
-vi.mock('@/hooks/useChatContext', () => ({
-  useChatContext: () => ({
-    fileStructure: null,
-    builtinSlashCommands: [],
-    personas: [],
-  }),
-}));
-
-vi.mock('@/store/authStore', () => ({
-  useAuthStore: (selector: (s: { isAuthenticated: boolean }) => unknown) =>
-    selector({ isAuthenticated: true }),
-}));
-
-vi.mock('@/hooks/queries/useModelQueries', () => ({
-  useModelMap: () => new Map(),
-}));
-
-vi.mock('@/hooks/queries/useChatQueries', () => ({
-  useRecentChatsQuery: () => ({ data: undefined }),
-  useChatQuery: () => ({ data: undefined }),
-}));
-
-const uiState = { composerSelectionsByChat: {} as Record<string, unknown[]> };
-vi.mock('@/store/uiStore', () => {
-  const useUIStore = (selector: (s: typeof uiState) => unknown) => selector(uiState);
-  useUIStore.getState = () => ({
-    clearComposerSelections: mocks.clearComposerSelections,
-    removeComposerSelection: mocks.removeComposerSelection,
-  });
-  return { useUIStore };
-});
-
-vi.mock('@/hooks/queries/useSettingsQueries', () => ({
-  fetchAutoSteerQueuedMessages: () => Promise.resolve(false),
-}));
-vi.mock('@/store/messageQueueStore', () => ({
-  useMessageQueueStore: { getState: () => ({ queueMessage: mocks.queueMessage }) },
-}));
-
-vi.mock('react-hot-toast', () => ({
-  default: { error: mocks.toastError },
-}));
-
-// Heavy composer sub-trees that don't participate in submit/queue logic.
 vi.mock('./InputControls', () => ({ InputControls: () => null }));
-vi.mock('@/components/ui/FileUploadDialog/FileUploadDialog', () => ({
-  FileUploadDialog: () => null,
-}));
-vi.mock('@/components/ui/drawing-modal/DrawingModal', () => ({ DrawingModal: () => null }));
 
-// Suggestion/attachment/enhance hooks are unrelated to the send path — stub
-// them so InputProvider renders without their real dependencies.
-vi.mock('@/hooks/useInputAttachments', () => ({
-  useInputAttachments: () => ({
-    previewUrls: [],
-    showFileUpload: false,
-    setShowFileUpload: vi.fn(),
-    showDrawingModal: false,
-    editingImageIndex: null,
-    handleFileSelect: vi.fn(),
-    handleRemoveFile: vi.fn(),
-    handleDrawClick: vi.fn(),
-    handleDrawingSave: vi.fn(),
-    closeDrawingModal: vi.fn(),
-    isDragging: false,
-    dragHandlers: {},
-    resetDragState: vi.fn(),
-    handlePaste: vi.fn(),
-  }),
-}));
-
-vi.mock('@/hooks/useInputEnhance', () => ({
-  useInputEnhance: () => ({ isEnhancing: false, handleEnhancePrompt: vi.fn() }),
-}));
-
-vi.mock('@/hooks/useInputSuggestions', () => ({
-  useInputSuggestions: () => ({
-    slashCommandSuggestions: [],
-    highlightedSlashCommandIndex: -1,
-    selectSlashCommand: vi.fn(),
-    handleSlashCommandKeyDown: () => false,
-    filteredFiles: [],
-    filteredChats: [],
-    highlightedMentionIndex: -1,
-    selectMention: vi.fn(),
-    handleMentionKeyDown: () => false,
-    isMentionActive: false,
-  }),
-}));
-
-function renderInput(over: Partial<InputProps> = {}) {
-  const onSubmit = vi.fn();
-  const setMessage = vi.fn();
-  const props: InputProps = {
-    message: 'hello world',
-    setMessage,
-    onSubmit,
-    isLoading: false,
-    selectedModelId: 'claude-x',
-    onModelChange: vi.fn(),
-    chatId: 'chat-1',
-    ...over,
-  };
-  render(<Input {...props} />);
-  return { onSubmit, setMessage };
+function Composer({
+  isStreaming,
+  selectedModelId = 'claude-x',
+  onSubmit,
+}: {
+  isStreaming: boolean;
+  selectedModelId?: string;
+  onSubmit: (e: FormEvent) => void;
+}) {
+  const [message, setMessage] = useState('');
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ChatProvider chatId="chat-1">
+        <Input
+          message={message}
+          setMessage={setMessage}
+          onSubmit={onSubmit}
+          isLoading={false}
+          isStreaming={isStreaming}
+          selectedModelId={selectedModelId}
+          onModelChange={vi.fn()}
+          chatId="chat-1"
+        />
+      </ChatProvider>
+      <Toaster />
+    </QueryClientProvider>
+  );
 }
 
-function pressEnter() {
-  fireEvent.keyDown(screen.getByLabelText('Message input'), { key: 'Enter' });
+function renderComposer(props: { isStreaming: boolean; selectedModelId?: string }) {
+  const onSubmit = vi.fn((e: FormEvent) => e.preventDefault());
+  render(<Composer {...props} onSubmit={onSubmit} />);
+  const textbox = screen.getByLabelText<HTMLTextAreaElement>('Message input');
+  const send = (text: string) => {
+    fireEvent.change(textbox, { target: { value: text } });
+    fireEvent.keyDown(textbox, { key: 'Enter' });
+  };
+  return { onSubmit, textbox, send };
 }
 
 describe('Input send/queue path', () => {
   beforeEach(() => {
-    uiState.composerSelectionsByChat = {};
-    vi.clearAllMocks();
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    useAuthStore.setState({ isAuthenticated: false });
+    useMessageQueueStore.setState({ queues: new Map() });
   });
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    queryClient.clear();
+    vi.mocked(queueService.queueMessage).mockClear();
+  });
 
   it('submits the message on Enter when the agent is idle', () => {
-    const { onSubmit } = renderInput({ isStreaming: false });
-    pressEnter();
+    const { onSubmit, send } = renderComposer({ isStreaming: false });
+    send('hello world');
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    expect(mocks.queueMessage).not.toHaveBeenCalled();
+    expect(queueService.queueMessage).not.toHaveBeenCalled();
   });
 
   it('queues the message and clears the draft while a response is streaming', async () => {
-    const { onSubmit, setMessage } = renderInput({ isStreaming: true });
-    pressEnter();
+    const { onSubmit, textbox, send } = renderComposer({ isStreaming: true });
+    send('hello world');
 
-    await waitFor(() => expect(mocks.queueMessage).toHaveBeenCalledTimes(1));
-    const [chatId, content, modelId] = mocks.queueMessage.mock.calls[0];
-    expect(chatId).toBe('chat-1');
-    expect(content).toBe('hello world');
-    expect(modelId).toBe('claude-x');
-    // The queued draft only clears because the dispatch was accepted.
-    expect(setMessage).toHaveBeenCalledWith('');
+    expect(textbox.value).toBe('');
+    await waitFor(() =>
+      expect(useMessageQueueStore.getState().getQueue('chat-1')).toEqual([
+        expect.objectContaining({ id: 'queued-id', content: 'hello world', synced: true }),
+      ]),
+    );
+    expect(queueService.queueMessage).toHaveBeenCalledWith(
+      'chat-1',
+      'hello world',
+      'claude-x',
+      expect.anything(),
+    );
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it('drops nothing: with no model selected it errors and keeps the draft instead of queuing', () => {
-    const { onSubmit, setMessage } = renderInput({ isStreaming: true, selectedModelId: '' });
-    pressEnter();
+  it('keeps the draft and shows an error instead of queuing when no model is selected', async () => {
+    const { onSubmit, textbox, send } = renderComposer({ isStreaming: true, selectedModelId: '' });
+    send('hello world');
 
-    expect(mocks.toastError).toHaveBeenCalledTimes(1);
-    expect(mocks.queueMessage).not.toHaveBeenCalled();
-    // Draft must survive — clearing without a successful queue would silently
-    // lose the user's message.
-    expect(setMessage).not.toHaveBeenCalledWith('');
+    expect(await screen.findByText('Please select an AI model')).toBeTruthy();
+    expect(textbox.value).toBe('hello world');
+    expect(queueService.queueMessage).not.toHaveBeenCalled();
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
   it('does not submit or queue an empty draft', () => {
-    const { onSubmit } = renderInput({ isStreaming: false, message: '   ' });
-    pressEnter();
+    const { onSubmit, send } = renderComposer({ isStreaming: false });
+    send('   ');
     expect(onSubmit).not.toHaveBeenCalled();
-    expect(mocks.queueMessage).not.toHaveBeenCalled();
+    expect(queueService.queueMessage).not.toHaveBeenCalled();
   });
 });

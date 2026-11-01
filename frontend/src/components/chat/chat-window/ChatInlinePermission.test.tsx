@@ -3,31 +3,13 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ChatInlinePermission } from './ChatInlinePermission';
+import {
+  ChatSessionActionsContext,
+  ChatSessionStateContext,
+  type ChatSessionActions,
+  type ChatSessionState,
+} from '@/contexts/ChatSessionContextDefinition';
 import type { PermissionRequest } from '@/types/chat.types';
-
-vi.mock('@/components/ui/markdown/MarkDown', () => ({
-  MarkDown: ({ content }: { content: string }) => <div>{content}</div>,
-}));
-
-const hooks = vi.hoisted(() => ({
-  state: {
-    pendingPermissionRequest: null as PermissionRequest | null,
-    isPermissionLoading: false,
-    permissionError: null as string | null,
-  },
-  actions: {
-    onPermissionApprove: vi.fn(),
-    onPermissionReject: vi.fn(),
-  },
-}));
-
-// ChatInlinePermission reads the live request and the approve/reject actions
-// straight off the chat-session context; mock at that boundary so the test
-// drives the same wiring the real provider supplies.
-vi.mock('@/hooks/useChatSessionContext', () => ({
-  useChatSessionState: () => hooks.state,
-  useChatSessionActions: () => hooks.actions,
-}));
 
 function makeRequest(over: Partial<PermissionRequest> = {}): PermissionRequest {
   return {
@@ -43,44 +25,46 @@ function makeRequest(over: Partial<PermissionRequest> = {}): PermissionRequest {
   };
 }
 
+function renderWithSession(pendingPermissionRequest: PermissionRequest | null) {
+  const state = {
+    pendingPermissionRequest,
+    isPermissionLoading: false,
+    permissionError: null,
+  } as ChatSessionState;
+  const actions = {
+    onPermissionApprove: vi.fn(),
+    onPermissionReject: vi.fn(),
+  } as Partial<ChatSessionActions> as ChatSessionActions;
+  const { container } = render(
+    <ChatSessionStateContext value={state}>
+      <ChatSessionActionsContext value={actions}>
+        <ChatInlinePermission />
+      </ChatSessionActionsContext>
+    </ChatSessionStateContext>,
+  );
+  return { container, actions };
+}
+
 describe('ChatInlinePermission', () => {
-  afterEach(() => {
-    cleanup();
-    hooks.state.pendingPermissionRequest = null;
-    hooks.state.isPermissionLoading = false;
-    hooks.state.permissionError = null;
-    hooks.actions.onPermissionApprove.mockReset();
-    hooks.actions.onPermissionReject.mockReset();
-  });
+  afterEach(cleanup);
 
   it('renders nothing when there is no pending request', () => {
-    const { container } = render(<ChatInlinePermission />);
+    const { container } = renderWithSession(null);
     expect(container.firstChild).toBeNull();
   });
 
   it('renders nothing for an ExitPlanMode request', () => {
-    hooks.state.pendingPermissionRequest = makeRequest({ tool_name: 'ExitPlanMode' });
-    const { container } = render(<ChatInlinePermission />);
+    const { container } = renderWithSession(makeRequest({ tool_name: 'ExitPlanMode' }));
     expect(container.firstChild).toBeNull();
   });
 
-  it('forwards the approve action with the selected option id', () => {
-    hooks.state.pendingPermissionRequest = makeRequest();
-    render(<ChatInlinePermission />);
+  it('routes the chosen option to the session approve/reject actions', () => {
+    const { actions } = renderWithSession(makeRequest());
 
-    fireEvent.click(screen.getByText('Allow'));
+    fireEvent.click(screen.getByRole('button', { name: /Allow/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Reject/ }));
 
-    expect(hooks.actions.onPermissionApprove).toHaveBeenCalledWith('opt-allow');
-    expect(hooks.actions.onPermissionReject).not.toHaveBeenCalled();
-  });
-
-  it('forwards the reject action with the selected option id', () => {
-    hooks.state.pendingPermissionRequest = makeRequest();
-    render(<ChatInlinePermission />);
-
-    fireEvent.click(screen.getByText('Reject'));
-
-    expect(hooks.actions.onPermissionReject).toHaveBeenCalledWith('opt-reject');
-    expect(hooks.actions.onPermissionApprove).not.toHaveBeenCalled();
+    expect(actions.onPermissionApprove).toHaveBeenCalledExactlyOnceWith('opt-allow');
+    expect(actions.onPermissionReject).toHaveBeenCalledExactlyOnceWith('opt-reject');
   });
 });

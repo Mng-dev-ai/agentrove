@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type { ReactNode } from 'react';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MessageRenderer } from './MessageRenderer';
@@ -9,9 +9,8 @@ import { chatService } from '@/services/chatService';
 import type { AssistantStreamEvent } from '@/types/chat.types';
 import type { ToolEventPayload } from '@/types/tools.types';
 
-// Stub the leaf renderer so the test observes MessageRenderer's wiring — segment
-// order and the per-segment active-thinking/active-text flags — without pulling
-// in markdown, tool registries, or the smooth-text animation.
+// SegmentView pulls in markdown, the tool registry and the smooth-text
+// animation; a stub exposes the per-segment active flags MessageRenderer sets.
 vi.mock('./SegmentView', () => ({
   SegmentView: ({
     segment,
@@ -30,20 +29,6 @@ vi.mock('./SegmentView', () => ({
       data-active-text={String(isActiveText)}
     >
       {segment.text ?? ''}
-    </div>
-  ),
-}));
-
-// The completed-turn work trace collapses into WorkedRollup; expose it as a
-// boundary so the trace/tail split is assertable.
-vi.mock('./WorkedRollup', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('./WorkedRollup')>()),
-  WorkedRollup: ({ children, onExpand }: { children: ReactNode; onExpand?: () => void }) => (
-    <div data-testid="rollup">
-      <button type="button" onClick={onExpand}>
-        Worked
-      </button>
-      {children}
     </div>
   ),
 }));
@@ -71,16 +56,6 @@ function renderedOrder() {
 
 describe('MessageRenderer streaming wiring', () => {
   afterEach(cleanup);
-
-  it('renders segments in emission order', () => {
-    const events: AssistantStreamEvent[] = [
-      { type: 'assistant_text', text: 'intro' },
-      { type: 'tool_started', tool: tool({ id: 't1' }) },
-      { type: 'assistant_text', text: 'outro' },
-    ];
-    render(<MessageRenderer events={events} isStreaming />, { wrapper });
-    expect(renderedOrder()).toEqual(['text-0', 'tool-t1', 'text-1']);
-  });
 
   it('marks only the trailing text segment active while its text streams in', () => {
     const events: AssistantStreamEvent[] = [
@@ -112,44 +87,42 @@ describe('MessageRenderer streaming wiring', () => {
 
   it('never marks a segment active once the turn is no longer streaming', () => {
     const events: AssistantStreamEvent[] = [
-      { type: 'assistant_thinking', thinking: 'done thinking' },
-      { type: 'assistant_text', text: 'final answer' },
+      { type: 'assistant_text', text: 'partial' },
+      { type: 'assistant_thinking', thinking: 'cut off mid-thought' },
     ];
     render(<MessageRenderer events={events} isStreaming={false} />, { wrapper });
+    expect(renderedOrder()).toEqual(['text-0', 'thinking-0']);
     for (const el of screen.getAllByTestId('segment')) {
       expect(el.getAttribute('data-active-thinking')).toBe('false');
       expect(el.getAttribute('data-active-text')).toBe('false');
     }
   });
 
-  it('collapses the completed work trace into the rollup and leaves the final answer outside it', () => {
+  it('collapses the completed work trace behind the Worked toggle and leads with the answer', () => {
     const events: AssistantStreamEvent[] = [
       { type: 'assistant_thinking', thinking: 'plan' },
       { type: 'tool_started', tool: tool({ id: 't1' }) },
       { type: 'tool_completed', tool: tool({ id: 't1', status: 'completed' }) },
       { type: 'assistant_text', text: 'the answer' },
     ];
-    render(<MessageRenderer events={events} isStreaming={false} />, { wrapper });
+    render(<MessageRenderer events={events} isStreaming={false} durationMs={65_000} />, {
+      wrapper,
+    });
 
-    const rollup = screen.getByTestId('rollup');
-    const rollupIds = within(rollup)
-      .getAllByTestId('segment')
-      .map((el) => el.getAttribute('data-id'));
-    expect(rollupIds).toEqual(['thinking-0', 'tool-t1']);
+    expect(renderedOrder()).toEqual(['text-0']);
 
-    // The final text segment renders after the rollup, not inside it.
-    expect(within(rollup).queryByText('the answer')).toBeNull();
-    expect(screen.getByText('the answer')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Worked for/ }));
+    expect(renderedOrder()).toEqual(['thinking-0', 'tool-t1', 'text-0']);
   });
 
-  it('keeps live segments flat (no rollup) while streaming', () => {
+  it('keeps live segments flat while streaming', () => {
     const events: AssistantStreamEvent[] = [
       { type: 'assistant_thinking', thinking: 'plan' },
       { type: 'tool_started', tool: tool({ id: 't1' }) },
       { type: 'assistant_text', text: 'streaming answer' },
     ];
     render(<MessageRenderer events={events} isStreaming />, { wrapper });
-    expect(screen.queryByTestId('rollup')).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Worked/ })).toBeNull();
     expect(renderedOrder()).toEqual(['thinking-0', 'tool-t1', 'text-0']);
   });
 
@@ -175,19 +148,16 @@ describe('MessageRenderer streaming wiring', () => {
       { wrapper },
     );
 
-    // Cards never render from the stripped events.
-    const rollup = screen.getByTestId('rollup');
-    expect(within(rollup).queryByTestId('segment')).toBeNull();
+    expect(renderedOrder()).toEqual(['text-0']);
     expect(getMessageRender).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByText('Worked'));
-    const retry = await screen.findByText('Retry');
-    expect(screen.getByText('the answer')).toBeTruthy();
-    fireEvent.click(retry);
+    fireEvent.click(screen.getByRole('button', { name: 'Worked' }));
+    const retry = await screen.findByRole('button', { name: 'Retry' });
+    expect(renderedOrder()).toEqual(['text-0']);
 
-    expect(await within(rollup).findByTestId('segment')).toBeTruthy();
-    expect(screen.queryByText('Retry')).toBeNull();
-    expect(screen.getByText('the answer')).toBeTruthy();
+    fireEvent.click(retry);
+    await waitFor(() => expect(renderedOrder()).toEqual(['tool-t1', 'text-0']));
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
     expect(getMessageRender).toHaveBeenCalledTimes(2);
     expect(getMessageRender).toHaveBeenCalledWith('c1', 'm1');
   });

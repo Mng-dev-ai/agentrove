@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { clearAuth } = vi.hoisted(() => ({ clearAuth: vi.fn() }));
-
-vi.mock('@/utils/storage', () => ({ authStorage: { clearAuth } }));
-
-// Fresh module per test so the module-level `redirectInProgress` latch resets.
+// Fresh modules per test so the redirect latch and the token cache both reset.
 async function load() {
   vi.resetModules();
-  return import('./authSession');
+  const [{ invalidateSessionAndRedirect }, { authStorage }] = await Promise.all([
+    import('./authSession'),
+    import('./storage'),
+  ]);
+  return { invalidateSessionAndRedirect, authStorage };
 }
 
 function stubLocation(pathname: string) {
@@ -22,27 +22,32 @@ function stubLocation(pathname: string) {
 }
 
 beforeEach(() => {
-  clearAuth.mockClear();
+  localStorage.clear();
+  localStorage.setItem('auth_token', 'access');
+  localStorage.setItem('refresh_token', 'refresh');
 });
 
 describe('invalidateSessionAndRedirect', () => {
-  it('clears auth and redirects to /login from a normal route', async () => {
+  it('clears stored tokens and redirects to /login from a normal route', async () => {
     const replace = stubLocation('/dashboard');
-    const { invalidateSessionAndRedirect } = await load();
+    const { invalidateSessionAndRedirect, authStorage } = await load();
 
     invalidateSessionAndRedirect();
 
-    expect(clearAuth).toHaveBeenCalledTimes(1);
+    expect(authStorage.getToken()).toBeNull();
+    expect(authStorage.getRefreshToken()).toBeNull();
+    expect(localStorage.getItem('auth_token')).toBeNull();
+    expect(localStorage.getItem('refresh_token')).toBeNull();
     expect(replace).toHaveBeenCalledWith('/login');
   });
 
-  it('clears auth but does not redirect when already on /login', async () => {
+  it('clears tokens but does not redirect when already on /login', async () => {
     const replace = stubLocation('/login');
     const { invalidateSessionAndRedirect } = await load();
 
     invalidateSessionAndRedirect();
 
-    expect(clearAuth).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem('auth_token')).toBeNull();
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -54,9 +59,6 @@ describe('invalidateSessionAndRedirect', () => {
     invalidateSessionAndRedirect();
     invalidateSessionAndRedirect();
 
-    // The redirectInProgress latch guards against a redirect storm.
     expect(replace).toHaveBeenCalledTimes(1);
-    // clearAuth still runs on every call.
-    expect(clearAuth).toHaveBeenCalledTimes(3);
   });
 });

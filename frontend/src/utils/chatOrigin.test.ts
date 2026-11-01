@@ -11,37 +11,30 @@ import {
 const CHATS_KEY = 'cloud-chat-ids';
 const SANDBOXES_KEY = 'cloud-sandbox-ids';
 
+const stored = (key: string) => JSON.parse(localStorage.getItem(key) ?? 'null') as unknown;
+
 describe('chatOrigin tracking', () => {
   beforeEach(() => {
     clearCloudOrigins();
-    localStorage.clear();
-    clearCloudOrigins(); // re-persist the cleared (empty) sets after wiping storage
   });
 
-  it('marks and reports cloud chats independently from sandboxes', () => {
+  it('tracks cloud chats and sandboxes as separate sets', () => {
     markCloudChats(['c1', 'c2']);
+    markCloudSandboxes(['s1']);
+
     expect(isCloudChat('c1')).toBe(true);
     expect(isCloudChat('c2')).toBe(true);
     expect(isCloudChat('c3')).toBe(false);
-    // Sandbox set is separate — a chat id is not a sandbox id.
-    expect(isCloudSandbox('c1')).toBe(false);
-  });
-
-  it('marks and reports cloud sandboxes', () => {
-    markCloudSandboxes(['s1']);
     expect(isCloudSandbox('s1')).toBe(true);
+    expect(isCloudSandbox('c1')).toBe(false);
     expect(isCloudChat('s1')).toBe(false);
   });
 
-  it('persists marked chat ids to localStorage', () => {
+  it('persists marked ids to localStorage', () => {
     markCloudChats(['x']);
-    expect(JSON.parse(localStorage.getItem(CHATS_KEY) ?? '[]')).toEqual(['x']);
-  });
-
-  it('is idempotent for already-marked ids', () => {
-    markCloudChats(['dup']);
-    markCloudChats(['dup']);
-    expect(JSON.parse(localStorage.getItem(CHATS_KEY) ?? '[]')).toEqual(['dup']);
+    markCloudSandboxes(['s']);
+    expect(stored(CHATS_KEY)).toEqual(['x']);
+    expect(stored(SANDBOXES_KEY)).toEqual(['s']);
   });
 
   it('clears both sets and their persisted storage', () => {
@@ -50,8 +43,8 @@ describe('chatOrigin tracking', () => {
     clearCloudOrigins();
     expect(isCloudChat('c1')).toBe(false);
     expect(isCloudSandbox('s1')).toBe(false);
-    expect(JSON.parse(localStorage.getItem(CHATS_KEY) ?? '[]')).toEqual([]);
-    expect(JSON.parse(localStorage.getItem(SANDBOXES_KEY) ?? '[]')).toEqual([]);
+    expect(stored(CHATS_KEY)).toEqual([]);
+    expect(stored(SANDBOXES_KEY)).toEqual([]);
   });
 });
 
@@ -61,23 +54,23 @@ describe('chatOrigin hydration from localStorage', () => {
     vi.resetModules();
   });
 
-  it('hydrates only string ids, dropping non-strings', async () => {
+  it('hydrates persisted string ids, dropping non-strings', async () => {
     localStorage.setItem(CHATS_KEY, JSON.stringify(['a', 'b', 1, null]));
+    localStorage.setItem(SANDBOXES_KEY, JSON.stringify(['s']));
     const mod = await import('./chatOrigin');
     expect(mod.isCloudChat('a')).toBe(true);
     expect(mod.isCloudChat('b')).toBe(true);
     expect(mod.isCloudChat('1')).toBe(false);
+    expect(mod.isCloudSandbox('s')).toBe(true);
   });
 
-  it('ignores a non-array persisted value', async () => {
-    localStorage.setItem(CHATS_KEY, JSON.stringify('not-an-array'));
+  it.each([
+    ['a non-array value', JSON.stringify('not-an-array')],
+    ['malformed JSON', '{not valid json'],
+  ])('starts empty when storage holds %s', async (_label, raw) => {
+    localStorage.setItem(CHATS_KEY, raw);
     const mod = await import('./chatOrigin');
-    expect(mod.isCloudChat('n')).toBe(false);
-  });
-
-  it('recovers from malformed JSON without throwing', async () => {
-    localStorage.setItem(CHATS_KEY, '{not valid json');
-    const mod = await import('./chatOrigin');
-    expect(mod.isCloudChat('anything')).toBe(false);
+    mod.markCloudChats(['fresh']);
+    expect(stored(CHATS_KEY)).toEqual(['fresh']);
   });
 });

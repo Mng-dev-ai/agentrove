@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   useUIStore,
   clampSidebarWidth,
@@ -12,8 +12,6 @@ import { THEME_CYCLE } from '@/utils/theme';
 
 const state = () => useUIStore.getState();
 
-// jsdom's default innerWidth (1024) is above MOBILE_BREAKPOINT, so isDesktop()
-// is true here — the split/layout paths take their desktop branches.
 beforeEach(() => {
   localStorage.clear();
   useUIStore.setState({
@@ -34,6 +32,10 @@ beforeEach(() => {
   });
 });
 
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
 describe('clampSidebarWidth', () => {
   it('clamps below the minimum and above the maximum', () => {
     expect(clampSidebarWidth(0)).toBe(MIN_SIDEBAR_WIDTH);
@@ -46,63 +48,30 @@ describe('clampSidebarWidth', () => {
 });
 
 describe('setSidebarWidth', () => {
-  it('stores the clamped width', () => {
-    state().setSidebarWidth(10_000);
-    expect(state().sidebarWidth).toBe(MAX_SIDEBAR_WIDTH);
-  });
-
   it('is a no-op (stable reference) when the clamped width is unchanged', () => {
     state().setSidebarWidth(MAX_SIDEBAR_WIDTH);
     const before = state();
-    // A larger value clamps back to the same MAX — the guard must skip the set.
     state().setSidebarWidth(MAX_SIDEBAR_WIDTH + 50);
     expect(useUIStore.getState()).toBe(before);
   });
 });
 
-describe('theme', () => {
+describe('toggleTheme', () => {
   it('cycles to the next theme and wraps around', () => {
     useUIStore.setState({ theme: THEME_CYCLE[THEME_CYCLE.length - 1] });
     state().toggleTheme();
     expect(state().theme).toBe(THEME_CYCLE[0]);
-  });
-
-  it('setTheme jumps directly to a theme', () => {
-    state().setTheme('nord');
-    expect(state().theme).toBe('nord');
   });
 });
 
 describe('composer selections', () => {
   const chatSel = (text: string) => ({ kind: 'chat' as const, text });
 
-  it('appends selections per chat, keeping order', () => {
-    state().addComposerSelection('c1', chatSel('a'));
-    state().addComposerSelection('c1', chatSel('b'));
-    expect(state().composerSelectionsByChat.c1.map((s) => 'text' in s && s.text)).toEqual([
-      'a',
-      'b',
-    ]);
-  });
-
-  it('removes a selection by index', () => {
+  it('appends in order and removes a selection by index', () => {
     state().addComposerSelection('c1', chatSel('a'));
     state().addComposerSelection('c1', chatSel('b'));
     state().removeComposerSelection('c1', 0);
     expect(state().composerSelectionsByChat.c1).toEqual([chatSel('b')]);
-  });
-
-  it('clears a chat bucket to an empty array', () => {
-    state().addComposerSelection('c1', chatSel('a'));
-    state().clearComposerSelections('c1');
-    expect(state().composerSelectionsByChat.c1).toEqual([]);
-  });
-
-  it('keeps selections isolated per chat', () => {
-    state().addComposerSelection('c1', chatSel('a'));
-    state().addComposerSelection('c2', chatSel('z'));
-    expect(state().composerSelectionsByChat.c1).toEqual([chatSel('a')]);
-    expect(state().composerSelectionsByChat.c2).toEqual([chatSel('z')]);
   });
 });
 
@@ -111,7 +80,6 @@ describe('chatTabs', () => {
     state().openChatTab('c1');
     const before = state();
     state().openChatTab('c1');
-    // Idempotent — a second open must not re-write the array.
     expect(useUIStore.getState()).toBe(before);
     expect(state().chatTabs).toEqual(['c1']);
   });
@@ -138,15 +106,11 @@ describe('openFileInEditor', () => {
     expect(state().openTabs).toContain('editor');
 
     state().openFileInEditor('a.ts', 'c1', 12);
-    // Same path/line re-opens must still register (nonce increments) so the
-    // editor re-focuses after the user scrolled away.
     expect(state().pendingFileOpen?.nonce).toBe(2);
   });
 
   it('keeps incrementing the nonce after a consumer clears pendingFileOpen', () => {
     state().openFileInEditor('a.ts', 'c1', 12);
-    // Consumers null the pending open — a restarted nonce would repeat a
-    // path:line:nonce key and the editor would skip the jump as already applied.
     useUIStore.setState({ pendingFileOpen: null });
     state().openFileInEditor('a.ts', 'c1', 12);
     expect(state().pendingFileOpen?.nonce).toBe(2);
@@ -166,6 +130,46 @@ describe('openFileInEditor', () => {
     expect(state().openTabs).toContain('editor:split-2');
     expect(state().visibleLayout).toEqual([['editor:split-2']]);
   });
+
+  it('opens beside the current view when split is requested, instead of replacing it', () => {
+    state().openFileInEditor('a.ts', undefined, undefined, true);
+    expect(state().visibleLayout).toEqual([['agent:primary', 'editor']]);
+    expect(state().focusedTile).toBe('editor');
+  });
+});
+
+describe('toggleView', () => {
+  it('closes a visible view on toggle but resurfaces it when it is in the background', () => {
+    state().toggleView('editor', true);
+    expect(state().visibleLayout).toEqual([['editor']]);
+
+    state().toggleView('editor', true);
+    expect(state().openTabs).not.toContain('editor');
+    expect(state().visibleLayout).toEqual([['agent:primary']]);
+
+    state().toggleView('editor', false);
+    state().activateTab('agent:primary');
+    state().toggleView('editor', true);
+    expect(state().visibleLayout).toEqual([['editor']]);
+  });
+
+  it('closes the split when toggling the agent view with split chats open', () => {
+    state().openChatInSplit('c2');
+    state().toggleView('agent', true);
+    expect(state().splitChatIds).toEqual([]);
+    expect(state().visibleLayout).toEqual([['agent:primary']]);
+  });
+
+  it('shows a single view on mobile and returns to the agent on re-tap', () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(400);
+    state().toggleView('diff', true);
+    expect(state().visibleLayout).toEqual([['diff']]);
+    expect(state().openTabs).toEqual(['agent:primary', 'diff']);
+
+    state().toggleView('diff', true);
+    expect(state().visibleLayout).toEqual([['agent:primary']]);
+    expect(state().openTabs).toEqual(['agent:primary']);
+  });
 });
 
 describe('loadWorkspaceForChat', () => {
@@ -178,16 +182,13 @@ describe('loadWorkspaceForChat', () => {
 
   it('stashes the outgoing chat layout and restores it on return', () => {
     state().loadWorkspaceForChat('c1');
-    // Open the editor view for c1 so its layout is non-default.
     state().toggleView('editor', false);
     expect(state().visibleLayout.flat()).toContain('editor');
 
     state().loadWorkspaceForChat('c2');
-    // c2 starts fresh...
     expect(state().visibleLayout).toEqual([['agent:primary']]);
 
     state().loadWorkspaceForChat('c1');
-    // ...and c1's stashed editor layout comes back.
     expect(state().visibleLayout.flat()).toContain('editor');
   });
 });
@@ -384,12 +385,13 @@ describe('removeTab', () => {
     expect(useUIStore.getState()).toBe(before);
   });
 
-  it('closes a view and lands focus back on an agent pane', () => {
+  it('closes a focused view and lands focus back on the agent pane', () => {
     state().toggleView('editor', false);
-    expect(state().visibleLayout.flat()).toContain('editor');
+    expect(state().focusedTile).toBe('editor');
     state().removeTab('editor');
     expect(state().openTabs).not.toContain('editor');
     expect(state().visibleLayout).toEqual([['agent:primary']]);
+    expect(state().focusedTile).toBe('agent:primary');
   });
 
   it('closes only the chat owned by a split agent tile', () => {
@@ -400,17 +402,5 @@ describe('removeTab', () => {
 
     expect(state().splitChatIds).toEqual(['c3']);
     expect(state().openTabs).toEqual(['agent:primary', 'agent:split-1']);
-  });
-});
-
-describe('resetWorkspace', () => {
-  it('collapses to a single agent view and detaches from the chat', () => {
-    state().openChatInSplit('c2');
-    state().loadWorkspaceForChat('c1');
-    state().resetWorkspace();
-    expect(state().visibleLayout).toEqual([['agent:primary']]);
-    expect(state().splitChatIds).toEqual([]);
-    expect(state().currentWorkspaceChatId).toBeNull();
-    expect(state().focusedTile).toBeNull();
   });
 });

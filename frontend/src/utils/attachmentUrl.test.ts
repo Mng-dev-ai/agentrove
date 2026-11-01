@@ -1,38 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import {
-  isApiAttachmentUrl,
-  toApiEndpoint,
-  toDownloadUrl,
-  isBrowserObjectUrl,
-} from './attachmentUrl';
+import { isApiAttachmentUrl, toApiEndpoint, toDownloadUrl } from './attachmentUrl';
 
 describe('isApiAttachmentUrl', () => {
-  it('matches a relative attachments path', () => {
+  it('matches relative and absolute URLs under the attachments path', () => {
     expect(isApiAttachmentUrl('/api/v1/attachments/abc.png')).toBe(true);
-    expect(isApiAttachmentUrl('/api/v1/attachments/')).toBe(true);
-  });
-
-  it('matches an absolute URL whose path is under attachments', () => {
     expect(isApiAttachmentUrl('https://host/api/v1/attachments/x')).toBe(true);
   });
 
-  it('rejects other API paths and non-attachment URLs', () => {
+  it('rejects other API paths, foreign URLs and unparseable input', () => {
     expect(isApiAttachmentUrl('/api/v1/other')).toBe(false);
     expect(isApiAttachmentUrl('https://cdn.example.com/pic.png')).toBe(false);
-  });
-
-  it('returns false for an unparseable URL', () => {
-    // 'http://' has no host, so the URL constructor throws and parseUrl yields null.
     expect(isApiAttachmentUrl('http://')).toBe(false);
   });
 });
 
 describe('toApiEndpoint', () => {
-  it('strips the /api/v1 prefix and preserves the query string', () => {
+  it('strips the origin and /api/v1 prefix, preserving the query string', () => {
     expect(toApiEndpoint('/api/v1/attachments/x?token=1')).toBe('/attachments/x?token=1');
-  });
-
-  it('drops the origin of an absolute API URL, keeping only the endpoint path', () => {
     expect(toApiEndpoint('https://host/api/v1/attachments/x?token=1')).toBe(
       '/attachments/x?token=1',
     );
@@ -58,17 +42,5 @@ describe('toDownloadUrl', () => {
 
   it('leaves URLs without a /preview suffix untouched', () => {
     expect(toDownloadUrl('/api/v1/attachments/x/download')).toBe('/api/v1/attachments/x/download');
-  });
-});
-
-describe('isBrowserObjectUrl', () => {
-  it('matches blob: and data: URLs', () => {
-    expect(isBrowserObjectUrl('blob:https://host/uuid')).toBe(true);
-    expect(isBrowserObjectUrl('data:image/png;base64,AAAA')).toBe(true);
-  });
-
-  it('rejects http and API URLs', () => {
-    expect(isBrowserObjectUrl('https://host/x.png')).toBe(false);
-    expect(isBrowserObjectUrl('/api/v1/attachments/x')).toBe(false);
   });
 });

@@ -5,12 +5,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ToolPermissionInline } from './ToolPermissionInline';
 import type { PermissionRequest } from '@/types/chat.types';
 
-// DetailsList renders diagnostics through the markdown component; swap it for
-// a plain passthrough so the disclosure assertions stay on rendered text.
-vi.mock('@/components/ui/markdown/MarkDown', () => ({
-  MarkDown: ({ content }: { content: string }) => <div>{content}</div>,
-}));
-
 function makeRequest(over: Partial<PermissionRequest> = {}): PermissionRequest {
   return {
     request_id: 'req-1',
@@ -28,35 +22,7 @@ function makeRequest(over: Partial<PermissionRequest> = {}): PermissionRequest {
 describe('ToolPermissionInline', () => {
   afterEach(cleanup);
 
-  it('dispatches the allow option id when the allow choice is clicked', () => {
-    const onApprove = vi.fn();
-    const onReject = vi.fn();
-    render(
-      <ToolPermissionInline request={makeRequest()} onApprove={onApprove} onReject={onReject} />,
-    );
-
-    fireEvent.click(screen.getByText('Allow'));
-
-    expect(onApprove).toHaveBeenCalledTimes(1);
-    expect(onApprove).toHaveBeenCalledWith('opt-allow');
-    expect(onReject).not.toHaveBeenCalled();
-  });
-
-  it('dispatches the reject option id when the reject choice is clicked', () => {
-    const onApprove = vi.fn();
-    const onReject = vi.fn();
-    render(
-      <ToolPermissionInline request={makeRequest()} onApprove={onApprove} onReject={onReject} />,
-    );
-
-    fireEvent.click(screen.getByText('Reject'));
-
-    expect(onReject).toHaveBeenCalledTimes(1);
-    expect(onReject).toHaveBeenCalledWith('opt-reject');
-    expect(onApprove).not.toHaveBeenCalled();
-  });
-
-  it('routes each allow/reject variant to the matching handler', () => {
+  it('routes allow options to onApprove and reject options to onReject', () => {
     const onApprove = vi.fn();
     const onReject = vi.fn();
     render(
@@ -73,11 +39,11 @@ describe('ToolPermissionInline', () => {
       />,
     );
 
-    fireEvent.click(screen.getByText('Always allow'));
-    fireEvent.click(screen.getByText('Never allow'));
+    fireEvent.click(screen.getByRole('button', { name: /^Always allow/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Never allow/ }));
 
-    expect(onApprove).toHaveBeenCalledWith('a2');
-    expect(onReject).toHaveBeenCalledWith('r2');
+    expect(onApprove).toHaveBeenCalledExactlyOnceWith('a2');
+    expect(onReject).toHaveBeenCalledExactlyOnceWith('r2');
   });
 
   it('renders the tool name and command headline', () => {
@@ -117,10 +83,9 @@ describe('ToolPermissionInline', () => {
       />,
     );
 
-    const allowButton = screen.getByText('Allow').closest('button');
-    expect(allowButton).not.toBeNull();
-    expect(allowButton!.disabled).toBe(true);
-    fireEvent.click(allowButton!);
+    const allowButton = screen.getByRole<HTMLButtonElement>('button', { name: /^Allow/ });
+    expect(allowButton.disabled).toBe(true);
+    fireEvent.click(allowButton);
     expect(onApprove).not.toHaveBeenCalled();
   });
 
@@ -146,11 +111,9 @@ describe('ToolPermissionInline', () => {
       />,
     );
 
-    fireEvent.click(screen.getByText('Show details'));
-    expect(screen.getByText('Hide details')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Show details' }));
+    expect(screen.getByText('call-123')).toBeTruthy();
 
-    // A different request_id must reset the disclosure — the component stays
-    // mounted across requests, so a leaked expansion would show stale details.
     rerender(
       <ToolPermissionInline
         request={makeRequest({ request_id: 'req-2', tool_input: diagnosticInput })}
@@ -158,7 +121,7 @@ describe('ToolPermissionInline', () => {
         onReject={vi.fn()}
       />,
     );
-    expect(screen.getByText('Show details')).toBeTruthy();
-    expect(screen.queryByText('Hide details')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Show details' })).toBeTruthy();
+    expect(screen.queryByText('call-123')).toBeNull();
   });
 });

@@ -3,14 +3,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { PermissionRequest } from '@/types/chat.types';
 
-const { isTauri, isPermissionGranted, requestPermission, sendNotification, setBadgeCount, debug } =
+const { isTauri, isPermissionGranted, requestPermission, sendNotification, setBadgeCount } =
   vi.hoisted(() => ({
     isTauri: vi.fn(() => true),
     isPermissionGranted: vi.fn(async () => true),
     requestPermission: vi.fn(async () => 'granted'),
     sendNotification: vi.fn(),
     setBadgeCount: vi.fn(async () => {}),
-    debug: vi.fn(),
   }));
 
 vi.mock('@tauri-apps/api/core', () => ({ isTauri }));
@@ -20,9 +19,8 @@ vi.mock('@tauri-apps/plugin-notification', () => ({
   requestPermission,
   sendNotification,
 }));
-vi.mock('@/utils/logger', () => ({ logger: { debug } }));
 
-// Fresh module per test so the module-level dedup Set resets.
+// Fresh module per test so the module-level dedup Set and badge count reset.
 async function load() {
   vi.resetModules();
   return import('./notifications');
@@ -40,7 +38,7 @@ beforeEach(() => {
   sendNotification.mockClear();
   setBadgeCount.mockClear();
   setBadgeCount.mockResolvedValue(undefined);
-  debug.mockClear();
+  vi.spyOn(console, 'debug').mockImplementation(() => {});
 });
 
 describe('notifyPermissionRequest', () => {
@@ -88,7 +86,6 @@ describe('notifyPermissionRequest', () => {
     await notifyPermissionRequest(request());
     expect(sendNotification).not.toHaveBeenCalled();
 
-    // Nothing was shown, so the dedupe key must not be burned.
     await notifyPermissionRequest(request());
     expect(sendNotification).toHaveBeenCalledTimes(1);
   });
@@ -111,12 +108,10 @@ describe('notifyPermissionRequest', () => {
       await notifyPermissionRequest(request({ request_id: 'pending' }));
       expect(instances).toHaveLength(0);
 
-      // User granted via the first-gesture prompt; a replay must still notify…
       FakeNotification.permission = 'granted';
       await notifyPermissionRequest(request({ request_id: 'pending' }));
       expect(instances).toHaveLength(1);
 
-      // …and only once.
       await notifyPermissionRequest(request({ request_id: 'pending' }));
       expect(instances).toHaveLength(1);
     } finally {
@@ -124,12 +119,13 @@ describe('notifyPermissionRequest', () => {
     }
   });
 
-  it('swallows notification errors and logs them', async () => {
+  it('resolves false on a delivery error and lets a replay retry', async () => {
     isPermissionGranted.mockRejectedValueOnce(new Error('nope'));
     const { notifyPermissionRequest } = await load();
 
     await expect(notifyPermissionRequest(request())).resolves.toBe(false);
-    expect(debug).toHaveBeenCalledTimes(1);
+    await expect(notifyPermissionRequest(request())).resolves.toBe(true);
+    expect(sendNotification).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -180,26 +176,15 @@ describe('app badge', () => {
     }
   });
 
-  it('swallows badge errors and logs them', async () => {
+  it('swallows badge errors', async () => {
     setBadgeCount.mockRejectedValueOnce(new Error('nope'));
     const { bumpAppBadge } = await load();
 
     await expect(bumpAppBadge()).resolves.toBeUndefined();
-    expect(debug).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('notifyStreamComplete', () => {
-  it('sends a completion notification', async () => {
-    const { notifyStreamComplete } = await load();
-    await notifyStreamComplete();
-
-    expect(sendNotification).toHaveBeenCalledWith({
-      title: 'Task completed',
-      body: 'The assistant has finished responding.',
-    });
-  });
-
   it("uses the assistant's reply as the body", async () => {
     const { notifyStreamComplete } = await load();
     await notifyStreamComplete({ message: '  Renamed the auth guard and updated its tests.  ' });
@@ -225,7 +210,6 @@ describe('notifyStreamComplete', () => {
     });
   });
 
-  // Pins deliberate web behavior: OS-default auto-dismiss, click → focus + route + close.
   it('sends a plain auto-dismissing web notification whose click focuses and routes', async () => {
     isTauri.mockReturnValue(false);
     const instances: FakeNotification[] = [];

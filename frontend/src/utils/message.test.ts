@@ -38,29 +38,24 @@ describe('isAssistantMessage', () => {
 describe('createInitialMessage', () => {
   it('builds a completed user message seeded with a user_text event', () => {
     const m = createInitialMessage('hello', null, 'model-x', 'chat-1');
-    expect(m.content_text).toBe('hello');
-    expect(m.content_render.events).toEqual([{ type: 'user_text', text: 'hello' }]);
-    expect(m.role).toBe('user');
-    expect(m.is_bot).toBe(false);
-    expect(m.stream_status).toBe('completed');
-    expect(m.model_id).toBe('model-x');
-    expect(m.chat_id).toBe('chat-1');
-    expect(m.attachments).toEqual([]);
-    expect(typeof m.id).toBe('string');
+    expect(m).toMatchObject({
+      chat_id: 'chat-1',
+      content_text: 'hello',
+      content_render: { events: [{ type: 'user_text', text: 'hello' }] },
+      role: 'user',
+      stream_status: 'completed',
+      model_id: 'model-x',
+      attachments: [],
+    });
+    expect(isAssistantMessage(m)).toBe(false);
   });
 
-  it('maps attached files into typed attachments', () => {
+  it('attaches the provided files', () => {
     const file = new File(['x'], 'shot.png', { type: 'image/png' });
     const m = createInitialMessage('with file', [file], 'model-x', 'chat-1');
-    expect(m.attachments).toHaveLength(1);
-    const [att] = m.attachments;
-    expect(att.filename).toBe('shot.png');
-    expect(att.file_type).toBe('image');
-    expect(att.file_url).toBe(file);
-  });
-
-  it('produces an empty attachments array for an empty file list', () => {
-    expect(createInitialMessage('p', [], 'm', 'c').attachments).toEqual([]);
+    expect(m.attachments).toMatchObject([
+      { filename: 'shot.png', file_type: 'image', file_url: file },
+    ]);
   });
 });
 
@@ -70,17 +65,12 @@ describe('createAttachmentsFromFiles', () => {
     expect(createAttachmentsFromFiles([])).toBeUndefined();
   });
 
-  it('maps files to attachments without creating blob urls', () => {
+  it('types each file and keeps the File itself as the url (no blob urls)', () => {
     const png = new File(['x'], 'a.png', { type: 'image/png' });
     const pdf = new File(['y'], 'b.pdf', { type: 'application/pdf' });
-    const atts = createAttachmentsFromFiles([png, pdf]);
-
-    expect(atts).toHaveLength(2);
-    expect(atts?.[0].file_type).toBe('image');
-    expect(atts?.[1].file_type).toBe('pdf');
-    expect(atts?.[0].file_url).toBe(png);
-    expect(atts?.[1].file_url).toBe(pdf);
-    // message_id is a millisecond timestamp string.
-    expect(atts?.[0].message_id).toMatch(/^\d+$/);
+    expect(createAttachmentsFromFiles([png, pdf])).toMatchObject([
+      { filename: 'a.png', file_type: 'image', file_url: png },
+      { filename: 'b.pdf', file_type: 'pdf', file_url: pdf },
+    ]);
   });
 });

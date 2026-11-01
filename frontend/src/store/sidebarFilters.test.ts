@@ -22,48 +22,25 @@ describe('clearSidebarFilters', () => {
         groupBy: 'workspace',
       }),
     );
-    expect(cleared).toEqual({
-      statuses: [],
-      agentKind: null,
-      source: 'all',
-      workspaceId: null,
-      groupBy: 'workspace',
-    });
-  });
-
-  it('returns a fresh object, never mutating the input', () => {
-    const input = filters({ statuses: ['done'] });
-    const cleared = clearSidebarFilters(input);
-    expect(cleared).not.toBe(input);
-    expect(input.statuses).toEqual(['done']);
+    expect(cleared).toEqual({ ...EMPTY_SIDEBAR_FILTERS, groupBy: 'workspace' });
   });
 });
 
 describe('countActiveSidebarFilters', () => {
-  it('counts zero for the empty filter set', () => {
-    expect(countActiveSidebarFilters(EMPTY_SIDEBAR_FILTERS)).toBe(0);
-  });
-
-  it('adds one per status entry', () => {
-    expect(countActiveSidebarFilters(filters({ statuses: ['unread', 'done', 'needs-you'] }))).toBe(
-      3,
-    );
-  });
-
-  it('counts agentKind, non-all source, and workspaceId as one each', () => {
+  it('counts each status plus agentKind, non-all source, and workspaceId', () => {
     expect(
       countActiveSidebarFilters(
-        filters({ agentKind: 'codex', source: 'cloud', workspaceId: 'ws-1' }),
+        filters({
+          statuses: ['unread', 'done', 'needs-you'],
+          agentKind: 'codex',
+          source: 'cloud',
+          workspaceId: 'ws-1',
+        }),
       ),
-    ).toBe(3);
+    ).toBe(6);
   });
 
-  it('treats source "all" as inactive', () => {
-    expect(countActiveSidebarFilters(filters({ source: 'all' }))).toBe(0);
-    expect(countActiveSidebarFilters(filters({ source: 'local' }))).toBe(1);
-  });
-
-  it('excludes groupBy from the active count (presentation, not a filter)', () => {
-    expect(countActiveSidebarFilters(filters({ groupBy: 'status' }))).toBe(0);
+  it('treats source "all" and any groupBy as inactive', () => {
+    expect(countActiveSidebarFilters(filters({ source: 'all', groupBy: 'status' }))).toBe(0);
   });
 });

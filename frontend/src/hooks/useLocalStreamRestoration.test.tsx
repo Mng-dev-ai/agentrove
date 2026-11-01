@@ -1,26 +1,22 @@
 // @vitest-environment jsdom
 
-import { renderHook } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { getActiveStreams, addStreamMetadataIfAbsent, loggerError } = vi.hoisted(() => ({
-  getActiveStreams: vi.fn(),
-  addStreamMetadataIfAbsent: vi.fn(),
-  loggerError: vi.fn(),
-}));
+const { getActiveStreams } = vi.hoisted(() => ({ getActiveStreams: vi.fn() }));
 
 vi.mock('@/services/chatService', () => ({ chatService: { getActiveStreams } }));
-vi.mock('@/store/streamStore', () => ({
-  useStreamStore: { getState: () => ({ addStreamMetadataIfAbsent }) },
-}));
-vi.mock('@/utils/logger', () => ({ logger: { error: loggerError } }));
 
 import { useLocalStreamRestoration } from './useLocalStreamRestoration';
+import { useStreamStore } from '@/store/streamStore';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
+const restoredChatIds = () => useStreamStore.getState().activeStreamMetadata.map((s) => s.chatId);
 
 beforeEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
+  useStreamStore.setState({ activeStreamMetadata: [] });
   getActiveStreams.mockResolvedValue([]);
 });
 
@@ -31,19 +27,15 @@ describe('useLocalStreamRestoration', () => {
     expect(getActiveStreams).not.toHaveBeenCalled();
   });
 
-  it('seeds stream metadata for each active stream once enabled', async () => {
+  it('registers each active stream once enabled', async () => {
     getActiveStreams.mockResolvedValue([
       { chat_id: 'c1', message_id: 'm1' },
       { chat_id: 'c2', message_id: 'm2' },
     ]);
     renderHook(() => useLocalStreamRestoration({ enabled: true }));
-    await flush();
 
-    expect(getActiveStreams).toHaveBeenCalledTimes(1);
-    expect(addStreamMetadataIfAbsent).toHaveBeenCalledTimes(2);
-    expect(addStreamMetadataIfAbsent).toHaveBeenCalledWith(
-      expect.objectContaining({ chatId: 'c1', messageId: 'm1' }),
-    );
+    await waitFor(() => expect(restoredChatIds()).toEqual(['c1', 'c2']));
+    expect(useStreamStore.getState().activeStreamMetadata[0].messageId).toBe('m1');
   });
 
   it('restores at most once even across re-renders', async () => {
@@ -51,21 +43,18 @@ describe('useLocalStreamRestoration', () => {
       initialProps: { enabled: true },
     });
     await flush();
+    rerender({ enabled: false });
     rerender({ enabled: true });
     await flush();
     expect(getActiveStreams).toHaveBeenCalledTimes(1);
   });
 
   it('logs and swallows a restoration failure', async () => {
-    const err = new Error('offline');
-    getActiveStreams.mockRejectedValue(err);
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    getActiveStreams.mockRejectedValue(new Error('offline'));
     renderHook(() => useLocalStreamRestoration({ enabled: true }));
-    await flush();
-    expect(loggerError).toHaveBeenCalledWith(
-      'Stream restoration failed',
-      'useLocalStreamRestoration',
-      err,
-    );
-    expect(addStreamMetadataIfAbsent).not.toHaveBeenCalled();
+
+    await waitFor(() => expect(errorSpy).toHaveBeenCalled());
+    expect(restoredChatIds()).toEqual([]);
   });
 });

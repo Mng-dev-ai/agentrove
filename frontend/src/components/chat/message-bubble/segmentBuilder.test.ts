@@ -8,7 +8,6 @@ import {
 import type { AssistantStreamEvent, PlanEntry } from '@/types/chat.types';
 import type { ToolEventPayload } from '@/types/tools.types';
 
-// Minimal tool payload factory — only the fields buildSegments reads.
 const toolPayload = (over: Partial<ToolEventPayload> & { id: string }): ToolEventPayload => ({
   name: 'Bash',
   title: 'run',
@@ -16,25 +15,15 @@ const toolPayload = (over: Partial<ToolEventPayload> & { id: string }): ToolEven
   ...over,
 });
 
-const toolSegments = (segments: MessageSegment[]): ToolSegment[] =>
-  segments.filter((s): s is ToolSegment => s.kind === 'tool');
-
 describe('buildSegments — text/thinking translation', () => {
-  it('returns an empty array for no events', () => {
-    expect(buildSegments([])).toEqual([]);
-  });
-
-  it('emits a single text segment for one assistant_text', () => {
-    const segments = buildSegments([{ type: 'assistant_text', text: 'hello' }]);
-    expect(segments).toEqual([{ kind: 'text', id: 'text-0', text: 'hello' }]);
-  });
-
-  it('batches consecutive assistant_text events into one segment', () => {
-    const segments = buildSegments([
-      { type: 'assistant_text', text: 'foo ' },
-      { type: 'assistant_text', text: 'bar' },
-    ]);
-    expect(segments).toEqual([{ kind: 'text', id: 'text-0', text: 'foo bar' }]);
+  it.each([
+    ['assistant_text', 'text', 'text-0'],
+    ['user_text', 'text', 'text-0'],
+    ['assistant_thinking', 'thinking', 'thinking-0'],
+  ] as const)('batches consecutive %s events into one segment', (type, kind, id) => {
+    const event = (chunk: string): AssistantStreamEvent =>
+      type === 'assistant_thinking' ? { type, thinking: chunk } : { type, text: chunk };
+    expect(buildSegments([event('foo '), event('bar')])).toEqual([{ kind, id, text: 'foo bar' }]);
   });
 
   it('drops empty assistant_text (nothing accumulated to flush)', () => {
@@ -52,24 +41,6 @@ describe('buildSegments — text/thinking translation', () => {
       { kind: 'text', id: 'text-0', text: 'answer' },
       { kind: 'thinking', id: 'thinking-1', text: 'more' },
     ]);
-  });
-
-  it('batches consecutive thinking events into one segment', () => {
-    const segments = buildSegments([
-      { type: 'assistant_thinking', thinking: 'a' },
-      { type: 'assistant_thinking', thinking: 'b' },
-    ]);
-    expect(segments).toEqual([{ kind: 'thinking', id: 'thinking-0', text: 'ab' }]);
-  });
-
-  it('merges user_text into the same pending-text buffer as assistant_text', () => {
-    // Current behavior: user_text shares the pendingText buffer, so adjacent
-    // assistant/user text collapse into one segment (see suspicion note).
-    const segments = buildSegments([
-      { type: 'assistant_text', text: 'A' },
-      { type: 'user_text', text: 'B' },
-    ]);
-    expect(segments).toEqual([{ kind: 'text', id: 'text-0', text: 'AB' }]);
   });
 });
 
@@ -105,7 +76,6 @@ describe('buildSegments — prompt suggestions', () => {
       { type: 'assistant_thinking', thinking: 't' },
       { type: 'assistant_text', text: 'real' },
     ]);
-    // First flush yields empty -> no segment, count not advanced, so real text is text-0.
     expect(segments).toEqual([
       { kind: 'thinking', id: 'thinking-0', text: 't' },
       { kind: 'text', id: 'text-0', text: 'real' },
@@ -172,7 +142,6 @@ describe('buildSegments — tool translation', () => {
       },
       {
         type: 'tool_completed',
-        // name/title empty and input absent -> keep the started values.
         tool: { id: 't1', name: '', title: '', status: 'completed' },
       },
     ]);
@@ -188,8 +157,7 @@ describe('buildSegments — tool translation', () => {
       { type: 'tool_started', tool: toolPayload({ id: 'parent' }) },
       { type: 'tool_started', tool: toolPayload({ id: 'child', parent_id: 'parent' }) },
     ]);
-    // Only the parent is a root segment; the child lives in its children.
-    expect(toolSegments(segments)).toHaveLength(1);
+    expect(segments).toHaveLength(1);
     const parent = (segments[0] as ToolSegment).tool;
     expect(parent.id).toBe('parent');
     expect(parent.children.map((c) => c.id)).toEqual(['child']);
@@ -201,7 +169,6 @@ describe('buildSegments — tool translation', () => {
       { type: 'tool_started', tool: toolPayload({ id: 'child', parent_id: 'parent' }) },
       { type: 'tool_started', tool: toolPayload({ id: 'parent' }) },
     ]);
-    // Child must not become a root segment; it is queued then attached on parent arrival.
     expect(segments).toHaveLength(1);
     const parent = (segments[0] as ToolSegment).tool;
     expect(parent.id).toBe('parent');
@@ -217,7 +184,6 @@ describe('buildSegments — tool translation', () => {
         tool: toolPayload({ id: 'child', status: 'completed', parent_id: 'parent' }),
       },
     ]);
-    // Child was a root segment, then moved under parent — root now holds only parent.
     expect(segments).toHaveLength(1);
     const parent = (segments[0] as ToolSegment).tool;
     expect(parent.id).toBe('parent');
@@ -244,25 +210,14 @@ describe('buildSegments — tool translation', () => {
 });
 
 describe('buildSegments — ordering across kinds', () => {
-  it('preserves emission order and advances text ids around a tool', () => {
-    const events: AssistantStreamEvent[] = [
+  it('flushes pending thinking and text before a tool and advances text ids around it', () => {
+    const segments = buildSegments([
+      { type: 'assistant_thinking', thinking: 'plan' },
       { type: 'assistant_text', text: 'before' },
       { type: 'tool_started', tool: toolPayload({ id: 't1' }) },
       { type: 'assistant_text', text: 'after' },
-    ];
-    const segments = buildSegments(events);
-    expect(segments.map((s) => s.kind)).toEqual(['text', 'tool', 'text']);
-    expect((segments[0] as { id: string }).id).toBe('text-0');
-    expect((segments[2] as { id: string }).id).toBe('text-1');
-  });
-
-  it('flushes pending text and thinking before a tool segment', () => {
-    const segments = buildSegments([
-      { type: 'assistant_thinking', thinking: 'plan' },
-      { type: 'assistant_text', text: 'note' },
-      { type: 'tool_started', tool: toolPayload({ id: 't1' }) },
     ]);
-    expect(segments.map((s) => s.kind)).toEqual(['thinking', 'text', 'tool']);
+    expect(segments.map((s) => s.id)).toEqual(['thinking-0', 'text-0', 'tool-t1', 'text-1']);
   });
 });
 
@@ -314,29 +269,37 @@ describe('buildSegments — plan translation', () => {
 });
 
 describe('segmentsEqual', () => {
-  it('returns false for differing ids', () => {
-    const a: MessageSegment = { kind: 'text', id: 'text-0', text: 'x' };
-    const b: MessageSegment = { kind: 'text', id: 'text-1', text: 'x' };
-    expect(segmentsEqual(a, b)).toBe(false);
+  const events: AssistantStreamEvent[] = [
+    { type: 'assistant_thinking', thinking: 'plan' },
+    { type: 'tool_started', tool: toolPayload({ id: 'p', input: { a: 1 } }) },
+    { type: 'tool_started', tool: toolPayload({ id: 'c', parent_id: 'p' }) },
+    { type: 'plan', data: { entries: [{ content: 'a', status: 'pending' }] } },
+    { type: 'assistant_text', text: 'answer' },
+    { type: 'prompt_suggestions', suggestions: ['next'] },
+  ];
+
+  it('treats segments rebuilt from the same events as unchanged', () => {
+    const before = buildSegments(events);
+    const after = buildSegments(events);
+    expect(before.map((segment, i) => segmentsEqual(segment, after[i]))).toEqual(
+      before.map(() => true),
+    );
   });
 
-  it('compares text content when ids match', () => {
-    const a: MessageSegment = { kind: 'text', id: 'text-0', text: 'x' };
-    const b: MessageSegment = { kind: 'text', id: 'text-0', text: 'y' };
-    expect(segmentsEqual(a, { ...a })).toBe(true);
-    expect(segmentsEqual(a, b)).toBe(false);
+  it('flags only the segments a later event changed, including nested tool updates', () => {
+    const before = buildSegments(events);
+    const after = buildSegments([
+      ...events,
+      { type: 'tool_completed', tool: toolPayload({ id: 'c', status: 'completed', result: 'ok' }) },
+      { type: 'assistant_text', text: ' more' },
+    ]);
+    const changed = before.filter((segment, i) => !segmentsEqual(segment, after[i]));
+    expect(changed.map((segment) => segment.id)).toEqual(['tool-p']);
   });
 
-  it('compares suggestions by reference identity', () => {
-    const list = ['a'];
-    const a: MessageSegment = { kind: 'suggestions', id: 's-0', suggestions: list };
-    expect(segmentsEqual(a, { kind: 'suggestions', id: 's-0', suggestions: list })).toBe(true);
-    expect(segmentsEqual(a, { kind: 'suggestions', id: 's-0', suggestions: ['a'] })).toBe(false);
-  });
-
-  it('returns false when kinds differ despite matching ids', () => {
-    const a: MessageSegment = { kind: 'text', id: 'x', text: 't' };
-    const b: MessageSegment = { kind: 'thinking', id: 'x', text: 't' };
-    expect(segmentsEqual(a, b)).toBe(false);
+  it('never equates segments whose id or kind differ', () => {
+    const text: MessageSegment = { kind: 'text', id: 'x', text: 't' };
+    expect(segmentsEqual(text, { ...text, id: 'y' })).toBe(false);
+    expect(segmentsEqual(text, { kind: 'thinking', id: 'x', text: 't' })).toBe(false);
   });
 });

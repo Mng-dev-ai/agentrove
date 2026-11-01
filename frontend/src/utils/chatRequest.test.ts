@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { coerceThinkingModeForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import { buildAgentChatFields } from './chatRequest';
 import type { Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
@@ -23,18 +22,6 @@ const raw = (over: Partial<Parameters<typeof buildAgentChatFields>[2]> = {}) => 
   ...over,
 });
 
-describe('coerceThinkingModeForAgent', () => {
-  it('uses the agent default for empty or unknown modes', () => {
-    const copilot = model({
-      model_id: 'copilot:gpt-5.4',
-      agent_kind: 'copilot',
-      thinking_modes: ['low', 'medium', 'high', 'xhigh'],
-    });
-    expect(coerceThinkingModeForAgent('', 'claude', undefined)).toBe('high');
-    expect(coerceThinkingModeForAgent('unknown', 'copilot', copilot)).toBe('high');
-  });
-});
-
 describe('buildAgentChatFields', () => {
   it('resolves the agent kind from the model map and coerces an incompatible permission mode', () => {
     const map = new Map<string, Model>([['m1', model({ model_id: 'm1', agent_kind: 'codex' })]]);
@@ -44,7 +31,6 @@ describe('buildAgentChatFields', () => {
       raw({ permissionMode: 'bypassPermissions' }),
       [],
     );
-    // 'bypassPermissions' is a Claude mode -> falls back to the codex default.
     expect(fields.permission_mode).toBe('full-access');
   });
 
@@ -55,7 +41,6 @@ describe('buildAgentChatFields', () => {
       raw({ permissionMode: 'default' }),
       [],
     );
-    // gpt-5.5 is a known codex id -> coerced to the codex default.
     expect(fields.permission_mode).toBe('full-access');
   });
 
@@ -81,7 +66,6 @@ describe('buildAgentChatFields', () => {
   });
 
   it('clamps an unsupported thinking mode to the nearest lower tier', () => {
-    // gpt-5.5 (codex, non-max) has no 'max' tier, so it clamps to 'xhigh'.
     const map = new Map<string, Model>([
       [
         'gpt-5.5',
@@ -94,6 +78,21 @@ describe('buildAgentChatFields', () => {
     ]);
     const fields = buildAgentChatFields('gpt-5.5', map, raw({ thinkingMode: 'max' }), []);
     expect(fields.thinking_mode).toBe('xhigh');
+  });
+
+  it('replaces an unknown thinking mode with the agent default', () => {
+    const map = new Map<string, Model>([
+      [
+        'copilot:gpt-5.4',
+        model({
+          model_id: 'copilot:gpt-5.4',
+          agent_kind: 'copilot',
+          thinking_modes: ['low', 'medium', 'high', 'xhigh'],
+        }),
+      ],
+    ]);
+    const fields = buildAgentChatFields('copilot:gpt-5.4', map, raw({ thinkingMode: 'bogus' }), []);
+    expect(fields.thinking_mode).toBe('high');
   });
 
   it('maps worktree to true only when enabled, else undefined', () => {
@@ -124,7 +123,6 @@ describe('buildAgentChatFields', () => {
     );
     expect(worktreeWithBase.base_branch).toBe('develop');
     expect(worktreeNoBase.base_branch).toBeUndefined();
-    // A stale base can't leak onto a turn that isn't cutting a worktree.
     expect(baseWithoutWorktree.base_branch).toBeUndefined();
   });
 

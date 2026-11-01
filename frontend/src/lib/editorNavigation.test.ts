@@ -1,28 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const openFileInEditor = vi.fn();
 const searchInFiles = vi.fn();
-const fetchQuery = vi.fn();
+const getFileContent = vi.fn();
 
-vi.mock('@/store/uiStore', () => ({
-  useUIStore: { getState: () => ({ openFileInEditor }) },
-}));
 vi.mock('@/services/sandboxService', () => ({
   sandboxService: {
     searchInFiles: (...a: unknown[]) => searchInFiles(...a),
-    getFileContent: vi.fn(),
+    getFileContent: (...a: unknown[]) => getFileContent(...a),
   },
 }));
-vi.mock('@/lib/queryClient', () => ({
-  queryClient: { fetchQuery: (...a: unknown[]) => fetchQuery(...a) },
-}));
-// Avoid file util → react-hot-toast import chain in the node run.
-vi.mock('@/utils/file', () => ({ detectLanguage: () => 'plaintext' }));
+// The app client wires a localStorage persister at import; navigation only needs a cache.
+vi.mock('@/lib/queryClient', async () => {
+  const { QueryClient } = await import('@tanstack/react-query');
+  return { queryClient: new QueryClient({ defaultOptions: { queries: { retry: false } } }) };
+});
 
-// Fresh module per test (module-level activeContext/installed).
+// Fresh modules per test: navigation keeps module-level activeContext/installed state.
 async function load() {
   vi.resetModules();
-  return import('./editorNavigation');
+  const nav = await import('./editorNavigation');
+  const { useUIStore } = await import('@/store/uiStore');
+  const { queryClient } = await import('@/lib/queryClient');
+  queryClient.clear();
+  return { ...nav, useUIStore };
 }
 
 // Monaco stand-in capturing registered handlers.
@@ -106,110 +106,77 @@ type DefProvider = {
 };
 type MonacoLike = Parameters<(typeof import('./editorNavigation'))['setupEditorNavigation']>[0];
 
+const context = (over: Partial<{ sandboxId: string; chatId: string }> = {}) => ({
+  sandboxId: 'sbx',
+  chatId: 'c1',
+  cwd: undefined,
+  ...over,
+});
+
+async function setup() {
+  const mod = await load();
+  const { m, get } = makeMonaco();
+  mod.setupEditorNavigation(m);
+  const pendingFileOpen = () => mod.useUIStore.getState().pendingFileOpen;
+  return { ...mod, get, pendingFileOpen };
+}
+
 beforeEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllMocks();
 });
 
 describe('editor opener context resolution', () => {
   it('rejects a jump when no pane has claimed a context', async () => {
-    const { setupEditorNavigation } = await load();
-    const { m, get } = makeMonaco();
-    setupEditorNavigation(m);
-    const ok = get().opener.openCodeEditor({}, uri('sandbox', 'sbx', '/foo.ts'), null);
-    expect(ok).toBe(false);
-    expect(openFileInEditor).not.toHaveBeenCalled();
+    const { get, pendingFileOpen } = await setup();
+    expect(get().opener.openCodeEditor({}, uri('sandbox', 'sbx', '/foo.ts'), null)).toBe(false);
+    expect(pendingFileOpen()).toBeNull();
   });
 
-  it('rejects a resource whose authority is not the claimed sandbox', async () => {
-    const { setupEditorNavigation, attachEditorNavigationContext } = await load();
-    const { m, get } = makeMonaco();
-    setupEditorNavigation(m);
-    attachEditorNavigationContext(fakeEditor().editor, {
-      sandboxId: 'sbx',
-      chatId: 'c1',
-      cwd: undefined,
-    });
+  it('rejects a resource whose scheme or authority does not match the claimed sandbox', async () => {
+    const { get, attachEditorNavigationContext } = await setup();
+    attachEditorNavigationContext(fakeEditor().editor, context());
     expect(get().opener.openCodeEditor({}, uri('sandbox', 'other', '/foo.ts'), null)).toBe(false);
     expect(get().opener.openCodeEditor({}, uri('file', 'sbx', '/foo.ts'), null)).toBe(false);
   });
 
-  it('opens the file (path without leading slash) using a range start line', async () => {
-    const { setupEditorNavigation, attachEditorNavigationContext } = await load();
-    const { m, get } = makeMonaco();
-    setupEditorNavigation(m);
-    attachEditorNavigationContext(fakeEditor().editor, {
-      sandboxId: 'sbx',
-      chatId: 'c1',
-      cwd: undefined,
-    });
-    const ok = get().opener.openCodeEditor({}, uri('sandbox', 'sbx', '/src/foo.ts'), {
-      startLineNumber: 12,
-    });
-    expect(ok).toBe(true);
-    expect(openFileInEditor).toHaveBeenCalledWith('src/foo.ts', 'c1', 12);
-  });
-
-  it('uses a plain position line number when no range is present', async () => {
-    const { setupEditorNavigation, attachEditorNavigationContext } = await load();
-    const { m, get } = makeMonaco();
-    setupEditorNavigation(m);
-    attachEditorNavigationContext(fakeEditor().editor, {
-      sandboxId: 'sbx',
-      chatId: 'c1',
-      cwd: undefined,
-    });
-    get().opener.openCodeEditor({}, uri('sandbox', 'sbx', '/foo.ts'), { lineNumber: 7 });
-    expect(openFileInEditor).toHaveBeenCalledWith('foo.ts', 'c1', 7);
-  });
-
-  it('passes an undefined line when no selection is given', async () => {
-    const { setupEditorNavigation, attachEditorNavigationContext } = await load();
-    const { m, get } = makeMonaco();
-    setupEditorNavigation(m);
-    attachEditorNavigationContext(fakeEditor().editor, {
-      sandboxId: 'sbx',
-      chatId: 'c1',
-      cwd: undefined,
-    });
-    get().opener.openCodeEditor({}, uri('sandbox', 'sbx', '/foo.ts'), null);
-    expect(openFileInEditor).toHaveBeenCalledWith('foo.ts', 'c1', undefined);
-  });
-
   it('rejects when the claiming context has no sandbox id', async () => {
-    const { setupEditorNavigation, attachEditorNavigationContext } = await load();
-    const { m, get } = makeMonaco();
-    setupEditorNavigation(m);
-    attachEditorNavigationContext(fakeEditor().editor, {
-      sandboxId: undefined,
-      chatId: 'c1',
-      cwd: undefined,
-    });
+    const { get, attachEditorNavigationContext } = await setup();
+    attachEditorNavigationContext(fakeEditor().editor, { ...context(), sandboxId: undefined });
     expect(get().opener.openCodeEditor({}, uri('sandbox', 'sbx', '/foo.ts'), null)).toBe(false);
+  });
+
+  it.each([
+    ['a range start line', { startLineNumber: 12 }, 12],
+    ['a plain position', { lineNumber: 7 }, 7],
+    ['no selection', null, undefined],
+  ])('opens the file in the claiming chat at %s', async (_label, selection, line) => {
+    const { get, attachEditorNavigationContext, pendingFileOpen } = await setup();
+    attachEditorNavigationContext(fakeEditor().editor, context());
+
+    expect(get().opener.openCodeEditor({}, uri('sandbox', 'sbx', '/src/foo.ts'), selection)).toBe(
+      true,
+    );
+    expect(pendingFileOpen()).toEqual({ path: 'src/foo.ts', chatId: 'c1', nonce: 1, line });
   });
 });
 
 describe('context claim via editor listeners', () => {
   it('re-claims the context when a previously-attached pane fires mouse-move', async () => {
-    const { setupEditorNavigation, attachEditorNavigationContext } = await load();
-    const { m, get } = makeMonaco();
-    setupEditorNavigation(m);
-
+    const { get, attachEditorNavigationContext, pendingFileOpen } = await setup();
     const first = fakeEditor();
-    attachEditorNavigationContext(first.editor, { sandboxId: 'sbx', chatId: 'c1', cwd: undefined });
-    // A second pane becomes the active claim.
-    attachEditorNavigationContext(fakeEditor().editor, {
-      sandboxId: 'sbx',
-      chatId: 'c2',
-      cwd: undefined,
-    });
-    // Interacting with the first pane reclaims it, so jumps route to c1 again.
+    attachEditorNavigationContext(first.editor, context({ chatId: 'c1' }));
+    attachEditorNavigationContext(fakeEditor().editor, context({ chatId: 'c2' }));
+
     first.cbs.move?.();
     get().opener.openCodeEditor({}, uri('sandbox', 'sbx', '/foo.ts'), null);
-    expect(openFileInEditor).toHaveBeenLastCalledWith('foo.ts', 'c1', undefined);
+    expect(pendingFileOpen()?.chatId).toBe('c1');
   });
 });
 
 describe('provideDefinition', () => {
+  const live = { isCancellationRequested: false };
+
   function sourceModel(word: string | null) {
     return {
       uri: uri('sandbox', 'sbx', '/src/a.ts'),
@@ -218,47 +185,36 @@ describe('provideDefinition', () => {
     };
   }
 
-  async function setup() {
-    const mod = await load();
-    const { m, get } = makeMonaco();
-    mod.setupEditorNavigation(m);
-    mod.attachEditorNavigationContext(fakeEditor().editor, {
-      sandboxId: 'sbx',
-      chatId: 'c1',
-      cwd: undefined,
-    });
+  async function definitionProvider() {
+    const { get, attachEditorNavigationContext } = await setup();
+    attachEditorNavigationContext(fakeEditor().editor, context());
     return get().defProvider;
   }
 
-  it('returns null when the cursor is not on a word', async () => {
-    const provider = await setup();
-    const result = await provider.provideDefinition(
-      sourceModel(null),
-      {},
-      {
-        isCancellationRequested: false,
-      },
-    );
-    expect(result).toBeNull();
+  function searchHit(lineNumber: number) {
+    searchInFiles.mockResolvedValue({
+      results: [{ path: 'a.ts', matches: [{ line_number: lineNumber }] }],
+    });
+  }
+
+  it('returns null without searching when the cursor is not on a word', async () => {
+    const provider = await definitionProvider();
+    expect(await provider.provideDefinition(sourceModel(null), {}, live)).toBeNull();
     expect(searchInFiles).not.toHaveBeenCalled();
   });
 
-  it('locates the symbol column in the live model line (1-based)', async () => {
-    const provider = await setup();
-    searchInFiles.mockResolvedValue({ results: [{ path: 'a.ts', matches: [{ line_number: 2 }] }] });
-    fetchQuery.mockResolvedValue({ is_binary: false, content: 'line one\nconst foo = 1\n' });
+  it('locates the symbol column in the hydrated file line (1-based)', async () => {
+    const provider = await definitionProvider();
+    searchHit(2);
+    getFileContent.mockResolvedValue({ is_binary: false, content: 'line one\nconst foo = 1\n' });
 
-    const result = (await provider.provideDefinition(
-      sourceModel('foo'),
-      {},
-      {
-        isCancellationRequested: false,
-      },
-    )) as Array<{ range: Record<string, number> }>;
+    const result = (await provider.provideDefinition(sourceModel('foo'), {}, live)) as Array<{
+      range: Record<string, number>;
+    }>;
 
-    // 'const foo = 1' -> 'foo' starts at index 6, so column 7 (1-based).
+    expect(getFileContent).toHaveBeenCalledWith('sbx', 'a.ts');
     expect(result).toHaveLength(1);
-    expect(result[0].range).toMatchObject({
+    expect(result[0].range).toEqual({
       startLineNumber: 2,
       startColumn: 7,
       endLineNumber: 2,
@@ -267,58 +223,31 @@ describe('provideDefinition', () => {
   });
 
   it('skips matches whose line number exceeds the live model length', async () => {
-    const provider = await setup();
-    searchInFiles.mockResolvedValue({ results: [{ path: 'a.ts', matches: [{ line_number: 9 }] }] });
-    fetchQuery.mockResolvedValue({ is_binary: false, content: 'only one line' });
-    const result = (await provider.provideDefinition(
-      sourceModel('foo'),
-      {},
-      {
-        isCancellationRequested: false,
-      },
-    )) as unknown[];
-    expect(result).toEqual([]);
+    const provider = await definitionProvider();
+    searchHit(9);
+    getFileContent.mockResolvedValue({ is_binary: false, content: 'only one line' });
+    expect(await provider.provideDefinition(sourceModel('foo'), {}, live)).toEqual([]);
   });
 
   it('produces no locations for a binary target file', async () => {
-    const provider = await setup();
-    searchInFiles.mockResolvedValue({ results: [{ path: 'a.ts', matches: [{ line_number: 1 }] }] });
-    fetchQuery.mockResolvedValue({ is_binary: true });
-    const result = (await provider.provideDefinition(
-      sourceModel('foo'),
-      {},
-      {
-        isCancellationRequested: false,
-      },
-    )) as unknown[];
-    expect(result).toEqual([]);
+    const provider = await definitionProvider();
+    searchHit(1);
+    getFileContent.mockResolvedValue({ is_binary: true });
+    expect(await provider.provideDefinition(sourceModel('foo'), {}, live)).toEqual([]);
   });
 
   it('returns null on a failed search (errors stay quiet)', async () => {
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const provider = await setup();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const provider = await definitionProvider();
     searchInFiles.mockRejectedValue(new Error('offline'));
-    const result = await provider.provideDefinition(
-      sourceModel('foo'),
-      {},
-      {
-        isCancellationRequested: false,
-      },
-    );
-    expect(result).toBeNull();
-    errSpy.mockRestore();
+    expect(await provider.provideDefinition(sourceModel('foo'), {}, live)).toBeNull();
   });
 
   it('returns null when cancelled after the search resolves', async () => {
-    const provider = await setup();
-    searchInFiles.mockResolvedValue({ results: [{ path: 'a.ts', matches: [{ line_number: 1 }] }] });
-    const result = await provider.provideDefinition(
-      sourceModel('foo'),
-      {},
-      {
-        isCancellationRequested: true,
-      },
-    );
-    expect(result).toBeNull();
+    const provider = await definitionProvider();
+    searchHit(1);
+    expect(
+      await provider.provideDefinition(sourceModel('foo'), {}, { isCancellationRequested: true }),
+    ).toBeNull();
   });
 });

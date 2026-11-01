@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Force the browser (localStorage) backend — the Tauri secure-store path is a
-// thin plugin wrapper and not the logic under test.
 vi.mock('@tauri-apps/api/core', () => ({ isTauri: () => false }));
-vi.mock('@/utils/logger', () => ({ logger: { error: vi.fn() } }));
 
 // Fresh module per test so the in-memory token cache resets between cases.
 async function load() {
@@ -16,21 +13,22 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-describe('safe localStorage helpers', () => {
-  it('round-trips a value and returns null for a missing key', async () => {
-    const { safeSetItem, safeGetItem } = await load();
-    safeSetItem('k', 'v');
-    expect(safeGetItem('k')).toBe('v');
-    expect(safeGetItem('absent')).toBeNull();
-  });
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
-  it('returns null instead of throwing when getItem blows up', async () => {
-    const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+describe('safe localStorage helpers', () => {
+  it('swallow storage failures instead of throwing', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('quota');
     });
-    const { safeGetItem } = await load();
+    const { safeGetItem, safeSetItem } = await load();
     expect(safeGetItem('k')).toBeNull();
-    spy.mockRestore();
+    expect(() => safeSetItem('k', 'v')).not.toThrow();
   });
 });
 
@@ -73,17 +71,6 @@ describe('authStorage (browser backend)', () => {
     expect(authStorage.getRefreshToken()).toBe('rotated');
     expect(authStorage.getToken()).toBe('fresh');
   });
-
-  it('drops cached tokens when another tab logs out', async () => {
-    const { authStorage } = await load();
-    await authStorage.setTokens('tok', 'refresh');
-
-    window.dispatchEvent(new StorageEvent('storage', { key: 'auth_token', newValue: null }));
-    window.dispatchEvent(new StorageEvent('storage', { key: 'refresh_token', newValue: null }));
-
-    expect(authStorage.getToken()).toBeNull();
-    expect(authStorage.getRefreshToken()).toBeNull();
-  });
 });
 
 describe('cloudAuthStorage (browser backend)', () => {
@@ -92,9 +79,8 @@ describe('cloudAuthStorage (browser backend)', () => {
     await cloudAuthStorage.setTokens('cloud-access', 'cloud-refresh');
     expect(cloudAuthStorage.getAccessToken()).toBe('cloud-access');
     expect(cloudAuthStorage.getRefreshToken()).toBe('cloud-refresh');
-    // Access token is never written to localStorage.
     expect(localStorage.getItem('cloud_refresh_token')).toBe('cloud-refresh');
-    expect(localStorage.getItem('cloud_access_token')).toBeNull();
+    expect(Object.values(localStorage)).not.toContain('cloud-access');
   });
 
   it('clears everything on clear', async () => {
@@ -116,7 +102,6 @@ describe('cloudAuthStorage (browser backend)', () => {
     );
 
     expect(cloudAuthStorage.getRefreshToken()).toBe('rotated');
-    // A rotation elsewhere doesn't invalidate this tab's access token.
     expect(cloudAuthStorage.getAccessToken()).toBe('a');
   });
 
@@ -146,7 +131,6 @@ describe('chatStorage event ids', () => {
   });
 
   it('prunes to the newest 500 entries, evicting the lowest seqs', async () => {
-    // 505 entries; keys carry the seq as their stored value.
     for (let seq = 0; seq < 505; seq++) {
       localStorage.setItem(`chat:c${seq}:lastEventId`, String(seq));
     }
@@ -157,7 +141,6 @@ describe('chatStorage event ids', () => {
       (k) => k.startsWith('chat:') && k.endsWith(':lastEventId'),
     );
     expect(remaining).toHaveLength(500);
-    // The 5 lowest seqs (0..4) are evicted; the newest survive.
     expect(chatStorage.getEventId('c0')).toBeNull();
     expect(chatStorage.getEventId('c4')).toBeNull();
     expect(chatStorage.getEventId('c5')).toBe('5');

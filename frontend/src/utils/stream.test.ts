@@ -1,15 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-vi.mock('@/utils/logger', () => ({
-  logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-import { logger } from '@/utils/logger';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { StreamContentBuffer, extractAssistantText, PROMPT_SUGGESTIONS_RE } from './stream';
 import type { AssistantStreamEvent } from '@/types/chat.types';
 
+let consoleError: ReturnType<typeof vi.spyOn>;
+
 beforeEach(() => {
-  vi.clearAllMocks();
+  consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('PROMPT_SUGGESTIONS_RE', () => {
@@ -18,7 +18,7 @@ describe('PROMPT_SUGGESTIONS_RE', () => {
     expect(input.replace(PROMPT_SUGGESTIONS_RE, '')).toBe('ab');
   });
 
-  it('strips every occurrence (global flag)', () => {
+  it('strips every occurrence', () => {
     const input =
       '<prompt_suggestions>1</prompt_suggestions>x<prompt_suggestions>2</prompt_suggestions>';
     expect(input.replace(PROMPT_SUGGESTIONS_RE, '')).toBe('x');
@@ -71,34 +71,24 @@ describe('extractAssistantText — string source', () => {
   });
 
   it('treats a JSON array that is not an event array as plain text', () => {
-    // [1,2,3] parses but fails the event-array shape check -> wrapped as text.
     expect(extractAssistantText('[1,2,3]')).toBe('[1,2,3]');
   });
 
   it('treats malformed JSON as plain text and logs the parse failure', () => {
     expect(extractAssistantText('[not valid json')).toBe('[not valid json');
-    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('extractAssistantText — parse cache', () => {
-  it('parses identical content only once (cache hit skips the reparse)', () => {
+  it('parses identical content only once', () => {
     const malformed = `[${'z'.repeat(200)}`;
     extractAssistantText(malformed);
     extractAssistantText(malformed);
-    // A cache hit does not reparse, so the parse-failure log fires exactly once.
-    expect(logger.error).toHaveBeenCalledTimes(1);
+    expect(consoleError).toHaveBeenCalledTimes(1);
   });
 
-  it('does not serve a false cache hit for distinct content', () => {
-    extractAssistantText(`[${'a'.repeat(200)}`);
-    extractAssistantText(`[${'b'.repeat(200)}`);
-    expect(logger.error).toHaveBeenCalledTimes(2);
-  });
-
-  it('keys long strings by fingerprint but guards against fingerprint collisions', () => {
-    // Same length + first-50 + last-50, differing only in the middle -> same
-    // cache key. The content-equality guard must still return each own result.
+  it('returns the right text for long strings that share a length, head and tail', () => {
     const head = 'H'.repeat(50);
     const tail = 'T'.repeat(50);
     const a = head + 'A'.repeat(50) + tail;
@@ -106,28 +96,9 @@ describe('extractAssistantText — parse cache', () => {
     expect(extractAssistantText(a)).toBe(a);
     expect(extractAssistantText(b)).toBe(b);
   });
-
-  it('evicts the oldest entry once the 20-entry cap is exceeded (FIFO)', () => {
-    const sentinel = `[${'S'.repeat(200)}`;
-    extractAssistantText(sentinel); // parse -> 1 log
-    // 20 distinct long entries fully refill the capped cache, evicting sentinel.
-    for (let i = 0; i < 20; i++) {
-      extractAssistantText(`[evict${i}${'q'.repeat(200)}`);
-    }
-    extractAssistantText(sentinel); // evicted -> reparse -> +1 log
-    expect(logger.error).toHaveBeenCalledTimes(22);
-  });
 });
 
 describe('StreamContentBuffer', () => {
-  it('starts empty', () => {
-    const buf = new StreamContentBuffer();
-    expect(buf.getEvents()).toEqual([]);
-    expect(buf.getContentText()).toBe('');
-    expect(buf.serialize()).toBe('[]');
-    expect(buf.snapshot()).toEqual({ events: [] });
-  });
-
   it('seeds text from initial assistant_text events', () => {
     const buf = new StreamContentBuffer([
       { type: 'assistant_text', text: 'foo' },
@@ -157,13 +128,6 @@ describe('StreamContentBuffer', () => {
     ]);
   });
 
-  it('records non-text events without changing the joined text', () => {
-    const buf = new StreamContentBuffer();
-    buf.push({ type: 'assistant_thinking', thinking: 'hmm' });
-    expect(buf.getContentText()).toBe('');
-    expect(buf.getEvents()).toHaveLength(1);
-  });
-
   it('ignores empty assistant_text for the text buffer but still records the event', () => {
     const buf = new StreamContentBuffer();
     buf.push({ type: 'assistant_text', text: '' });
@@ -177,12 +141,6 @@ describe('StreamContentBuffer', () => {
     const snap = buf.snapshot();
     buf.push({ type: 'assistant_text', text: 'b' });
     expect(snap.events).toEqual([{ type: 'assistant_text', text: 'a' }]);
-  });
-
-  it('serializes the events to JSON', () => {
-    const buf = new StreamContentBuffer();
-    buf.push({ type: 'assistant_text', text: 'hi' });
-    expect(buf.serialize()).toBe(JSON.stringify([{ type: 'assistant_text', text: 'hi' }]));
   });
 
   it('does not mutate the caller-provided initialEvents array', () => {

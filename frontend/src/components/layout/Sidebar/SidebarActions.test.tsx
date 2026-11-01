@@ -1,43 +1,53 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SidebarActions } from './SidebarActions';
+import { queryKeys } from '@/hooks/queries/queryKeys';
+import { inboxService } from '@/services/inboxService';
+import { useAuthStore } from '@/store/authStore';
 
-const useInboxQuery = vi.hoisted(() => vi.fn());
+vi.mock('@/services/inboxService', () => ({ inboxService: { listInbox: vi.fn() } }));
 
-vi.mock('@/hooks/queries/useInboxQueries', () => ({ useInboxQuery }));
-
-function renderActions(unreadCount: number) {
-  useInboxQuery.mockReturnValue({
-    data: { pages: [{ items: [], next_cursor: null, has_more: false, unread_count: unreadCount }] },
+async function renderActions(unreadCount: number) {
+  vi.mocked(inboxService.listInbox).mockResolvedValue({
+    items: [],
+    next_cursor: null,
+    has_more: false,
+    unread_count: unreadCount,
   });
   const onOpenInbox = vi.fn();
-  render(<SidebarActions onNewChat={vi.fn()} onOpenSearch={vi.fn()} onOpenInbox={onOpenInbox} />);
+  const client = new QueryClient();
+  render(
+    <QueryClientProvider client={client}>
+      <SidebarActions onNewChat={vi.fn()} onOpenSearch={vi.fn()} onOpenInbox={onOpenInbox} />
+    </QueryClientProvider>,
+  );
+  await waitFor(() => expect(client.getQueryState(queryKeys.inbox)?.status).toBe('success'));
   return { onOpenInbox };
 }
 
 describe('SidebarActions inbox row', () => {
+  beforeEach(() => useAuthStore.setState({ isAuthenticated: true }));
   afterEach(cleanup);
 
-  it('shows the unread count badge when there are unread items', () => {
-    renderActions(3);
-    expect(screen.getByLabelText('3 unread').textContent).toBe('3');
+  it.each([
+    [3, '3'],
+    [120, '99+'],
+  ])('shows %i unread as a "%s" badge', async (count, badge) => {
+    await renderActions(count);
+    expect(screen.getByLabelText(`${count} unread`).textContent).toBe(badge);
   });
 
-  it('caps the badge at 99+', () => {
-    renderActions(120);
-    expect(screen.getByLabelText('120 unread').textContent).toBe('99+');
-  });
-
-  it('hides the badge when nothing is unread', () => {
-    renderActions(0);
+  it('hides the badge when nothing is unread', async () => {
+    await renderActions(0);
     expect(screen.queryByLabelText(/unread/)).toBeNull();
   });
 
-  it('opens the inbox when the row is clicked', () => {
-    const { onOpenInbox } = renderActions(1);
-    fireEvent.click(screen.getByText('Inbox'));
+  it('opens the inbox when the row is clicked', async () => {
+    const { onOpenInbox } = await renderActions(1);
+    fireEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
     expect(onOpenInbox).toHaveBeenCalledOnce();
   });
 });

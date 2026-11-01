@@ -1,60 +1,56 @@
 // @vitest-environment jsdom
 
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ElicitationInline } from './ElicitationInline';
 import type { ElicitationRequest } from '@/types/chat.types';
 
-function makeRequest(over: Partial<ElicitationRequest> = {}): ElicitationRequest {
+function makeRequest(requestId: string): ElicitationRequest {
   return {
-    request_id: 'elicit-1',
+    request_id: requestId,
     message: 'Which framework?',
     tool_call_id: null,
     requested_schema: {
       type: 'object',
       properties: { notes: { type: 'string', title: 'Notes' } },
     },
-    ...over,
   };
 }
 
-const noop = vi.fn();
+const noop = () => {};
 
-afterEach(() => {
-  cleanup();
-  noop.mockReset();
-});
+function form(requestId: string) {
+  return (
+    <ElicitationInline
+      request={makeRequest(requestId)}
+      onSubmit={noop}
+      onSkip={noop}
+      onCancel={noop}
+    />
+  );
+}
+
+const notesField = () => screen.getByRole<HTMLInputElement>('textbox', { name: 'Notes' });
+
+afterEach(cleanup);
 
 describe('ElicitationInline', () => {
   it('keeps typed answers when hydration re-delivers the same form', () => {
-    const { rerender } = render(
-      <ElicitationInline request={makeRequest()} onSubmit={noop} onSkip={noop} onCancel={noop} />,
-    );
+    const { rerender } = render(form('elicit-1'));
+    fireEvent.change(notesField(), { target: { value: 'half typed' } });
 
-    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'half typed' } });
     // Reconciliation hands back an equal-but-distinct object for the same id.
-    rerender(
-      <ElicitationInline request={makeRequest()} onSubmit={noop} onSkip={noop} onCancel={noop} />,
-    );
+    rerender(form('elicit-1'));
 
-    expect((screen.getByLabelText('Notes') as HTMLInputElement).value).toBe('half typed');
+    expect(notesField().value).toBe('half typed');
   });
 
   it('clears typed answers when the queue advances to the next form', () => {
-    const { rerender } = render(
-      <ElicitationInline request={makeRequest()} onSubmit={noop} onSkip={noop} onCancel={noop} />,
-    );
+    const { rerender } = render(form('elicit-1'));
+    fireEvent.change(notesField(), { target: { value: 'half typed' } });
 
-    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'half typed' } });
-    rerender(
-      <ElicitationInline
-        request={makeRequest({ request_id: 'elicit-2' })}
-        onSubmit={noop}
-        onSkip={noop}
-        onCancel={noop}
-      />,
-    );
+    rerender(form('elicit-2'));
 
-    expect((screen.getByLabelText('Notes') as HTMLInputElement).value).toBe('');
+    expect(notesField().value).toBe('');
   });
 });
