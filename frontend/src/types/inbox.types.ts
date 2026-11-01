@@ -1,3 +1,5 @@
+import type { CursorPaginatedResponse } from './api.types';
+
 export interface InboxItem {
   id: string;
   chat_id: string;
@@ -7,7 +9,6 @@ export interface InboxItem {
   created_at: string;
 }
 
-export interface InboxList {
-  items: InboxItem[];
+export interface InboxList extends CursorPaginatedResponse<InboxItem> {
   unread_count: number;
 }

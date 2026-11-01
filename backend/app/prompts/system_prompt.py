@@ -46,6 +46,19 @@ attach_file tool with its path; it is shown in the chat with your response.
 """
 
 
+INBOX_INSTRUCTIONS = """
+<inbox_instructions>
+The user may not be watching this chat. While you work, call the agentrove MCP
+notify_user tool as soon as you come across something the user should know before your
+turn ends: an important finding, a bug or security issue (even outside the task), a
+blocker, a decision you made on their behalf, the state you were waiting for (CI, a
+deploy, a /loop condition), or an irreversible action you took (push, deploy, external
+message). Don't use it for routine progress updates or to say you're done — the final
+reply already notifies the user.
+</inbox_instructions>
+"""
+
+
 DEFAULT_PERSONA_NAME = "Default"
 
 
@@ -77,4 +90,4 @@ def build_system_prompt_for_chat(
     if channel_member:
         return persona_content
 
-    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{FILE_ATTACHMENT_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"
+    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{FILE_ATTACHMENT_INSTRUCTIONS}\n{INBOX_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"

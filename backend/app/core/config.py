@@ -156,9 +156,8 @@ class Settings(BaseSettings):
     GIT_CONFIG_GLOBAL: str = str(Path.home() / ".gitconfig")
     GNUPGHOME: str = str(Path.home() / ".gnupg")
 
-    # Opt-in stdio MCP server (mcp-server/server.py); calls this backend at
-    # BASE_URL with a per-user access token minted at session spawn.
-    AGENTROVE_MCP_ENABLED: bool = False
+    # Lifetime of the per-user token minted at session spawn for the stdio MCP
+    # server (mcp-server/server.py), which calls this backend at BASE_URL.
     AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS: int = 604800
 
     DOCKER_IMAGE: str = "ghcr.io/mng-dev-ai/agentrove-sandbox:latest"

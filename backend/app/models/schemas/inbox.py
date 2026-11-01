@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.schemas.pagination import CursorPaginatedResponse
+
 
 class InboxMessageCreate(BaseModel):
     chat_id: UUID
@@ -21,6 +23,5 @@ class InboxItem(BaseModel):
     created_at: datetime
 
 
-class InboxList(BaseModel):
-    items: list[InboxItem]
+class InboxList(CursorPaginatedResponse[InboxItem]):
     unread_count: int

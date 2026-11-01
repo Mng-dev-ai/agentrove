@@ -115,7 +115,9 @@ export function TitleBar() {
   const isChatPage = useMatch('/chat/:chatId');
   const isChannelPage = useMatch('/channels/:channelId');
   const isLandingPage = useMatch('/');
-  const showSidebar = isChatPage || isChannelPage || isLandingPage;
+  const isInboxPage = useMatch('/inbox');
+  const hasWorkspaceViews = isChatPage || isChannelPage || isLandingPage;
+  const showSidebar = hasWorkspaceViews || isInboxPage;
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
 
@@ -205,7 +207,7 @@ export function TitleBar() {
           {isAuthenticated && isChannelPage && <ChannelHeader />}
         </div>
         {/* No per-view tabs — switcher opens/closes views (landing needs it too). */}
-        {showSidebar && <ViewSwitcher />}
+        {hasWorkspaceViews && <ViewSwitcher />}
       </div>
     </div>
   );
