@@ -620,7 +620,7 @@ class GitService:
         )
         result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{git_prefix}{cmd}",
+            f"{git_prefix}{GIT_CD_REPO_ROOT}{cmd}",
         )
         return Checkpoint(base_head=head, pre_run_diff=result.stdout)
 
