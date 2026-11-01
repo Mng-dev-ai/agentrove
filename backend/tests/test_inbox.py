@@ -11,14 +11,13 @@ from httpx import AsyncClient, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.db_models.chat import Chat
 from app.models.db_models.push import PushDelivery, PushDevice
 from app.models.db_models.user import UserSettings
 from app.services import push as push_module
 from app.services.push import PushService
 
 from tests.conftest import LoginClient, UserFactory
-from tests.helpers import create_authenticated_workspace
+from tests.helpers import create_authenticated_workspace, create_chat_row
 
 
 pytestmark = pytest.mark.anyio
@@ -65,16 +64,6 @@ def apns(monkeypatch: pytest.MonkeyPatch) -> FakeApns:
     return fake
 
 
-async def create_chat(
-    db_session: AsyncSession, user_id: UUID, workspace_id: UUID
-) -> Chat:
-    chat = Chat(title="Chat", user_id=user_id, workspace_id=workspace_id)
-    db_session.add(chat)
-    await db_session.commit()
-    await db_session.refresh(chat)
-    return chat
-
-
 async def post_message(
     client: AsyncClient, headers: dict[str, str], chat_id: UUID, title: str = "Hi"
 ) -> Response:
@@ -116,7 +105,7 @@ async def test_inbox_message_is_pushed_to_registered_device(
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
-    chat = await create_chat(db_session, user.id, workspace.id)
+    chat = await create_chat_row(db_session, user, workspace)
     await register_device(client, headers)
 
     response = await post_message(client, headers, chat.id)
@@ -151,7 +140,7 @@ async def test_create_message_rejects_foreign_chat(
     intruder_headers, _intruder, _ws = await create_authenticated_workspace(
         db_session, create_user, login, email="i@example.com", username="intruder"
     )
-    chat = await create_chat(db_session, owner.id, owner_workspace.id)
+    chat = await create_chat_row(db_session, owner, owner_workspace)
     await register_device(client, intruder_headers)
 
     response = await post_message(client, intruder_headers, chat.id)
@@ -172,7 +161,7 @@ async def test_list_mark_read_read_all_and_clear_read(
     other_headers, _other, _ws = await create_authenticated_workspace(
         db_session, create_user, login, email="o@example.com", username="other"
     )
-    chat = await create_chat(db_session, user.id, workspace.id)
+    chat = await create_chat_row(db_session, user, workspace)
     first = (await post_message(client, headers, chat.id, "First")).json()
     await post_message(client, headers, chat.id, "Second")
     await post_message(client, headers, chat.id, "Third")
@@ -223,7 +212,7 @@ async def test_inbox_pagination_walks_all_items_and_rejects_bad_cursor(
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
-    chat = await create_chat(db_session, user.id, workspace.id)
+    chat = await create_chat_row(db_session, user, workspace)
     for title in ("One", "Two", "Three"):
         await post_message(client, headers, chat.id, title)
 
@@ -259,7 +248,7 @@ async def test_push_device_follows_the_latest_account_and_unregister_is_scoped(
     second_headers, second, _ws = await create_authenticated_workspace(
         db_session, create_user, login, email="s@example.com", username="second"
     )
-    chat = await create_chat(db_session, first.id, first_ws.id)
+    chat = await create_chat_row(db_session, first, first_ws)
     await register_device(client, first_headers)
     await post_message(client, first_headers, chat.id)
     assert len(await deliveries(db_session)) == 1
@@ -294,7 +283,7 @@ async def test_disabled_notifications_suppress_queued_and_new_pushes(
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
-    chat = await create_chat(db_session, user.id, workspace.id)
+    chat = await create_chat_row(db_session, user, workspace)
     await register_device(client, headers)
     await post_message(client, headers, chat.id, "Queued")
     await db_session.execute(
@@ -338,7 +327,7 @@ async def test_apns_failures_remove_dead_tokens_or_retry_transient_errors(
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
-    chat = await create_chat(db_session, user.id, workspace.id)
+    chat = await create_chat_row(db_session, user, workspace)
     await register_device(client, headers)
     await post_message(client, headers, chat.id)
     apns.status_code, apns.reason = status_code, reason

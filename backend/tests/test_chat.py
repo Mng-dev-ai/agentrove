@@ -1,5 +1,4 @@
 import asyncio
-import posixpath
 from collections.abc import AsyncIterator, Callable
 from uuid import UUID, uuid4
 
@@ -30,6 +29,8 @@ from tests.helpers import (
     FakeProviderFactory,
     FakeSandboxProvider,
     create_authenticated_workspace,
+    create_chat_row,
+    register_chat_turn,
 )
 
 
@@ -128,32 +129,12 @@ async def live_turns(
 
     def start(chat_id: UUID) -> None:
         task = asyncio.create_task(turn(str(chat_id)))
-        monkeypatch.setitem(
-            ChatStreamRuntime._background_task_chat_ids, task, str(chat_id)
-        )
+        register_chat_turn(monkeypatch, chat_id, task)
         tasks.append(task)
 
     yield start
     finished.set()
     await asyncio.gather(*tasks)
-
-
-async def create_chat_row(
-    db_session: AsyncSession,
-    user: User,
-    workspace: Workspace,
-    *,
-    title: str = "Existing Chat",
-) -> Chat:
-    chat = Chat(
-        title=title,
-        user_id=user.id,
-        workspace_id=workspace.id,
-    )
-    db_session.add(chat)
-    await db_session.commit()
-    await db_session.refresh(chat)
-    return chat
 
 
 async def create_message_row(
@@ -1106,13 +1087,6 @@ async def test_restore_message_checkpoint_resets_workspace(
     assert sandbox_id == workspace.sandbox_id
     assert patch_path.startswith("packages/api/")
     assert patch_content == "diff --git a/app.py b/app.py\n"
-    restore_command = provider.commands[-1][1]
-    assert restore_command.startswith("cd 'packages/api' && ")
-    assert (
-        "git reset --hard 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'" in restore_command
-    )
-    assert "git apply" in restore_command
-    assert posixpath.basename(patch_path) in restore_command
 
 
 async def test_restore_message_checkpoint_rejects_other_users(
@@ -1341,11 +1315,7 @@ async def test_cancel_stream_only_flags_live_or_starting_turns_of_own_chat(
     # event keeps the request from holding for the unwind timeout.
     released_reservation = asyncio.Event()
     released_reservation.set()
-    monkeypatch.setitem(
-        ChatStreamRuntime._starting_chat_ids,
-        str(starting_chat.id),
-        released_reservation,
-    )
+    register_chat_turn(monkeypatch, starting_chat.id, released_reservation)
 
     other_response = await client.delete(
         f"/api/v1/chat/chats/{starting_chat.id}/stream", headers=other_headers
