@@ -1,5 +1,6 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/zlayer' as z;
+@use '@/styles/globals/responsive' as responsive;
 
 .tooltip-wrapper {
   position: relative;
@@ -22,9 +23,10 @@
   box-shadow: var(--shadow-medium);
   transition: opacity var(--duration-fast);
 
-  // group-hover/tooltip reveal — plain :hover is fine for this pure CSS reveal
-  .tooltip-wrapper:hover & {
-    opacity: 1;
+  @include responsive.media('not-touch') {
+    .tooltip-wrapper:hover & {
+      opacity: 1;
+    }
   }
 
   &--top {
