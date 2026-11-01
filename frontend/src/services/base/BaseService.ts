@@ -104,7 +104,7 @@ function handleServiceError(error: unknown): ServiceError {
   if (error instanceof Error) {
     const status = (error as Error & { status?: number }).status;
 
-    if (status === 401 || error.message.includes('401') || error.message.includes('Unauthorized')) {
+    if (status === 401) {
       return new AuthenticationError();
     }
 

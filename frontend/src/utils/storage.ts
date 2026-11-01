@@ -291,7 +291,7 @@ export const cloudAuthStorage = {
 };
 
 // Cross-tab: another tab rotating tokens must update this tab's memory cache
-// or the next refresh replays a rotated-away token after the grace window.
+// or the next refresh replays a rotated-away token.
 if (typeof window !== 'undefined' && !isTauri()) {
   window.addEventListener('storage', (event) => {
     if (event.key === AUTH_TOKEN_KEY) {

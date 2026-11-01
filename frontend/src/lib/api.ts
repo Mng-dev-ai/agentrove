@@ -165,6 +165,9 @@ class APIClient {
     });
 
     if (!response.ok) {
+      if (response.status === 401 && this.auth.getRefreshToken() !== refreshToken) {
+        return this.performTokenRefresh();
+      }
       throw new RefreshTokenError(response.status);
     }
 
