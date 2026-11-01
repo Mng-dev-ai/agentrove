@@ -7,7 +7,6 @@ import httpx
 import pytest
 from fastapi_users.jwt import generate_jwt
 from httpx import AsyncClient
-from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
@@ -416,13 +415,13 @@ async def test_refresh_rotates_refresh_token(
     assert body["token_type"] == "bearer"
 
 
-async def test_refresh_allows_replay_within_grace(
+async def test_refresh_allows_replay_of_rotated_token(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
 ) -> None:
     # A client that lost the rotation response retries with the old token —
-    # within the grace window that must mint a working pair, not a 401.
+    # until a successor is used that must mint a working pair, not a 401.
     await create_user(email="refresh@example.com", username="refreshuser")
     tokens = await login(email="refresh@example.com")
     first = await client.post(
@@ -446,25 +445,53 @@ async def test_refresh_allows_replay_within_grace(
     assert followup.status_code == 200
 
 
-async def test_refresh_rejects_rotated_token_after_grace(
+async def test_refresh_replay_accepted_until_successor_used(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
-    db_session: AsyncSession,
 ) -> None:
     await create_user(email="refresh@example.com", username="refreshuser")
     tokens = await login(email="refresh@example.com")
-    await client.post(
+    rotated = await client.post(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": tokens["refresh_token"]},
     )
-    # Backdate the rotation past the reuse grace window.
-    await db_session.execute(
-        update(RefreshToken)
-        .where(RefreshToken.token_hash == hash_refresh_token(tokens["refresh_token"]))
-        .values(revoked_at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    assert rotated.status_code == 200
+    replay = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
     )
-    await db_session.commit()
+    assert replay.status_code == 200
+
+    successor = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": rotated.json()["refresh_token"]},
+    )
+
+    assert successor.status_code == 200
+    for refresh_token in (tokens["refresh_token"], replay.json()["refresh_token"]):
+        response = await client.post(
+            "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}
+        )
+        assert response.status_code == 401
+
+
+async def test_refresh_rejects_rotated_token_after_successor_used(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    await create_user(email="refresh@example.com", username="refreshuser")
+    tokens = await login(email="refresh@example.com")
+    rotated = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    successor = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": rotated.json()["refresh_token"]},
+    )
+    assert successor.status_code == 200
 
     response = await client.post(
         "/api/v1/auth/jwt/refresh",
@@ -475,27 +502,24 @@ async def test_refresh_rejects_rotated_token_after_grace(
     assert response.json()["detail"] == "Invalid or expired refresh token"
 
 
-async def test_refresh_reuse_does_not_revoke_other_sessions(
+async def test_refresh_reuse_after_successor_used_does_not_revoke_other_sessions(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
-    db_session: AsyncSession,
 ) -> None:
     # One device replaying a stale token must not log out the user's other
     # devices — reuse is rejected per-token, never via revoke-all.
     await create_user(email="multi@example.com", username="multiuser")
     device_a = await login(email="multi@example.com")
     device_b = await login(email="multi@example.com")
-    await client.post(
+    rotated = await client.post(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": device_a["refresh_token"]},
     )
-    await db_session.execute(
-        update(RefreshToken)
-        .where(RefreshToken.token_hash == hash_refresh_token(device_a["refresh_token"]))
-        .values(revoked_at=datetime.now(timezone.utc) - timedelta(minutes=5))
+    await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": rotated.json()["refresh_token"]},
     )
-    await db_session.commit()
     stale_replay = await client.post(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": device_a["refresh_token"]},
@@ -546,13 +570,13 @@ async def test_logout_revokes_refresh_token_and_is_idempotent(
     assert repeat_logout.status_code == 204
 
 
-async def test_logout_invalidates_grace_eligible_predecessor(
+async def test_logout_invalidates_rotated_predecessor(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
 ) -> None:
-    # Rotate then log out with the successor within the reuse grace window —
-    # the rotated-away predecessor must not be able to re-mint credentials.
+    # Rotate then log out with the unused successor — the rotated-away
+    # predecessor must not be able to re-mint credentials.
     await create_user(email="logout@example.com", username="logoutuser")
     tokens = await login(email="logout@example.com")
     rotated = await client.post(
@@ -572,6 +596,46 @@ async def test_logout_invalidates_grace_eligible_predecessor(
         json={"refresh_token": tokens["refresh_token"]},
     )
     assert replay.status_code == 401
+
+
+async def test_logout_revokes_chain_but_not_other_devices(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    await create_user(email="logout@example.com", username="logoutuser")
+    device_a = await login(email="logout@example.com")
+    rotated = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": device_a["refresh_token"]},
+    )
+    sibling = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": device_a["refresh_token"]},
+    )
+    assert sibling.status_code == 200
+    device_b = await login(email="logout@example.com")
+
+    response = await client.post(
+        "/api/v1/auth/jwt/logout",
+        json={"refresh_token": rotated.json()["refresh_token"]},
+    )
+
+    assert response.status_code == 204
+    for refresh_token in (
+        rotated.json()["refresh_token"],
+        device_a["refresh_token"],
+        sibling.json()["refresh_token"],
+    ):
+        refresh_response = await client.post(
+            "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}
+        )
+        assert refresh_response.status_code == 401
+    device_b_response = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": device_b["refresh_token"]},
+    )
+    assert device_b_response.status_code == 200
 
 
 async def test_reset_password_replaces_password_and_revokes_sessions(
