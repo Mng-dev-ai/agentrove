@@ -18,10 +18,3 @@ export interface MemoryCreateRequest {
 }
 
 export type MemoryUpdateRequest = Partial<MemoryCreateRequest>;
-
-export interface MemoryForm {
-  title: string;
-  content: string;
-  pinned: boolean;
-  workspace_id: string | null;
-}

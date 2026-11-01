@@ -12,7 +12,7 @@ import {
   useUpdateMemoryMutation,
 } from '@/hooks/queries/useMemoryQueries';
 import { lazyNamed } from '@/utils/lazyNamed';
-import type { Memory, MemoryCreateRequest, MemoryForm } from '@/types/memory.types';
+import type { Memory, MemoryCreateRequest } from '@/types/memory.types';
 import styles from './MemorySettingsTab.module.scss';
 
 const MemoryEditDialog = lazyNamed(
@@ -20,7 +20,7 @@ const MemoryEditDialog = lazyNamed(
   'MemoryEditDialog',
 );
 
-function createDefaultForm(workspaceId: string | null): MemoryForm {
+function createDefaultForm(workspaceId: string | null): MemoryCreateRequest {
   return { title: '', content: '', pinned: false, workspace_id: workspaceId };
 }
 
@@ -40,11 +40,11 @@ export function MemorySettingsTab() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMemory, setEditingMemory] = useState<Memory | null>(null);
-  const [form, setForm] = useState<MemoryForm>(() => createDefaultForm(null));
+  const [form, setForm] = useState<MemoryCreateRequest>(() => createDefaultForm(null));
   const [formError, setFormError] = useState<string | null>(null);
 
   const handleFormChange = useCallback(
-    <K extends keyof MemoryForm>(field: K, value: MemoryForm[K]) => {
+    <K extends keyof MemoryCreateRequest>(field: K, value: MemoryCreateRequest[K]) => {
       setForm((prev) => ({ ...prev, [field]: value }));
     },
     [],
@@ -79,10 +79,9 @@ export function MemorySettingsTab() {
 
   const handleSave = async () => {
     const data: MemoryCreateRequest = {
+      ...form,
       title: form.title.trim(),
       content: form.content.trim(),
-      pinned: form.pinned,
-      workspace_id: form.workspace_id,
     };
     try {
       if (editingMemory) {

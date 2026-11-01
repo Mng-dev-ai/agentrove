@@ -1,4 +1,4 @@
-import type { MemoryForm } from '@/types/memory.types';
+import type { MemoryCreateRequest } from '@/types/memory.types';
 import type { Workspace } from '@/types/workspace.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
@@ -13,13 +13,16 @@ import styles from './MemoryEditDialog.module.scss';
 interface MemoryEditDialogProps {
   isOpen: boolean;
   isEditing: boolean;
-  memory: MemoryForm;
+  memory: MemoryCreateRequest;
   workspaces: Workspace[];
   error: string | null;
   isSaving: boolean;
   onClose: () => void;
   onSubmit: () => void;
-  onMemoryChange: <K extends keyof MemoryForm>(field: K, value: MemoryForm[K]) => void;
+  onMemoryChange: <K extends keyof MemoryCreateRequest>(
+    field: K,
+    value: MemoryCreateRequest[K],
+  ) => void;
 }
 
 export function MemoryEditDialog({

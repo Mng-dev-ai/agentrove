@@ -136,6 +136,7 @@ class MemoryService(BaseDbService[Memory]):
                 Chat.id == chat_id,
                 Chat.user_id == user_id,
                 Chat.deleted_at.is_(None),
+                Chat.is_visible(),
             )
         )
         if chat is None:

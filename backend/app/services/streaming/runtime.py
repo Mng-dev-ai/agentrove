@@ -613,6 +613,21 @@ class ChatStreamRuntime:
             self._stream = None
             await stream.aclose()
 
+    @property
+    def is_slash_command(self) -> bool:
+        return self.prompt.startswith("/")
+
+    async def _memory_block(self, resume_session_id: str | None) -> str | None:
+        if (
+            resume_session_id is not None
+            or self.member_turn is not None
+            or self.is_slash_command
+        ):
+            return None
+        return await MemoryService(self.session_factory).build_prompt_block(
+            self.chat.user_id, self.chat.workspace_id
+        )
+
     async def _handle_session_update(self, payload: dict[str, Any]) -> None:
         new_session_id = payload.get("session_id")
         if not new_session_id:
@@ -1435,18 +1450,9 @@ class ChatStreamRuntime:
                     chat_id=runtime.chat_id,
                     config=config,
                 )
-            memory_block = (
-                await MemoryService(runtime.session_factory).build_prompt_block(
-                    runtime.chat.user_id, runtime.chat.workspace_id
-                )
-                if config.resume_session_id is None
-                and request.member_turn is None
-                and not request.prompt.startswith("/")
-                else None
-            )
             # Slash commands go to the agent verbatim, so there's no room for
             # the transcript; anchoring on one would drop the handoff for good.
-            if handoff.transcript and request.prompt.startswith("/"):
+            if handoff.transcript and runtime.is_slash_command:
                 raise ChatException(
                     "This chat continues from another agent. Send a regular "
                     "message first, then use slash commands.",
@@ -1503,7 +1509,7 @@ class ChatStreamRuntime:
                     agent_kind=config.agent_kind,
                     attachments=request.attachments,
                     handoff_transcript=handoff.transcript,
-                    memory_block=memory_block,
+                    memory_block=await runtime._memory_block(config.resume_session_id),
                 )
                 return await runtime.run(stream_result, stream)
             except (
