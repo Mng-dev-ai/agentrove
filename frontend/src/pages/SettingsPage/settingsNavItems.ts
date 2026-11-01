@@ -1,9 +1,19 @@
 import type { LucideIcon } from 'lucide-react';
-import { Settings2, UserCircle, Key, ScrollText, Clock, Cloud, GitBranch } from 'lucide-react';
+import {
+  Settings2,
+  UserCircle,
+  Brain,
+  Key,
+  ScrollText,
+  Clock,
+  Cloud,
+  GitBranch,
+} from 'lucide-react';
 
 export type TabKey =
   | 'general'
   | 'personas'
+  | 'memory'
   | 'stream_actions'
   | 'automations'
   | 'env_vars'
@@ -19,6 +29,7 @@ export interface SettingsNavItem {
 export const SETTINGS_NAV: SettingsNavItem[] = [
   { id: 'general', label: 'General', icon: Settings2 },
   { id: 'personas', label: 'Personas', icon: UserCircle },
+  { id: 'memory', label: 'Memory', icon: Brain },
   { id: 'stream_actions', label: 'Stream Actions', icon: GitBranch },
   { id: 'automations', label: 'Automations', icon: Clock },
   { id: 'env_vars', label: 'Env Variables', icon: Key },

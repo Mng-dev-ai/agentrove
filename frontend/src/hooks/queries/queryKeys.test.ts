@@ -45,6 +45,7 @@ const CONTRACT: ReadonlyArray<readonly [string, readonly unknown[], readonly unk
   ['github.pulls', queryKeys.github.pullsAll('o', 'r', 'c'), queryKeys.github.pulls('o', 'r', 'c')],
   ['cloudChats', queryKeys.cloudChatsAll, queryKeys.cloudChats('https://c', 'me@x.com')],
   ['channels', queryKeys.channelsAll, queryKeys.channels('ws1')],
+  ['memories', queryKeys.memoriesAll, queryKeys.memories('ws1')],
 ];
 
 describe('queryKeys prefix-invalidation contract', () => {
@@ -77,6 +78,7 @@ describe('queryKeys prefix-invalidation contract', () => {
         'gitChangedPathsAll',
         'gitDiffAll',
         'gitFileBaselineAll',
+        'memoriesAll',
         'pullsAll',
         'searchAll',
       ].sort(),

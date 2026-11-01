@@ -88,6 +88,8 @@ export const queryKeys = {
   // Prefix key for invalidating every cloud chats query regardless of instance/account.
   cloudChatsAll: ['cloud', 'chats'] as const,
   inbox: ['inbox'] as const,
+  memories: (workspaceId: string | null) => ['memories', workspaceId] as const,
+  memoriesAll: ['memories'] as const,
   automations: ['automations'] as const,
   cloudAutomations: (cloudUrl?: string, connectedEmail?: string | null) =>
     ['cloud', 'automations', cloudUrl, connectedEmail] as const,

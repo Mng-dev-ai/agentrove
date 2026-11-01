@@ -164,6 +164,76 @@ async def notify_user(title: str, body: str) -> dict[str, Any]:
     return await client.notify_user(chat_id, title, body)
 
 
+def _memory_summary(memory: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": memory["id"],
+        "scope": "global" if memory["workspace_id"] is None else "workspace",
+        "title": memory["title"],
+        "content": memory["content"],
+    }
+
+
+async def _current_workspace_id() -> str | None:
+    chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
+    return (await client.get_chat(chat_id))["workspace_id"] if chat_id else None
+
+
+@mcp.tool()
+async def remember(
+    title: str,
+    content: str,
+    scope: Literal["workspace", "global"] | None = None,
+    memory_id: str | None = None,
+) -> str:
+    """Save a durable fact to the AgentRove memory shared by every agent and chat.
+
+    Only for preferences, corrections, conventions and environment facts — not task
+    progress. Search first and pass memory_id to update an existing memory instead of
+    adding a duplicate. scope "workspace" ties it to this chat's workspace, "global"
+    applies everywhere; new memories default to "workspace", and updates keep the
+    existing scope unless scope is given. Title is 1-80 characters on one line,
+    content 1-500. Returns the memory id.
+    """
+    if scope is None and memory_id is None:
+        scope = "workspace"
+    body: dict[str, Any] = {"title": title, "content": content}
+    chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
+    if chat_id:
+        body["chat_id"] = chat_id
+    if scope == "workspace":
+        workspace_id = await _current_workspace_id()
+        if workspace_id is None:
+            raise AgentroveError(
+                "remember with scope 'workspace' requires an AgentRove chat session"
+            )
+        body["workspace_id"] = workspace_id
+    elif scope == "global":
+        body["workspace_id"] = None
+    if memory_id:
+        memory = await client.update_memory(memory_id, body)
+    else:
+        memory = await client.create_memory(body)
+    return memory["id"]
+
+
+@mcp.tool()
+async def search_memory(query: str) -> list[dict[str, Any]]:
+    """Search the shared AgentRove memory (case-insensitive; every word must match).
+
+    Covers this chat's workspace plus global memories. Pass an empty query to list
+    them all. Returns id, scope, title and content, pinned first, newest first.
+    """
+    workspace_id = await _current_workspace_id()
+    return [_memory_summary(m) for m in await client.search_memories(query, workspace_id)]
+
+
+@mcp.tool()
+async def forget(memory_id: str) -> dict[str, Any]:
+    """Delete a memory from the shared AgentRove memory, e.g. one that turned out wrong."""
+    await client.delete_memory(memory_id)
+    return {"deleted": True}
+
+
 @mcp.tool()
 async def list_chats(
     workspace_id: str | None = None,

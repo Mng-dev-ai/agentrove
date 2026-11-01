@@ -45,6 +45,7 @@ from app.services.exceptions import (
 )
 from app.services.git import GitService
 from app.services.handoff import HandoffService
+from app.services.memory import MemoryService
 from app.services.message import MessageService
 from app.services.push import PushService
 from app.services.queue import QueueService
@@ -611,6 +612,21 @@ class ChatStreamRuntime:
         if stream is not None and hasattr(stream, "aclose"):
             self._stream = None
             await stream.aclose()
+
+    @property
+    def is_slash_command(self) -> bool:
+        return self.prompt.startswith("/")
+
+    async def _memory_block(self, resume_session_id: str | None) -> str | None:
+        if (
+            resume_session_id is not None
+            or self.member_turn is not None
+            or self.is_slash_command
+        ):
+            return None
+        return await MemoryService(self.session_factory).build_prompt_block(
+            self.chat.user_id, self.chat.workspace_id
+        )
 
     async def _handle_session_update(self, payload: dict[str, Any]) -> None:
         new_session_id = payload.get("session_id")
@@ -1436,7 +1452,7 @@ class ChatStreamRuntime:
                 )
             # Slash commands go to the agent verbatim, so there's no room for
             # the transcript; anchoring on one would drop the handoff for good.
-            if handoff.transcript and request.prompt.startswith("/"):
+            if handoff.transcript and runtime.is_slash_command:
                 raise ChatException(
                     "This chat continues from another agent. Send a regular "
                     "message first, then use slash commands.",
@@ -1493,6 +1509,7 @@ class ChatStreamRuntime:
                     agent_kind=config.agent_kind,
                     attachments=request.attachments,
                     handoff_transcript=handoff.transcript,
+                    memory_block=await runtime._memory_block(config.resume_session_id),
                 )
                 return await runtime.run(stream_result, stream)
             except (

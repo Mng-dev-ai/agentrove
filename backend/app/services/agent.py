@@ -175,9 +175,10 @@ class AgentService:
         agent_kind: AgentKind = AgentKind.CLAUDE,
         attachments: list[dict[str, Any]] | None = None,
         handoff_transcript: str | None = None,
+        memory_block: str | None = None,
     ) -> AsyncIterator[StreamEvent]:
         user_content = self.prepare_user_prompt(
-            prompt, custom_instructions, handoff_transcript
+            prompt, custom_instructions, handoff_transcript, memory_block
         )
         adapter = AGENT_ADAPTERS[agent_kind]
 
@@ -585,6 +586,7 @@ class AgentService:
         prompt: str,
         custom_instructions: str | None,
         handoff_transcript: str | None = None,
+        memory_block: str | None = None,
     ) -> str:
         # Slash commands (e.g. /review) are passed through verbatim — the agent
         # runtime interprets them directly, so wrapping in XML tags would break them.
@@ -594,6 +596,8 @@ class AgentService:
         parts = []
         if handoff_transcript:
             parts.append(f"{handoff_transcript}\n\n")
+        if memory_block:
+            parts.append(f"{memory_block}\n\n")
         if custom_instructions and custom_instructions.strip():
             parts.append(
                 f"<user_instructions>\n{custom_instructions.strip()}\n</user_instructions>\n\n"

@@ -59,6 +59,21 @@ reply already notifies the user.
 """
 
 
+MEMORY_INSTRUCTIONS = """
+<memory_instructions>
+AgentRove keeps a memory shared across every agent and chat. A <memory> block in the
+first message holds the user's pinned memories; everything else is reachable only through
+the agentrove MCP search_memory tool, so search before decisions that depend on the user's
+preferences or the repo's conventions. Save with remember only durable facts
+(preferences, corrections, conventions, environment facts), never task progress or
+anything derivable from the code. Search first and update the existing memory (pass
+memory_id) instead of adding a duplicate. Use scope "workspace" for repo-specific facts
+and "global" for user-wide ones. Save to AgentRove memory rather than your CLI's own
+memory files, and forget memories that turn out to be wrong.
+</memory_instructions>
+"""
+
+
 DEFAULT_PERSONA_NAME = "Default"
 
 
@@ -90,4 +105,4 @@ def build_system_prompt_for_chat(
     if channel_member:
         return persona_content
 
-    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{FILE_ATTACHMENT_INSTRUCTIONS}\n{INBOX_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"
+    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{FILE_ATTACHMENT_INSTRUCTIONS}\n{INBOX_INSTRUCTIONS}\n{MEMORY_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"

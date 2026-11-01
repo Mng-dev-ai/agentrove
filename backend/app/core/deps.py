@@ -16,6 +16,7 @@ from app.models.db_models.user import User
 from app.services.attachment import AttachmentService
 from app.services.automation import AutomationService
 from app.services.inbox import InboxService
+from app.services.memory import MemoryService
 from app.services.chat import ChatService
 from app.services.agent import AgentService
 from app.services.exceptions import ChatException, UserException
@@ -201,6 +202,10 @@ async def get_automation_service(
 
 def get_inbox_service() -> InboxService:
     return InboxService(session_factory=SessionLocal)
+
+
+def get_memory_service() -> MemoryService:
+    return MemoryService(session_factory=SessionLocal)
 
 
 def chat_access_dependency(
