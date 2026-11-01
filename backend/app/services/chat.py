@@ -1134,6 +1134,7 @@ class ChatService(BaseDbService[Chat]):
             agent_kind=model.agent_kind,
             selected_persona_name=request.selected_persona_name,
             channel_member=member_turn is not None,
+            sub_thread=chat.parent_chat_id is not None,
         )
 
         async with ChatStreamRuntime.turn_scaffold(
