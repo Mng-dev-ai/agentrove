@@ -4,7 +4,6 @@ import tempfile
 from pathlib import Path
 
 import fastapi_users.password
-from pwdlib.hashers.argon2 import Argon2Hasher
 
 TEST_DIR = Path(tempfile.mkdtemp(prefix="agentrove-tests-"))
 
@@ -21,5 +20,5 @@ os.environ["STORAGE_PATH"] = str(TEST_DIR / "storage")
 # Production argon2 cost (~60ms per hash/verify) dominates auth-heavy tests;
 # must be patched before app.core.security builds its PasswordHelper.
 fastapi_users.password.Argon2Hasher = functools.partial(
-    Argon2Hasher, time_cost=1, memory_cost=8, parallelism=1
+    fastapi_users.password.Argon2Hasher, time_cost=1, memory_cost=8, parallelism=1
 )
