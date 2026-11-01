@@ -114,6 +114,14 @@
   }
 }
 
+.take-photo {
+  @include type.type-default;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
 .empty-formats {
   @include type.type-default;
   margin-top: var(--space-2);

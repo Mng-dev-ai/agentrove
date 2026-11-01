@@ -1,8 +1,9 @@
 import { memo } from 'react';
-import { Plus, Image, FileText, FileSpreadsheet, FileUp } from 'lucide-react';
+import { Plus, Image, FileText, FileSpreadsheet, FileUp, Camera } from 'lucide-react';
 import clsx from 'clsx';
 import { useDragAndDrop } from '@/hooks/useDragAndDrop';
 import { useFileHandling } from '@/hooks/useFileHandling';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { FilePreviewList } from '@/components/ui/FilePreviewList/FilePreviewList';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
@@ -21,6 +22,7 @@ export const FileUploadDialog = memo(function FileUploadDialog({
   onClose,
   onFileSelect,
 }: FileUploadDialogProps) {
+  const isMobile = useIsMobile();
   const { files, previewUrls, addFiles, removeFile, clearFiles } = useFileHandling({});
 
   const { isDragging, dragHandlers } = useDragAndDrop({
@@ -104,6 +106,20 @@ export const FileUploadDialog = memo(function FileUploadDialog({
                     />
                   </label>
                 </p>
+                {isMobile && (
+                  <label className={clsx(styles.browse, styles['take-photo'])}>
+                    <Camera className={styles['empty-icon']} />
+                    Take photo
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFileInput}
+                      variant="unstyled"
+                      className={styles['hidden-input']}
+                    />
+                  </label>
+                )}
                 <p className={styles['empty-formats']}>
                   Supported formats: PNG, JPEG, GIF, PDF, XLSX
                 </p>
