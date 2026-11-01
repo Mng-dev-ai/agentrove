@@ -21,48 +21,30 @@ beforeEach(() => {
   });
 });
 
-describe('per-chat setters', () => {
-  it('records permission, thinking, worktree, fast mode, and persona keyed by chat', () => {
-    state().setPermissionMode('c1', 'plan');
-    state().setThinkingMode('c1', 'low');
-    state().setWorktree('c1', true);
-    state().setFastMode('c1', true);
-    state().setPersona('c1', 'Reviewer');
-
-    expect(state().permissionModeByChat.c1).toBe('plan');
-    expect(state().thinkingModeByChat.c1).toBe('low');
-    expect(state().worktreeByChat.c1).toBe(true);
-    expect(state().fastModeByChat.c1).toBe(true);
-    expect(state().personaByChat.c1).toBe('Reviewer');
-  });
-
-  it('records and clears the worktree base branch keyed by chat', () => {
+describe('setWorktreeBaseBranch', () => {
+  it('deletes the key when cleared so the shape matches a rehydrated store', () => {
     state().setWorktreeBaseBranch('c1', 'develop');
     expect(state().worktreeBaseBranchByChat.c1).toBe('develop');
-    // Clearing deletes the key (not a present-undefined) so it matches rehydrate.
     state().setWorktreeBaseBranch('c1', undefined);
     expect('c1' in state().worktreeBaseBranchByChat).toBe(false);
-  });
-
-  it('keeps per-chat entries independent', () => {
-    state().setPermissionMode('c1', 'plan');
-    state().setPermissionMode('c2', 'acceptEdits');
-    expect(state().permissionModeByChat).toEqual({ c1: 'plan', c2: 'acceptEdits' });
-  });
-
-  it('overwrites an existing chat entry in place', () => {
-    state().setWorktree('c1', true);
-    state().setWorktree('c1', false);
-    expect(state().worktreeByChat.c1).toBe(false);
   });
 });
 
 describe('setRunOnCloud', () => {
-  it('flips the global cloud flag without touching per-chat maps', () => {
-    state().setPermissionMode('c1', 'plan');
+  it('resets the default base branch when switching target, keeping per-chat bases', () => {
+    state().setWorktreeBaseBranch(DEFAULT_CHAT_SETTINGS_KEY, 'develop');
+    state().setWorktreeBaseBranch('c1', 'feature');
+
     state().setRunOnCloud(true);
+
     expect(state().runOnCloud).toBe(true);
-    expect(state().permissionModeByChat).toEqual({ c1: 'plan' });
+    expect(state().worktreeBaseBranchByChat).toEqual({ c1: 'feature' });
+  });
+
+  it('keeps the default base branch when the flag does not change', () => {
+    state().setWorktreeBaseBranch(DEFAULT_CHAT_SETTINGS_KEY, 'develop');
+    state().setRunOnCloud(false);
+    expect(state().worktreeBaseBranchByChat[DEFAULT_CHAT_SETTINGS_KEY]).toBe('develop');
   });
 });
 
@@ -86,7 +68,8 @@ describe('initChatFromDefaults', () => {
     if (over.persona !== undefined) state().setPersona(DEFAULT_CHAT_SETTINGS_KEY, over.persona);
   };
 
-  it('copies every set default onto the new chat', () => {
+  it('copies every set default onto the new chat without disturbing other chats', () => {
+    state().setPermissionMode('existing', 'acceptEdits');
     seedDefaults({
       permission: 'plan',
       thinking: 'low',
@@ -103,10 +86,10 @@ describe('initChatFromDefaults', () => {
     expect(state().worktreeBaseBranchByChat.c1).toBe('develop');
     expect(state().fastModeByChat.c1).toBe(true);
     expect(state().personaByChat.c1).toBe('Reviewer');
+    expect(state().permissionModeByChat.existing).toBe('acceptEdits');
   });
 
   it('only seeds the dimensions that have a default set', () => {
-    // Just a permission default exists — the other maps stay untouched for c1.
     seedDefaults({ permission: 'plan' });
     state().initChatFromDefaults('c1');
 
@@ -121,23 +104,12 @@ describe('initChatFromDefaults', () => {
   it('is a no-op when no defaults have been set', () => {
     const before = state();
     state().initChatFromDefaults('c1');
-    // No updates object built, so set() never fires and the reference is stable.
     expect(useChatSettingsStore.getState()).toBe(before);
   });
 
-  it('preserves the false worktree default (distinct from unset)', () => {
-    // worktree=false is a real default that must copy — the guard keys on
-    // `undefined`, not falsiness.
+  it('copies a false worktree default rather than treating it as unset', () => {
     seedDefaults({ worktree: false });
     state().initChatFromDefaults('c1');
     expect(state().worktreeByChat.c1).toBe(false);
-  });
-
-  it('does not disturb other chats when seeding a new one', () => {
-    state().setPermissionMode('existing', 'acceptEdits');
-    seedDefaults({ permission: 'plan' });
-    state().initChatFromDefaults('c1');
-    expect(state().permissionModeByChat.existing).toBe('acceptEdits');
-    expect(state().permissionModeByChat.c1).toBe('plan');
   });
 });

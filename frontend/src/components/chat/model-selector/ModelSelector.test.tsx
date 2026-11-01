@@ -1,29 +1,12 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Model } from '@/types/chat.types';
-import type { DropdownItemType } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/store/modelStore';
 import { ModelSelector } from './ModelSelector';
-
-vi.mock('@/hooks/useIsSplitMode', () => ({ useIsSplitMode: () => false }));
-vi.mock('@/hooks/queries/useModelQueries', () => ({
-  useModelsQuery: () => ({ data: models, isLoading: false }),
-}));
-vi.mock('@/components/ui/primitives/Dropdown/Dropdown', () => ({
-  Dropdown: ({ items, value }: { items: DropdownItemType<Model>[]; value: Model }) => (
-    <div>
-      <span>{value.name}</span>
-      <div data-testid="choices">
-        {items.map(
-          (item) =>
-            item.type === 'item' && <button key={item.data.model_id}>{item.data.model_id}</button>,
-        )}
-      </div>
-    </div>
-  ),
-}));
 
 const models: Model[] = [
   {
@@ -42,23 +25,42 @@ const models: Model[] = [
     thinking_modes: [],
   },
 ];
+const [current, legacy] = models;
 
-beforeEach(() => useModelStore.setState({ modelByChat: {}, favoriteModelIds: [] }));
-afterEach(cleanup);
+vi.mock('@/services/modelService', () => ({
+  modelService: { getModels: () => Promise.resolve(models) },
+}));
 
-describe('MiniMax choices', () => {
-  it('hides legacy models unless selected or favorited', () => {
-    const legacyId = models[1].model_id;
-    render(<ModelSelector selectedModelId={models[0].model_id} onModelChange={vi.fn()} />);
-    expect(screen.queryByRole('button', { name: legacyId })).toBeNull();
+async function openSelector(selectedModelId: string) {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <ModelSelector selectedModelId={selectedModelId} onModelChange={vi.fn()} />
+    </QueryClientProvider>,
+  );
+  fireEvent.click(await screen.findByRole('button', { expanded: false }));
+  return within(screen.getByRole('listbox'));
+}
 
-    cleanup();
-    render(<ModelSelector selectedModelId={legacyId} onModelChange={vi.fn()} />);
-    expect(screen.getByRole('button', { name: legacyId })).toBeTruthy();
+beforeEach(() => {
+  useAuthStore.setState({ isAuthenticated: true });
+  useModelStore.setState({ modelByChat: {}, favoriteModelIds: [] });
+});
 
-    cleanup();
-    useModelStore.setState({ favoriteModelIds: [legacyId] });
-    render(<ModelSelector selectedModelId={models[0].model_id} onModelChange={vi.fn()} />);
-    expect(screen.getByRole('button', { name: legacyId })).toBeTruthy();
+describe('ModelSelector legacy models', () => {
+  it('hides a legacy model that is neither selected nor favorited', async () => {
+    const list = await openSelector(current.model_id);
+    expect(list.getByText(current.name)).toBeTruthy();
+    expect(list.queryByText(legacy.name)).toBeNull();
+  });
+
+  it('lists a legacy model while it is the selected model', async () => {
+    const list = await openSelector(legacy.model_id);
+    expect(list.getByText(legacy.name)).toBeTruthy();
+  });
+
+  it('lists a legacy model the user has favorited', async () => {
+    useModelStore.setState({ favoriteModelIds: [legacy.model_id] });
+    const list = await openSelector(current.model_id);
+    expect(list.getByText(legacy.name)).toBeTruthy();
   });
 });

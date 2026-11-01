@@ -25,16 +25,13 @@ describe('parseTokenQuery', () => {
     });
   });
 
-  it('activates for a trigger preceded by a space', () => {
-    const r = parseTokenQuery('hi @foo', 7, '@');
-    expect(r.isActive).toBe(true);
-    expect(r.query).toBe('foo');
-    expect(r.tokenStartPos).toBe(3);
-    expect(r.tokenEndPos).toBe(7);
-  });
-
-  it('activates for a trigger preceded by a newline', () => {
-    expect(parseTokenQuery('hi\n@foo', 7, '@').isActive).toBe(true);
+  it.each(['hi @foo', 'hi\n@foo'])('activates for a trigger after whitespace in %j', (message) => {
+    expect(parseTokenQuery(message, 7, '@')).toEqual({
+      isActive: true,
+      query: 'foo',
+      tokenStartPos: 3,
+      tokenEndPos: 7,
+    });
   });
 
   it('lowercases the query', () => {
@@ -45,21 +42,18 @@ describe('parseTokenQuery', () => {
     expect(parseTokenQuery('user@host', 9, '@').isActive).toBe(false);
   });
 
-  it('is inactive when whitespace separates the trigger from the cursor', () => {
-    expect(parseTokenQuery('@foo bar', 8, '@').isActive).toBe(false);
-  });
-
-  it('is inactive when a newline separates the trigger from the cursor', () => {
-    expect(parseTokenQuery('@foo\nbar', 8, '@').isActive).toBe(false);
-  });
+  it.each(['@foo bar', '@foo\nbar'])(
+    'is inactive when whitespace separates the trigger from the cursor in %j',
+    (message) => {
+      expect(parseTokenQuery(message, 8, '@').isActive).toBe(false);
+    },
+  );
 
   it('only inspects text before the cursor', () => {
-    // The '@' is after the cursor, so it is invisible to the parser.
     expect(parseTokenQuery('a @foo', 1, '@').isActive).toBe(false);
   });
 
   it('anchors on the last trigger, so an invalid last trigger wins over an earlier valid one', () => {
-    // Earlier '@a' is valid, but the parser looks only at the last '@' (in b@c).
     expect(parseTokenQuery('@a b@c', 6, '@').isActive).toBe(false);
   });
 
@@ -103,8 +97,6 @@ describe('insertToken', () => {
   it('replaces a token embedded in surrounding text', () => {
     const r = insertToken('say @fo now', '@foo', 4, 7);
     expect(r.text).toBe('say @foo now');
-    // The existing space after the token means no separator is added, so the
-    // cursor lands right after the inserted token.
     expect(r.cursor).toBe(8);
   });
 });
@@ -136,15 +128,9 @@ describe('getHighlightTokenRanges', () => {
 });
 
 describe('buildHighlightSegments', () => {
-  it('returns an empty array for an empty message', () => {
+  it('never emits empty runs', () => {
     expect(buildHighlightSegments('')).toEqual([]);
-  });
-
-  it('returns a single plain run when there are no tokens', () => {
     expect(buildHighlightSegments('plain text')).toEqual([{ text: 'plain text', isToken: false }]);
-  });
-
-  it('marks a lone token run as a token', () => {
     expect(buildHighlightSegments('@foo')).toEqual([{ text: '@foo', isToken: true }]);
   });
 

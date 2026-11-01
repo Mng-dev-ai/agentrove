@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import toast from 'react-hot-toast';
 import {
   sortFiles,
-  getFileName,
   getAncestorFolderPaths,
   findFileInStructure,
   findFileByToolPath,
@@ -29,7 +28,6 @@ const folderNode = (path: string, children: FileStructure[]): FileStructure => (
   children,
 });
 
-// filterChatAttachmentFiles reads name/size/type only.
 const upload = (name: string, type: string, size: number): File =>
   ({ name, type, size }) as unknown as File;
 
@@ -42,13 +40,6 @@ describe('sortFiles', () => {
   it('recurses into folder children', () => {
     const sorted = sortFiles([folderNode('src', [fileNode('src/b.ts'), fileNode('src/a.ts')])]);
     expect(sorted[0].children?.map((c) => c.path)).toEqual(['src/a.ts', 'src/b.ts']);
-  });
-});
-
-describe('getFileName', () => {
-  it('returns the last path segment', () => {
-    expect(getFileName('a/b/c.ts')).toBe('c.ts');
-    expect(getFileName('single')).toBe('single');
   });
 });
 
@@ -147,7 +138,6 @@ describe('buildFileStructureFromSandboxFiles', () => {
     const tree = buildFileStructureFromSandboxFiles(meta);
     expect(tree.map((n) => n.path)).toEqual(['src', 'alpha.md', 'zeta.md']);
     const src = tree.find((n) => n.path === 'src');
-    // '/src/a.ts' normalizes to 'src/a.ts', so the later duplicate is ignored.
     expect(src?.children?.map((c) => c.path)).toEqual(['src/a.ts', 'src/b.ts']);
   });
 
@@ -212,59 +202,57 @@ describe('fetchAttachmentBlob', () => {
 });
 
 describe('downloadAttachmentFile', () => {
-  let clickSpy: ReturnType<typeof vi.spyOn>;
+  let clicked: { href: string; download: string }[];
+  let createObjectURL: Mock<(obj: Blob | MediaSource) => string>;
+  let revokeObjectURL: Mock<(url: string) => void>;
 
   beforeEach(() => {
-    clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    clicked = [];
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicked.push({ href: this.href, download: this.download });
+    });
+    createObjectURL = vi.fn<(obj: Blob | MediaSource) => string>(() => 'blob:generated');
+    revokeObjectURL = vi.fn<(url: string) => void>();
     vi.stubGlobal(
       'URL',
-      Object.assign(URL, {
-        createObjectURL: vi.fn(() => 'blob:generated'),
-        revokeObjectURL: vi.fn(),
-      }),
+      class extends URL {
+        static createObjectURL = createObjectURL;
+        static revokeObjectURL = revokeObjectURL;
+      },
     );
   });
 
   afterEach(() => {
-    clickSpy.mockRestore();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
   it('downloads a browser object URL via an anchor without hitting the network', async () => {
     const getBlob = vi.fn();
     await downloadAttachmentFile('blob:existing', 'file.png', { getBlob });
-    expect(clickSpy).toHaveBeenCalledOnce();
+    expect(clicked).toEqual([{ href: 'blob:existing', download: 'file.png' }]);
     expect(getBlob).not.toHaveBeenCalled();
   });
 
-  it('rewrites a preview URL to download, fetches via the api client, and revokes the blob', async () => {
+  it('fetches the download variant of a preview URL and revokes the temporary blob URL', async () => {
     const blob = new Blob(['x']);
     const getBlob = vi.fn().mockResolvedValue(blob);
     await downloadAttachmentFile('/api/v1/attachments/x/preview', 'file.png', { getBlob });
     expect(getBlob).toHaveBeenCalledWith('/attachments/x/download', undefined);
-    expect(URL.createObjectURL).toHaveBeenCalledWith(blob);
-    expect(clickSpy).toHaveBeenCalledOnce();
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:generated');
+    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(clicked).toEqual([{ href: 'blob:generated', download: 'file.png' }]);
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:generated');
   });
 });
 
 describe('convertDataUrlToUploadedFile', () => {
-  afterEach(() => vi.unstubAllGlobals());
-
-  it('fetches the data URL and wraps the blob in a named File', async () => {
-    const blob = new Blob(['x'], { type: 'image/png' });
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ blob: () => Promise.resolve(blob) }));
-    const result = await convertDataUrlToUploadedFile('data:image/png;base64,AAAA', 'pic.png');
-    expect(result).toBeInstanceOf(File);
-    expect(result.name).toBe('pic.png');
-    expect(result.type).toBe('image/png');
-  });
-
-  it('defaults the filename and type', async () => {
-    const blob = new Blob(['x']);
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ blob: () => Promise.resolve(blob) }));
-    const result = await convertDataUrlToUploadedFile('data:image/png;base64,AAAA');
-    expect(result.name).toBe('image.png');
-    expect(result.type).toBe('image/png');
+  it('wraps a data URL in a File, defaulting the name and type', async () => {
+    const defaulted = await convertDataUrlToUploadedFile('data:image/png;base64,AAAA');
+    const named = await convertDataUrlToUploadedFile('data:,hi', 'a.txt', 'text/plain');
+    expect(defaulted).toBeInstanceOf(File);
+    expect([defaulted.name, defaulted.type]).toEqual(['image.png', 'image/png']);
+    expect([named.name, named.type]).toEqual(['a.txt', 'text/plain']);
   });
 });

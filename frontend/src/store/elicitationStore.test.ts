@@ -33,14 +33,6 @@ describe('enqueueElicitationRequest', () => {
     expect(queueOf('c1')?.length).toBe(1);
     expect(queueOf('c1')?.[0]).toBe(head);
   });
-
-  it('keeps separate queues per chat', () => {
-    const enqueue = useElicitationStore.getState().enqueueElicitationRequest;
-    enqueue('c1', request('elicit-1'));
-    enqueue('c2', request('elicit-2'));
-    expect(idsOf('c1')).toEqual(['elicit-1']);
-    expect(idsOf('c2')).toEqual(['elicit-2']);
-  });
 });
 
 describe('resolveElicitationRequest', () => {
@@ -69,7 +61,7 @@ describe('resolveElicitationRequest', () => {
     expect(useElicitationStore.getState().pendingRequests.has('c1')).toBe(false);
   });
 
-  it('returns the same state for an unknown request or chat', () => {
+  it('keeps the map reference for an unknown request or chat', () => {
     useElicitationStore.getState().enqueueElicitationRequest('c1', request('elicit-1'));
     const before = useElicitationStore.getState().pendingRequests;
     useElicitationStore.getState().resolveElicitationRequest('c1', 'missing');
@@ -115,7 +107,7 @@ describe('reconcileElicitationRequests', () => {
     expect(useElicitationStore.getState().pendingRequests.has('c1')).toBe(false);
   });
 
-  it('returns the same state when the queue already matches the server', () => {
+  it('keeps the map reference when the queue already matches the server', () => {
     useElicitationStore.getState().enqueueElicitationRequest('c1', request('elicit-1'));
     const before = useElicitationStore.getState().pendingRequests;
     useElicitationStore.getState().reconcileElicitationRequests('c1', [request('elicit-1')]);

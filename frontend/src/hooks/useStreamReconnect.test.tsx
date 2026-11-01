@@ -1,31 +1,22 @@
 // @vitest-environment jsdom
 
 import { renderHook } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { StreamMetadata } from '@/types/stream.types';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { ElicitationRequest } from '@/types/chat.types';
 
-const { checkChatStatus, getStreamByChat, reconcileElicitationRequests } = vi.hoisted(() => ({
-  checkChatStatus: vi.fn(),
-  getStreamByChat: vi.fn(),
-  reconcileElicitationRequests: vi.fn(),
-}));
+const { checkChatStatus } = vi.hoisted(() => ({ checkChatStatus: vi.fn() }));
 
 vi.mock('@/services/chatService', () => ({ chatService: { checkChatStatus } }));
-vi.mock('@/store/streamStore', () => {
-  const state = { activeStreamMetadata: [], getStreamByChat };
-  const useStreamStore = (
-    selector: (state: { activeStreamMetadata: StreamMetadata[] }) => unknown,
-  ) => selector(state);
-  useStreamStore.getState = () => state;
-  return { useStreamStore };
-});
-vi.mock('@/store/elicitationStore', () => ({
-  useElicitationStore: { getState: () => ({ reconcileElicitationRequests }) },
-}));
 
 import { useStreamReconnect } from './useStreamReconnect';
+import { useElicitationStore } from '@/store/elicitationStore';
 
-const flush = () => new Promise((r) => setTimeout(r, 150));
+const elicitation = (id: string): ElicitationRequest => ({
+  request_id: id,
+  message: id,
+  tool_call_id: null,
+  requested_schema: { type: 'object', properties: {} },
+});
 
 const params = {
   chatId: 'c1',
@@ -43,39 +34,49 @@ const params = {
   replayStream: vi.fn().mockResolvedValue('s1'),
 };
 
+const pendingIds = () =>
+  (useElicitationStore.getState().pendingRequests.get('c1') ?? []).map((r) => r.request_id);
+
+async function enterChat() {
+  renderHook(() => useStreamReconnect(params));
+  await vi.advanceTimersByTimeAsync(100);
+}
+
 beforeEach(() => {
+  vi.useFakeTimers();
   vi.clearAllMocks();
-  getStreamByChat.mockReturnValue(undefined);
+  useElicitationStore.setState({ pendingRequests: new Map([['c1', [elicitation('stale')]]]) });
   checkChatStatus.mockResolvedValue({ has_active_task: false, pending_elicitations: [] });
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe('useStreamReconnect elicitation hydration', () => {
   it('reconciles the queue with the status snapshot on chat entry', async () => {
-    const pending = [
-      { request_id: 'elicit-1', message: 'a', tool_call_id: null, requested_schema: {} },
-    ];
-    checkChatStatus.mockResolvedValue({ has_active_task: false, pending_elicitations: pending });
+    checkChatStatus.mockResolvedValue({
+      has_active_task: false,
+      pending_elicitations: [elicitation('elicit-1')],
+    });
 
-    renderHook(() => useStreamReconnect(params));
-    await flush();
+    await enterChat();
 
-    expect(reconcileElicitationRequests).toHaveBeenCalledWith('c1', pending);
+    expect(pendingIds()).toEqual(['elicit-1']);
   });
 
   it('reconciles even when there is no active task to resume', async () => {
-    renderHook(() => useStreamReconnect(params));
-    await flush();
+    await enterChat();
 
-    expect(reconcileElicitationRequests).toHaveBeenCalledWith('c1', []);
+    expect(pendingIds()).toEqual([]);
     expect(params.replayStream).not.toHaveBeenCalled();
   });
 
   it('leaves the queue alone when the server omits the field', async () => {
     checkChatStatus.mockResolvedValue({ has_active_task: false });
 
-    renderHook(() => useStreamReconnect(params));
-    await flush();
+    await enterChat();
 
-    expect(reconcileElicitationRequests).not.toHaveBeenCalled();
+    expect(pendingIds()).toEqual(['stale']);
   });
 });

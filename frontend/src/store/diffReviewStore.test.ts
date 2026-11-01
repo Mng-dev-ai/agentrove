@@ -2,9 +2,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useDiffReviewStore } from './diffReviewStore';
 
-// Review keys are `path\0contentHash`; a scope groups keys under one target.
 const key = (path: string, hash: string) => `${path}\0${hash}`;
 const scoped = () => useDiffReviewStore.getState().reviewedByScope;
+const toggle = (scope: string, reviewKey: string) =>
+  useDiffReviewStore.getState().toggleReviewed(scope, reviewKey);
 
 beforeEach(() => {
   localStorage.clear();
@@ -12,47 +13,36 @@ beforeEach(() => {
 });
 
 describe('toggleReviewed', () => {
-  it('marks a file reviewed under its scope', () => {
-    useDiffReviewStore.getState().toggleReviewed('scope', key('a.ts', 'h1'));
-    expect(scoped().scope).toEqual([key('a.ts', 'h1')]);
-  });
-
   it('un-reviews on a second toggle and drops the emptied scope bucket', () => {
-    const k = key('a.ts', 'h1');
-    useDiffReviewStore.getState().toggleReviewed('scope', k);
-    useDiffReviewStore.getState().toggleReviewed('scope', k);
+    toggle('scope', key('a.ts', 'h1'));
+    expect(scoped().scope).toEqual([key('a.ts', 'h1')]);
+    toggle('scope', key('a.ts', 'h1'));
     expect('scope' in scoped()).toBe(false);
   });
 
   it('replaces a stale hash key for the same path with the new one', () => {
-    // Reviewing the file, then editing it (new hash) and reviewing again must
-    // leave exactly one live key for that path — no stale post-edit hash lingers.
-    useDiffReviewStore.getState().toggleReviewed('scope', key('a.ts', 'old'));
-    useDiffReviewStore.getState().toggleReviewed('scope', key('a.ts', 'new'));
+    toggle('scope', key('a.ts', 'old'));
+    toggle('scope', key('a.ts', 'new'));
     expect(scoped().scope).toEqual([key('a.ts', 'new')]);
   });
 
-  it('keeps distinct paths in the same scope', () => {
-    useDiffReviewStore.getState().toggleReviewed('scope', key('a.ts', 'h1'));
-    useDiffReviewStore.getState().toggleReviewed('scope', key('b.ts', 'h2'));
-    expect(scoped().scope).toEqual([key('a.ts', 'h1'), key('b.ts', 'h2')]);
+  it('does not treat a path that is a prefix of another path as the same file', () => {
+    toggle('scope', key('a.ts', 'h1'));
+    toggle('scope', key('a.tsx', 'h2'));
+    expect(scoped().scope).toEqual([key('a.ts', 'h1'), key('a.tsx', 'h2')]);
   });
 
   it('un-reviews one path without disturbing the others', () => {
-    const a = key('a.ts', 'h1');
-    const b = key('b.ts', 'h2');
-    useDiffReviewStore.getState().toggleReviewed('scope', a);
-    useDiffReviewStore.getState().toggleReviewed('scope', b);
-    useDiffReviewStore.getState().toggleReviewed('scope', a);
-    expect(scoped().scope).toEqual([b]);
+    toggle('scope', key('a.ts', 'h1'));
+    toggle('scope', key('b.ts', 'h2'));
+    toggle('scope', key('a.ts', 'h1'));
+    expect(scoped().scope).toEqual([key('b.ts', 'h2')]);
   });
 
   it('keeps scopes isolated from each other', () => {
-    useDiffReviewStore.getState().toggleReviewed('s1', key('a.ts', 'h1'));
-    useDiffReviewStore.getState().toggleReviewed('s2', key('a.ts', 'h1'));
-    expect(scoped()).toEqual({
-      s1: [key('a.ts', 'h1')],
-      s2: [key('a.ts', 'h1')],
-    });
+    toggle('s1', key('a.ts', 'h1'));
+    toggle('s2', key('a.ts', 'h1'));
+    toggle('s1', key('a.ts', 'h1'));
+    expect(scoped()).toEqual({ s2: [key('a.ts', 'h1')] });
   });
 });

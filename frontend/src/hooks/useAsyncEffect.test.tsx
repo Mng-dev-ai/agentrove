@@ -1,18 +1,13 @@
 // @vitest-environment jsdom
 
 import { renderHook } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { useAsyncEffect } from './useAsyncEffect';
-
-beforeEach(() => {
-  vi.restoreAllMocks();
-});
 
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Resolve microtasks so the effect's async body runs to completion.
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
 describe('useAsyncEffect', () => {

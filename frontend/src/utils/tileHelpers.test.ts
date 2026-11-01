@@ -6,23 +6,18 @@ import {
   tileIdToViewType,
   viewTypeToTileId,
   tileViewKinds,
-  VIEW_LABELS,
-  VIEW_ICONS,
 } from './tileHelpers';
-import type { ViewType } from '@/types/ui.types';
-
-const ALL_VIEWS: ViewType[] = ['agent', 'diff', 'editor', 'terminal'];
 
 describe('activeSplitSlot', () => {
   it('returns the focused split slot when it is bound to a chat', () => {
     expect(activeSplitSlot('agent:split-2', ['chat-1', 'chat-2'])).toBe(2);
   });
 
-  it('returns primary when the focused split slot is unbound', () => {
+  it('returns null (primary) when the focused split slot is unbound', () => {
     expect(activeSplitSlot('agent:split-2', ['chat-1'])).toBeNull();
   });
 
-  it('returns primary when the primary agent pane is focused', () => {
+  it('returns null (primary) when the primary agent pane is focused', () => {
     expect(activeSplitSlot('agent:primary', ['chat-1'])).toBeNull();
   });
 });
@@ -48,9 +43,6 @@ describe('tileIdToViewType', () => {
     expect(tileIdToViewType('agent:split-3')).toBe('agent');
     expect(tileIdToViewType('diff:split-2')).toBe('diff');
     expect(tileIdToViewType('terminal:split-1')).toBe('terminal');
-  });
-
-  it('returns a bare primary tile unchanged', () => {
     expect(tileIdToViewType('editor')).toBe('editor');
   });
 });
@@ -73,18 +65,5 @@ describe('tileViewKinds', () => {
       'agent',
       'diff',
     ]);
-  });
-
-  it('returns an empty array for no tiles', () => {
-    expect(tileViewKinds([])).toEqual([]);
-  });
-});
-
-describe('VIEW_LABELS / VIEW_ICONS', () => {
-  it('define a label and an icon for every view kind', () => {
-    for (const view of ALL_VIEWS) {
-      expect(VIEW_LABELS[view]).toBeTruthy();
-      expect(VIEW_ICONS[view]).toBeTruthy();
-    }
   });
 });

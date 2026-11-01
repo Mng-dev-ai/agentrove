@@ -1,158 +1,128 @@
 // @vitest-environment jsdom
 
-import { renderHook } from '@testing-library/react';
+import { useState } from 'react';
+import { act, renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Message } from '@/types/chat.types';
-
-const { setEventId } = vi.hoisted(() => ({ setEventId: vi.fn() }));
-
-// Only the persistence boundary is mocked; message/fileType normalization stays real.
-vi.mock('@/utils/storage', () => ({ chatStorage: { setEventId } }));
-
 import { useMessageInitialization } from './useMessageInitialization';
+import { chatStorage } from '@/utils/storage';
+import type { Message } from '@/types/chat.types';
+import { makeMessage } from '@/test/fixtures';
 
-function makeMessage(overrides: Partial<Message> = {}): Message {
-  return {
-    id: 'm1',
-    chat_id: 'c1',
-    content_text: 'hi',
-    content_render: null,
-    last_seq: 5,
-    active_stream_id: null,
-    stream_status: 'completed',
-    role: 'assistant',
-    attachments: [],
-    created_at: '2026-01-01T00:00:00Z',
-    model_id: 'model-1',
-    duration_ms: null,
-    checkpoint_id: null,
-    ...overrides,
-  } as Message;
-}
+type Params = Parameters<typeof useMessageInitialization>[0];
+type Props = Omit<Params, 'setMessages' | 'setInitialPrompt'>;
 
-function makeParams(overrides: Record<string, unknown> = {}) {
-  return {
-    fetchedMessages: [] as Message[],
-    chatId: 'c1',
-    selectedModelId: 'model-1',
-    initialPromptFromRoute: null,
-    initialPromptSent: false,
-    wasAborted: false,
-    attachedFiles: [] as File[],
-    isLoading: false,
-    isStreaming: false,
-    setMessages: vi.fn(),
-    setInitialPrompt: vi.fn(),
-    ...overrides,
-  } as Parameters<typeof useMessageInitialization>[0];
+const defaults: Props = {
+  fetchedMessages: [],
+  chatId: 'c1',
+  selectedModelId: 'model-1',
+  initialPromptFromRoute: null,
+  initialPromptSent: false,
+  wasAborted: false,
+  attachedFiles: [],
+  isLoading: false,
+  isStreaming: false,
+};
+
+function renderInit(overrides: Partial<Props> = {}, seed: Message[] = []) {
+  const setInitialPrompt = vi.fn();
+  const hook = renderHook(
+    (props: Props) => {
+      const [messages, setMessages] = useState<Message[]>(seed);
+      useMessageInitialization({ ...props, setMessages, setInitialPrompt });
+      return { messages, setMessages };
+    },
+    { initialProps: { ...defaults, ...overrides } },
+  );
+  return { ...hook, setInitialPrompt };
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  localStorage.clear();
 });
 
 describe('useMessageInitialization', () => {
-  it('normalizes fetched messages and seeds local state', () => {
-    const params = makeParams({
-      fetchedMessages: [makeMessage({ role: 'assistant' })],
-    });
-    renderHook(() => useMessageInitialization(params));
+  it('normalizes fetched messages into local state, deriving is_bot from role', () => {
+    const { result } = renderInit({ fetchedMessages: [makeMessage('m1', { is_bot: false })] });
 
-    expect(params.setMessages).toHaveBeenCalledTimes(1);
-    const update = vi.mocked(params.setMessages).mock.calls[0][0] as (prev: Message[]) => Message[];
-    const seeded = update([]);
-    expect(seeded[0].id).toBe('m1');
-    // is_bot is derived from role, not trusted from the payload.
-    expect(seeded[0].is_bot).toBe(true);
+    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.messages[0]).toMatchObject({ id: 'm1', is_bot: true });
   });
 
   it('persists the highest last_seq for stream-reconnect resumption', () => {
-    const params = makeParams({
-      fetchedMessages: [
-        makeMessage({ id: 'a', last_seq: 3 }),
-        makeMessage({ id: 'b', last_seq: 8 }),
-      ],
+    renderInit({
+      fetchedMessages: [makeMessage('a', { last_seq: 3 }), makeMessage('b', { last_seq: 8 })],
     });
-    renderHook(() => useMessageInitialization(params));
-    expect(setEventId).toHaveBeenCalledWith('c1', '8');
+    expect(chatStorage.getEventId('c1')).toBe('8');
   });
 
-  it('inserts missing fetched messages while messages are still loading', () => {
-    const params = makeParams({ fetchedMessages: [makeMessage()], isLoading: true });
-    renderHook(() => useMessageInitialization(params));
-    expect(params.setMessages).toHaveBeenCalledTimes(1);
-    const update = vi.mocked(params.setMessages).mock.calls[0][0] as (prev: Message[]) => Message[];
-    expect(update([])).toEqual([expect.objectContaining({ id: 'm1', is_bot: true })]);
-    const existing = [makeMessage({ content_text: 'live content' })];
-    expect(update(existing)).toBe(existing);
-    expect(setEventId).not.toHaveBeenCalled();
+  it('while loading, only inserts missing fetched messages and keeps live ones', () => {
+    const live = makeMessage('m1', { content_text: 'live content' });
+    const { result } = renderInit(
+      { fetchedMessages: [makeMessage('m1'), makeMessage('m2')], isLoading: true },
+      [live],
+    );
+
+    expect(result.current.messages.map((m) => m.id)).toEqual(['m1', 'm2']);
+    expect(result.current.messages[0]).toBe(live);
+    expect(chatStorage.getEventId('c1')).toBeNull();
   });
 
   it('does not re-seed after an abort', () => {
-    const params = makeParams({ fetchedMessages: [makeMessage()], wasAborted: true });
-    renderHook(() => useMessageInitialization(params));
-    expect(params.setMessages).not.toHaveBeenCalled();
+    const { result } = renderInit({ fetchedMessages: [makeMessage('m1')], wasAborted: true });
+    expect(result.current.messages).toEqual([]);
   });
 
-  it('injects a synthetic user message for the initial-prompt flow', () => {
-    const params = makeParams({
-      fetchedMessages: [],
+  it('injects a synthetic user message for the initial-prompt flow, once', () => {
+    const { result, rerender, setInitialPrompt } = renderInit({
       initialPromptFromRoute: 'draft an email',
-      initialPromptSent: false,
     });
-    const { rerender } = renderHook((p) => useMessageInitialization(p), { initialProps: params });
 
-    const seeded = (params.setMessages as ReturnType<typeof vi.fn>).mock.calls[0][0] as Message[];
-    expect(seeded).toHaveLength(1);
-    expect(seeded[0].role).toBe('user');
-    expect(seeded[0].content_text).toBe('draft an email');
-    expect(params.setInitialPrompt).toHaveBeenCalledWith('draft an email');
+    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.messages[0]).toMatchObject({
+      role: 'user',
+      content_text: 'draft an email',
+    });
+    expect(setInitialPrompt).toHaveBeenCalledWith('draft an email');
 
-    rerender({ ...params, fetchedMessages: [] });
-    expect(params.setMessages).toHaveBeenCalledTimes(1);
-    expect(params.setInitialPrompt).toHaveBeenCalledTimes(1);
+    const injected = result.current.messages[0];
+    rerender({ ...defaults, initialPromptFromRoute: 'draft an email', fetchedMessages: [] });
+    expect(result.current.messages).toEqual([injected]);
+    expect(setInitialPrompt).toHaveBeenCalledTimes(1);
   });
 
   it('skips the initial-prompt injection until a model is selected', () => {
-    const params = makeParams({
-      fetchedMessages: [],
+    const { result, setInitialPrompt } = renderInit({
       initialPromptFromRoute: 'draft an email',
       selectedModelId: null,
     });
-    renderHook(() => useMessageInitialization(params));
-    expect(params.setMessages).not.toHaveBeenCalled();
-    expect(params.setInitialPrompt).not.toHaveBeenCalled();
+    expect(result.current.messages).toEqual([]);
+    expect(setInitialPrompt).not.toHaveBeenCalled();
   });
 
   it('does not re-inject once the initial prompt was already sent', () => {
-    const params = makeParams({
-      fetchedMessages: [],
+    const { result } = renderInit({
       initialPromptFromRoute: 'draft an email',
       initialPromptSent: true,
     });
-    renderHook(() => useMessageInitialization(params));
-    expect(params.setMessages).not.toHaveBeenCalled();
+    expect(result.current.messages).toEqual([]);
   });
 
-  it('inserts missing fetched messages without clobbering live state', () => {
-    const params = makeParams({ fetchedMessages: [makeMessage()] });
-    const { rerender } = renderHook((p) => useMessageInitialization(p), { initialProps: params });
-    expect(params.setMessages).toHaveBeenCalledTimes(1);
+  it('while streaming, merges new fetched messages without clobbering live state', () => {
+    const { result, rerender } = renderInit({ fetchedMessages: [makeMessage('m1')] });
+    const live = makeMessage('m1', { content_text: 'live content' });
+    act(() => result.current.setMessages([live]));
 
-    const streamingParams = makeParams({
-      fetchedMessages: [makeMessage(), makeMessage({ id: 'm2' })],
+    const streamingProps = {
+      ...defaults,
+      fetchedMessages: [makeMessage('m1'), makeMessage('m2')],
       isStreaming: true,
-      setMessages: params.setMessages,
-    });
-    rerender(streamingParams);
-    expect(params.setMessages).toHaveBeenCalledTimes(2);
-    const update = vi.mocked(params.setMessages).mock.calls[1][0] as (prev: Message[]) => Message[];
-    const liveMessage = makeMessage({ content_text: 'live content' });
-    const merged = update([liveMessage]);
-    expect(merged.map((message) => message.id)).toEqual(['m1', 'm2']);
-    expect(merged[0]).toBe(liveMessage);
+    };
+    rerender(streamingProps);
+    expect(result.current.messages.map((m) => m.id)).toEqual(['m1', 'm2']);
+    expect(result.current.messages[0]).toBe(live);
 
-    rerender({ ...streamingParams, fetchedMessages: [...streamingParams.fetchedMessages] });
-    expect(params.setMessages).toHaveBeenCalledTimes(2);
+    act(() => result.current.setMessages([live]));
+    rerender({ ...streamingProps, fetchedMessages: [...streamingProps.fetchedMessages] });
+    expect(result.current.messages).toEqual([live]);
   });
 });

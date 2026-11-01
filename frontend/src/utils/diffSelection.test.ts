@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import type { ChangeContent, ContextContent, FileDiffMetadata, Hunk } from '@pierre/diffs';
 import { getSelectedDiffText } from './diffSelection';
 
-// Minimal hunk-content builders — getSelectedDiffText only reads the fields below.
 const ctx = (lines: number, delIdx: number, addIdx: number): ContextContent => ({
   type: 'context',
   lines,
@@ -168,8 +167,6 @@ describe('getSelectedDiffText — multi-hunk full body (gap expansion)', () => {
 
 describe('getSelectedDiffText — partial patch (no gap expansion)', () => {
   it('joins the two hunks directly, silently omitting the unexpandable gap', () => {
-    // Documented behavior: partial patches can't expand context between hunks,
-    // so lines 12–49 are absent and the addition rows sit adjacent.
     const text = getSelectedDiffText(twoHunkPartial, {
       start: 11,
       side: 'additions',

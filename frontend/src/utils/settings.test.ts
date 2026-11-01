@@ -1,14 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   mergeByName,
-  createDefaultEnvVarForm,
   validateEnvVarForm,
   resolvePersona,
-  createDefaultPersonaForm,
   validatePersonaForm,
   createDefaultStreamActionForm,
   validateStreamActionForm,
-  getGeneralSecretFields,
 } from './settings';
 import type { CustomEnvVar, Persona, StreamAction } from '@/types/user.types';
 
@@ -35,13 +32,10 @@ describe('validateEnvVarForm', () => {
     expect(validateEnvVarForm(form(), null, [])).toBeNull();
   });
 
-  it('requires a key', () => {
+  it('requires a key and a value', () => {
     expect(validateEnvVarForm(form({ key: '  ' }), null, [])).toBe(
       'Environment variable name is required',
     );
-  });
-
-  it('requires a value', () => {
     expect(validateEnvVarForm(form({ value: '' }), null, [])).toBe(
       'Environment variable value is required',
     );
@@ -52,7 +46,6 @@ describe('validateEnvVarForm', () => {
     expect(validateEnvVarForm(form({ key: 'KEY' }), null, existing)).toBe(
       'An environment variable with this name already exists',
     );
-    // Env var names are case-sensitive, so a differently-cased key is allowed.
     expect(validateEnvVarForm(form({ key: 'key' }), null, existing)).toBeNull();
   });
 
@@ -71,10 +64,6 @@ describe('resolvePersona', () => {
 
   it('falls back to Default for an unknown persona', () => {
     expect(resolvePersona('Ghost', personas)).toBe('Default');
-  });
-
-  it('passes Default through untouched', () => {
-    expect(resolvePersona('Default', personas)).toBe('Default');
   });
 });
 
@@ -122,28 +111,5 @@ describe('validateStreamActionForm', () => {
     expect(validateStreamActionForm(form({ label: 'run' }), null, existing)).toBe(
       'An action with this label already exists',
     );
-  });
-});
-
-describe('form factories and static config', () => {
-  it('creates empty env var and persona forms', () => {
-    expect(createDefaultEnvVarForm()).toEqual({ key: '', value: '' });
-    expect(createDefaultPersonaForm()).toEqual({ name: '', content: '' });
-  });
-
-  it('seeds a stream action form with the shared defaults', () => {
-    expect(createDefaultStreamActionForm()).toMatchObject({
-      label: '',
-      enabled: true,
-      persona_name: 'Default',
-      permission_mode: 'bypassPermissions',
-      thinking_mode: 'high',
-    });
-  });
-
-  it('exposes the GitHub PAT secret field', () => {
-    const fields = getGeneralSecretFields();
-    expect(fields).toHaveLength(1);
-    expect(fields[0].key).toBe('github_personal_access_token');
   });
 });

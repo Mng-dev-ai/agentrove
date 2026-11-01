@@ -1,14 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-const { addComposerSelection } = vi.hoisted(() => ({ addComposerSelection: vi.fn() }));
-
-vi.mock('@/store/uiStore', () => ({
-  useUIStore: { getState: () => ({ addComposerSelection }) },
-}));
-
 import { attachAddSelectionToChat, attachAskAboutSelection } from './editorChatActions';
+import { useUIStore } from '@/store/uiStore';
 
-// Keybinding constants the action factory reads.
 const monaco = { KeyMod: { CtrlCmd: 1 }, KeyCode: { KeyL: 2, KeyI: 3 } };
 
 interface FakeSelection {
@@ -58,8 +51,10 @@ const selection = (over: Partial<FakeSelection> = {}): FakeSelection => ({
   ...over,
 });
 
+const selectionsFor = (chatId: string) => useUIStore.getState().composerSelectionsByChat[chatId];
+
 beforeEach(() => {
-  addComposerSelection.mockClear();
+  useUIStore.setState({ composerSelectionsByChat: {} });
 });
 
 describe('attachAddSelectionToChat', () => {
@@ -75,14 +70,15 @@ describe('attachAddSelectionToChat', () => {
 
     fire();
 
-    expect(addComposerSelection).toHaveBeenCalledWith('chat-1', {
-      // Leading slash is stripped from the model URI path.
-      path: 'src/foo.ts',
-      startLine: 3,
-      endLine: 5,
-      languageId: 'typescript',
-      text: 'const x = 1;',
-    });
+    expect(selectionsFor('chat-1')).toEqual([
+      {
+        path: 'src/foo.ts',
+        startLine: 3,
+        endLine: 5,
+        languageId: 'typescript',
+        text: 'const x = 1;',
+      },
+    ]);
   });
 
   it('trims the trailing empty line for a full-line drag selection', () => {
@@ -96,9 +92,9 @@ describe('attachAddSelectionToChat', () => {
 
     fire();
 
-    const snippet = addComposerSelection.mock.calls[0][1];
-    expect(snippet.endLine).toBe(5);
-    expect(snippet.text).toBe('line3\nline4\nline5');
+    expect(selectionsFor('c')).toEqual([
+      expect.objectContaining({ endLine: 5, text: 'line3\nline4\nline5' }),
+    ]);
   });
 
   it('does nothing when there is no selection', () => {
@@ -108,7 +104,7 @@ describe('attachAddSelectionToChat', () => {
 
     fire();
 
-    expect(addComposerSelection).not.toHaveBeenCalled();
+    expect(selectionsFor('c')).toBeUndefined();
   });
 
   it('does nothing when the context has no chatId', () => {
@@ -118,7 +114,7 @@ describe('attachAddSelectionToChat', () => {
 
     fire();
 
-    expect(addComposerSelection).not.toHaveBeenCalled();
+    expect(useUIStore.getState().composerSelectionsByChat).toEqual({});
   });
 });
 

@@ -1,91 +1,103 @@
 // @vitest-environment jsdom
 
-import { renderHook } from '@testing-library/react';
+import type { ReactNode } from 'react';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-const h = vi.hoisted(() => ({
-  isTauri: vi.fn(() => false),
-  settings: { data: undefined as { notifications_enabled: boolean } | undefined },
-  requestNotificationPermission: vi.fn(async () => {}),
-}));
-
-vi.mock('@tauri-apps/api/core', () => ({ isTauri: h.isTauri }));
-vi.mock('@/hooks/queries/useSettingsQueries', () => ({ useSettingsQuery: () => h.settings }));
-vi.mock('@/utils/notifications', () => ({
-  requestNotificationPermission: h.requestNotificationPermission,
-}));
-
 import { useNotificationPermissionPrompt } from './useNotificationPermissionPrompt';
+import { queryKeys } from '@/hooks/queries/queryKeys';
+import type { UserSettings } from '@/types/user.types';
+
+const requestPermission = vi.fn(async () => 'default' as NotificationPermission);
+let queryClient: QueryClient;
+
+function setSettings(notificationsEnabled: boolean) {
+  queryClient.setQueryData([queryKeys.settings], {
+    notifications_enabled: notificationsEnabled,
+  } as UserSettings);
+}
+
+function renderPrompt() {
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+  return renderHook(() => useNotificationPermissionPrompt(true), { wrapper });
+}
+
+function gesture() {
+  window.dispatchEvent(new Event('pointerdown'));
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.isTauri.mockReturnValue(false);
-  h.settings.data = { notifications_enabled: true };
-  vi.stubGlobal('Notification', { permission: 'default' });
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  setSettings(true);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() => new Promise(() => {})),
+  );
+  vi.stubGlobal('Notification', { permission: 'default', requestPermission });
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function gesture() {
-  window.dispatchEvent(new Event('pointerdown'));
-}
-
 describe('useNotificationPermissionPrompt', () => {
   it('asks synchronously inside the first gesture, and only once', () => {
-    renderHook(() => useNotificationPermissionPrompt(true));
+    renderPrompt();
 
     gesture();
     // Synchronous assert — an await sneaking into the handler breaks this.
-    expect(h.requestNotificationPermission).toHaveBeenCalledTimes(1);
+    expect(requestPermission).toHaveBeenCalledTimes(1);
 
     gesture();
-    expect(h.requestNotificationPermission).toHaveBeenCalledTimes(1);
+    expect(requestPermission).toHaveBeenCalledTimes(1);
   });
 
-  it('does not arm until settings resolve, then arms once they land', () => {
-    h.settings.data = undefined;
-    const { rerender } = renderHook(() => useNotificationPermissionPrompt(true));
+  it('does not arm until settings resolve, then arms once they land', async () => {
+    queryClient.clear();
+    renderPrompt();
 
     gesture();
-    expect(h.requestNotificationPermission).not.toHaveBeenCalled();
+    expect(requestPermission).not.toHaveBeenCalled();
 
-    h.settings.data = { notifications_enabled: true };
-    rerender();
-    gesture();
-    expect(h.requestNotificationPermission).toHaveBeenCalledTimes(1);
+    act(() => setSettings(true));
+    await waitFor(() => {
+      gesture();
+      expect(requestPermission).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('does not arm while notifications are disabled', () => {
-    h.settings.data = { notifications_enabled: false };
-    renderHook(() => useNotificationPermissionPrompt(true));
+    setSettings(false);
+    renderPrompt();
 
     gesture();
-    expect(h.requestNotificationPermission).not.toHaveBeenCalled();
+    expect(requestPermission).not.toHaveBeenCalled();
   });
 
   it('does not arm once permission is decided', () => {
-    vi.stubGlobal('Notification', { permission: 'granted' });
-    renderHook(() => useNotificationPermissionPrompt(true));
+    vi.stubGlobal('Notification', { permission: 'granted', requestPermission });
+    renderPrompt();
 
     gesture();
-    expect(h.requestNotificationPermission).not.toHaveBeenCalled();
+    expect(requestPermission).not.toHaveBeenCalled();
   });
 
   it('does not arm in Tauri', () => {
-    h.isTauri.mockReturnValue(true);
-    renderHook(() => useNotificationPermissionPrompt(true));
+    vi.stubGlobal('isTauri', true);
+    renderPrompt();
 
     gesture();
-    expect(h.requestNotificationPermission).not.toHaveBeenCalled();
+    expect(requestPermission).not.toHaveBeenCalled();
   });
 
   it('disarms on unmount', () => {
-    const { unmount } = renderHook(() => useNotificationPermissionPrompt(true));
+    const { unmount } = renderPrompt();
     unmount();
 
     gesture();
-    expect(h.requestNotificationPermission).not.toHaveBeenCalled();
+    expect(requestPermission).not.toHaveBeenCalled();
   });
 });

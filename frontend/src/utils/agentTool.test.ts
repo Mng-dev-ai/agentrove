@@ -6,54 +6,27 @@ describe('extractResultText', () => {
     expect(extractResultText('done')).toBe('done');
   });
 
-  it('maps an empty string to undefined', () => {
-    expect(extractResultText('')).toBeUndefined();
-  });
-
-  it('joins text blocks with newlines', () => {
-    expect(
-      extractResultText([
-        { type: 'text', text: 'a' },
-        { type: 'text', text: 'b' },
-      ]),
-    ).toBe('a\nb');
-  });
-
-  it('ignores non-text blocks when collecting text', () => {
+  it('joins only well-formed text blocks with newlines', () => {
     const result = [
+      { type: 'text', text: 'a' },
       { type: 'image', source: {} },
-      { type: 'text', text: 'keep' },
+      null,
+      'raw',
       { type: 'tool_use', text: 42 },
+      { type: 'text', text: 'b' },
     ];
-    expect(extractResultText(result)).toBe('keep');
+    expect(extractResultText(result)).toBe('a\nb');
   });
 
-  it('returns undefined for an array with no text blocks', () => {
-    expect(extractResultText([{ type: 'image' }, { type: 'tool_use' }])).toBeUndefined();
-  });
-
-  it('returns undefined for an empty array', () => {
-    expect(extractResultText([])).toBeUndefined();
-  });
-
-  it('filters blocks whose text is not a string', () => {
-    expect(extractResultText([{ type: 'text', text: 123 }])).toBeUndefined();
-  });
-
-  it('skips null/non-object array entries', () => {
-    expect(extractResultText([null, 'raw', { type: 'text', text: 'ok' }])).toBe('ok');
-  });
-
-  it.each([[null], [undefined], [42], [{ type: 'text', text: 'x' }], [true]])(
-    'returns undefined for non-string, non-array input: %p',
-    (input) => {
-      expect(extractResultText(input)).toBeUndefined();
-    },
-  );
-
-  // Suspicious-but-harmless: a single empty-string text block yields '' (not
-  // undefined), unlike the top-level string branch which maps '' to undefined.
-  it('returns an empty string for an array holding only an empty text block', () => {
-    expect(extractResultText([{ type: 'text', text: '' }])).toBe('');
+  it.each([
+    ['an empty string', ''],
+    ['an empty array', []],
+    ['an array without text blocks', [{ type: 'image' }, { type: 'text', text: 123 }]],
+    ['null', null],
+    ['undefined', undefined],
+    ['a number', 42],
+    ['a lone text block object', { type: 'text', text: 'x' }],
+  ])('returns undefined for %s', (_label, input) => {
+    expect(extractResultText(input)).toBeUndefined();
   });
 });

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act, render, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { TerminalTab } from './TerminalTab';
 
@@ -31,14 +31,6 @@ const mocks = vi.hoisted(() => {
   };
 });
 
-vi.mock('@/hooks/useResolvedTheme', () => ({
-  useResolvedTheme: () => 'dark',
-}));
-
-vi.mock('@/store/uiStore', () => ({
-  useUIStore: (selector: (state: { theme: 'dark' }) => unknown) => selector({ theme: 'dark' }),
-}));
-
 vi.mock('@/hooks/useXterm', () => ({
   useXterm: () => ({
     fitTerminal: mocks.fitTerminal,
@@ -52,10 +44,6 @@ vi.mock('@/hooks/useXterm', () => ({
 vi.mock('@/lib/api', () => ({
   resolveSandboxClient: () => ({ getValidToken: mocks.getValidToken }),
   resolveSandboxWs: () => 'wss://sandbox.example.test',
-}));
-
-vi.mock('@/utils/logger', () => ({
-  logger: { error: vi.fn() },
 }));
 
 class FakeWebSocket {
@@ -123,6 +111,10 @@ describe('TerminalTab restored output', () => {
       vi.fn(() => 1),
     );
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('requests a repaint after init, then focuses only after the first write is parsed', async () => {

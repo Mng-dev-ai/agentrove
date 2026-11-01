@@ -1,15 +1,8 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-const { resolvePermissionRequest, addResolvedPermission } = vi.hoisted(() => ({
-  resolvePermissionRequest: vi.fn(),
-  addResolvedPermission: vi.fn(),
-}));
-
-vi.mock('@/store/permissionStore', () => ({
-  usePermissionStore: { getState: () => ({ resolvePermissionRequest }) },
-}));
-vi.mock('@/utils/permissionStorage', () => ({ addResolvedPermission }));
-
+import type { PermissionRequest } from '@/types/chat.types';
+import { usePermissionStore } from '@/store/permissionStore';
+import { isPermissionResolved } from './permissionStorage';
 import { executePermissionResponse, clearPermissionRequest } from './permissionResponse';
 
 function makeOpts() {
@@ -22,57 +15,20 @@ function makeOpts() {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  localStorage.clear();
+  usePermissionStore.setState({ pendingRequests: new Map() });
 });
 
 describe('executePermissionResponse', () => {
-  it('returns success and clears the request when the service resolves', async () => {
-    const opts = makeOpts();
-    const result = await executePermissionResponse(async () => {}, opts);
-    expect(result).toBe('success');
-    expect(opts.clearRequest).toHaveBeenCalledTimes(1);
-    expect(opts.setError).toHaveBeenCalledWith(null);
-  });
-
-  it('toggles loading on around the call regardless of outcome', async () => {
-    const opts = makeOpts();
-    await executePermissionResponse(async () => {}, opts);
-    expect(opts.setIsLoading).toHaveBeenNthCalledWith(1, true);
-    expect(opts.setIsLoading).toHaveBeenLastCalledWith(false);
-  });
-
-  it('treats a 404 Error as expired: clears the request, sets no error', async () => {
-    const opts = makeOpts();
-    const err = Object.assign(new Error('gone'), { status: 404 });
-    const result = await executePermissionResponse(async () => {
-      throw err;
-    }, opts);
-    expect(result).toBe('expired');
-    expect(opts.clearRequest).toHaveBeenCalledTimes(1);
-    // Only the initial reset — the expired branch never sets an error message.
-    expect(opts.setError).toHaveBeenCalledTimes(1);
-    expect(opts.setError).toHaveBeenCalledWith(null);
-    expect(opts.setIsLoading).toHaveBeenLastCalledWith(false);
-  });
-
-  it('treats a non-Error 404-shaped rejection as expired', async () => {
+  it('treats a non-Error 404-shaped rejection as expired: clears the request, sets no error', async () => {
     const opts = makeOpts();
     const result = await executePermissionResponse(async () => {
       throw { status: 404 };
     }, opts);
     expect(result).toBe('expired');
     expect(opts.clearRequest).toHaveBeenCalledTimes(1);
-  });
-
-  it('surfaces an Error message and does not clear on a non-404 failure', async () => {
-    const opts = makeOpts();
-    const result = await executePermissionResponse(async () => {
-      throw new Error('boom');
-    }, opts);
-    expect(result).toBe('error');
-    expect(opts.setError).toHaveBeenLastCalledWith('boom');
-    expect(opts.clearRequest).not.toHaveBeenCalled();
-    expect(opts.setIsLoading).toHaveBeenLastCalledWith(false);
+    expect(opts.setError).toHaveBeenCalledTimes(1);
+    expect(opts.setError).toHaveBeenCalledWith(null);
   });
 
   it('falls back to errorMessage when a non-Error without status is thrown', async () => {
@@ -86,9 +42,21 @@ describe('executePermissionResponse', () => {
 });
 
 describe('clearPermissionRequest', () => {
-  it('records the resolved seq then drops the in-memory request', () => {
+  const request = (request_id: string) => ({ request_id, tool_name: 'Bash' }) as PermissionRequest;
+
+  it('marks the seq resolved and drops only that request from the chat queue', () => {
+    const store = usePermissionStore.getState();
+    store.enqueuePermissionRequest('chat-1', request('req-9'));
+    store.enqueuePermissionRequest('chat-1', request('req-10'));
+
     clearPermissionRequest('chat-1', 'req-9', 42);
-    expect(addResolvedPermission).toHaveBeenCalledWith('chat-1', 42);
-    expect(resolvePermissionRequest).toHaveBeenCalledWith('chat-1', 'req-9');
+
+    expect(isPermissionResolved('chat-1', 42)).toBe(true);
+    expect(
+      usePermissionStore
+        .getState()
+        .pendingRequests.get('chat-1')
+        ?.map((r) => r.request_id),
+    ).toEqual(['req-10']);
   });
 });

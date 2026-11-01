@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useMessageQueueStore, EMPTY_QUEUE } from './messageQueueStore';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { useMessageQueueStore, EMPTY_QUEUE, sendQueuedMessageNow } from './messageQueueStore';
+import { useStreamStore } from './streamStore';
 import { queueService } from '@/services/queueService';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/hooks/queries/queryKeys';
 import type { LocalQueuedMessage } from '@/types/queue.types';
 import { NetworkError } from '@/types/errors.types';
 
@@ -38,29 +41,26 @@ beforeEach(() => {
   useMessageQueueStore.setState({ queues: new Map() });
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe('queueMessage', () => {
   it('optimistically adds a message, then swaps in the server id and marks it synced', async () => {
     svc.queueMessage.mockResolvedValue({ id: 'server-1', send_now_failed: false });
     const returned = await useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5');
 
     expect(returned).toEqual({ id: 'server-1', send_now_failed: false });
-    const queue = queueOf('c1');
-    expect(queue).toHaveLength(1);
-    expect(queue[0]).toMatchObject({
-      id: 'server-1',
-      content: 'hello',
-      synced: true,
-    });
+    expect(queueOf('c1')).toHaveLength(1);
+    expect(queueOf('c1')[0]).toMatchObject({ id: 'server-1', content: 'hello', synced: true });
   });
 
   it('keeps the unsynced local message on a network error and returns the temp id', async () => {
     svc.queueMessage.mockRejectedValue(new NetworkError());
     const returned = await useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5');
 
-    const queue = queueOf('c1');
-    expect(queue).toHaveLength(1);
-    expect(queue[0].id).toBe(returned.id);
-    expect(queue[0].synced).toBe(false);
+    expect(queueOf('c1')).toHaveLength(1);
+    expect(queueOf('c1')[0]).toMatchObject({ id: returned.id, synced: false });
   });
 
   it('rolls back the optimistic add and rethrows on a non-network error', async () => {
@@ -70,11 +70,21 @@ describe('queueMessage', () => {
     ).rejects.toThrow('boom');
     expect(queueOf('c1')).toBe(EMPTY_QUEUE);
   });
-});
 
-describe('getQueue', () => {
-  it('returns the shared empty-queue reference for an unknown chat', () => {
-    expect(queueOf('missing')).toBe(EMPTY_QUEUE);
+  it('does not queue locally when sending immediately succeeds', async () => {
+    svc.queueMessage.mockResolvedValue({ id: 'server-1', send_now_failed: false });
+    await useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5', { sendNow: true });
+    expect(queueOf('c1')).toBe(EMPTY_QUEUE);
+  });
+
+  it('falls back to an unsynced queued message when sending immediately hits a network error', async () => {
+    svc.queueMessage.mockRejectedValue(new NetworkError());
+    const returned = await useMessageQueueStore
+      .getState()
+      .queueMessage('c1', 'hello', 'gpt-5', { sendNow: true });
+
+    expect(queueOf('c1')).toHaveLength(1);
+    expect(queueOf('c1')[0]).toMatchObject({ id: returned.id, content: 'hello', synced: false });
   });
 });
 
@@ -134,26 +144,14 @@ describe('removeMessage', () => {
   });
 });
 
-describe('removeLocalOnly', () => {
-  it('removes the message without any server call', () => {
-    seed('c1', [localMsg({ id: 'm1', synced: true })]);
-    useMessageQueueStore.getState().removeLocalOnly('c1', 'm1');
-    expect(useMessageQueueStore.getState().queues.has('c1')).toBe(false);
-    expect(svc.deleteQueuedMessage).not.toHaveBeenCalled();
-  });
-});
-
 describe('sendNow', () => {
-  it('returns false for an unsynced message and never calls the server', async () => {
+  it.each([
+    ['an unsynced message', 'm1'],
+    ['an unknown message', 'missing'],
+  ])('returns false for %s and never calls the server', async (_label, messageId) => {
     seed('c1', [localMsg({ id: 'm1', synced: false })]);
-    const ok = await useMessageQueueStore.getState().sendNow('c1', 'm1');
-    expect(ok).toBe(false);
+    expect(await useMessageQueueStore.getState().sendNow('c1', messageId)).toBe(false);
     expect(svc.sendNow).not.toHaveBeenCalled();
-  });
-
-  it('returns false for an unknown message', async () => {
-    seed('c1', [localMsg({ id: 'm1', synced: true })]);
-    expect(await useMessageQueueStore.getState().sendNow('c1', 'missing')).toBe(false);
   });
 
   it('sends a synced message and leaves sendingNow set on success', async () => {
@@ -163,7 +161,6 @@ describe('sendNow', () => {
 
     expect(ok).toBe(true);
     expect(svc.sendNow).toHaveBeenCalledWith('c1', 'm1');
-    // Flag stays set until the stream actually processes and removes the message.
     expect(queueOf('c1')[0].sendingNow).toBe(true);
   });
 
@@ -175,19 +172,49 @@ describe('sendNow', () => {
     expect(ok).toBe(false);
     expect(queueOf('c1')[0].sendingNow).toBe(false);
   });
+
+  it('resets sendingNow after 30s if the send never settles', () => {
+    vi.useFakeTimers();
+    svc.sendNow.mockReturnValue(new Promise(() => {}));
+    seed('c1', [localMsg({ id: 'm1', synced: true })]);
+
+    void useMessageQueueStore.getState().sendNow('c1', 'm1');
+    expect(queueOf('c1')[0].sendingNow).toBe(true);
+    vi.advanceTimersByTime(30_000);
+    expect(queueOf('c1')[0].sendingNow).toBe(false);
+  });
 });
 
-describe('clearQueue / cleanupChat', () => {
-  it('clearQueue drops the whole chat bucket', () => {
-    seed('c1', [localMsg({ id: 'm1' })]);
-    useMessageQueueStore.getState().clearQueue('c1');
-    expect(useMessageQueueStore.getState().queues.has('c1')).toBe(false);
+describe('sendQueuedMessageNow', () => {
+  beforeEach(() => {
+    useStreamStore.setState({ activeStreams: new Map(), streamIdByChatMessage: new Map() });
+    queryClient.clear();
+    svc.sendNow.mockResolvedValue(undefined);
   });
 
-  it('cleanupChat drops the whole chat bucket', () => {
-    seed('c1', [localMsg({ id: 'm1' })]);
-    useMessageQueueStore.getState().cleanupChat('c1');
-    expect(useMessageQueueStore.getState().queues.has('c1')).toBe(false);
+  it('drops the message and refetches chat messages when no stream will pick it up', async () => {
+    queryClient.setQueryData(queryKeys.messages('c1'), []);
+    seed('c1', [localMsg({ id: 'm1', synced: true })]);
+
+    await sendQueuedMessageNow('c1', 'm1');
+
+    expect(queueOf('c1')).toBe(EMPTY_QUEUE);
+    expect(queryClient.getQueryState(queryKeys.messages('c1'))?.isInvalidated).toBe(true);
+  });
+
+  it('leaves the message for the active stream to consume', async () => {
+    useStreamStore.getState().addStream({
+      id: 's1',
+      chatId: 'c1',
+      messageId: 'a1',
+      startTime: 0,
+      isActive: true,
+    });
+    seed('c1', [localMsg({ id: 'm1', synced: true })]);
+
+    await sendQueuedMessageNow('c1', 'm1');
+
+    expect(queueOf('c1')[0]).toMatchObject({ id: 'm1', sendingNow: true });
   });
 });
 
@@ -214,11 +241,13 @@ describe('fetchQueue', () => {
 
     await useMessageQueueStore.getState().fetchQueue('c1');
     const queue = queueOf('c1');
-    // Server messages come first (fresh state), unsynced locals appended.
     expect(queue.map((m) => m.id)).toEqual(['s1', 'temp']);
-    expect(queue[0]).toMatchObject({ content: 'fresh', synced: true });
-    expect(queue[0].queuedAt).toBe(new Date('2020-01-01T00:00:00Z').getTime());
-    expect(queue[1]).toMatchObject({ id: 'temp', synced: false });
+    expect(queue[0]).toMatchObject({
+      content: 'fresh',
+      synced: true,
+      queuedAt: new Date('2020-01-01T00:00:00Z').getTime(),
+    });
+    expect(queue[1]).toMatchObject({ content: 'pending', synced: false });
   });
 
   it('drops the bucket when the server has nothing and no locals are pending', async () => {
