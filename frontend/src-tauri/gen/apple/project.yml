@@ -40,6 +40,7 @@ targets:
       path: agentrove-desktop_iOS/Info.plist
       properties:
         LSRequiresIPhoneOS: true
+        NSCameraUsageDescription: AgentRove uses the camera to attach photos to chats.
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
