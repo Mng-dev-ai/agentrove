@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { QueueMessageCard } from './QueueMessageCard';
 import type { LocalQueuedMessage } from '@/types/queue.types';
 
@@ -32,8 +32,6 @@ function renderCard(over: Partial<LocalQueuedMessage> = {}) {
 }
 
 describe('QueueMessageCard', () => {
-  afterEach(cleanup);
-
   it('cancels the queued message when the cancel action is clicked', () => {
     const { onCancel } = renderCard();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel message' }));

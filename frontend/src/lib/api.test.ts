@@ -5,10 +5,17 @@ const { onSessionExpired } = vi.hoisted(() => ({ onSessionExpired: vi.fn() }));
 
 vi.mock('@/utils/authSession', () => ({ invalidateSessionAndRedirect: onSessionExpired }));
 
-import { apiClient, remoteApiClient, resolveChatClient, resolveSandboxClient } from './api';
+import {
+  apiClient,
+  remoteApiClient,
+  resolveChatClient,
+  resolveSandboxClient,
+  setCloudApiBaseUrl,
+} from './api';
+import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { NetworkError } from '@/types/errors.types';
-import { markCloudChats, markCloudSandboxes } from '@/utils/chatOrigin';
-import { authStorage } from '@/utils/storage';
+import { isCloudChat, markCloudChats, markCloudSandboxes } from '@/utils/chatOrigin';
+import { authStorage, cloudAuthStorage } from '@/utils/storage';
 
 const json = (body: unknown, status = 200) =>
   new Response(body == null ? '' : JSON.stringify(body), { status });
@@ -18,6 +25,7 @@ const bearerOf = (init?: RequestInit) =>
   (init?.headers as Record<string, string> | undefined)?.Authorization;
 
 const fetchMock = vi.fn<typeof fetch>();
+const isRefresh = (url: unknown) => String(url).endsWith('/auth/jwt/refresh');
 
 // An empty refresh token reads as "none".
 const signIn = (access: string, refresh = '') => authStorage.setTokens(access, refresh);
@@ -109,6 +117,51 @@ describe('APIClient 401 handling', () => {
 
     await expect(apiClient.get('/thing')).rejects.toThrow('Session expired');
     expect(onSessionExpired).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares one refresh across concurrent 401s and retries each with the new token', async () => {
+    await signIn('access', 'refresh-tok');
+    fetchMock.mockImplementation(async (url, init) => {
+      if (isRefresh(url)) return tokens('new-access', 'new-refresh');
+      return bearerOf(init) === 'Bearer new-access'
+        ? json({ path: new URL(String(url)).pathname })
+        : json({ detail: 'expired' }, 401);
+    });
+
+    const results = await Promise.all([apiClient.get('/a'), apiClient.get('/b')]);
+
+    expect(results).toEqual([{ path: '/api/v1/a' }, { path: '/api/v1/b' }]);
+    expect(fetchMock.mock.calls.filter(([url]) => isRefresh(url))).toHaveLength(1);
+    expect(authStorage.getRefreshToken()).toBe('new-refresh');
+  });
+
+  it('keeps the session when the refresh fails transiently', async () => {
+    await signIn('access', 'refresh-tok');
+    fetchMock.mockImplementation(async (url) =>
+      isRefresh(url) ? json({ detail: 'down' }, 503) : json({ detail: 'expired' }, 401),
+    );
+
+    await expect(apiClient.get('/a')).rejects.toThrow('Token refresh failed');
+
+    expect(onSessionExpired).not.toHaveBeenCalled();
+    expect(authStorage.getToken()).toBe('access');
+    expect(authStorage.getRefreshToken()).toBe('refresh-tok');
+  });
+
+  it('disconnects the cloud when the VPS refresh token is rejected', async () => {
+    useCloudSettingsStore.getState().setCloud('https://vps.example', 'me@example.com');
+    setCloudApiBaseUrl('https://vps.example');
+    await cloudAuthStorage.setTokens('cloud-access', 'cloud-refresh');
+    markCloudChats(['cloud-chat']);
+    fetchMock.mockResolvedValue(json({ detail: 'invalid' }, 401));
+
+    await expect(remoteApiClient.get('/chat/chats')).rejects.toThrow('Session expired');
+
+    expect(cloudAuthStorage.getRefreshToken()).toBeNull();
+    expect(isCloudChat('cloud-chat')).toBe(false);
+    expect(useCloudSettingsStore.getState()).toMatchObject({ cloudUrl: '', connectedEmail: null });
+    expect(onSessionExpired).not.toHaveBeenCalled();
+    expect(authStorage.getToken()).toBe('access');
   });
 });
 

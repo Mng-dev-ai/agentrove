@@ -1,24 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import type { Message } from '@/types/chat.types';
+import { makeMessage } from '@/test/fixtures';
 import { StreamProcessingError } from '@/types/stream.types';
 import { buildFailedMessageUpdate } from './messageUpdates';
 
-const partial: Message = {
-  id: 'a1',
-  chat_id: 'c1',
-  role: 'assistant',
+const partial = makeMessage('a1', {
   content_text: 'Partial answer',
   content_render: { events: [{ type: 'assistant_text', text: 'Partial answer' }] },
   last_seq: 4,
   active_stream_id: 's1',
-  stream_status: 'in_progress',
-  created_at: '2024-01-01T00:00:00Z',
   model_id: 'm',
-  duration_ms: null,
-  attachments: [],
-  checkpoint_id: null,
-  tool_results_omitted: false,
-};
+});
 
 describe('buildFailedMessageUpdate', () => {
   it('keeps streamed content, appends the error, and ends the stream as failed', () => {

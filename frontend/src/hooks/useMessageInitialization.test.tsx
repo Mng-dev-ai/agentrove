@@ -6,29 +6,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useMessageInitialization } from './useMessageInitialization';
 import { chatStorage } from '@/utils/storage';
 import type { Message } from '@/types/chat.types';
+import { makeMessage } from '@/test/fixtures';
 
 type Params = Parameters<typeof useMessageInitialization>[0];
 type Props = Omit<Params, 'setMessages' | 'setInitialPrompt'>;
-
-function makeMessage(overrides: Partial<Message> = {}): Message {
-  return {
-    id: 'm1',
-    chat_id: 'c1',
-    content_text: 'hi',
-    content_render: null,
-    last_seq: 5,
-    active_stream_id: null,
-    stream_status: 'completed',
-    role: 'assistant',
-    is_bot: false,
-    attachments: [],
-    created_at: '2026-01-01T00:00:00Z',
-    model_id: 'model-1',
-    duration_ms: null,
-    checkpoint_id: null,
-    ...overrides,
-  } as Message;
-}
 
 const defaults: Props = {
   fetchedMessages: [],
@@ -61,7 +42,7 @@ beforeEach(() => {
 
 describe('useMessageInitialization', () => {
   it('normalizes fetched messages into local state, deriving is_bot from role', () => {
-    const { result } = renderInit({ fetchedMessages: [makeMessage({ is_bot: false })] });
+    const { result } = renderInit({ fetchedMessages: [makeMessage('m1', { is_bot: false })] });
 
     expect(result.current.messages).toHaveLength(1);
     expect(result.current.messages[0]).toMatchObject({ id: 'm1', is_bot: true });
@@ -69,18 +50,15 @@ describe('useMessageInitialization', () => {
 
   it('persists the highest last_seq for stream-reconnect resumption', () => {
     renderInit({
-      fetchedMessages: [
-        makeMessage({ id: 'a', last_seq: 3 }),
-        makeMessage({ id: 'b', last_seq: 8 }),
-      ],
+      fetchedMessages: [makeMessage('a', { last_seq: 3 }), makeMessage('b', { last_seq: 8 })],
     });
     expect(chatStorage.getEventId('c1')).toBe('8');
   });
 
   it('while loading, only inserts missing fetched messages and keeps live ones', () => {
-    const live = makeMessage({ content_text: 'live content' });
+    const live = makeMessage('m1', { content_text: 'live content' });
     const { result } = renderInit(
-      { fetchedMessages: [makeMessage(), makeMessage({ id: 'm2' })], isLoading: true },
+      { fetchedMessages: [makeMessage('m1'), makeMessage('m2')], isLoading: true },
       [live],
     );
 
@@ -90,7 +68,7 @@ describe('useMessageInitialization', () => {
   });
 
   it('does not re-seed after an abort', () => {
-    const { result } = renderInit({ fetchedMessages: [makeMessage()], wasAborted: true });
+    const { result } = renderInit({ fetchedMessages: [makeMessage('m1')], wasAborted: true });
     expect(result.current.messages).toEqual([]);
   });
 
@@ -130,13 +108,13 @@ describe('useMessageInitialization', () => {
   });
 
   it('while streaming, merges new fetched messages without clobbering live state', () => {
-    const { result, rerender } = renderInit({ fetchedMessages: [makeMessage()] });
-    const live = makeMessage({ content_text: 'live content' });
+    const { result, rerender } = renderInit({ fetchedMessages: [makeMessage('m1')] });
+    const live = makeMessage('m1', { content_text: 'live content' });
     act(() => result.current.setMessages([live]));
 
     const streamingProps = {
       ...defaults,
-      fetchedMessages: [makeMessage(), makeMessage({ id: 'm2' })],
+      fetchedMessages: [makeMessage('m1'), makeMessage('m2')],
       isStreaming: true,
     };
     rerender(streamingProps);

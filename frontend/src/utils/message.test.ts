@@ -1,37 +1,21 @@
 import { describe, it, expect } from 'vitest';
-import type { Message } from '@/types/chat.types';
+import { makeMessage } from '@/test/fixtures';
 import { isAssistantMessage, createInitialMessage, createAttachmentsFromFiles } from './message';
-
-const msg = (over: Partial<Message>): Message => ({
-  id: 'm1',
-  chat_id: 'c1',
-  content_text: '',
-  content_render: { events: [] },
-  last_seq: 0,
-  active_stream_id: null,
-  stream_status: 'completed',
-  role: 'assistant',
-  attachments: [],
-  model_id: null,
-  duration_ms: null,
-  created_at: '2020-01-01T00:00:00.000Z',
-  checkpoint_id: null,
-  tool_results_omitted: false,
-  ...over,
-});
 
 describe('isAssistantMessage', () => {
   it('trusts is_bot=true regardless of role', () => {
-    expect(isAssistantMessage(msg({ is_bot: true, role: 'user' }))).toBe(true);
+    expect(isAssistantMessage(makeMessage('m1', { is_bot: true, role: 'user' }))).toBe(true);
   });
 
   it('trusts is_bot=false regardless of role (assistant role does not override)', () => {
-    expect(isAssistantMessage(msg({ is_bot: false, role: 'assistant' }))).toBe(false);
+    expect(isAssistantMessage(makeMessage('m1', { is_bot: false, role: 'assistant' }))).toBe(false);
   });
 
   it('falls back to the role when is_bot is undefined', () => {
-    expect(isAssistantMessage(msg({ is_bot: undefined, role: 'assistant' }))).toBe(true);
-    expect(isAssistantMessage(msg({ is_bot: undefined, role: 'user' }))).toBe(false);
+    expect(isAssistantMessage(makeMessage('m1', { is_bot: undefined, role: 'assistant' }))).toBe(
+      true,
+    );
+    expect(isAssistantMessage(makeMessage('m1', { is_bot: undefined, role: 'user' }))).toBe(false);
   });
 });
 

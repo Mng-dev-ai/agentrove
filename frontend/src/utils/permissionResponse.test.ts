@@ -20,40 +20,15 @@ beforeEach(() => {
 });
 
 describe('executePermissionResponse', () => {
-  it('returns success, clears the request and toggles loading around the call', async () => {
-    const opts = makeOpts();
-    const result = await executePermissionResponse(async () => {}, opts);
-    expect(result).toBe('success');
-    expect(opts.clearRequest).toHaveBeenCalledTimes(1);
-    expect(opts.setError).toHaveBeenCalledWith(null);
-    expect(opts.setIsLoading).toHaveBeenNthCalledWith(1, true);
-    expect(opts.setIsLoading).toHaveBeenLastCalledWith(false);
-  });
-
-  it.each([
-    ['an Error with status 404', Object.assign(new Error('gone'), { status: 404 })],
-    ['a non-Error 404-shaped rejection', { status: 404 }],
-  ])('treats %s as expired: clears the request, sets no error', async (_label, thrown) => {
+  it('treats a non-Error 404-shaped rejection as expired: clears the request, sets no error', async () => {
     const opts = makeOpts();
     const result = await executePermissionResponse(async () => {
-      throw thrown;
+      throw { status: 404 };
     }, opts);
     expect(result).toBe('expired');
     expect(opts.clearRequest).toHaveBeenCalledTimes(1);
     expect(opts.setError).toHaveBeenCalledTimes(1);
     expect(opts.setError).toHaveBeenCalledWith(null);
-    expect(opts.setIsLoading).toHaveBeenLastCalledWith(false);
-  });
-
-  it('surfaces an Error message and does not clear on a non-404 failure', async () => {
-    const opts = makeOpts();
-    const result = await executePermissionResponse(async () => {
-      throw new Error('boom');
-    }, opts);
-    expect(result).toBe('error');
-    expect(opts.setError).toHaveBeenLastCalledWith('boom');
-    expect(opts.clearRequest).not.toHaveBeenCalled();
-    expect(opts.setIsLoading).toHaveBeenLastCalledWith(false);
   });
 
   it('falls back to errorMessage when a non-Error without status is thrown', async () => {

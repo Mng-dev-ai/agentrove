@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Terminal as XTerm } from '@xterm/xterm';
 import type { ISearchResultChangeEvent, SearchAddon } from '@xterm/addon-search';
 
@@ -70,8 +70,6 @@ describe('TerminalSearch', () => {
     mocks.keyHandler = null;
     mocks.resultsListener = null;
   });
-
-  afterEach(cleanup);
 
   it('opens on Ctrl+F, swallows the chord, and passes other keys to the PTY', () => {
     renderSearch();

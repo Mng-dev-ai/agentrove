@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SidebarActions } from './SidebarActions';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { inboxService } from '@/services/inboxService';
@@ -30,7 +30,6 @@ async function renderActions(unreadCount: number) {
 
 describe('SidebarActions inbox row', () => {
   beforeEach(() => useAuthStore.setState({ isAuthenticated: true }));
-  afterEach(cleanup);
 
   it.each([
     [3, '3'],

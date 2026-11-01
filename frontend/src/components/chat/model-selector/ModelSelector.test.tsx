@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Model } from '@/types/chat.types';
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/store/modelStore';
@@ -45,7 +45,6 @@ beforeEach(() => {
   useAuthStore.setState({ isAuthenticated: true });
   useModelStore.setState({ modelByChat: {}, favoriteModelIds: [] });
 });
-afterEach(cleanup);
 
 describe('ModelSelector legacy models', () => {
   it('hides a legacy model that is neither selected nor favorited', async () => {

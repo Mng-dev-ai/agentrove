@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, fireEvent, screen, act, cleanup } from '@testing-library/react';
+import { render, fireEvent, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { FileStructure } from '@/types/file-system.types';
 import { View, type ViewProps } from './View';
@@ -34,7 +34,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  cleanup();
   vi.unstubAllGlobals();
 });
 

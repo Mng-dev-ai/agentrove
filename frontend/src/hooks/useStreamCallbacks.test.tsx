@@ -10,32 +10,10 @@ import { queryKeys } from '@/hooks/queries/queryKeys';
 import { clearAllStreamState } from '@/hooks/stream/streamRegistry';
 import { chatService } from '@/services/chatService';
 import { useChatSettingsStore } from '@/store/chatSettingsStore';
-import type { PaginatedMessages } from '@/types/api.types';
 import type { Chat, Message } from '@/types/chat.types';
 import type { QueueProcessingData, StreamEnvelope, StreamKind } from '@/types/stream.types';
+import { makeMessage, readMessagePages, seedMessagePages } from '@/test/fixtures';
 import { useStreamCallbacks } from './useStreamCallbacks';
-
-type MessagesData = { pages: PaginatedMessages[]; pageParams: unknown[] };
-
-function makeMessage(id: string, overrides: Partial<Message> = {}): Message {
-  return {
-    id,
-    chat_id: 'c1',
-    role: 'assistant',
-    content_text: '',
-    content_render: { events: [] },
-    last_seq: 0,
-    active_stream_id: null,
-    stream_status: 'in_progress',
-    created_at: '2024-01-01T00:00:00Z',
-    model_id: null,
-    duration_ms: null,
-    attachments: [],
-    checkpoint_id: null,
-    tool_results_omitted: false,
-    ...overrides,
-  };
-}
 
 function envelope(
   kind: StreamKind,
@@ -57,18 +35,11 @@ const handlers = {
 
 let queryClient: QueryClient;
 
-function seedCache(chatId: string, newestFirst: Message[]) {
-  queryClient.setQueryData<MessagesData>(queryKeys.messages(chatId), {
-    pages: [{ items: newestFirst, next_cursor: null, has_more: false }],
-    pageParams: [null],
-  });
-}
+const seedCache = (chatId: string, newestFirst: Message[]) =>
+  seedMessagePages(queryClient, chatId, [newestFirst]);
 
-function cachedMessage(chatId: string, id: string) {
-  return queryClient
-    .getQueryData<MessagesData>(queryKeys.messages(chatId))
-    ?.pages[0].items.find((m) => m.id === id);
-}
+const cachedMessage = (chatId: string, id: string) =>
+  readMessagePages(queryClient, chatId)?.[0].find((m) => m.id === id);
 
 function renderCallbacks(initialMessages: Message[] = [makeMessage('a1')]) {
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -349,11 +320,12 @@ describe('onQueueProcess', () => {
     expect(result.current.messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2', 'a2']);
     expect(result.current.messages[1]).toMatchObject({ content_text: 'tail', duration_ms: 5000 });
     expect(result.current.currentMessageId).toBe('a2');
-    expect(
-      queryClient
-        .getQueryData<MessagesData>(queryKeys.messages('c1'))
-        ?.pages[0].items.map((m) => m.id),
-    ).toEqual(['a2', 'u2', 'a1', 'u1']);
+    expect(readMessagePages(queryClient, 'c1')?.[0].map((m) => m.id)).toEqual([
+      'a2',
+      'u2',
+      'a1',
+      'u1',
+    ]);
 
     act(() => result.current.onEnvelope(text('fresh', { streamId: 's2', messageId: 'a2' })));
     await flushTimers();

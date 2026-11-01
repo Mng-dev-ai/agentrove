@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
 import { ElicitationInline } from './ElicitationInline';
 import type { ElicitationRequest } from '@/types/chat.types';
 
@@ -31,8 +31,6 @@ function form(requestId: string) {
 }
 
 const notesField = () => screen.getByRole<HTMLInputElement>('textbox', { name: 'Notes' });
-
-afterEach(cleanup);
 
 describe('ElicitationInline', () => {
   it('keeps typed answers when hydration re-delivers the same form', () => {

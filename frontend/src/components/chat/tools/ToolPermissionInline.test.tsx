@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { ToolPermissionInline } from './ToolPermissionInline';
 import type { PermissionRequest } from '@/types/chat.types';
 
@@ -20,8 +20,6 @@ function makeRequest(over: Partial<PermissionRequest> = {}): PermissionRequest {
 }
 
 describe('ToolPermissionInline', () => {
-  afterEach(cleanup);
-
   it('routes allow options to onApprove and reject options to onReject', () => {
     const onApprove = vi.fn();
     const onReject = vi.fn();

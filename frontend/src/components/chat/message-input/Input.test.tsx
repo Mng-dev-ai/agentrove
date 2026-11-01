@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { useState, type FormEvent } from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -73,7 +73,6 @@ describe('Input send/queue path', () => {
     useMessageQueueStore.setState({ queues: new Map() });
   });
   afterEach(() => {
-    cleanup();
     vi.unstubAllGlobals();
     queryClient.clear();
     vi.mocked(queueService.queueMessage).mockClear();

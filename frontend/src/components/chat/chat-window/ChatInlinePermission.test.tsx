@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { ChatInlinePermission } from './ChatInlinePermission';
 import {
   ChatSessionActionsContext,
@@ -46,8 +46,6 @@ function renderWithSession(pendingPermissionRequest: PermissionRequest | null) {
 }
 
 describe('ChatInlinePermission', () => {
-  afterEach(cleanup);
-
   it('renders nothing when there is no pending request', () => {
     const { container } = renderWithSession(null);
     expect(container.firstChild).toBeNull();
