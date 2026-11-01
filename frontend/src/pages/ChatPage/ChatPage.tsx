@@ -13,7 +13,6 @@ import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessi
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
 import { useChatData } from '@/hooks/useChatData';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useMountEffect } from '@/hooks/useMountEffect';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatQuery, markChatViewed } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
@@ -38,6 +37,7 @@ export function ChatPage() {
   const activeViews = useActiveViews();
   const splitChatIds = useUIStore((s) => s.splitChatIds);
   const isMobile = useIsMobile();
+  const isWorkspaceLoaded = useUIStore((s) => s.currentWorkspaceChatId === chatId);
 
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
 
@@ -62,13 +62,33 @@ export function ChatPage() {
   }, [splitChatIds, splitQuery1.isError, splitQuery2.isError, splitQuery3.isError]);
 
   // Restore/stash per chat. Must run before split-rebuild below (else restore wipes it).
-  useMountEffect(() => {
-    if (chatId) useUIStore.getState().loadWorkspaceForChat(chatId);
+  const prevChatIdForResetRef = useRef(chatId);
+  useLayoutEffect(() => {
+    const ui = useUIStore.getState();
+    if (chatId) ui.loadWorkspaceForChat(chatId);
+    if (prevChatIdForResetRef.current !== chatId) {
+      prevChatIdForResetRef.current = chatId;
+      if (chatId && ui.splitChatIds.includes(chatId)) {
+        ui.closeSplitChat(chatId);
+      }
+      useUIStore.setState({
+        pendingFileOpen: null,
+        pendingDiffMode: null,
+        subThreadDialogOpen: false,
+        createCommitDialogOpen: false,
+        createPRDialogOpen: false,
+        createBranchDialogOpen: false,
+        // Don't inherit prior chat's focus onto a same-id split tile.
+        focusedTile: null,
+        activeAgentTile: 'agent:primary',
+      });
+    }
     return () => useUIStore.getState().stashWorkspace();
-  });
+  }, [chatId]);
 
   // Rebuild only if an agent tile is missing — keep compaction / full-screen layouts.
   useEffect(() => {
+    if (!isWorkspaceLoaded) return;
     if (chatId && splitChatIds.includes(chatId)) {
       useUIStore.getState().closeSplitChat(chatId);
       return;
@@ -81,7 +101,7 @@ export function ChatPage() {
       );
       if (isAgentTileMissing) ui.rebuildSplitLayout();
     }
-  }, [chatId, isMobile, splitChatIds]);
+  }, [chatId, isMobile, splitChatIds, isWorkspaceLoaded]);
 
   const queryClient = useQueryClient();
   // Marks seen (last_viewed_at + clears sidebar unread).
@@ -99,7 +119,6 @@ export function ChatPage() {
 
   const worktreeCwd = currentChat?.worktree_cwd ?? undefined;
 
-  const workspaceChatId = useUIStore((s) => s.currentWorkspaceChatId);
   const prevViewsRef = useRef<{
     views: ViewType[];
     chatId: string | undefined;
@@ -109,7 +128,7 @@ export function ChatPage() {
   });
 
   useEffect(() => {
-    if (!currentChat?.sandbox_id || workspaceChatId !== chatId) return;
+    if (!currentChat?.sandbox_id || !isWorkspaceLoaded) return;
 
     const prev = prevViewsRef.current;
     prevViewsRef.current = { views: activeViews, chatId };
@@ -121,7 +140,7 @@ export function ChatPage() {
     ) {
       refetchFilesMetadata();
     }
-  }, [activeViews, chatId, workspaceChatId, currentChat?.sandbox_id, refetchFilesMetadata]);
+  }, [activeViews, chatId, isWorkspaceLoaded, currentChat?.sandbox_id, refetchFilesMetadata]);
 
   const workspaces = useWorkspacesList();
   // Cloud chats' workspaces live on the VPS, not in the local list.
@@ -138,8 +157,6 @@ export function ChatPage() {
     chatId,
   );
 
-  const prevChatIdForResetRef = useRef(chatId);
-
   useEffect(() => {
     useChatStore.getState().setCurrentChat(currentChat || null);
   }, [currentChat]);
@@ -151,27 +168,6 @@ export function ChatPage() {
     useUIStore.getState().closeChatTab(chatId);
     navigate(`/channels/${channelId}`, { replace: true });
   }, [channelId, chatId, navigate]);
-
-  useLayoutEffect(() => {
-    if (prevChatIdForResetRef.current === chatId) return;
-    prevChatIdForResetRef.current = chatId;
-    const ui = useUIStore.getState();
-    if (chatId) ui.loadWorkspaceForChat(chatId);
-    if (chatId && ui.splitChatIds.includes(chatId)) {
-      ui.closeSplitChat(chatId);
-    }
-    useUIStore.setState({
-      pendingFileOpen: null,
-      pendingDiffMode: null,
-      subThreadDialogOpen: false,
-      createCommitDialogOpen: false,
-      createPRDialogOpen: false,
-      createBranchDialogOpen: false,
-      // Don't inherit prior chat's focus onto a same-id split tile.
-      focusedTile: null,
-      activeAgentTile: 'agent:primary',
-    });
-  }, [chatId]);
 
   const handleChatSelect = useCallback(
     (selectedChatId: string) => {
@@ -247,14 +243,16 @@ export function ChatPage() {
         hasFetchedMessages={hasFetchedMessages}
         messagesQuery={messagesQuery}
       >
-        <WorkspaceSurface
-          renderView={renderView}
-          sessionPanel={
-            currentChat && <SessionPanel chat={currentChat} workspace={currentWorkspace} />
-          }
-        >
-          {subThreadDialogOpen && <SubThreadDialog />}
-        </WorkspaceSurface>
+        {isWorkspaceLoaded && (
+          <WorkspaceSurface
+            renderView={renderView}
+            sessionPanel={
+              currentChat && <SessionPanel chat={currentChat} workspace={currentWorkspace} />
+            }
+          >
+            {subThreadDialogOpen && <SubThreadDialog />}
+          </WorkspaceSurface>
+        )}
       </ChatSessionOrchestrator>
     </ChatProvider>
   );
