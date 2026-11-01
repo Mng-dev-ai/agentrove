@@ -22,6 +22,7 @@ from app.constants import MODELS, REDIS_KEY_USER_STREAMS_LIVE
 from app.db.session import SessionLocal, engine
 from app.models.db_models.chat import Chat, Message, MessageEvent
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
+from app.models.db_models.memory import Memory
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.services.acp.client import AcpClientHandler
@@ -458,6 +459,61 @@ async def test_send_message_new_chat_generates_title_in_background(
     assert title == "Greeting Chat"
     await db_session.refresh(chat)
     assert chat.session_id == "new-session-1"
+
+
+async def test_pinned_memories_reach_only_the_first_prompt_of_a_new_session(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id=None)
+    pinned = Memory(
+        user_id=user.id,
+        workspace_id=workspace.id,
+        title="Tabs",
+        content="Indent with tabs.",
+        pinned=True,
+    )
+    db_session.add_all(
+        [pinned, Memory(user_id=user.id, title="Unpinned", content="Not injected.")]
+    )
+    await db_session.commit()
+
+    session = FakeAcpSession(
+        [
+            [StreamEvent(type="assistant_text", text="First")],
+            [StreamEvent(type="assistant_text", text="Second")],
+        ],
+        session_id="memory-session",
+    )
+    acp_factory.queue(session)
+    acp_factory.queue(
+        FakeAcpSession(
+            [[StreamEvent(type="assistant_text", text="Title")]],
+            session_id="title-session",
+        )
+    )
+
+    await send_message(client, headers, chat, prompt="First prompt")
+    await run_background_task(chat.id)
+    await send_message(client, headers, chat, prompt="Second prompt")
+    await run_background_task(chat.id)
+
+    first, second = session.prompt_calls
+    assert (
+        f"<memory>\n- {pinned.id} [workspace] Tabs: Indent with tabs.\n</memory>\n\n"
+        in first
+    )
+    assert "Unpinned" not in first
+    assert first.endswith("<user_prompt>First prompt</user_prompt>")
+    assert "<memory>" not in second
+    assert second.endswith("<user_prompt>Second prompt</user_prompt>")
 
 
 async def test_send_message_extracts_and_strips_prompt_suggestions(
