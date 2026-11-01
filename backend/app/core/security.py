@@ -10,9 +10,8 @@ from uuid import UUID
 
 from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException, Query, WebSocket, status
-from fastapi_users.jwt import generate_jwt
+from fastapi_users.jwt import decode_jwt, generate_jwt
 from fastapi_users.password import PasswordHelper
-from jose import jwt
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,11 +61,11 @@ def get_password_hash(password: str) -> str:
 
 async def get_user_from_token(token: str, db: AsyncSession) -> User | None:
     try:
-        payload = jwt.decode(
+        payload = decode_jwt(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
-            options={"verify_aud": False},
+            audience=["fastapi-users:auth"],
         )
         user_id_str = payload.get("sub")
         if not user_id_str:
@@ -76,6 +75,8 @@ async def get_user_from_token(token: str, db: AsyncSession) -> User | None:
         user_id = UUID(user_id_str)
         result = await db.execute(select(User).filter(User.id == user_id))
         user = result.scalar_one_or_none()
+        if user is not None and not user.is_active:
+            return None
         if user:
             logger.info("Successfully validated token for user %s", user_id)
         else:

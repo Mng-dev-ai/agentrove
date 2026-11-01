@@ -5,11 +5,17 @@ from email.mime.multipart import MIMEMultipart
 import aiosmtplib
 import httpx
 import pytest
+from fastapi_users.jwt import generate_jwt
 from httpx import AsyncClient
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import create_mcp_access_token, hash_refresh_token
+from app.core.config import get_settings
+from app.core.security import (
+    create_mcp_access_token,
+    get_password_hash,
+    hash_refresh_token,
+)
 from app.models.db_models.refresh_token import RefreshToken
 from app.services.email import EmailService, email_service
 from app.services.refresh_token import RefreshTokenService
@@ -345,6 +351,48 @@ async def test_query_token_authenticates_header_less_requests(
 
     assert accepted.status_code == 200
     assert rejected.status_code == 401
+
+
+async def test_query_token_rejects_deactivated_user(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    db_session: AsyncSession,
+) -> None:
+    user = await create_user(
+        email="deactivated@example.com", username="deactivateduser"
+    )
+    tokens = await login(email="deactivated@example.com")
+    user.is_active = False
+    db_session.add(user)
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/models/", params={"token": tokens["access_token"]}
+    )
+
+    assert response.status_code == 401
+
+
+async def test_query_token_rejects_password_reset_token(
+    client: AsyncClient,
+    create_user: UserFactory,
+) -> None:
+    user = await create_user(email="reset@example.com", username="resetuser")
+    settings = get_settings()
+    token = generate_jwt(
+        {
+            "sub": str(user.id),
+            "password_fgpt": get_password_hash(user.hashed_password),
+            "aud": "fastapi-users:reset",
+        },
+        settings.SECRET_KEY,
+        lifetime_seconds=3600,
+    )
+
+    response = await client.get("/api/v1/models/", params={"token": token})
+
+    assert response.status_code == 401
 
 
 async def test_refresh_rotates_refresh_token(
