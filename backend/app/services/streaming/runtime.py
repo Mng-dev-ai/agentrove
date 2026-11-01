@@ -1439,7 +1439,9 @@ class ChatStreamRuntime:
                 await MemoryService(runtime.session_factory).build_prompt_block(
                     runtime.chat.user_id, runtime.chat.workspace_id
                 )
-                if config.resume_session_id is None and request.member_turn is None
+                if config.resume_session_id is None
+                and request.member_turn is None
+                and not request.prompt.startswith("/")
                 else None
             )
             # Slash commands go to the agent verbatim, so there's no room for

@@ -82,7 +82,6 @@ export function MemorySettingsTab() {
       title: form.title.trim(),
       content: form.content.trim(),
       pinned: form.pinned,
-      scope: form.workspace_id ? 'workspace' : 'global',
       workspace_id: form.workspace_id,
     };
     try {

@@ -1,5 +1,3 @@
-export type MemoryScope = 'workspace' | 'global';
-
 export interface Memory {
   id: string;
   workspace_id: string | null;
@@ -16,7 +14,6 @@ export interface MemoryCreateRequest {
   title: string;
   content: string;
   pinned: boolean;
-  scope: MemoryScope;
   workspace_id: string | null;
 }
 
