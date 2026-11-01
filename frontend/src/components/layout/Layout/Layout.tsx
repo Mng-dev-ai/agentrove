@@ -1,8 +1,11 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
+import { useQueryClient } from '@tanstack/react-query';
 import { Header, type HeaderProps } from '@/components/layout/Header/Header';
 import { TitleBar } from '@/components/layout/TitleBar/TitleBar';
 import { Link } from '@/components/ui/primitives/Link/Link';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { LayoutContext, type LayoutContextValue } from './layoutState';
 import { useUIStore } from '@/store/uiStore';
 import { useSwipeGesture } from '@/hooks/useSwipeGesture';
@@ -32,6 +35,28 @@ function MobileSidebarOverlay() {
       onClick={() => useUIStore.getState().setSidebarOpen(false)}
       aria-hidden="true"
     />
+  );
+}
+
+function ServerUnreachableBanner() {
+  const queryClient = useQueryClient();
+  // Disabled observer: reads the auth query AppContent owns without triggering fetches.
+  const { dataUpdatedAt, errorUpdatedAt, isFetching } = useCurrentUserQuery({ enabled: false });
+
+  if (errorUpdatedAt <= dataUpdatedAt) return null;
+
+  return (
+    <div className={styles['offline-banner']} role="status">
+      <span>Can&apos;t connect to the server</span>
+      <Button
+        variant="outline"
+        size="sm"
+        isLoading={isFetching}
+        onClick={() => void queryClient.refetchQueries({ type: 'active' })}
+      >
+        Retry
+      </Button>
+    </div>
   );
 }
 
@@ -88,6 +113,7 @@ export function Layout({
         </Link>
         <TitleBar />
         {showHeader && <Header isAuthPage={isAuthPage} />}
+        <ServerUnreachableBanner />
 
         <div className={styles.body}>
           {sidebarContent && <MobileSidebarOverlay />}
