@@ -11,7 +11,7 @@ interface SidebarActionsProps {
 
 export function SidebarActions({ onNewChat, onOpenSearch, onOpenInbox }: SidebarActionsProps) {
   const { data } = useInboxQuery();
-  const unreadCount = data?.unread_count ?? 0;
+  const unreadCount = data?.pages[0]?.unread_count ?? 0;
 
   return (
     <div className={styles.actions}>

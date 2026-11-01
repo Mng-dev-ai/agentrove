@@ -96,6 +96,11 @@
   flex-direction: column;
 }
 
+.load-more-btn {
+  align-self: center;
+  margin-top: var(--space-3);
+}
+
 .row {
   @include anim.transition-colors;
   display: flex;

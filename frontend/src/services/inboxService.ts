@@ -1,10 +1,12 @@
 import { apiClient } from '@/lib/api';
-import { ensureResponse, serviceCall } from '@/services/base/BaseService';
+import { buildQueryString, ensureResponse, serviceCall } from '@/services/base/BaseService';
 import type { InboxItem, InboxList } from '@/types/inbox.types';
 
-async function listInbox(): Promise<InboxList> {
+async function listInbox(cursor?: string): Promise<InboxList> {
   return serviceCall(async () => {
-    const response = await apiClient.get<InboxList>('/inbox');
+    const response = await apiClient.get<InboxList>(
+      `/inbox${buildQueryString(cursor ? { cursor } : {})}`,
+    );
     return ensureResponse(response, 'Failed to load inbox');
   });
 }

@@ -286,21 +286,14 @@ def fake_agent(
 
 @pytest.fixture(autouse=True)
 def pin_ambient_settings() -> Iterator[None]:
-    # Pin web-mode baseline — shell/.env may export real MCP/desktop settings.
+    # Pin web-mode baseline — shell/.env may export real desktop settings.
     settings = get_settings()
-    original = (
-        settings.AGENTROVE_MCP_ENABLED,
-        settings.DESKTOP_MODE,
-    )
-    settings.AGENTROVE_MCP_ENABLED = False
+    original = settings.DESKTOP_MODE
     settings.DESKTOP_MODE = False
     try:
         yield
     finally:
-        (
-            settings.AGENTROVE_MCP_ENABLED,
-            settings.DESKTOP_MODE,
-        ) = original
+        settings.DESKTOP_MODE = original
 
 
 @pytest.fixture
@@ -496,7 +489,7 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
 
     new_sessions = fake_agent.events_of("new_session")
     assert new_sessions
-    assert new_sessions[-1]["mcp_servers"] == []
+    assert [s["name"] for s in new_sessions[-1]["mcp_servers"]] == ["agentrove"]
 
 
 @pytest.mark.parametrize(
@@ -1827,35 +1820,29 @@ async def test_chat_attachments_and_mcp_servers_reach_the_agent(
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
 ) -> None:
-    settings = get_settings()
-    original = settings.AGENTROVE_MCP_ENABLED
-    settings.AGENTROVE_MCP_ENABLED = True
-    try:
-        headers, workspace = auth_workspace
-        # Codex only treats "image" as natively embeddable — the pdf forces
-        # the sandbox-note branch of session.py's attachment handling.
-        chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
+    headers, workspace = auth_workspace
+    # Codex only treats "image" as natively embeddable — the pdf forces
+    # the sandbox-note branch of session.py's attachment handling.
+    chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
 
-        response = await send_message(
-            client,
-            headers,
-            chat_id=chat["id"],
-            model_id="gpt-5.4",
-            prompt="look at these files",
-            permission_mode="auto",
-            attached_files=[
-                ("attached_files", ("photo.png", PNG_BYTES, "image/png")),
-                ("attached_files", ("doc.pdf", PDF_BYTES, "application/pdf")),
-            ],
-        )
-        assert response.status_code == 200, response.text
-        message_id = response.json()["message_id"]
-        message = await wait_for_message(
-            client, headers, chat_id=chat["id"], message_id=message_id
-        )
-        assert message["stream_status"] == "completed"
-    finally:
-        settings.AGENTROVE_MCP_ENABLED = original
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="gpt-5.4",
+        prompt="look at these files",
+        permission_mode="auto",
+        attached_files=[
+            ("attached_files", ("photo.png", PNG_BYTES, "image/png")),
+            ("attached_files", ("doc.pdf", PDF_BYTES, "application/pdf")),
+        ],
+    )
+    assert response.status_code == 200, response.text
+    message_id = response.json()["message_id"]
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=message_id
+    )
+    assert message["stream_status"] == "completed"
 
     new_sessions = fake_agent.events_of("new_session")
     assert new_sessions
@@ -1884,40 +1871,34 @@ async def test_mcp_session_is_reused_across_turns(
 ) -> None:
     # A fresh token per turn (real mints differ once a second has passed) must
     # not change the session fingerprint, or every turn respawns the agent.
-    settings = get_settings()
-    original = settings.AGENTROVE_MCP_ENABLED
-    settings.AGENTROVE_MCP_ENABLED = True
     mints = iter(("token-one", "token-two", "token-three", "token-four"))
     monkeypatch.setattr(
         "app.services.agent.create_mcp_access_token", lambda user_id: next(mints)
     )
-    try:
-        headers, workspace = auth_workspace
-        chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
 
-        spawns = []
-        for prompt in ("first turn", "second turn"):
-            response = await send_message(
-                client,
-                headers,
-                chat_id=chat["id"],
-                model_id="sonnet",
-                prompt=prompt,
-            )
-            assert response.status_code == 200, response.text
-            message = await wait_for_message(
-                client,
-                headers,
-                chat_id=chat["id"],
-                message_id=response.json()["message_id"],
-            )
-            assert message["stream_status"] == "completed"
-            spawns.append(
-                len(fake_agent.events_of("new_session"))
-                + len(fake_agent.events_of("load_session"))
-            )
-    finally:
-        settings.AGENTROVE_MCP_ENABLED = original
+    spawns = []
+    for prompt in ("first turn", "second turn"):
+        response = await send_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            model_id="sonnet",
+            prompt=prompt,
+        )
+        assert response.status_code == 200, response.text
+        message = await wait_for_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            message_id=response.json()["message_id"],
+        )
+        assert message["stream_status"] == "completed"
+        spawns.append(
+            len(fake_agent.events_of("new_session"))
+            + len(fake_agent.events_of("load_session"))
+        )
 
     # A respawn resumes the old session id, so count load_session too. The first
     # turn's count also covers the one-off title-gen session.

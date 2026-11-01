@@ -471,7 +471,7 @@ class AgentService:
         current_chat_id: str | None,
     ) -> list[dict[str, Any]]:
         servers: list[dict[str, Any]] = []
-        if settings.AGENTROVE_MCP_ENABLED and agentrove_mcp:
+        if agentrove_mcp:
             if sandbox_provider is SandboxProviderType.HOST:
                 # Host-provider agents share this process's network namespace, but the
                 # public BASE_URL is often unreachable from inside the deployment

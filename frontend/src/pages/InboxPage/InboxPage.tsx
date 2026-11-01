@@ -21,7 +21,7 @@ export function InboxPage() {
   const navigate = useNavigate();
   useCommandMenu();
   const workspaces = useWorkspacesList();
-  const { data, isLoading } = useInboxQuery();
+  const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useInboxQuery();
   const markRead = useMarkInboxReadMutation();
   const markAllRead = useMarkAllInboxReadMutation();
 
@@ -39,8 +39,8 @@ export function InboxPage() {
 
   useLayoutSidebar(sidebarContent);
 
-  const items = data?.items ?? [];
-  const unreadCount = data?.unread_count ?? 0;
+  const items = data?.pages.flatMap((page) => page.items) ?? [];
+  const unreadCount = data?.pages[0]?.unread_count ?? 0;
 
   const openItem = (item: InboxItem) => {
     if (!item.read_at) markRead.mutate(item.id);
@@ -96,6 +96,18 @@ export function InboxPage() {
                 <span className={styles.time}>{formatRelativeTime(item.created_at)}</span>
               </Button>
             ))}
+            {hasNextPage && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={styles['load-more-btn']}
+                disabled={isFetchingNextPage}
+                onClick={() => fetchNextPage()}
+              >
+                {isFetchingNextPage ? 'Loading…' : 'Load more'}
+              </Button>
+            )}
           </div>
         )}
       </div>

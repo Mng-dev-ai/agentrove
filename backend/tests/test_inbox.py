@@ -1,14 +1,11 @@
-from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient, Response
-from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.chat import Chat
-from app.models.db_models.inbox import InboxItem
 from app.services.push import PushService
 
 from tests.conftest import LoginClient, UserFactory
@@ -93,37 +90,6 @@ async def test_create_message_rejects_foreign_chat(
     enqueue.assert_not_awaited()
 
 
-async def test_create_message_rate_limited_per_chat(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    enqueue: AsyncMock,
-) -> None:
-    headers, user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-    chat = await create_chat(db_session, user.id, workspace.id)
-    other_chat = await create_chat(db_session, user.id, workspace.id)
-
-    for _ in range(5):
-        assert (await post_message(client, headers, chat.id)).status_code == 201
-    blocked = await post_message(client, headers, chat.id)
-    other = await post_message(client, headers, other_chat.id)
-
-    assert blocked.status_code == 429
-    assert other.status_code == 201
-
-    await db_session.execute(
-        update(InboxItem)
-        .where(InboxItem.chat_id == chat.id)
-        .values(created_at=datetime.now(timezone.utc) - timedelta(hours=2))
-    )
-    await db_session.commit()
-
-    assert (await post_message(client, headers, chat.id)).status_code == 201
-
-
 async def test_list_mark_read_and_read_all(
     client: AsyncClient,
     db_session: AsyncSession,
@@ -165,5 +131,7 @@ async def test_list_mark_read_and_read_all(
     assert listed["unread_count"] == 0
     assert (await client.get("/api/v1/inbox", headers=other_headers)).json() == {
         "items": [],
+        "next_cursor": None,
+        "has_more": False,
         "unread_count": 0,
     }

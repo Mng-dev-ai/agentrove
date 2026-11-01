@@ -52,11 +52,13 @@ export function Header({ isAuthPage = false }: HeaderProps) {
   const isChannelPage = useMatch('/channels/:channelId');
   const isLandingPage = useMatch('/');
   const isSettingsPage = useMatch('/settings');
+  const isInboxPage = useMatch('/inbox');
   const theme = useUIStore((state) => state.theme);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   // Sidebar pages use TitleBar + Sidebar footer instead of Header.
-  const isSidebarPage = isChatPage || isChannelPage || isLandingPage || isSettingsPage;
+  const isSidebarPage =
+    isChatPage || isChannelPage || isLandingPage || isSettingsPage || isInboxPage;
 
   if (!isAuthPage && isAuthenticated && isSidebarPage) return null;
 

@@ -9,7 +9,9 @@ const useInboxQuery = vi.hoisted(() => vi.fn());
 vi.mock('@/hooks/queries/useInboxQueries', () => ({ useInboxQuery }));
 
 function renderActions(unreadCount: number) {
-  useInboxQuery.mockReturnValue({ data: { items: [], unread_count: unreadCount } });
+  useInboxQuery.mockReturnValue({
+    data: { pages: [{ items: [], next_cursor: null, has_more: false, unread_count: unreadCount }] },
+  });
   const onOpenInbox = vi.fn();
   render(<SidebarActions onNewChat={vi.fn()} onOpenSearch={vi.fn()} onOpenInbox={onOpenInbox} />);
   return { onOpenInbox };
