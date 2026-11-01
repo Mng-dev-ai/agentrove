@@ -47,6 +47,14 @@ async def mark_all_read(
     await inbox_service.mark_all_read(current_user)
 
 
+@router.delete("/read", status_code=status.HTTP_204_NO_CONTENT)
+async def clear_read(
+    current_user: User = Depends(get_current_user),
+    inbox_service: InboxService = Depends(get_inbox_service),
+) -> None:
+    await inbox_service.clear_read(current_user)
+
+
 @router.post("/{item_id}/read", response_model=InboxItem)
 async def mark_read(
     item_id: UUID,

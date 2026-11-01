@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.chat import Chat
@@ -112,6 +112,15 @@ class InboxService(BaseDbService[InboxItem]):
                 update(InboxItem)
                 .where(InboxItem.user_id == user.id, InboxItem.read_at.is_(None))
                 .values(read_at=datetime.now(timezone.utc))
+            )
+            await db.commit()
+
+    async def clear_read(self, user: User) -> None:
+        async with self.session_factory() as db:
+            await db.execute(
+                delete(InboxItem).where(
+                    InboxItem.user_id == user.id, InboxItem.read_at.is_not(None)
+                )
             )
             await db.commit()
 

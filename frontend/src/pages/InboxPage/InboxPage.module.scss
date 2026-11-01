@@ -52,6 +52,11 @@
   color: var(--theme-text-tertiary);
 }
 
+.header-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
 .mark-all-btn {
   width: 100%;
   flex-shrink: 0;

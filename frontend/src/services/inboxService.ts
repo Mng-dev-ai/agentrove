@@ -24,8 +24,15 @@ async function markAllRead(): Promise<void> {
   });
 }
 
+async function clearRead(): Promise<void> {
+  await serviceCall(async () => {
+    await apiClient.delete('/inbox/read');
+  });
+}
+
 export const inboxService = {
   listInbox,
   markRead,
   markAllRead,
+  clearRead,
 };

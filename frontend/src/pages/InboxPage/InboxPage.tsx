@@ -7,6 +7,7 @@ import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import {
+  useClearReadInboxMutation,
   useInboxQuery,
   useMarkAllInboxReadMutation,
   useMarkInboxReadMutation,
@@ -24,6 +25,7 @@ export function InboxPage() {
   const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useInboxQuery();
   const markRead = useMarkInboxReadMutation();
   const markAllRead = useMarkAllInboxReadMutation();
+  const clearRead = useClearReadInboxMutation();
 
   const sidebarContent = useMemo(
     () => (
@@ -41,6 +43,8 @@ export function InboxPage() {
 
   const items = data?.pages.flatMap((page) => page.items) ?? [];
   const unreadCount = data?.pages[0]?.unread_count ?? 0;
+  // Unloaded pages may still hold read items.
+  const hasReadItems = hasNextPage || items.some((item) => item.read_at);
 
   const openItem = (item: InboxItem) => {
     if (!item.read_at) markRead.mutate(item.id);
@@ -55,16 +59,28 @@ export function InboxPage() {
             <h2 className={styles.title}>Inbox</h2>
             <p className={styles.description}>Messages your agents sent you while they worked</p>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={styles['mark-all-btn']}
-            disabled={unreadCount === 0 || markAllRead.isPending}
-            onClick={() => markAllRead.mutate()}
-          >
-            Mark all read
-          </Button>
+          <div className={styles['header-actions']}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={styles['mark-all-btn']}
+              disabled={unreadCount === 0 || markAllRead.isPending}
+              onClick={() => markAllRead.mutate()}
+            >
+              Mark all read
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className={styles['mark-all-btn']}
+              disabled={!hasReadItems || clearRead.isPending}
+              onClick={() => clearRead.mutate()}
+            >
+              Clear read
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

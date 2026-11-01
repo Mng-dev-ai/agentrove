@@ -29,3 +29,8 @@ export const useMarkAllInboxReadMutation = createMutation<void, Error, void>(
   () => inboxService.markAllRead(),
   (queryClient) => queryClient.invalidateQueries({ queryKey: queryKeys.inbox }),
 );
+
+export const useClearReadInboxMutation = createMutation<void, Error, void>(
+  () => inboxService.clearRead(),
+  (queryClient) => queryClient.invalidateQueries({ queryKey: queryKeys.inbox }),
+);
