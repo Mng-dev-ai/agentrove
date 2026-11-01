@@ -58,7 +58,11 @@ function AppContent() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hasToken = !!authService.getToken();
   const isSessionAuthenticated = isAuthenticated && hasToken;
-  const { data: user, isLoading } = useCurrentUserQuery({
+  const {
+    data: user,
+    isLoading,
+    isFetched,
+  } = useCurrentUserQuery({
     enabled: hasToken,
     retry: false,
   });
@@ -80,7 +84,9 @@ function AppContent() {
   useNotificationPermissionPrompt(isSessionAuthenticated);
   usePushNotifications(isSessionAuthenticated);
 
-  const showLoading = hasToken && isLoading;
+  // Initial load only: an errored query with no data goes back to pending when a child's
+  // mount refetches it, which would unmount that child and loop while the backend is down.
+  const showLoading = hasToken && isLoading && !isFetched;
 
   return (
     <Suspense fallback={<LoadingScreen />}>

@@ -1,3 +1,4 @@
+@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/zlayer' as z;
@@ -32,6 +33,19 @@
     color: var(--theme-text-primary);
     box-shadow: var(--shadow-strong);
   }
+}
+
+.offline-banner {
+  @include type.type-default;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-bottom: 1px solid colors.status-color('error', 500, 0.2);
+  background-color: colors.status-color('error', 500, 0.1);
+  padding: var(--space-2) var(--space-4);
+  color: var(--theme-text-primary);
 }
 
 .body {
