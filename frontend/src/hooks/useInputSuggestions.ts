@@ -3,7 +3,6 @@ import { useSlashCommandSuggestions } from '@/hooks/useSlashCommandSuggestions';
 import { useMentionSuggestions } from '@/hooks/useMentionSuggestions';
 import { useInsertToken } from '@/hooks/useComposerTokens';
 import type { MentionItem, SlashCommand } from '@/types/ui.types';
-import type { CustomSkill } from '@/types/user.types';
 import type { AgentKind, Chat } from '@/types/chat.types';
 import type { FileStructure } from '@/types/file-system.types';
 
@@ -17,7 +16,6 @@ interface UseInputSuggestionsOptions {
   fileStructure: FileStructure[];
   mentionChats: Chat[];
   chatId?: string;
-  customSkills: CustomSkill[];
   builtinSlashCommands: Record<AgentKind, SlashCommand[]>;
   agentKind: AgentKind;
 }
@@ -32,7 +30,6 @@ export function useInputSuggestions({
   fileStructure,
   mentionChats,
   chatId,
-  customSkills,
   builtinSlashCommands,
   agentKind,
 }: UseInputSuggestionsOptions) {
@@ -54,7 +51,6 @@ export function useInputSuggestions({
     message,
     cursorPosition,
     onSelect: handleSlashCommandSelect,
-    customSkills,
     builtinSlashCommands,
     agentKind,
   });

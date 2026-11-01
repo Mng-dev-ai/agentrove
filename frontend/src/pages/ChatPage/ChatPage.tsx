@@ -237,7 +237,6 @@ export function ChatPage() {
       worktreeCwd={worktreeCwd}
       parentChatId={currentChat?.parent_chat_id ?? undefined}
       fileStructure={fileStructure}
-      customSkills={workspaceResources?.skills}
       builtinSlashCommands={workspaceResources?.builtin_slash_commands}
       personas={settings?.personas}
     >

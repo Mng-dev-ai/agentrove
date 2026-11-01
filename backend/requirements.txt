@@ -28,5 +28,4 @@ sse-starlette
 wtforms<3.2
 croniter
 redis
-PyYAML>=6.0
 python-json-logger>=2.0.0

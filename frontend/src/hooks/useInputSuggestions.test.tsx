@@ -57,7 +57,6 @@ function renderSuggestions(message: string) {
       fileStructure: FILES,
       mentionChats: CHATS,
       chatId: CURRENT_CHAT_ID,
-      customSkills: [],
       builtinSlashCommands: { claude: [] } as unknown as Record<AgentKind, SlashCommand[]>,
       agentKind: 'claude' as AgentKind,
     }),

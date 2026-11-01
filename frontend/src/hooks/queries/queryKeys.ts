@@ -15,7 +15,6 @@ export const queryKeys = {
     user: 'auth-user',
   },
   settings: 'settings',
-  skills: 'skills',
   sandbox: {
     fileContent: (sandboxId?: string, filePath?: string) =>
       ['sandbox', sandboxId, 'file-content', filePath] as const,

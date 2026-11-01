@@ -20,15 +20,6 @@ export interface CustomEnvVar {
   [key: string]: unknown;
 }
 
-export interface CustomSkill {
-  name: string;
-  description: string;
-  size_bytes: number;
-  file_count: number;
-  sources: string[];
-  read_only: boolean;
-}
-
 export interface Persona {
   name: string;
   content: string;

@@ -21,7 +21,6 @@ from app.models.db_models.workspace import Workspace
 from app.models.schemas.pagination import PaginatedResponse, PaginationParams
 from app.models.schemas.workspace import (
     BuiltinSlashCommand,
-    CustomSkill,
     Workspace as WorkspaceSchema,
     WorkspaceCreate,
     WorkspaceResources,
@@ -35,7 +34,6 @@ from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
-from app.services.skill import SkillService
 from app.services.terminal import teardown_workspace_sandbox
 from app.services.user import UserService
 
@@ -249,14 +247,11 @@ class WorkspaceService(BaseDbService[Workspace]):
             await db.commit()
             return managed
 
-    @staticmethod
-    def _build_workspace_resources(
-        skill_service: SkillService,
+    async def get_workspace_resources(
+        self, workspace_id: UUID, user: User
     ) -> WorkspaceResources:
-        # Synchronous so the caller can offload to a thread — SkillService
-        # does blocking filesystem reads.
+        await self.get_workspace(workspace_id, user)
         return WorkspaceResources(
-            skills=[CustomSkill(**skill) for skill in skill_service.list_all()],
             builtin_slash_commands={
                 kind.value: [
                     BuiltinSlashCommand(**cmd)
@@ -265,18 +260,6 @@ class WorkspaceService(BaseDbService[Workspace]):
                 for kind in AgentKind
             },
         )
-
-    async def get_workspace_resources(
-        self, workspace_id: UUID, user: User
-    ) -> WorkspaceResources:
-        # Thread-offloaded: SkillService walks the filesystem synchronously.
-        workspace = await self.get_workspace(workspace_id, user)
-        skill_service = SkillService(
-            workspace_path=Path(workspace.workspace_path),
-            user_id=str(workspace.user_id),
-        )
-
-        return await asyncio.to_thread(self._build_workspace_resources, skill_service)
 
     async def delete_workspace(self, workspace_id: UUID, user: User) -> None:
         # DB commit lands before the session/sandbox teardown tasks so the DB

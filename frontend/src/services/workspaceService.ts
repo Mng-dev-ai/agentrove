@@ -41,7 +41,7 @@ async function deleteWorkspace(workspaceId: string): Promise<void> {
   });
 }
 
-// chatId routes to the owning backend (cloud chat skills live on the VPS).
+// chatId routes to the owning backend (cloud chat resources live on the VPS).
 async function getWorkspaceResources(
   workspaceId: string,
   chatId?: string,

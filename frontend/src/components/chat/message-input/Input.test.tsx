@@ -20,7 +20,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/hooks/useChatContext', () => ({
   useChatContext: () => ({
     fileStructure: null,
-    customSkills: [],
     builtinSlashCommands: [],
     personas: [],
   }),

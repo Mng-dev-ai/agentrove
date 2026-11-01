@@ -118,7 +118,7 @@ async function deleteAllChats(): Promise<void> {
   });
 }
 
-// Landing composer needs skills before a chat exists — call VPS directly.
+// Landing composer needs slash commands before a chat exists — call VPS directly.
 async function getWorkspaceResources(workspaceId: string): Promise<WorkspaceResources> {
   return serviceCall(async () => {
     const response = await remoteApiClient.get<WorkspaceResources>(

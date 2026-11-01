@@ -1,6 +1,5 @@
 import logging
 from collections.abc import AsyncIterator, Callable, Coroutine
-from pathlib import Path
 from typing import Any, TypeVar
 from uuid import UUID
 
@@ -30,7 +29,6 @@ from app.services.search import SearchService
 from app.services.workspace import WorkspaceService
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.sandbox_providers.base import SandboxProvider
-from app.services.skill import SkillService
 from app.services.user import UserService
 from app.utils.cache import CacheError, cache_connection
 
@@ -174,19 +172,6 @@ async def get_workspace_service(
     return WorkspaceService(
         user_service,
         session_factory=SessionLocal,
-    )
-
-
-async def get_skill_service(
-    workspace_id: UUID,
-    current_user: User = Depends(get_current_user),
-    workspace_service: WorkspaceService = Depends(get_workspace_service),
-) -> SkillService:
-    # Workspace .{agent}/skills over the owner's agent home (host-mode HOME).
-    workspace = await workspace_service.get_workspace(workspace_id, current_user)
-    return SkillService(
-        workspace_path=Path(workspace.workspace_path),
-        user_id=str(workspace.user_id),
     )
 
 

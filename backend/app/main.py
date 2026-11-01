@@ -25,7 +25,7 @@ from app.api.endpoints import (
     workspace,
 )
 from app.api.endpoints import settings as settings_router
-from app.api.endpoints import skills, websocket
+from app.api.endpoints import websocket
 from app.core.config import get_settings
 from app.core.middleware import setup_middleware
 from app.db.session import SessionLocal, engine
@@ -140,11 +140,6 @@ def create_application() -> FastAPI:
         settings_router.router,
         prefix=f"{settings.API_V1_STR}/settings",
         tags=["Settings"],
-    )
-    application.include_router(
-        skills.router,
-        prefix=f"{settings.API_V1_STR}/skills",
-        tags=["Skills"],
     )
     application.include_router(
         attachments.router,
