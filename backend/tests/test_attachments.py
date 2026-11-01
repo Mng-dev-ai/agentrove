@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import tests.bootstrap
 from app.constants import MODELS
 from app.core.deps import get_queue_service
-from app.models.db_models.chat import Chat, Message, MessageAttachment
+from app.models.db_models.chat import Message, MessageAttachment
 from app.models.db_models.enums import AttachmentType, MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
@@ -24,20 +24,11 @@ from tests.helpers import (
     FakeProviderFactory,
     FakeSandboxProvider,
     create_authenticated_workspace,
+    create_chat_row,
 )
 
 
 pytestmark = pytest.mark.anyio
-
-
-async def create_chat_row(
-    db_session: AsyncSession, user: User, workspace: Workspace
-) -> Chat:
-    chat = Chat(title="Attachment Chat", user_id=user.id, workspace_id=workspace.id)
-    db_session.add(chat)
-    await db_session.commit()
-    await db_session.refresh(chat)
-    return chat
 
 
 async def create_attachment_row(

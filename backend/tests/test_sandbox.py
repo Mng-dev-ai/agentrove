@@ -1248,6 +1248,7 @@ async def test_checkpoint_restore_returns_tree_to_pre_run_state(
 
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason="Checkpoint captures untracked files relative to the workspace dir "
     "but restores (reset/clean/apply) from the repo toplevel, so a workspace "
     "inside a larger repo loses untracked files outside it and misplaces its own.",
@@ -1266,7 +1267,9 @@ async def test_checkpoint_restore_in_workspace_below_repo_root(
         "sandbox-1", base_head=base_head, pre_run_diff=checkpoint.pre_run_diff
     )
 
+    assert (repo / "outside.txt").is_file()
     assert (repo / "outside.txt").read_text() == "keep me\n"
+    assert (repo / "pkg" / "new.py").is_file()
     assert (repo / "pkg" / "new.py").read_text() == "new\n"
 
 

@@ -1,15 +1,19 @@
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.db_models.chat import Chat
 from app.models.db_models.refresh_token import RefreshToken
 from app.models.db_models.user import User, UserSettings
 from app.models.db_models.workspace import Workspace
+from app.services.streaming.runtime import ChatStreamRuntime
 from app.utils.cache import CacheStore, MemoryStore
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.types import (
@@ -232,6 +236,39 @@ async def create_authenticated_workspace(
     await db_session.commit()
     await db_session.refresh(workspace)
     return headers, user, workspace
+
+
+async def create_chat_row(
+    db_session: AsyncSession,
+    user: User,
+    workspace: Workspace,
+    *,
+    title: str = "Existing Chat",
+    session_id: str | None = None,
+) -> Chat:
+    chat = Chat(
+        title=title,
+        user_id=user.id,
+        workspace_id=workspace.id,
+        session_id=session_id,
+    )
+    db_session.add(chat)
+    await db_session.commit()
+    await db_session.refresh(chat)
+    return chat
+
+
+def register_chat_turn(
+    monkeypatch: pytest.MonkeyPatch,
+    chat_id: UUID,
+    state: asyncio.Task[str] | asyncio.Event,
+) -> None:
+    if isinstance(state, asyncio.Event):
+        monkeypatch.setitem(ChatStreamRuntime._starting_chat_ids, str(chat_id), state)
+    else:
+        monkeypatch.setitem(
+            ChatStreamRuntime._background_task_chat_ids, state, str(chat_id)
+        )
 
 
 async def get_user_by_email(db: AsyncSession, email: str) -> User | None:

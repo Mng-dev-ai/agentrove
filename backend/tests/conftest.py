@@ -18,7 +18,9 @@ from app.db.session import SessionLocal, engine
 from app.main import create_application
 from app.models.db_models.user import User, UserSettings
 from app.services.email import email_service
+from app.services.queue import QueueService
 from app.services.session_registry import session_registry
+from app.services.streaming.runtime import ChatStreamRuntime
 
 TEST_DIR = tests.bootstrap.TEST_DIR
 
@@ -141,11 +143,22 @@ async def database(schema: None) -> None:
             await conn.execute(table.delete())
 
 
+def clear_runtime_state() -> None:
+    ChatStreamRuntime._background_task_chat_ids.clear()
+    ChatStreamRuntime._starting_chat_ids.clear()
+    ChatStreamRuntime._active_runtimes.clear()
+    QueueService._locks.clear()
+    session_registry._sessions.clear()
+    session_registry._pending_cancels.clear()
+
+
 @pytest.fixture(autouse=True)
 async def terminate_agent_sessions(anyio_backend: str) -> AsyncIterator[None]:
     # Agent processes are bound to this test's event loop; don't leak them.
+    clear_runtime_state()
     yield
     await session_registry.terminate_all()
+    clear_runtime_state()
 
 
 @pytest.fixture(autouse=True)

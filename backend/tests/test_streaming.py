@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from collections.abc import AsyncIterator, Callable, Iterator
+from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID, uuid4
@@ -22,12 +22,9 @@ from app.db.session import SessionLocal, engine
 from app.models.db_models.chat import Chat, Message, MessageEvent
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.memory import Memory
-from app.models.db_models.user import User
-from app.models.db_models.workspace import Workspace
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import ChatException
-from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services import chat as chat_service_module
 from app.services.sandbox_providers.base import SandboxProvider
@@ -42,6 +39,7 @@ from tests.helpers import (
     FakeProviderFactory,
     FakeSandboxProvider,
     create_authenticated_workspace,
+    create_chat_row,
 )
 
 
@@ -207,25 +205,6 @@ class FakeAcpSessionFactory:
 
 
 @pytest.fixture(autouse=True)
-def streaming_runtime_state_reset() -> Iterator[None]:
-    # All process-wide class state — reset around every test so a task,
-    # reservation, lock, or session left by one test can't leak into the next.
-    ChatStreamRuntime._background_task_chat_ids.clear()
-    ChatStreamRuntime._starting_chat_ids.clear()
-    ChatStreamRuntime._active_runtimes.clear()
-    QueueService._locks.clear()
-    session_registry._sessions.clear()
-    session_registry._pending_cancels.clear()
-    yield
-    ChatStreamRuntime._background_task_chat_ids.clear()
-    ChatStreamRuntime._starting_chat_ids.clear()
-    ChatStreamRuntime._active_runtimes.clear()
-    QueueService._locks.clear()
-    session_registry._sessions.clear()
-    session_registry._pending_cancels.clear()
-
-
-@pytest.fixture(autouse=True)
 def fake_sandbox_provider(monkeypatch: pytest.MonkeyPatch) -> FakeProviderFactory:
     factory = FakeProviderFactory()
     monkeypatch.setattr(SandboxProvider, "create_provider", factory)
@@ -248,26 +227,6 @@ def streaming_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
     monkeypatch.setattr(chat_service_module, "cache_connection", cache.connect)
     monkeypatch.setattr(runtime_module, "cache_connection", cache.connect)
     return cache
-
-
-async def create_chat_row(
-    db_session: AsyncSession,
-    user: User,
-    workspace: Workspace,
-    *,
-    title: str = "Streaming Chat",
-    session_id: str | None = None,
-) -> Chat:
-    chat = Chat(
-        title=title,
-        user_id=user.id,
-        workspace_id=workspace.id,
-        session_id=session_id,
-    )
-    db_session.add(chat)
-    await db_session.commit()
-    await db_session.refresh(chat)
-    return chat
 
 
 def find_background_task(chat_id: UUID) -> "asyncio.Task[str]":
