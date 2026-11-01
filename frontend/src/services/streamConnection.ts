@@ -1,4 +1,6 @@
 import { resolveChatClient } from '@/lib/api';
+import { chatService } from '@/services/chatService';
+import { useElicitationStore } from '@/store/elicitationStore';
 import { useStreamStore } from '@/store/streamStore';
 import { chatStorage } from '@/utils/storage';
 import { logger } from '@/utils/logger';
@@ -39,11 +41,44 @@ class StreamConnectionManager {
   private connections = new Map<StreamApiClient, ManagedConnection>();
   private handlers: StreamConnectionHandlers | null = null;
   private retainCounts = new Map<StreamApiClient, number>();
+  private resumeTimer: ReturnType<typeof setTimeout> | null = null;
 
   configure(handlers: StreamConnectionHandlers): void {
     this.handlers = handlers;
     useStreamStore.subscribe(() => this.reconcile());
+    document.addEventListener('visibilitychange', this.resume);
+    window.addEventListener('online', this.resume);
+    window.addEventListener('offline', this.pause);
   }
+
+  private pause = (): void => {
+    if (this.resumeTimer) {
+      clearTimeout(this.resumeTimer);
+      this.resumeTimer = null;
+    }
+    for (const connection of this.connections.values()) {
+      this.resetSocket(connection);
+    }
+  };
+
+  private resume = (): void => {
+    if (document.visibilityState !== 'visible' || !navigator.onLine || this.resumeTimer) return;
+    this.resumeTimer = setTimeout(() => {
+      this.resumeTimer = null;
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      for (const [client, connection] of this.connections) {
+        if (
+          connection.source &&
+          connection.source.readyState !== EventSource.CLOSED &&
+          Date.now() - connection.lastActivityAt <= STALL_TIMEOUT_MS
+        ) {
+          continue;
+        }
+        connection.retryAttempts = 0;
+        this.open(client);
+      }
+    }, 100);
+  };
 
   // Keeps the client's feed open without chat streams (e.g. a mounted channel page).
   retain(client: StreamApiClient): () => void {
@@ -140,6 +175,7 @@ class StreamConnectionManager {
     }
 
     const generation = this.resetSocket(connection);
+    if (!navigator.onLine) return;
     // Sync snapshot so a requestReplay racing token fetch sees this open's set.
     const cursors = this.buildCursors(chatIds);
     connection.replayedChatIds = new Set(chatIds);
@@ -179,14 +215,17 @@ class StreamConnectionManager {
     this.startStallWatchdog(client, connection);
 
     source.addEventListener('stream', (event: Event) => {
+      if (connection.source !== source) return;
       connection.lastActivityAt = Date.now();
       const data = (event as MessageEvent).data;
       if (data) this.handlers?.onEnvelopeData(data);
     });
     source.addEventListener('ping', () => {
+      if (connection.source !== source) return;
       connection.lastActivityAt = Date.now();
     });
     source.onopen = () => {
+      if (connection.source !== source) return;
       connection.lastActivityAt = Date.now();
       this.handlers?.onOpen();
       if (connection.source !== source || connection.stableTimer) return;
@@ -206,6 +245,24 @@ class StreamConnectionManager {
       connection.source = null;
       this.scheduleReconnect(client, connection);
     };
+
+    if (generation > 1) {
+      void Promise.allSettled(
+        [...chatIds].map((chatId) => this.reconcileElicitations(connection, generation, chatId)),
+      );
+    }
+  }
+
+  private async reconcileElicitations(
+    connection: ManagedConnection,
+    generation: number,
+    chatId: string,
+  ): Promise<void> {
+    const status = await chatService.checkChatStatus(chatId);
+    if (connection.generation !== generation || !status?.pending_elicitations) return;
+    useElicitationStore
+      .getState()
+      .reconcileElicitationRequests(chatId, status.pending_elicitations);
   }
 
   private startStallWatchdog(client: StreamApiClient, connection: ManagedConnection): void {
@@ -219,6 +276,10 @@ class StreamConnectionManager {
   }
 
   private scheduleReconnect(client: StreamApiClient, connection: ManagedConnection): void {
+    if (!navigator.onLine || document.visibilityState === 'hidden') {
+      this.resetSocket(connection);
+      return;
+    }
     if (connection.retryTimer) return;
     connection.retryAttempts += 1;
     if (connection.retryAttempts > MAX_RECONNECT_ATTEMPTS) {

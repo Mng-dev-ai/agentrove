@@ -7,10 +7,12 @@ import { chatStorage } from '@/utils/storage';
 import { streamConnection } from './streamConnection';
 
 class FakeEventSource {
+  static CLOSED = 2;
   static instances: FakeEventSource[] = [];
   onopen: (() => void) | null = null;
   onerror: (() => void) | null = null;
   closed = false;
+  readyState = 1;
   private listeners = new Map<string, (event: Event) => void>();
 
   constructor(public url: string) {
@@ -27,6 +29,7 @@ class FakeEventSource {
 
   close() {
     this.closed = true;
+    this.readyState = FakeEventSource.CLOSED;
   }
 
   get cursors(): Record<string, number> {
@@ -169,6 +172,51 @@ describe('streamConnection', () => {
     expect(sources()).toHaveLength(1);
 
     await vi.advanceTimersByTimeAsync(60000);
+    expect(sources()).toHaveLength(2);
+    expect(sources()[0].closed).toBe(true);
+  });
+
+  it('pauses offline without failing chats and resumes online with the stored cursor', async () => {
+    const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    startStream('c1');
+    await settle();
+    expect(sources()).toHaveLength(1);
+
+    chatStorage.setEventId('c1', '17');
+    online.mockReturnValue(false);
+    window.dispatchEvent(new Event('offline'));
+    expect(latest().closed).toBe(true);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(sources()).toHaveLength(1);
+    expect(handlers.onConnectionFailure).not.toHaveBeenCalled();
+
+    online.mockReturnValue(true);
+    window.dispatchEvent(new Event('online'));
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(sources()).toHaveLength(2);
+    expect(latest().cursors).toEqual({ c1: 17 });
+    expect(handlers.onConnectionFailure).not.toHaveBeenCalled();
+  });
+
+  it('keeps a healthy feed on visibility changes but reopens a stale feed once', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    startStream('c1');
+    await settle();
+
+    latest().emit('ping');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(sources()).toHaveLength(1);
+    expect(latest().closed).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(45001);
+    expect(sources()).toHaveLength(1);
+    document.dispatchEvent(new Event('visibilitychange'));
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(100);
     expect(sources()).toHaveLength(2);
     expect(sources()[0].closed).toBe(true);
   });
