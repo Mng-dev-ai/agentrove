@@ -14,6 +14,7 @@ from app.models.db_models.chat import Chat, Message, MessageAttachment
 from app.models.db_models.enums import AttachmentType, MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
+from app.services import storage as storage_module
 from app.services.queue import QueueService
 from app.services.sandbox_providers.base import SandboxProvider
 
@@ -29,6 +30,16 @@ from tests.helpers import (
 pytestmark = pytest.mark.anyio
 
 
+async def create_chat_row(
+    db_session: AsyncSession, user: User, workspace: Workspace
+) -> Chat:
+    chat = Chat(title="Attachment Chat", user_id=user.id, workspace_id=workspace.id)
+    db_session.add(chat)
+    await db_session.commit()
+    await db_session.refresh(chat)
+    return chat
+
+
 async def create_attachment_row(
     db_session: AsyncSession,
     user: User,
@@ -37,13 +48,7 @@ async def create_attachment_row(
     file_path: str,
     filename: str = "notes.txt",
 ) -> MessageAttachment:
-    chat = Chat(
-        title="Attachment Chat",
-        user_id=user.id,
-        workspace_id=workspace.id,
-    )
-    db_session.add(chat)
-    await db_session.flush()
+    chat = await create_chat_row(db_session, user, workspace)
 
     message = Message(
         chat_id=chat.id,
@@ -286,190 +291,178 @@ class QueueServiceOverride:
             yield QueueService(store)
 
 
-async def create_chat_for_queue_upload(
+CODEX_MODEL_ID = next(
+    model_id for model_id, info in MODELS.items() if info.agent_kind.value == "codex"
+)
+
+
+@pytest.fixture
+def sandbox_provider(monkeypatch: pytest.MonkeyPatch) -> FakeSandboxProvider:
+    provider = FakeSandboxProvider()
+    monkeypatch.setattr(
+        SandboxProvider, "create_provider", FakeProviderFactory(provider)
+    )
+    return provider
+
+
+@pytest.mark.parametrize(
+    ("filename", "content", "content_type", "file_type", "copied_to_sandbox"),
+    [
+        ("doc.pdf", b"%PDF-1.4 fake", "application/pdf", "pdf", True),
+        ("pic.png", b"\x89PNG fake", "image/png", "image", False),
+    ],
+    ids=["pdf-needs-sandbox-copy", "image-read-inline"],
+)
+async def test_queue_message_upload_stores_previewable_file(
+    app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    *,
-    email: str,
-    username: str,
-) -> tuple[dict[str, str], FakeSandboxProvider, str]:
+    sandbox_provider: FakeSandboxProvider,
+    filename: str,
+    content: bytes,
+    content_type: str,
+    file_type: str,
+    copied_to_sandbox: bool,
+) -> None:
+    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
     headers, user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login, email=email, username=username
+        db_session, create_user, login
     )
-    chat = Chat(title="Upload Chat", user_id=user.id, workspace_id=workspace.id)
-    db_session.add(chat)
+    chat = await create_chat_row(db_session, user, workspace)
+
+    response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Look at this", "model_id": CODEX_MODEL_ID},
+        files={"attached_files": (filename, content, content_type)},
+        headers=headers,
+    )
+    queue_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
+    )
+    [stored] = queue_response.json()[0]["attachments"]
+    preview_response = await client.get(stored["file_url"], headers=headers)
+
+    assert response.status_code == 201
+    assert stored["filename"] == filename
+    assert stored["file_type"] == file_type
+    assert preview_response.status_code == 200
+    assert preview_response.content == content
+    # Codex reads images inline; anything else must also exist in the sandbox
+    # because the agent opens it from the workspace.
+    if copied_to_sandbox:
+        [(sandbox_id, path, written)] = sandbox_provider.writes
+        assert sandbox_id == workspace.sandbox_id
+        assert path.endswith(".pdf")
+        assert written == content
+    else:
+        assert sandbox_provider.writes == []
+
+
+@pytest.mark.parametrize(
+    ("filename", "content", "content_type", "detail"),
+    [
+        (
+            "virus.exe",
+            b"MZ",
+            "application/octet-stream",
+            "Invalid file type: application/octet-stream",
+        ),
+        (
+            "huge.png",
+            b"0" * 17,
+            "image/png",
+            "File too large: 17 bytes exceeds 16 bytes",
+        ),
+    ],
+    ids=["invalid-type", "oversized"],
+)
+async def test_queue_message_upload_rejects_invalid_file_without_queueing(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+    sandbox_provider: FakeSandboxProvider,
+    filename: str,
+    content: bytes,
+    content_type: str,
+    detail: str,
+) -> None:
+    monkeypatch.setattr(storage_module.settings, "MAX_UPLOAD_SIZE", 16)
+    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    response = await client.post(
+        f"/api/v1/chat/chats/{chat.id}/queue",
+        data={"content": "Bad file", "model_id": CODEX_MODEL_ID},
+        files={"attached_files": (filename, content, content_type)},
+        headers=headers,
+    )
+    queue_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == detail
+    assert queue_response.json() == []
+    assert sandbox_provider.writes == []
+
+
+async def test_attach_file_to_in_progress_turn(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    sandbox_provider: FakeSandboxProvider,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    other_headers, _other_user, _other_workspace = await create_authenticated_workspace(
+        db_session,
+        create_user,
+        login,
+        email="attach-turn-other@example.com",
+        username="attachturnother",
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    url = f"/api/v1/chat/chats/{chat.id}/attachments"
+    upload = {"file": ("shot.png", b"\x89PNG turn", "image/png")}
+
+    idle_response = await client.post(url, files=upload, headers=headers)
+
+    message = Message(
+        chat_id=chat.id,
+        content_text="",
+        content_render={"events": []},
+        role=MessageRole.ASSISTANT,
+        stream_status=MessageStreamStatus.IN_PROGRESS,
+    )
+    db_session.add(message)
     await db_session.commit()
-    await db_session.refresh(chat)
-    provider = FakeSandboxProvider(workspace_path=workspace.workspace_path)
-    return headers, provider, str(chat.id)
 
-
-async def test_queue_message_upload_writes_sandbox_copy_for_non_native_file_type(
-    app: FastAPI,
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    headers, provider, chat_id = await create_chat_for_queue_upload(
-        client,
-        db_session,
-        create_user,
-        login,
-        email="queue-upload-pdf@example.com",
-        username="queueuploadpdf",
-    )
-    monkeypatch.setattr(
-        SandboxProvider, "create_provider", FakeProviderFactory(provider)
-    )
-    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
-    codex_model_id = next(
-        model_id
-        for model_id, info in MODELS.items()
-        if info.agent_kind.value == "codex"
+    other_response = await client.post(url, files=upload, headers=other_headers)
+    response = await client.post(url, files=upload, headers=headers)
+    attachment = response.json()
+    preview_response = await client.get(attachment["file_url"], headers=headers)
+    messages_response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/messages", headers=headers
     )
 
-    response = await client.post(
-        f"/api/v1/chat/chats/{chat_id}/queue",
-        data={"content": "Look at this PDF", "model_id": codex_model_id},
-        files={"attached_files": ("doc.pdf", b"%PDF-1.4 fake", "application/pdf")},
-        headers=headers,
-    )
-
+    assert idle_response.status_code == 409
+    assert other_response.status_code == 404
     assert response.status_code == 201
-    queue_response = await client.get(
-        f"/api/v1/chat/chats/{chat_id}/queue", headers=headers
-    )
-    attachments = queue_response.json()[0]["attachments"]
-    assert attachments is not None
-    stored = attachments[0]
-    assert stored["file_type"] == "pdf"
-    assert stored["filename"] == "doc.pdf"
-    on_disk = tests.bootstrap.TEST_DIR / "storage" / stored["file_path"]
-    assert on_disk.read_bytes() == b"%PDF-1.4 fake"
-    # PDFs aren't in codex's NATIVE_FILE_TYPES, so a sandbox copy is required.
-    assert len(provider.writes) == 1
-    assert provider.writes[0][2] == b"%PDF-1.4 fake"
-
-
-async def test_queue_message_upload_skips_sandbox_copy_for_native_image_type(
-    app: FastAPI,
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    headers, provider, chat_id = await create_chat_for_queue_upload(
-        client,
-        db_session,
-        create_user,
-        login,
-        email="queue-upload-image@example.com",
-        username="queueuploadimage",
-    )
-    monkeypatch.setattr(
-        SandboxProvider, "create_provider", FakeProviderFactory(provider)
-    )
-    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
-    codex_model_id = next(
-        model_id
-        for model_id, info in MODELS.items()
-        if info.agent_kind.value == "codex"
-    )
-
-    response = await client.post(
-        f"/api/v1/chat/chats/{chat_id}/queue",
-        data={"content": "Look at this image", "model_id": codex_model_id},
-        files={"attached_files": ("pic.png", b"\x89PNG fake", "image/png")},
-        headers=headers,
-    )
-
-    assert response.status_code == 201
-    # Images are codex-native — the agent reads them inline, so no sandbox
-    # write should happen (the file still lands in temp storage on disk).
-    assert provider.writes == []
-    queue_response = await client.get(
-        f"/api/v1/chat/chats/{chat_id}/queue", headers=headers
-    )
-    stored = queue_response.json()[0]["attachments"][0]
-    on_disk = tests.bootstrap.TEST_DIR / "storage" / stored["file_path"]
-    assert on_disk.read_bytes() == b"\x89PNG fake"
-
-
-async def test_queue_message_upload_rejects_invalid_content_type(
-    app: FastAPI,
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    headers, provider, chat_id = await create_chat_for_queue_upload(
-        client,
-        db_session,
-        create_user,
-        login,
-        email="queue-upload-badtype@example.com",
-        username="queueuploadbadtype",
-    )
-    monkeypatch.setattr(
-        SandboxProvider, "create_provider", FakeProviderFactory(provider)
-    )
-    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
-    codex_model_id = next(
-        model_id
-        for model_id, info in MODELS.items()
-        if info.agent_kind.value == "codex"
-    )
-
-    response = await client.post(
-        f"/api/v1/chat/chats/{chat_id}/queue",
-        data={"content": "Bad file", "model_id": codex_model_id},
-        files={"attached_files": ("virus.exe", b"MZ", "application/octet-stream")},
-        headers=headers,
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Invalid file type: application/octet-stream"
-
-
-async def test_queue_message_upload_rejects_oversized_file(
-    app: FastAPI,
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    headers, provider, chat_id = await create_chat_for_queue_upload(
-        client,
-        db_session,
-        create_user,
-        login,
-        email="queue-upload-toolarge@example.com",
-        username="queueuploadtoolarge",
-    )
-    monkeypatch.setattr(
-        SandboxProvider, "create_provider", FakeProviderFactory(provider)
-    )
-    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
-    codex_model_id = next(
-        model_id
-        for model_id, info in MODELS.items()
-        if info.agent_kind.value == "codex"
-    )
-    oversized_content = b"0" * (5 * 1024 * 1024 + 1)
-
-    response = await client.post(
-        f"/api/v1/chat/chats/{chat_id}/queue",
-        data={"content": "Too big", "model_id": codex_model_id},
-        files={"attached_files": ("huge.png", oversized_content, "image/png")},
-        headers=headers,
-    )
-
-    assert response.status_code == 400
-    assert "too large" in response.json()["detail"].lower()
+    assert attachment["message_id"] == str(message.id)
+    assert attachment["filename"] == "shot.png"
+    assert attachment["file_type"] == "image"
+    assert preview_response.status_code == 200
+    assert preview_response.content == b"\x89PNG turn"
+    [message_item] = messages_response.json()["items"]
+    assert [a["id"] for a in message_item["attachments"]] == [attachment["id"]]
+    assert sandbox_provider.writes == []

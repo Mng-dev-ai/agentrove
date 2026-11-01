@@ -1,8 +1,9 @@
 import asyncio
 from collections.abc import AsyncIterator
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from httpx import AsyncClient
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
 from app.constants import MODELS
+from app.core import deps
 from app.models.db_models.channel import Channel, ChannelDelivery, ChannelMessage
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
@@ -18,6 +20,7 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatRequest
 from app.models.types import AgentKind
+from app.services import channel as channel_module
 from app.services.channel import (
     ChannelService,
     ChannelState,
@@ -29,7 +32,11 @@ from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChannelMemberTurn, EventSink
 
 from tests.conftest import LoginClient, UserFactory
-from tests.helpers import FakeProviderFactory, create_authenticated_workspace
+from tests.helpers import (
+    EndpointCache,
+    FakeProviderFactory,
+    create_authenticated_workspace,
+)
 
 
 TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-6@default"
@@ -219,6 +226,14 @@ async def channel_state(
     state = channel_service.states[UUID(response.json()["id"])]
     state.paused = True
     return state
+
+
+@pytest.fixture
+def channel_queue(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
+    cache = EndpointCache()
+    monkeypatch.setattr(deps, "cache_connection", cache.connect)
+    monkeypatch.setattr(channel_module, "cache_connection", cache.connect)
+    return cache
 
 
 @pytest.fixture
@@ -622,8 +637,10 @@ async def test_channel_routes_require_the_owner(
     client: AsyncClient,
     channel_state: ChannelState,
     source_message: Message,
+    owner: tuple[dict[str, str], User, Workspace],
     other_owner: tuple[dict[str, str], User, Workspace],
     channel_data: dict[str, Any],
+    channel_queue: EndpointCache,
     authenticated: bool,
 ) -> None:
     message = await channel_service.new_message(
@@ -633,6 +650,11 @@ async def test_channel_routes_require_the_owner(
         source_message_id=source_message.id,
     )
     base = f"/api/v1/channels/{channel_state.channel.id}"
+    queued = await client.post(
+        f"{base}/queue", headers=owner[0], data={"content": "Queued"}
+    )
+    assert queued.status_code == 201
+    queued_path = f"{base}/queue/{queued.json()['id']}"
     routes: list[tuple[str, str, dict[str, Any]]] = [
         ("GET", base, {}),
         ("PATCH", base, {"json": {"name": "Renamed"}}),
@@ -643,6 +665,11 @@ async def test_channel_routes_require_the_owner(
         ("GET", f"{base}/permissions", {}),
         ("GET", f"{base}/member-activity", {}),
         ("POST", f"{base}/stop", {}),
+        ("GET", f"{base}/queue", {}),
+        ("POST", f"{base}/queue", {"data": {"content": "Hello"}}),
+        ("PATCH", queued_path, {"json": {"content": "Hijacked"}}),
+        ("DELETE", queued_path, {}),
+        ("POST", f"{queued_path}/send-now", {}),
     ]
     if not authenticated:
         routes.extend(
@@ -659,6 +686,8 @@ async def test_channel_routes_require_the_owner(
             path,
             response.text,
         )
+    queue = await client.get(f"{base}/queue", headers=owner[0])
+    assert [item["content"] for item in queue.json()] == ["Queued"]
 
 
 async def test_owner_can_read_rename_and_delete_channel(
@@ -702,6 +731,7 @@ async def test_channel_list_is_scoped_to_user_and_workspace(
     other_owner: tuple[dict[str, str], User, Workspace],
     channel_state: ChannelState,
     channel_data: dict[str, Any],
+    tmp_path: Path,
 ) -> None:
     headers, user, workspace = owner
     second_workspace = Workspace(
@@ -709,7 +739,7 @@ async def test_channel_list_is_scoped_to_user_and_workspace(
         user_id=user.id,
         sandbox_id="second-sandbox",
         sandbox_provider="host",
-        workspace_path="/tmp/agentrove-second-workspace",
+        workspace_path=str(tmp_path / "second"),
         source_type="empty",
     )
     db_session.add(second_workspace)
@@ -991,3 +1021,71 @@ async def test_worktree_creation_requires_a_sandbox(
     )
     assert response.status_code == 400
     assert response.json()["detail"] == "Workspace has no sandbox"
+
+
+async def user_messages(channel_state: ChannelState) -> list[str]:
+    return [
+        message.content
+        for message in await channel_service.messages(channel_state.channel, 0)
+        if message.member_id is None
+    ]
+
+
+async def test_queued_message_can_be_edited_deleted_and_sent_now(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_queue: EndpointCache,
+) -> None:
+    base = f"/api/v1/channels/{channel_state.channel.id}/queue"
+    kept = await client.post(base, headers=owner[0], data={"content": "Later"})
+    dropped = await client.post(base, headers=owner[0], data={"content": "Drop"})
+    assert kept.status_code == dropped.status_code == 201
+    kept_id, dropped_id = kept.json()["id"], dropped.json()["id"]
+    missing = uuid4()
+
+    edited = await client.patch(
+        f"{base}/{kept_id}", headers=owner[0], json={"content": "Edited"}
+    )
+    assert edited.status_code == 200
+    assert edited.json()["content"] == "Edited"
+    deleted = await client.delete(f"{base}/{dropped_id}", headers=owner[0])
+    assert deleted.status_code == 204
+    for method, path, kwargs in [
+        ("PATCH", f"{base}/{missing}", {"json": {"content": "x"}}),
+        ("DELETE", f"{base}/{missing}", {}),
+        ("POST", f"{base}/{missing}/send-now", {}),
+    ]:
+        response = await client.request(method, path, headers=owner[0], **kwargs)
+        assert response.status_code == 404, (method, path)
+    queued = await client.get(base, headers=owner[0])
+    assert [item["content"] for item in queued.json()] == ["Edited"]
+    assert await user_messages(channel_state) == []
+
+    sent = await client.post(f"{base}/{kept_id}/send-now", headers=owner[0])
+
+    assert sent.status_code == 204
+    assert (await client.get(base, headers=owner[0])).json() == []
+    assert await user_messages(channel_state) == ["Edited"]
+
+
+async def test_message_queued_on_an_idle_channel_is_sent_immediately(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    channel_queue: EndpointCache,
+) -> None:
+    channel_state.paused = False
+    base = f"/api/v1/channels/{channel_state.channel.id}/queue"
+
+    queued = await client.post(base, headers=owner[0], data={"content": "Go"})
+
+    assert queued.status_code == 201
+    assert (await client.get(base, headers=owner[0])).json() == []
+    assert await user_messages(channel_state) == ["Go"]
+    assert (
+        channel_state.channel.id,
+        "channel_queue_sent",
+        {"id": queued.json()["id"]},
+    ) in (channel_runtime.publications)

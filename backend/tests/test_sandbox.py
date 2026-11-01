@@ -1,48 +1,40 @@
 import base64
 import io
+import json
 import shlex
 import subprocess
 import zipfile
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any
+from uuid import UUID
 
 import pytest
+import pytest_asyncio
 from aiodocker.exceptions import DockerError
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.config import get_settings
 from app.models.db_models.workspace import Workspace
 from app.services.exceptions import SandboxException
-from app.services.git import (
-    GIT_CHECKOUT_FROM_REMOTE_TEMPLATE,
-    GIT_CHECKOUT_TEMPLATE,
-    GIT_CREATE_BRANCH_FROM_REMOTE_TEMPLATE,
-    GIT_CURRENT_BRANCH_CMD,
-    GIT_IS_REPO_CMD,
-    GIT_LOCAL_BRANCH_EXISTS_TEMPLATE,
-    GIT_PULL_CMD,
-    GIT_PUSH_CMD,
-    GIT_SHOW_HEAD_TEMPLATE,
-    GIT_STATUS_PORCELAIN_CMD,
-    GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE,
-    GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE,
-    RESTORE_ALL_CMD,
-    GitService,
-    _validate_base_ref,
-)
+from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.docker_provider import (
     DockerConfig,
     LocalDockerProvider,
 )
+from app.services.sandbox_providers.host_provider import LocalHostProvider
 from app.services.sandbox_providers.types import (
     CommandResult,
     FileContent,
     FileMetadata,
 )
+from app.services.search import SearchService
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
@@ -56,245 +48,147 @@ from tests.helpers import (
 pytestmark = pytest.mark.anyio
 
 
-async def test_docker_sandbox_chowns_only_managed_workspace(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    storage_root = tmp_path / "storage"
-    managed_workspace = storage_root / "workspaces" / "user" / "repo"
-    external_workspace = tmp_path / "local-repo"
-    monkeypatch.setattr(get_settings(), "STORAGE_PATH", str(storage_root))
-
-    provider = LocalDockerProvider(DockerConfig())
-    exec_obj = MagicMock()
-    container = MagicMock()
-    container.exec = AsyncMock(return_value=exec_obj)
-    create_container = AsyncMock(return_value=container)
-    collect_exec_output = AsyncMock(return_value=(0, ""))
-    monkeypatch.setattr(provider, "_create_container", create_container)
-    monkeypatch.setattr(provider, "_collect_exec_output", collect_exec_output)
-
-    await provider.create_sandbox(str(managed_workspace))
-
-    container.exec.assert_awaited_once_with(
-        cmd=["chown", "-R", "1000:1000", provider.workspace_root],
-        user="root",
-    )
-    collect_exec_output.assert_awaited_once_with(exec_obj)
-
-    container.exec.reset_mock()
-    collect_exec_output.reset_mock()
-
-    await provider.create_sandbox(str(external_workspace))
-    await provider.create_sandbox(None)
-
-    container.exec.assert_not_awaited()
-    collect_exec_output.assert_not_awaited()
+def git(repo: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=repo, check=True, capture_output=True, text=True
+    ).stdout
 
 
-async def test_docker_sandbox_reports_daemon_connection_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = LocalDockerProvider(DockerConfig())
-    docker = MagicMock()
-    docker.containers.create_or_replace = AsyncMock(
-        side_effect=DockerError(900, {"message": "Cannot connect to Docker Engine"})
-    )
-    monkeypatch.setattr(provider, "_get_docker", AsyncMock(return_value=docker))
-
-    with pytest.raises(SandboxException) as exc_info:
-        await provider.create_sandbox()
-
-    assert exc_info.value.status_code == 502
-    assert "is Docker running?" in exc_info.value.message
-    assert "Cannot connect to Docker Engine" in exc_info.value.message
+def configure_identity(repo: Path) -> None:
+    git(repo, "config", "user.email", "test@example.com")
+    git(repo, "config", "user.name", "Test")
+    git(repo, "config", "commit.gpgsign", "false")
 
 
-async def test_docker_sandbox_reports_constructor_connection_error(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = LocalDockerProvider(DockerConfig())
-    monkeypatch.setattr(
-        "app.services.sandbox_providers.docker_provider.aiodocker.Docker",
-        MagicMock(side_effect=ValueError("Missing valid docker_host")),
-    )
-
-    with pytest.raises(SandboxException) as exc_info:
-        await provider.create_sandbox()
-
-    assert exc_info.value.status_code == 502
-    assert "is Docker running?" in exc_info.value.message
-    assert "Missing valid docker_host" in exc_info.value.message
+def commit_all(repo: Path, message: str) -> None:
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", message)
 
 
-async def test_docker_sandbox_error_hint_is_limited_to_connectivity_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = LocalDockerProvider(DockerConfig())
-    docker = MagicMock()
-    docker.containers.create_or_replace = AsyncMock(
-        side_effect=DockerError(404, {"message": "No such image"})
-    )
-    monkeypatch.setattr(provider, "_get_docker", AsyncMock(return_value=docker))
-
-    with pytest.raises(SandboxException) as exc_info:
-        await provider.create_sandbox()
-
-    assert exc_info.value.status_code == 502
-    assert "is Docker running?" not in exc_info.value.message
-    assert "No such image" in exc_info.value.message
+def write_files(root: Path, files: dict[str, str]) -> None:
+    for rel, content in files.items():
+        path = root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
 
 
-async def test_delete_docker_sandbox_continues_after_stop_error() -> None:
-    provider = LocalDockerProvider(DockerConfig())
-    container = MagicMock()
-    container.stop = AsyncMock(
-        side_effect=DockerError(500, {"message": "failed to stop"})
-    )
-    container.delete = AsyncMock()
-    provider._containers["sandbox-1"] = container
-
-    await provider.delete_sandbox("sandbox-1")
-
-    container.delete.assert_awaited_once_with(force=True)
-    assert "sandbox-1" not in provider._containers
+def init_repo(
+    path: Path, files: dict[str, str] | None = None, *, branch: str = "main"
+) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    git(path, "-c", f"init.defaultBranch={branch}", "init", "-q")
+    configure_identity(path)
+    if files:
+        write_files(path, files)
+        commit_all(path, "initial")
+    return path
 
 
-@pytest.mark.parametrize("base_ref", ["main", "feat/api-keys", "release-1.2"])
-async def test_validate_base_ref_accepts_valid_branch_names(base_ref: str) -> None:
-    assert _validate_base_ref(base_ref) is None
+def rev(repo: Path, ref: str = "HEAD") -> str:
+    return git(repo, "rev-parse", ref).strip()
 
 
-@pytest.mark.parametrize(
-    "base_ref",
-    ["-evil", "a b", "x'y", "a..b", "a//b", "x.lock", "@{u}", ""],
-)
-async def test_validate_base_ref_rejects_invalid_branch_names(base_ref: str) -> None:
-    with pytest.raises(SandboxException, match="^Invalid base branch name$"):
-        _validate_base_ref(base_ref)
+def clone_with_origin(
+    tmp_path: Path, files: dict[str, str] | None = None
+) -> tuple[Path, Path]:
+    # origin has main (tagged v1.0.0) plus a `release` branch the clone only
+    # sees as origin/release.
+    seed = init_repo(tmp_path / "seed", files or {"app.py": "v1\n"})
+    git(seed, "checkout", "-q", "-b", "release")
+    write_files(seed, {"release.txt": "release\n"})
+    commit_all(seed, "release")
+    git(seed, "checkout", "-q", "main")
+    git(seed, "tag", "v1.0.0")
+    origin = tmp_path / "origin.git"
+    git(tmp_path, "clone", "-q", "--bare", str(seed), str(origin))
+    workspace = tmp_path / "workspace"
+    git(tmp_path, "clone", "-q", str(origin), str(workspace))
+    configure_identity(workspace)
+    return workspace, origin
 
 
-async def test_create_worktree_uses_local_base_without_retry() -> None:
-    provider = ScriptedSandboxProvider()
-    primary_command = GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE.substitute(
-        worktree_dir=".worktrees/12345678",
-        base_worktrees_dir=".worktrees",
-        branch_name="worktree-12345678",
-        base_ref="feature",
-    )
-    provider.script(
-        primary_command,
-        CommandResult(stdout="", stderr="", exit_code=0),
-    )
-    service = GitService(SandboxService(provider))
-
-    worktree = await service.create_worktree(
-        "sandbox-1",
-        "",
-        "12345678-1234-1234-1234-123456789012",
-        base_ref="feature",
-    )
-
-    assert worktree == ".worktrees/12345678"
-    assert len(provider.commands) == 1
-    assert provider.commands[0][1].endswith(primary_command)
+def host_git_service(workspace: Path) -> GitService:
+    return GitService(SandboxService(LocalHostProvider(str(workspace))))
 
 
-async def test_create_worktree_retries_remote_base() -> None:
-    provider = ScriptedSandboxProvider()
-    primary_command = GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE.substitute(
-        worktree_dir=".worktrees/12345678",
-        base_worktrees_dir=".worktrees",
-        branch_name="worktree-12345678",
-        base_ref="feature",
-    )
-    remote_command = GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE.substitute(
-        worktree_dir=".worktrees/12345678",
-        base_worktrees_dir=".worktrees",
-        branch_name="worktree-12345678",
-        base_ref="feature",
-    )
-    provider.script(
-        primary_command,
-        CommandResult(
-            stdout="fatal: not a valid object name: 'feature'\n",
-            stderr="",
-            exit_code=128,
-        ),
-    )
-    provider.script(
-        remote_command,
-        CommandResult(stdout="", stderr="", exit_code=0),
-    )
-    service = GitService(SandboxService(provider))
+@dataclass
+class SandboxApi:
+    client: AsyncClient
+    headers: dict[str, str]
+    sandbox_id: str
+    user_id: UUID
 
-    worktree = await service.create_worktree(
-        "sandbox-1",
-        "",
-        "12345678-1234-1234-1234-123456789012",
-        base_ref="feature",
-    )
+    def url(self, endpoint: str) -> str:
+        return f"/api/v1/sandbox/{self.sandbox_id}/{endpoint}"
 
-    assert worktree == ".worktrees/12345678"
-    assert len(provider.commands) == 2
-    assert provider.commands[0][1].endswith(primary_command)
-    assert provider.commands[1][1].endswith(remote_command)
-
-
-async def test_create_worktree_surfaces_remote_retry_error() -> None:
-    provider = ScriptedSandboxProvider()
-    primary_command = GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE.substitute(
-        worktree_dir=".worktrees/12345678",
-        base_worktrees_dir=".worktrees",
-        branch_name="worktree-12345678",
-        base_ref="missing",
-    )
-    remote_command = GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE.substitute(
-        worktree_dir=".worktrees/12345678",
-        base_worktrees_dir=".worktrees",
-        branch_name="worktree-12345678",
-        base_ref="missing",
-    )
-    provider.script(
-        primary_command,
-        CommandResult(
-            stdout="fatal: not a valid object name: 'missing'\n",
-            stderr="",
-            exit_code=128,
-        ),
-    )
-    provider.script(
-        remote_command,
-        CommandResult(
-            stdout="",
-            stderr="fatal: invalid reference: origin/missing\n",
-            exit_code=128,
-        ),
-    )
-    service = GitService(SandboxService(provider))
-
-    with pytest.raises(
-        SandboxException, match="^fatal: invalid reference: origin/missing$"
-    ):
-        await service.create_worktree(
-            "sandbox-1",
-            "",
-            "12345678-1234-1234-1234-123456789012",
-            base_ref="missing",
+    async def get(self, endpoint: str, **params: str) -> Response:
+        return await self.client.get(
+            self.url(endpoint), params=params, headers=self.headers
         )
 
-    assert len(provider.commands) == 2
-    assert provider.commands[0][1].endswith(primary_command)
-    assert provider.commands[1][1].endswith(remote_command)
+    async def post(
+        self, endpoint: str, json: dict[str, Any] | None = None, **params: str
+    ) -> Response:
+        return await self.client.post(
+            self.url(endpoint), json=json, params=params, headers=self.headers
+        )
+
+    async def put(self, endpoint: str, json: dict[str, Any]) -> Response:
+        return await self.client.put(
+            self.url(endpoint), json=json, headers=self.headers
+        )
+
+
+OpenHostSandbox = Callable[[Path], Awaitable[SandboxApi]]
+
+
+async def create_host_workspace(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    workspace_dir: Path,
+) -> tuple[dict[str, str], Workspace]:
+    # Points workspace_path at a real dir so the real LocalHostProvider runs.
+    user = await create_user(email="host-user@example.com", username="hostuser")
+    tokens = await login(email="host-user@example.com")
+    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
+    workspace = Workspace(
+        name="Host Workspace",
+        user_id=user.id,
+        sandbox_id="sandbox-hostuser",
+        sandbox_provider="host",
+        workspace_path=str(workspace_dir),
+        source_type="empty",
+        source_url=None,
+    )
+    db_session.add(workspace)
+    await db_session.commit()
+    await db_session.refresh(workspace)
+    return headers, workspace
+
+
+@pytest.fixture
+def open_host_sandbox(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> OpenHostSandbox:
+    async def open_sandbox(workspace_dir: Path) -> SandboxApi:
+        headers, workspace = await create_host_workspace(
+            db_session, create_user, login, workspace_dir
+        )
+        return SandboxApi(client, headers, workspace.sandbox_id, workspace.user_id)
+
+    return open_sandbox
 
 
 class ScriptedSandboxProvider(FakeSandboxProvider):
-    # Scripted responses/exceptions (helpers.py not editable for error paths).
     def __init__(self) -> None:
         super().__init__()
         self.command_overrides: list[tuple[str, CommandResult]] = []
         self.list_files_error: SandboxException | None = None
         self.read_file_error: SandboxException | None = None
-        self.write_file_error: SandboxException | None = None
 
     def script(self, substring: str, result: CommandResult) -> None:
         self.command_overrides.append((substring, result))
@@ -322,134 +216,215 @@ class ScriptedSandboxProvider(FakeSandboxProvider):
             raise self.read_file_error
         return await super().read_file(sandbox_id, path)
 
-    async def write_file(
-        self, sandbox_id: str, path: str, content: str | bytes
-    ) -> None:
-        if self.write_file_error:
-            raise self.write_file_error
-        await super().write_file(sandbox_id, path, content)
-
-
-def install_scripted_provider(
-    monkeypatch: pytest.MonkeyPatch,
-) -> ScriptedSandboxProvider:
-    provider = ScriptedSandboxProvider()
-    monkeypatch.setattr(
-        SandboxProvider, "create_provider", FakeProviderFactory(provider=provider)
-    )
-    return provider
-
-
-async def create_host_workspace(
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    workspace_dir: Path,
-    *,
-    email: str = "host-user@example.com",
-    username: str = "hostuser",
-) -> tuple[dict[str, str], Workspace]:
-    # Mirrors create_authenticated_workspace but points workspace_path at a
-    # real on-disk temp dir so the real LocalHostProvider runs, not a fake.
-    user = await create_user(email=email, username=username)
-    tokens = await login(email=email)
-    headers = {"Authorization": f"Bearer {tokens['access_token']}"}
-    workspace = Workspace(
-        name="Host Workspace",
-        user_id=user.id,
-        sandbox_id=f"sandbox-{username}",
-        sandbox_provider="host",
-        workspace_path=str(workspace_dir),
-        source_type="empty",
-        source_url=None,
-    )
-    db_session.add(workspace)
-    await db_session.commit()
-    await db_session.refresh(workspace)
-    return headers, workspace
-
 
 @pytest.fixture
-def fake_provider(monkeypatch: pytest.MonkeyPatch) -> FakeSandboxProvider:
-    provider = FakeSandboxProvider()
+def provider(monkeypatch: pytest.MonkeyPatch) -> ScriptedSandboxProvider:
+    scripted = ScriptedSandboxProvider()
     monkeypatch.setattr(
-        SandboxProvider,
-        "create_provider",
-        FakeProviderFactory(provider=provider),
+        SandboxProvider, "create_provider", FakeProviderFactory(provider=scripted)
     )
-    return provider
+    return scripted
 
 
-async def test_file_endpoints_use_owned_sandbox_and_provider(
+@pytest_asyncio.fixture
+async def fake_api(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
+    provider: ScriptedSandboxProvider,
+) -> SandboxApi:
+    headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
-
-    metadata_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata",
-        headers=headers,
-    )
-    worktree_metadata_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata?cwd=.worktrees/wt-1",
-        headers=headers,
-    )
-    content_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/content/README.md",
-        headers=headers,
-    )
-    update_response = await client.put(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files",
-        json={"file_path": "src/app.py", "content": "print('updated')"},
-        headers=headers,
-    )
-    updated_content_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/content/src/app.py",
-        headers=headers,
-    )
-    invalid_path_response = await client.put(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files",
-        json={"file_path": "../outside.py", "content": "blocked"},
-        headers=headers,
-    )
-
-    assert metadata_response.status_code == 200
-    assert metadata_response.json()["files"] == [
-        {"path": "src", "type": "directory", "is_binary": False},
-        {"path": "README.md", "type": "file", "is_binary": False},
-    ]
-    assert worktree_metadata_response.status_code == 200
-    assert worktree_metadata_response.json()["files"] == [
-        {"path": ".worktrees/wt-1/src", "type": "directory", "is_binary": False},
-        {"path": ".worktrees/wt-1/README.md", "type": "file", "is_binary": False},
-    ]
-    assert fake_provider.list_paths == ["", ".worktrees/wt-1"]
-    assert content_response.status_code == 200
-    assert content_response.json()["content"] == "Initial readme"
-    assert update_response.status_code == 200
-    assert update_response.json() == {
-        "success": True,
-        "message": "File src/app.py updated successfully",
-    }
-    assert fake_provider.writes == [
-        (workspace.sandbox_id, "src/app.py", "print('updated')")
-    ]
-    assert updated_content_response.status_code == 200
-    assert updated_content_response.json()["content"] == "print('updated')"
-    assert invalid_path_response.status_code == 400
+    return SandboxApi(client, headers, workspace.sandbox_id, user.id)
 
 
-async def test_sandbox_access_requires_owner_and_authentication(
+def rg_match(path: str, line_number: int, line: str, start: int, end: int) -> str:
+    return json.dumps(
+        {
+            "type": "match",
+            "data": {
+                "path": {"text": path},
+                "line_number": line_number,
+                "lines": {"text": line},
+                "submatches": [{"start": start, "end": end}],
+            },
+        }
+    )
+
+
+def rg_result(*lines: str) -> CommandResult:
+    return CommandResult(stdout="\n".join(lines) + "\n", stderr="", exit_code=0)
+
+
+class FakeDockerExec:
+    def start(self) -> "FakeDockerExec":
+        return self
+
+    async def read_out(self) -> None:
+        return None
+
+    async def close(self) -> None:
+        return None
+
+    async def inspect(self) -> dict[str, int]:
+        return {"ExitCode": 0}
+
+
+class FakeDockerContainer:
+    def __init__(self, config: dict[str, Any], stop_error: Exception | None) -> None:
+        self.config = config
+        self.stop_error = stop_error
+        self.execs: list[list[str]] = []
+        self.deleted = False
+
+    async def start(self) -> None:
+        return None
+
+    async def show(self) -> dict[str, Any]:
+        if self.deleted:
+            raise DockerError(404, {"message": "No such container"})
+        return {"State": {"Status": "running"}}
+
+    async def exec(self, cmd: list[str], user: str) -> FakeDockerExec:
+        self.execs.append(cmd)
+        return FakeDockerExec()
+
+    async def stop(self, t: int) -> None:
+        if self.stop_error:
+            raise self.stop_error
+
+    async def delete(self, force: bool) -> None:
+        self.deleted = True
+
+
+class FakeDockerContainers:
+    def __init__(
+        self, create_error: Exception | None, stop_error: Exception | None
+    ) -> None:
+        self.create_error = create_error
+        self.stop_error = stop_error
+        self.created: list[FakeDockerContainer] = []
+        self.by_name: dict[str, FakeDockerContainer] = {}
+
+    async def create_or_replace(
+        self, name: str, config: dict[str, Any]
+    ) -> FakeDockerContainer:
+        if self.create_error:
+            raise self.create_error
+        container = FakeDockerContainer(config, self.stop_error)
+        self.created.append(container)
+        self.by_name[name] = container
+        return container
+
+    async def get(self, name: str) -> FakeDockerContainer:
+        container = self.by_name.get(name)
+        if container is None or container.deleted:
+            raise DockerError(404, {"message": "No such container"})
+        return container
+
+
+class FakeDocker:
+    def __init__(
+        self,
+        *,
+        create_error: Exception | None = None,
+        stop_error: Exception | None = None,
+    ) -> None:
+        self.containers = FakeDockerContainers(create_error, stop_error)
+
+
+def install_fake_docker(monkeypatch: pytest.MonkeyPatch, docker: FakeDocker) -> None:
+    monkeypatch.setattr(
+        "app.services.sandbox_providers.docker_provider.aiodocker.Docker",
+        lambda *args, **kwargs: docker,
+    )
+
+
+async def test_docker_sandbox_mounts_workspace_and_chowns_only_managed_dirs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    storage_root = tmp_path / "storage"
+    managed_workspace = storage_root / "workspaces" / "user" / "repo"
+    external_workspace = tmp_path / "local-repo"
+    monkeypatch.setattr(get_settings(), "STORAGE_PATH", str(storage_root))
+    docker = FakeDocker()
+    install_fake_docker(monkeypatch, docker)
+    provider = LocalDockerProvider(DockerConfig())
+
+    await provider.create_sandbox(str(managed_workspace))
+    await provider.create_sandbox(str(external_workspace))
+    await provider.create_sandbox(None)
+
+    managed, external, unmounted = docker.containers.created
+    root = provider.workspace_root
+    assert managed.config["HostConfig"]["Binds"] == [f"{managed_workspace}:{root}"]
+    assert external.config["HostConfig"]["Binds"] == [f"{external_workspace}:{root}"]
+    assert "Binds" not in unmounted.config["HostConfig"]
+    assert managed.execs == [["chown", "-R", "1000:1000", root]]
+    assert external.execs == []
+    assert unmounted.execs == []
+
+
+@pytest.mark.parametrize(
+    ("status", "message", "expects_hint"),
+    [(900, "Cannot connect to Docker Engine", True), (404, "No such image", False)],
+)
+async def test_docker_sandbox_create_error_hints_only_on_connectivity_failures(
+    monkeypatch: pytest.MonkeyPatch, status: int, message: str, expects_hint: bool
+) -> None:
+    install_fake_docker(
+        monkeypatch, FakeDocker(create_error=DockerError(status, {"message": message}))
+    )
+
+    with pytest.raises(SandboxException) as exc_info:
+        await LocalDockerProvider(DockerConfig()).create_sandbox()
+
+    assert exc_info.value.status_code == 502
+    assert ("is Docker running?" in exc_info.value.message) is expects_hint
+    assert message in exc_info.value.message
+
+
+async def test_docker_sandbox_reports_constructor_connection_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def missing_docker_host(*args: Any, **kwargs: Any) -> None:
+        raise ValueError("Missing valid docker_host")
+
+    monkeypatch.setattr(
+        "app.services.sandbox_providers.docker_provider.aiodocker.Docker",
+        missing_docker_host,
+    )
+
+    with pytest.raises(SandboxException) as exc_info:
+        await LocalDockerProvider(DockerConfig()).create_sandbox()
+
+    assert exc_info.value.status_code == 502
+    assert "is Docker running?" in exc_info.value.message
+    assert "Missing valid docker_host" in exc_info.value.message
+
+
+async def test_delete_docker_sandbox_removes_container_even_if_stop_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docker = FakeDocker(stop_error=DockerError(500, {"message": "failed to stop"}))
+    install_fake_docker(monkeypatch, docker)
+    provider = LocalDockerProvider(DockerConfig())
+    sandbox_id = await provider.create_sandbox()
+
+    await provider.delete_sandbox(sandbox_id)
+
+    assert docker.containers.created[0].deleted is True
+    assert await provider.connect_sandbox(sandbox_id) is False
+
+
+async def test_sandbox_access_requires_owner_authentication_and_live_workspace(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    fake_provider: FakeSandboxProvider,
+    provider: ScriptedSandboxProvider,
 ) -> None:
     owner_headers, _owner, workspace = await create_authenticated_workspace(
         db_session,
@@ -458,381 +433,284 @@ async def test_sandbox_access_requires_owner_and_authentication(
         email="sandbox-owner@example.com",
         username="sandboxowner",
     )
-    other_headers, _other_user, _other_workspace = await create_authenticated_workspace(
+    other_headers, _other, _other_workspace = await create_authenticated_workspace(
         db_session,
         create_user,
         login,
         email="sandbox-other@example.com",
         username="sandboxother",
     )
+    metadata_url = f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata"
 
-    owner_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata",
-        headers=owner_headers,
-    )
-    other_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata",
+    owner_response = await client.get(metadata_url, headers=owner_headers)
+    other_read = await client.get(metadata_url, headers=other_headers)
+    other_write = await client.put(
+        f"/api/v1/sandbox/{workspace.sandbox_id}/files",
+        json={"file_path": "pwned.py", "content": "x"},
         headers=other_headers,
     )
-    missing_token_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata"
-    )
+    anonymous_response = await client.get(metadata_url)
+    workspace.deleted_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    deleted_workspace_response = await client.get(metadata_url, headers=owner_headers)
 
     assert owner_response.status_code == 200
-    assert other_response.status_code == 404
-    assert other_response.json()["detail"] == "Sandbox not found"
-    assert missing_token_response.status_code == 401
+    assert other_read.status_code == 404
+    assert other_read.json()["detail"] == "Sandbox not found"
+    assert other_write.status_code == 404
+    assert provider.writes == []
+    assert anonymous_response.status_code == 401
+    assert deleted_workspace_response.status_code == 404
 
 
-async def test_download_zip_returns_owned_sandbox_files(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
+@pytest.mark.parametrize("bad_cwd", ["../escape", "/etc", "x'; touch pwned; '"])
+async def test_sandbox_endpoints_reject_unsafe_cwd_before_running_anything(
+    fake_api: SandboxApi, provider: ScriptedSandboxProvider, bad_cwd: str
 ) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-    await fake_provider.write_file(workspace.sandbox_id, "src/app.py", "print('zip')")
-
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/download-zip",
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.headers["content-type"] == "application/zip"
-    assert response.headers["content-disposition"] == (
-        f'attachment; filename="sandbox_{workspace.sandbox_id}.zip"'
-    )
-    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-        assert archive.namelist() == ["README.md", "src/app.py"]
-        assert archive.read("README.md") == b"Initial readme"
-        assert archive.read("src/app.py") == b"print('zip')"
-
-
-async def test_git_endpoints_propagate_cwd_and_request_fields(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-    sandbox_id = workspace.sandbox_id
-
-    diff_response = await client.get(
-        f"/api/v1/sandbox/{sandbox_id}/git/diff?full_context=true&cwd=packages/api",
-        headers=headers,
-    )
-    branches_response = await client.get(
-        f"/api/v1/sandbox/{sandbox_id}/git/branches?cwd=packages/api",
-        headers=headers,
-    )
-    checkout_response = await client.post(
-        f"/api/v1/sandbox/{sandbox_id}/git/checkout",
-        json={"branch": "feature", "cwd": "packages/api"},
-        headers=headers,
-    )
-    commit_response = await client.post(
-        f"/api/v1/sandbox/{sandbox_id}/git/commit",
-        json={"message": "Update API", "cwd": "packages/api"},
-        headers=headers,
-    )
-    restore_response = await client.post(
-        f"/api/v1/sandbox/{sandbox_id}/git/restore-file",
-        json={
-            "file_path": "new.py",
-            "old_path": "old.py",
-            "cwd": "packages/api",
-        },
-        headers=headers,
-    )
-    create_branch_response = await client.post(
-        f"/api/v1/sandbox/{sandbox_id}/git/create-branch",
-        json={
-            "name": "feature-two",
-            "base_branch": "main",
-            "cwd": "packages/api",
-        },
-        headers=headers,
-    )
-    remote_response = await client.get(
-        f"/api/v1/sandbox/{sandbox_id}/git/remote-url?cwd=packages/api",
-        headers=headers,
-    )
-
-    assert diff_response.status_code == 200
-    assert diff_response.json()["has_changes"] is True
-    assert branches_response.status_code == 200
-    assert branches_response.json()["branches"] == ["feature", "main"]
-    assert checkout_response.status_code == 200
-    assert commit_response.status_code == 200
-    assert restore_response.status_code == 200
-    assert create_branch_response.status_code == 200
-    assert remote_response.status_code == 200
-    commands = [command for _sandbox_id, command, _envs in fake_provider.commands]
-    assert all(
-        command.startswith(
-            "cd 'packages/api' && export GIT_DISCOVERY_ACROSS_FILESYSTEM=1 && "
-        )
-        for command in commands
-    )
-    assert any("git diff -U99999 HEAD" in command for command in commands)
-    assert any("git for-each-ref" in command for command in commands)
-    assert any("git checkout 'feature'" in command for command in commands)
-    assert any("git commit -m 'Update API'" in command for command in commands)
-    assert any("git checkout HEAD -- old.py" in command for command in commands)
-    assert any(
-        "git checkout -b 'feature-two' 'main'" in command for command in commands
-    )
-    assert any("git remote get-url origin" in command for command in commands)
-
-
-async def test_git_remote_url_returns_owned_sandbox_remote(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/remote-url",
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "remote_url": "https://github.com/agentrove/app.git",
-        "owner": "agentrove",
-        "repo": "app",
+    responses = {
+        "files/metadata": await fake_api.get("files/metadata", cwd=bad_cwd),
+        "git/diff": await fake_api.get("git/diff", cwd=bad_cwd),
+        "git/diff-stats": await fake_api.get("git/diff-stats", cwd=bad_cwd),
+        "git/fetch-base": await fake_api.post("git/fetch-base", cwd=bad_cwd),
+        "git/changed-paths": await fake_api.get("git/changed-paths", cwd=bad_cwd),
+        "git/file-baseline": await fake_api.get(
+            "git/file-baseline", path="a.py", cwd=bad_cwd
+        ),
+        "git/branches": await fake_api.get("git/branches", cwd=bad_cwd),
+        "git/checkout": await fake_api.post(
+            "git/checkout", json={"branch": "main", "cwd": bad_cwd}
+        ),
+        "git/commit": await fake_api.post(
+            "git/commit", json={"message": "msg", "cwd": bad_cwd}
+        ),
+        "git/push": await fake_api.post("git/push", cwd=bad_cwd),
+        "git/pull": await fake_api.post("git/pull", cwd=bad_cwd),
+        "git/restore-file": await fake_api.post(
+            "git/restore-file", json={"file_path": "a.py", "cwd": bad_cwd}
+        ),
+        "git/restore-all": await fake_api.post("git/restore-all", cwd=bad_cwd),
+        "git/create-branch": await fake_api.post(
+            "git/create-branch", json={"name": "main", "cwd": bad_cwd}
+        ),
+        "git/remote-url": await fake_api.get("git/remote-url", cwd=bad_cwd),
+        "search": await fake_api.get("search", q="x", cwd=bad_cwd),
     }
-    assert fake_provider.commands[-1] == (
-        workspace.sandbox_id,
-        "export GIT_DISCOVERY_ACROSS_FILESYSTEM=1 && "
-        "git remote get-url origin 2>/dev/null",
-        {},
-    )
+
+    assert {path: r.status_code for path, r in responses.items()} == {
+        path: 400 for path in responses
+    }
+    assert provider.commands == []
+    assert provider.list_paths == []
 
 
-async def test_search_endpoint_propagates_filters(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
+async def test_host_sandbox_reads_lists_and_writes_real_files(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
+    workspace_dir = tmp_path / "workspace"
+    write_files(
+        workspace_dir,
+        {
+            "README.md": "real readme",
+            "src/app.py": "print('hi')",
+            "node_modules/pkg/index.js": "module.exports = {}",
+        },
     )
-    sandbox_id = workspace.sandbox_id
+    (workspace_dir / "logo.zip").write_bytes(b"PK\x03\x04binarydata")
+    outside_dir = tmp_path / "outside"
+    write_files(outside_dir, {"secret.txt": "secret"})
+    (workspace_dir / "escape-link").symlink_to(outside_dir / "secret.txt")
+    (workspace_dir / "escape-dir").symlink_to(outside_dir)
+    api = await open_host_sandbox(workspace_dir)
 
-    response = await client.get(
-        f"/api/v1/sandbox/{sandbox_id}/search"
-        "?q=needle&cwd=src&case_sensitive=true&regex=true&whole_word=true"
-        "&include=*.py&exclude=vendor/*",
-        headers=headers,
+    metadata = await api.get("files/metadata")
+    src_metadata = await api.get("files/metadata", cwd="src")
+    content = await api.get("files/content/README.md")
+    binary_content = await api.get("files/content/logo.zip")
+    write = await api.put(
+        "files", {"file_path": "src/nested/new.py", "content": "print('new')"}
     )
+    written_content = await api.get("files/content/src/nested/new.py")
+    traversal_write = await api.put(
+        "files", {"file_path": "../outside.py", "content": "x"}
+    )
+    symlink_write = await api.put(
+        "files", {"file_path": "escape-dir/planted.py", "content": "x"}
+    )
+    symlink_read = await api.get("files/content/escape-link")
+    quoted_read = await api.get("files/content/weird'file.py")
+    missing_read = await api.get("files/content/does-not-exist.py")
+
+    assert metadata.status_code == 200
+    paths = {f["path"] for f in metadata.json()["files"]}
+    assert {"README.md", "src", "src/app.py", "logo.zip"} <= paths
+    assert not any(p.startswith("node_modules") for p in paths)
+    assert src_metadata.json()["files"] == [
+        {"path": "src/app.py", "type": "file", "is_binary": False}
+    ]
+    assert content.json()["content"] == "real readme"
+    assert binary_content.json()["is_binary"] is True
+    assert base64.b64decode(binary_content.json()["content"]) == b"PK\x03\x04binarydata"
+    assert write.status_code == 200
+    assert written_content.json()["content"] == "print('new')"
+    assert traversal_write.status_code == 400
+    assert symlink_write.status_code == 400
+    assert sorted(p.name for p in outside_dir.iterdir()) == ["secret.txt"]
+    assert not (tmp_path / "outside.py").exists()
+    assert symlink_read.status_code == 404
+    assert quoted_read.status_code == 400
+    assert missing_read.status_code == 404
+
+
+async def test_host_sandbox_lists_git_files_honoring_gitignore(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    repo = init_repo(
+        tmp_path / "repo",
+        {
+            ".gitignore": "secrets.env\nbuild/\n",
+            "src/a.py": "a",
+            "src/b.py": "b",
+        },
+    )
+    write_files(
+        repo, {"secrets.env": "TOKEN=1", "build/out.js": "x", "notes.md": "untracked"}
+    )
+    api = await open_host_sandbox(repo)
+
+    response = await api.get("files/metadata")
 
     assert response.status_code == 200
-    assert response.json()["results"][0]["path"] == "src/app.py"
-    search_commands = [
-        command
-        for _sandbox_id, command, _envs in fake_provider.commands
-        if "rg " in command
+    assert sorted(response.json()["files"], key=lambda f: f["path"]) == [
+        {"path": ".gitignore", "type": "file", "is_binary": False},
+        {"path": "notes.md", "type": "file", "is_binary": False},
+        {"path": "src", "type": "directory", "is_binary": False},
+        {"path": "src/a.py", "type": "file", "is_binary": False},
+        {"path": "src/b.py", "type": "file", "is_binary": False},
     ]
-    assert search_commands == [
-        "cd 'src' && rg --json -n --max-count=100 --max-columns=500 "
-        "-w -g '*.py' -g '!vendor/*' -- needle ."
-    ]
-
-
-async def test_get_files_metadata_rejects_invalid_cwd(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata?cwd=../escape",
-        headers=headers,
-    )
-
-    assert response.status_code == 400
 
 
 async def test_get_files_metadata_propagates_provider_status_code(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
+    fake_api: SandboxApi, provider: ScriptedSandboxProvider
 ) -> None:
-    provider = install_scripted_provider(monkeypatch)
     provider.list_files_error = SandboxException("listing failed", status_code=502)
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
 
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata",
-        headers=headers,
-    )
+    response = await fake_api.get("files/metadata")
 
     assert response.status_code == 502
     assert response.json()["detail"] == "listing failed"
 
 
-async def test_get_file_content_rejects_invalid_path_and_missing_file(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
+async def test_download_zip_contains_workspace_files(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
+    workspace_dir = tmp_path / "workspace"
+    write_files(workspace_dir, {"README.md": "readme", "src/app.py": "print('zip')"})
+    (workspace_dir / "logo.png").write_bytes(b"\x89PNG\x00\xff")
+    api = await open_host_sandbox(workspace_dir)
+
+    response = await api.get("download-zip")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/zip"
+    assert response.headers["content-disposition"] == (
+        f'attachment; filename="sandbox_{api.sandbox_id}.zip"'
     )
-
-    invalid_path_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/content/weird'file.py",
-        headers=headers,
-    )
-    missing_file_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/content/missing.py",
-        headers=headers,
-    )
-
-    assert invalid_path_response.status_code == 400
-    assert missing_file_response.status_code == 404
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert sorted(archive.namelist()) == ["README.md", "logo.png", "src/app.py"]
+        assert archive.read("README.md") == b"readme"
+        assert archive.read("src/app.py") == b"print('zip')"
+        assert archive.read("logo.png") == b"\x89PNG\x00\xff"
 
 
-async def test_update_file_propagates_provider_error(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_download_zip_propagates_listing_error(
+    fake_api: SandboxApi, provider: ScriptedSandboxProvider
 ) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.write_file_error = SandboxException("disk full")
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.put(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files",
-        json={"file_path": "a.py", "content": "x"},
-        headers=headers,
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == "disk full"
-
-
-async def test_download_zip_propagates_provider_error(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
     provider.list_files_error = SandboxException("zip listing failed")
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
 
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/download-zip",
-        headers=headers,
-    )
+    response = await fake_api.get("download-zip")
 
     assert response.status_code == 400
     assert response.json()["detail"] == "zip listing failed"
 
 
-async def test_git_diff_not_a_repo(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_download_zip_skips_files_that_fail_to_read(
+    fake_api: SandboxApi, provider: ScriptedSandboxProvider
 ) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(GIT_IS_REPO_CMD, CommandResult(stdout="", stderr="", exit_code=128))
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
+    provider.read_file_error = SandboxException("read failed")
 
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff", headers=headers
-    )
+    response = await fake_api.get("download-zip")
 
     assert response.status_code == 200
-    assert response.json() == {
+    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+        assert archive.namelist() == []
+
+
+async def test_git_endpoints_report_non_repo_workspace(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    workspace_dir = tmp_path / "plain"
+    write_files(workspace_dir, {"app.py": "x"})
+    api = await open_host_sandbox(workspace_dir)
+
+    diff = await api.get("git/diff")
+    diff_stats = await api.get("git/diff-stats")
+    changed = await api.get("git/changed-paths")
+    branches = await api.get("git/branches")
+    baseline = await api.get("git/file-baseline", path="app.py")
+    fetch = await api.post("git/fetch-base")
+
+    assert diff.json() == {
         "diff": "",
         "has_changes": False,
         "is_git_repo": False,
         "error": None,
     }
+    assert diff_stats.json()["is_git_repo"] is False
+    assert changed.json() == {"paths": [], "is_git_repo": False}
+    assert branches.json() == {
+        "branches": [],
+        "current_branch": "",
+        "is_git_repo": False,
+    }
+    assert baseline.json() == {"path": "app.py", "content": "", "is_git_repo": False}
+    assert fetch.json() == {"fetched": False}
 
 
-async def test_git_diff_default_and_branch_success_modes(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
+async def test_git_diff_modes_and_full_context(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
+    lines = "".join(f"line{i:02d}\n" for i in range(1, 21))
+    workspace, _origin = clone_with_origin(tmp_path, {"lines.txt": lines})
+    git(workspace, "checkout", "-q", "-b", "feature")
+    (workspace / "lines.txt").write_text(lines.replace("line05", "line05 committed"))
+    commit_all(workspace, "feature change")
+    (workspace / "lines.txt").write_text(
+        lines.replace("line05", "line05 committed").replace("line15", "line15 dirty")
     )
+    api = await open_host_sandbox(workspace)
 
-    default_mode_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff", headers=headers
-    )
-    branch_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff?mode=branch",
-        headers=headers,
-    )
+    uncommitted = (await api.get("git/diff")).json()
+    full = (await api.get("git/diff", full_context="true")).json()
+    branch = (await api.get("git/diff", mode="branch")).json()
 
-    assert default_mode_response.status_code == 200
-    assert default_mode_response.json()["is_git_repo"] is True
-    assert branch_response.status_code == 200
-    assert branch_response.json()["is_git_repo"] is True
+    assert uncommitted["has_changes"] is True
+    assert "+line15 dirty" in uncommitted["diff"]
+    assert "line05 committed" not in uncommitted["diff"]
+    assert " line01\n" in full["diff"]
+    assert " line05 committed\n" in full["diff"]
+    assert "+line05 committed" in branch["diff"]
+    assert "line15 dirty" not in branch["diff"]
+    assert branch["error"] is None
 
 
 async def test_git_diff_branch_mode_reports_unknown_base(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script("git merge-base", CommandResult(stdout="", stderr="", exit_code=2))
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"}, branch="work")
+    api = await open_host_sandbox(repo)
 
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff?mode=branch", headers=headers
-    )
+    response = await api.get("git/diff", mode="branch")
 
-    assert response.status_code == 200
     assert response.json() == {
         "diff": "",
         "has_changes": False,
@@ -841,1108 +719,716 @@ async def test_git_diff_branch_mode_reports_unknown_base(
     }
 
 
-async def test_git_changed_paths(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(
-        GIT_STATUS_PORCELAIN_CMD,
-        CommandResult(stdout="\n M app.py\0?? new_file.py\0", stderr="", exit_code=0),
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/changed-paths", headers=headers
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "paths": ["app.py", "new_file.py"],
-        "is_git_repo": True,
-    }
-
-
-async def test_git_changed_paths_rebases_to_cwd_prefix(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(
-        GIT_STATUS_PORCELAIN_CMD,
-        CommandResult(
-            stdout="packages/api/\n M packages/api/app.py\0?? other/file.py\0",
-            stderr="",
-            exit_code=0,
-        ),
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/changed-paths?cwd=packages/api",
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {"paths": ["app.py"], "is_git_repo": True}
-
-
-async def test_git_changed_paths_not_a_repo(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(
-        GIT_STATUS_PORCELAIN_CMD, CommandResult(stdout="", stderr="", exit_code=2)
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/changed-paths", headers=headers
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {"paths": [], "is_git_repo": False}
-
-
-async def test_git_file_baseline_variants(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(
-        GIT_SHOW_HEAD_TEMPLATE.substitute(spec=shlex.quote("HEAD:./not-a-repo.py")),
-        CommandResult(stdout="", stderr="", exit_code=2),
-    )
-    provider.script(
-        GIT_SHOW_HEAD_TEMPLATE.substitute(spec=shlex.quote("HEAD:./new-file.py")),
-        CommandResult(stdout="", stderr="fatal: path not in HEAD", exit_code=128),
-    )
-    provider.script(
-        GIT_SHOW_HEAD_TEMPLATE.substitute(spec=shlex.quote("HEAD:./tracked.py")),
-        CommandResult(stdout="print('baseline')\n", stderr="", exit_code=0),
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    not_repo_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/file-baseline?path=not-a-repo.py",
-        headers=headers,
-    )
-    new_file_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/file-baseline?path=new-file.py",
-        headers=headers,
-    )
-    tracked_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/file-baseline?path=tracked.py",
-        headers=headers,
-    )
-
-    assert not_repo_response.json() == {
-        "path": "not-a-repo.py",
-        "content": "",
-        "is_git_repo": False,
-    }
-    assert new_file_response.json() == {
-        "path": "new-file.py",
-        "content": "",
-        "is_git_repo": True,
-    }
-    assert tracked_response.json() == {
-        "path": "tracked.py",
-        "content": "print('baseline')\n",
-        "is_git_repo": True,
-    }
-
-
-async def test_git_file_baseline_rejects_invalid_path(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/file-baseline?path=-rf",
-        headers=headers,
-    )
-
-    assert response.status_code == 400
-
-
-async def test_git_branches_not_a_repo_and_malformed_output(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(
-        "git for-each-ref", CommandResult(stdout="", stderr="", exit_code=2)
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    not_repo_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/branches", headers=headers
-    )
-
-    assert not_repo_response.json() == {
-        "branches": [],
-        "current_branch": "",
-        "is_git_repo": False,
-    }
-
-    other_provider = install_scripted_provider(monkeypatch)
-    other_provider.script(
-        "git for-each-ref", CommandResult(stdout="main\n", stderr="", exit_code=0)
-    )
-    other_headers, _other_user, other_workspace = await create_authenticated_workspace(
-        db_session,
-        create_user,
-        login,
-        email="branches-malformed@example.com",
-        username="branchesmalformed",
-    )
-
-    malformed_response = await client.get(
-        f"/api/v1/sandbox/{other_workspace.sandbox_id}/git/branches",
-        headers=other_headers,
-    )
-
-    assert malformed_response.status_code == 400
-    assert malformed_response.json()["detail"] == "Failed to parse git branches output"
-
-
-async def test_git_checkout_remote_fallback_success(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    branch = "feature-remote"
-    provider.script(
-        GIT_CHECKOUT_TEMPLATE.substitute(branch=branch),
-        CommandResult(stdout="", stderr="error: pathspec", exit_code=1),
-    )
-    provider.script(
-        GIT_LOCAL_BRANCH_EXISTS_TEMPLATE.substitute(branch=branch),
-        CommandResult(stdout="", stderr="", exit_code=1),
-    )
-    provider.script(
-        GIT_CHECKOUT_FROM_REMOTE_TEMPLATE.substitute(branch=branch),
-        CommandResult(stdout="", stderr="", exit_code=0),
-    )
-    provider.script(
-        GIT_CURRENT_BRANCH_CMD,
-        CommandResult(stdout=f"{branch}\n", stderr="", exit_code=0),
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/checkout",
-        json={"branch": branch},
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "success": True,
-        "current_branch": branch,
-        "error": None,
-    }
-
-
-async def test_git_checkout_fails_when_both_attempts_fail(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    branch = "feature-missing"
-    provider.script(
-        GIT_CHECKOUT_TEMPLATE.substitute(branch=branch),
-        CommandResult(stdout="local fail\n", stderr="", exit_code=1),
-    )
-    provider.script(
-        GIT_LOCAL_BRANCH_EXISTS_TEMPLATE.substitute(branch=branch),
-        CommandResult(stdout="", stderr="", exit_code=1),
-    )
-    provider.script(
-        GIT_CHECKOUT_FROM_REMOTE_TEMPLATE.substitute(branch=branch),
-        CommandResult(stdout="remote fail\n", stderr="", exit_code=1),
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/checkout",
-        json={"branch": branch},
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "success": False,
-        "current_branch": "",
-        "error": "remote fail",
-    }
-
-
-async def test_git_checkout_reverts_detached_head(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    branch = "v1.0.0"
-    provider.script(
-        GIT_CHECKOUT_TEMPLATE.substitute(branch=branch),
-        CommandResult(stdout="", stderr="", exit_code=0),
-    )
-    provider.script(
-        GIT_CURRENT_BRANCH_CMD, CommandResult(stdout="HEAD\n", stderr="", exit_code=0)
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/checkout",
-        json={"branch": branch},
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "success": False,
-        "current_branch": "",
-        "error": "Cannot checkout: would result in detached HEAD",
-    }
-    assert any(
-        "git checkout - 2>/dev/null" in command
-        for _sid, command, _envs in provider.commands
-    )
-
-
-async def test_git_checkout_rejects_invalid_branch_name(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/checkout",
-        json={"branch": "-bad"},
-        headers=headers,
-    )
-
-    assert response.status_code == 400
-
-
-async def test_git_create_branch_remote_fallback_success(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    name = "new-feature"
-    base_branch = "develop"
-    primary_base = f" '{base_branch}'"
-    provider.script(
-        f"git checkout -b '{name}'{primary_base} 2>&1",
-        CommandResult(stdout="fatal\n", stderr="", exit_code=1),
-    )
-    provider.script(
-        GIT_CREATE_BRANCH_FROM_REMOTE_TEMPLATE.substitute(name=name, base=base_branch),
-        CommandResult(stdout="", stderr="", exit_code=0),
-    )
-    provider.script(
-        GIT_CURRENT_BRANCH_CMD,
-        CommandResult(stdout=f"{name}\n", stderr="", exit_code=0),
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/create-branch",
-        json={"name": name, "base_branch": base_branch},
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {"success": True, "current_branch": name, "error": None}
-
-
-async def test_git_create_branch_rejects_invalid_names(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    invalid_name_response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/create-branch",
-        json={"name": "bad name"},
-        headers=headers,
-    )
-    invalid_base_response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/create-branch",
-        json={"name": "ok-name", "base_branch": "bad base"},
-        headers=headers,
-    )
-
-    assert invalid_name_response.status_code == 400
-    assert invalid_base_response.status_code == 400
-
-
-async def test_git_create_branch_fails_without_base_branch(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # No base_branch means create_branch never attempts the remote-fallback
-    # retry, so a failed primary checkout must surface directly.
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(
-        "git checkout -b 'taken' 2>&1",
-        CommandResult(
-            stdout="fatal: A branch named 'taken' already exists\n",
-            stderr="",
-            exit_code=1,
-        ),
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/create-branch",
-        json={"name": "taken"},
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {
-        "success": False,
-        "current_branch": "",
-        "error": "fatal: A branch named 'taken' already exists",
-    }
-
-
-async def test_git_push_and_pull_endpoints(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(
-        f"{GIT_PUSH_CMD} 2>&1",
-        CommandResult(stdout="", stderr="fatal: no upstream", exit_code=1),
-    )
-    provider.script(
-        f"{GIT_PULL_CMD} 2>&1",
-        CommandResult(stdout="Already up to date.\n", stderr="", exit_code=0),
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    push_response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/push", headers=headers
-    )
-    pull_response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/pull", headers=headers
-    )
-
-    assert push_response.status_code == 200
-    assert push_response.json() == {
-        "success": False,
-        "output": "",
-        "error": "fatal: no upstream",
-    }
-    assert pull_response.status_code == 200
-    assert pull_response.json() == {
-        "success": True,
-        "output": "Already up to date.",
-        "error": None,
-    }
-
-
-async def test_git_restore_all_endpoint(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(RESTORE_ALL_CMD, CommandResult(stdout="", stderr="", exit_code=0))
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/restore-all", headers=headers
-    )
-
-    assert response.status_code == 200
-    assert response.json() == {"success": True, "output": "", "error": None}
-
-
-async def test_git_restore_file_without_rename(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    # No old_path means this is a plain restore (not a rename), which takes
-    # the RESTORE_FILE_TEMPLATE branch rather than RESTORE_RENAME_TEMPLATE.
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/restore-file",
-        json={"file_path": "app.py"},
-        headers=headers,
-    )
-
-    assert response.status_code == 200
-    assert response.json()["success"] is True
-
-
-async def test_git_restore_file_rejects_invalid_paths(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    invalid_file_path_response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/restore-file",
-        json={"file_path": "../escape.py"},
-        headers=headers,
-    )
-    invalid_old_path_response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/restore-file",
-        json={"file_path": "ok.py", "old_path": "-bad"},
-        headers=headers,
-    )
-
-    assert invalid_file_path_response.status_code == 400
-    assert invalid_old_path_response.status_code == 400
-
-
-async def test_git_remote_url_error_paths(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(
-        "git remote get-url origin", CommandResult(stdout="", stderr="", exit_code=1)
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    no_remote_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/remote-url", headers=headers
-    )
-
-    assert no_remote_response.status_code == 400
-    assert no_remote_response.json()["detail"] == "No git remote origin found"
-
-    other_provider = install_scripted_provider(monkeypatch)
-    other_provider.script(
-        "git remote get-url origin",
-        CommandResult(stdout="git@gitlab.com:foo/bar.git\n", stderr="", exit_code=0),
-    )
-    other_headers, _other_user, other_workspace = await create_authenticated_workspace(
-        db_session,
-        create_user,
-        login,
-        email="non-github-remote@example.com",
-        username="nongithubremote",
-    )
-
-    non_github_response = await client.get(
-        f"/api/v1/sandbox/{other_workspace.sandbox_id}/git/remote-url",
-        headers=other_headers,
-    )
-
-    assert non_github_response.status_code == 400
-    assert "GitHub" in non_github_response.json()["detail"]
-
-
-async def test_git_endpoints_reject_invalid_cwd(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
-) -> None:
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-    sandbox_id = workspace.sandbox_id
-    bad_cwd = "../escape"
-
-    responses = [
-        await client.get(
-            f"/api/v1/sandbox/{sandbox_id}/git/diff?cwd={bad_cwd}", headers=headers
-        ),
-        await client.get(
-            f"/api/v1/sandbox/{sandbox_id}/git/changed-paths?cwd={bad_cwd}",
-            headers=headers,
-        ),
-        await client.get(
-            f"/api/v1/sandbox/{sandbox_id}/git/file-baseline?path=a.py&cwd={bad_cwd}",
-            headers=headers,
-        ),
-        await client.get(
-            f"/api/v1/sandbox/{sandbox_id}/git/branches?cwd={bad_cwd}", headers=headers
-        ),
-        await client.post(
-            f"/api/v1/sandbox/{sandbox_id}/git/checkout",
-            json={"branch": "main", "cwd": "../escape"},
-            headers=headers,
-        ),
-        await client.post(
-            f"/api/v1/sandbox/{sandbox_id}/git/commit",
-            json={"message": "msg", "cwd": "../escape"},
-            headers=headers,
-        ),
-        await client.post(
-            f"/api/v1/sandbox/{sandbox_id}/git/push?cwd={bad_cwd}", headers=headers
-        ),
-        await client.post(
-            f"/api/v1/sandbox/{sandbox_id}/git/pull?cwd={bad_cwd}", headers=headers
-        ),
-        await client.post(
-            f"/api/v1/sandbox/{sandbox_id}/git/restore-all?cwd={bad_cwd}",
-            headers=headers,
-        ),
-        await client.post(
-            f"/api/v1/sandbox/{sandbox_id}/git/create-branch",
-            json={"name": "main", "cwd": "../escape"},
-            headers=headers,
-        ),
-        await client.get(
-            f"/api/v1/sandbox/{sandbox_id}/git/remote-url?cwd={bad_cwd}",
-            headers=headers,
-        ),
-        await client.get(
-            f"/api/v1/sandbox/{sandbox_id}/search?q=x&cwd={bad_cwd}", headers=headers
-        ),
-    ]
-
-    assert all(response.status_code == 400 for response in responses)
-
-
-async def test_search_provider_failure_returns_400(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.script(
-        "rg --json",
-        CommandResult(stdout="", stderr="regex parse error", exit_code=2),
-    )
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
-    )
-
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/search?q=needle", headers=headers
-    )
-
-    assert response.status_code == 400
-    assert "regex parse error" in response.json()["detail"]
-
-
-async def test_host_provider_serves_real_files_from_disk(
-    tmp_path: Path,
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-) -> None:
-    # Real LocalHostProvider on tmp disk (walk fallback, skip dirs, symlink guard).
-    workspace_dir = tmp_path / "workspace"
-    workspace_dir.mkdir()
-    (workspace_dir / "README.md").write_text("real readme")
-    (workspace_dir / "src").mkdir()
-    (workspace_dir / "src" / "app.py").write_text("print('hi')")
-    node_modules = workspace_dir / "node_modules" / "pkg"
-    node_modules.mkdir(parents=True)
-    (node_modules / "index.js").write_text("module.exports = {}")
-    outside_file = tmp_path / "outside.txt"
-    outside_file.write_text("secret")
-    (workspace_dir / "escape-link").symlink_to(outside_file)
-    (workspace_dir / "logo.zip").write_bytes(b"PK\x03\x04binarydata")
-
-    headers, workspace = await create_host_workspace(
-        db_session, create_user, login, workspace_dir
-    )
-
-    metadata_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata", headers=headers
-    )
-    content_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/content/README.md",
-        headers=headers,
-    )
-    binary_content_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/content/logo.zip",
-        headers=headers,
-    )
-    write_response = await client.put(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files",
-        json={"file_path": "src/nested/new.py", "content": "print('new')"},
-        headers=headers,
-    )
-    escape_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/content/escape-link",
-        headers=headers,
-    )
-    missing_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/content/does-not-exist.py",
-        headers=headers,
-    )
-
-    assert metadata_response.status_code == 200
-    paths = {f["path"] for f in metadata_response.json()["files"]}
-    assert "README.md" in paths
-    assert "src/app.py" in paths
-    assert not any(p.startswith("node_modules") for p in paths)
-    assert content_response.status_code == 200
-    assert content_response.json()["content"] == "real readme"
-    assert binary_content_response.status_code == 200
-    binary_body = binary_content_response.json()
-    assert binary_body["is_binary"] is True
-    assert base64.b64decode(binary_body["content"]) == b"PK\x03\x04binarydata"
-    assert write_response.status_code == 200
-    assert (workspace_dir / "src" / "nested" / "new.py").read_text() == "print('new')"
-    assert escape_response.status_code == 404
-    assert missing_response.status_code == 404
-
-
-async def test_host_provider_runs_real_git_commands(
-    tmp_path: Path,
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-) -> None:
-    # Runs real `git`/`bash` subprocesses via LocalHostProvider.execute_command
-    # against a real repo in a temp dir — no fakes involved.
-    workspace_dir = tmp_path / "git-workspace"
-    workspace_dir.mkdir()
-    subprocess.run(
-        ["git", "-c", "init.defaultBranch=main", "init", "-q"],
-        cwd=workspace_dir,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "test@example.com"],
-        cwd=workspace_dir,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Test"], cwd=workspace_dir, check=True
-    )
-    (workspace_dir / "app.py").write_text("print('v1')\n")
-    # Nested tracked files exercise parent-dir synthesis + seen_dirs dedup.
-    (workspace_dir / "src").mkdir()
-    (workspace_dir / "src" / "nested.py").write_text("print('nested')\n")
-    (workspace_dir / "src" / "other.py").write_text("print('other')\n")
-    subprocess.run(["git", "add", "."], cwd=workspace_dir, check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "initial"], cwd=workspace_dir, check=True
-    )
-    (workspace_dir / "app.py").write_text("print('v2')\n")
-
-    headers, workspace = await create_host_workspace(
-        db_session,
-        create_user,
-        login,
-        workspace_dir,
-        email="hostgit@example.com",
-        username="hostgit",
-    )
-
-    # Seed custom env via DB (not PATCH — Redis invalidation not wired here).
-    user_settings = await get_user_settings(db_session, workspace.user_id)
-    assert user_settings is not None
-    user_settings.custom_env_vars = [{"key": "MY_VAR", "value": "hello"}]
-    flag_modified(user_settings, "custom_env_vars")
-    await db_session.commit()
-
-    branches_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/branches", headers=headers
-    )
-    diff_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff", headers=headers
-    )
-    remote_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/remote-url", headers=headers
-    )
-    commit_response = await client.post(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/commit",
-        json={"message": "v2"},
-        headers=headers,
-    )
-    # Clean tree → list_files uses git ls-files, not os.walk fallback.
-    metadata_response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/files/metadata", headers=headers
-    )
-
-    assert branches_response.status_code == 200
-    assert branches_response.json()["current_branch"] == "main"
-    assert branches_response.json()["is_git_repo"] is True
-    assert diff_response.status_code == 200
-    assert diff_response.json()["is_git_repo"] is True
-    assert "print('v2')" in diff_response.json()["diff"]
-    assert remote_response.status_code == 400
-    assert remote_response.json()["detail"] == "No git remote origin found"
-    assert commit_response.status_code == 200
-    assert commit_response.json()["success"] is True
-    assert metadata_response.status_code == 200
-    metadata_files = metadata_response.json()["files"]
-    assert {"path": "app.py", "type": "file", "is_binary": False} in metadata_files
-    assert {"path": "src", "type": "directory", "is_binary": False} in metadata_files
-    assert {
-        "path": "src/nested.py",
-        "type": "file",
-        "is_binary": False,
-    } in metadata_files
-
-
 async def test_git_diff_unborn_head_emits_each_file_once(
-    tmp_path: Path,
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
-    # No commits: "all" diffs empty tree (old fallback double-emitted paths).
-    workspace_dir = tmp_path / "unborn-workspace"
-    workspace_dir.mkdir()
-    subprocess.run(
-        ["git", "-c", "init.defaultBranch=main", "init", "-q"],
-        cwd=workspace_dir,
-        check=True,
-    )
-    (workspace_dir / "app.py").write_text("print('v1')\n")
-    subprocess.run(["git", "add", "."], cwd=workspace_dir, check=True)
-    (workspace_dir / "app.py").write_text("print('v1')\nprint('v2')\n")
-    (workspace_dir / "notes.txt").write_text("untracked\n")
+    # The old unborn-HEAD fallback double-emitted staged-then-modified paths.
+    repo = init_repo(tmp_path / "repo")
+    write_files(repo, {"app.py": "print('v1')\n"})
+    git(repo, "add", ".")
+    write_files(repo, {"app.py": "print('v1')\nprint('v2')\n", "notes.txt": "u\n"})
+    api = await open_host_sandbox(repo)
 
-    headers, workspace = await create_host_workspace(
-        db_session,
-        create_user,
-        login,
-        workspace_dir,
-        email="unborn@example.com",
-        username="unborn",
-    )
+    body = (await api.get("git/diff")).json()
 
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff", headers=headers
-    )
-
-    assert response.status_code == 200
-    body = response.json()
     assert body["is_git_repo"] is True
     assert body["has_changes"] is True
-    diff = body["diff"]
-    # One section per file: the staged-then-modified file exactly once, with
-    # combined worktree content, plus the untracked file.
-    assert diff.count("diff --git a/app.py b/app.py") == 1
-    assert "print('v2')" in diff
-    assert "diff --git a/notes.txt b/notes.txt" in diff
-    assert diff.count("diff --git") == 2
+    assert body["diff"].count("diff --git a/app.py b/app.py") == 1
+    assert "print('v2')" in body["diff"]
+    assert "diff --git a/notes.txt b/notes.txt" in body["diff"]
+    assert body["diff"].count("diff --git") == 2
 
 
 async def test_git_diff_stats_counts_uncommitted_and_branch(
-    tmp_path: Path,
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
-    workspace_dir = tmp_path / "diff-stats-workspace"
-    workspace_dir.mkdir()
-    subprocess.run(
-        ["git", "-c", "init.defaultBranch=main", "init", "-q"],
-        cwd=workspace_dir,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.email", "diffstats@example.com"],
-        cwd=workspace_dir,
-        check=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "Diff Stats"], cwd=workspace_dir, check=True
-    )
-    (workspace_dir / "app.py").write_text("a\nb\nc\n")
-    subprocess.run(["git", "add", "."], cwd=workspace_dir, check=True)
-    subprocess.run(
-        ["git", "commit", "-q", "-m", "initial"], cwd=workspace_dir, check=True
-    )
-    subprocess.run(
-        ["git", "checkout", "-q", "-b", "feature"], cwd=workspace_dir, check=True
-    )
-    (workspace_dir / "app.py").write_text("a\nB\nc\nd\n")
-    subprocess.run(["git", "commit", "-qam", "feature"], cwd=workspace_dir, check=True)
-    (workspace_dir / "app.py").write_text("a\nB\nc\nd\ne\n")
-    (workspace_dir / "notes.txt").write_text("x\ny\n")
-    (workspace_dir / "logo.bin").write_bytes(b"\x00\x01\x02")
+    repo = init_repo(tmp_path / "repo", {"app.py": "a\nb\nc\n"})
+    git(repo, "checkout", "-q", "-b", "feature")
+    write_files(repo, {"app.py": "a\nB\nc\nd\n"})
+    commit_all(repo, "feature")
+    write_files(repo, {"app.py": "a\nB\nc\nd\ne\n", "notes.txt": "x\ny\n"})
+    (repo / "logo.bin").write_bytes(b"\x00\x01\x02")
+    api = await open_host_sandbox(repo)
 
-    headers, workspace = await create_host_workspace(
-        db_session,
-        create_user,
-        login,
-        workspace_dir,
-        email="diffstats@example.com",
-        username="diffstats",
-    )
+    response = await api.get("git/diff-stats")
 
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff-stats", headers=headers
-    )
-
-    assert response.status_code == 200
     assert response.json() == {
         "uncommitted": {"additions": 3, "deletions": 0, "files_changed": 3},
         "branch": {"additions": 2, "deletions": 1, "files_changed": 1},
         "is_git_repo": True,
-        "head_sha": subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            cwd=workspace_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip(),
+        "head_sha": rev(repo),
     }
-    status = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=workspace_dir,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    assert "?? notes.txt" in status.splitlines()
-    assert "?? logo.bin" in status.splitlines()
-    assert (
-        subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            cwd=workspace_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-        == ""
-    )
+    status = git(repo, "status", "--porcelain").splitlines()
+    assert "?? notes.txt" in status
+    assert "?? logo.bin" in status
+    assert git(repo, "diff", "--cached", "--name-only") == ""
 
 
 async def test_git_diff_stats_unborn_head(
-    tmp_path: Path,
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
-    workspace_dir = tmp_path / "diff-stats-unborn-workspace"
-    workspace_dir.mkdir()
-    subprocess.run(
-        ["git", "-c", "init.defaultBranch=main", "init", "-q"],
-        cwd=workspace_dir,
-        check=True,
-    )
-    (workspace_dir / "app.py").write_text("a\nb\n")
-    subprocess.run(["git", "add", "app.py"], cwd=workspace_dir, check=True)
-    (workspace_dir / "notes.txt").write_text("x\n")
+    repo = init_repo(tmp_path / "repo")
+    write_files(repo, {"app.py": "a\nb\n"})
+    git(repo, "add", "app.py")
+    write_files(repo, {"notes.txt": "x\n"})
+    api = await open_host_sandbox(repo)
 
-    headers, workspace = await create_host_workspace(
-        db_session,
-        create_user,
-        login,
-        workspace_dir,
-        email="diffstatsunborn@example.com",
-        username="diffstatsunborn",
-    )
+    response = await api.get("git/diff-stats")
 
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff-stats", headers=headers
-    )
-
-    assert response.status_code == 200
     assert response.json() == {
         "uncommitted": {"additions": 3, "deletions": 0, "files_changed": 2},
         "branch": {"additions": 0, "deletions": 0, "files_changed": 0},
         "is_git_repo": True,
         "head_sha": None,
     }
-    assert (
-        subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
-            cwd=workspace_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
-        == "app.py"
+    assert git(repo, "diff", "--cached", "--name-only").strip() == "app.py"
+    assert "?? notes.txt" in git(repo, "status", "--porcelain").splitlines()
+
+
+async def test_git_changed_paths_are_relative_to_cwd(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    repo = init_repo(
+        tmp_path / "repo", {"packages/api/app.py": "v1\n", "other/file.py": "x\n"}
     )
-    status = subprocess.run(
-        ["git", "status", "--porcelain"],
-        cwd=workspace_dir,
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout
-    assert "?? notes.txt" in status.splitlines()
+    write_files(
+        repo,
+        {
+            "packages/api/app.py": "v2\n",
+            "packages/api/new dir/with space.py": "new\n",
+            "other/new.py": "new\n",
+        },
+    )
+    api = await open_host_sandbox(repo)
+
+    root = (await api.get("git/changed-paths")).json()
+    scoped = (await api.get("git/changed-paths", cwd="packages/api")).json()
+
+    assert sorted(root["paths"]) == [
+        "other/new.py",
+        "packages/api/app.py",
+        "packages/api/new dir/with space.py",
+    ]
+    assert sorted(scoped["paths"]) == ["app.py", "new dir/with space.py"]
+    assert scoped["is_git_repo"] is True
 
 
-async def test_git_endpoint_injects_github_token_env(
-    client: AsyncClient,
+async def test_git_file_baseline_returns_head_content(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"src/app.py": "committed\n"})
+    write_files(repo, {"src/app.py": "working\n", "src/new.py": "new\n"})
+    api = await open_host_sandbox(repo)
+
+    tracked = await api.get("git/file-baseline", path="src/app.py")
+    cwd_relative = await api.get("git/file-baseline", path="app.py", cwd="src")
+    new_file = await api.get("git/file-baseline", path="src/new.py")
+    option_like = await api.get("git/file-baseline", path="-rf")
+    traversal = await api.get("git/file-baseline", path="../secret")
+
+    assert tracked.json() == {
+        "path": "src/app.py",
+        "content": "committed\n",
+        "is_git_repo": True,
+    }
+    assert cwd_relative.json()["content"] == "committed\n"
+    assert new_file.json() == {"path": "src/new.py", "content": "", "is_git_repo": True}
+    assert option_like.status_code == 400
+    assert traversal.status_code == 400
+
+
+async def test_git_branches_and_checkout_of_local_and_remote_only_branches(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    workspace, _origin = clone_with_origin(tmp_path)
+    git(workspace, "branch", "feature")
+    # Disable git's DWIM so the remote-tracking fallback has to do the work.
+    git(workspace, "config", "checkout.guess", "false")
+    api = await open_host_sandbox(workspace)
+
+    branches = await api.get("git/branches")
+    local = await api.post("git/checkout", json={"branch": "feature"})
+    remote = await api.post("git/checkout", json={"branch": "release"})
+
+    assert branches.json() == {
+        "branches": ["feature", "main", "release"],
+        "current_branch": "main",
+        "is_git_repo": True,
+    }
+    assert local.json() == {"success": True, "current_branch": "feature", "error": None}
+    assert remote.json() == {
+        "success": True,
+        "current_branch": "release",
+        "error": None,
+    }
+    assert rev(workspace) == rev(workspace, "origin/release")
+
+
+async def test_git_checkout_failures_keep_current_branch(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    workspace, _origin = clone_with_origin(tmp_path)
+    api = await open_host_sandbox(workspace)
+
+    missing = await api.post("git/checkout", json={"branch": "nope"})
+    tag = await api.post("git/checkout", json={"branch": "v1.0.0"})
+    option_like = await api.post("git/checkout", json={"branch": "-bad"})
+
+    assert missing.json()["success"] is False
+    assert missing.json()["error"]
+    assert tag.json() == {
+        "success": False,
+        "current_branch": "",
+        "error": "Cannot checkout: would result in detached HEAD",
+    }
+    assert option_like.status_code == 400
+    assert git(workspace, "symbolic-ref", "--short", "HEAD").strip() == "main"
+    assert "nope" not in git(workspace, "branch", "--list", "nope")
+
+
+async def test_git_create_branch_from_head_and_remote_only_base(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    workspace, _origin = clone_with_origin(tmp_path)
+    api = await open_host_sandbox(workspace)
+
+    from_head = await api.post("git/create-branch", json={"name": "from-head"})
+    from_remote = await api.post(
+        "git/create-branch", json={"name": "from-release", "base_branch": "release"}
+    )
+    duplicate = await api.post("git/create-branch", json={"name": "from-head"})
+    bad_name = await api.post("git/create-branch", json={"name": "bad name"})
+    bad_base = await api.post(
+        "git/create-branch", json={"name": "ok-name", "base_branch": "bad base"}
+    )
+
+    assert from_head.json() == {
+        "success": True,
+        "current_branch": "from-head",
+        "error": None,
+    }
+    assert from_remote.json() == {
+        "success": True,
+        "current_branch": "from-release",
+        "error": None,
+    }
+    assert rev(workspace) == rev(workspace, "origin/release")
+    assert duplicate.json()["success"] is False
+    assert "already exists" in duplicate.json()["error"]
+    assert bad_name.status_code == 400
+    assert bad_base.status_code == 400
+
+
+async def test_git_commit_push_and_pull_against_real_remote(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    workspace, origin = clone_with_origin(tmp_path)
+    api = await open_host_sandbox(workspace)
+    message = "fix: it's `touch pwned-backtick` $(touch pwned-subshell)"
+    write_files(workspace, {"app.py": "v2\n"})
+
+    commit = await api.post("git/commit", json={"message": message})
+    nothing_to_commit = await api.post("git/commit", json={"message": "empty"})
+    push = await api.post("git/push")
+    pull = await api.post("git/pull")
+
+    assert commit.json()["success"] is True
+    assert git(workspace, "log", "-1", "--format=%s").strip() == message
+    assert list(workspace.glob("pwned-*")) == []
+    assert nothing_to_commit.json()["success"] is False
+    assert push.json()["success"] is True
+    assert rev(origin, "main") == rev(workspace)
+    assert pull.json() == {
+        "success": True,
+        "output": "Already up to date.",
+        "error": None,
+    }
+
+    other = tmp_path / "other"
+    git(tmp_path, "clone", "-q", str(origin), str(other))
+    configure_identity(other)
+    write_files(other, {"other.txt": "x\n"})
+    commit_all(other, "concurrent")
+    git(other, "push", "-q")
+    write_files(workspace, {"app.py": "v3\n"})
+    await api.post("git/commit", json={"message": "local"})
+
+    rejected = await api.post("git/push")
+
+    assert rejected.json()["success"] is False
+    assert "rejected" in rejected.json()["error"]
+
+
+async def test_git_commands_receive_custom_env_and_github_askpass(
+    tmp_path: Path,
     db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    fake_provider: FakeSandboxProvider,
+    open_host_sandbox: OpenHostSandbox,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # PAT + server mode injects GITHUB_TOKEN/GIT_ASKPASS into provider env.
     monkeypatch.setattr(get_settings(), "DESKTOP_MODE", False)
-    headers, user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    hook = repo / ".git" / "hooks" / "pre-commit"
+    hook.write_text(
+        '#!/bin/sh\necho "var=$MY_VAR askpass=$("$GIT_ASKPASS" Password)"\n'
     )
-    user_settings = await get_user_settings(db_session, user.id)
+    hook.chmod(0o755)
+    api = await open_host_sandbox(repo)
+    user_settings = await get_user_settings(db_session, api.user_id)
     assert user_settings is not None
+    user_settings.custom_env_vars = [{"key": "MY_VAR", "value": "hello"}]
+    flag_modified(user_settings, "custom_env_vars")
     user_settings.github_personal_access_token = "ghp_test_token"
     await db_session.commit()
+    write_files(repo, {"app.py": "v2\n"})
 
-    # git/branches deliberately bypasses env injection (see GitService.get_branches),
-    # so use git/diff instead, which routes through SandboxService.execute_command.
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/git/diff", headers=headers
-    )
+    response = await api.post("git/commit", json={"message": "with env"})
 
-    assert response.status_code == 200
-    envs_used = [envs for _sid, _cmd, envs in fake_provider.commands if envs]
-    assert envs_used
-    assert envs_used[0]["GITHUB_TOKEN"] == "ghp_test_token"
-    assert "GIT_ASKPASS" in envs_used[0]
+    assert response.json()["success"] is True
+    assert "var=hello askpass=ghp_test_token" in response.json()["output"]
 
 
-async def test_download_zip_includes_binary_files(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_git_restore_all_discards_changes_but_keeps_ignored_files(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
+    repo = init_repo(
+        tmp_path / "repo",
+        {".gitignore": ".env\n", "app.py": "v1\n", "src/lib.py": "lib\n"},
     )
-    # Force is_binary=True (write_file always stores False on the fake).
-    provider.files["logo.zip"] = FileContent(
-        path="logo.zip",
-        content=base64.b64encode(b"binary-bytes").decode(),
-        type="file",
-        is_binary=True,
-    )
+    write_files(repo, {"app.py": "v2\n", "staged.py": "s\n", "scratch/tmp.txt": "t\n"})
+    write_files(repo, {".env": "SECRET=1\n"})
+    (repo / "src" / "lib.py").unlink()
+    git(repo, "add", "staged.py")
+    api = await open_host_sandbox(repo)
 
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/download-zip", headers=headers
-    )
+    response = await api.post("git/restore-all", cwd="src")
 
-    assert response.status_code == 200
-    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-        assert archive.read("logo.zip") == b"binary-bytes"
+    assert response.json()["success"] is True
+    assert (repo / "app.py").read_text() == "v1\n"
+    assert (repo / "src" / "lib.py").read_text() == "lib\n"
+    assert not (repo / "staged.py").exists()
+    assert not (repo / "scratch").exists()
+    assert (repo / ".env").read_text() == "SECRET=1\n"
+    assert git(repo, "status", "--porcelain") == ""
 
 
-async def test_download_zip_skips_files_that_fail_to_read(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    monkeypatch: pytest.MonkeyPatch,
+async def test_git_restore_file_handles_modified_new_and_renamed_files(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
-    provider = install_scripted_provider(monkeypatch)
-    provider.read_file_error = SandboxException("read failed")
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session, create_user, login
+    repo = init_repo(
+        tmp_path / "repo",
+        {"app.py": "v1\n", "old.py": "old\n", "src/keep.py": "keep\n"},
+    )
+    write_files(
+        repo,
+        {"app.py": "v2\n", "new.py": "n\n", "staged.py": "s\n", "src/keep.py": "x\n"},
+    )
+    git(repo, "add", "staged.py")
+    git(repo, "mv", "old.py", "renamed.py")
+    api = await open_host_sandbox(repo)
+
+    responses = [
+        await api.post("git/restore-file", json={"file_path": "app.py"}),
+        await api.post("git/restore-file", json={"file_path": "new.py"}),
+        await api.post("git/restore-file", json={"file_path": "staged.py"}),
+        await api.post(
+            "git/restore-file", json={"file_path": "renamed.py", "old_path": "old.py"}
+        ),
+        await api.post(
+            "git/restore-file", json={"file_path": "src/keep.py", "cwd": "src"}
+        ),
+    ]
+    invalid = [
+        await api.post("git/restore-file", json={"file_path": "../escape.py"}),
+        await api.post("git/restore-file", json={"file_path": "/etc/passwd"}),
+        await api.post(
+            "git/restore-file", json={"file_path": "ok.py", "old_path": "-bad"}
+        ),
+    ]
+
+    assert [r.json()["success"] for r in responses] == [True] * 5
+    assert (repo / "app.py").read_text() == "v1\n"
+    assert (repo / "old.py").read_text() == "old\n"
+    assert (repo / "src" / "keep.py").read_text() == "keep\n"
+    assert not (repo / "new.py").exists()
+    assert not (repo / "staged.py").exists()
+    assert not (repo / "renamed.py").exists()
+    assert git(repo, "status", "--porcelain") == ""
+    assert [r.status_code for r in invalid] == [400, 400, 400]
+
+
+@pytest.mark.parametrize(
+    ("remote", "status_code", "body"),
+    [
+        (
+            "https://github.com/agentrove/app.git",
+            200,
+            {
+                "remote_url": "https://github.com/agentrove/app.git",
+                "owner": "agentrove",
+                "repo": "app",
+            },
+        ),
+        (
+            "git@github.com:agentrove/app",
+            200,
+            {
+                "remote_url": "git@github.com:agentrove/app",
+                "owner": "agentrove",
+                "repo": "app",
+            },
+        ),
+        (
+            "https://gitlab.com/foo/bar.git",
+            400,
+            {
+                "detail": "No GitHub remote detected — only github.com remotes "
+                "are supported"
+            },
+        ),
+        (None, 400, {"detail": "No git remote origin found"}),
+    ],
+)
+async def test_git_remote_url_parses_github_remotes(
+    tmp_path: Path,
+    open_host_sandbox: OpenHostSandbox,
+    remote: str | None,
+    status_code: int,
+    body: dict[str, str],
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    if remote:
+        git(repo, "remote", "add", "origin", remote)
+    api = await open_host_sandbox(repo)
+
+    response = await api.get("git/remote-url")
+
+    assert response.status_code == status_code
+    assert {k: response.json()[k] for k in body} == body
+
+
+async def test_git_fetch_base_fetches_default_branch_then_throttles(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    workspace, origin = clone_with_origin(tmp_path)
+    upstream = tmp_path / "upstream"
+    git(tmp_path, "clone", "-q", str(origin), str(upstream))
+    configure_identity(upstream)
+    write_files(upstream, {"upstream.txt": "new\n"})
+    commit_all(upstream, "upstream change")
+    git(upstream, "push", "-q")
+    api = await open_host_sandbox(workspace)
+
+    first = await api.post("git/fetch-base")
+    second = await api.post("git/fetch-base")
+
+    assert first.json() == {"fetched": True}
+    assert rev(workspace, "origin/main") == rev(upstream)
+    assert second.json() == {"fetched": False}
+
+
+async def test_create_worktree_from_local_and_remote_only_base(
+    tmp_path: Path,
+) -> None:
+    workspace, _origin = clone_with_origin(tmp_path)
+    git(workspace, "branch", "feature/api-keys")
+    service = host_git_service(workspace)
+
+    local_cwd = await service.create_worktree(
+        "sandbox-1",
+        "",
+        "aaaaaaaa-0000-0000-0000-000000000000",
+        base_ref="feature/api-keys",
+    )
+    remote_cwd = await service.create_worktree(
+        "sandbox-1", "", "bbbbbbbb-0000-0000-0000-000000000000", base_ref="release"
+    )
+    repeated_cwd = await service.create_worktree(
+        "sandbox-1",
+        "",
+        "aaaaaaaa-0000-0000-0000-000000000000",
+        base_ref="feature/api-keys",
     )
 
-    response = await client.get(
-        f"/api/v1/sandbox/{workspace.sandbox_id}/download-zip", headers=headers
+    assert local_cwd == repeated_cwd == ".worktrees/aaaaaaaa"
+    assert remote_cwd == ".worktrees/bbbbbbbb"
+    local_tree = workspace / local_cwd
+    remote_tree = workspace / remote_cwd
+    assert git(local_tree, "branch", "--show-current").strip() == "worktree-aaaaaaaa"
+    assert rev(local_tree) == rev(workspace, "feature/api-keys")
+    assert rev(remote_tree) == rev(workspace, "origin/release")
+    assert git(workspace, "status", "--porcelain") == ""
+
+
+@pytest.mark.parametrize("base_ref", ["-evil", "a b", "x'y", "a..b", "@{u}", ""])
+async def test_create_worktree_rejects_unsafe_base_ref(
+    tmp_path: Path, base_ref: str
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+
+    with pytest.raises(SandboxException, match="^Invalid base branch name$"):
+        await host_git_service(repo).create_worktree(
+            "sandbox-1", "", "12345678-0000", base_ref=base_ref
+        )
+
+    assert not (repo / ".worktrees").exists()
+
+
+async def test_create_worktree_surfaces_git_failures(tmp_path: Path) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    plain = tmp_path / "plain"
+    plain.mkdir()
+
+    with pytest.raises(SandboxException, match="origin/missing"):
+        await host_git_service(repo).create_worktree(
+            "sandbox-1", "", "12345678-0000", base_ref="missing"
+        )
+    with pytest.raises(
+        SandboxException, match="^Worktree mode requires a git workspace$"
+    ):
+        await host_git_service(plain).create_worktree("sandbox-1", "", "12345678-0000")
+
+
+async def test_remove_worktree_keeps_dirty_worktrees(tmp_path: Path) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    service = host_git_service(repo)
+    clean_cwd = await service.create_worktree("sandbox-1", "", "cccccccc-0000")
+    dirty_cwd = await service.create_worktree("sandbox-1", "", "dddddddd-0000")
+    write_files(repo / dirty_cwd, {"app.py": "unsaved work\n"})
+
+    await service.remove_worktree("sandbox-1", clean_cwd)
+    await service.remove_worktree("sandbox-1", dirty_cwd)
+    await service.remove_worktree("sandbox-1", ".worktrees/missing0")
+
+    assert not (repo / clean_cwd).exists()
+    assert (repo / dirty_cwd / "app.py").read_text() == "unsaved work\n"
+    branches = git(repo, "branch", "--format=%(refname:short)").split()
+    assert "worktree-cccccccc" not in branches
+    assert "worktree-dddddddd" in branches
+
+
+async def test_checkpoint_restore_returns_tree_to_pre_run_state(
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(
+        tmp_path / "repo", {"app.py": "v1\n", "keep.txt": "keep\n", "src/x.py": "x\n"}
+    )
+    base_head = rev(repo)
+    write_files(
+        repo,
+        {"app.py": "v1 dirty\n", "notes.txt": "untracked\n", "src/new.py": "new\n"},
+    )
+    (repo / "logo.png").write_bytes(b"\x89PNG\x00\x01")
+    service = host_git_service(repo)
+
+    checkpoint = await service.create_checkpoint("sandbox-1")
+    assert checkpoint is not None
+    assert checkpoint.base_head == base_head
+    write_files(repo, {"app.py": "agent\n", "agent.py": "agent\n"})
+    (repo / "keep.txt").unlink()
+    commit_all(repo, "agent commit")
+    write_files(repo, {"agent-scratch.txt": "tmp\n"})
+
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        pre_run_diff=checkpoint.pre_run_diff,
     )
 
-    assert response.status_code == 200
-    with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
-        assert archive.namelist() == []
+    assert result.success is True
+    assert rev(repo) == base_head
+    assert (repo / "app.py").read_text() == "v1 dirty\n"
+    assert (repo / "notes.txt").read_text() == "untracked\n"
+    assert (repo / "src" / "new.py").read_text() == "new\n"
+    assert (repo / "logo.png").read_bytes() == b"\x89PNG\x00\x01"
+    assert (repo / "keep.txt").read_text() == "keep\n"
+    assert not (repo / "agent.py").exists()
+    assert not (repo / "agent-scratch.txt").exists()
+    assert list(repo.rglob(".agentrove-checkpoint-*")) == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason="Checkpoint captures untracked files relative to the workspace dir "
+    "but restores (reset/clean/apply) from the repo toplevel, so a workspace "
+    "inside a larger repo loses untracked files outside it and misplaces its own.",
+)
+async def test_checkpoint_restore_in_workspace_below_repo_root(
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"a.py": "a\n", "pkg/x.py": "x\n"})
+    base_head = rev(repo)
+    write_files(repo, {"outside.txt": "keep me\n", "pkg/new.py": "new\n"})
+    service = host_git_service(repo / "pkg")
+
+    checkpoint = await service.create_checkpoint("sandbox-1")
+    assert checkpoint is not None
+    await service.restore_checkpoint_all(
+        "sandbox-1", base_head=base_head, pre_run_diff=checkpoint.pre_run_diff
+    )
+
+    assert (repo / "outside.txt").read_text() == "keep me\n"
+    assert (repo / "pkg" / "new.py").read_text() == "new\n"
+
+
+async def test_checkpoint_edge_cases(tmp_path: Path) -> None:
+    clean_repo = init_repo(tmp_path / "clean", {"app.py": "v1\n"})
+    unborn_repo = init_repo(tmp_path / "unborn")
+    plain = tmp_path / "plain"
+    plain.mkdir()
+
+    service = host_git_service(clean_repo)
+
+    clean = await service.create_checkpoint("sandbox-1")
+    unborn = await host_git_service(unborn_repo).create_checkpoint("sandbox-1")
+    not_repo = await host_git_service(plain).create_checkpoint("sandbox-1")
+    assert clean is not None
+    write_files(clean_repo, {"app.py": "agent\n", "agent.py": "agent\n"})
+    restored = await service.restore_checkpoint_all(
+        "sandbox-1", base_head=clean.base_head, pre_run_diff=clean.pre_run_diff
+    )
+
+    assert clean.base_head == rev(clean_repo)
+    assert clean.pre_run_diff == ""
+    assert restored.success is True
+    assert git(clean_repo, "status", "--porcelain") == ""
+    assert (clean_repo / "app.py").read_text() == "v1\n"
+    assert unborn is None
+    assert not_repo is None
+    with pytest.raises(ValueError, match="Invalid checkpoint commit"):
+        await service.restore_checkpoint_all(
+            "sandbox-1", base_head="HEAD; rm -rf /", pre_run_diff=""
+        )
+
+
+def rg_argv(provider: ScriptedSandboxProvider) -> list[str]:
+    [command] = [c for _sid, c, _envs in provider.commands if "rg " in c]
+    tokens = shlex.split(command)
+    return tokens[tokens.index("rg") :]
+
+
+@pytest.mark.parametrize(
+    ("params", "present", "absent", "globs"),
+    [
+        ({}, {"-F", "-i"}, {"-w"}, []),
+        (
+            {"case_sensitive": "true", "regex": "true", "whole_word": "true"},
+            {"-w"},
+            {"-F", "-i"},
+            [],
+        ),
+        (
+            {"include": "*.py", "exclude": "vendor/*"},
+            set(),
+            set(),
+            ["*.py", "!vendor/*"],
+        ),
+    ],
+)
+async def test_search_maps_options_to_rg_and_passes_query_verbatim(
+    fake_api: SandboxApi,
+    provider: ScriptedSandboxProvider,
+    params: dict[str, str],
+    present: set[str],
+    absent: set[str],
+    globs: list[str],
+) -> None:
+    query = "it's $(touch pwned) needle"
+    provider.script("rg ", CommandResult(stdout="", stderr="", exit_code=1))
+
+    response = await fake_api.get("search", q=query, **params)
+
+    assert response.json() == {"results": [], "truncated": False}
+    argv = rg_argv(provider)
+    assert argv[-3:] == ["--", query, "."]
+    flags = argv[1:-3]
+    assert present <= set(flags)
+    assert not absent & set(flags)
+    assert [flags[i + 1] for i, flag in enumerate(flags) if flag == "-g"] == globs
+
+
+async def test_search_groups_matches_and_reports_character_offsets(
+    fake_api: SandboxApi, provider: ScriptedSandboxProvider
+) -> None:
+    long_line = "x" * 1500 + "needle" + "y" * 1000 + "\n"
+    accented = "héllo needle\n"
+    provider.script(
+        "rg ",
+        rg_result(
+            json.dumps({"type": "begin", "data": {}}),
+            "not json",
+            rg_match("./app.py", 1, "needle = 1\n", 0, 6),
+            rg_match("./app.py", 7, "        return needle\n", 15, 21),
+            rg_match(
+                "./lib/util.py",
+                2,
+                accented,
+                accented.encode().index(b"needle"),
+                accented.encode().index(b"needle") + 6,
+            ),
+            rg_match("./min.js", 1, long_line, 1500, 1506),
+        ),
+    )
+
+    response = await fake_api.get("search", q="needle", cwd="src")
+
+    body = response.json()
+    assert body["truncated"] is False
+    assert [r["path"] for r in body["results"]] == [
+        "src/app.py",
+        "src/lib/util.py",
+        "src/min.js",
+    ]
+    assert [m["line_number"] for m in body["results"][0]["matches"]] == [1, 7]
+    assert body["results"][0]["matches"][1]["line_text"] == "return needle"
+    minified = body["results"][2]["matches"][0]["line_text"]
+    assert minified.startswith("…") and minified.endswith("…")
+    assert len(minified) <= 502
+    for result in body["results"]:
+        for match in result["matches"]:
+            text = match["line_text"]
+            assert text[match["match_start"] : match["match_end"]] == "needle"
+
+
+async def test_search_flags_truncation_per_file_and_in_total() -> None:
+    provider = ScriptedSandboxProvider()
+    provider.script(
+        "rg ",
+        rg_result(
+            rg_match("./a.py", 1, "needle\n", 0, 6),
+            rg_match("./a.py", 2, "needle\n", 0, 6),
+            rg_match("./b.py", 1, "needle\n", 0, 6),
+            rg_match("./c.py", 1, "needle\n", 0, 6),
+        ),
+    )
+    service = SearchService(SandboxService(provider))
+
+    per_file = await service.search(
+        "sandbox-1", "needle", max_file_matches=2, max_total_matches=10
+    )
+    total = await service.search(
+        "sandbox-1", "needle", max_file_matches=5, max_total_matches=3
+    )
+    complete = await service.search(
+        "sandbox-1", "needle", max_file_matches=5, max_total_matches=10
+    )
+
+    assert per_file.truncated is True
+    assert total.truncated is True
+    assert sum(len(r.matches) for r in total.results) == 3
+    assert complete.truncated is False
+    assert [r.path for r in complete.results] == ["a.py", "b.py", "c.py"]
+
+
+@pytest.mark.parametrize(
+    ("stdout", "stderr"), [("", "regex parse error"), ("regex parse error", "")]
+)
+async def test_search_failure_surfaces_rg_error(
+    fake_api: SandboxApi, provider: ScriptedSandboxProvider, stdout: str, stderr: str
+) -> None:
+    # Docker merges stderr into stdout, so either stream may carry the error.
+    provider.script("rg ", CommandResult(stdout=stdout, stderr=stderr, exit_code=2))
+
+    response = await fake_api.get("search", q="needle")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Search failed: regex parse error"

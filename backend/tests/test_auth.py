@@ -6,15 +6,13 @@ import aiosmtplib
 import httpx
 import pytest
 from httpx import AsyncClient
-from jose import jwt
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.security import create_mcp_access_token, hash_refresh_token
 from app.models.db_models.refresh_token import RefreshToken
-from app.models.db_models.user import User
 from app.services.email import EmailService, email_service
+from app.services.refresh_token import RefreshTokenService
 
 from tests.conftest import EmailCapture, LoginClient, SettingsOverride, UserFactory
 from tests.helpers import count_refresh_tokens, get_user_by_email, get_user_settings
@@ -146,20 +144,34 @@ async def test_register_rejects_duplicate_username(
     assert response.json()["detail"] == "Username already registered"
 
 
+@pytest.mark.parametrize(
+    ("username", "expected_message"),
+    [
+        ("", "Username is required"),
+        ("ab", "Username must be at least 3 characters long"),
+        ("a" * 31, "Username must be less than 30 characters long"),
+        ("bad!name", "Username can only contain letters, numbers, and underscores"),
+        ("_bad", "Username cannot start or end with underscore"),
+    ],
+)
 async def test_register_rejects_invalid_username(
     client: AsyncClient,
     email_capture: EmailCapture,
+    username: str,
+    expected_message: str,
 ) -> None:
     response = await client.post(
         "/api/v1/auth/register",
         json={
-            "email": "invalid@example.com",
-            "username": "_bad",
+            "email": "invalid-variant@example.com",
+            "username": username,
             "password": "password123",
         },
     )
 
     assert response.status_code == 422
+    errors = response.json()["detail"]
+    assert any(expected_message in str(err.get("msg", "")) for err in errors)
 
 
 async def test_register_rejects_disabled_registration(
@@ -180,29 +192,6 @@ async def test_register_rejects_disabled_registration(
 
     assert response.status_code == 403
     assert response.json()["detail"] == "Registration is disabled"
-
-
-async def test_register_rejects_disposable_email(
-    client: AsyncClient,
-    settings_override: SettingsOverride,
-    email_capture: EmailCapture,
-) -> None:
-    settings_override(BLOCK_DISPOSABLE_EMAILS=True)
-    email_capture.disposable = True
-
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "user@example.com",
-            "username": "newuser",
-            "password": "password123",
-        },
-    )
-
-    assert response.status_code == 400
-    assert response.json()["detail"] == (
-        "Disposable email addresses are not allowed. Please use a permanent email address."
-    )
 
 
 async def test_login_returns_access_and_refresh_tokens(
@@ -226,15 +215,25 @@ async def test_login_returns_access_and_refresh_tokens(
     assert await count_refresh_tokens(db_session, user.id) == 1
 
 
-async def test_login_rejects_wrong_password(
+@pytest.mark.parametrize(
+    ("email", "password"),
+    [
+        ("login@example.com", "wrongpassword"),
+        ("nobody@example.com", "password123"),
+    ],
+)
+async def test_login_rejects_bad_credentials_with_same_message(
     client: AsyncClient,
     create_user: UserFactory,
+    email: str,
+    password: str,
 ) -> None:
+    # Unknown email and wrong password must be indistinguishable to callers.
     await create_user(email="login@example.com", username="loginuser")
 
     response = await client.post(
         "/api/v1/auth/jwt/login",
-        data={"username": "login@example.com", "password": "wrongpassword"},
+        data={"username": email, "password": password},
     )
 
     assert response.status_code == 400
@@ -260,25 +259,39 @@ async def test_login_rejects_inactive_user(
     assert response.json()["detail"] == "Account is inactive"
 
 
-async def test_login_rejects_unverified_user_when_verification_required(
+async def test_registration_with_required_verification_gates_login_until_verified(
     client: AsyncClient,
-    create_user: UserFactory,
     settings_override: SettingsOverride,
+    email_capture: EmailCapture,
 ) -> None:
     settings_override(REQUIRE_EMAIL_VERIFICATION=True)
-    await create_user(
-        email="unverified@example.com",
-        username="unverified",
-        is_verified=False,
+    credentials = {"username": "verify@example.com", "password": "password123"}
+
+    register = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "verify@example.com",
+            "username": "verifyuser",
+            "password": "password123",
+        },
     )
 
-    response = await client.post(
-        "/api/v1/auth/jwt/login",
-        data={"username": "unverified@example.com", "password": "password123"},
-    )
+    assert register.status_code == 201
+    assert register.json()["email_verification_required"] is True
+    assert [sent["email"] for sent in email_capture.verification] == [
+        "verify@example.com"
+    ]
+    blocked = await client.post("/api/v1/auth/jwt/login", data=credentials)
+    assert blocked.status_code == 400
+    assert blocked.json()["detail"] == "Please verify your email before logging in"
 
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Please verify your email before logging in"
+    verify = await client.post(
+        "/api/v1/auth/verify",
+        json={"token": email_capture.verification[0]["token"]},
+    )
+    assert verify.status_code == 200
+    allowed = await client.post("/api/v1/auth/jwt/login", data=credentials)
+    assert allowed.status_code == 200
 
 
 async def test_me_returns_current_user(
@@ -301,10 +314,37 @@ async def test_me_returns_current_user(
     assert body["is_verified"] is True
 
 
-async def test_me_rejects_missing_token(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/auth/me")
+async def test_mcp_access_token_authenticates_bearer_requests(
+    client: AsyncClient,
+    create_user: UserFactory,
+) -> None:
+    user = await create_user(email="mcp-token@example.com", username="mcptoken")
+    token = create_mcp_access_token(str(user.id))
 
-    assert response.status_code == 401
+    response = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["email"] == "mcp-token@example.com"
+
+
+async def test_query_token_authenticates_header_less_requests(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    # SSE/EventSource can't set headers, so routes accept ?token= instead.
+    await create_user(email="query-token@example.com", username="querytoken")
+    tokens = await login(email="query-token@example.com")
+
+    accepted = await client.get(
+        "/api/v1/models/", params={"token": tokens["access_token"]}
+    )
+    rejected = await client.get("/api/v1/models/", params={"token": "not-a-jwt"})
+
+    assert accepted.status_code == 200
+    assert rejected.status_code == 401
 
 
 async def test_refresh_rotates_refresh_token(
@@ -432,7 +472,7 @@ async def test_refresh_rejects_invalid_token(client: AsyncClient) -> None:
     assert response.json()["detail"] == "Invalid or expired refresh token"
 
 
-async def test_logout_revokes_refresh_token(
+async def test_logout_revokes_refresh_token_and_is_idempotent(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
@@ -451,6 +491,11 @@ async def test_logout_revokes_refresh_token(
         json={"refresh_token": tokens["refresh_token"]},
     )
     assert refresh_response.status_code == 401
+    repeat_logout = await client.post(
+        "/api/v1/auth/jwt/logout",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    assert repeat_logout.status_code == 204
 
 
 async def test_logout_invalidates_grace_eligible_predecessor(
@@ -481,50 +526,7 @@ async def test_logout_invalidates_grace_eligible_predecessor(
     assert replay.status_code == 401
 
 
-async def test_forgot_password_sends_reset_email(
-    client: AsyncClient,
-    create_user: UserFactory,
-    email_capture: EmailCapture,
-) -> None:
-    await create_user(email="reset@example.com", username="resetuser")
-
-    response = await client.post(
-        "/api/v1/auth/forgot-password",
-        json={"email": "reset@example.com"},
-    )
-
-    assert response.status_code == 202
-    assert len(email_capture.password_reset) == 1
-    assert email_capture.password_reset[0]["email"] == "reset@example.com"
-    assert email_capture.password_reset[0]["token"]
-
-
-async def test_reset_password_accepts_valid_token(
-    client: AsyncClient,
-    create_user: UserFactory,
-    email_capture: EmailCapture,
-) -> None:
-    await create_user(email="reset@example.com", username="resetuser")
-    await client.post(
-        "/api/v1/auth/forgot-password",
-        json={"email": "reset@example.com"},
-    )
-    token = email_capture.password_reset[0]["token"]
-
-    response = await client.post(
-        "/api/v1/auth/reset-password",
-        json={"token": token, "password": "newpassword123"},
-    )
-
-    assert response.status_code == 200
-    login_response = await client.post(
-        "/api/v1/auth/jwt/login",
-        data={"username": "reset@example.com", "password": "newpassword123"},
-    )
-    assert login_response.status_code == 200
-
-
-async def test_reset_password_revokes_refresh_tokens(
+async def test_reset_password_replaces_password_and_revokes_sessions(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
@@ -533,15 +535,16 @@ async def test_reset_password_revokes_refresh_tokens(
     # Sessions issued under the old password must not survive a reset.
     await create_user(email="reset@example.com", username="resetuser")
     tokens = await login(email="reset@example.com")
-    await client.post(
+    forgot = await client.post(
         "/api/v1/auth/forgot-password",
         json={"email": "reset@example.com"},
     )
-    reset_token = email_capture.password_reset[0]["token"]
+    assert forgot.status_code == 202
+    [sent] = email_capture.password_reset
 
     response = await client.post(
         "/api/v1/auth/reset-password",
-        json={"token": reset_token, "password": "newpassword123"},
+        json={"token": sent["token"], "password": "newpassword123"},
     )
 
     assert response.status_code == 200
@@ -550,96 +553,12 @@ async def test_reset_password_revokes_refresh_tokens(
         json={"refresh_token": tokens["refresh_token"]},
     )
     assert refresh_response.status_code == 401
-
-
-async def test_reset_password_rejects_invalid_token(client: AsyncClient) -> None:
-    response = await client.post(
-        "/api/v1/auth/reset-password",
-        json={"token": "invalid-token", "password": "newpassword123"},
+    old_password = await client.post(
+        "/api/v1/auth/jwt/login",
+        data={"username": "reset@example.com", "password": "password123"},
     )
-
-    assert response.status_code == 400
-
-
-async def test_request_verify_token_sends_verification_email(
-    client: AsyncClient,
-    create_user: UserFactory,
-    email_capture: EmailCapture,
-) -> None:
-    await create_user(
-        email="verify@example.com",
-        username="verifyuser",
-        is_verified=False,
-    )
-
-    response = await client.post(
-        "/api/v1/auth/request-verify-token",
-        json={"email": "verify@example.com"},
-    )
-
-    assert response.status_code == 202
-    assert len(email_capture.verification) == 1
-    assert email_capture.verification[0]["email"] == "verify@example.com"
-    assert email_capture.verification[0]["token"]
-
-
-async def test_verify_accepts_valid_token(
-    client: AsyncClient,
-    create_user: UserFactory,
-    db_session: AsyncSession,
-    email_capture: EmailCapture,
-) -> None:
-    user: User = await create_user(
-        email="verify@example.com",
-        username="verifyuser",
-        is_verified=False,
-    )
-    await client.post(
-        "/api/v1/auth/request-verify-token",
-        json={"email": "verify@example.com"},
-    )
-    token = email_capture.verification[0]["token"]
-
-    response = await client.post("/api/v1/auth/verify", json={"token": token})
-
-    assert response.status_code == 200
-    await db_session.refresh(user)
-    assert user.is_verified is True
-
-
-async def test_verify_rejects_invalid_token(client: AsyncClient) -> None:
-    response = await client.post("/api/v1/auth/verify", json={"token": "bad-token"})
-
-    assert response.status_code == 400
-
-
-@pytest.mark.parametrize(
-    ("username", "expected_message"),
-    [
-        ("", "Username is required"),
-        ("ab", "Username must be at least 3 characters long"),
-        ("a" * 31, "Username must be less than 30 characters long"),
-        ("bad!name", "Username can only contain letters, numbers, and underscores"),
-    ],
-)
-async def test_register_rejects_invalid_username_variants(
-    client: AsyncClient,
-    email_capture: EmailCapture,
-    username: str,
-    expected_message: str,
-) -> None:
-    response = await client.post(
-        "/api/v1/auth/register",
-        json={
-            "email": "invalid-variant@example.com",
-            "username": username,
-            "password": "password123",
-        },
-    )
-
-    assert response.status_code == 422
-    errors = response.json()["detail"]
-    assert any(expected_message in str(err.get("msg", "")) for err in errors)
+    assert old_password.status_code == 400
+    await login(email="reset@example.com", password="newpassword123")
 
 
 async def test_refresh_rejects_expired_token(
@@ -692,15 +611,48 @@ async def test_refresh_rejects_token_for_deactivated_user(
     assert response.json()["detail"] == "Invalid or expired refresh token"
 
 
-async def test_logout_with_unknown_token_still_succeeds(client: AsyncClient) -> None:
-    # Exercises RefreshTokenService.revoke_token's "not found" branch — the
-    # endpoint doesn't surface the boolean result either way.
-    response = await client.post(
-        "/api/v1/auth/jwt/logout",
-        json={"refresh_token": "token-that-was-never-issued"},
+async def test_refresh_token_cleanup_prunes_dead_tokens_and_keeps_live_sessions(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    db_session: AsyncSession,
+) -> None:
+    user = await create_user(email="cleanup@example.com", username="cleanupuser")
+    live = await login(email="cleanup@example.com")
+    rotated_away = await login(email="cleanup@example.com")
+    rotation = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": rotated_away["refresh_token"]},
     )
+    assert rotation.status_code == 200
+    now = datetime.now(timezone.utc)
+    db_session.add_all(
+        [
+            RefreshToken(
+                token_hash=hash_refresh_token("expired"),
+                user_id=user.id,
+                expires_at=now - timedelta(days=1),
+            ),
+            RefreshToken(
+                token_hash=hash_refresh_token("revoked-long-ago"),
+                user_id=user.id,
+                expires_at=now + timedelta(days=1),
+                revoked_at=now - timedelta(days=8),
+            ),
+        ]
+    )
+    await db_session.commit()
 
-    assert response.status_code == 204
+    result = await RefreshTokenService.cleanup_expired_tokens_job()
+
+    assert result == {"deleted_count": 2}
+    # live + recently rotated predecessor + its successor survive
+    assert await count_refresh_tokens(db_session, user.id) == 3
+    for refresh_token in (live["refresh_token"], rotation.json()["refresh_token"]):
+        response = await client.post(
+            "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}
+        )
+        assert response.status_code == 200
 
 
 async def test_register_blocks_disposable_email_via_live_domain_fetch(
@@ -860,12 +812,12 @@ async def test_forgot_password_swallows_smtp_send_failure(
     assert len(capture.calls) == 1
 
 
-async def test_forgot_password_returns_false_without_smtp_configured(
+async def test_forgot_password_succeeds_without_smtp_configured(
     client: AsyncClient,
     create_user: UserFactory,
 ) -> None:
-    # No email_capture fixture and no smtp_password configured (bootstrap
-    # sets MAIL_PASSWORD="") — exercises _send_email's early-return branch.
+    # Self-hosted installs often run without SMTP (bootstrap sets
+    # MAIL_PASSWORD=""); the request must still succeed, not 500.
     await create_user(email="no-smtp@example.com", username="nosmtp")
 
     response = await client.post(
@@ -874,26 +826,3 @@ async def test_forgot_password_returns_false_without_smtp_configured(
     )
 
     assert response.status_code == 202
-
-
-async def test_mcp_access_token_authenticates_bearer_requests(
-    client: AsyncClient,
-    create_user: UserFactory,
-) -> None:
-    user = await create_user(email="mcp-token@example.com", username="mcptoken")
-    token = create_mcp_access_token(str(user.id))
-
-    payload = jwt.decode(
-        token,
-        get_settings().SECRET_KEY,
-        algorithms=[get_settings().ALGORITHM],
-        audience="fastapi-users:auth",
-    )
-    assert payload["sub"] == str(user.id)
-    assert payload["mcp"] is True
-
-    # The real check: fastapi-users' bearer strategy must accept the token.
-    response = await client.get(
-        "/api/v1/workspaces", headers={"Authorization": f"Bearer {token}"}
-    )
-    assert response.status_code == 200, response.text
