@@ -113,7 +113,7 @@ _WORKTREE_ADD_COMMAND = (
     # git-crypt resolves keys through the per-worktree git dir, not the common dir.
     'if [ -d "$$common/git-crypt" ]; then '
     'ln -s "$$common/git-crypt" "$$worktree_git/git-crypt"; fi && '
-    "git -C '$worktree_dir' reset --hard HEAD 2>&1; }; status=$$?; "
+    "git -C '$worktree_dir' checkout -f --no-recurse-submodules '$branch_name' 2>&1; }; status=$$?; "
     'if [ "$$status" -ne 0 ] && [ "$$added" -eq 1 ]; then '
     "git worktree remove --force '$worktree_dir' 2>&1; fi; "
     'if [ "$$status" -ne 0 ] && [ "$$created" -eq 1 ] '
