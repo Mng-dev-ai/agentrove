@@ -14,7 +14,7 @@ RUN apt-get update && \
     echo "deb [signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
     > /etc/apt/sources.list.d/github-cli.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends gcc libpq-dev git \
+    apt-get install -y --no-install-recommends gcc libpq-dev git git-crypt \
     gosu docker-cli \
     build-essential \
     openssh-client \
