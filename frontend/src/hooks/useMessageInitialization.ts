@@ -50,6 +50,9 @@ function normalizeMessage(msg: Message): Message {
   };
 }
 
+const isAppNotice = (msg: Message) =>
+  msg.content_render?.events?.some((event) => event.type === 'app_notice') ?? false;
+
 // Normalize fetched messages into local state; inject synthetic user msg for route initial prompts.
 export function useMessageInitialization({
   fetchedMessages,
@@ -68,7 +71,20 @@ export function useMessageInitialization({
   const lastMergedIdsRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!fetchedMessages || !chatId || wasAborted) return;
+    if (!fetchedMessages || !chatId) return;
+
+    if (wasAborted) {
+      // A stop keeps local state as-is, but a notice has no stream and only ever arrives via a fetch.
+      const notices = fetchedMessages.filter(isAppNotice).map(normalizeMessage);
+      if (notices.length > 0) {
+        setMessages((prev) => {
+          const known = new Set(prev.map((message) => message.id));
+          const added = notices.filter((message) => !known.has(message.id));
+          return added.length > 0 ? [...prev, ...added] : prev;
+        });
+      }
+      return;
+    }
 
     if (isLoading || (isStreaming && initializedChatRef.current === chatId)) {
       const fetchedIds = `${chatId}:${fetchedMessages.map((message) => message.id).join(',')}`;

@@ -133,6 +133,33 @@ async def get_current_chat() -> dict[str, Any]:
     return {"chat_id": os.environ.get("AGENTROVE_CURRENT_CHAT_ID")}
 
 
+class SubThreadReportEntry(BaseModel):
+    message_id: str
+    summary: str
+
+
+@mcp.tool()
+async def report_subthreads_covered(reports: list[SubThreadReportEntry]) -> dict[str, Any]:
+    """Record which finished sub-thread results your reply to the user covered.
+
+    Call this after you have told the user what each sub-thread produced, with one entry
+    per sub-thread: its message_id and a summary of what you told the user about it
+    (what it did, what changed or was committed and where, what needs their decision).
+    An entry without a real summary is refused, and acknowledging a result without
+    reporting what it contains means the user never learns it. Use it in the same turn
+    as an automated sub-thread update, and also when you report a finished sub-thread's
+    result in an ordinary turn so it isn't reported again. Entries you leave out stay
+    pending and are delivered again later. Returns {"covered": <count>, "skipped": [...]},
+    where skipped lists message_ids that matched no deliverable result.
+    """
+    parent_chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
+    if not parent_chat_id:
+        raise AgentroveError("The current chat is unknown, so coverage can't be recorded.")
+    return await client.cover_subthread_reports(
+        parent_chat_id, [entry.model_dump() for entry in reports]
+    )
+
+
 @mcp.tool()
 async def attach_file(path: str) -> dict[str, Any]:
     """Attach a local file to the current assistant message for the user to view or download.
@@ -340,6 +367,7 @@ async def send_message(
     base_branch: str | None = None,
     fast_mode: bool = False,
     persona: str | None = None,
+    report_to_parent: bool = True,
 ) -> dict[str, Any]:
     """Send a prompt to AgentRove and start the agent turn.
 
@@ -359,9 +387,13 @@ async def send_message(
     Follow-up turns (chat_id given) inherit the chat's previous model_id, thinking_mode
     and persona when you omit them — pass a value only to change it for this turn.
 
-    Returns immediately with chat_id and the streaming message_id. To get the reply, poll
-    get_messages and watch that message's stream_status flip from "in_progress" to
-    "completed". The turn runs unattended — it uses the model's full-execution permission
+    report_to_parent: for a sub-thread turn, AgentRove starts a new turn in the parent
+    chat once the sub-thread finishes (completed, failed or interrupted), so do not
+    promise to poll. Ignored when the chat is not a sub-thread.
+
+    Returns immediately with chat_id and the streaming message_id. To read the reply
+    yourself, poll get_messages and watch that message's stream_status flip from
+    "in_progress" to "completed". The turn runs unattended — it uses the model's full-execution permission
     mode (e.g. bypassPermissions for Claude, full-access for Codex).
     """
     if chat_id is not None:
@@ -389,6 +421,7 @@ async def send_message(
         base_branch=base_branch,
         fast_mode=fast_mode,
         persona=persona,
+        report_to_parent=report_to_parent and bool(chat.get("parent_chat_id")),
     )
     return {
         "chat_id": chat_id,

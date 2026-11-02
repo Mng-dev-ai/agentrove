@@ -57,6 +57,8 @@ from app.models.schemas.chat import (
     MessageAttachment as MessageAttachmentSchema,
     MessageEvent,
     PermissionRespondResponse,
+    SubThreadCoverageRequest,
+    SubThreadCoverageResponse,
 )
 from app.models.schemas.sandbox import (
     GitCommandResponse,
@@ -143,6 +145,7 @@ async def send_message(
     base_branch: str | None = Form(None),
     fast_mode: bool = Form(False),
     selected_persona_name: str = Form(DEFAULT_PERSONA_NAME),
+    report_to_parent: bool = Form(False),
     attached_files: list[UploadFile] | None = File(None),
     chat_service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
@@ -161,6 +164,7 @@ async def send_message(
             base_branch=base_branch,
             fast_mode=fast_mode,
             selected_persona_name=selected_persona_name,
+            report_to_parent=report_to_parent,
         )
         result = await chat_service.initiate_chat_completion(
             request,
@@ -700,6 +704,23 @@ async def respond_to_elicitation(
         )
 
     return PermissionRespondResponse(success=True)
+
+
+@router.post(
+    "/chats/{chat_id}/subthread-reports/covered",
+    response_model=SubThreadCoverageResponse,
+)
+async def cover_subthread_reports(
+    body: SubThreadCoverageRequest,
+    chat: Chat = Depends(ensure_chat_access),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> SubThreadCoverageResponse:
+    summaries = {item.message_id: item.summary for item in body.reports}
+    recorded = await chat_service.cover_subthread_reports(chat.id, summaries)
+    return SubThreadCoverageResponse(
+        covered=len(recorded),
+        skipped=[message_id for message_id in summaries if message_id not in recorded],
+    )
 
 
 @router.post(

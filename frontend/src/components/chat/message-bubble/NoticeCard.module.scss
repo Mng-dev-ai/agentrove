@@ -1,0 +1,57 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.notice-card {
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-left-width: 3px;
+  border-radius: var(--radius-lg);
+  padding: var(--space-2) var(--space-3);
+  background: colors.theme-color('surface-secondary', 0.4);
+}
+
+.badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin-bottom: var(--space-1-5);
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
+}
+
+.icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  flex-shrink: 0;
+}
+
+.collapsed {
+  padding-block: var(--space-1-5);
+
+  .badge {
+    margin-bottom: 0;
+  }
+}
+
+.badge-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+
+  &:hover {
+    color: var(--theme-text-secondary);
+  }
+}
+
+.chevron {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+}
+
+.chevron-open {
+  transform: rotate(90deg);
+}

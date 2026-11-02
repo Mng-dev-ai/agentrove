@@ -3,7 +3,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import UploadFile
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.db_models.enums import AttachmentType, MessageRole, MessageStreamStatus
 from app.models.types import PermissionMode
@@ -40,6 +40,31 @@ class ChatRequest(BaseModel):
     fast_mode: bool = False
     selected_persona_name: str = Field(DEFAULT_PERSONA_NAME, max_length=100)
     attached_files: list[UploadFile] | None = None
+    # Sub-thread turns only: the parent owes the user a report once this turn ends.
+    report_to_parent: bool = False
+
+
+class SubThreadCoverageItem(BaseModel):
+    # One finished sub-thread run the parent reported, with what it told the user.
+    message_id: UUID
+    summary: str = Field(..., min_length=1, max_length=20000)
+
+    @field_validator("summary")
+    @classmethod
+    def _summary_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("summary must say what the sub-thread produced")
+        return value.strip()
+
+
+class SubThreadCoverageRequest(BaseModel):
+    reports: list[SubThreadCoverageItem] = Field(..., min_length=1, max_length=100)
+
+
+class SubThreadCoverageResponse(BaseModel):
+    covered: int
+    # Ids that matched no eligible report (unknown, already delivered, or still running).
+    skipped: list[UUID] = Field(default_factory=list)
 
 
 class MessageBase(BaseModel):

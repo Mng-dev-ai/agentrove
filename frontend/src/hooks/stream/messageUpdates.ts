@@ -67,7 +67,10 @@ export function createTurnMessages(
   data: Pick<
     QueueProcessingData,
     'userMessageId' | 'assistantMessageId' | 'content' | 'modelId' | 'checkpointId' | 'attachments'
-  >,
+  > & {
+    // The user-role message was sent by the app, not typed by the user.
+    appNotice?: boolean;
+  },
 ): Message[] {
   const userMessage: Message = {
     id: data.userMessageId,
@@ -75,7 +78,7 @@ export function createTurnMessages(
     role: 'user',
     content_text: data.content,
     content_render: {
-      events: [{ type: 'user_text', text: data.content }],
+      events: [{ type: data.appNotice ? 'app_notice' : 'user_text', text: data.content }],
     },
     last_seq: 0,
     active_stream_id: null,

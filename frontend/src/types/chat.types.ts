@@ -40,6 +40,8 @@ export interface PlanEntry {
 
 export type AssistantStreamEvent =
   | { type: 'assistant_text'; text: string }
+  // Written by the app, not the model (e.g. a sub-thread result notice).
+  | { type: 'app_notice'; text: string }
   | { type: 'assistant_thinking'; thinking: string }
   | { type: 'tool_started'; tool: ToolEventPayload }
   | { type: 'tool_completed'; tool: ToolEventPayload }
@@ -110,6 +112,8 @@ export type ChatEvent =
       message_id: string;
       user_message_id?: string;
       content?: string;
+      // `content` is a notice the app sent in the user's place, not typed text.
+      app_notice?: boolean;
       attachments: MessageAttachment[] | null;
       model_id: string;
       thinking_mode?: string | null;
@@ -117,7 +121,8 @@ export type ChatEvent =
       selected_persona_name?: string;
       checkpoint_id: string | null;
     }
-  | { kind: 'title_updated'; chat_id: string; title: string };
+  | { kind: 'title_updated'; chat_id: string; title: string }
+  | { kind: 'message_appended'; chat_id: string };
 
 export interface ChatRequest {
   prompt: string;

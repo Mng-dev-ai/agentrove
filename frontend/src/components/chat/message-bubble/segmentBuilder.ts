@@ -41,13 +41,20 @@ export interface PlanSegment {
   entries: PlanEntry[];
 }
 
+export interface NoticeSegment {
+  kind: 'notice';
+  id: string;
+  text: string;
+}
+
 export type MessageSegment =
   | TextSegment
   | SteeringSegment
   | ThinkingSegment
   | ToolSegment
   | SuggestionsSegment
-  | PlanSegment;
+  | PlanSegment
+  | NoticeSegment;
 
 const toolsEqual = (a: ToolAggregate, b: ToolAggregate): boolean => {
   // Aggregates are rebuilt from scratch on every stream flush, but input/result/
@@ -81,6 +88,7 @@ export const segmentsEqual = (a: MessageSegment, b: MessageSegment): boolean => 
   if (a.kind === 'tool' && b.kind === 'tool') return toolsEqual(a.tool, b.tool);
   if (a.kind === 'suggestions' && b.kind === 'suggestions') return a.suggestions === b.suggestions;
   if (a.kind === 'plan' && b.kind === 'plan') return a.entries === b.entries;
+  if (a.kind === 'notice' && b.kind === 'notice') return a.text === b.text;
   return false;
 };
 
@@ -354,6 +362,7 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
   let thinkingSegmentCount = 0;
   let suggestionsSegmentCount = 0;
   let planSegmentCount = 0;
+  let noticeSegmentCount = 0;
 
   const flushText = () => {
     if (!pendingText) return;
@@ -448,6 +457,16 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
         }
         break;
       }
+      case 'app_notice':
+        flushText();
+        flushThinking();
+        segments.push({
+          kind: 'notice',
+          id: `notice-${noticeSegmentCount}`,
+          text: event.text,
+        });
+        noticeSegmentCount++;
+        break;
       case 'user_text':
         flushThinking();
         pendingText += event.text;

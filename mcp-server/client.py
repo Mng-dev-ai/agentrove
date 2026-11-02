@@ -162,6 +162,7 @@ class AgentroveClient:
         base_branch: str | None = None,
         fast_mode: bool = False,
         persona: str | None = None,
+        report_to_parent: bool = False,
     ) -> dict[str, Any]:
         # Form endpoint (no files); httpx bools "true"/"false" parse in FastAPI.
         data: dict[str, Any] = {
@@ -171,6 +172,7 @@ class AgentroveClient:
             "permission_mode": permission_mode,
             "worktree": worktree,
             "fast_mode": fast_mode,
+            "report_to_parent": report_to_parent,
         }
         if thinking_mode:
             data["thinking_mode"] = thinking_mode
@@ -179,6 +181,16 @@ class AgentroveClient:
         if persona:
             data["selected_persona_name"] = persona
         resp = await self.request("POST", "/chat/chat", data=data)
+        return resp.json()
+
+    async def cover_subthread_reports(
+        self, parent_chat_id: str, reports: list[dict[str, str]]
+    ) -> dict[str, Any]:
+        resp = await self.request(
+            "POST",
+            f"/chat/chats/{parent_chat_id}/subthread-reports/covered",
+            json={"reports": reports},
+        )
         return resp.json()
 
     async def attach_file(self, chat_id: str, path: str) -> dict[str, Any]:

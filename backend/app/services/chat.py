@@ -47,6 +47,11 @@ from app.services.message import MessageService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
+from app.services.subthread_report_ledger import (
+    create_report,
+    link_wake_turn,
+    mark_covered,
+)
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import (
@@ -1047,6 +1052,8 @@ class ChatService(BaseDbService[Chat]):
         current_user: User,
         *,
         member_turn: ChannelMemberTurn | None = None,
+        wake_report_ids: list[UUID] | None = None,
+        user_app_notice: str | None = None,
     ) -> ChatCompletionResult:
         async with ChatStreamRuntime.chat_start_slot(str(request.chat_id)) as reserved:
             if not reserved:
@@ -1057,7 +1064,7 @@ class ChatService(BaseDbService[Chat]):
                     status_code=409,
                 )
             return await self._initiate_chat_completion_reserved(
-                request, current_user, member_turn
+                request, current_user, member_turn, wake_report_ids, user_app_notice
             )
 
     async def _initiate_chat_completion_reserved(
@@ -1065,11 +1072,19 @@ class ChatService(BaseDbService[Chat]):
         request: ChatRequest,
         current_user: User,
         member_turn: ChannelMemberTurn | None,
+        wake_report_ids: list[UUID] | None = None,
+        user_app_notice: str | None = None,
     ) -> ChatCompletionResult:
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(
             request.chat_id, current_user, include_channel=member_turn is not None
         )
+        if request.report_to_parent and chat.parent_chat_id is None:
+            raise ChatException(
+                "report_to_parent requires a sub-thread",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=400,
+            )
         attachments: list[MessageAttachmentDict] | None
         if member_turn is not None:
             attachments = member_turn.attachments
@@ -1147,8 +1162,14 @@ class ChatService(BaseDbService[Chat]):
             base_branch=request.base_branch,
             session_factory=self._session_factory,
             channel_member=member_turn is not None,
+            user_app_notice=user_app_notice,
             user_message_id=request.user_message_id,
         ) as (user_message, assistant_message, checkpoint_id):
+            # Before the task is enqueued so the turn cannot finish ahead of its
+            # report row; a failure here discards the turn's messages.
+            await self._record_report_state(
+                request, chat, assistant_message.id, wake_report_ids
+            )
             task = await self._enqueue_chat_task(
                 member_turn=member_turn,
                 prompt=request.prompt,
@@ -1180,7 +1201,9 @@ class ChatService(BaseDbService[Chat]):
                     "chat_id": str(chat_id),
                     "message_id": str(assistant_message.id),
                     "user_message_id": str(user_message.id),
-                    "content": user_message.content_text,
+                    # The model-facing prompt of an app-sent turn stays out of the event.
+                    "content": user_app_notice or user_message.content_text,
+                    "app_notice": user_app_notice is not None,
                     "attachments": MessageService.serialize_attachments(
                         {"attachments": attachments}, user_message
                     ),
@@ -1202,6 +1225,41 @@ class ChatService(BaseDbService[Chat]):
             # of making the client wait for the stream config event.
             "worktree_cwd": chat.worktree_cwd,
         }
+
+    async def cover_subthread_reports(
+        self, parent_chat_id: UUID, summaries: dict[UUID, str]
+    ) -> list[UUID]:
+        async with self.session_factory() as db:
+            recorded = await mark_covered(
+                db, parent_chat_id=parent_chat_id, summaries=summaries
+            )
+            await db.commit()
+        return recorded
+
+    async def _record_report_state(
+        self,
+        request: ChatRequest,
+        chat: Chat,
+        assistant_message_id: UUID,
+        wake_report_ids: list[UUID] | None,
+    ) -> None:
+        if not request.report_to_parent and not wake_report_ids:
+            return
+        async with self.session_factory() as db:
+            if request.report_to_parent and chat.parent_chat_id is not None:
+                await create_report(
+                    db,
+                    parent_chat_id=chat.parent_chat_id,
+                    child_chat_id=chat.id,
+                    child_message_id=assistant_message_id,
+                )
+            if wake_report_ids:
+                await link_wake_turn(
+                    db,
+                    report_ids=wake_report_ids,
+                    message_id=assistant_message_id,
+                )
+            await db.commit()
 
     async def _enqueue_chat_task(
         self,

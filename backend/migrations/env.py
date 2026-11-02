@@ -15,6 +15,7 @@ from app.models.db_models import (  # noqa: F401
     memory,
     push,
     refresh_token,
+    subthread_report,
     user,
     workspace,
 )
