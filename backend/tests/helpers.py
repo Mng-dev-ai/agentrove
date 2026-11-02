@@ -62,6 +62,7 @@ class FakeSandboxProvider(SandboxProvider):
         command: str,
         envs: dict[str, str] | None = None,
         timeout: int = 120,
+        user_id: str = "",
     ) -> CommandResult:
         self.commands.append((sandbox_id, command, envs))
         if "git for-each-ref" in command:
