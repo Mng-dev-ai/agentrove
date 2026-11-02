@@ -102,6 +102,7 @@ _WORKTREE_ADD_COMMAND = (
     "if git show-ref --verify --quiet 'refs/heads/$branch_name'; then "
     "git merge-base --is-ancestor 'refs/heads/$branch_name' \"$$base_commit\" "
     "|| { echo 'Existing worktree branch has commits outside the base'; exit 1; }; "
+    "git branch -f '$branch_name' \"$$base_commit\" 2>&1 || exit $$?; "
     "else git branch '$branch_name' \"$$base_commit\" 2>&1 || exit $$?; "
     "created=1; fi; "
     "git worktree add '$worktree_dir' '$branch_name' 2>&1; status=$$?; "
@@ -804,7 +805,9 @@ class GitService:
             )
         if result.exit_code == 0:
             return rel_worktree
-        error_output = first_error or (result.stdout or result.stderr).strip()
+        error_output = (result.stdout or result.stderr).strip()
+        if first_error and first_error != error_output:
+            error_output = f"{first_error}\n{error_output}".strip()
         if not error_output:
             error_output = "Worktree mode requires a git workspace"
         raise SandboxException(error_output)
