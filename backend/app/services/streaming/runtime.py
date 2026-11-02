@@ -740,8 +740,7 @@ class ChatStreamRuntime:
         chat: Chat,
         assistant_message_id: UUID,
         session_factory: SessionFactoryType,
-        worktree: bool,
-        base_branch: str | None = None,
+        cwd: str,
     ) -> UUID | None:
         # Best-effort: a non-git workspace must not block the agent run.
         sandbox_id = chat.sandbox_id
@@ -749,11 +748,6 @@ class ChatStreamRuntime:
             return None
 
         try:
-            # Resolve the same cwd the agent turn runs in, so the checkpoint's
-            # diff and restore target match where the agent actually edited.
-            cwd = await AgentService(session_factory=session_factory).resolve_cwd(
-                chat, worktree, base_branch
-            )
             provider = SandboxProvider.create_provider(
                 chat.sandbox_provider, workspace_path=chat.workspace_path
             )
@@ -818,17 +812,17 @@ class ChatStreamRuntime:
                 model_id=model_id,
                 stream_status=MessageStreamStatus.IN_PROGRESS,
             )
-            checkpoint_id = (
-                None
-                if channel_member
-                else await cls.create_checkpoint_for_message(
-                    chat,
-                    assistant_message.id,
-                    session_factory,
-                    worktree,
-                    base_branch,
+            checkpoint_id = None
+            if not channel_member:
+                # Resolved outside the best-effort checkpoint so a worktree that
+                # can't be created fails the turn start; the checkpoint then
+                # targets the same cwd the agent runs in.
+                cwd = await AgentService(session_factory=session_factory).resolve_cwd(
+                    chat, worktree, base_branch
                 )
-            )
+                checkpoint_id = await cls.create_checkpoint_for_message(
+                    chat, assistant_message.id, session_factory, cwd
+                )
             yield user_message, assistant_message, checkpoint_id
         except Exception as exc:
             logger.error("Turn failed to start for chat %s: %s", chat.id, exc)
