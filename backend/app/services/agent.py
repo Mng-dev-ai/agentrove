@@ -103,6 +103,7 @@ class AgentService:
             "",
             str(chat.id),
             base_ref=base_branch,
+            user_id=str(chat.user_id),
         )
         chat.worktree_cwd = worktree_cwd
         await self._save_worktree_cwd(chat.id, worktree_cwd)

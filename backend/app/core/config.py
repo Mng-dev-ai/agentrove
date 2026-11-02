@@ -151,10 +151,6 @@ class Settings(BaseSettings):
 
     GIT_AUTHOR_NAME: str = ""
     GIT_AUTHOR_EMAIL: str = ""
-    # Resolved at startup so host-provider subprocesses (HOME overridden to the
-    # sandbox) still use the real user's global git config and GPG keyring.
-    GIT_CONFIG_GLOBAL: str = str(Path.home() / ".gitconfig")
-    GNUPGHOME: str = str(Path.home() / ".gnupg")
 
     # Lifetime of the per-user token minted at session spawn for the stdio MCP
     # server (mcp-server/server.py), which calls this backend at BASE_URL.

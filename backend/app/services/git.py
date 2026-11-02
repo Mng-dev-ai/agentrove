@@ -770,6 +770,7 @@ class GitService:
         chat_id: str,
         *,
         base_ref: str | None = None,
+        user_id: str = "",
     ) -> str:
         # The caller only opts into this path when it explicitly requested
         # worktree isolation, so setup failures must surface instead of
@@ -797,9 +798,11 @@ class GitService:
         cmd = git_prefix + command
         # Local git operation — no user secrets needed, so bypass
         # SandboxService.execute_command and call the provider directly.
+        # user_id gives checkout hooks the same HOME as the chat's agent.
         result = await self.sandbox_service.provider.execute_command(
             sandbox_id,
             cmd,
+            user_id=user_id,
         )
         first_error = (result.stdout or result.stderr).strip()
         if result.exit_code != 0 and base_ref:
@@ -812,6 +815,7 @@ class GitService:
             result = await self.sandbox_service.provider.execute_command(
                 sandbox_id,
                 git_prefix + remote_command,
+                user_id=user_id,
             )
         if result.exit_code == 0:
             return rel_worktree

@@ -96,7 +96,9 @@ class SandboxProvider:
         command: str,
         envs: dict[str, str] | None = None,
         timeout: int = 120,
+        user_id: str = "",
     ) -> CommandResult:
+        # user_id keys per-user agent HOME in web host mode (unused by Docker).
         raise NotImplementedError
 
     async def write_file(
