@@ -1197,7 +1197,7 @@ class ChatService(BaseDbService[Chat]):
             "chat_id": str(chat_id),
             "last_seq": chat.last_event_seq,
             "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
-            # Checkpoint creation resolves the turn's cwd, so a worktree
+            # The turn scaffold resolves the turn's cwd, so a worktree
             # requested this turn already exists here — surface it now instead
             # of making the client wait for the stream config event.
             "worktree_cwd": chat.worktree_cwd,
