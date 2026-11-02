@@ -92,18 +92,32 @@ _WORKTREE_ADD_PREAMBLE = (
     'excl="$$(git rev-parse --git-path info/exclude)"; '
     '{ mkdir -p "$${excl%/*}" && grep -qxF ".worktrees/" "$$excl" '
     '|| echo ".worktrees/" >> "$$excl"; } 2>/dev/null; '
-    "mkdir -p '$base_worktrees_dir' && "
+    "mkdir -p '$base_worktrees_dir' || exit $$?; "
+)
+# Create the branch separately so failure cleanup only owns a branch we created.
+_WORKTREE_ADD_COMMAND = (
+    'base_commit=$$(git rev-parse --verify "$$start_point^{commit}" 2>&1) '
+    '|| { printf "%s\\n" "$$base_commit"; exit 1; }; '
+    "created=0; "
+    "if git show-ref --verify --quiet 'refs/heads/$branch_name'; then "
+    "git merge-base --is-ancestor 'refs/heads/$branch_name' \"$$base_commit\" "
+    "|| { echo 'Existing worktree branch has commits outside the base'; exit 1; }; "
+    "else git branch '$branch_name' \"$$base_commit\" 2>&1 || exit $$?; "
+    "created=1; fi; "
+    "git worktree add '$worktree_dir' '$branch_name' 2>&1; status=$$?; "
+    'if [ "$$status" -ne 0 ] && [ "$$created" -eq 1 ] '
+    "&& ! git worktree list --porcelain | grep -qxF 'branch refs/heads/$branch_name'; then "
+    "git update-ref -d 'refs/heads/$branch_name' \"$$base_commit\"; fi; "
+    'exit "$$status"'
 )
 GIT_WORKTREE_ADD_TEMPLATE = Template(
-    _WORKTREE_ADD_PREAMBLE + "git worktree add '$worktree_dir' -b '$branch_name' 2>&1"
+    _WORKTREE_ADD_PREAMBLE + "start_point=HEAD; " + _WORKTREE_ADD_COMMAND
 )
 GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE = Template(
-    _WORKTREE_ADD_PREAMBLE
-    + "git worktree add '$worktree_dir' -b '$branch_name' '$base_ref' 2>&1"
+    _WORKTREE_ADD_PREAMBLE + "start_point='$base_ref'; " + _WORKTREE_ADD_COMMAND
 )
 GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE = Template(
-    _WORKTREE_ADD_PREAMBLE
-    + "git worktree add '$worktree_dir' -b '$branch_name' 'origin/$base_ref' 2>&1"
+    _WORKTREE_ADD_PREAMBLE + "start_point='origin/$base_ref'; " + _WORKTREE_ADD_COMMAND
 )
 
 
@@ -776,6 +790,7 @@ class GitService:
             sandbox_id,
             cmd,
         )
+        first_error = (result.stdout or result.stderr).strip()
         if result.exit_code != 0 and base_ref:
             remote_command = GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE.substitute(
                 worktree_dir=rel_worktree,
@@ -789,7 +804,7 @@ class GitService:
             )
         if result.exit_code == 0:
             return rel_worktree
-        error_output = (result.stdout or result.stderr).strip()
+        error_output = first_error or (result.stdout or result.stderr).strip()
         if not error_output:
             error_output = "Worktree mode requires a git workspace"
         raise SandboxException(error_output)

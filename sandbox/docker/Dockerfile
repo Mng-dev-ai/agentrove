@@ -10,6 +10,7 @@ ENV TERM=xterm-256color
 RUN apt-get update && apt-get install -y \
     curl \
     git \
+    git-crypt \
     unzip \
     zip \
     build-essential \
