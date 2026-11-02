@@ -105,7 +105,17 @@ _WORKTREE_ADD_COMMAND = (
     "git branch -f '$branch_name' \"$$base_commit\" 2>&1 || exit $$?; "
     "else git branch '$branch_name' \"$$base_commit\" 2>&1 || exit $$?; "
     "created=1; fi; "
-    "git worktree add '$worktree_dir' '$branch_name' 2>&1; status=$$?; "
+    "added=0; "
+    "git worktree add --no-checkout '$worktree_dir' '$branch_name' 2>&1 && { "
+    "added=1; "
+    "common=$$(git rev-parse --path-format=absolute --git-common-dir) && "
+    "worktree_git=$$(git -C '$worktree_dir' rev-parse --absolute-git-dir) && "
+    # git-crypt resolves keys through the per-worktree git dir, not the common dir.
+    'if [ -d "$$common/git-crypt" ]; then '
+    'ln -s "$$common/git-crypt" "$$worktree_git/git-crypt"; fi && '
+    "git -C '$worktree_dir' reset --hard HEAD 2>&1; }; status=$$?; "
+    'if [ "$$status" -ne 0 ] && [ "$$added" -eq 1 ]; then '
+    "git worktree remove --force '$worktree_dir' 2>&1; fi; "
     'if [ "$$status" -ne 0 ] && [ "$$created" -eq 1 ] '
     "&& ! git worktree list --porcelain | grep -qxF 'branch refs/heads/$branch_name'; then "
     "git update-ref -d 'refs/heads/$branch_name' \"$$base_commit\"; fi; "
