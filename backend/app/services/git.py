@@ -97,7 +97,7 @@ _WORKTREE_ADD_PREAMBLE = (
 # Create the branch separately so failure cleanup only owns a branch we created.
 _WORKTREE_ADD_COMMAND = (
     'base_commit=$$(git rev-parse --verify "$$start_point^{commit}" 2>&1) '
-    '|| { printf "%s\\n" "$$base_commit"; exit 1; }; '
+    '|| { printf "Invalid base ref %s: %s\\n" "$$start_point" "$$base_commit"; exit 1; }; '
     "created=0; "
     "if git show-ref --verify --quiet 'refs/heads/$branch_name'; then "
     "git merge-base --is-ancestor 'refs/heads/$branch_name' \"$$base_commit\" "
