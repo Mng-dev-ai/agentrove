@@ -323,6 +323,7 @@ class LocalDockerProvider(SandboxProvider):
         command: str,
         envs: dict[str, str] | None = None,
         timeout: int = SANDBOX_DEFAULT_COMMAND_TIMEOUT,
+        user_id: str = "",
     ) -> CommandResult:
         async with self._docker_operation(
             "execute Docker command", catch_timeout=False

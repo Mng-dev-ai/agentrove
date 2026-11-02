@@ -44,6 +44,7 @@ from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.docker_provider import (
     DOCKER_SANDBOX_CONTAINER_PREFIX,
 )
+from app.services.sandbox_providers.host_provider import LocalHostProvider
 
 ConfigOptions = list[SessionConfigOptionSelect | SessionConfigOptionBoolean] | None
 
@@ -764,8 +765,7 @@ class AcpSession:
             # Web mode: HOME is the per-user agent home, shared by every
             # workspace of the user, so CLI logins/MCP/skills are configured
             # once — not once per workspace.
-            home = settings.get_agent_home_dir(config.user_id)
-            Path(home).mkdir(parents=True, exist_ok=True)
+            home = LocalHostProvider.ensure_agent_home(config.user_id)
             # Rewrite virtual sandbox paths (/home/user/...) in env values to
             # the real home. GIT_ASKPASS is exempt by design: in host mode it
             # already points at a real API-filesystem path.

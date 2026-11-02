@@ -57,6 +57,12 @@ class LocalHostProvider(SandboxProvider):
             with contextlib.suppress(ProcessLookupError):
                 os.kill(pid, sig)
 
+    @staticmethod
+    def ensure_agent_home(user_id: str) -> str:
+        home = settings.get_agent_home_dir(user_id)
+        Path(home).mkdir(parents=True, exist_ok=True)
+        return home
+
     def _resolve_path(self, path: str) -> Path:
         # Resolve relative paths; reject ../ and symlink escapes of the workspace.
         if path.startswith("/"):
@@ -72,9 +78,12 @@ class LocalHostProvider(SandboxProvider):
         command: str,
         envs: dict[str, str] | None = None,
         timeout: int = SANDBOX_DEFAULT_COMMAND_TIMEOUT,
+        user_id: str = "",
     ) -> CommandResult:
         workspace_dir_str = str(self._workspace)
         process_env = os.environ.copy()
+        if user_id and not settings.DESKTOP_MODE:
+            process_env["HOME"] = self.ensure_agent_home(user_id)
         if envs:
             process_env.update(envs)
 
@@ -238,8 +247,7 @@ class LocalHostProvider(SandboxProvider):
             # from the terminal lands where every workspace's agent reads it.
             # Pinned via tmux session env too — the process env alone is lost
             # when the session lands on an already-running tmux server.
-            host_home = settings.get_agent_home_dir(user_id)
-            Path(host_home).mkdir(parents=True, exist_ok=True)
+            host_home = self.ensure_agent_home(user_id)
             env["HOME"] = host_home
             session_env["HOME"] = host_home
         env["TERM"] = TERMINAL_TYPE
