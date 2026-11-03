@@ -6,6 +6,7 @@ from operator import attrgetter
 from typing import cast
 from uuid import UUID
 
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -25,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 WAKE_DEBOUNCE_SECONDS = 5.0
 RESULT_EXCERPT_CHARS = 4000
+MAX_WAKE_CHILDREN = 10
 
 
 @dataclass(frozen=True)
@@ -69,9 +71,10 @@ class SubThreadWake:
         from app.services.chat import ChatService
         from app.services.streaming.runtime import ChatStreamRuntime
 
-        if ChatStreamRuntime.has_active_chat(
-            parent_id
-        ) or ChatStreamRuntime.has_pending_start(parent_id):
+        if ChatStreamRuntime.has_active_chat(parent_id):
+            return
+        if ChatStreamRuntime.has_pending_start(parent_id):
+            self._schedule(parent_id)
             return
         async with SessionLocal() as db:
             parent = await db.get(
@@ -81,49 +84,67 @@ class SubThreadWake:
                 self._pending.pop(parent_id, None)
                 return
             pending = self._pending.pop(parent_id, set())
-            running = {
+            starting = {
+                child_id
+                for child_id in pending
+                if ChatStreamRuntime.has_pending_start(child_id)
+                and not ChatStreamRuntime.has_active_chat(child_id)
+            }
+            running = starting | {
                 child_id
                 for child_id in pending
                 if ChatStreamRuntime.has_active_chat(child_id)
-                or ChatStreamRuntime.has_pending_start(child_id)
             }
             if running:
                 self._pending[parent_id] = running
-            child_ids = pending - running
-            if not child_ids:
+            if starting:
+                self._schedule(parent_id)
+            finished = pending - running
+            if not finished:
                 return
             children = sorted(
-                [await self._load_child(db, child_id) for child_id in child_ids],
+                [await self._load_child(db, child_id) for child_id in finished],
                 key=attrgetter("title"),
             )
+        batch = children[:MAX_WAKE_CHILDREN]
+        self._requeue(parent_id, children[MAX_WAKE_CHILDREN:])
         model_id = parent.last_model_id
         if model_id is None or model_id not in MODELS:
             logger.warning(
                 "Parent chat %s has no usable model to wake with; dropping %d results",
                 parent_id,
-                len(children),
+                len(batch),
             )
             return
-        request = ChatRequest(
-            prompt=self._build_prompt(children),
-            chat_id=parent.id,
-            model_id=model_id,
-            permission_mode=cast(
-                PermissionMode,
-                parent.last_permission_mode
-                or NORMAL_SESSION_MODE[MODELS[model_id].agent_kind],
-            ),
-            thinking_mode=parent.last_thinking_mode,
-            selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
-        )
         try:
-            await ChatService(UserService()).initiate_chat_completion(
-                request, parent.user, user_app_notice=self._build_notice(children)
+            request = ChatRequest(
+                prompt=self._build_prompt(batch),
+                chat_id=parent.id,
+                model_id=model_id,
+                permission_mode=cast(
+                    PermissionMode,
+                    parent.last_permission_mode
+                    or NORMAL_SESSION_MODE[MODELS[model_id].agent_kind],
+                ),
+                thinking_mode=parent.last_thinking_mode,
+                selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
             )
+            await ChatService(UserService()).initiate_chat_completion(
+                request, parent.user, user_app_notice=self._build_notice(batch)
+            )
+        except ValidationError:
+            self._requeue(parent_id, batch)
+            raise
         except ChatException as exc:
             if exc.status_code != 409:
                 raise
-            self._pending.setdefault(parent_id, set()).update(child_ids)
+            self._requeue(parent_id, batch)
+
+    def _requeue(self, parent_id: str, children: list[ChildResult]) -> None:
+        if children:
+            self._pending.setdefault(parent_id, set()).update(
+                child.chat_id for child in children
+            )
 
     @staticmethod
     async def _load_child(db: AsyncSession, child_id: str) -> ChildResult:
