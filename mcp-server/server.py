@@ -4,7 +4,7 @@ from typing import Annotated, Any, Literal
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel, Field
 
-from client import DEFAULT_API_URL, AgentroveClient, AgentroveError
+from client import DEFAULT_API_URL, AgentroveClient, AgentroveError, ChatBusyError
 
 mcp = FastMCP("agentrove")
 
@@ -340,6 +340,7 @@ async def send_message(
     base_branch: str | None = None,
     fast_mode: bool = False,
     persona: str | None = None,
+    when_busy: Literal["queue", "steer"] | None = None,
 ) -> dict[str, Any]:
     """Send a prompt to AgentRove and start the agent turn.
 
@@ -358,6 +359,13 @@ async def send_message(
 
     Follow-up turns (chat_id given) inherit the chat's previous model_id, thinking_mode
     and persona when you omit them — pass a value only to change it for this turn.
+
+    when_busy decides what happens if the chat already has a turn running (by default
+    the call fails): "queue" adds the prompt to the chat's queue, which runs it as the
+    next turn once the current one finishes; "steer" injects it into the running turn
+    when the agent supports it and the per-turn options match that turn, otherwise it
+    interrupts the running turn and starts this prompt next. A queued or steered prompt
+    returns status "queued" or "steering" with queued_message_id instead of message_id.
 
     When the target is a sub-thread, AgentRove notifies this (parent) chat when the
     sub-thread's turn finishes (completed, failed or interrupted). If you are still
@@ -385,18 +393,40 @@ async def send_message(
             chat_title, resolved_workspace, resolved_model, parent_chat_id=parent_chat_id
         )
         chat_id = chat["id"]
-    sent = await client.send_message(
-        chat_id,
-        prompt,
-        resolved_model,
-        permission_mode=permission_mode,
-        thinking_mode=thinking_mode,
-        worktree=worktree,
-        base_branch=base_branch,
-        fast_mode=fast_mode,
-        persona=persona,
-        report_to_parent=bool(chat.get("parent_chat_id")),
-    )
+    try:
+        sent = await client.send_message(
+            chat_id,
+            prompt,
+            resolved_model,
+            permission_mode=permission_mode,
+            thinking_mode=thinking_mode,
+            worktree=worktree,
+            base_branch=base_branch,
+            fast_mode=fast_mode,
+            persona=persona,
+            report_to_parent=bool(chat.get("parent_chat_id")),
+        )
+    except ChatBusyError:
+        if when_busy is None:
+            raise
+        queued = await client.queue_message(
+            chat_id,
+            prompt,
+            resolved_model,
+            permission_mode=permission_mode,
+            send_now=when_busy == "steer",
+            thinking_mode=thinking_mode,
+            worktree=worktree,
+            base_branch=base_branch,
+            fast_mode=fast_mode,
+            persona=persona,
+        )
+        steering = when_busy == "steer" and not queued["send_now_failed"]
+        return {
+            "chat_id": chat_id,
+            "queued_message_id": queued["id"],
+            "status": "steering" if steering else "queued",
+        }
     return {
         "chat_id": chat_id,
         "message_id": sent["message_id"],

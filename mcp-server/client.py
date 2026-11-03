@@ -11,6 +11,10 @@ class AgentroveError(Exception):
     pass
 
 
+class ChatBusyError(AgentroveError):
+    pass
+
+
 class AgentroveClient:
     def __init__(self, base_url: str, access_token: str) -> None:
         self._base_url = base_url.rstrip("/")
@@ -164,15 +168,53 @@ class AgentroveClient:
         persona: str | None = None,
         report_to_parent: bool = False,
     ) -> dict[str, Any]:
-        # Form endpoint (no files); httpx bools "true"/"false" parse in FastAPI.
+        data = self._turn_form(
+            model_id, permission_mode, thinking_mode, worktree, base_branch, fast_mode, persona
+        )
+        data.update(prompt=prompt, chat_id=chat_id, report_to_parent=report_to_parent)
+        resp = await self.request("POST", "/chat/chat", data=data, expected=(200, 409))
+        if resp.status_code == 409:
+            raise ChatBusyError(resp.json()["detail"])
+        return resp.json()
+
+    async def queue_message(
+        self,
+        chat_id: str,
+        prompt: str,
+        model_id: str,
+        permission_mode: str,
+        send_now: bool,
+        thinking_mode: str | None = None,
+        worktree: bool = False,
+        base_branch: str | None = None,
+        fast_mode: bool = False,
+        persona: str | None = None,
+    ) -> dict[str, Any]:
+        data = self._turn_form(
+            model_id, permission_mode, thinking_mode, worktree, base_branch, fast_mode, persona
+        )
+        data.update(content=prompt, send_now=send_now)
+        resp = await self.request(
+            "POST", f"/chat/chats/{chat_id}/queue", data=data, expected=(201,)
+        )
+        return resp.json()
+
+    @staticmethod
+    def _turn_form(
+        model_id: str,
+        permission_mode: str,
+        thinking_mode: str | None,
+        worktree: bool,
+        base_branch: str | None,
+        fast_mode: bool,
+        persona: str | None,
+    ) -> dict[str, Any]:
+        # Form endpoints (no files); httpx bools "true"/"false" parse in FastAPI.
         data: dict[str, Any] = {
-            "prompt": prompt,
-            "chat_id": chat_id,
             "model_id": model_id,
             "permission_mode": permission_mode,
             "worktree": worktree,
             "fast_mode": fast_mode,
-            "report_to_parent": report_to_parent,
         }
         if thinking_mode:
             data["thinking_mode"] = thinking_mode
@@ -180,8 +222,7 @@ class AgentroveClient:
             data["base_branch"] = base_branch
         if persona:
             data["selected_persona_name"] = persona
-        resp = await self.request("POST", "/chat/chat", data=data)
-        return resp.json()
+        return data
 
     async def attach_file(self, chat_id: str, path: str) -> dict[str, Any]:
         file_path = Path(path)
