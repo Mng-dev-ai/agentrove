@@ -1,12 +1,10 @@
 import asyncio
 import logging
-import re
 from dataclasses import dataclass
 from operator import attrgetter
 from typing import cast
 from uuid import UUID
 
-from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -25,8 +23,6 @@ from app.services.user import UserService
 logger = logging.getLogger(__name__)
 
 WAKE_DEBOUNCE_SECONDS = 5.0
-RESULT_EXCERPT_CHARS = 4000
-MAX_WAKE_CHILDREN = 10
 
 
 @dataclass(frozen=True)
@@ -34,7 +30,6 @@ class ChildResult:
     chat_id: str
     title: str
     outcome: str
-    response: str
 
 
 class SubThreadWake:
@@ -106,51 +101,40 @@ class SubThreadWake:
                 [await self._load_child(db, child_id) for child_id in finished],
                 key=attrgetter("title"),
             )
-        batch = children[:MAX_WAKE_CHILDREN]
-        self._requeue(parent_id, children[MAX_WAKE_CHILDREN:])
         model_id = parent.last_model_id
         if model_id is None or model_id not in MODELS:
             logger.warning(
                 "Parent chat %s has no usable model to wake with; dropping %d results",
                 parent_id,
-                len(batch),
+                len(children),
             )
             return
+        request = ChatRequest(
+            prompt=self._build_prompt(children),
+            chat_id=parent.id,
+            model_id=model_id,
+            permission_mode=cast(
+                PermissionMode,
+                parent.last_permission_mode
+                or NORMAL_SESSION_MODE[MODELS[model_id].agent_kind],
+            ),
+            thinking_mode=parent.last_thinking_mode,
+            selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
+        )
         try:
-            request = ChatRequest(
-                prompt=self._build_prompt(batch),
-                chat_id=parent.id,
-                model_id=model_id,
-                permission_mode=cast(
-                    PermissionMode,
-                    parent.last_permission_mode
-                    or NORMAL_SESSION_MODE[MODELS[model_id].agent_kind],
-                ),
-                thinking_mode=parent.last_thinking_mode,
-                selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
-            )
             await ChatService(UserService()).initiate_chat_completion(
-                request, parent.user, user_app_notice=self._build_notice(batch)
+                request, parent.user, user_app_notice=self._build_notice(children)
             )
-        except ValidationError:
-            self._requeue(parent_id, batch)
-            raise
         except ChatException as exc:
             if exc.status_code != 409:
                 raise
-            self._requeue(parent_id, batch)
-
-    def _requeue(self, parent_id: str, children: list[ChildResult]) -> None:
-        if children:
-            self._pending.setdefault(parent_id, set()).update(
-                child.chat_id for child in children
-            )
+            self._pending.setdefault(parent_id, set()).update(finished)
 
     @staticmethod
     async def _load_child(db: AsyncSession, child_id: str) -> ChildResult:
         title = await db.scalar(select(Chat.title).where(Chat.id == UUID(child_id)))
-        message = await db.scalar(
-            select(Message)
+        outcome = await db.scalar(
+            select(Message.stream_status)
             .where(
                 Message.chat_id == UUID(child_id),
                 Message.role == MessageRole.ASSISTANT,
@@ -162,38 +146,21 @@ class SubThreadWake:
         return ChildResult(
             chat_id=child_id,
             title=title or "Untitled",
-            outcome=message.stream_status.value if message else "unknown",
-            response=message.content_text if message else "",
+            outcome=outcome.value if outcome else "unknown",
         )
 
     @staticmethod
-    def _excerpt(text: str) -> str:
-        text = text.strip()
-        if len(text) <= RESULT_EXCERPT_CHARS:
-            return text
-        cut = text[:RESULT_EXCERPT_CHARS]
-        if not text[RESULT_EXCERPT_CHARS].isspace():
-            cut = re.sub(r"\s+\S*$", "", cut) or cut
-        omitted = len(text) - len(cut)
-        return (
-            f"{cut.rstrip()}\n\n[truncated: {omitted} more characters in the "
-            "sub-thread's full response]"
-        )
-
-    @classmethod
-    def _build_prompt(cls, children: list[ChildResult]) -> str:
-        sections = [
-            f"Sub-thread: {child.title}\n"
-            f"chat_id: {child.chat_id}\n"
-            f"Outcome: {child.outcome}\n"
-            f"Final response:\n{cls._excerpt(child.response) or '(no final response)'}"
+    def _build_prompt(children: list[ChildResult]) -> str:
+        lines = [
+            f"- {child.title} (chat_id: {child.chat_id}, outcome: {child.outcome})"
             for child in children
         ]
         return (
             "This message was sent automatically by Agentrove, not typed by the "
-            "user. These sub-threads you delegated have finished.\n\n"
-            + "\n\n---\n\n".join(sections)
-            + "\n\nReport each result to the user in your own words, including "
+            "user. These sub-threads you delegated have finished:\n\n"
+            + "\n".join(lines)
+            + "\n\nRead each sub-thread's final response with get_messages before "
+            "replying. Report each result to the user in your own words, including "
             "anything they must act on. If you already reported one of these in "
             "this conversation, say so in one line instead of repeating it."
         )
