@@ -1047,6 +1047,7 @@ class ChatService(BaseDbService[Chat]):
         current_user: User,
         *,
         member_turn: ChannelMemberTurn | None = None,
+        user_app_notice: str | None = None,
     ) -> ChatCompletionResult:
         async with ChatStreamRuntime.chat_start_slot(str(request.chat_id)) as reserved:
             if not reserved:
@@ -1057,7 +1058,7 @@ class ChatService(BaseDbService[Chat]):
                     status_code=409,
                 )
             return await self._initiate_chat_completion_reserved(
-                request, current_user, member_turn
+                request, current_user, member_turn, user_app_notice
             )
 
     async def _initiate_chat_completion_reserved(
@@ -1065,11 +1066,18 @@ class ChatService(BaseDbService[Chat]):
         request: ChatRequest,
         current_user: User,
         member_turn: ChannelMemberTurn | None,
+        user_app_notice: str | None,
     ) -> ChatCompletionResult:
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(
             request.chat_id, current_user, include_channel=member_turn is not None
         )
+        if request.report_to_parent and chat.parent_chat_id is None:
+            raise ChatException(
+                "report_to_parent requires a sub-thread",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=400,
+            )
         attachments: list[MessageAttachmentDict] | None
         if member_turn is not None:
             attachments = member_turn.attachments
@@ -1147,6 +1155,7 @@ class ChatService(BaseDbService[Chat]):
             base_branch=request.base_branch,
             session_factory=self._session_factory,
             channel_member=member_turn is not None,
+            user_app_notice=user_app_notice,
             user_message_id=request.user_message_id,
         ) as (user_message, assistant_message, checkpoint_id):
             task = await self._enqueue_chat_task(
@@ -1166,6 +1175,7 @@ class ChatService(BaseDbService[Chat]):
                 attachments=attachments,
                 context_window=model.context_window,
                 selected_persona_name=request.selected_persona_name,
+                report_to_parent=request.report_to_parent,
             )
 
         if member_turn is not None:
@@ -1180,7 +1190,8 @@ class ChatService(BaseDbService[Chat]):
                     "chat_id": str(chat_id),
                     "message_id": str(assistant_message.id),
                     "user_message_id": str(user_message.id),
-                    "content": user_message.content_text,
+                    "content": user_app_notice or user_message.content_text,
+                    "app_notice": user_app_notice is not None,
                     "attachments": MessageService.serialize_attachments(
                         {"attachments": attachments}, user_message
                     ),
@@ -1222,6 +1233,7 @@ class ChatService(BaseDbService[Chat]):
         fast_mode: bool = False,
         context_window: int | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
+        report_to_parent: bool = False,
     ) -> asyncio.Task[str]:
         # Extracted so tests can override and run the stream synchronously.
         stream_attachments = (
@@ -1244,6 +1256,9 @@ class ChatService(BaseDbService[Chat]):
                 "session_id": chat.session_id,
                 "session_agent_kind": chat.session_agent_kind,
                 "worktree_cwd": chat.worktree_cwd,
+                "parent_chat_id": str(chat.parent_chat_id)
+                if chat.parent_chat_id
+                else None,
             },
             permission_mode=permission_mode,
             model_id=model_id,
@@ -1256,5 +1271,6 @@ class ChatService(BaseDbService[Chat]):
             fast_mode=fast_mode,
             attachments=stream_attachments,
             selected_persona_name=selected_persona_name,
+            report_to_parent=report_to_parent,
         )
         return ChatStreamRuntime.start_background_chat(request=request)

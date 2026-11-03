@@ -58,6 +58,7 @@ from app.services.streaming.types import (
     StreamEvent,
     StreamSnapshotAccumulator,
 )
+from app.services.subthread_wake import subthread_wake
 from app.services.user import UserService
 from app.utils.cache import CacheError, CacheStore, cache_connection
 
@@ -791,6 +792,7 @@ class ChatStreamRuntime:
         base_branch: str | None,
         session_factory: SessionFactoryType,
         channel_member: bool = False,
+        user_app_notice: str | None = None,
         user_message_id: UUID | None = None,
     ) -> AsyncIterator[tuple[Message, Message, UUID | None]]:
         # A turn that fails to start leaves no rows behind.
@@ -803,6 +805,7 @@ class ChatStreamRuntime:
                 prompt,
                 MessageRole.USER,
                 attachments=attachments,
+                app_notice=user_app_notice,
                 message_id=user_message_id,
             )
             assistant_message = await message_service.create_message(
@@ -1109,7 +1112,9 @@ class ChatStreamRuntime:
         return set(cls._background_task_chat_ids.values())
 
     @classmethod
-    def _on_background_task_done(cls, chat_id: str, task: asyncio.Task[str]) -> None:
+    def _on_background_task_done(
+        cls, chat_id: str, report_parent_id: str | None, task: asyncio.Task[str]
+    ) -> None:
         try:
             if task.cancelled():
                 return
@@ -1130,6 +1135,12 @@ class ChatStreamRuntime:
                 )
         finally:
             cls._background_task_chat_ids.pop(task, None)
+            try:
+                asyncio.get_running_loop().create_task(
+                    subthread_wake.on_chain_end(chat_id, report_parent_id)
+                )
+            except Exception:
+                logger.exception("Failed to schedule chain end for chat %s", chat_id)
 
     @classmethod
     def start_background_chat(
@@ -1143,8 +1154,13 @@ class ChatStreamRuntime:
             )
         )
         cls._background_task_chat_ids[background_task] = chat_id
+        report_parent_id = (
+            request.chat_data.get("parent_chat_id")
+            if request.report_to_parent
+            else None
+        )
         background_task.add_done_callback(
-            partial(cls._on_background_task_done, chat_id)
+            partial(cls._on_background_task_done, chat_id, report_parent_id)
         )
         return background_task
 

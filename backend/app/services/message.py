@@ -59,6 +59,7 @@ class MessageService(BaseDbService[Message]):
         model_id: str | None = None,
         session_id: str | None = None,
         stream_status: MessageStreamStatus | None = None,
+        app_notice: str | None = None,
         message_id: UUID | None = None,
     ) -> Message:
         # Assistants start empty (stream fills via update_message_snapshot); users go in whole.
@@ -69,7 +70,11 @@ class MessageService(BaseDbService[Message]):
             else:
                 content_text = content
                 content_render = {
-                    "events": [{"type": "user_text", "text": content}],
+                    "events": [
+                        {"type": "user_text", "text": content}
+                        if app_notice is None
+                        else {"type": "app_notice", "text": app_notice}
+                    ],
                 }
 
             message_kwargs: dict[str, Any] = {

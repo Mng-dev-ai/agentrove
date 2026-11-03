@@ -40,6 +40,7 @@ export interface PlanEntry {
 
 export type AssistantStreamEvent =
   | { type: 'assistant_text'; text: string }
+  | { type: 'app_notice'; text: string }
   | { type: 'assistant_thinking'; thinking: string }
   | { type: 'tool_started'; tool: ToolEventPayload }
   | { type: 'tool_completed'; tool: ToolEventPayload }
@@ -110,6 +111,7 @@ export type ChatEvent =
       message_id: string;
       user_message_id?: string;
       content?: string;
+      app_notice?: boolean;
       attachments: MessageAttachment[] | null;
       model_id: string;
       thinking_mode?: string | null;
