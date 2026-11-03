@@ -115,6 +115,8 @@ class SubThreadWake:
                 self._build_notice(children),
             ):
                 self._pending.setdefault(parent_id, set()).update(finished)
+                if not ChatStreamRuntime.has_active_chat(parent_id):
+                    self._schedule(parent_id)
             return
         model_id = parent.last_model_id
         if model_id is None or model_id not in MODELS:
