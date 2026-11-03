@@ -1189,13 +1189,8 @@ class ChatStreamRuntime:
             )
         )
         cls._background_task_chat_ids[background_task] = chat_id
-        report_parent_id = (
-            request.chat_data.get("parent_chat_id")
-            if request.report_to_parent
-            else None
-        )
         background_task.add_done_callback(
-            partial(cls._on_background_task_done, chat_id, report_parent_id)
+            partial(cls._on_background_task_done, chat_id, request.report_parent_id)
         )
         return background_task
 

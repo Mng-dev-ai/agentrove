@@ -75,7 +75,7 @@ class ChatStreamRequest:
     attachments: list[dict[str, Any]] | None
     context_window: int | None = None
     selected_persona_name: str = DEFAULT_PERSONA_NAME
-    report_to_parent: bool = False
+    report_parent_id: str | None = None
 
     @property
     def publish_user_id(self) -> str | None:

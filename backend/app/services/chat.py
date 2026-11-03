@@ -1175,7 +1175,9 @@ class ChatService(BaseDbService[Chat]):
                 attachments=attachments,
                 context_window=model.context_window,
                 selected_persona_name=request.selected_persona_name,
-                report_to_parent=request.report_to_parent,
+                report_parent_id=str(chat.parent_chat_id)
+                if request.report_to_parent and chat.parent_chat_id
+                else None,
             )
 
         if member_turn is not None:
@@ -1233,7 +1235,7 @@ class ChatService(BaseDbService[Chat]):
         fast_mode: bool = False,
         context_window: int | None = None,
         selected_persona_name: str = DEFAULT_PERSONA_NAME,
-        report_to_parent: bool = False,
+        report_parent_id: str | None = None,
     ) -> asyncio.Task[str]:
         # Extracted so tests can override and run the stream synchronously.
         stream_attachments = (
@@ -1256,9 +1258,6 @@ class ChatService(BaseDbService[Chat]):
                 "session_id": chat.session_id,
                 "session_agent_kind": chat.session_agent_kind,
                 "worktree_cwd": chat.worktree_cwd,
-                "parent_chat_id": str(chat.parent_chat_id)
-                if chat.parent_chat_id
-                else None,
             },
             permission_mode=permission_mode,
             model_id=model_id,
@@ -1271,6 +1270,6 @@ class ChatService(BaseDbService[Chat]):
             fast_mode=fast_mode,
             attachments=stream_attachments,
             selected_persona_name=selected_persona_name,
-            report_to_parent=report_to_parent,
+            report_parent_id=report_parent_id,
         )
         return ChatStreamRuntime.start_background_chat(request=request)

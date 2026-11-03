@@ -71,7 +71,6 @@ class SubThreadWake:
 
     async def _flush(self, parent_id: str) -> None:
         # Avoid circular import with runtime.py.
-        from app.services.chat import ChatService
         from app.services.streaming.runtime import ChatStreamRuntime
 
         mid_turn = ChatStreamRuntime.has_active_chat(parent_id)
@@ -85,49 +84,91 @@ class SubThreadWake:
             if parent is None or parent.deleted_at is not None:
                 self._pending.pop(parent_id, None)
                 return
-            pending = self._pending.pop(parent_id, set())
-            starting = {
-                child_id
-                for child_id in pending
-                if ChatStreamRuntime.has_pending_start(child_id)
-                and not ChatStreamRuntime.has_active_chat(child_id)
-            }
-            running = starting | {
-                child_id
-                for child_id in pending
-                if ChatStreamRuntime.has_active_chat(child_id)
-            }
-            if running:
-                self._pending[parent_id] = running
-            if starting:
-                self._schedule(parent_id)
-            finished = pending - running
-            if not finished:
-                return
-            children = sorted(
-                [await self._load_child(db, child_id) for child_id in finished],
-                key=attrgetter("title"),
-            )
-        if mid_turn:
-            if not await ChatStreamRuntime.steer_app_notice(
-                parent_id,
-                self._build_prompt(children, MID_TURN_OPENING),
-                self._build_notice(children),
-            ):
-                self._pending.setdefault(parent_id, set()).update(finished)
-                if not ChatStreamRuntime.has_active_chat(parent_id):
-                    self._schedule(parent_id)
+            children = await self._take_finished(db, parent_id)
+        if not children:
             return
-        model_id = parent.last_model_id
-        if model_id is None or model_id not in MODELS:
+        if mid_turn:
+            await self._steer_into_turn(parent_id, children)
+        else:
+            await self._start_wake_turn(parent, children)
+
+    def _requeue(self, parent_id: str, child_ids: set[str], *, schedule: bool) -> None:
+        if not child_ids:
+            return
+        self._pending.setdefault(parent_id, set()).update(child_ids)
+        if schedule:
+            self._schedule(parent_id)
+
+    def _hold_busy(self, parent_id: str, child_ids: set[str]) -> set[str]:
+        # Avoid circular import with runtime.py.
+        from app.services.streaming.runtime import ChatStreamRuntime
+
+        running = {c for c in child_ids if ChatStreamRuntime.has_active_chat(c)}
+        starting = {
+            c for c in child_ids - running if ChatStreamRuntime.has_pending_start(c)
+        }
+        self._requeue(parent_id, running, schedule=False)
+        self._requeue(parent_id, starting, schedule=True)
+        return child_ids - running - starting
+
+    async def _take_finished(
+        self, db: AsyncSession, parent_id: str
+    ) -> list[ChildResult]:
+        finished = self._hold_busy(parent_id, self._pending.pop(parent_id, set()))
+        loaded = [await self._load_child(db, child_id) for child_id in finished]
+        idle = self._hold_busy(parent_id, {child.chat_id for child in loaded})
+        return sorted(
+            (child for child in loaded if child.chat_id in idle),
+            key=attrgetter("title"),
+        )
+
+    async def _steer_into_turn(
+        self, parent_id: str, children: list[ChildResult]
+    ) -> None:
+        # Avoid circular import with runtime.py.
+        from app.services.streaming.runtime import ChatStreamRuntime
+
+        if not await ChatStreamRuntime.steer_app_notice(
+            parent_id,
+            self._build_prompt(children, MID_TURN_OPENING),
+            self._build_notice(children),
+        ):
+            self._requeue(
+                parent_id,
+                {child.chat_id for child in children},
+                schedule=not ChatStreamRuntime.has_active_chat(parent_id),
+            )
+
+    async def _start_wake_turn(self, parent: Chat, children: list[ChildResult]) -> None:
+        # Avoid circular import with chat.py.
+        from app.services.chat import ChatService
+
+        request = self._wake_request(parent, self._build_prompt(children, IDLE_OPENING))
+        if request is None:
             logger.warning(
                 "Parent chat %s has no usable model to wake with; dropping %d results",
-                parent_id,
+                parent.id,
                 len(children),
             )
             return
-        request = ChatRequest(
-            prompt=self._build_prompt(children, IDLE_OPENING),
+        try:
+            await ChatService(UserService()).initiate_chat_completion(
+                request, parent.user, user_app_notice=self._build_notice(children)
+            )
+        except ChatException as exc:
+            if exc.status_code != 409:
+                raise
+            self._requeue(
+                str(parent.id), {child.chat_id for child in children}, schedule=True
+            )
+
+    @staticmethod
+    def _wake_request(parent: Chat, prompt: str) -> ChatRequest | None:
+        model_id = parent.last_model_id
+        if model_id is None or model_id not in MODELS:
+            return None
+        return ChatRequest(
+            prompt=prompt,
             chat_id=parent.id,
             model_id=model_id,
             permission_mode=cast(
@@ -138,14 +179,6 @@ class SubThreadWake:
             thinking_mode=parent.last_thinking_mode,
             selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
         )
-        try:
-            await ChatService(UserService()).initiate_chat_completion(
-                request, parent.user, user_app_notice=self._build_notice(children)
-            )
-        except ChatException as exc:
-            if exc.status_code != 409:
-                raise
-            self._pending.setdefault(parent_id, set()).update(finished)
 
     @staticmethod
     async def _load_child(db: AsyncSession, child_id: str) -> ChildResult:
