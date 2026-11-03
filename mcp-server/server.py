@@ -340,7 +340,6 @@ async def send_message(
     base_branch: str | None = None,
     fast_mode: bool = False,
     persona: str | None = None,
-    report_to_parent: bool = True,
 ) -> dict[str, Any]:
     """Send a prompt to AgentRove and start the agent turn.
 
@@ -360,9 +359,11 @@ async def send_message(
     Follow-up turns (chat_id given) inherit the chat's previous model_id, thinking_mode
     and persona when you omit them — pass a value only to change it for this turn.
 
-    report_to_parent: for a sub-thread turn, AgentRove starts a new turn in the parent
-    chat once the sub-thread finishes (completed, failed or interrupted), so do not
-    promise to poll. Ignored when the chat is not a sub-thread.
+    When the target is a sub-thread, AgentRove notifies this (parent) chat when the
+    sub-thread's turn finishes (completed, failed or interrupted). If you are still
+    mid-turn, the notice is injected into your running turn when your agent supports
+    it; otherwise a new turn starts in this chat afterwards. So you don't need to
+    poll, and can end your turn.
 
     Returns immediately with chat_id and the streaming message_id. To read the reply
     yourself, poll get_messages and watch that message's stream_status flip from
@@ -394,7 +395,7 @@ async def send_message(
         base_branch=base_branch,
         fast_mode=fast_mode,
         persona=persona,
-        report_to_parent=report_to_parent and bool(chat.get("parent_chat_id")),
+        report_to_parent=bool(chat.get("parent_chat_id")),
     )
     return {
         "chat_id": chat_id,
