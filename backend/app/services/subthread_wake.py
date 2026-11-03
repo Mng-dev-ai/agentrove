@@ -23,6 +23,14 @@ from app.services.user import UserService
 logger = logging.getLogger(__name__)
 
 WAKE_DEBOUNCE_SECONDS = 5.0
+IDLE_OPENING = (
+    "This message was sent automatically by Agentrove, not typed by the user. "
+    "These sub-threads you delegated have finished:"
+)
+MID_TURN_OPENING = (
+    "While you were working, these sub-threads you delegated finished "
+    "(sent automatically by Agentrove, not typed by the user):"
+)
 
 
 @dataclass(frozen=True)
@@ -66,9 +74,8 @@ class SubThreadWake:
         from app.services.chat import ChatService
         from app.services.streaming.runtime import ChatStreamRuntime
 
-        if ChatStreamRuntime.has_active_chat(parent_id):
-            return
-        if ChatStreamRuntime.has_pending_start(parent_id):
+        mid_turn = ChatStreamRuntime.has_active_chat(parent_id)
+        if not mid_turn and ChatStreamRuntime.has_pending_start(parent_id):
             self._schedule(parent_id)
             return
         async with SessionLocal() as db:
@@ -101,6 +108,14 @@ class SubThreadWake:
                 [await self._load_child(db, child_id) for child_id in finished],
                 key=attrgetter("title"),
             )
+        if mid_turn:
+            if not await ChatStreamRuntime.steer_app_notice(
+                parent_id,
+                self._build_prompt(children, MID_TURN_OPENING),
+                self._build_notice(children),
+            ):
+                self._pending.setdefault(parent_id, set()).update(finished)
+            return
         model_id = parent.last_model_id
         if model_id is None or model_id not in MODELS:
             logger.warning(
@@ -110,7 +125,7 @@ class SubThreadWake:
             )
             return
         request = ChatRequest(
-            prompt=self._build_prompt(children),
+            prompt=self._build_prompt(children, IDLE_OPENING),
             chat_id=parent.id,
             model_id=model_id,
             permission_mode=cast(
@@ -150,14 +165,13 @@ class SubThreadWake:
         )
 
     @staticmethod
-    def _build_prompt(children: list[ChildResult]) -> str:
+    def _build_prompt(children: list[ChildResult], opening: str) -> str:
         lines = [
             f"- {child.title} (chat_id: {child.chat_id}, outcome: {child.outcome})"
             for child in children
         ]
         return (
-            "This message was sent automatically by Agentrove, not typed by the "
-            "user. These sub-threads you delegated have finished:\n\n"
+            f"{opening}\n\n"
             + "\n".join(lines)
             + "\n\nRead each sub-thread's final response with get_messages before "
             "replying. Report each result to the user in your own words, including "

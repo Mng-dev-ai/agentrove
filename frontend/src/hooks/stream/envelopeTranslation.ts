@@ -21,6 +21,7 @@ export function envelopeToRenderEvent(envelope: StreamEnvelope): AssistantStream
         queued_message_id: payload.queued_message_id as string,
         text: payload.text as string,
         attachments: payload.attachments as MessageAttachment[],
+        app_notice: payload.app_notice === true,
       };
     case 'assistant_text': {
       const text = typeof payload.text === 'string' ? payload.text : '';

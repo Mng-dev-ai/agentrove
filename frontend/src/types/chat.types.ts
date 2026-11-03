@@ -51,6 +51,7 @@ export type AssistantStreamEvent =
       queued_message_id: string;
       text: string;
       attachments: MessageAttachment[];
+      app_notice?: boolean;
     }
   | { type: 'plan'; data?: { entries?: PlanEntry[] } }
   | {

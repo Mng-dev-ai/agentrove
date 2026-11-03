@@ -4,6 +4,7 @@ import { useSmoothText } from '@/hooks/useSmoothText';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';
 import { PlanCard } from './PlanCard';
+import { NoticeCard } from './NoticeCard';
 import { MessageAttachments } from './MessageAttachments';
 import { UserBubble } from './Message';
 import { getToolComponent } from '@/components/chat/tools/registry';
@@ -75,10 +76,14 @@ export const SegmentView = memo(function SegmentView({
     case 'steering':
       return (
         <div className={styles['steering-segment']}>
-          <UserBubble>
-            <MessageAttachments attachments={segment.attachments} chatId={chatId} />
-            <MarkDown content={segment.text} highlightMentions />
-          </UserBubble>
+          {segment.appNotice ? (
+            <NoticeCard text={segment.text} />
+          ) : (
+            <UserBubble>
+              <MessageAttachments attachments={segment.attachments} chatId={chatId} />
+              <MarkDown content={segment.text} highlightMentions />
+            </UserBubble>
+          )}
         </div>
       );
     case 'thinking':
