@@ -1136,11 +1136,9 @@ class ChatStreamRuntime:
         finally:
             cls._background_task_chat_ids.pop(task, None)
             try:
-                asyncio.get_running_loop().create_task(
-                    subthread_wake.on_chain_end(chat_id, report_parent_id)
-                )
+                subthread_wake.on_chain_end(chat_id, report_parent_id)
             except Exception:
-                logger.exception("Failed to schedule chain end for chat %s", chat_id)
+                logger.exception("Failed to record chain end for chat %s", chat_id)
 
     @classmethod
     def start_background_chat(

@@ -41,12 +41,12 @@ class SubThreadWake:
         self._scheduled: set[str] = set()
         self._tasks: set[asyncio.Task[None]] = set()
 
-    async def on_chain_end(self, chat_id: str, report_parent_id: str | None) -> None:
+    def on_chain_end(self, chat_id: str, report_parent_id: str | None) -> None:
         if report_parent_id is not None:
             self._pending.setdefault(report_parent_id, set()).add(chat_id)
-            self._schedule(report_parent_id)
-        if chat_id in self._pending:
-            self._schedule(chat_id)
+        for parent_id, child_ids in list(self._pending.items()):
+            if parent_id == chat_id or chat_id in child_ids:
+                self._schedule(parent_id)
 
     def _schedule(self, parent_id: str) -> None:
         if parent_id in self._scheduled:
@@ -80,7 +80,16 @@ class SubThreadWake:
             if parent is None or parent.deleted_at is not None:
                 self._pending.pop(parent_id, None)
                 return
-            child_ids = self._pending.pop(parent_id, set())
+            pending = self._pending.pop(parent_id, set())
+            running = {
+                child_id
+                for child_id in pending
+                if ChatStreamRuntime.has_active_chat(child_id)
+                or ChatStreamRuntime.has_pending_start(child_id)
+            }
+            if running:
+                self._pending[parent_id] = running
+            child_ids = pending - running
             if not child_ids:
                 return
             children = sorted(
