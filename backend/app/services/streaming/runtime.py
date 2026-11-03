@@ -58,6 +58,7 @@ from app.services.streaming.types import (
     StreamEvent,
     StreamSnapshotAccumulator,
 )
+from app.services.subthread_wake import subthread_wake
 from app.services.user import UserService
 from app.utils.cache import CacheError, CacheStore, cache_connection
 
@@ -275,21 +276,53 @@ class ChatStreamRuntime:
             await self.emit_event(kind, payload)
             await self._flush_snapshot()
 
+    def _steering_session(self) -> AcpSession | None:
+        session = self._acp_session
+        if (
+            not self._accepts_steering
+            or session is None
+            or not session.supports_steering
+            or self.member_turn is not None
+            or self.assistant_message_id is None
+            or (self._cancel_event and self._cancel_event.is_set())
+        ):
+            return None
+        return session
+
+    async def _steer(
+        self,
+        session: AcpSession,
+        prompt: str,
+        attachments: list[dict[str, Any]] | None,
+    ) -> bool:
+        try:
+            outcome = await session.steer_prompt(
+                AgentService.prepare_user_prompt(prompt, self.custom_instructions),
+                attachments,
+            )
+        except (RequestError, AgentException):
+            return False
+        return outcome == "injected"
+
+    async def _record_steering(self, event_payload: dict[str, Any]) -> None:
+        await self.emit_event("user_steering", event_payload)
+        await self._flush_event_buffer()
+        await self.message_service.update_message_snapshot(
+            UUID(self.assistant_message_id),
+            content_text=self.snapshot.content_text,
+            content_render=self.snapshot.to_render(),
+            last_seq=self.last_seq,
+            active_stream_id=self.stream_id,
+        )
+
     @classmethod
     async def steer_send_now(cls, chat_id: str) -> bool:
         runtime = cls._active_runtimes.get(chat_id)
         if runtime is None:
             return False
         async with runtime._steering_lock:
-            session = runtime._acp_session
-            if (
-                not runtime._accepts_steering
-                or session is None
-                or not session.supports_steering
-                or runtime.member_turn is not None
-                or runtime.assistant_message_id is None
-                or (runtime._cancel_event and runtime._cancel_event.is_set())
-            ):
+            session = runtime._steering_session()
+            if session is None:
                 return False
             async with cache_connection() as cache:
                 queue = QueueService(cache)
@@ -310,20 +343,12 @@ class ChatStreamRuntime:
                     }
                     if any(queued.get(key) != value for key, value in options.items()):
                         return False
-                    try:
-                        outcome = await session.steer_prompt(
-                            AgentService.prepare_user_prompt(
-                                queued["content"], runtime.custom_instructions
-                            ),
-                            queued["attachments"],
-                        )
-                    except (RequestError, AgentException):
+                    injected = await runtime._steer(
+                        session, queued["content"], queued["attachments"]
+                    )
+                    if not injected:
                         return False
-                    if outcome != "injected":
-                        return False
-                    injected = True
-                    await runtime.emit_event(
-                        "user_steering",
+                    await runtime._record_steering(
                         {
                             "queued_message_id": queued["id"],
                             "text": queued["content"],
@@ -342,19 +367,32 @@ class ChatStreamRuntime:
                             ],
                         },
                     )
-                    await runtime._flush_event_buffer()
-                    await runtime.message_service.update_message_snapshot(
-                        UUID(runtime.assistant_message_id),
-                        content_text=runtime.snapshot.content_text,
-                        content_render=runtime.snapshot.to_render(),
-                        last_seq=runtime.last_seq,
-                        active_stream_id=runtime.stream_id,
-                    )
                     return True
                 finally:
                     if not injected:
                         await queue.requeue_message(chat_id, queued)
                         await queue.mark_send_now(chat_id, queued["id"])
+
+    @classmethod
+    async def steer_app_notice(cls, chat_id: str, prompt: str, notice: str) -> bool:
+        runtime = cls._active_runtimes.get(chat_id)
+        if runtime is None:
+            return False
+        async with runtime._steering_lock:
+            session = runtime._steering_session()
+            if session is None:
+                return False
+            if not await runtime._steer(session, prompt, None):
+                return False
+            await runtime._record_steering(
+                {
+                    "queued_message_id": str(uuid4()),
+                    "text": notice,
+                    "app_notice": True,
+                    "attachments": [],
+                }
+            )
+            return True
 
     async def _emit_prompt_suggestions(self) -> None:
         raw = "".join(self.snapshot.text_parts)
@@ -791,6 +829,7 @@ class ChatStreamRuntime:
         base_branch: str | None,
         session_factory: SessionFactoryType,
         channel_member: bool = False,
+        user_app_notice: str | None = None,
         user_message_id: UUID | None = None,
     ) -> AsyncIterator[tuple[Message, Message, UUID | None]]:
         # A turn that fails to start leaves no rows behind.
@@ -803,6 +842,7 @@ class ChatStreamRuntime:
                 prompt,
                 MessageRole.USER,
                 attachments=attachments,
+                app_notice=user_app_notice,
                 message_id=user_message_id,
             )
             assistant_message = await message_service.create_message(
@@ -1109,7 +1149,9 @@ class ChatStreamRuntime:
         return set(cls._background_task_chat_ids.values())
 
     @classmethod
-    def _on_background_task_done(cls, chat_id: str, task: asyncio.Task[str]) -> None:
+    def _on_background_task_done(
+        cls, chat_id: str, report_parent_id: str | None, task: asyncio.Task[str]
+    ) -> None:
         try:
             if task.cancelled():
                 return
@@ -1130,6 +1172,10 @@ class ChatStreamRuntime:
                 )
         finally:
             cls._background_task_chat_ids.pop(task, None)
+            try:
+                subthread_wake.on_chain_end(chat_id, report_parent_id)
+            except Exception:
+                logger.exception("Failed to record chain end for chat %s", chat_id)
 
     @classmethod
     def start_background_chat(
@@ -1144,7 +1190,7 @@ class ChatStreamRuntime:
         )
         cls._background_task_chat_ids[background_task] = chat_id
         background_task.add_done_callback(
-            partial(cls._on_background_task_done, chat_id)
+            partial(cls._on_background_task_done, chat_id, request.report_parent_id)
         )
         return background_task
 

@@ -359,9 +359,15 @@ async def send_message(
     Follow-up turns (chat_id given) inherit the chat's previous model_id, thinking_mode
     and persona when you omit them — pass a value only to change it for this turn.
 
-    Returns immediately with chat_id and the streaming message_id. To get the reply, poll
-    get_messages and watch that message's stream_status flip from "in_progress" to
-    "completed". The turn runs unattended — it uses the model's full-execution permission
+    When the target is a sub-thread, AgentRove notifies this (parent) chat when the
+    sub-thread's turn finishes (completed, failed or interrupted). If you are still
+    mid-turn, the notice is injected into your running turn when your agent supports
+    it; otherwise a new turn starts in this chat afterwards. So you don't need to
+    poll, and can end your turn.
+
+    Returns immediately with chat_id and the streaming message_id. To read the reply
+    yourself, poll get_messages and watch that message's stream_status flip from
+    "in_progress" to "completed". The turn runs unattended — it uses the model's full-execution permission
     mode (e.g. bypassPermissions for Claude, full-access for Codex).
     """
     if chat_id is not None:
@@ -389,6 +395,7 @@ async def send_message(
         base_branch=base_branch,
         fast_mode=fast_mode,
         persona=persona,
+        report_to_parent=bool(chat.get("parent_chat_id")),
     )
     return {
         "chat_id": chat_id,

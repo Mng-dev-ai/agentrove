@@ -108,6 +108,7 @@ export function insertStartedTurnInCache(
       userMessageId: event.user_message_id,
       assistantMessageId: event.message_id,
       content: event.content,
+      appNotice: event.app_notice,
       attachments: event.attachments ?? [],
       modelId: event.model_id,
       checkpointId: event.checkpoint_id,

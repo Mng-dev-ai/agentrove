@@ -15,6 +15,7 @@ export interface SteeringSegment {
   id: string;
   text: string;
   attachments: MessageAttachment[];
+  appNotice: boolean;
 }
 
 export interface ThinkingSegment {
@@ -74,7 +75,7 @@ export const segmentsEqual = (a: MessageSegment, b: MessageSegment): boolean => 
   // flushes so memoized SegmentViews bail out instead of re-rendering.
   if (a.id !== b.id) return false;
   if (a.kind === 'steering' && b.kind === 'steering') {
-    return a.text === b.text && a.attachments === b.attachments;
+    return a.text === b.text && a.attachments === b.attachments && a.appNotice === b.appNotice;
   }
   if (a.kind === 'text' && b.kind === 'text') return a.text === b.text;
   if (a.kind === 'thinking' && b.kind === 'thinking') return a.text === b.text;
@@ -404,6 +405,7 @@ export const buildSegments = (events: AssistantStreamEvent[]): MessageSegment[] 
           id: `steering-${event.queued_message_id}`,
           text: event.text,
           attachments: event.attachments,
+          appNotice: event.app_notice === true,
         });
         break;
       case 'assistant_text':

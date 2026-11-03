@@ -19,6 +19,7 @@ import { ChatContext } from '@/contexts/ChatContextDefinition';
 import { useUIStore } from '@/store/uiStore';
 import { createImageAttachment } from './markdownParsing';
 import { CodeBlock } from './CodeBlock';
+import { ChatLink, CHAT_LINK_RE } from './ChatLink';
 import styles from './markdownComponents.module.scss';
 
 const Mermaid = lazyNamed(() => import('../Mermaid/Mermaid'), 'Mermaid');
@@ -234,6 +235,14 @@ export const MARKDOWN_COMPONENTS: Components = {
             {children}
           </Link>
         </FloatingTooltip>
+      );
+    }
+
+    if (href && CHAT_LINK_RE.test(href)) {
+      return (
+        <ChatLink {...props} href={href}>
+          {children}
+        </ChatLink>
       );
     }
 

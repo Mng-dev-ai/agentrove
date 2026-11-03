@@ -162,6 +162,7 @@ class AgentroveClient:
         base_branch: str | None = None,
         fast_mode: bool = False,
         persona: str | None = None,
+        report_to_parent: bool = False,
     ) -> dict[str, Any]:
         # Form endpoint (no files); httpx bools "true"/"false" parse in FastAPI.
         data: dict[str, Any] = {
@@ -171,6 +172,7 @@ class AgentroveClient:
             "permission_mode": permission_mode,
             "worktree": worktree,
             "fast_mode": fast_mode,
+            "report_to_parent": report_to_parent,
         }
         if thinking_mode:
             data["thinking_mode"] = thinking_mode

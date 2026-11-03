@@ -40,6 +40,7 @@ class ChatRequest(BaseModel):
     fast_mode: bool = False
     selected_persona_name: str = Field(DEFAULT_PERSONA_NAME, max_length=100)
     attached_files: list[UploadFile] | None = None
+    report_to_parent: bool = False
 
 
 class MessageBase(BaseModel):
