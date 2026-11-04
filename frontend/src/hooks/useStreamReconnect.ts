@@ -5,6 +5,7 @@ import { chatService } from '@/services/chatService';
 import { chatStorage } from '@/utils/storage';
 import { useStreamStore } from '@/store/streamStore';
 import { useElicitationStore } from '@/store/elicitationStore';
+import { pruneIfStillOrphan } from '@/utils/activeStreams';
 import type { Message } from '@/types/chat.types';
 import type { StreamState } from '@/types/stream.types';
 
@@ -69,7 +70,10 @@ export function useStreamReconnect({
             .reconcileElicitationRequests(chatId, status.pending_elicitations);
         }
 
-        if (!status?.has_active_task) return;
+        if (!status?.has_active_task) {
+          pruneIfStillOrphan(chatId, false);
+          return;
+        }
 
         let targetMessageId = status.message_id;
 

@@ -1,6 +1,21 @@
 import { useStreamStore } from '@/store/streamStore';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/hooks/queries/queryKeys';
 import { logger } from '@/utils/logger';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
+
+// Re-check before remove — an EventSource may attach while the status request is in flight.
+export function pruneIfStillOrphan(chatId: string, markDone: boolean): void {
+  const store = useStreamStore.getState();
+  if (store.getStreamByChat(chatId)) return;
+  if (!store.activeStreamMetadata.some((meta) => meta.chatId === chatId)) return;
+  store.removeStreamMetadata(chatId);
+  // Orphans have no complete envelope; only confirmed-settled prune earns the Done badge
+  // (a failed status probe is a guess, not evidence of completion).
+  if (markDone) store.markCompleted(chatId);
+  void queryClient.invalidateQueries({ queryKey: queryKeys.messages(chatId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.chat(chatId), exact: true });
+}
 
 // Register backend snapshot for turns started while offline (startup/resync).
 // Already-tracked streams are left alone.
