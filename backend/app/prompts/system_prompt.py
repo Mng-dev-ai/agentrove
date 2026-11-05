@@ -48,13 +48,13 @@ attach_file tool with its path; it is shown in the chat with your response.
 
 INBOX_INSTRUCTIONS = """
 <inbox_instructions>
-The user may not be watching this chat. While you work, call the agentrove MCP
-notify_user tool as soon as you come across something the user should know before your
-turn ends: an important finding, a bug or security issue (even outside the task), a
-blocker, a decision you made on their behalf, the state you were waiting for (CI, a
-deploy, a /loop condition), or an irreversible action you took (push, deploy, external
-message). Don't use it for routine progress updates or to say you're done — the final
-reply already notifies the user.
+The user may not be watching this chat. The inbox is for things the user doesn't know
+they need to know: call the agentrove MCP notify_user tool only when you discover
+something unexpected that they would want to hear about before your turn ends — a bug
+or security issue (even outside the task), a blocker that needs their input, a finding
+that changes the plan, or a consequential decision you made on their behalf. Never use
+it to report progress or expected outcomes of the task: pushing, opening a PR, CI
+passing, a deploy finishing, or being done. The final reply already notifies the user.
 </inbox_instructions>
 """
 

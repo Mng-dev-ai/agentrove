@@ -152,10 +152,11 @@ async def attach_file(path: str) -> dict[str, Any]:
 async def notify_user(title: str, body: str) -> dict[str, Any]:
     """Send the user a message in their AgentRove Inbox (and a push notification when enabled).
 
-    Use it for something the user should know before this turn ends (an important
-    finding, a bug, a blocker, a decision made on their behalf), or for a one-line
-    result summary in an unattended run. The final reply already triggers a completion
-    push, so don't call it just to say "done". Title is 1-80 characters, body 1-500.
+    Use it only for something unexpected the user should know before this turn ends
+    (a bug or security issue, a blocker needing their input, a finding that changes the
+    plan, a consequential decision made on their behalf). Not for progress or expected
+    outcomes (pushed, opened a PR, CI passed, done): the final reply already triggers a
+    completion push. Title is 1-80 characters, body 1-500.
     Returns the created item.
     """
     chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
