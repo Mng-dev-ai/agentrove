@@ -115,7 +115,7 @@ RUN . "$NVM_DIR/nvm.sh" && \
 # Cursor CLI — pinned download replicating cursor.com/install (which always
 # fetches its own latest); cursor-agent lands in ~/.local/bin, already on PATH.
 RUN set -eux; \
-    v=2026.10.22-27dcf5f; \
+    v=2026.11.05-86047df; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
     dir=/home/user/.local/share/cursor-agent/versions/$v; \
     mkdir -p "$dir" /home/user/.local/bin; \
