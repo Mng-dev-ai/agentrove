@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { logger } from '@/utils/logger';
 import { useStreamStore } from '@/store/streamStore';
 import { chatService } from '@/services/chatService';
+import { pruneIfStillOrphan } from '@/utils/activeStreams';
 
 interface UseGlobalStreamOptions {
   enabled?: boolean;
@@ -9,17 +10,6 @@ interface UseGlobalStreamOptions {
 }
 
 const STREAM_PRUNE_INTERVAL_MS = 5000;
-
-// Re-check before remove — an EventSource may attach while the status request is in flight.
-function pruneIfStillOrphan(chatId: string, markDone: boolean): void {
-  const store = useStreamStore.getState();
-  if (!store.getStreamByChat(chatId)) {
-    store.removeStreamMetadata(chatId);
-    // Orphans have no complete envelope; only confirmed-settled prune earns the Done badge
-    // (a failed status probe is a guess, not evidence of completion).
-    if (markDone) store.markCompleted(chatId);
-  }
-}
 
 // Interval reconcile: background sub-threads register metadata without an EventSource,
 // so removeStream never fires for them — prune settled orphans so indicators clear.
