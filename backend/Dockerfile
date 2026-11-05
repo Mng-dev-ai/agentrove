@@ -51,7 +51,7 @@ RUN npm install -g playwright@1.64.1 && \
 # Cursor CLI — used for the Cursor ACP server (`cursor-agent acp`). Pinned
 # download replicating cursor.com/install, which always fetches its own latest.
 RUN set -eux; \
-    v=2026.10.22-27dcf5f; \
+    v=2026.11.05-86047df; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
     dir=/root/.local/share/cursor-agent/versions/$v; \
     mkdir -p "$dir" /root/.local/bin; \
