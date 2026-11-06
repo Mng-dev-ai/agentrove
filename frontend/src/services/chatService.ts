@@ -1,4 +1,4 @@
-import { apiClient, resolveChatClient, StreamResponse } from '@/lib/api';
+import { apiClient, getMachineClient, resolveChatClient, StreamResponse } from '@/lib/api';
 import { ensureResponse, serviceCall, buildQueryString } from '@/services/base/BaseService';
 import { AuthEventSource } from '@/services/authEventSource';
 import { validateRequired, validateId } from '@/utils/validation';
@@ -9,6 +9,7 @@ import {
   chatMachineId,
 } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { machineStatus, useMachineStore } from '@/store/machineStore';
 import type {
   ChatRequest,
   Chat,
@@ -199,11 +200,31 @@ async function getChat(chatId: string): Promise<Chat> {
 
   return serviceCall(async () => {
     const machineId = chatMachineId(chatId);
-    const response = await resolveChatClient(chatId).get<Chat>(`/chat/chats/${chatId}`);
-    const chat = ensureResponse(response, 'Failed to fetch chat');
-    assignChatRecordsToMachine(machineId, [chat]);
-    return chat;
+    try {
+      const response = await resolveChatClient(chatId).get<Chat>(`/chat/chats/${chatId}`);
+      const chat = ensureResponse(response, 'Failed to fetch chat');
+      assignChatRecordsToMachine(machineId, [chat]);
+      return chat;
+    } catch (error) {
+      if (machineId !== LOCAL_MACHINE_ID || (error as Error & { status?: number }).status !== 404) {
+        throw error;
+      }
+      return findRemoteChat(chatId, error);
+    }
   });
+}
+
+async function findRemoteChat(chatId: string, notFound: unknown): Promise<Chat> {
+  for (const machine of useMachineStore.getState().machines) {
+    if (machineStatus(machine.id) !== 'online') continue;
+    const chat = await getMachineClient(machine.id)
+      .get<Chat>(`/chat/chats/${chatId}`)
+      .catch(() => null);
+    if (!chat) continue;
+    assignChatRecordsToMachine(machine.id, [chat]);
+    if (chatMachineId(chatId) === machine.id) return chat;
+  }
+  throw notFound;
 }
 
 async function createChat(data: CreateChatRequest): Promise<Chat> {

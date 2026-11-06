@@ -1,5 +1,8 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useInfiniteMessagesQuery, useChatQuery } from '@/hooks/queries/useChatQueries';
+import { useChatMachineId } from '@/store/machineOrigin';
+import { useOnlineRemoteMachineIds } from '@/store/machineStore';
 import type { Message } from '@/types/chat.types';
 
 interface UseChatDataResult {
@@ -12,6 +15,16 @@ interface UseChatDataResult {
 export function useChatData(chatId: string | undefined): UseChatDataResult {
   const chatQuery = useChatQuery(chatId, { enabled: !!chatId });
   const messagesQuery = useInfiniteMessagesQuery(chatId);
+  const queryClient = useQueryClient();
+  const machineId = useChatMachineId(chatId);
+  const onlineMachineIds = useOnlineRemoteMachineIds();
+
+  useEffect(() => {
+    if (!chatId) return;
+    void queryClient.invalidateQueries({
+      predicate: (query) => query.queryKey[1] === chatId && query.state.status === 'error',
+    });
+  }, [chatId, machineId, onlineMachineIds, queryClient]);
 
   const fetchedMessages = useMemo(() => {
     if (!messagesQuery.data?.pages) return [];
