@@ -192,11 +192,10 @@ async def enhance_prompt(
     model_id: str = Form(...),
     ai_service: AgentService = Depends(get_agent_service),
     current_user: User = Depends(get_current_user),
-    device_id: UUID | None = Depends(get_current_device_id),
 ) -> dict[str, str]:
     try:
         enhanced_prompt = await ai_service.enhance_prompt(
-            prompt, model_id, current_user, device_id
+            prompt, model_id, current_user
         )
     except AgentException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
@@ -207,7 +206,6 @@ async def enhance_prompt(
 async def generate_chat_title(
     chat: Chat = Depends(ensure_chat_access),
     current_user: User = Depends(get_current_user),
-    device_id: UUID | None = Depends(get_current_device_id),
     ai_service: AgentService = Depends(get_agent_service),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> dict[str, str]:
@@ -219,7 +217,7 @@ async def generate_chat_title(
             detail="Chat has no messages to generate a title from",
         )
 
-    title = await ai_service.generate_title(prompt, current_user, device_id, chat=chat)
+    title = await ai_service.generate_title(prompt, current_user, chat=chat)
     if not title:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -233,7 +231,6 @@ async def ask_about_code(
     request: AskCodeRequest,
     chat: Chat = Depends(ensure_member_chat_access),
     current_user: User = Depends(get_current_user),
-    device_id: UUID | None = Depends(get_current_device_id),
     ai_service: AgentService = Depends(get_agent_service),
 ) -> dict[str, str]:
     # Inline editor Q&A — no turn/message rows; chat is for workspace access only.
@@ -247,7 +244,6 @@ async def ask_about_code(
             request.end_line,
             request.model_id,
             current_user,
-            device_id,
             chat=chat,
         )
     except AgentException as e:

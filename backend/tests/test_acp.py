@@ -331,7 +331,7 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
 
     new_sessions = fake_agent.events_of("new_session")
     assert new_sessions
-    assert [s["name"] for s in new_sessions[-1]["mcp_servers"]] == ["agentrove"]
+    assert new_sessions[-1]["mcp_servers"] == []
     assert [
         e["value"]
         for e in fake_agent.events_of("set_config_option")

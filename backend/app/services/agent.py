@@ -153,6 +153,8 @@ class AgentService:
             user_settings=user_settings,
             user_id=str(user.id),
             device_id=device_id,
+            agentrove_mcp=not channel_member
+            or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind],
             agent_kind=agent_kind,
             permission_mode=permission_mode,
             model_id=model_id,
@@ -271,26 +273,19 @@ class AgentService:
             return permission_mode if isinstance(permission_mode, str) else None
         return None
 
-    async def enhance_prompt(
-        self, prompt: str, model_id: str, user: User, device_id: UUID | None
-    ) -> str:
+    async def enhance_prompt(self, prompt: str, model_id: str, user: User) -> str:
         return (
             await self._generate_text(
                 ENHANCE_PROMPT,
                 "Enhance this prompt: " + prompt,
                 model_id,
                 user,
-                device_id,
             )
             or prompt
         )
 
     async def generate_title(
-        self,
-        prompt: str,
-        user: User,
-        device_id: UUID | None,
-        chat: Chat | None = None,
+        self, prompt: str, user: User, chat: Chat | None = None
     ) -> str | None:
         # Titles always run on the user's configured title model (settings),
         # never the chat's model — no fallback chain.
@@ -303,7 +298,6 @@ class AgentService:
                 + "\n</message>",
                 user_settings.title_model_id,
                 user,
-                device_id,
                 chat=chat,
             )
             if title:
@@ -314,33 +308,26 @@ class AgentService:
             return None
 
     async def generate_pr_description(
-        self,
-        title: str,
-        diff: str,
-        model_id: str,
-        user: User,
-        device_id: UUID | None,
+        self, title: str, diff: str, model_id: str, user: User
     ) -> str:
         result = await self._generate_text(
             GENERATE_PR_DESCRIPTION_SYSTEM_PROMPT,
             GENERATE_PR_DESCRIPTION_TITLE_PREFIX + title + "\n\n" + diff,
             model_id,
             user,
-            device_id,
         )
         if not result:
             raise AgentException("AI returned an empty description")
         return result
 
     async def generate_commit_message(
-        self, diff: str, model_id: str, user: User, device_id: UUID | None
+        self, diff: str, model_id: str, user: User
     ) -> str:
         result = await self._generate_text(
             GENERATE_COMMIT_MESSAGE_SYSTEM_PROMPT,
             diff,
             model_id,
             user,
-            device_id,
         )
         if not result:
             raise AgentException("AI returned an empty commit message")
@@ -356,7 +343,6 @@ class AgentService:
         end_line: int | None,
         model_id: str,
         user: User,
-        device_id: UUID | None,
         chat: Chat,
     ) -> str:
         # No file identity = chat-page text selection; label it accordingly so
@@ -380,12 +366,7 @@ class AgentService:
             "<question>\n" + question + "\n</question>"
         )
         result = await self._generate_text(
-            INLINE_CHAT_SYSTEM_PROMPT,
-            user_message,
-            model_id,
-            user,
-            device_id,
-            chat=chat,
+            INLINE_CHAT_SYSTEM_PROMPT, user_message, model_id, user, chat=chat
         )
         if not result:
             raise AgentException("AI returned an empty answer")
@@ -397,7 +378,6 @@ class AgentService:
         user_message: str,
         model_id: str,
         user: User,
-        device_id: UUID | None,
         chat: Chat | None = None,
     ) -> str:
         user_settings = await self._get_user_settings(user.id)
@@ -423,7 +403,8 @@ class AgentService:
         config = await self._build_acp_config(
             user_settings=user_settings,
             user_id=str(user.id),
-            device_id=device_id,
+            device_id=None,
+            agentrove_mcp=False,
             agent_kind=agent_kind,
             permission_mode=NORMAL_SESSION_MODE[agent_kind],
             model_id=model_id,
@@ -538,6 +519,7 @@ class AgentService:
         user_settings: UserSettings,
         user_id: str,
         device_id: UUID | None,
+        agentrove_mcp: bool,
         agent_kind: AgentKind,
         permission_mode: PermissionMode,
         model_id: str,
@@ -604,8 +586,7 @@ class AgentService:
                 user_id,
                 device_id,
                 sandbox_provider,
-                agentrove_mcp=not channel_member
-                or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind],
+                agentrove_mcp=agentrove_mcp,
                 current_chat_id=None if channel_member else chat_id,
             ),
             model=model_id,

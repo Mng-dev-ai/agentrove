@@ -28,6 +28,7 @@ from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
+from app.models.schemas.queue import QueuedMessage
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -340,11 +341,13 @@ class ChatStreamRuntime:
                         "base_branch": request.base_branch,
                         "selected_persona_name": request.selected_persona_name,
                         "fast_mode": request.fast_mode,
-                        "device_id": None
-                        if request.device_id is None
-                        else str(request.device_id),
+                        "device_id": request.device_id,
                     }
-                    if any(queued.get(key) != value for key, value in options.items()):
+                    queued_message = QueuedMessage.model_validate(queued)
+                    if any(
+                        getattr(queued_message, key) != value
+                        for key, value in options.items()
+                    ):
                         return False
                     injected = await runtime._steer(
                         session, queued["content"], queued["attachments"]
@@ -989,9 +992,7 @@ class ChatStreamRuntime:
 
         ai_service = AgentService(session_factory=self.session_factory)
         user = User(id=self.chat.user_id)
-        title = await ai_service.generate_title(
-            self.prompt, user, self._request.device_id, chat=self.chat
-        )
+        title = await ai_service.generate_title(self.prompt, user, chat=self.chat)
         if not title:
             return
         title = title[:255]
@@ -1221,9 +1222,7 @@ class ChatStreamRuntime:
         context_window = model.context_window
         resolved_session_id = session_id_override or chat.session_id
         return ChatStreamRequest(
-            device_id=None
-            if queued_msg.get("device_id") is None
-            else UUID(queued_msg["device_id"]),
+            device_id=QueuedMessage.model_validate(queued_msg).device_id,
             prompt=queued_msg["content"],
             system_prompt=system_prompt,
             custom_instructions=user_settings.custom_instructions,
