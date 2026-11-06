@@ -75,6 +75,7 @@ class AgentServiceOverride:
         end_line: int | None,
         model_id: str,
         user: User,
+        device_id: UUID | None,
         chat: Chat,
     ) -> str:
         if self.fail:
@@ -82,7 +83,11 @@ class AgentServiceOverride:
         return "Answer: " + question
 
     async def generate_title(
-        self, prompt: str, user: User, chat: Chat | None = None
+        self,
+        prompt: str,
+        user: User,
+        device_id: UUID | None,
+        chat: Chat | None = None,
     ) -> str | None:
         self.title_prompts.append(prompt)
         return self.next_title

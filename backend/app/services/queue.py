@@ -16,6 +16,7 @@ from app.models.schemas.queue import (
     QueueAddResponse,
     QueuedChannelMessage,
     QueuedMessage,
+    QueueMessageContent,
 )
 
 from app.utils.cache import CacheStore
@@ -81,7 +82,7 @@ class BaseQueueService(Generic[ItemT]):
         return [self.item_type.model_validate(item) for item in queue]
 
     async def update_message(
-        self, queue_id: str, message_id: str, content: str
+        self, queue_id: str, message_id: str, update: QueueMessageContent
     ) -> ItemT | None:
         async with self._lock(queue_id):
             key = self._queue_key(queue_id)
@@ -89,7 +90,7 @@ class BaseQueueService(Generic[ItemT]):
 
             for item in queue:
                 if item["id"] == message_id:
-                    item["content"] = content
+                    item.update(update.model_dump(mode="json"))
                     await self._write_queue(key, queue)
                     updated: ItemT = self.item_type.model_validate(item)
                     return updated

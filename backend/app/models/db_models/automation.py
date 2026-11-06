@@ -22,6 +22,9 @@ class Automation(Base):
     user_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
+    device_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("paired_devices.id", ondelete="CASCADE"), nullable=True
+    )
     workspace_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )

@@ -1657,7 +1657,8 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     # not change the session fingerprint, or every turn respawns the agent.
     mints = iter(("token-one", "token-two", "token-three", "token-four"))
     monkeypatch.setattr(
-        "app.services.agent.create_mcp_access_token", lambda user_id: next(mints)
+        "app.services.agent.create_mcp_access_token",
+        lambda user_id, device_id: next(mints),
     )
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -1693,3 +1694,76 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     assert mcp_env["AGENTROVE_CURRENT_CHAT_ID"] == chat["id"]
     assert "AGENTROVE_EMAIL" not in mcp_env
     assert "AGENTROVE_PASSWORD" not in mcp_env
+
+
+def minted_mcp_tokens(fake_agent: FakeAgentHandle) -> list[str]:
+    return [
+        variable["value"]
+        for event in fake_agent.events_of("new_session")
+        for server in event["mcp_servers"]
+        for variable in server.get("env") or []
+        if variable["name"] == "AGENTROVE_ACCESS_TOKEN"
+    ]
+
+
+async def run_automation_turn(
+    client: httpx.AsyncClient, headers: dict[str, str], automation_id: str
+) -> dict[str, Any]:
+    run = await client.post(f"/api/v1/automations/{automation_id}/run", headers=headers)
+    assert run.status_code == 200, run.text
+    chat_id = run.json()["chat_id"]
+    messages = await client.get(
+        f"/api/v1/chat/chats/{chat_id}/messages", headers=headers
+    )
+    [assistant] = [m for m in messages.json()["items"] if m["role"] == "assistant"]
+    return await wait_for_message(
+        client, headers, chat_id=chat_id, message_id=assistant["id"]
+    )
+
+
+async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = (
+        await client.post(
+            "/api/v1/auth/pair",
+            json={"secret": pairing.json()["secret"], "device_name": "Laptop"},
+        )
+    ).json()
+    automation = await client.post(
+        "/api/v1/automations",
+        json={
+            "name": "Nightly",
+            "prompt": "Summarize",
+            "model_id": "sonnet",
+            "cron_expression": "0 9 * * *",
+            "workspace_id": str(workspace.id),
+        },
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert automation.status_code == 201, automation.text
+    first_run = await run_automation_turn(client, headers, automation.json()["id"])
+    assert first_run["stream_status"] == "completed"
+    [token, *_] = minted_mcp_tokens(fake_agent)
+    agent_headers = {"Authorization": f"Bearer {token}"}
+    assert (
+        await client.get("/api/v1/auth/me", headers=agent_headers)
+    ).status_code == 200
+    minted_before_revoke = len(minted_mcp_tokens(fake_agent))
+
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    second_run = await run_automation_turn(client, headers, automation.json()["id"])
+
+    assert (
+        await client.get("/api/v1/auth/me", headers=agent_headers)
+    ).status_code == 401
+    assert second_run["stream_status"] == "failed"
+    assert (
+        "paired device behind this run has been revoked" in second_run["content_text"]
+    )
+    assert len(minted_mcp_tokens(fake_agent)) == minted_before_revoke

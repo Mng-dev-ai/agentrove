@@ -203,6 +203,7 @@ class SessionRegistry:
             "agent_kind": config.agent_kind.value,
             "channel_member": config.channel_member,
             "cwd": config.cwd,
+            "device_id": config.device_id,
             "env": config.env,
             "mcp_servers": SessionRegistry._redact_mcp_tokens(config.mcp_servers),
             "system_prompt": config.system_prompt,

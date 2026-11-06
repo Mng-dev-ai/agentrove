@@ -20,6 +20,7 @@ from app.api.endpoints import (
     channels,
     github,
     inbox,
+    instance,
     memories,
     push,
     sandbox,
@@ -181,6 +182,11 @@ def create_application() -> FastAPI:
         push.router,
         prefix=f"{settings.API_V1_STR}/push",
         tags=["Push"],
+    )
+    application.include_router(
+        instance.router,
+        prefix=settings.API_V1_STR,
+        tags=["Instance"],
     )
     application.openapi = partial(custom_openapi, application)
 

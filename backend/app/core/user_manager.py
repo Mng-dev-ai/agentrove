@@ -3,6 +3,7 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import cast
 
+import jwt
 from fastapi import Depends, Request
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
 from fastapi_users.authentication import (
@@ -11,12 +12,14 @@ from fastapi_users.authentication import (
     JWTStrategy,
 )
 from fastapi_users.db import SQLAlchemyUserDatabase
+from fastapi_users.jwt import decode_jwt, generate_jwt
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db.session import get_db
+from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.auth import UserCreate
 from app.services.email import email_service
@@ -133,12 +136,62 @@ async def get_user_manager(
 bearer_transport = BearerTransport(tokenUrl="api/v1/auth/login")
 
 
-def get_jwt_strategy() -> JWTStrategy:
-    return JWTStrategy(
-        secret=settings.SECRET_KEY,
-        lifetime_seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        algorithm=settings.ALGORITHM,
+async def is_device_active(
+    db: AsyncSession, device_id: uuid.UUID, user_id: uuid.UUID
+) -> bool:
+    device = await db.scalar(
+        select(PairedDevice.id).where(
+            PairedDevice.id == device_id,
+            PairedDevice.user_id == user_id,
+            PairedDevice.revoked_at.is_(None),
+        )
     )
+    return device is not None
+
+
+class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
+    def __init__(self, db: AsyncSession) -> None:
+        super().__init__(
+            secret=settings.SECRET_KEY,
+            lifetime_seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            algorithm=settings.ALGORITHM,
+        )
+        self.db = db
+
+    def read_device_id(self, token: str) -> uuid.UUID | None:
+        data = decode_jwt(
+            token, self.decode_key, self.token_audience, algorithms=[self.algorithm]
+        )
+        device_id = data.get("did")
+        return None if device_id is None else uuid.UUID(device_id)
+
+    async def read_token(
+        self, token: str | None, user_manager: BaseUserManager[User, uuid.UUID]
+    ) -> User | None:
+        user: User | None = await super().read_token(token, user_manager)
+        if user is None or token is None:
+            return None
+        try:
+            device_id = self.read_device_id(token)
+        except jwt.PyJWTError:
+            return None
+        if device_id is None:
+            return user
+        return user if await is_device_active(self.db, device_id, user.id) else None
+
+    async def write_token(self, user: User, device_id: uuid.UUID | None = None) -> str:
+        data = {"sub": str(user.id), "aud": self.token_audience}
+        if device_id is not None:
+            data["did"] = str(device_id)
+        return str(
+            generate_jwt(
+                data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm
+            )
+        )
+
+
+def get_jwt_strategy(db: AsyncSession = Depends(get_db)) -> AccessTokenStrategy:
+    return AccessTokenStrategy(db)
 
 
 auth_backend = AuthenticationBackend(
@@ -154,3 +207,16 @@ fastapi_users = FastAPIUsers[User, uuid.UUID](
 
 current_active_user = fastapi_users.current_user(active=True)
 optional_current_active_user = fastapi_users.current_user(active=True, optional=True)
+
+
+async def get_current_device_id(
+    _: User = Depends(current_active_user),
+    token: str | None = Depends(bearer_transport.scheme),
+    strategy: AccessTokenStrategy = Depends(get_jwt_strategy),
+) -> uuid.UUID | None:
+    if token is None:
+        return None
+    try:
+        return strategy.read_device_id(token)
+    except jwt.PyJWTError:
+        return None

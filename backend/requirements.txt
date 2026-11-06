@@ -1,5 +1,6 @@
 fastapi
 fastapi-users[sqlalchemy]==13.0.0
+pyjwt
 pydantic>=2.0,<3.0
 pydantic-settings
 email-validator

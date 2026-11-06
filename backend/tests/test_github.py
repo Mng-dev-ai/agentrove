@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from uuid import UUID
 
 import httpx
 import pytest
@@ -34,7 +35,12 @@ class FakeAgentService:
         return self
 
     async def generate_pr_description(
-        self, title: str, diff: str, model_id: str, user: User
+        self,
+        title: str,
+        diff: str,
+        model_id: str,
+        user: User,
+        device_id: UUID | None,
     ) -> str:
         if self.error:
             raise self.error
@@ -42,7 +48,7 @@ class FakeAgentService:
         return "Generated PR description"
 
     async def generate_commit_message(
-        self, diff: str, model_id: str, user: User
+        self, diff: str, model_id: str, user: User, device_id: UUID | None
     ) -> str:
         if self.error:
             raise self.error

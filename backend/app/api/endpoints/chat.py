@@ -34,6 +34,7 @@ from app.core.deps import (
     get_queue_service,
 )
 from app.core.security import get_current_user
+from app.core.user_manager import get_current_device_id
 from app.db.session import get_db
 from app.models.db_models.chat import Chat, MessageAttachment
 from app.models.db_models.user import User
@@ -71,6 +72,7 @@ from app.models.schemas.queue import (
     QueueAddResponse,
     QueuedMessage,
     QueuedMessageBase,
+    QueuedMessageEdit,
     QueueMessageContent,
 )
 from app.services.chat import ChatService
@@ -147,6 +149,7 @@ async def send_message(
     attached_files: list[UploadFile] | None = File(None),
     chat_service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
 ) -> dict[str, Any]:
     files = attached_files or []
     try:
@@ -167,6 +170,7 @@ async def send_message(
         result = await chat_service.initiate_chat_completion(
             request,
             current_user,
+            device_id=device_id,
         )
 
         return {
@@ -188,10 +192,11 @@ async def enhance_prompt(
     model_id: str = Form(...),
     ai_service: AgentService = Depends(get_agent_service),
     current_user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
 ) -> dict[str, str]:
     try:
         enhanced_prompt = await ai_service.enhance_prompt(
-            prompt, model_id, current_user
+            prompt, model_id, current_user, device_id
         )
     except AgentException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
@@ -202,6 +207,7 @@ async def enhance_prompt(
 async def generate_chat_title(
     chat: Chat = Depends(ensure_chat_access),
     current_user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
     ai_service: AgentService = Depends(get_agent_service),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> dict[str, str]:
@@ -213,7 +219,7 @@ async def generate_chat_title(
             detail="Chat has no messages to generate a title from",
         )
 
-    title = await ai_service.generate_title(prompt, current_user, chat=chat)
+    title = await ai_service.generate_title(prompt, current_user, device_id, chat=chat)
     if not title:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -227,6 +233,7 @@ async def ask_about_code(
     request: AskCodeRequest,
     chat: Chat = Depends(ensure_member_chat_access),
     current_user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
     ai_service: AgentService = Depends(get_agent_service),
 ) -> dict[str, str]:
     # Inline editor Q&A — no turn/message rows; chat is for workspace access only.
@@ -240,6 +247,7 @@ async def ask_about_code(
             request.end_line,
             request.model_id,
             current_user,
+            device_id,
             chat=chat,
         )
     except AgentException as e:
@@ -723,6 +731,7 @@ async def queue_message(
     attached_files: list[UploadFile] | None = File(None),
     chat: Chat = Depends(ensure_chat_access),
     current_user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
     queue_service: QueueService = Depends(get_queue_service),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> QueueAddResponse:
@@ -736,6 +745,7 @@ async def queue_message(
             base_branch=base_branch,
             fast_mode=fast_mode,
             selected_persona_name=selected_persona_name,
+            device_id=device_id,
         )
     except ValidationError as e:
         raise RequestValidationError(e.errors()) from e
@@ -794,10 +804,13 @@ async def update_queued_message(
     message_id: UUID,
     update: QueueMessageContent,
     _chat: Chat = Depends(ensure_chat_access),
+    device_id: UUID | None = Depends(get_current_device_id),
     queue_service: QueueService = Depends(get_queue_service),
 ) -> QueuedMessage:
     result = await queue_service.update_message(
-        str(chat_id), str(message_id), update.content
+        str(chat_id),
+        str(message_id),
+        QueuedMessageEdit(content=update.content, device_id=device_id),
     )
     if result is None:
         raise HTTPException(

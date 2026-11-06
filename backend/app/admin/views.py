@@ -16,6 +16,8 @@ from app.models.db_models.enums import (
 )
 from markupsafe import Markup
 from app.core.security import get_password_hash
+from app.db.session import SessionLocal
+from app.services.refresh_token import RefreshTokenService
 from starlette.requests import Request
 
 
@@ -89,6 +91,9 @@ class UserAdmin(ModelView, model=User):
         password = data.pop("password", None)
         if password:
             data["hashed_password"] = get_password_hash(password)
+            if not is_created:
+                async with SessionLocal() as db:
+                    await RefreshTokenService().revoke_all_tokens(model.id, db)
         await super().on_model_change(data, model, is_created, request)
 
     name = "User"
