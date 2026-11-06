@@ -2115,6 +2115,57 @@ async def test_wake_acts_for_the_reporting_childs_devices(
     assert me.status_code == 401
 
 
+@pytest.mark.parametrize("action", ["run_now", "edit_then_schedule"])
+async def test_automation_turn_keeps_acting_for_the_device_that_saved_it(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    action: str,
+) -> None:
+    headers, workspace = auth_workspace
+    saver = await pair_device(client, headers, "Laptop")
+    other = await pair_device(client, headers, "Phone")
+    other_headers = {"Authorization": f"Bearer {other['access_token']}"}
+    automation = await client.post(
+        "/api/v1/automations",
+        json={
+            "name": "Nightly",
+            "prompt": "Summarize",
+            "model_id": "sonnet",
+            "cron_expression": "0 9 * * *",
+            "workspace_id": str(workspace.id),
+        },
+        headers={"Authorization": f"Bearer {saver['access_token']}"},
+    )
+    assert automation.status_code == 201, automation.text
+    automation_id = automation.json()["id"]
+
+    if action == "run_now":
+        run = await run_automation_turn(client, other_headers, automation_id)
+    else:
+        edited = await client.patch(
+            f"/api/v1/automations/{automation_id}",
+            json={"prompt": "Summarize again"},
+            headers=other_headers,
+        )
+        assert edited.status_code == 200, edited.text
+        run = await run_scheduled_automation_turn(
+            client, headers, db_session, automation_id
+        )
+
+    assert run["stream_status"] == "completed"
+    [token] = minted_mcp_tokens(fake_agent)
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert sorted(claims["did"]) == sorted([saver["device_id"], other["device_id"]])
+    await client.delete(f"/api/v1/auth/devices/{saver['device_id']}", headers=headers)
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 401
+
+
 async def test_manual_automation_run_is_bound_to_the_clicking_device(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],

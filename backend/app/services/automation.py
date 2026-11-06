@@ -165,7 +165,7 @@ class AutomationService(BaseDbService[Automation]):
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
             for field, value in changes.items():
                 setattr(automation, field, value)
-            automation.device_ids = device_ids
+            automation.device_ids = automation.device_ids | device_ids
             if SCHEDULE_FIELDS & changes.keys():
                 automation.next_run_at = self._compute_next_run_validated(
                     automation.cron_expression, automation.timezone
@@ -189,7 +189,7 @@ class AutomationService(BaseDbService[Automation]):
             automation = await self._get_owned(db, automation_id, user.id)
             automation.last_run_at = datetime.now(timezone.utc)
             await db.commit()
-        return await self._fire(automation, user, device_ids)
+        return await self._fire(automation, user, automation.device_ids | device_ids)
 
     async def run_due_automations(self) -> dict[str, Any]:
         # Dispatch job entry point. Advances schedules before firing so a crash
