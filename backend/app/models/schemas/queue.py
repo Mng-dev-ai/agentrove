@@ -33,7 +33,7 @@ class QueuedMessage(QueuedMessageBase):
     attachments: list[dict[str, Any]] | None = None
 
 
-class QueuedChannelMessage(QueueMessageContent):
+class QueuedChannelMessage(QueuedMessageEdit):
     id: UUID
     queued_at: datetime
     attachments: list[dict[str, Any]] | None = None

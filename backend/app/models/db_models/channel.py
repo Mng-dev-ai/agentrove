@@ -69,6 +69,9 @@ class ChannelMessage(Base):
     source_message_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("messages.id", ondelete="SET NULL")
     )
+    device_id: Mapped[UUID | None] = mapped_column(
+        GUID(), ForeignKey("paired_devices.id")
+    )
     tool_call_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)

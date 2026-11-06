@@ -84,6 +84,7 @@ class ScriptedTurns:
         user: User,
         *,
         member_turn: ChannelMemberTurn,
+        device_id: UUID | None,
     ) -> None:
         self.requests.append(request)
         async with channel_service.session_factory() as db:

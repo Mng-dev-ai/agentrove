@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import jwt
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 from app.core.config import get_settings
 from app.models.db_models.workspace import Workspace
+from app.services import channel as channel_module
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
 from tests.conftest import LoginClient, UserFactory
@@ -1767,3 +1769,49 @@ async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
         "paired device behind this run has been revoked" in second_run["content_text"]
     )
     assert len(minted_mcp_tokens(fake_agent)) == minted_before_revoke
+
+
+async def test_channel_turn_token_is_bound_to_the_posting_device(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0)
+    headers, workspace = auth_workspace
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = (
+        await client.post(
+            "/api/v1/auth/pair",
+            json={"secret": pairing.json()["secret"], "device_name": "Laptop"},
+        )
+    ).json()
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [{"model_id": "sonnet", "permission_mode": "bypassPermissions"}],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+
+    posted = await client.post(
+        f"/api/v1/channels/{channel_id}/messages",
+        data={"content": "Any objections?"},
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert posted.status_code == 201, posted.text
+    deadline = time.monotonic() + 10
+    while not fake_agent.main_turn_prompts() and time.monotonic() < deadline:
+        await asyncio.sleep(0.05)
+    await client.post(f"/api/v1/channels/{channel_id}/stop", headers=headers)
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+
+    [token] = minted_mcp_tokens(fake_agent)
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["did"] == paired["device_id"]

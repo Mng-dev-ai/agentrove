@@ -34,6 +34,7 @@ from app.models.schemas.channel import (
     ChannelRead,
 )
 from app.models.schemas.chat import ChatRequest, Message as MessageSchema
+from app.models.schemas.queue import QueuedChannelMessage
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import (
@@ -114,6 +115,17 @@ class MemberTurn:
 
     def started(self, task: asyncio.Task[str]) -> None:
         self.provider_task = task
+
+    @property
+    def device_id(self) -> UUID | None:
+        return next(
+            (
+                message.device_id
+                for message in reversed(self.batch)
+                if message.device_id
+            ),
+            None,
+        )
 
 
 @dataclass
@@ -416,6 +428,7 @@ class ChannelService(BaseDbService[Channel]):
         attachments: list[MessageAttachmentDict] | None = None,
         source_message_id: UUID | None = None,
         tool_call_count: int = 0,
+        device_id: UUID | None = None,
     ) -> ChannelMessage:
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
@@ -434,6 +447,7 @@ class ChannelService(BaseDbService[Channel]):
                 channel_id=state.channel.id,
                 seq=seq,
                 member_id=member_id,
+                device_id=device_id,
                 source_message_id=source_message_id,
                 tool_call_count=tool_call_count,
                 content=content,
@@ -570,8 +584,11 @@ class ChannelService(BaseDbService[Channel]):
         state: ChannelState,
         content: str,
         attachments: list[MessageAttachmentDict],
+        device_id: UUID | None,
     ) -> ChannelMessage:
-        message = await self.new_message(state, content, attachments=attachments)
+        message = await self.new_message(
+            state, content, attachments=attachments, device_id=device_id
+        )
         await self.publish_message(state.channel, message)
         self.fan_out(state)
         return message
@@ -581,6 +598,7 @@ class ChannelService(BaseDbService[Channel]):
         channel: Channel,
         content: str,
         attachments: list[MessageAttachmentDict],
+        device_id: UUID | None,
     ) -> ChannelMessage:
         state = self.state(channel)
         async with state.control:
@@ -601,7 +619,7 @@ class ChannelService(BaseDbService[Channel]):
                     for member_id in audience or []:
                         state.retries.pop(UUID(member_id), None)
                     await self.cancel_active(state, turns)
-                    message = await self.send(state, content, attachments)
+                    message = await self.send(state, content, attachments, device_id)
             finally:
                 try:
                     await self.cancel_turns(turns)
@@ -703,8 +721,12 @@ class ChannelService(BaseDbService[Channel]):
                 if item is None:
                     return
                 try:
+                    queued = QueuedChannelMessage.model_validate(item)
                     message = await self.new_message(
-                        state, item["content"], attachments=item["attachments"] or []
+                        state,
+                        queued.content,
+                        attachments=item["attachments"] or [],
+                        device_id=queued.device_id,
                     )
                 except Exception:
                     await queue.requeue_message(channel_id, item)
@@ -739,7 +761,10 @@ class ChannelService(BaseDbService[Channel]):
             raise HTTPException(404, "Queued message not found")
         try:
             message = await self.post(
-                channel, item["content"], item["attachments"] or []
+                channel,
+                item["content"],
+                item["attachments"] or [],
+                QueuedChannelMessage.model_validate(item).device_id,
             )
         except Exception:
             await queue.requeue_message(channel_id, item)
@@ -827,6 +852,7 @@ class ChannelService(BaseDbService[Channel]):
                         request,
                         User(id=state.channel.user_id),
                         member_turn=member_turn,
+                        device_id=turn.device_id,
                     )
                     break
                 except ChatException as exc:
@@ -965,6 +991,7 @@ class ChannelService(BaseDbService[Channel]):
             turn.member.id,
             source_message_id=turn.source_message_id,
             tool_call_count=len(turn.tool_call_ids),
+            device_id=turn.device_id,
         )
         await self.publish_message(state.channel, turn.message)
 

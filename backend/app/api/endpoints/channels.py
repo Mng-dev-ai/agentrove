@@ -15,6 +15,7 @@ from fastapi import (
 
 from app.core.deps import get_channel_queue_service
 from app.core.security import get_current_user
+from app.core.user_manager import get_current_device_id
 from app.models.db_models.user import User
 from app.models.schemas.channel import (
     ChannelCreate,
@@ -26,6 +27,7 @@ from app.models.schemas.chat import Message as MessageSchema
 from app.models.schemas.queue import (
     QueueAddResponse,
     QueuedChannelMessage,
+    QueuedMessageEdit,
     QueueMessageContent,
 )
 from app.services.channel import channel_service
@@ -95,6 +97,7 @@ async def post_message(
     content: str = Form(..., min_length=1, max_length=100000),
     attached_files: list[UploadFile] | None = File(None),
     user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
 ) -> ChannelMessageRead:
     channel = await channel_service.get(channel_id, user)
     try:
@@ -102,7 +105,7 @@ async def post_message(
     except (StorageException, SandboxException) as exc:
         raise HTTPException(exc.status_code, str(exc)) from exc
     response: ChannelMessageRead = ChannelMessageRead.model_validate(
-        await channel_service.post(channel, content, attachments)
+        await channel_service.post(channel, content, attachments, device_id)
     )
     return response
 
@@ -114,6 +117,7 @@ async def queue_message(
     send_now: bool = Form(False),
     attached_files: list[UploadFile] | None = File(None),
     user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
     queue_service: ChannelQueueService = Depends(get_channel_queue_service),
 ) -> QueueAddResponse:
     channel = await channel_service.get(channel_id, user)
@@ -123,7 +127,7 @@ async def queue_message(
         raise HTTPException(exc.status_code, str(exc)) from exc
     response = await queue_service.add_message(
         str(channel_id),
-        QueueMessageContent(content=content),
+        QueuedMessageEdit(content=content, device_id=device_id),
         [dict(item) for item in attachments] or None,
     )
     if send_now:
@@ -158,11 +162,14 @@ async def update_queued_message(
     message_id: UUID,
     update: QueueMessageContent,
     user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
     queue_service: ChannelQueueService = Depends(get_channel_queue_service),
 ) -> QueuedChannelMessage:
     await channel_service.get(channel_id, user)
     result = await queue_service.update_message(
-        str(channel_id), str(message_id), update
+        str(channel_id),
+        str(message_id),
+        QueuedMessageEdit(content=update.content, device_id=device_id),
     )
     if result is None:
         raise HTTPException(404, "Queued message not found")

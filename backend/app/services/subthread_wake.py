@@ -153,7 +153,10 @@ class SubThreadWake:
             return
         try:
             await ChatService(UserService()).initiate_chat_completion(
-                request, parent.user, user_app_notice=self._build_notice(children)
+                request,
+                parent.user,
+                user_app_notice=self._build_notice(children),
+                device_id=parent.last_device_id,
             )
         except ChatException as exc:
             if exc.status_code != 409:
