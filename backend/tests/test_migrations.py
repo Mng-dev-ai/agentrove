@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
@@ -8,10 +9,29 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 
 from app.core.config import get_settings
 
 BASE_REVISION = "e3bdc269cf4a"
+ORPHANING_MIGRATION = """
+import sqlalchemy as sa
+from alembic import op
+
+revision = "orphaning"
+down_revision = "{head}"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.add_column("users", sa.Column("orphaning_marker", sa.Integer(), nullable=True))
+    op.execute("DELETE FROM workspaces")
+
+
+def downgrade() -> None:
+    pass
+"""
 COLUMN_VALUES = {("channel_messages", "status"): "completed"}
 NEW_TABLES = {"instance", "paired_devices", "pairing_secrets"}
 ADDED_TO_BASE_TABLES = {
@@ -176,3 +196,32 @@ def test_preexisting_orphan_does_not_block_upgrade(migration_engine: sa.Engine) 
     assert {
         table: _row_counts(migration_engine)[table] for table in base_counts
     } == base_counts
+
+
+def test_migration_that_orphans_rows_is_rolled_back(
+    migration_engine: sa.Engine, tmp_path: Path
+) -> None:
+    config = _alembic_config()
+    command.upgrade(config, "head")
+    head = ScriptDirectory.from_config(config).get_current_head()
+    versions = tmp_path / "orphaning_versions"
+    versions.mkdir()
+    (versions / "orphaning.py").write_text(ORPHANING_MIGRATION.format(head=head))
+    config.set_main_option("version_path_separator", "os")
+    config.set_main_option(
+        "version_locations",
+        os.pathsep.join(
+            [str(Path(__file__).parents[1] / "migrations" / "versions"), str(versions)]
+        ),
+    )
+    counts = _row_counts(migration_engine)
+    schema = _schema(migration_engine)
+
+    with pytest.raises(RuntimeError, match="introduced foreign key violations"):
+        command.upgrade(config, "orphaning")
+
+    assert _row_counts(migration_engine) == counts
+    assert _schema(migration_engine) == schema
+    with migration_engine.connect() as conn:
+        version = conn.exec_driver_sql("SELECT version_num FROM alembic_version")
+        assert version.scalar_one() == head
