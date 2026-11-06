@@ -17,6 +17,7 @@ from app.models.schemas.chat import ChatRequest
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import NORMAL_SESSION_MODE
+from app.services.device_session import active_device_ids
 from app.services.exceptions import ChatException
 from app.services.user import UserService
 
@@ -38,6 +39,7 @@ class ChildResult:
     chat_id: str
     title: str
     outcome: str
+    device_ids: frozenset[UUID]
 
 
 class SubThreadWake:
@@ -84,13 +86,16 @@ class SubThreadWake:
             if parent is None or parent.deleted_at is not None:
                 self._pending.pop(parent_id, None)
                 return
-            children = await self._take_finished(db, parent_id)
+            children = await self._take_finished(db, parent)
         if not children:
             return
+        device_ids = frozenset[UUID]().union(*(c.device_ids for c in children))
         if mid_turn:
-            await self._steer_into_turn(parent_id, children)
+            await self._steer_into_turn(parent_id, children, device_ids)
         else:
-            await self._start_wake_turn(parent, children)
+            await self._start_wake_turn(
+                parent, children, parent.last_device_ids | device_ids
+            )
 
     def _requeue(self, parent_id: str, child_ids: set[str], *, schedule: bool) -> None:
         if not child_ids:
@@ -111,19 +116,30 @@ class SubThreadWake:
         self._requeue(parent_id, starting, schedule=True)
         return child_ids - running - starting
 
-    async def _take_finished(
-        self, db: AsyncSession, parent_id: str
-    ) -> list[ChildResult]:
+    async def _take_finished(self, db: AsyncSession, parent: Chat) -> list[ChildResult]:
+        parent_id = str(parent.id)
         finished = self._hold_busy(parent_id, self._pending.pop(parent_id, set()))
-        loaded = [await self._load_child(db, child_id) for child_id in finished]
-        idle = self._hold_busy(parent_id, {child.chat_id for child in loaded})
+        loaded = [
+            child
+            for child_id in finished
+            if (child := await self._load_child(db, child_id)) is not None
+        ]
+        active = await active_device_ids(
+            db,
+            parent.user_id,
+            frozenset[UUID]().union(*(child.device_ids for child in loaded)),
+        )
+        idle = self._hold_busy(
+            parent_id,
+            {child.chat_id for child in loaded if child.device_ids <= active},
+        )
         return sorted(
             (child for child in loaded if child.chat_id in idle),
             key=attrgetter("title"),
         )
 
     async def _steer_into_turn(
-        self, parent_id: str, children: list[ChildResult]
+        self, parent_id: str, children: list[ChildResult], device_ids: frozenset[UUID]
     ) -> None:
         # Avoid circular import with runtime.py.
         from app.services.streaming.runtime import ChatStreamRuntime
@@ -132,6 +148,7 @@ class SubThreadWake:
             parent_id,
             self._build_prompt(children, MID_TURN_OPENING),
             self._build_notice(children),
+            device_ids,
         ):
             self._requeue(
                 parent_id,
@@ -139,7 +156,9 @@ class SubThreadWake:
                 schedule=not ChatStreamRuntime.has_active_chat(parent_id),
             )
 
-    async def _start_wake_turn(self, parent: Chat, children: list[ChildResult]) -> None:
+    async def _start_wake_turn(
+        self, parent: Chat, children: list[ChildResult], device_ids: frozenset[UUID]
+    ) -> None:
         # Avoid circular import with chat.py.
         from app.services.chat import ChatService
 
@@ -156,7 +175,7 @@ class SubThreadWake:
                 request,
                 parent.user,
                 user_app_notice=self._build_notice(children),
-                device_ids=parent.last_device_ids,
+                device_ids=device_ids,
             )
         except ChatException as exc:
             if exc.status_code != 409:
@@ -184,8 +203,16 @@ class SubThreadWake:
         )
 
     @staticmethod
-    async def _load_child(db: AsyncSession, child_id: str) -> ChildResult:
-        title = await db.scalar(select(Chat.title).where(Chat.id == UUID(child_id)))
+    async def _load_child(db: AsyncSession, child_id: str) -> ChildResult | None:
+        row = (
+            await db.execute(
+                select(Chat.title, Chat.last_device_ids).where(
+                    Chat.id == UUID(child_id)
+                )
+            )
+        ).one_or_none()
+        if row is None:
+            return None
         outcome = await db.scalar(
             select(Message.stream_status)
             .where(
@@ -198,8 +225,9 @@ class SubThreadWake:
         )
         return ChildResult(
             chat_id=child_id,
-            title=title or "Untitled",
+            title=row.title,
             outcome=outcome.value if outcome else "unknown",
+            device_ids=row.last_device_ids,
         )
 
     @staticmethod

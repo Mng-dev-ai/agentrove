@@ -22,6 +22,7 @@ from app.db.session import SessionLocal, engine
 from app.models.db_models.chat import Chat, Message, MessageEvent
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.memory import Memory
+from app.models.db_models.paired_device import PairedDevice
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import ChatException
@@ -32,6 +33,7 @@ from app.services.sandbox_providers.types import CommandResult
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import StreamEnvelope, StreamEvent
+from app.services.subthread_wake import SubThreadWake
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
@@ -1025,6 +1027,52 @@ async def test_send_now_steers_active_turn_inline(
         f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
     )
     assert queue_list_response.json() == []
+
+
+@pytest.mark.parametrize("child_on_device", [False, True])
+async def test_child_result_steers_only_a_turn_acting_for_its_devices(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    child_on_device: bool,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    parent = await create_chat_row(db_session, user, workspace, session_id="p-1")
+    child = await create_chat_row(db_session, user, workspace, title="Child")
+    device = PairedDevice(user_id=user.id, name="Laptop")
+    db_session.add(device)
+    await db_session.flush()
+    child.parent_chat_id = parent.id
+    child.last_device_ids = frozenset({device.id}) if child_on_device else frozenset()
+    await db_session.commit()
+    script = [
+        StreamEvent(type="assistant_text", text="Working"),
+        WAIT_FOR_STEER,
+        StreamEvent(type="assistant_text", text="Done"),
+    ]
+    acp_session = FakeAcpSession([script], session_id="p-1", steer_outcome="injected")
+    acp_factory.queue(acp_session)
+    await send_message(client, headers, parent, prompt="Delegate")
+    await wait_for_steerable_runtime(parent.id)
+
+    wake = SubThreadWake()
+    wake._pending[str(parent.id)] = {str(child.id)}
+    await wake._flush(str(parent.id))
+
+    if child_on_device:
+        assert acp_session.steer_calls == []
+        assert wake._pending == {str(parent.id): {str(child.id)}}
+        await client.delete(f"/api/v1/chat/chats/{parent.id}/stream", headers=headers)
+    else:
+        [steered] = acp_session.steer_calls
+        assert str(child.id) in steered
+        assert wake._pending == {}
+        await run_background_task(parent.id)
 
 
 async def test_send_now_starts_immediately_when_chat_is_idle(

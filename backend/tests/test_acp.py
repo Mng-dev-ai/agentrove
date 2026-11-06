@@ -2041,6 +2041,70 @@ async def test_wake_after_device_queued_turn_is_bound_to_that_device(
     assert claims["did"] == [paired["device_id"]]
 
 
+@pytest.mark.parametrize("revoke_before_wake", [False, True])
+async def test_wake_acts_for_the_reporting_childs_devices(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    revoke_before_wake: bool,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    device_headers = {"Authorization": f"Bearer {paired['access_token']}"}
+    parent = await create_chat(client, headers, workspace, model_id="sonnet")
+    child = await create_chat(client, device_headers, workspace, model_id="sonnet")
+    await db_session.execute(
+        update(Chat)
+        .where(Chat.id == UUID(child["id"]))
+        .values(parent_chat_id=UUID(parent["id"]))
+    )
+    await db_session.commit()
+    sent = await send_message(
+        client, device_headers, chat_id=child["id"], model_id="sonnet", prompt="work"
+    )
+    await wait_for_message(
+        client, headers, chat_id=child["id"], message_id=sent.json()["message_id"]
+    )
+    if revoke_before_wake:
+        await client.delete(
+            f"/api/v1/auth/devices/{paired['device_id']}", headers=headers
+        )
+
+    wake = SubThreadWake()
+    wake.on_chain_end(child["id"], parent["id"])
+    await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=5)
+
+    if revoke_before_wake:
+        [child_turn] = fake_agent.main_turn_prompts()
+        assert "work" in child_turn["text"]
+        assert wake._pending == {}
+        return
+    await wait_for_latest_assistant(client, headers, parent["id"])
+    _, wake_turn = fake_agent.main_turn_prompts()
+    assert "sub-threads you delegated have finished" in wake_turn["text"]
+    [wake_session] = [
+        e for e in fake_agent.events_of("new_session") if e["pid"] == wake_turn["pid"]
+    ]
+    [token] = [
+        v["value"]
+        for server in wake_session["mcp_servers"]
+        for v in server["env"]
+        if v["name"] == "AGENTROVE_ACCESS_TOKEN"
+    ]
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["did"] == [paired["device_id"]]
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 401
+
+
 async def test_manual_automation_run_is_bound_to_the_clicking_device(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],

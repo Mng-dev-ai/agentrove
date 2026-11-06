@@ -379,9 +379,11 @@ class ChatStreamRuntime:
                         await queue.mark_send_now(chat_id, queued["id"])
 
     @classmethod
-    async def steer_app_notice(cls, chat_id: str, prompt: str, notice: str) -> bool:
+    async def steer_app_notice(
+        cls, chat_id: str, prompt: str, notice: str, device_ids: frozenset[UUID]
+    ) -> bool:
         runtime = cls._active_runtimes.get(chat_id)
-        if runtime is None:
+        if runtime is None or not device_ids <= runtime._request.device_ids:
             return False
         async with runtime._steering_lock:
             session = runtime._steering_session()
