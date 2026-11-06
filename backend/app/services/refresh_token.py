@@ -12,7 +12,7 @@ from app.core.security import (
     hash_refresh_token,
 )
 from app.db.session import SessionLocal
-from app.models.db_models.paired_device import PairedDevice
+from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
 from app.models.db_models.user import User
 from app.services.db import SessionFactoryType
@@ -150,6 +150,7 @@ class RefreshTokenService:
             .where(PairedDevice.user_id == user_id, PairedDevice.revoked_at.is_(None))
             .values(revoked_at=datetime.now(timezone.utc))
         )
+        await db.execute(delete(PairingSecret).where(PairingSecret.user_id == user_id))
         result = await db.execute(
             delete(RefreshToken).where(RefreshToken.user_id == user_id)
         )

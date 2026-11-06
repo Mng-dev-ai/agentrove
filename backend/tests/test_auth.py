@@ -1142,6 +1142,10 @@ async def test_reset_password_revokes_paired_devices(
     assert (
         await client.get("/api/v1/auth/me", headers=device_headers)
     ).status_code == 200
+    pending = await client.post(
+        "/api/v1/auth/pairing",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
     await client.post(
         "/api/v1/auth/forgot-password", json={"email": "reset-device@example.com"}
     )
@@ -1156,6 +1160,11 @@ async def test_reset_password_revokes_paired_devices(
     assert (
         await client.get("/api/v1/auth/me", headers=device_headers)
     ).status_code == 401
+    redeemed = await client.post(
+        "/api/v1/auth/pair",
+        json={"secret": pending.json()["secret"], "device_name": "Laptop"},
+    )
+    assert redeemed.status_code == 400
     fresh = await login(email="reset-device@example.com", password="newpassword123")
     devices = await client.get(
         "/api/v1/auth/devices",
