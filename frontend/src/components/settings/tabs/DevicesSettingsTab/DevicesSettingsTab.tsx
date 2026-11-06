@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
+import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { CopyField } from '@/components/machines/CopyField';
@@ -42,7 +43,7 @@ function PairingLinkCard({
   }, [remaining, onExpired]);
 
   return (
-    <div className={styles.notice}>
+    <div className={styles.pairing}>
       Paste this link into AgentRove on the device you&apos;re adding (Settings → Machines → Add
       machine). It works once and expires in{' '}
       <span className={styles.mono}>{formatCountdown(remaining)}</span>.
@@ -108,11 +109,11 @@ export function DevicesSettingsTab() {
         {pairing && <PairingLinkCard pairing={pairing} onExpired={() => setPairing(null)} />}
 
         <div className={styles.list}>
-          {isLoading && <p className={styles.notice}>Loading devices…</p>}
-          {error && <p className={styles.notice}>Couldn&apos;t load devices: {error.message}</p>}
-          {devices?.length === 0 && <p className={styles.notice}>No paired devices yet.</p>}
+          {isLoading && <p className={styles.empty}>Loading devices…</p>}
+          {error && <p className={styles.empty}>Couldn&apos;t load devices: {error.message}</p>}
+          {devices?.length === 0 && <p className={styles.empty}>No paired devices yet.</p>}
           {devices?.map((device) => (
-            <div key={device.id} className={styles.row}>
+            <div key={device.id} className={clsx(styles.item, styles.row)}>
               <div className={styles['row-main']}>
                 <div className={styles['row-title']}>
                   <span className={styles.name}>{device.name}</span>

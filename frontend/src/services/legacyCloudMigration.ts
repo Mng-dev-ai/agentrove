@@ -51,7 +51,14 @@ async function revokeLegacyRefreshToken(cloudUrl: string, refreshToken: string):
   }
 }
 
-export async function migrateLegacyCloud(): Promise<void> {
+let migration: Promise<void> | null = null;
+
+export function migrateLegacyCloud(): Promise<void> {
+  migration ??= runMigration();
+  return migration;
+}
+
+async function runMigration(): Promise<void> {
   const hasLegacyState = [SETTINGS_KEY, CHATS_KEY, SANDBOXES_KEY].some(
     (key) => safeGetItem(key) !== null,
   );

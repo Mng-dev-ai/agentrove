@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
+import clsx from 'clsx';
 import { Edit2, KeyRound, MoreHorizontal, Route, Star, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
@@ -137,7 +138,7 @@ export function MachinesSettingsTab() {
         </p>
 
         <div className={styles.list}>
-          <div className={styles.row}>
+          <div className={clsx(styles.item, styles.row)}>
             <MachineStatusDot status="online" />
             <div className={styles['row-main']}>
               <div className={styles['row-title']}>
@@ -164,7 +165,7 @@ export function MachinesSettingsTab() {
             const connection = connections[machine.id];
             const status = connection?.status ?? 'checking';
             return (
-              <div key={machine.id}>
+              <div key={machine.id} className={styles.item}>
                 <div className={styles.row}>
                   <MachineStatusDot status={status} />
                   <div className={styles['row-main']}>
