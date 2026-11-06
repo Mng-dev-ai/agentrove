@@ -18,6 +18,7 @@ import { useChatEvents } from '@/hooks/useChatEvents';
 import { useRemoteMachineSync } from '@/hooks/useRemoteMachineSync';
 import { useMachineStatusPolling } from '@/hooks/useMachineStatusPolling';
 import { migrateLegacyCloud } from '@/services/legacyCloudMigration';
+import { followMachinesFromOtherTabs } from '@/services/machineActions';
 import { authService } from '@/services/authService';
 import { toasterConfig } from '@/config/toaster';
 import { AuthRoute } from '@/components/routes/AuthRoute/AuthRoute';
@@ -225,6 +226,7 @@ export default function App() {
     migrateLegacyCloud().catch((error) => {
       console.error('Legacy cloud migration failed:', error);
     });
+    const stopFollowingMachines = followMachinesFromOtherTabs();
 
     authStorage
       .hydrate()
@@ -239,6 +241,7 @@ export default function App() {
 
     return () => {
       cancelled = true;
+      stopFollowingMachines();
     };
   });
 

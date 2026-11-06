@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 
 const stored = (key: string) => JSON.parse(localStorage.getItem(key) ?? 'null') as unknown;
 
@@ -28,6 +28,9 @@ function fakeMachineServer(host: string, instanceId: string) {
     if (path === '/health') return new Response(JSON.stringify({ status: 'healthy' }));
     if (path === '/api/v1/instance')
       return new Response(JSON.stringify({ instance_id: instanceId }));
+    if (path === '/api/v1/auth/jwt/refresh') {
+      return new Response(JSON.stringify({ access_token: accessToken, refresh_token: 'rotated' }));
+    }
     if (path === '/api/v1/auth/pair') {
       return new Response(
         JSON.stringify({
@@ -161,13 +164,32 @@ describe('machine origin maps', () => {
 });
 
 describe('two tabs', () => {
+  const stopTabs: (() => void)[] = [];
+  afterEach(() => {
+    for (const stop of stopTabs.splice(0)) stop();
+  });
+
   const loadTab = async () => {
     vi.resetModules();
-    return {
+    const tab = {
       ...(await import('@/store/machineOrigin')),
       ...(await import('@/store/machineStore')),
+      ...(await import('@/services/machineActions')),
+      ...(await import('@/services/machineSession')),
     };
+    stopTabs.push(tab.followMachinesFromOtherTabs());
+    return tab;
   };
+  const otherTabWrote = async () => {
+    window.dispatchEvent(new StorageEvent('storage', { key: 'machines-storage' }));
+    await vi.waitFor(() => Promise.resolve());
+  };
+  const pairVps = async (tab: Awaited<ReturnType<typeof loadTab>>) =>
+    tab.pairMachine({ mode: 'add', name: 'VPS', link: 'https://vps.ts.net/#pair=secret' });
+  const revokedDevices = (fetchMock: ReturnType<typeof fakeMachineServer>) =>
+    fetchMock.mock.calls
+      .filter(([, init]) => init?.method === 'DELETE')
+      .map(([input]) => new URL(String(input)).pathname);
 
   it('does not resurrect a mapping another tab claimed', async () => {
     localStorage.setItem('machine-chat-origins', JSON.stringify({ 'vps-chat': 'old-vps' }));
@@ -191,10 +213,6 @@ describe('two tabs', () => {
   it('keeps machines another tab added when this tab persists', async () => {
     const tabA = await loadTab();
     const tabB = await loadTab();
-    const otherTabWrote = async () => {
-      window.dispatchEvent(new StorageEvent('storage', { key: 'machines-storage' }));
-      await Promise.resolve();
-    };
     tabB.useMachineStore
       .getState()
       .addMachine({ id: 'vps', name: 'vps', url: 'https://vps.ts.net', pairing: null });
@@ -209,6 +227,41 @@ describe('two tabs', () => {
     const persisted = stored('machines-storage') as { state: { machines: { id: string }[] } };
     expect(persisted.state.machines.map((machine) => machine.id).sort()).toEqual(['ec2', 'vps']);
     expect(tabB.getMachine('ec2')).toBeDefined();
+  });
+  it('revokes this tab’s own device when another tab removes the machine', async () => {
+    const fetchMock = fakeMachineServer('vps.ts.net', 'vps-instance');
+    vi.stubGlobal('fetch', fetchMock);
+    const tabA = await loadTab();
+    const tabB = await loadTab();
+    const machine = await pairVps(tabA);
+    await otherTabWrote();
+
+    tabB.useMachineStore.getState().removeMachine(machine.id);
+    await otherTabWrote();
+
+    await vi.waitFor(() =>
+      expect(revokedDevices(fetchMock)).toEqual(['/api/v1/auth/devices/new-device']),
+    );
+    expect(tabA.getMachine(machine.id)).toBeUndefined();
+    expect(tabA.getMachineAccessToken(machine.id)).toBeNull();
+  });
+
+  it('keeps this tab’s own device when another tab pairs the machine again', async () => {
+    const fetchMock = fakeMachineServer('vps.ts.net', 'vps-instance');
+    vi.stubGlobal('fetch', fetchMock);
+    const tabA = await loadTab();
+    const tabB = await loadTab();
+    const machine = await pairVps(tabA);
+    await otherTabWrote();
+
+    tabB.useMachineStore.getState().updateMachine(machine.id, {
+      pairing: { ...machine.pairing!, deviceId: 'tab-b-device' },
+    });
+    await otherTabWrote();
+    tabA.useMachineStore.getState().setConnection(machine.id, { status: 'online' });
+    await tabA.removeMachine(machine.id);
+
+    expect(revokedDevices(fetchMock)).toEqual(['/api/v1/auth/devices/new-device']);
   });
 });
 

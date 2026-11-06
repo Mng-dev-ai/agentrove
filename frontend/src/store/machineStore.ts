@@ -64,17 +64,23 @@ export const useMachineStore = create<MachineStoreState>()(
         machines: state.machines,
         defaultMachineId: state.defaultMachineId,
       }),
+      merge: (persisted, current) => {
+        const stored = persisted as Partial<
+          Pick<MachineStoreState, 'machines' | 'defaultMachineId'>
+        >;
+        return {
+          ...current,
+          ...stored,
+          machines: (stored.machines ?? current.machines).map((machine) => ({
+            ...machine,
+            pairing:
+              current.machines.find((own) => own.id === machine.id)?.pairing ?? machine.pairing,
+          })),
+        };
+      },
     },
   ),
 );
-
-if (typeof window !== 'undefined') {
-  window.addEventListener('storage', (event) => {
-    if (event.key === null || event.key === useMachineStore.persist.getOptions().name) {
-      void useMachineStore.persist.rehydrate();
-    }
-  });
-}
 
 export const LOCAL_MACHINE_NAME = isDesktopApp() ? 'This Mac' : 'This server';
 

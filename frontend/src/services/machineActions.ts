@@ -139,25 +139,29 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
   return getMachine(machineId)!;
 }
 
+async function releaseMachineSession(machine: Machine, revoke: boolean): Promise<boolean> {
+  let revoked = !machine.pairing;
+  try {
+    if (machine.pairing && revoke) {
+      revoked = (await machineVault.unpair(machine.id, machine.pairing.deviceId)).revoked;
+    } else {
+      await machineVault.forget(machine.id);
+    }
+  } catch {
+    revoked = false;
+  }
+  dropMachineAccess(machine.id);
+  disposeMachineClient(machine.id);
+  return revoked;
+}
+
 export async function removeMachine(machineId: string): Promise<{ revoked: boolean }> {
   const machine = getMachine(machineId);
   if (!machine) return { revoked: true };
   const online = useMachineStore.getState().connections[machineId]?.status === 'online';
   await queryClient.cancelQueries({ queryKey: queryKeys.machine.all(machineId) });
 
-  let revoked = !machine.pairing;
-  try {
-    if (machine.pairing && online) {
-      revoked = (await machineVault.unpair(machineId, machine.pairing.deviceId)).revoked;
-    } else {
-      await machineVault.forget(machineId);
-    }
-  } catch {
-    revoked = false;
-  }
-
-  dropMachineAccess(machineId);
-  disposeMachineClient(machineId);
+  const revoked = await releaseMachineSession(machine, online);
   recordRemovedMachine(
     machineId,
     machine.pairing ? { instanceId: machine.pairing.instanceId } : { url: machine.url },
@@ -165,4 +169,25 @@ export async function removeMachine(machineId: string): Promise<{ revoked: boole
   useMachineStore.getState().removeMachine(machineId);
   queryClient.removeQueries({ queryKey: queryKeys.machine.all(machineId) });
   return { revoked };
+}
+
+async function releaseMachinesRemovedElsewhere(): Promise<void> {
+  const before = useMachineStore.getState().machines;
+  await useMachineStore.persist.rehydrate();
+  const remaining = new Set(useMachineStore.getState().machines.map((machine) => machine.id));
+  await Promise.all(
+    before
+      .filter((machine) => !remaining.has(machine.id))
+      .map((machine) => releaseMachineSession(machine, true)),
+  );
+}
+
+export function followMachinesFromOtherTabs(): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === null || event.key === useMachineStore.persist.getOptions().name) {
+      void releaseMachinesRemovedElsewhere();
+    }
+  };
+  window.addEventListener('storage', onStorage);
+  return () => window.removeEventListener('storage', onStorage);
 }
