@@ -1810,50 +1810,107 @@ async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
     assert len(minted_mcp_tokens(fake_agent)) == minted_before_revoke
 
 
-async def test_channel_turn_token_is_bound_to_the_posting_device(
+async def pair_device(
+    client: httpx.AsyncClient, headers: dict[str, str], name: str
+) -> dict[str, Any]:
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = await client.post(
+        "/api/v1/auth/pair",
+        json={"secret": pairing.json()["secret"], "device_name": name},
+    )
+    return dict(paired.json())
+
+
+@pytest.mark.parametrize(
+    ("posts", "revoked", "expected"),
+    [
+        (
+            [("A", "@alice review this"), ("B", "@bob test that")],
+            "A",
+            {"alice": (["A"], 401), "bob": (["B"], 200)},
+        ),
+        (
+            [("A", "@alice first"), ("B", "@alice second")],
+            "A",
+            {"alice": (["A", "B"], 401)},
+        ),
+        (
+            [("A", "@alice first"), ("B", "@alice second")],
+            "B",
+            {"alice": (["A", "B"], 401)},
+        ),
+    ],
+)
+async def test_channel_turn_acts_for_the_devices_that_addressed_the_member(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
+    posts: list[tuple[str, str]],
+    revoked: str,
+    expected: dict[str, tuple[list[str], int]],
 ) -> None:
     monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.5)
     headers, workspace = auth_workspace
-    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
-    paired = (
-        await client.post(
-            "/api/v1/auth/pair",
-            json={"secret": pairing.json()["secret"], "device_name": "Laptop"},
-        )
-    ).json()
+    devices = {name: await pair_device(client, headers, name) for name in ("A", "B")}
     channel = await client.post(
         "/api/v1/channels",
         json={
             "name": "Review",
             "workspace_id": str(workspace.id),
-            "members": [{"model_id": "sonnet", "permission_mode": "bypassPermissions"}],
+            "members": [
+                {
+                    "model_id": "sonnet",
+                    "permission_mode": "bypassPermissions",
+                    "display_name": name,
+                }
+                for name in ("alice", "bob")
+            ],
         },
         headers=headers,
     )
     assert channel.status_code == 201, channel.text
     channel_id = channel.json()["id"]
 
-    posted = await client.post(
-        f"/api/v1/channels/{channel_id}/messages",
-        data={"content": "Any objections?"},
-        headers={"Authorization": f"Bearer {paired['access_token']}"},
-    )
-    assert posted.status_code == 201, posted.text
+    for device, content in posts:
+        posted = await client.post(
+            f"/api/v1/channels/{channel_id}/messages",
+            data={"content": content},
+            headers={"Authorization": f"Bearer {devices[device]['access_token']}"},
+        )
+        assert posted.status_code == 201, posted.text
     deadline = time.monotonic() + 10
-    while not fake_agent.main_turn_prompts() and time.monotonic() < deadline:
+    while len(fake_agent.main_turn_prompts()) < len(expected):
+        assert time.monotonic() < deadline
         await asyncio.sleep(0.05)
     await client.post(f"/api/v1/channels/{channel_id}/stop", headers=headers)
     await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+    await client.delete(
+        f"/api/v1/auth/devices/{devices[revoked]['device_id']}", headers=headers
+    )
 
-    [token] = minted_mcp_tokens(fake_agent)
-    claims = jwt.decode(token, options={"verify_signature": False})
-    assert claims["did"] == [paired["device_id"]]
+    tokens = {
+        event["pid"]: variable["value"]
+        for event in fake_agent.events_of("new_session")
+        for server in event["mcp_servers"]
+        for variable in server.get("env") or []
+        if variable["name"] == "AGENTROVE_ACCESS_TOKEN"
+    }
+    actual = {}
+    for prompt in fake_agent.main_turn_prompts():
+        member = "alice" if "You are alice" in prompt["text"] else "bob"
+        token = tokens[prompt["pid"]]
+        claims = jwt.decode(token, options={"verify_signature": False})
+        me = await client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        )
+        actual[member] = (sorted(claims["did"]), me.status_code)
+    assert actual == {
+        member: (sorted(devices[name]["device_id"] for name in names), status)
+        for member, (names, status) in expected.items()
+    }
 
 
 async def wait_for_latest_assistant(

@@ -118,7 +118,13 @@ class MemberTurn:
 
     @property
     def device_ids(self) -> frozenset[UUID]:
-        return frozenset().union(*(message.device_ids for message in self.batch))
+        return frozenset().union(
+            *(
+                message.device_ids
+                for message in self.batch
+                if ChannelService.addressed(message, self.member)
+            )
+        )
 
 
 @dataclass
