@@ -3,6 +3,7 @@ import {
   EMPTY_SIDEBAR_FILTERS,
   clearSidebarFilters,
   countActiveSidebarFilters,
+  withKnownSource,
   type SidebarFilters,
 } from './sidebarFilters';
 
@@ -42,5 +43,14 @@ describe('countActiveSidebarFilters', () => {
 
   it('treats source "all" and any groupBy as inactive', () => {
     expect(countActiveSidebarFilters(filters({ source: 'all', groupBy: 'status' }))).toBe(0);
+  });
+});
+
+describe('withKnownSource', () => {
+  it('drops a persisted source that is no longer a machine so it is not counted', () => {
+    const stale = withKnownSource(filters({ source: 'cloud' }), ['local', 'vps']);
+    expect(stale.source).toBe('all');
+    expect(countActiveSidebarFilters(stale)).toBe(0);
+    expect(withKnownSource(filters({ source: 'vps' }), ['local', 'vps']).source).toBe('vps');
   });
 });

@@ -21,7 +21,7 @@ import { type ChatRowProps } from './SidebarChatRow';
 import { buildRecentChatSections } from './sidebarGrouping';
 import { useSidebarChatActions } from './useSidebarChatActions';
 import { useSidebarWorkspaceActions } from './useSidebarWorkspaceActions';
-import { countActiveSidebarFilters } from '@/store/sidebarFilters';
+import { countActiveSidebarFilters, withKnownSource } from '@/store/sidebarFilters';
 import { useChatOrigins } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
@@ -67,7 +67,7 @@ export function Sidebar({
   const blockedChatIdSet = useBlockedChatIds();
   // Chats merge from two backends, so filters apply client-side over loaded
   // pages. Lives in the persisted uiStore so reloads keep the narrowed view.
-  const filters = useUIStore((state) => state.sidebarFilters);
+  const storedFilters = useUIStore((state) => state.sidebarFilters);
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
@@ -103,7 +103,6 @@ export function Sidebar({
 
   const hasAnyContent = pinnedChats.length > 0 || recentChats.length > 0;
 
-  const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
   // Status filters OR together (any selected badge state matches); source and
   // workspace AND with them. Ownership comes from the machine origin map (set at
   // fetch time, hydrated at module load) — the workspace badge map lags behind the
@@ -118,9 +117,15 @@ export function Sidebar({
     ],
     [machines],
   );
-  const sourceFilter = machineOptions.some((machine) => machine.id === filters.source)
-    ? filters.source
-    : 'all';
+  const filters = useMemo(
+    () =>
+      withKnownSource(
+        storedFilters,
+        machineOptions.map((machine) => machine.id),
+      ),
+    [storedFilters, machineOptions],
+  );
+  const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
   const machineBadgeForChat = useCallback(
     (chatId: string): MachineBadge | undefined => {
       if (machines.length === 0) return undefined;
@@ -138,8 +143,8 @@ export function Sidebar({
       if (filters.workspaceId && chat.workspace_id !== filters.workspaceId) return false;
       if (filters.agentKind && chat.session_agent_kind !== filters.agentKind) return false;
       if (
-        sourceFilter !== 'all' &&
-        (chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID) !== sourceFilter
+        filters.source !== 'all' &&
+        (chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID) !== filters.source
       ) {
         return false;
       }
@@ -151,7 +156,7 @@ export function Sidebar({
         (filters.statuses.includes('needs-you') && blockedChatIdSet.has(chat.id))
       );
     },
-    [filters, sourceFilter, streamingChatIdSet, completedChatIds, blockedChatIdSet, chatOrigins],
+    [filters, streamingChatIdSet, completedChatIds, blockedChatIdSet, chatOrigins],
   );
   const visiblePinnedChats = useMemo(
     () => (hasActiveFilters ? pinnedChats.filter(chatMatchesFilters) : pinnedChats),

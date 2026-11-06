@@ -56,6 +56,10 @@ export function clearSidebarFilters(filters: SidebarFilters): SidebarFilters {
   return { ...EMPTY_SIDEBAR_FILTERS, groupBy: filters.groupBy };
 }
 
+export function withKnownSource(filters: SidebarFilters, sourceIds: string[]): SidebarFilters {
+  return sourceIds.includes(filters.source) ? filters : { ...filters, source: 'all' };
+}
+
 export function countActiveSidebarFilters(filters: SidebarFilters): number {
   return (
     filters.statuses.length +
