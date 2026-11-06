@@ -1,5 +1,5 @@
 import { useCallback, useEffect, memo, useMemo } from 'react';
-import { useChatMachineId } from '@/utils/machineOrigin';
+import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineName, useMachineStatus } from '@/store/machineStore';
 import { useShallow } from 'zustand/react/shallow';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';

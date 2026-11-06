@@ -6,7 +6,7 @@ import {
   assignChatRecordsToMachine,
   assignChatsToMachine,
   chatMachineId,
-} from '@/utils/machineOrigin';
+} from '@/store/machineOrigin';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { queryKeys } from '@/hooks/queries/queryKeys';

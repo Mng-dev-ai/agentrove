@@ -6,7 +6,7 @@ import {
   assignChatRecordsToMachine,
   assignChatsToMachine,
   assignSandboxesToMachine,
-} from '@/utils/machineOrigin';
+} from '@/store/machineOrigin';
 import type { UserSettings } from '@/types/user.types';
 import type {
   Workspace,

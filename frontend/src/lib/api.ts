@@ -1,16 +1,16 @@
 import { authStorage } from '@/utils/storage';
 import { invalidateSessionAndRedirect } from '@/utils/authSession';
-import { chatMachineId, sandboxMachineId } from '@/utils/machineOrigin';
+import { chatMachineId, sandboxMachineId } from '@/store/machineOrigin';
 import { jwtExpiryMs } from '@/utils/jwt';
 import { NetworkError } from '@/types/errors.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import {
   getMachineAccessToken,
+  isSessionLost,
   markMachineSessionRevoked,
   onlineRouteUrl,
   refreshMachineAccess,
 } from '@/services/machineSession';
-import { MachineVaultError } from '@/services/machineVault';
 
 type RequestMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -346,10 +346,7 @@ function machineAuth(machineId: string): ClientAuth {
       try {
         return await refreshMachineAccess(machineId);
       } catch (error) {
-        const sessionLost =
-          error instanceof MachineVaultError &&
-          (error.code === 'session_revoked' || error.code === 'not_paired');
-        throw new RefreshTokenError(sessionLost ? 401 : 0);
+        throw new RefreshTokenError(isSessionLost(error) ? 401 : 0);
       }
     },
     onSessionExpired: () => markMachineSessionRevoked(machineId),

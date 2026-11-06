@@ -5,19 +5,11 @@ import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
-import { Select } from '@/components/ui/primitives/Select/Select';
 import { PairError, pairMachine, type PairFailure } from '@/services/machineActions';
 import { getMachine } from '@/store/machineStore';
 import { hostOf, parsePairingLink } from '@/utils/machineUrl';
-import type { MachineKind } from '@/types/machine.types';
 import { CopyField } from './CopyField';
 import styles from './AddMachineDialog.module.scss';
-
-const KIND_OPTIONS: { value: MachineKind; label: string }[] = [
-  { value: 'server', label: 'Server' },
-  { value: 'cloud', label: 'Cloud VM' },
-  { value: 'laptop', label: 'Laptop' },
-];
 
 interface AddMachineDialogProps {
   repairMachineId: string | null;
@@ -75,7 +67,6 @@ function PairFailureMessage({ failure }: { failure: PairFailure }) {
 export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogProps) {
   const repairing = repairMachineId ? getMachine(repairMachineId) : undefined;
   const [name, setName] = useState('');
-  const [kind, setKind] = useState<MachineKind>('server');
   const [link, setLink] = useState('');
   const [failure, setFailure] = useState<PairFailure | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
@@ -88,9 +79,7 @@ export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogP
     setIsConnecting(true);
     try {
       const machine = await pairMachine(
-        repairing
-          ? { mode: 'repair', machineId: repairing.id, link }
-          : { mode: 'add', name, kind, link },
+        repairing ? { mode: 'repair', machineId: repairing.id, link } : { mode: 'add', name, link },
       );
       setLink('');
       toast.success(`Paired with ${machine.name}`);
@@ -126,30 +115,14 @@ export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogP
 
         <div className={styles.fields}>
           {!repairing && (
-            <div className={styles.grid}>
-              <div>
-                <Label className={styles.label}>Name</Label>
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="VPS"
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <Label className={styles.label}>Kind</Label>
-                <Select
-                  value={kind}
-                  onChange={(e) => setKind(e.target.value as MachineKind)}
-                  className={styles.select}
-                >
-                  {KIND_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+            <div>
+              <Label className={styles.label}>Name</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="VPS"
+                autoComplete="off"
+              />
             </div>
           )}
           <div>

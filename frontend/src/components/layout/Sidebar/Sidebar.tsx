@@ -22,7 +22,7 @@ import { buildRecentChatSections } from './sidebarGrouping';
 import { useSidebarChatActions } from './useSidebarChatActions';
 import { useSidebarWorkspaceActions } from './useSidebarWorkspaceActions';
 import { countActiveSidebarFilters } from '@/store/sidebarFilters';
-import { useChatOrigins } from '@/utils/machineOrigin';
+import { useChatOrigins } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { MachineBadge } from './SidebarChatItem';

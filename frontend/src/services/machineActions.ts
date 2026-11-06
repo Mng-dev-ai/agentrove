@@ -10,10 +10,10 @@ import {
   storeMachineAccess,
 } from '@/services/machineSession';
 import { MachineVaultError, machineVault } from '@/services/machineVault';
-import { forgetMachineOrigins } from '@/utils/machineOrigin';
+import { forgetMachineOrigins } from '@/store/machineOrigin';
 import { parsePairingLink, routeKindForOrigin } from '@/utils/machineUrl';
 import { isDesktopApp } from '@/utils/platform';
-import type { Machine, MachineKind } from '@/types/machine.types';
+import type { Machine } from '@/types/machine.types';
 
 export type PairFailure =
   | { kind: 'invalid_link' }
@@ -37,7 +37,7 @@ export class PairError extends Error {
 }
 
 export type PairRequest =
-  | { mode: 'add'; name: string; kind: MachineKind; link: string }
+  | { mode: 'add'; name: string; link: string }
   | { mode: 'repair'; machineId: string; link: string };
 
 function deviceName(): string {
@@ -81,12 +81,14 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
 
   const instanceId = await fetchInstanceId(origin);
   if (!instanceId) throw new PairError({ kind: 'unreachable', origin });
-  if (existing?.instanceId && existing.instanceId !== instanceId) {
+  if (existing?.pairing && existing.pairing.instanceId !== instanceId) {
     throw new PairError({ kind: 'different_server', origin });
   }
   const duplicate = useMachineStore
     .getState()
-    .machines.find((machine) => machine.instanceId === instanceId && machine.id !== existing?.id);
+    .machines.find(
+      (machine) => machine.pairing?.instanceId === instanceId && machine.id !== existing?.id,
+    );
   if (duplicate) throw new PairError({ kind: 'duplicate', name: duplicate.name });
 
   const machineId = existing?.id ?? crypto.randomUUID();
@@ -104,20 +106,17 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
   storeMachineAccess(machineId, paired);
   const pairedFields = {
     routes: [{ kind: routeKindForOrigin(origin), url: origin }],
-    instanceId: paired.instance_id,
-    deviceId: paired.device_id,
-    pairedAt: new Date().toISOString(),
+    pairing: {
+      instanceId: paired.instance_id,
+      deviceId: paired.device_id,
+      pairedAt: new Date().toISOString(),
+    },
   };
   const store = useMachineStore.getState();
   if (existing) {
     store.updateMachine(machineId, pairedFields);
   } else if (request.mode === 'add') {
-    store.addMachine({
-      id: machineId,
-      name: request.name.trim(),
-      kind: request.kind,
-      ...pairedFields,
-    });
+    store.addMachine({ id: machineId, name: request.name.trim(), ...pairedFields });
   }
   void queryClient.invalidateQueries({ queryKey: queryKeys.machine.all(machineId) });
   await checkMachine(machineId);
@@ -129,10 +128,10 @@ export async function removeMachine(machineId: string): Promise<{ revoked: boole
   if (!machine) return { revoked: true };
   const online = useMachineStore.getState().connections[machineId]?.status === 'online';
 
-  let revoked = !machine.deviceId;
+  let revoked = !machine.pairing;
   try {
-    if (machine.deviceId && online) {
-      revoked = (await machineVault.unpair(machineId, machine.deviceId)).revoked;
+    if (machine.pairing && online) {
+      revoked = (await machineVault.unpair(machineId, machine.pairing.deviceId)).revoked;
     } else {
       await machineVault.forget(machineId);
     }

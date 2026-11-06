@@ -5,7 +5,7 @@ import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 import { useMachineSettingsQuery } from './useMachineQueries';
-import { useChatMachineId } from '@/utils/machineOrigin';
+import { useChatMachineId } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
 const settingsQuery = () => ({

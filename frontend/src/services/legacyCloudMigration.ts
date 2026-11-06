@@ -1,5 +1,5 @@
 import { useMachineStore } from '@/store/machineStore';
-import { assignChatsToMachine, assignSandboxesToMachine } from '@/utils/machineOrigin';
+import { assignChatsToMachine, assignSandboxesToMachine } from '@/store/machineOrigin';
 import { normalizeHttpsOrigin, routeKindForOrigin } from '@/utils/machineUrl';
 import {
   deleteLegacyCloudRefreshToken,
@@ -68,12 +68,9 @@ async function runMigration(): Promise<void> {
   if (origin) {
     useMachineStore.getState().addMachine({
       id: LEGACY_CLOUD_MACHINE_ID,
-      instanceId: '',
-      deviceId: '',
       name: 'Cloud',
-      kind: 'server',
       routes: [{ kind: routeKindForOrigin(origin), url: origin }],
-      pairedAt: '',
+      pairing: null,
     });
     assignChatsToMachine(LEGACY_CLOUD_MACHINE_ID, readLegacyIds(CHATS_KEY));
     assignSandboxesToMachine(LEGACY_CLOUD_MACHINE_ID, readLegacyIds(SANDBOXES_KEY));

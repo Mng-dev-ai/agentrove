@@ -46,19 +46,18 @@ export function markMachineSessionRevoked(machineId: string): void {
   useMachineStore.getState().setConnection(machineId, { status: 'session_revoked' });
 }
 
-export async function refreshMachineAccess(machineId: string): Promise<string> {
-  onlineRouteUrl(machineId);
-  try {
-    const grant = await machineVault.refresh(machineId);
-    storeMachineAccess(machineId, grant);
-    return grant.access_token;
-  } catch (error) {
-    if (isSessionLost(error)) markMachineSessionRevoked(machineId);
-    throw error;
-  }
+async function renewMachineAccess(machineId: string): Promise<string> {
+  const grant = await machineVault.refresh(machineId);
+  storeMachineAccess(machineId, grant);
+  return grant.access_token;
 }
 
-function isSessionLost(error: unknown): boolean {
+export async function refreshMachineAccess(machineId: string): Promise<string> {
+  onlineRouteUrl(machineId);
+  return renewMachineAccess(machineId);
+}
+
+export function isSessionLost(error: unknown): boolean {
   return (
     error instanceof MachineVaultError &&
     (error.code === 'session_revoked' || error.code === 'not_paired')
@@ -113,7 +112,7 @@ export async function probeRoute(origin: string): Promise<RouteProbe> {
 }
 
 async function resolveConnection(machine: Machine): Promise<MachineConnection> {
-  if (!machine.deviceId || !machine.instanceId) return { status: 'session_revoked' };
+  if (!machine.pairing) return { status: 'session_revoked' };
 
   let blockedRoute: string | null = null;
   let routeUrl: string | null = null;
@@ -133,14 +132,14 @@ async function resolveConnection(machine: Machine): Promise<MachineConnection> {
 
   const instanceId = await fetchInstanceId(routeUrl);
   if (!instanceId) return { status: 'offline' };
-  if (instanceId !== machine.instanceId) {
+  if (instanceId !== machine.pairing.instanceId) {
     dropMachineAccess(machine.id);
     return { status: 'different_server', routeUrl };
   }
 
   if (!hasFreshAccess(machine.id)) {
     try {
-      storeMachineAccess(machine.id, await machineVault.refresh(machine.id));
+      await renewMachineAccess(machine.id);
     } catch (error) {
       if (isSessionLost(error)) {
         dropMachineAccess(machine.id);
@@ -154,7 +153,7 @@ async function resolveConnection(machine: Machine): Promise<MachineConnection> {
 }
 
 function connectionIdentity(machine: Machine | undefined): string {
-  return machine ? JSON.stringify([machine.instanceId, machine.deviceId, machine.routes]) : '';
+  return machine ? JSON.stringify([machine.pairing, machine.routes]) : '';
 }
 
 export function checkMachine(machineId: string): Promise<void> {

@@ -5,7 +5,7 @@ const stored = (key: string) => JSON.parse(localStorage.getItem(key) ?? 'null') 
 
 async function load() {
   vi.resetModules();
-  const origin = await import('./machineOrigin');
+  const origin = await import('@/store/machineOrigin');
   const migration = await import('@/services/legacyCloudMigration');
   const { useMachineStore } = await import('@/store/machineStore');
   return { ...origin, ...migration, useMachineStore };
@@ -71,8 +71,7 @@ describe('legacy cloud migration', () => {
       expect.objectContaining({
         id: 'legacy-cloud',
         name: 'Cloud',
-        kind: 'server',
-        instanceId: '',
+        pairing: null,
         routes: [{ kind: 'tailscale', url: 'https://vps.tail1.ts.net' }],
       }),
     ]);

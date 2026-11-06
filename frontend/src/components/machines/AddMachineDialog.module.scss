@@ -1,6 +1,5 @@
 @use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/responsive' as responsive;
 
 .body {
   padding: var(--space-5);
@@ -54,23 +53,10 @@
   gap: var(--space-3);
 }
 
-.grid {
-  display: grid;
-  gap: var(--space-3);
-
-  @include responsive.media('sm-up') {
-    grid-template-columns: 2fr 1fr;
-  }
-}
-
 .label {
   @include type.type-default;
   margin-bottom: var(--space-1);
   color: var(--theme-text-secondary);
-}
-
-.select {
-  @include type.type-default;
 }
 
 .hint {

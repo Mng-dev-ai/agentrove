@@ -104,7 +104,7 @@ export function MachinesSettingsTab() {
 
   const handleRemove = async (machine: Machine) => {
     setRemoving(null);
-    const wasPaired = connections[machine.id]?.status !== 'session_revoked' && !!machine.deviceId;
+    const wasPaired = connections[machine.id]?.status !== 'session_revoked' && !!machine.pairing;
     const { revoked } = await removeMachine(machine.id);
     if (!revoked && wasPaired) {
       toast.error(

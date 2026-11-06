@@ -1,6 +1,6 @@
 import { getMachineClient } from '@/lib/api';
 import { ensureResponse, serviceCall } from '@/services/base/BaseService';
-import { assignChatsToMachine } from '@/utils/machineOrigin';
+import { assignChatsToMachine } from '@/store/machineOrigin';
 import type {
   Automation,
   AutomationCreateRequest,

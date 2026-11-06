@@ -1,7 +1,5 @@
 export const LOCAL_MACHINE_ID = 'local';
 
-export type MachineKind = 'laptop' | 'server' | 'cloud';
-
 export type MachineRouteKind = 'tailscale' | 'https';
 
 export interface MachineRoute {
@@ -9,14 +7,17 @@ export interface MachineRoute {
   url: string;
 }
 
-export interface Machine {
-  id: string;
+export interface MachinePairing {
   instanceId: string;
   deviceId: string;
-  name: string;
-  kind: MachineKind;
-  routes: MachineRoute[];
   pairedAt: string;
+}
+
+export interface Machine {
+  id: string;
+  name: string;
+  routes: MachineRoute[];
+  pairing: MachinePairing | null;
 }
 
 export type MachineConnection =

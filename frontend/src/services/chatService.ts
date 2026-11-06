@@ -7,7 +7,7 @@ import {
   assignChatRecordsToMachine,
   assignChatsToMachine,
   chatMachineId,
-} from '@/utils/machineOrigin';
+} from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type {
   ChatRequest,

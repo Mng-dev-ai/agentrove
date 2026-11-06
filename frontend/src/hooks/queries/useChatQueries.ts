@@ -15,7 +15,7 @@ import type {
 import { chatService } from '@/services/chatService';
 import { machineChatService } from '@/services/machineChatService';
 import { useMachineStore } from '@/store/machineStore';
-import { chatMachineId } from '@/utils/machineOrigin';
+import { chatMachineId } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';

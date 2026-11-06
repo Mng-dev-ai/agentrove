@@ -85,17 +85,11 @@ export function machineStatus(id: string): MachineStatus {
 }
 
 export function useMachineStatus(id: string): MachineStatus {
-  return useMachineStore((state) =>
-    id === LOCAL_MACHINE_ID ? 'online' : (state.connections[id]?.status ?? 'checking'),
-  );
+  return useMachineStore(() => machineStatus(id));
 }
 
 export function useMachineName(id: string): string {
-  return useMachineStore((state) =>
-    id === LOCAL_MACHINE_ID
-      ? LOCAL_MACHINE_NAME
-      : (state.machines.find((machine) => machine.id === id)?.name ?? 'Removed machine'),
-  );
+  return useMachineStore(() => machineName(id));
 }
 
 export function useOnlineRemoteMachineIds(): string[] {

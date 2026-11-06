@@ -34,7 +34,7 @@ import { getAgentKindForModelId, type Chat } from '@/types/chat.types';
 import type { Channel } from '@/types/channel.types';
 import type { DiffMode, GitDiffTotals } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
-import { useChatMachineId } from '@/utils/machineOrigin';
+import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineName } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { getRelativeTime } from '@/utils/date';
