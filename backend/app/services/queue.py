@@ -93,10 +93,13 @@ class BaseQueueService(Generic[ItemT]):
 
             for item in queue:
                 if item["id"] == message_id:
-                    item["content"] = update.content
-                    item["device_ids"] = sorted(
-                        {*item["device_ids"], *map(str, update.device_ids)}
+                    kept = (
+                        item["device_ids"]
+                        if item["attachments"] or item["content"] == update.content
+                        else []
                     )
+                    item["content"] = update.content
+                    item["device_ids"] = sorted({*kept, *map(str, update.device_ids)})
                     await self._write_queue(key, queue)
                     updated: ItemT = self.item_type.model_validate(item)
                     return updated

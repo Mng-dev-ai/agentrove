@@ -163,9 +163,11 @@ class AutomationService(BaseDbService[Automation]):
             automation = await self._get_owned(db, automation_id, user.id)
             if "workspace_id" in changes:
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
+            if changes.get("prompt", automation.prompt) == automation.prompt:
+                device_ids = automation.device_ids | device_ids
             for field, value in changes.items():
                 setattr(automation, field, value)
-            automation.device_ids = automation.device_ids | device_ids
+            automation.device_ids = device_ids
             if SCHEDULE_FIELDS & changes.keys():
                 automation.next_run_at = self._compute_next_run_validated(
                     automation.cron_expression, automation.timezone

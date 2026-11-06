@@ -541,7 +541,7 @@ class AgentService:
             if active != device_ids:
                 raise AgentException(
                     "A paired device behind this run has been revoked. "
-                    "Recreate it from a password sign-in or an active device.",
+                    "Rewrite its prompt from a password sign-in or an active device.",
                     error_code=ErrorCode.AUTH_INVALID_TOKEN,
                     status_code=403,
                 )

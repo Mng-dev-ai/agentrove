@@ -2115,14 +2115,23 @@ async def test_wake_acts_for_the_reporting_childs_devices(
     assert me.status_code == 401
 
 
-@pytest.mark.parametrize("action", ["run_now", "edit_then_schedule"])
-async def test_automation_turn_keeps_acting_for_the_device_that_saved_it(
+@pytest.mark.parametrize(
+    ("edit", "saver_kept"),
+    [
+        (None, True),
+        ({"name": "Renamed"}, True),
+        ({"prompt": "Summarize"}, True),
+        ({"prompt": "Summarize again"}, False),
+    ],
+)
+async def test_automation_turn_acts_for_the_devices_behind_its_saved_prompt(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
-    action: str,
+    edit: dict[str, str] | None,
+    saver_kept: bool,
 ) -> None:
     headers, workspace = auth_workspace
     saver = await pair_device(client, headers, "Laptop")
@@ -2142,13 +2151,11 @@ async def test_automation_turn_keeps_acting_for_the_device_that_saved_it(
     assert automation.status_code == 201, automation.text
     automation_id = automation.json()["id"]
 
-    if action == "run_now":
+    if edit is None:
         run = await run_automation_turn(client, other_headers, automation_id)
     else:
         edited = await client.patch(
-            f"/api/v1/automations/{automation_id}",
-            json={"prompt": "Summarize again"},
-            headers=other_headers,
+            f"/api/v1/automations/{automation_id}", json=edit, headers=other_headers
         )
         assert edited.status_code == 200, edited.text
         run = await run_scheduled_automation_turn(
@@ -2158,24 +2165,36 @@ async def test_automation_turn_keeps_acting_for_the_device_that_saved_it(
     assert run["stream_status"] == "completed"
     [token] = minted_mcp_tokens(fake_agent)
     claims = jwt.decode(token, options={"verify_signature": False})
-    assert sorted(claims["did"]) == sorted([saver["device_id"], other["device_id"]])
+    expected = [saver["device_id"]] if saver_kept else []
+    assert sorted(claims["did"]) == sorted([*expected, other["device_id"]])
     await client.delete(f"/api/v1/auth/devices/{saver['device_id']}", headers=headers)
     me = await client.get(
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
     )
-    assert me.status_code == 401
+    assert me.status_code == (401 if saver_kept else 200)
 
 
 def did_of(token: str) -> list[str]:
     return list(jwt.decode(token, options={"verify_signature": False})["did"])
 
 
-async def test_edited_chat_queue_item_keeps_acting_for_the_device_that_queued_it(
+@pytest.mark.parametrize(
+    ("attach", "content", "queuer_kept"),
+    [
+        (True, "rewritten", True),
+        (False, "from laptop", True),
+        (False, "rewritten", False),
+    ],
+)
+async def test_edited_chat_queue_item_acts_for_the_devices_behind_what_survives(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
+    attach: bool,
+    content: str,
+    queuer_kept: bool,
 ) -> None:
     monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     headers, workspace = auth_workspace
@@ -2185,25 +2204,27 @@ async def test_edited_chat_queue_item_keeps_acting_for_the_device_that_queued_it
     queued = await client.post(
         base,
         data={"content": "from laptop", "model_id": "sonnet"},
-        files=[("attached_files", ("shot.png", PNG_BYTES, "image/png"))],
+        files=[("attached_files", ("shot.png", PNG_BYTES, "image/png"))]
+        if attach
+        else None,
         headers={"Authorization": f"Bearer {paired['access_token']}"},
     )
     assert queued.status_code == 201, queued.text
     item = f"{base}/{queued.json()['id']}"
 
-    edited = await client.patch(item, json={"content": "rewritten"}, headers=headers)
+    edited = await client.patch(item, json={"content": content}, headers=headers)
     assert edited.status_code == 200, edited.text
-    assert edited.json()["attachments"]
+    assert bool(edited.json()["attachments"]) is attach
     assert (await client.post(f"{item}/send-now", headers=headers)).status_code == 204
     await wait_for_latest_assistant(client, headers, chat["id"])
 
     [token] = minted_mcp_tokens(fake_agent)
-    assert did_of(token) == [paired["device_id"]]
+    assert did_of(token) == ([paired["device_id"]] if queuer_kept else [])
     await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
     me = await client.get(
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
     )
-    assert me.status_code == 401
+    assert me.status_code == (401 if queuer_kept else 200)
 
 
 async def test_edited_channel_queue_item_keeps_acting_for_the_device_that_queued_it(
@@ -2240,6 +2261,7 @@ async def test_edited_channel_queue_item_keeps_acting_for_the_device_that_queued
     queued = await client.post(
         base,
         data={"content": "from laptop"},
+        files=[("attached_files", ("shot.png", PNG_BYTES, "image/png"))],
         headers={"Authorization": f"Bearer {paired['access_token']}"},
     )
     assert queued.status_code == 201, queued.text
