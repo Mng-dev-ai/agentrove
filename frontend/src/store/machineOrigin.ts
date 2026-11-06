@@ -29,14 +29,18 @@ function persist(key: string, origins: Map<string, string>): void {
   }
 }
 
-const chatOrigins = load(CHATS_KEY);
-const sandboxOrigins = load(SANDBOXES_KEY);
-const removedMachines = load(REMOVED_MACHINES_KEY);
-let chatOriginsSnapshot: ReadonlyMap<string, string> = new Map(chatOrigins);
+type OriginKey = typeof CHATS_KEY | typeof SANDBOXES_KEY | typeof REMOVED_MACHINES_KEY;
+
+const maps: Record<OriginKey, Map<string, string>> = {
+  [CHATS_KEY]: load(CHATS_KEY),
+  [SANDBOXES_KEY]: load(SANDBOXES_KEY),
+  [REMOVED_MACHINES_KEY]: load(REMOVED_MACHINES_KEY),
+};
+let chatOriginsSnapshot: ReadonlyMap<string, string> = new Map(maps[CHATS_KEY]);
 const listeners = new Set<() => void>();
 
 function notify(): void {
-  chatOriginsSnapshot = new Map(chatOrigins);
+  chatOriginsSnapshot = new Map(maps[CHATS_KEY]);
   for (const listener of listeners) listener();
 }
 
@@ -47,29 +51,41 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-function assign(
-  origins: Map<string, string>,
-  key: string,
-  machineId: string,
-  ids: Iterable<string>,
-): boolean {
-  if (machineId !== LOCAL_MACHINE_ID && !getMachine(machineId)) return false;
-  let changed = false;
-  for (const id of ids) {
-    if (!id || origins.has(id)) continue;
-    origins.set(id, machineId);
-    changed = true;
-  }
-  if (changed) persist(key, origins);
+function update(key: OriginKey, change: (map: Map<string, string>) => boolean): boolean {
+  const map = load(key);
+  const changed = change(map);
+  if (changed) persist(key, map);
+  maps[key] = map;
   return changed;
 }
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key !== null && !(event.key in maps)) return;
+    for (const key of Object.keys(maps) as OriginKey[]) maps[key] = load(key);
+    notify();
+  });
+}
+
+function assign(key: OriginKey, machineId: string, ids: Iterable<string>): boolean {
+  if (machineId !== LOCAL_MACHINE_ID && !getMachine(machineId)) return false;
+  return update(key, (origins) => {
+    let changed = false;
+    for (const id of ids) {
+      if (!id || origins.has(id)) continue;
+      origins.set(id, machineId);
+      changed = true;
+    }
+    return changed;
+  });
+}
+
 export function assignChatsToMachine(machineId: string, chatIds: Iterable<string>): void {
-  if (assign(chatOrigins, CHATS_KEY, machineId, chatIds)) notify();
+  if (assign(CHATS_KEY, machineId, chatIds)) notify();
 }
 
 export function assignSandboxesToMachine(machineId: string, sandboxIds: Iterable<string>): void {
-  assign(sandboxOrigins, SANDBOXES_KEY, machineId, sandboxIds);
+  assign(SANDBOXES_KEY, machineId, sandboxIds);
 }
 
 export function assignChatRecordsToMachine(
@@ -87,11 +103,11 @@ export function assignChatRecordsToMachine(
 }
 
 export function chatMachineId(chatId: string | undefined): string {
-  return (chatId && chatOrigins.get(chatId)) || LOCAL_MACHINE_ID;
+  return (chatId && maps[CHATS_KEY].get(chatId)) || LOCAL_MACHINE_ID;
 }
 
 export function sandboxMachineId(sandboxId: string | undefined): string {
-  return (sandboxId && sandboxOrigins.get(sandboxId)) || LOCAL_MACHINE_ID;
+  return (sandboxId && maps[SANDBOXES_KEY].get(sandboxId)) || LOCAL_MACHINE_ID;
 }
 
 export function useChatMachineId(chatId: string | undefined): string {
@@ -109,26 +125,34 @@ function identityKey(identity: MachineIdentity): string {
 }
 
 export function recordRemovedMachine(machineId: string, identity: MachineIdentity): void {
-  removedMachines.set(machineId, identityKey(identity));
-  persist(REMOVED_MACHINES_KEY, removedMachines);
+  update(REMOVED_MACHINES_KEY, (removed) => {
+    removed.set(machineId, identityKey(identity));
+    return true;
+  });
 }
 
 export function claimRemovedMachineOrigins(machineId: string, identities: MachineIdentity[]): void {
   const keys = new Set(identities.map(identityKey));
   const removedIds = new Set(
-    [...removedMachines].filter(([, key]) => keys.has(key)).map(([removedId]) => removedId),
+    [...load(REMOVED_MACHINES_KEY)]
+      .filter(([, key]) => keys.has(key))
+      .map(([removedId]) => removedId),
   );
   if (removedIds.size === 0) return;
-  for (const [origins, key] of [
-    [chatOrigins, CHATS_KEY],
-    [sandboxOrigins, SANDBOXES_KEY],
-  ] as const) {
-    for (const [id, owner] of origins) {
-      if (removedIds.has(owner)) origins.set(id, machineId);
-    }
-    persist(key, origins);
+  for (const key of [CHATS_KEY, SANDBOXES_KEY] as const) {
+    update(key, (origins) => {
+      let changed = false;
+      for (const [id, owner] of origins) {
+        if (!removedIds.has(owner)) continue;
+        origins.set(id, machineId);
+        changed = true;
+      }
+      return changed;
+    });
   }
-  for (const removedId of removedIds) removedMachines.delete(removedId);
-  persist(REMOVED_MACHINES_KEY, removedMachines);
+  update(REMOVED_MACHINES_KEY, (removed) => {
+    for (const removedId of removedIds) removed.delete(removedId);
+    return true;
+  });
   notify();
 }

@@ -68,6 +68,14 @@ export const useMachineStore = create<MachineStoreState>()(
   ),
 );
 
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === null || event.key === useMachineStore.persist.getOptions().name) {
+      void useMachineStore.persist.rehydrate();
+    }
+  });
+}
+
 export const LOCAL_MACHINE_NAME = isDesktopApp() ? 'This Mac' : 'This server';
 
 export function getMachine(id: string): Machine | undefined {

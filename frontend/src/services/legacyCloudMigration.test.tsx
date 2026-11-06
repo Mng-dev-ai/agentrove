@@ -145,6 +145,58 @@ describe('machine origin maps', () => {
   });
 });
 
+describe('two tabs', () => {
+  const loadTab = async () => {
+    vi.resetModules();
+    return {
+      ...(await import('@/store/machineOrigin')),
+      ...(await import('@/store/machineStore')),
+    };
+  };
+
+  it('does not resurrect a mapping another tab claimed', async () => {
+    localStorage.setItem('machine-chat-origins', JSON.stringify({ 'vps-chat': 'old-vps' }));
+    localStorage.setItem(
+      'machine-removed-identities',
+      JSON.stringify({ 'old-vps': 'instance:vps-instance' }),
+    );
+    const tabA = await loadTab();
+    const tabB = await loadTab();
+
+    tabA.claimRemovedMachineOrigins('new-vps', [{ instanceId: 'vps-instance' }]);
+    tabB.assignChatsToMachine('local', ['local-chat']);
+
+    expect(stored('machine-chat-origins')).toEqual({
+      'vps-chat': 'new-vps',
+      'local-chat': 'local',
+    });
+    expect(tabB.chatMachineId('vps-chat')).toBe('new-vps');
+  });
+
+  it('keeps machines another tab added when this tab persists', async () => {
+    const tabA = await loadTab();
+    const tabB = await loadTab();
+    const otherTabWrote = async () => {
+      window.dispatchEvent(new StorageEvent('storage', { key: 'machines-storage' }));
+      await Promise.resolve();
+    };
+    tabB.useMachineStore
+      .getState()
+      .addMachine({ id: 'vps', name: 'vps', url: 'https://vps.ts.net', pairing: null });
+    await otherTabWrote();
+
+    tabA.useMachineStore
+      .getState()
+      .addMachine({ id: 'ec2', name: 'ec2', url: 'https://ec2.ts.net', pairing: null });
+    await otherTabWrote();
+    tabB.useMachineStore.getState().setConnection('vps', { status: 'online' });
+
+    const persisted = stored('machines-storage') as { state: { machines: { id: string }[] } };
+    expect(persisted.state.machines.map((machine) => machine.id).sort()).toEqual(['ec2', 'vps']);
+    expect(tabB.getMachine('ec2')).toBeDefined();
+  });
+});
+
 describe('legacy cloud migration', () => {
   const seedLegacy = () => {
     localStorage.setItem(
