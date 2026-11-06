@@ -394,4 +394,3 @@ export function setApiPort(port: number): void {
   API_BASE_URL = `${origin}/api/v1`;
   WS_BASE_URL = `ws://127.0.0.1:${port}/api/v1/ws`;
 }
-
