@@ -5,6 +5,7 @@ import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import { PairError, pairMachine, type PairFailure } from '@/services/machineActions';
 import { getMachine } from '@/store/machineStore';
 import { hostOf, parsePairingLink } from '@/utils/machineUrl';
@@ -16,7 +17,13 @@ interface AddMachineDialogProps {
   onClose: () => void;
 }
 
-function PairFailureMessage({ failure }: { failure: PairFailure }) {
+function PairFailureMessage({
+  failure,
+  onRepair,
+}: {
+  failure: PairFailure;
+  onRepair: (machineId: string) => void;
+}) {
   switch (failure.kind) {
     case 'invalid_link':
       return (
@@ -57,6 +64,20 @@ function PairFailureMessage({ failure }: { failure: PairFailure }) {
       );
     case 'duplicate':
       return <p>This server is already added as “{failure.name}”.</p>;
+    case 'unpaired_duplicate':
+      return (
+        <>
+          <p>This server is already added as “{failure.name}”, which isn&apos;t paired yet.</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onRepair(failure.machineId)}
+          >
+            Pair “{failure.name}” again
+          </Button>
+        </>
+      );
     case 'keychain':
       return <p>Couldn&apos;t store the pairing in the system keychain: {failure.message}</p>;
     case 'other':
@@ -65,7 +86,8 @@ function PairFailureMessage({ failure }: { failure: PairFailure }) {
 }
 
 export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogProps) {
-  const repairing = repairMachineId ? getMachine(repairMachineId) : undefined;
+  const [repairId, setRepairId] = useState(repairMachineId);
+  const repairing = repairId ? getMachine(repairId) : undefined;
   const [name, setName] = useState('');
   const [link, setLink] = useState('');
   const [failure, setFailure] = useState<PairFailure | null>(null);
@@ -109,7 +131,13 @@ export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogP
 
         {failure && (
           <div className={styles.error} role="alert">
-            <PairFailureMessage failure={failure} />
+            <PairFailureMessage
+              failure={failure}
+              onRepair={(machineId) => {
+                setRepairId(machineId);
+                setFailure(null);
+              }}
+            />
           </div>
         )}
 

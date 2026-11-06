@@ -23,6 +23,7 @@ export type PairFailure =
   | { kind: 'tls'; origin: string }
   | { kind: 'different_server'; origin: string }
   | { kind: 'duplicate'; name: string }
+  | { kind: 'unpaired_duplicate'; machineId: string; name: string }
   | { kind: 'keychain'; message: string }
   | { kind: 'other'; message: string };
 
@@ -81,15 +82,26 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
 
   const instanceId = await fetchInstanceId(origin);
   if (!instanceId) throw new PairError({ kind: 'unreachable', origin });
-  if (existing?.pairing && existing.pairing.instanceId !== instanceId) {
+  if (
+    existing &&
+    (existing.pairing ? existing.pairing.instanceId !== instanceId : existing.url !== origin)
+  ) {
     throw new PairError({ kind: 'different_server', origin });
   }
   const duplicate = useMachineStore
     .getState()
     .machines.find(
-      (machine) => machine.pairing?.instanceId === instanceId && machine.id !== existing?.id,
+      (machine) =>
+        machine.id !== existing?.id &&
+        (machine.pairing ? machine.pairing.instanceId === instanceId : machine.url === origin),
     );
-  if (duplicate) throw new PairError({ kind: 'duplicate', name: duplicate.name });
+  if (duplicate) {
+    throw new PairError(
+      duplicate.pairing
+        ? { kind: 'duplicate', name: duplicate.name }
+        : { kind: 'unpaired_duplicate', machineId: duplicate.id, name: duplicate.name },
+    );
+  }
 
   const machineId = existing?.id ?? crypto.randomUUID();
   let paired;

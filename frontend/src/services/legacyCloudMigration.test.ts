@@ -132,3 +132,34 @@ describe('legacy cloud migration', () => {
     expect(localStorage.getItem('cloud-chat-ids')).toBeNull();
   });
 });
+
+describe('pairing the migrated Cloud machine', () => {
+  const failureOf = (promise: Promise<unknown>) =>
+    promise.then(
+      () => null,
+      (error: { failure?: unknown }) => error.failure,
+    );
+
+  it('offers to pair it again instead of adding the same server twice', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(
+        async () => new Response(JSON.stringify({ status: 'healthy', instance_id: 'vps-1' })),
+      ),
+    );
+    const { useMachineStore } = await load(['cloud']);
+    useMachineStore.getState().updateMachine('cloud', { url: 'https://vps.tail1.ts.net' });
+    const { pairMachine } = await import('@/services/machineActions');
+
+    expect(
+      await failureOf(
+        pairMachine({ mode: 'add', name: 'VPS', link: 'https://vps.tail1.ts.net/#pair=s' }),
+      ),
+    ).toEqual({ kind: 'unpaired_duplicate', machineId: 'cloud', name: 'cloud' });
+    expect(
+      await failureOf(
+        pairMachine({ mode: 'repair', machineId: 'cloud', link: 'https://other.ts.net/#pair=s' }),
+      ),
+    ).toEqual({ kind: 'different_server', origin: 'https://other.ts.net' });
+  });
+});
