@@ -1827,7 +1827,17 @@ async def pair_device(
         (
             [("A", "@alice review this"), ("B", "@bob test that")],
             "A",
-            {"alice": (["A"], 401), "bob": (["B"], 200)},
+            {"alice": (["A", "B"], 401), "bob": (["A", "B"], 401)},
+        ),
+        (
+            [("A", "@alice review this"), ("B", "@bob test that")],
+            "B",
+            {"alice": (["A", "B"], 401), "bob": (["A", "B"], 401)},
+        ),
+        (
+            [("A", "@bob review this"), ("B", "@alice test that")],
+            "A",
+            {"alice": (["A", "B"], 401), "bob": (["A", "B"], 401)},
         ),
         (
             [("A", "@alice first"), ("B", "@alice second")],
@@ -1841,7 +1851,7 @@ async def pair_device(
         ),
     ],
 )
-async def test_channel_turn_acts_for_the_devices_that_addressed_the_member(
+async def test_channel_turn_acts_for_the_devices_behind_its_prompt(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
