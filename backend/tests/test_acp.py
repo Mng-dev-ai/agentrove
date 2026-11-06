@@ -7,6 +7,7 @@ from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import httpx
@@ -21,6 +22,7 @@ from app.core import deps
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.db_models.automation import Automation
+from app.models.db_models.channel import ChannelDelivery
 from app.models.db_models.chat import Chat
 from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.workspace import Workspace
@@ -2544,6 +2546,72 @@ async def test_channel_send_now_acts_for_the_clicking_device(
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
     )
     assert me.status_code == 401
+
+
+async def test_channel_send_now_keeps_the_clicking_device_when_posting_fails(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.1)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [
+                {
+                    "model_id": "sonnet",
+                    "permission_mode": "bypassPermissions",
+                    "display_name": "alice",
+                }
+            ],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+    [member] = channel.json()["members"]
+    channel_module.channel_service.states[UUID(channel_id)].paused = True
+    base = f"/api/v1/channels/{channel_id}/queue"
+    queued = await client.post(base, data={"content": "from password"}, headers=headers)
+    assert queued.status_code == 201, queued.text
+    item = f"{base}/{queued.json()['id']}"
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            channel_module.channel_service,
+            "post",
+            AsyncMock(side_effect=RuntimeError("post failed")),
+        )
+        with pytest.raises(RuntimeError):
+            await client.post(
+                f"{item}/send-now",
+                headers={"Authorization": f"Bearer {paired['access_token']}"},
+            )
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    assert (await client.post(f"{item}/send-now", headers=headers)).status_code == 204
+    deadline = time.monotonic() + 10
+    while not await db_session.scalar(
+        select(ChannelDelivery.message_id).where(
+            ChannelDelivery.member_id == UUID(member["id"])
+        )
+    ):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+        db_session.expire_all()
+    await client.post(f"/api/v1/channels/{channel_id}/stop", headers=headers)
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+
+    assert fake_agent.main_turn_prompts() == []
+    assert minted_mcp_tokens(fake_agent) == []
 
 
 async def test_manual_automation_run_is_bound_to_the_clicking_device(

@@ -55,6 +55,10 @@ class BaseQueueService(Generic[ItemT]):
         else:
             await self.cache.set(key, json.dumps(queue), ex=QUEUE_MESSAGE_TTL_SECONDS)
 
+    @staticmethod
+    def add_devices(item: dict[str, Any], device_ids: frozenset[UUID]) -> None:
+        item["device_ids"] = sorted({*item["device_ids"], *map(str, device_ids)})
+
     async def add_message(
         self,
         queue_id: str,
@@ -165,9 +169,7 @@ class QueueService(BaseQueueService[QueuedMessage]):
             if item is None:
                 return False
             if device_ids:
-                item["device_ids"] = sorted(
-                    {*item["device_ids"], *map(str, device_ids)}
-                )
+                self.add_devices(item, device_ids)
                 await self._write_queue(key, queue)
 
             send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)

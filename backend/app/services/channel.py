@@ -788,12 +788,13 @@ class ChannelService(BaseDbService[Channel]):
         item = await queue.delete_message(channel_id, str(message_id))
         if item is None:
             raise HTTPException(404, "Queued message not found")
+        queue.add_devices(item, device_ids)
         try:
             message = await self.post(
                 channel,
                 item["content"],
                 item["attachments"] or [],
-                QueuedChannelMessage.model_validate(item).device_ids | device_ids,
+                QueuedChannelMessage.model_validate(item).device_ids,
             )
         except Exception:
             await queue.requeue_message(channel_id, item)
