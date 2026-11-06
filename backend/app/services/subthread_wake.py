@@ -93,9 +93,7 @@ class SubThreadWake:
         if mid_turn:
             await self._steer_into_turn(parent_id, children, device_ids)
         else:
-            await self._start_wake_turn(
-                parent, children, parent.last_device_ids | device_ids
-            )
+            await self._start_wake_turn(parent, children, device_ids)
 
     def _requeue(self, parent_id: str, child_ids: set[str], *, schedule: bool) -> None:
         if not child_ids:
@@ -177,12 +175,13 @@ class SubThreadWake:
                 user_app_notice=self._build_notice(children),
                 device_ids=device_ids,
             )
-        except ChatException as exc:
-            if exc.status_code != 409:
-                raise
+        except Exception as exc:
+            busy = isinstance(exc, ChatException) and exc.status_code == 409
             self._requeue(
-                str(parent.id), {child.chat_id for child in children}, schedule=True
+                str(parent.id), {child.chat_id for child in children}, schedule=busy
             )
+            if not busy:
+                raise
 
     @staticmethod
     def _wake_request(parent: Chat, prompt: str) -> ChatRequest | None:

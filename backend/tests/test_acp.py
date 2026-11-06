@@ -1986,13 +1986,15 @@ async def wait_for_latest_assistant(
     )
 
 
-async def test_wake_after_device_queued_turn_is_bound_to_that_device(
+@pytest.mark.parametrize("revoke_parent_device", [False, True])
+async def test_wake_ignores_the_devices_of_the_parents_last_turn(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
+    revoke_parent_device: bool,
 ) -> None:
     monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
@@ -2027,14 +2029,21 @@ async def test_wake_after_device_queued_turn_is_bound_to_that_device(
     assert queued.status_code == 201, queued.text
     assert not queued.json()["send_now_failed"]
     await wait_for_latest_assistant(client, headers, parent["id"])
+    if revoke_parent_device:
+        await client.delete(
+            f"/api/v1/auth/devices/{paired['device_id']}", headers=headers
+        )
     wake = SubThreadWake()
     wake.on_chain_end(child["id"], parent["id"])
     await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=5)
-    await wait_for_latest_assistant(client, headers, parent["id"])
+    wake_message = await wait_for_latest_assistant(client, headers, parent["id"])
 
+    assert wake_message["stream_status"] == "completed"
+    assert wake._pending == {}
     _, queued_turn, wake_turn = fake_agent.main_turn_prompts()
     assert "from laptop" in queued_turn["text"]
     assert "sub-threads you delegated have finished" in wake_turn["text"]
+    assert child["id"] in wake_turn["text"]
     [wake_session] = [
         e
         for e in fake_agent.events()
@@ -2048,7 +2057,7 @@ async def test_wake_after_device_queued_turn_is_bound_to_that_device(
         if v["name"] == "AGENTROVE_ACCESS_TOKEN"
     ]
     claims = jwt.decode(token, options={"verify_signature": False})
-    assert claims["did"] == [paired["device_id"]]
+    assert claims["did"] == []
 
 
 @pytest.mark.parametrize("revoke_before_wake", [False, True])
