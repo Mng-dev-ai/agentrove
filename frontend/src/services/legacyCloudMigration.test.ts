@@ -72,7 +72,7 @@ describe('legacy cloud migration', () => {
         id: 'legacy-cloud',
         name: 'Cloud',
         pairing: null,
-        routes: [{ kind: 'tailscale', url: 'https://vps.tail1.ts.net' }],
+        url: 'https://vps.tail1.ts.net',
       }),
     ]);
     expect(chatMachineId('c1')).toBe('legacy-cloud');

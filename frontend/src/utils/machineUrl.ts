@@ -1,5 +1,3 @@
-import type { MachineRouteKind } from '@/types/machine.types';
-
 const PAIR_HASH_PREFIX = '#pair=';
 
 export function normalizeHttpsOrigin(raw: string): string | null {
@@ -13,10 +11,6 @@ export function normalizeHttpsOrigin(raw: string): string | null {
     return null;
   }
   return parsed.origin;
-}
-
-export function routeKindForOrigin(origin: string): MachineRouteKind {
-  return new URL(origin).hostname.endsWith('.ts.net') ? 'tailscale' : 'https';
 }
 
 export function hostOf(origin: string): string {

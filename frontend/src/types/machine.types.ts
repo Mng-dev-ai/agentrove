@@ -1,12 +1,5 @@
 export const LOCAL_MACHINE_ID = 'local';
 
-export type MachineRouteKind = 'tailscale' | 'https';
-
-export interface MachineRoute {
-  kind: MachineRouteKind;
-  url: string;
-}
-
 export interface MachinePairing {
   instanceId: string;
   deviceId: string;
@@ -16,17 +9,17 @@ export interface MachinePairing {
 export interface Machine {
   id: string;
   name: string;
-  routes: MachineRoute[];
+  url: string;
   pairing: MachinePairing | null;
 }
 
 export type MachineConnection =
   | { status: 'checking' }
-  | { status: 'online'; routeUrl: string }
+  | { status: 'online' }
   | { status: 'offline' }
   | { status: 'session_revoked' }
-  | { status: 'origin_blocked'; routeUrl: string }
-  | { status: 'different_server'; routeUrl: string };
+  | { status: 'origin_blocked' }
+  | { status: 'different_server' };
 
 export type MachineStatus = MachineConnection['status'];
 

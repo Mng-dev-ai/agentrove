@@ -8,7 +8,7 @@ import {
   getMachineAccessToken,
   isSessionLost,
   markMachineSessionRevoked,
-  onlineRouteUrl,
+  onlineMachineUrl,
   refreshMachineAccess,
 } from '@/services/machineSession';
 
@@ -359,7 +359,7 @@ export function getMachineClient(machineId: string): APIClient {
   if (machineId === LOCAL_MACHINE_ID) return apiClient;
   let client = machineClients.get(machineId);
   if (!client) {
-    client = new APIClient(() => `${onlineRouteUrl(machineId)}/api/v1`, machineAuth(machineId));
+    client = new APIClient(() => `${onlineMachineUrl(machineId)}/api/v1`, machineAuth(machineId));
     machineClients.set(machineId, client);
   }
   return client;
@@ -371,7 +371,7 @@ export function disposeMachineClient(machineId: string): void {
 
 function getMachineWsBaseUrl(machineId: string): string {
   if (machineId === LOCAL_MACHINE_ID) return WS_BASE_URL;
-  return resolveWsBaseUrl(`${onlineRouteUrl(machineId)}/api/v1/ws`);
+  return resolveWsBaseUrl(`${onlineMachineUrl(machineId)}/api/v1/ws`);
 }
 
 export function resolveChatClient(chatId: string | undefined): APIClient {

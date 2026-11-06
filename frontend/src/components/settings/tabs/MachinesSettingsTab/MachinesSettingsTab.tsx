@@ -27,11 +27,6 @@ interface MenuState {
 
 const MENU_WIDTH = 176;
 
-function activeHost(machine: Machine, connection: MachineConnection | undefined): string {
-  if (connection && 'routeUrl' in connection) return hostOf(connection.routeUrl);
-  return machine.routes[0] ? hostOf(machine.routes[0].url) : 'No route';
-}
-
 function ChatCounts({ machineId, online }: { machineId: string; online: boolean }) {
   const { data: running } = useMachineActiveStreamsQuery(machineId, online);
   const { data: total } = useMachineChatsTotalQuery(machineId, online);
@@ -172,7 +167,7 @@ export function MachinesSettingsTab() {
                         <span className={styles.badge}>Default</span>
                       )}
                     </div>
-                    <span className={styles.host}>{activeHost(machine, connection)}</span>
+                    <span className={styles.host}>{hostOf(machine.url)}</span>
                   </div>
                   {status === 'online' ? (
                     <ChatCounts machineId={machine.id} online />

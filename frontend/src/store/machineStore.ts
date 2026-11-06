@@ -60,6 +60,21 @@ export const useMachineStore = create<MachineStoreState>()(
     }),
     {
       name: 'machines-storage',
+      version: 1,
+      migrate: (persisted) => {
+        const state = persisted as {
+          machines: (Machine | (Omit<Machine, 'url'> & { routes: { url: string }[] }))[];
+          defaultMachineId: string;
+        };
+        return {
+          ...state,
+          machines: state.machines.map((machine) =>
+            'url' in machine
+              ? machine
+              : { id: machine.id, name: machine.name, url: machine.routes[0].url, pairing: null },
+          ),
+        };
+      },
       partialize: (state) => ({
         machines: state.machines,
         defaultMachineId: state.defaultMachineId,

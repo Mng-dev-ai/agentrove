@@ -33,12 +33,12 @@ function hasFreshAccess(machineId: string): boolean {
   return !!grant && grant.expires_at * 1000 - Date.now() > ACCESS_REFRESH_BUFFER_MS;
 }
 
-export function onlineRouteUrl(machineId: string): string {
-  const connection = useMachineStore.getState().connections[machineId];
-  if (connection?.status !== 'online') {
-    throw new MachineUnavailableError(getMachine(machineId)?.name ?? 'Machine');
+export function onlineMachineUrl(machineId: string): string {
+  const machine = getMachine(machineId);
+  if (!machine || useMachineStore.getState().connections[machineId]?.status !== 'online') {
+    throw new MachineUnavailableError(machine?.name ?? 'Machine');
   }
-  return connection.routeUrl;
+  return machine.url;
 }
 
 export function markMachineSessionRevoked(machineId: string): void {
@@ -53,7 +53,7 @@ async function renewMachineAccess(machineId: string): Promise<string> {
 }
 
 export async function refreshMachineAccess(machineId: string): Promise<string> {
-  onlineRouteUrl(machineId);
+  onlineMachineUrl(machineId);
   return renewMachineAccess(machineId);
 }
 
@@ -96,16 +96,16 @@ export async function fetchInstanceId(origin: string): Promise<string | null> {
   }
 }
 
-export type RouteProbe =
-  | { kind: 'ok'; routeUrl: string }
-  | { kind: 'origin_blocked'; routeUrl: string }
+export type OriginProbe =
+  | { kind: 'ok' }
+  | { kind: 'origin_blocked' }
   | { kind: 'unreachable'; tls: boolean };
 
-export async function probeRoute(origin: string): Promise<RouteProbe> {
-  if (await fetchHealth(origin)) return { kind: 'ok', routeUrl: origin };
+export async function probeOrigin(origin: string): Promise<OriginProbe> {
+  if (await fetchHealth(origin)) return { kind: 'ok' };
   try {
     await machineVault.probe(origin);
-    return { kind: 'origin_blocked', routeUrl: origin };
+    return { kind: 'origin_blocked' };
   } catch (error) {
     return { kind: 'unreachable', tls: error instanceof MachineVaultError && error.code === 'tls' };
   }
@@ -114,27 +114,15 @@ export async function probeRoute(origin: string): Promise<RouteProbe> {
 async function resolveConnection(machine: Machine): Promise<MachineConnection> {
   if (!machine.pairing) return { status: 'session_revoked' };
 
-  let blockedRoute: string | null = null;
-  let routeUrl: string | null = null;
-  for (const route of machine.routes) {
-    const probe = await probeRoute(route.url);
-    if (probe.kind === 'ok') {
-      routeUrl = probe.routeUrl;
-      break;
-    }
-    if (probe.kind === 'origin_blocked') blockedRoute ??= probe.routeUrl;
-  }
-  if (!routeUrl) {
-    return blockedRoute
-      ? { status: 'origin_blocked', routeUrl: blockedRoute }
-      : { status: 'offline' };
-  }
+  const probe = await probeOrigin(machine.url);
+  if (probe.kind === 'origin_blocked') return { status: 'origin_blocked' };
+  if (probe.kind === 'unreachable') return { status: 'offline' };
 
-  const instanceId = await fetchInstanceId(routeUrl);
+  const instanceId = await fetchInstanceId(machine.url);
   if (!instanceId) return { status: 'offline' };
   if (instanceId !== machine.pairing.instanceId) {
     dropMachineAccess(machine.id);
-    return { status: 'different_server', routeUrl };
+    return { status: 'different_server' };
   }
 
   if (!hasFreshAccess(machine.id)) {
@@ -149,11 +137,11 @@ async function resolveConnection(machine: Machine): Promise<MachineConnection> {
       return { status: 'offline' };
     }
   }
-  return { status: 'online', routeUrl };
+  return { status: 'online' };
 }
 
 function connectionIdentity(machine: Machine | undefined): string {
-  return machine ? JSON.stringify([machine.pairing, machine.routes]) : '';
+  return machine ? JSON.stringify([machine.pairing, machine.url]) : '';
 }
 
 export function checkMachine(machineId: string): Promise<void> {

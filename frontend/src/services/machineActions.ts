@@ -6,12 +6,12 @@ import {
   checkMachine,
   dropMachineAccess,
   fetchInstanceId,
-  probeRoute,
+  probeOrigin,
   storeMachineAccess,
 } from '@/services/machineSession';
 import { MachineVaultError, machineVault } from '@/services/machineVault';
 import { forgetMachineOrigins } from '@/store/machineOrigin';
-import { parsePairingLink, routeKindForOrigin } from '@/utils/machineUrl';
+import { parsePairingLink } from '@/utils/machineUrl';
 import { isDesktopApp } from '@/utils/platform';
 import type { Machine } from '@/types/machine.types';
 
@@ -73,7 +73,7 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
     throw new PairError({ kind: 'other', message: 'This machine was removed' });
   }
 
-  const probe = await probeRoute(origin);
+  const probe = await probeOrigin(origin);
   if (probe.kind === 'origin_blocked') throw new PairError({ kind: 'origin_blocked', origin });
   if (probe.kind === 'unreachable') {
     throw new PairError({ kind: probe.tls ? 'tls' : 'unreachable', origin });
@@ -105,7 +105,7 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
 
   storeMachineAccess(machineId, paired);
   const pairedFields = {
-    routes: [{ kind: routeKindForOrigin(origin), url: origin }],
+    url: origin,
     pairing: {
       instanceId: paired.instance_id,
       deviceId: paired.device_id,
