@@ -136,6 +136,19 @@ async def get_user_manager(
 bearer_transport = BearerTransport(tokenUrl="api/v1/auth/login")
 
 
+async def is_device_active(
+    db: AsyncSession, device_id: uuid.UUID, user_id: uuid.UUID
+) -> bool:
+    device = await db.scalar(
+        select(PairedDevice.id).where(
+            PairedDevice.id == device_id,
+            PairedDevice.user_id == user_id,
+            PairedDevice.revoked_at.is_(None),
+        )
+    )
+    return device is not None
+
+
 class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
     def __init__(self, db: AsyncSession) -> None:
         super().__init__(
@@ -164,14 +177,7 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
             return None
         if device_id is None:
             return user
-        device = await self.db.scalar(
-            select(PairedDevice.id).where(
-                PairedDevice.id == device_id,
-                PairedDevice.user_id == user.id,
-                PairedDevice.revoked_at.is_(None),
-            )
-        )
-        return None if device is None else user
+        return user if await is_device_active(self.db, device_id, user.id) else None
 
     async def write_token(self, user: User, device_id: uuid.UUID | None = None) -> str:
         data = {"sub": str(user.id), "aud": self.token_audience}

@@ -130,12 +130,15 @@ class AutomationService(BaseDbService[Automation]):
             )
             return list(result.scalars().all())
 
-    async def create_automation(self, user: User, data: AutomationCreate) -> Automation:
+    async def create_automation(
+        self, user: User, device_id: UUID | None, data: AutomationCreate
+    ) -> Automation:
         self._validate_model(data.model_id)
         async with self.session_factory() as db:
             await self._validate_workspace(db, data.workspace_id, user.id)
             automation = Automation(
                 user_id=user.id,
+                device_id=device_id,
                 **data.model_dump(),
                 next_run_at=self._compute_next_run_validated(
                     data.cron_expression, data.timezone
@@ -147,7 +150,11 @@ class AutomationService(BaseDbService[Automation]):
             return automation
 
     async def update_automation(
-        self, automation_id: UUID, user: User, data: AutomationUpdate
+        self,
+        automation_id: UUID,
+        user: User,
+        device_id: UUID | None,
+        data: AutomationUpdate,
     ) -> Automation:
         changes = data.model_dump(exclude_unset=True)
         if "model_id" in changes:
@@ -158,6 +165,7 @@ class AutomationService(BaseDbService[Automation]):
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
             for field, value in changes.items():
                 setattr(automation, field, value)
+            automation.device_id = device_id
             if SCHEDULE_FIELDS & changes.keys():
                 automation.next_run_at = self._compute_next_run_validated(
                     automation.cron_expression, automation.timezone
@@ -314,6 +322,7 @@ class AutomationService(BaseDbService[Automation]):
                     selected_persona_name=automation.selected_persona_name,
                 ),
                 user,
+                device_id=automation.device_id,
             )
         except Exception:
             # Don't leave an empty orphan chat for a run that never started.
