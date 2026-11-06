@@ -132,7 +132,7 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
     store.updateMachine(machineId, pairedFields);
   } else if (request.mode === 'add') {
     store.addMachine({ id: machineId, name: request.name.trim(), ...pairedFields });
-    claimRemovedMachineOrigins(paired.instance_id, machineId);
+    claimRemovedMachineOrigins(machineId, [{ instanceId: paired.instance_id }, { url: origin }]);
   }
   void queryClient.invalidateQueries({ queryKey: queryKeys.machine.all(machineId) });
   await checkMachine(machineId);
@@ -158,7 +158,10 @@ export async function removeMachine(machineId: string): Promise<{ revoked: boole
 
   dropMachineAccess(machineId);
   disposeMachineClient(machineId);
-  if (machine.pairing) recordRemovedMachine(machineId, machine.pairing.instanceId);
+  recordRemovedMachine(
+    machineId,
+    machine.pairing ? { instanceId: machine.pairing.instanceId } : { url: machine.url },
+  );
   useMachineStore.getState().removeMachine(machineId);
   queryClient.removeQueries({ queryKey: queryKeys.machine.all(machineId) });
   return { revoked };

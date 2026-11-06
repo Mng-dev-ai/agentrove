@@ -4,7 +4,7 @@ import { getMachine } from '@/store/machineStore';
 
 const CHATS_KEY = 'machine-chat-origins';
 const SANDBOXES_KEY = 'machine-sandbox-origins';
-const REMOVED_MACHINES_KEY = 'machine-removed-instances';
+const REMOVED_MACHINES_KEY = 'machine-removed-identities';
 
 function load(key: string): Map<string, string> {
   try {
@@ -31,7 +31,7 @@ function persist(key: string, origins: Map<string, string>): void {
 
 const chatOrigins = load(CHATS_KEY);
 const sandboxOrigins = load(SANDBOXES_KEY);
-const removedMachineInstances = load(REMOVED_MACHINES_KEY);
+const removedMachines = load(REMOVED_MACHINES_KEY);
 let chatOriginsSnapshot: ReadonlyMap<string, string> = new Map(chatOrigins);
 const listeners = new Set<() => void>();
 
@@ -102,16 +102,21 @@ export function useChatOrigins(): ReadonlyMap<string, string> {
   return useSyncExternalStore(subscribe, () => chatOriginsSnapshot);
 }
 
-export function recordRemovedMachine(machineId: string, instanceId: string): void {
-  removedMachineInstances.set(machineId, instanceId);
-  persist(REMOVED_MACHINES_KEY, removedMachineInstances);
+export type MachineIdentity = { instanceId: string } | { url: string };
+
+function identityKey(identity: MachineIdentity): string {
+  return 'instanceId' in identity ? `instance:${identity.instanceId}` : `url:${identity.url}`;
 }
 
-export function claimRemovedMachineOrigins(instanceId: string, machineId: string): void {
+export function recordRemovedMachine(machineId: string, identity: MachineIdentity): void {
+  removedMachines.set(machineId, identityKey(identity));
+  persist(REMOVED_MACHINES_KEY, removedMachines);
+}
+
+export function claimRemovedMachineOrigins(machineId: string, identities: MachineIdentity[]): void {
+  const keys = new Set(identities.map(identityKey));
   const removedIds = new Set(
-    [...removedMachineInstances]
-      .filter(([, removedInstanceId]) => removedInstanceId === instanceId)
-      .map(([removedId]) => removedId),
+    [...removedMachines].filter(([, key]) => keys.has(key)).map(([removedId]) => removedId),
   );
   if (removedIds.size === 0) return;
   for (const [origins, key] of [
@@ -123,7 +128,7 @@ export function claimRemovedMachineOrigins(instanceId: string, machineId: string
     }
     persist(key, origins);
   }
-  for (const removedId of removedIds) removedMachineInstances.delete(removedId);
-  persist(REMOVED_MACHINES_KEY, removedMachineInstances);
+  for (const removedId of removedIds) removedMachines.delete(removedId);
+  persist(REMOVED_MACHINES_KEY, removedMachines);
   notify();
 }

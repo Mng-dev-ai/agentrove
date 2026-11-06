@@ -16,6 +16,32 @@ async function load(machineIds: string[] = []) {
   return { ...origin, ...migration, useMachineStore };
 }
 
+function fakeMachineServer(host: string, instanceId: string) {
+  const exp = Math.floor(Date.now() / 1000) + 3600;
+  const accessToken = `e30.${btoa(JSON.stringify({ exp }))}.sig`;
+  return vi.fn<typeof fetch>(async (input) => {
+    const url = String(input);
+    if (!url.startsWith(`https://${host}/`)) {
+      return new Response(JSON.stringify({ instance_id: 'local-instance' }));
+    }
+    const path = new URL(url).pathname;
+    if (path === '/health') return new Response(JSON.stringify({ status: 'healthy' }));
+    if (path === '/api/v1/instance')
+      return new Response(JSON.stringify({ instance_id: instanceId }));
+    if (path === '/api/v1/auth/pair') {
+      return new Response(
+        JSON.stringify({
+          access_token: accessToken,
+          refresh_token: 'refresh',
+          device_id: 'new-device',
+          instance_id: instanceId,
+        }),
+      );
+    }
+    return new Response(JSON.stringify({ id: 'vps-chat' }));
+  });
+}
+
 beforeEach(() => {
   localStorage.clear();
   vi.unstubAllGlobals();
@@ -87,30 +113,7 @@ describe('machine origin maps', () => {
 
   it('routes a removed machine’s chats to a new pairing with the same server', async () => {
     const { chatMachineId, sandboxMachineId } = await removePairedMachines();
-    const exp = Math.floor(Date.now() / 1000) + 3600;
-    const accessToken = `e30.${btoa(JSON.stringify({ exp }))}.sig`;
-    const fetchMock = vi.fn<typeof fetch>(async (input) => {
-      const url = String(input);
-      if (!url.startsWith('https://vps.ts.net/')) {
-        return new Response(JSON.stringify({ instance_id: 'local-instance' }));
-      }
-      const path = new URL(url).pathname;
-      if (path === '/health') return new Response(JSON.stringify({ status: 'healthy' }));
-      if (path === '/api/v1/instance') {
-        return new Response(JSON.stringify({ instance_id: 'vps-instance' }));
-      }
-      if (path === '/api/v1/auth/pair') {
-        return new Response(
-          JSON.stringify({
-            access_token: accessToken,
-            refresh_token: 'refresh',
-            device_id: 'new-device',
-            instance_id: 'vps-instance',
-          }),
-        );
-      }
-      return new Response(JSON.stringify({ id: 'vps-chat' }));
-    });
+    const fetchMock = fakeMachineServer('vps.ts.net', 'vps-instance');
     vi.stubGlobal('fetch', fetchMock);
     const { pairMachine } = await import('@/services/machineActions');
     const { resolveChatClient } = await import('@/lib/api');
@@ -184,6 +187,25 @@ describe('legacy cloud migration', () => {
     ]) {
       expect(localStorage.getItem(key)).toBeNull();
     }
+  });
+
+  it('lets a new pairing with the same server take over a removed Cloud machine’s chats', async () => {
+    seedLegacy();
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(new Response(null)));
+    const { migrateLegacyCloud, chatMachineId, sandboxMachineId } = await load();
+    await migrateLegacyCloud();
+    const { pairMachine, removeMachine } = await import('@/services/machineActions');
+    await removeMachine('legacy-cloud');
+    vi.stubGlobal('fetch', fakeMachineServer('vps.tail1.ts.net', 'vps-instance'));
+
+    const machine = await pairMachine({
+      mode: 'add',
+      name: 'VPS',
+      link: 'https://vps.tail1.ts.net/#pair=secret',
+    });
+
+    expect(chatMachineId('c1')).toBe(machine.id);
+    expect(sandboxMachineId('s1')).toBe(machine.id);
   });
 
   it('finishes cleanup when re-run after an interrupted pass, without duplicating the machine', async () => {
