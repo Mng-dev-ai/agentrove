@@ -23,7 +23,7 @@ from app.core.security import (
     resolve_websocket_sandbox_access,
     wait_for_websocket_auth,
 )
-from app.core.user_manager import DeviceSession
+from app.services.device_session import DeviceSession
 from app.services.terminal import TerminalSessionRecord, terminal_session_registry
 from app.utils.parsing import parse_pty_dimension
 from app.utils.sandbox import normalize_relative_path
@@ -115,7 +115,7 @@ async def serve_terminal(
                 return True
             continue
 
-        if not await device_session.check():
+        if not await device_session.is_active():
             return False
 
         if "bytes" in message:

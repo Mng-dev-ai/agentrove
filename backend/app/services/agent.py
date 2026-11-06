@@ -13,7 +13,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
 from app.core.security import create_mcp_access_token
-from app.core.user_manager import is_device_active
 from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat
 from app.models.db_models.user import User, UserSettings
@@ -36,6 +35,7 @@ from app.services.acp.adapters import (
 )
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
+from app.services.device_session import is_device_active
 from app.services.exceptions import AgentException, ErrorCode
 from app.constants import MODELS
 from app.services.git import GitService

@@ -11,7 +11,7 @@ from app.core.security import (
     get_refresh_token_expiry,
     hash_refresh_token,
 )
-from app.core.user_manager import DeviceSession
+from app.services.device_session import DeviceSession
 from app.db.session import SessionLocal
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken

@@ -34,7 +34,7 @@ from app.core.deps import (
     get_queue_service,
 )
 from app.core.security import get_current_user
-from app.core.user_manager import DeviceSession, get_current_device_id
+from app.core.user_manager import get_current_device_id
 from app.db.session import get_db
 from app.models.db_models.chat import Chat, MessageAttachment
 from app.models.db_models.user import User
@@ -76,6 +76,7 @@ from app.models.schemas.queue import (
     QueueMessageContent,
 )
 from app.services.chat import ChatService
+from app.services.device_session import DeviceSession
 from app.services.agent import AgentService
 from app.services.exceptions import (
     AgentException,
