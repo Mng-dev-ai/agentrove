@@ -62,6 +62,12 @@ function PairFailureMessage({
           paired with.
         </p>
       );
+    case 'own_server':
+      return (
+        <p>
+          This link is for the server this app already runs on. Its chats are under “This server”.
+        </p>
+      );
     case 'duplicate':
       return <p>This server is already added as “{failure.name}”.</p>;
     case 'unpaired_duplicate':

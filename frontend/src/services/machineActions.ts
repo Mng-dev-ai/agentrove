@@ -1,5 +1,5 @@
 import { queryClient } from '@/lib/queryClient';
-import { disposeMachineClient } from '@/lib/api';
+import { apiClient, disposeMachineClient } from '@/lib/api';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { getMachine, useMachineStore } from '@/store/machineStore';
 import {
@@ -22,6 +22,7 @@ export type PairFailure =
   | { kind: 'unreachable'; origin: string }
   | { kind: 'tls'; origin: string }
   | { kind: 'different_server'; origin: string }
+  | { kind: 'own_server' }
   | { kind: 'duplicate'; name: string }
   | { kind: 'unpaired_duplicate'; machineId: string; name: string }
   | { kind: 'keychain'; message: string }
@@ -82,6 +83,8 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
 
   const instanceId = await fetchInstanceId(origin);
   if (!instanceId) throw new PairError({ kind: 'unreachable', origin });
+  const local = await apiClient.get<{ instance_id: string }>('/instance');
+  if (local?.instance_id === instanceId) throw new PairError({ kind: 'own_server' });
   if (
     existing &&
     (existing.pairing ? existing.pairing.instanceId !== instanceId : existing.url !== origin)

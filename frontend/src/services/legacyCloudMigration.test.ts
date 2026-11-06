@@ -140,13 +140,34 @@ describe('pairing the migrated Cloud machine', () => {
       (error: { failure?: unknown }) => error.failure,
     );
 
-  it('offers to pair it again instead of adding the same server twice', async () => {
+  const stubServers = (localInstanceId: string) =>
     vi.stubGlobal(
       'fetch',
       vi.fn<typeof fetch>(
-        async () => new Response(JSON.stringify({ status: 'healthy', instance_id: 'vps-1' })),
+        async (input) =>
+          new Response(
+            JSON.stringify({
+              status: 'healthy',
+              instance_id: String(input).startsWith('https://') ? 'vps-1' : localInstanceId,
+            }),
+          ),
       ),
     );
+
+  it('refuses a pairing link for the server this app runs on', async () => {
+    stubServers('vps-1');
+    await load();
+    const { pairMachine } = await import('@/services/machineActions');
+
+    expect(
+      await failureOf(
+        pairMachine({ mode: 'add', name: 'Self', link: 'https://vps.tail1.ts.net/#pair=s' }),
+      ),
+    ).toEqual({ kind: 'own_server' });
+  });
+
+  it('offers to pair it again instead of adding the same server twice', async () => {
+    stubServers('local-1');
     const { useMachineStore } = await load(['cloud']);
     useMachineStore.getState().updateMachine('cloud', { url: 'https://vps.tail1.ts.net' });
     const { pairMachine } = await import('@/services/machineActions');
