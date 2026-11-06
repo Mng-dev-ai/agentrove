@@ -285,6 +285,11 @@ async def revoke_device(
     current_user: User = Depends(current_active_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    if current_user.device_ids and device_id not in current_user.device_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Other devices can only be revoked from a password sign-in",
+        )
     if not await PairingService.revoke_device(current_user.id, device_id, db):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Device not found"

@@ -1136,6 +1136,39 @@ async def test_dangling_device_id_fails_closed(
     assert refreshed.status_code == 401
 
 
+async def test_device_session_can_revoke_only_itself(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    await create_user(email="revoke-self@example.com", username="revokeself")
+    tokens = await login(email="revoke-self@example.com")
+    laptop = (await pair_device(client, tokens["access_token"], "Laptop")).json()
+    phone = (await pair_device(client, tokens["access_token"], "Phone")).json()
+    laptop_headers = {"Authorization": f"Bearer {laptop['access_token']}"}
+    phone_headers = {"Authorization": f"Bearer {phone['access_token']}"}
+
+    other = await client.delete(
+        f"/api/v1/auth/devices/{phone['device_id']}", headers=laptop_headers
+    )
+    assert other.status_code == 403
+    assert (
+        other.json()["detail"]
+        == "Other devices can only be revoked from a password sign-in"
+    )
+    assert (
+        await client.get("/api/v1/auth/me", headers=phone_headers)
+    ).status_code == 200
+
+    own = await client.delete(
+        f"/api/v1/auth/devices/{laptop['device_id']}", headers=laptop_headers
+    )
+    assert own.status_code == 204
+    assert (
+        await client.get("/api/v1/auth/me", headers=laptop_headers)
+    ).status_code == 401
+
+
 async def test_device_session_cannot_create_pairing_links(
     client: AsyncClient,
     create_user: UserFactory,
