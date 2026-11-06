@@ -1,18 +1,19 @@
+import { AuthEventSource } from '@/services/authEventSource';
 import { logger } from '@/utils/logger';
 
 const REOPEN_DELAY_MS = 15_000;
 
-// Chat lifecycle SSE: EventSource retries transients but treats HTTP errors
-// (e.g. expired query-param token) as fatal CLOSED — reopen via createSource.
+// Chat lifecycle SSE: AuthEventSource retries transients but treats HTTP errors
+// as fatal CLOSED — reopen via createSource.
 // No server-side replay, so successful open after any failure calls onResync.
 export function subscribeChatEventsFeed(options: {
-  createSource: () => Promise<EventSource>;
+  createSource: () => Promise<AuthEventSource>;
   onChatEvent: (event: MessageEvent) => void;
   onResync: () => void;
   logContext: string;
 }): () => void {
   const { createSource, onChatEvent, onResync, logContext } = options;
-  let source: EventSource | undefined;
+  let source: AuthEventSource | undefined;
   let cancelled = false;
   let retryTimer: number | undefined;
   let needsResync = false;
@@ -41,7 +42,7 @@ export function subscribeChatEventsFeed(options: {
         source.onerror = () => {
           // Gaps include transient drops retried natively (never hit CLOSED).
           needsResync = true;
-          if (source?.readyState !== EventSource.CLOSED) return;
+          if (source?.readyState !== AuthEventSource.CLOSED) return;
           scheduleReopen();
         };
       })

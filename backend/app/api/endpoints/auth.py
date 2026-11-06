@@ -1,5 +1,3 @@
-from typing import cast
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_users import exceptions as fastapi_users_exceptions
@@ -12,6 +10,7 @@ from app.core.config import get_settings
 from app.core.deps import get_refresh_token_service
 from app.core.security import verify_password
 from app.core.user_manager import (
+    RegistrationClosed,
     UserDatabase,
     UserManager,
     current_active_user,
@@ -92,12 +91,6 @@ async def register(
     user_create: UserCreate,
     user_manager: UserManager = Depends(get_user_manager),
 ) -> User:
-    if settings.REGISTRATION_DISABLED:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Registration is disabled",
-        )
-
     if settings.BLOCK_DISPOSABLE_EMAILS:
         if await email_service.is_disposable_email(user_create.email):
             raise HTTPException(
@@ -106,7 +99,12 @@ async def register(
             )
 
     try:
-        user = await user_manager.create(user_create)
+        user = await user_manager.register(user_create)
+    except RegistrationClosed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is closed",
+        )
     except fastapi_users_exceptions.UserAlreadyExists:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -129,7 +127,7 @@ async def register(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Registration failed due to a constraint violation",
             )
-    return cast(User, user)
+    return user
 
 
 router.include_router(

@@ -206,6 +206,11 @@ ALLOWED_ORIGINS=https://yourdomain.com \
 docker compose -f docker-compose-production.yml up -d --build
 ```
 
+Sign up right after the first start: the first account on an empty server can
+self-register, and registration then closes. Set `REGISTRATION_OPEN=true` to let
+more people sign up. Setting `ADMIN_EMAIL`/`ADMIN_PASSWORD` seeds a superuser at
+startup, which also counts as the first account.
+
 ## Stack
 
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS, Monaco, xterm.js

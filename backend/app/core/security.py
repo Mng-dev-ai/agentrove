@@ -9,7 +9,7 @@ from typing import cast
 from uuid import UUID
 
 from cryptography.fernet import Fernet
-from fastapi import Depends, HTTPException, Query, WebSocket, status
+from fastapi import Depends, HTTPException, WebSocket, status
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from fastapi_users.password import PasswordHelper
 from sqlalchemy import select
@@ -17,7 +17,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..constants import WS_CLOSE_SANDBOX_NOT_FOUND, WS_MSG_AUTH
-from ..db.session import SessionLocal, get_db
+from ..db.session import SessionLocal
 from ..models.db_models.user import User
 from ..models.db_models.workspace import Workspace
 from ..services.sandbox_providers import SandboxProviderType
@@ -88,26 +88,14 @@ async def get_user_from_token(token: str, db: AsyncSession) -> User | None:
 
 
 async def get_current_user(
-    # Bearer (via fastapi-users) or ?token= for SSE/WebSocket (no custom headers).
-    token_query: str | None = Query(None, alias="token"),
     user: User | None = Depends(optional_current_active_user),
-    db: AsyncSession = Depends(get_db),
 ) -> User:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    if token_query:
-        query_user = await get_user_from_token(token_query, db)
-        if query_user is None:
-            raise credentials_exception
-        return query_user
-
     if user is None:
-        raise credentials_exception
-
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     return user
 
 

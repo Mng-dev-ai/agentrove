@@ -6,36 +6,44 @@ import { useStreamStore } from '@/store/streamStore';
 import { chatStorage } from '@/utils/storage';
 import { streamConnection } from './streamConnection';
 
-class FakeEventSource {
-  static CLOSED = 2;
-  static instances: FakeEventSource[] = [];
-  onopen: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  closed = false;
-  readyState = 1;
-  private listeners = new Map<string, (event: Event) => void>();
+const { FakeEventSource } = vi.hoisted(() => {
+  class FakeEventSource {
+    static CLOSED = 2;
+    static instances: FakeEventSource[] = [];
+    onopen: (() => void) | null = null;
+    onerror: (() => void) | null = null;
+    closed = false;
+    readyState = 1;
+    private listeners = new Map<string, (event: Event) => void>();
 
-  constructor(public url: string) {
-    FakeEventSource.instances.push(this);
-  }
+    constructor(
+      _client: unknown,
+      public url: string,
+    ) {
+      FakeEventSource.instances.push(this);
+    }
 
-  addEventListener(type: string, listener: (event: Event) => void) {
-    this.listeners.set(type, listener);
-  }
+    addEventListener(type: string, listener: (event: Event) => void) {
+      this.listeners.set(type, listener);
+    }
 
-  emit(type: string, data?: string) {
-    this.listeners.get(type)?.(new MessageEvent(type, { data }));
-  }
+    emit(type: string, data?: string) {
+      this.listeners.get(type)?.(new MessageEvent(type, { data }));
+    }
 
-  close() {
-    this.closed = true;
-    this.readyState = FakeEventSource.CLOSED;
-  }
+    close() {
+      this.closed = true;
+      this.readyState = FakeEventSource.CLOSED;
+    }
 
-  get cursors(): Record<string, number> {
-    return JSON.parse(new URL(this.url).searchParams.get('cursors') ?? '{}');
+    get cursors(): Record<string, number> {
+      return JSON.parse(new URL(this.url, 'http://localhost').searchParams.get('cursors') ?? '{}');
+    }
   }
-}
+  return { FakeEventSource };
+});
+
+vi.mock('@/services/authEventSource', () => ({ AuthEventSource: FakeEventSource }));
 
 const handlers = {
   onOpen: vi.fn(),
@@ -63,7 +71,6 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.stubGlobal('EventSource', FakeEventSource);
   vi.clearAllMocks();
   vi.spyOn(apiClient, 'getValidToken').mockResolvedValue('tok');
   FakeEventSource.instances = [];

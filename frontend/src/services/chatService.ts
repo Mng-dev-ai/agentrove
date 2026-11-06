@@ -1,6 +1,7 @@
 import { apiClient, remoteApiClient, resolveChatClient, StreamResponse } from '@/lib/api';
 import { ensureResponse, serviceCall, buildQueryString } from '@/services/base/BaseService';
 import { ServiceError } from '@/services/base/ServiceError';
+import { AuthEventSource } from '@/services/authEventSource';
 import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { validateRequired, validateId } from '@/utils/validation';
 import { chatStorage } from '@/utils/storage';
@@ -277,15 +278,9 @@ function normalizePositiveInt(value: unknown): number {
   return Math.floor(parsed);
 }
 
-async function createChatEventsSource(): Promise<EventSource> {
-  // Local only (VPS uses cloudChatService). Mint token — EventSource skips 401 refresh.
-  const token = await apiClient.getValidToken();
-  if (!token) {
-    throw new Error('Authentication token required');
-  }
-
-  const params = new URLSearchParams({ token });
-  return new EventSource(`${apiClient.getBaseUrl()}/chat/chats/events?${params.toString()}`);
+async function createChatEventsSource(): Promise<AuthEventSource> {
+  // Local only (VPS uses cloudChatService).
+  return new AuthEventSource(apiClient, '/chat/chats/events');
 }
 
 async function getSubThreads(chatId: string): Promise<Chat[]> {

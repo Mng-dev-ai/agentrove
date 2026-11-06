@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     ENVIRONMENT: str = "development"
     REQUIRE_EMAIL_VERIFICATION: bool = False
-    REGISTRATION_DISABLED: bool = False
+    REGISTRATION_OPEN: bool = False
 
     DATABASE_URL: str = DEFAULT_DATABASE_URL
     REDIS_URL: str = "redis://localhost:6379/0"
