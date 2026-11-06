@@ -6,13 +6,14 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
-use libc;
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSWindow, NSWindowButton};
 use rand::Rng;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
+
+use crate::machine;
 
 #[tauri::command]
 fn get_backend_port(state: tauri::State<'_, Arc<OnceLock<Result<u16, String>>>>) -> Result<u16, String> {
@@ -124,7 +125,7 @@ fn terminate_backend_process(backend: &Arc<Mutex<Option<Child>>>) {
 fn pipe_output<R: Read + Send + 'static>(stream: R, is_err: bool) {
     std::thread::spawn(move || {
         let reader = BufReader::new(stream);
-        for line in reader.lines().flatten() {
+        for line in reader.lines().map_while(Result::ok) {
             if is_err {
                 eprintln!("[backend] {}", line);
             } else {
@@ -225,7 +226,15 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(backend_port.clone())
-        .invoke_handler(tauri::generate_handler![get_backend_port])
+        .manage(machine::MachineLocks::default())
+        .invoke_handler(tauri::generate_handler![
+            get_backend_port,
+            machine::machine_pair,
+            machine::machine_refresh,
+            machine::machine_unpair,
+            machine::machine_forget,
+            machine::machine_probe
+        ])
         .on_window_event(|window, event| {
             // Close = hide to tray; real exit is tray Quit (app.exit bypasses this).
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
