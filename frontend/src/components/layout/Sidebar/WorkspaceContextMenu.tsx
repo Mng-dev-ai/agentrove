@@ -9,6 +9,7 @@ interface WorkspaceContextMenuProps {
   onRename: () => void;
   onDelete: () => void;
   onClose: () => void;
+  disabled: boolean;
 }
 
 export function WorkspaceContextMenu({
@@ -18,16 +19,17 @@ export function WorkspaceContextMenu({
   onRename,
   onDelete,
   onClose,
+  disabled,
 }: WorkspaceContextMenuProps) {
   return (
     <SidebarMenu ref={ref} position={position} onClose={onClose}>
-      <SidebarMenuItem icon={Plus} onClick={onNewThread}>
+      <SidebarMenuItem icon={Plus} onClick={onNewThread} disabled={disabled}>
         New thread
       </SidebarMenuItem>
-      <SidebarMenuItem icon={Edit2} onClick={onRename}>
+      <SidebarMenuItem icon={Edit2} onClick={onRename} disabled={disabled}>
         Rename
       </SidebarMenuItem>
-      <SidebarMenuItem icon={Trash2} onClick={onDelete} danger>
+      <SidebarMenuItem icon={Trash2} onClick={onDelete} danger disabled={disabled}>
         Delete
       </SidebarMenuItem>
     </SidebarMenu>

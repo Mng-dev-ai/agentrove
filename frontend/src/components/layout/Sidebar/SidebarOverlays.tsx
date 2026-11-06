@@ -20,6 +20,8 @@ export function SidebarOverlays({
   workspaces,
   machineWorkspaces,
 }: SidebarOverlaysProps) {
+  const menu = workspace.workspaceDropdown;
+  const menuMachineId = menu?.machineId ?? null;
   return (
     <>
       {chat.dropdown && (
@@ -41,28 +43,29 @@ export function SidebarOverlays({
         />
       )}
 
-      {workspace.workspaceDropdown && (
+      {menu && (
         <WorkspaceContextMenu
           ref={workspace.workspaceDropdownRef}
-          position={workspace.workspaceDropdown.position}
+          position={menu.position}
+          disabled={menuMachineId === null}
           onNewThread={() => {
-            const { workspaceId, machineId } = workspace.workspaceDropdown!;
+            if (menuMachineId === null) return;
             workspace.setWorkspaceDropdown(null);
-            workspace.handleNewWorkspaceThread(workspaceId, machineId);
+            workspace.handleNewWorkspaceThread(menu.workspaceId, menuMachineId);
           }}
           onRename={() => {
-            const { workspaceId, machineId } = workspace.workspaceDropdown!;
+            if (menuMachineId === null) return;
             const list =
-              machineId === LOCAL_MACHINE_ID ? workspaces : (machineWorkspaces[machineId] ?? []);
-            const ws = list.find((w) => w.id === workspaceId);
-            if (ws) workspace.handleRenameWorkspace(ws, machineId);
+              menuMachineId === LOCAL_MACHINE_ID
+                ? workspaces
+                : (machineWorkspaces[menuMachineId] ?? []);
+            const ws = list.find((w) => w.id === menu.workspaceId);
+            if (ws) workspace.handleRenameWorkspace(ws, menuMachineId);
           }}
-          onDelete={() =>
-            workspace.handleDeleteWorkspace(
-              workspace.workspaceDropdown!.workspaceId,
-              workspace.workspaceDropdown!.machineId,
-            )
-          }
+          onDelete={() => {
+            if (menuMachineId === null) return;
+            workspace.handleDeleteWorkspace(menu.workspaceId, menuMachineId);
+          }}
           onClose={() => workspace.setWorkspaceDropdown(null)}
         />
       )}

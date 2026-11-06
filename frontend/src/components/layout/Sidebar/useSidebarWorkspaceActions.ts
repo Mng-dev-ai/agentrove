@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, type RefObject } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import type { NavigateFunction } from 'react-router-dom';
 import type { Workspace } from '@/types/workspace.types';
+import type { Chat } from '@/types/chat.types';
 import {
   useDeleteWorkspaceMutation,
   useUpdateWorkspaceMutation,
@@ -13,6 +14,7 @@ import {
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore } from '@/store/uiStore';
+import { useChatOrigins } from '@/store/machineOrigin';
 import { mutateWithToast } from './sidebarHelpers';
 
 interface UseSidebarWorkspaceActionsParams {
@@ -22,6 +24,7 @@ interface UseSidebarWorkspaceActionsParams {
   isMobile: boolean;
   navigate: NavigateFunction;
   workspaceBadgeById: Map<string, WorkspaceBadge>;
+  chats: Chat[];
   scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -32,6 +35,7 @@ export function useSidebarWorkspaceActions({
   isMobile,
   navigate,
   workspaceBadgeById,
+  chats,
   scrollContainerRef,
 }: UseSidebarWorkspaceActionsParams) {
   const [workspaceToDelete, setWorkspaceToDelete] = useState<{
@@ -44,11 +48,12 @@ export function useSidebarWorkspaceActions({
   } | null>(null);
   const [workspaceDropdown, setWorkspaceDropdown] = useState<{
     workspaceId: string;
-    machineId: string;
+    machineId: string | null;
     position: { top: number; left: number };
   } | null>(null);
 
   const workspaceDropdownRef = useRef<HTMLDivElement>(null);
+  const chatOrigins = useChatOrigins();
   const deleteWorkspace = useDeleteWorkspaceMutation();
   const updateWorkspace = useUpdateWorkspaceMutation();
   const machineUpdateWorkspace = useMachineUpdateWorkspaceMutation();
@@ -84,7 +89,7 @@ export function useSidebarWorkspaceActions({
   });
 
   const handleNewWorkspaceThread = useCallback(
-    (workspaceId: string, machineId: string = LOCAL_MACHINE_ID) => {
+    (workspaceId: string, machineId: string) => {
       // Landing composer switches to the owning machine and preselects this workspace.
       navigate('/', { state: { workspaceId, machineId } });
       if (isMobile) {
@@ -96,10 +101,14 @@ export function useSidebarWorkspaceActions({
 
   const openWorkspaceMenu = useCallback(
     (workspaceId: string, position: { top: number; left: number }) => {
-      const machineId = workspaceBadgeById.get(workspaceId)?.machineId ?? LOCAL_MACHINE_ID;
+      const routedMachineId = chats
+        .filter((chat) => chat.workspace_id === workspaceId)
+        .map((chat) => chatOrigins.get(chat.id))
+        .find((id) => id !== undefined);
+      const machineId = workspaceBadgeById.get(workspaceId)?.machineId ?? routedMachineId ?? null;
       setWorkspaceDropdown({ workspaceId, machineId, position });
     },
-    [workspaceBadgeById],
+    [workspaceBadgeById, chats, chatOrigins],
   );
 
   const handleRenameWorkspace = useCallback((workspace: Workspace, machineId: string) => {

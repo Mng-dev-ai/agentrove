@@ -82,6 +82,7 @@ export function Sidebar({
     loadMore,
   } = useSidebarChatLists(workspaces);
 
+  const sidebarChats = useMemo(() => [...pinnedChats, ...recentChats], [pinnedChats, recentChats]);
   const chatActions = useSidebarChatActions({
     selectedChatId,
     selectedChatParentId,
@@ -98,6 +99,7 @@ export function Sidebar({
     isMobile,
     navigate,
     workspaceBadgeById,
+    chats: sidebarChats,
     scrollContainerRef,
   });
 
