@@ -13,6 +13,13 @@ from app.core.config import get_settings
 
 BASE_REVISION = "e3bdc269cf4a"
 COLUMN_VALUES = {("channel_messages", "status"): "completed"}
+NEW_TABLES = {"instance", "paired_devices", "pairing_secrets"}
+DEVICE_COLUMNS = {
+    "refresh_tokens": ("device_id", "CASCADE"),
+    "automations": ("device_id", "CASCADE"),
+    "chats": ("last_device_id", "NO ACTION"),
+    "channel_messages": ("device_id", "NO ACTION"),
+}
 
 
 def _alembic_config() -> Config:
@@ -78,6 +85,47 @@ def _row_counts(engine: sa.Engine) -> dict[str, int]:
         }
 
 
+def _table_schema(conn: sa.Connection, table: str) -> set[tuple[Any, ...]]:
+    schema: set[tuple[Any, ...]] = {
+        ("column", *row[1:])
+        for row in conn.exec_driver_sql(f'PRAGMA table_info("{table}")')
+    }
+    schema |= {
+        ("foreign_key", *row[2:7])
+        for row in conn.exec_driver_sql(f'PRAGMA foreign_key_list("{table}")')
+    }
+    for index in conn.exec_driver_sql(f'PRAGMA index_list("{table}")').all():
+        columns = tuple(
+            row[2] for row in conn.exec_driver_sql(f'PRAGMA index_info("{index[1]}")')
+        )
+        schema.add(("index", *index[1:], columns))
+    return schema
+
+
+def _schema(engine: sa.Engine) -> dict[str, set[tuple[Any, ...]]]:
+    with engine.connect() as conn:
+        return {
+            table: _table_schema(conn, table)
+            for table in sa.inspect(conn).get_table_names()
+            if table != "alembic_version"
+        }
+
+
+def _with_device_columns(
+    schema: dict[str, set[tuple[Any, ...]]],
+) -> dict[str, set[tuple[Any, ...]]]:
+    expected = {table: set(rows) for table, rows in schema.items()}
+    for table, (column, on_delete) in DEVICE_COLUMNS.items():
+        expected[table] |= {
+            ("column", column, "CHAR(32)", 0, None, 0),
+            ("foreign_key", "paired_devices", column, "id", "NO ACTION", on_delete),
+        }
+    expected["refresh_tokens"].add(
+        ("index", "ix_refresh_tokens_device_id", 0, "c", 0, ("device_id",))
+    )
+    return expected
+
+
 @pytest.fixture
 def migration_engine(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -96,21 +144,29 @@ def migration_engine(
 def test_upgrade_and_downgrade_keep_every_row(migration_engine: sa.Engine) -> None:
     config = _alembic_config()
     base_counts = _row_counts(migration_engine)
+    base_schema = _schema(migration_engine)
     assert all(count == 1 for count in base_counts.values())
 
     command.upgrade(config, "head")
     assert {
         table: _row_counts(migration_engine)[table] for table in base_counts
     } == base_counts
+    head_schema = _schema(migration_engine)
+    assert set(head_schema) - set(base_schema) == NEW_TABLES
+    assert {table: head_schema[table] for table in base_schema} == _with_device_columns(
+        base_schema
+    )
     _seed_empty_tables(migration_engine)
 
     command.downgrade(config, BASE_REVISION)
     assert _row_counts(migration_engine) == base_counts
+    assert _schema(migration_engine) == base_schema
 
     command.upgrade(config, "head")
     assert {
         table: _row_counts(migration_engine)[table] for table in base_counts
     } == base_counts
+    assert _schema(migration_engine) == head_schema
 
 
 def test_preexisting_orphan_does_not_block_upgrade(migration_engine: sa.Engine) -> None:

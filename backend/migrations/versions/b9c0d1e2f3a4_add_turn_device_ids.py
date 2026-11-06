@@ -9,8 +9,16 @@ branch_labels = None
 depends_on = None
 
 
+def chats_reflect_args() -> list[sa.Column]:
+    return [
+        sa.Column(
+            "channel_id", GUID(), sa.ForeignKey("channels.id", ondelete="CASCADE")
+        )
+    ]
+
+
 def upgrade() -> None:
-    with op.batch_alter_table("chats") as batch_op:
+    with op.batch_alter_table("chats", reflect_args=chats_reflect_args()) as batch_op:
         batch_op.add_column(sa.Column("last_device_id", GUID(), nullable=True))
         batch_op.create_foreign_key(
             "fk_chats_last_device_id_paired_devices",
@@ -34,7 +42,7 @@ def downgrade() -> None:
             "fk_channel_messages_device_id_paired_devices", type_="foreignkey"
         )
         batch_op.drop_column("device_id")
-    with op.batch_alter_table("chats") as batch_op:
+    with op.batch_alter_table("chats", reflect_args=chats_reflect_args()) as batch_op:
         batch_op.drop_constraint(
             "fk_chats_last_device_id_paired_devices", type_="foreignkey"
         )
