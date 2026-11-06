@@ -145,6 +145,11 @@ class RefreshTokenService:
         return True
 
     async def revoke_all_tokens(self, user_id: UUID, db: AsyncSession) -> int:
+        await db.execute(
+            update(PairedDevice)
+            .where(PairedDevice.user_id == user_id, PairedDevice.revoked_at.is_(None))
+            .values(revoked_at=datetime.now(timezone.utc))
+        )
         result = await db.execute(
             delete(RefreshToken).where(RefreshToken.user_id == user_id)
         )

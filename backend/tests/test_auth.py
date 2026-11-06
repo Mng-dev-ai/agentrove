@@ -381,7 +381,7 @@ async def test_mcp_access_token_authenticates_bearer_requests(
     create_user: UserFactory,
 ) -> None:
     user = await create_user(email="mcp-token@example.com", username="mcptoken")
-    token = create_mcp_access_token(str(user.id))
+    token = create_mcp_access_token(str(user.id), None)
 
     response = await client.get(
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
@@ -1106,3 +1106,81 @@ async def test_device_token_bound_to_another_users_device_is_rejected(
     )
 
     assert response.status_code == 401
+
+
+async def test_device_session_cannot_create_pairing_links(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    await create_user(email="pair-chain@example.com", username="pairchain")
+    tokens = await login(email="pair-chain@example.com")
+    paired = (await pair_device(client, tokens["access_token"])).json()
+
+    response = await client.post(
+        "/api/v1/auth/pairing",
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+
+    assert response.status_code == 403
+    assert (
+        response.json()["detail"]
+        == "Pairing links can only be created from a password sign-in"
+    )
+
+
+async def test_reset_password_revokes_paired_devices(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    email_capture: EmailCapture,
+) -> None:
+    await create_user(email="reset-device@example.com", username="resetdevice")
+    tokens = await login(email="reset-device@example.com")
+    paired = (await pair_device(client, tokens["access_token"])).json()
+    device_headers = {"Authorization": f"Bearer {paired['access_token']}"}
+    assert (
+        await client.get("/api/v1/auth/me", headers=device_headers)
+    ).status_code == 200
+    await client.post(
+        "/api/v1/auth/forgot-password", json={"email": "reset-device@example.com"}
+    )
+    [sent] = email_capture.password_reset
+
+    reset = await client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": sent["token"], "password": "newpassword123"},
+    )
+
+    assert reset.status_code == 200
+    assert (
+        await client.get("/api/v1/auth/me", headers=device_headers)
+    ).status_code == 401
+    fresh = await login(email="reset-device@example.com", password="newpassword123")
+    devices = await client.get(
+        "/api/v1/auth/devices",
+        headers={"Authorization": f"Bearer {fresh['access_token']}"},
+    )
+    assert devices.json() == []
+
+
+async def test_mcp_token_bound_to_device_dies_with_device(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    user = await create_user(email="mcp-device@example.com", username="mcpdevice")
+    tokens = await login(email="mcp-device@example.com")
+    paired = (await pair_device(client, tokens["access_token"])).json()
+    mcp_headers = {
+        "Authorization": "Bearer "
+        + create_mcp_access_token(str(user.id), UUID(paired["device_id"]))
+    }
+    assert (await client.get("/api/v1/auth/me", headers=mcp_headers)).status_code == 200
+
+    await client.delete(
+        f"/api/v1/auth/devices/{paired['device_id']}",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+
+    assert (await client.get("/api/v1/auth/me", headers=mcp_headers)).status_code == 401

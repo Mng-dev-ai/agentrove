@@ -5,6 +5,7 @@ import json
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
+from uuid import UUID
 
 from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException, WebSocket, status
@@ -83,13 +84,20 @@ async def get_current_user(
     return user
 
 
-def create_mcp_access_token(user_id: str) -> str:
+def create_mcp_access_token(user_id: str, device_id: UUID | None) -> str:
     # Minted for the MCP server spawned into a chat session — audience must match
     # the JWTStrategy in user_manager.py (fastapi-users default) so the normal
     # bearer path accepts it. `mcp` marks its origin in logs.
+    data: dict[str, object] = {
+        "sub": str(user_id),
+        "aud": ["fastapi-users:auth"],
+        "mcp": True,
+    }
+    if device_id is not None:
+        data["did"] = str(device_id)
     return str(
         generate_jwt(
-            {"sub": str(user_id), "aud": ["fastapi-users:auth"], "mcp": True},
+            data,
             settings.SECRET_KEY,
             lifetime_seconds=settings.AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS,
             algorithm=settings.ALGORITHM,

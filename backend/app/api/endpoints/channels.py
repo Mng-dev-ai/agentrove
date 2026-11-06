@@ -162,7 +162,7 @@ async def update_queued_message(
 ) -> QueuedChannelMessage:
     await channel_service.get(channel_id, user)
     result = await queue_service.update_message(
-        str(channel_id), str(message_id), update.content
+        str(channel_id), str(message_id), update
     )
     if result is None:
         raise HTTPException(404, "Queued message not found")

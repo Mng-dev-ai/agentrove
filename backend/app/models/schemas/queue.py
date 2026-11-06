@@ -13,7 +13,11 @@ class QueueMessageContent(BaseModel):
     content: str = Field(..., min_length=1, max_length=100000)
 
 
-class QueuedMessageBase(QueueMessageContent):
+class QueuedMessageEdit(QueueMessageContent):
+    device_id: UUID | None = None
+
+
+class QueuedMessageBase(QueuedMessageEdit):
     model_id: str = Field(..., min_length=1, max_length=255)
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = None

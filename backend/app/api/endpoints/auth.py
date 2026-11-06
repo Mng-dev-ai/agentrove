@@ -202,8 +202,14 @@ async def logout(
 @router.post("/pairing", response_model=PairingSecretOut)
 async def create_pairing_secret(
     current_user: User = Depends(current_active_user),
+    current_device_id: UUID | None = Depends(get_current_device_id),
     db: AsyncSession = Depends(get_db),
 ) -> PairingSecretOut:
+    if current_device_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pairing links can only be created from a password sign-in",
+        )
     secret, expires_at = await PairingService.create_secret(current_user.id, db)
     return PairingSecretOut(secret=secret, expires_at=expires_at)
 
