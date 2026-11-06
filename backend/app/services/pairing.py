@@ -6,6 +6,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_refresh_token
+from app.core.user_manager import DeviceSession
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
 from app.models.db_models.user import User
@@ -103,4 +104,5 @@ class PairingService:
             delete(RefreshToken).where(RefreshToken.device_id == device_id)
         )
         await db.commit()
+        DeviceSession.revoke(user_id, device_id)
         return True

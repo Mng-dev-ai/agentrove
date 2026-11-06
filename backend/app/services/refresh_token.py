@@ -11,6 +11,7 @@ from app.core.security import (
     get_refresh_token_expiry,
     hash_refresh_token,
 )
+from app.core.user_manager import DeviceSession
 from app.db.session import SessionLocal
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
@@ -155,6 +156,7 @@ class RefreshTokenService:
             delete(RefreshToken).where(RefreshToken.user_id == user_id)
         )
         await db.commit()
+        DeviceSession.revoke(user_id)
         return int(getattr(result, "rowcount", 0))
 
     async def cleanup_expired_and_revoked_tokens(

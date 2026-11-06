@@ -2,8 +2,9 @@ import asyncio
 import logging
 import time
 import uuid
-from collections.abc import AsyncIterator
-from typing import Any, TypeVar, cast
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
+from typing import Any, ClassVar, TypeVar, cast
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
@@ -156,10 +157,42 @@ StreamItem = TypeVar("StreamItem")
 
 
 class DeviceSession:
+    live: ClassVar[set["DeviceSession"]] = set()
+
     def __init__(self, user_id: uuid.UUID, device_id: uuid.UUID | None) -> None:
         self.user_id = user_id
         self.device_id = device_id
         self.checked_at = time.monotonic()
+        self.revoked = False
+        self.interrupt: asyncio.Timeout | None = None
+
+    @classmethod
+    def revoke(cls, user_id: uuid.UUID, device_id: uuid.UUID | None = None) -> None:
+        for session in cls.live:
+            if session.user_id == user_id and device_id in (None, session.device_id):
+                session.revoked = True
+                if session.interrupt is not None:
+                    session.interrupt.reschedule(0)
+
+    @contextmanager
+    def _registered(self) -> Iterator[None]:
+        if self.device_id is not None:
+            DeviceSession.live.add(self)
+        try:
+            yield
+        finally:
+            DeviceSession.live.discard(self)
+
+    @asynccontextmanager
+    async def _interruptible(self) -> AsyncIterator[None]:
+        try:
+            async with asyncio.timeout(None) as self.interrupt:
+                yield
+        except TimeoutError:
+            if not self.revoked:
+                raise
+        finally:
+            self.interrupt = None
 
     async def check(self) -> bool:
         if self.device_id is None:
@@ -167,24 +200,34 @@ class DeviceSession:
         async with SessionLocal() as db:
             active = await is_device_active(db, self.device_id, self.user_id)
         self.checked_at = time.monotonic()
-        return active
+        return active and not self.revoked
 
     async def is_active(self) -> bool:
         if time.monotonic() - self.checked_at < DEVICE_RECHECK_SECONDS:
-            return True
+            return not self.revoked
         return await self.check()
 
     async def watch(self) -> None:
-        while await self.check():
-            await asyncio.sleep(DEVICE_RECHECK_SECONDS)
+        with self._registered():
+            while await self.check():
+                async with self._interruptible():
+                    await asyncio.sleep(DEVICE_RECHECK_SECONDS)
 
     async def guard(
         self, stream: AsyncIterator[StreamItem]
     ) -> AsyncIterator[StreamItem]:
-        async for item in stream:
-            if not await self.is_active():
+        with self._registered():
+            if not await self.check():
                 return
-            yield item
+            while not self.revoked:
+                try:
+                    async with self._interruptible():
+                        item = await anext(stream)
+                except StopAsyncIteration:
+                    return
+                if not await self.is_active():
+                    return
+                yield item
 
 
 class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
