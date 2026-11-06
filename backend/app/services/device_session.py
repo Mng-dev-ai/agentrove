@@ -55,11 +55,9 @@ class DeviceSession:
         if not self.device_ids:
             return True
         async with SessionLocal() as db:
-            active = await PairingService.active_device_ids(
-                db, self.user_id, self.device_ids
-            )
+            active = await PairingService.all_active(db, self.user_id, self.device_ids)
         self.checked_at = time.monotonic()
-        return active == self.device_ids and not self.revoked
+        return active and not self.revoked
 
     async def is_active(self) -> bool:
         if time.monotonic() - self.checked_at < DEVICE_RECHECK_SECONDS:

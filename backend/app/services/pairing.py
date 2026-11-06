@@ -105,3 +105,12 @@ class PairingService:
             )
         )
         return frozenset(result.all())
+
+    @staticmethod
+    async def all_active(
+        db: AsyncSession, user_id: UUID, device_ids: frozenset[UUID]
+    ) -> bool:
+        return (
+            await PairingService.active_device_ids(db, user_id, device_ids)
+            == device_ids
+        )

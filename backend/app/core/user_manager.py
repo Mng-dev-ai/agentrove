@@ -167,10 +167,7 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
             exceptions.UserNotExists,
         ):
             return None
-        if (
-            await PairingService.active_device_ids(self.db, user.id, device_ids)
-            != device_ids
-        ):
+        if not await PairingService.all_active(self.db, user.id, device_ids):
             return None
         user.device_ids = device_ids
         user.agent_token = claims.get("mcp") is True

@@ -537,10 +537,8 @@ class AgentService:
     ) -> AcpSessionConfig:
         if device_ids:
             async with self.session_factory() as db:
-                active = await PairingService.active_device_ids(
-                    db, UUID(user_id), device_ids
-                )
-            if active != device_ids:
+                active = await PairingService.all_active(db, UUID(user_id), device_ids)
+            if not active:
                 raise AgentException(
                     "A paired device behind this run has been revoked. "
                     "Rewrite its prompt from a password sign-in or an active device.",
