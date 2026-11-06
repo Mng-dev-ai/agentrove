@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
-import clsx from 'clsx';
-import { Edit2, KeyRound, MoreHorizontal, Star, Trash2 } from 'lucide-react';
+import { KeyRound, Server, Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
+import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
-import { SidebarMenu, SidebarMenuItem } from '@/components/layout/Sidebar/SidebarMenu';
 import { MachineStatusDot } from '@/components/machines/MachineStatusDot';
 import { MACHINE_STATUS_LABEL } from '@/components/machines/machineStatusLabel';
 import { AddMachineDialog } from '@/components/machines/AddMachineDialog';
@@ -21,15 +19,13 @@ import {
 } from '@/services/legacyCloudMigration';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
 import { hostOf } from '@/utils/machineUrl';
-import { LOCAL_MACHINE_ID, type Machine, type MachineConnection } from '@/types/machine.types';
+import {
+  LOCAL_MACHINE_ID,
+  type Machine,
+  type MachineConnection,
+  type MachineStatus,
+} from '@/types/machine.types';
 import styles from './MachinesSettingsTab.module.scss';
-
-interface MenuState {
-  machineId: string;
-  position: { top: number; left: number };
-}
-
-const MENU_WIDTH = 176;
 
 function ChatCounts({ machineId, online }: { machineId: string; online: boolean }) {
   const { data: running } = useMachineActiveStreamsQuery(machineId, online);
@@ -71,39 +67,68 @@ function ConnectionNotice({ connection }: { connection: MachineConnection | unde
   return null;
 }
 
+function MachineSummary({
+  status,
+  name,
+  host,
+  isDefault,
+  children,
+}: {
+  status: MachineStatus;
+  name: string;
+  host: string;
+  isDefault: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.row}>
+      <MachineStatusDot status={status} />
+      <div className={styles['row-main']}>
+        <div className={styles['row-title']}>
+          <h3 className={styles.name}>{name}</h3>
+          {isDefault && <span className={styles.chip}>Default</span>}
+        </div>
+        <span className={styles.host}>{host}</span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SetDefaultButton({
+  machine,
+  isDefault,
+}: {
+  machine: Pick<Machine, 'id' | 'name'>;
+  isDefault: boolean;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={styles['action-btn']}
+      aria-label={`Set ${machine.name} as default`}
+      title="Set as default"
+      disabled={isDefault}
+      onClick={() => useMachineStore.getState().setDefaultMachine(machine.id)}
+    >
+      <Star className={styles['action-icon']} />
+    </Button>
+  );
+}
+
 export function MachinesSettingsTab() {
   const machines = useMachineStore((state) => state.machines);
   const connections = useMachineStore((state) => state.connections);
   const defaultMachineId = useMachineStore((state) => state.defaultMachineId);
 
-  const [menu, setMenu] = useState<MenuState | null>(null);
   const [pairTarget, setPairTarget] = useState<{ machineId: string | null } | null>(null);
   const [renaming, setRenaming] = useState<Machine | null>(null);
-  const [removing, setRemoving] = useState<Machine | null>(null);
   const [legacyCloudUrl, setLegacyCloudUrl] = useState(unconvertibleLegacyCloudUrl);
-  const menuRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!menu) return;
-    const handlePointer = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenu(null);
-    };
-    document.addEventListener('mousedown', handlePointer);
-    return () => document.removeEventListener('mousedown', handlePointer);
-  }, [menu]);
-
-  const openMenu = (machineId: string, event: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    setMenu({
-      machineId,
-      position: { top: rect.bottom + 4, left: Math.max(8, rect.right - MENU_WIDTH) },
-    });
-  };
-
-  const menuMachine = menu ? machines.find((machine) => machine.id === menu.machineId) : undefined;
-
-  const handleRemove = async (machine: Machine) => {
-    setRemoving(null);
+  const handleRemove = async (index: number) => {
+    const machine = machines[index];
     const wasPaired = connections[machine.id]?.status !== 'session_revoked' && !!machine.pairing;
     const { revoked } = await removeMachine(machine.id);
     if (!revoked && wasPaired) {
@@ -116,165 +141,109 @@ export function MachinesSettingsTab() {
   };
 
   return (
-    <div className={styles.machines}>
-      <div className={styles.card}>
-        <div className={styles['instance-header']}>
-          <h2 className={styles['instance-title']}>Machines</h2>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={() => setPairTarget({ machineId: null })}
-          >
-            Add machine
-          </Button>
-        </div>
-        <p className={styles['instance-desc']}>
-          Run chats on several AgentRove instances at once — this computer, a VPS, a cloud VM —
-          reached over Tailscale or https.
-        </p>
-        {legacyCloudUrl && (
-          <div className={styles['legacy-notice']}>
-            <p>
-              Your earlier cloud server setting couldn&apos;t be converted, because machines must be
-              an https address without a path. Add {legacyCloudUrl} again over https with a pairing
-              link.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                dismissLegacyCloudNotice();
-                setLegacyCloudUrl(null);
-              }}
-            >
-              Dismiss
-            </Button>
-          </div>
-        )}
-
-        <div className={styles.list}>
-          <div className={clsx(styles.item, styles.row)}>
-            <MachineStatusDot status="online" />
-            <div className={styles['row-main']}>
-              <div className={styles['row-title']}>
-                <span className={styles.name}>{LOCAL_MACHINE_NAME}</span>
-                {defaultMachineId === LOCAL_MACHINE_ID && (
-                  <span className={styles.badge}>Default</span>
-                )}
+    <>
+      <ListManagementTab<Machine>
+        title="Machines"
+        description="Run chats on several AgentRove instances at once — this computer, a VPS, a cloud VM — reached over Tailscale or https."
+        items={machines}
+        emptyIcon={Server}
+        emptyText="No remote machines added yet"
+        emptyButtonText="Add Your First Machine"
+        addButtonText="Add Machine"
+        deleteConfirmTitle="Remove machine"
+        deleteConfirmMessage={(machine) =>
+          `Remove ${machine.name}? This device is revoked on the server when it's reachable. Its chats stay listed as a removed machine until you pair the same server again, and chats on the machine itself are kept.`
+        }
+        getItemKey={(machine) => machine.id}
+        onAdd={() => setPairTarget({ machineId: null })}
+        onEdit={(index) => setRenaming(machines[index])}
+        onDelete={handleRemove}
+        headerContent={
+          <div className={styles.header}>
+            {legacyCloudUrl && (
+              <div className={styles['legacy-notice']}>
+                <p>
+                  Your earlier cloud server setting couldn&apos;t be converted, because machines
+                  must be an https address without a path. Add {legacyCloudUrl} again over https
+                  with a pairing link.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    dismissLegacyCloudNotice();
+                    setLegacyCloudUrl(null);
+                  }}
+                >
+                  Dismiss
+                </Button>
               </div>
-              <span className={styles.host}>Local</span>
+            )}
+            <div className={styles['local-card']}>
+              <MachineSummary
+                status="online"
+                name={LOCAL_MACHINE_NAME}
+                host="Local"
+                isDefault={defaultMachineId === LOCAL_MACHINE_ID}
+              >
+                <ChatCounts machineId={LOCAL_MACHINE_ID} online />
+              </MachineSummary>
+              <SetDefaultButton
+                machine={{ id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME }}
+                isDefault={defaultMachineId === LOCAL_MACHINE_ID}
+              />
             </div>
-            <ChatCounts machineId={LOCAL_MACHINE_ID} online />
-            <Button
-              type="button"
-              variant="unstyled"
-              className={styles['menu-button']}
-              aria-label={`${LOCAL_MACHINE_NAME} options`}
-              onClick={(event) => openMenu(LOCAL_MACHINE_ID, event)}
-            >
-              <MoreHorizontal className={styles['menu-icon']} />
-            </Button>
           </div>
-
-          {machines.map((machine) => {
-            const connection = connections[machine.id];
-            const status = connection?.status ?? 'checking';
-            return (
-              <div key={machine.id} className={styles.item}>
-                <div className={styles.row}>
-                  <MachineStatusDot status={status} />
-                  <div className={styles['row-main']}>
-                    <div className={styles['row-title']}>
-                      <span className={styles.name}>{machine.name}</span>
-                      {defaultMachineId === machine.id && (
-                        <span className={styles.badge}>Default</span>
-                      )}
-                    </div>
-                    <span className={styles.host}>{hostOf(machine.url)}</span>
-                  </div>
-                  {status === 'online' ? (
-                    <ChatCounts machineId={machine.id} online />
-                  ) : status === 'session_revoked' ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setPairTarget({ machineId: machine.id })}
-                    >
-                      Pair again
-                    </Button>
-                  ) : (
-                    <span className={styles['status-pill']}>
-                      <MachineStatusDot status={status} />
-                      {MACHINE_STATUS_LABEL[status]}
-                    </span>
-                  )}
+        }
+        renderItem={(machine) => {
+          const connection = connections[machine.id];
+          const status = connection?.status ?? 'checking';
+          return (
+            <>
+              <MachineSummary
+                status={status}
+                name={machine.name}
+                host={hostOf(machine.url)}
+                isDefault={defaultMachineId === machine.id}
+              >
+                {status === 'online' ? (
+                  <ChatCounts machineId={machine.id} online />
+                ) : status === 'session_revoked' ? (
                   <Button
                     type="button"
-                    variant="unstyled"
-                    className={styles['menu-button']}
-                    aria-label={`${machine.name} options`}
-                    onClick={(event) => openMenu(machine.id, event)}
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPairTarget({ machineId: machine.id })}
                   >
-                    <MoreHorizontal className={styles['menu-icon']} />
+                    Pair again
                   </Button>
-                </div>
-                <ConnectionNotice connection={connection} />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {menu && (
-        <SidebarMenu ref={menuRef} position={menu.position} onClose={() => setMenu(null)}>
-          <SidebarMenuItem
-            icon={Star}
-            disabled={defaultMachineId === menu.machineId}
-            onClick={() => {
-              useMachineStore.getState().setDefaultMachine(menu.machineId);
-              setMenu(null);
-            }}
-          >
-            Set as default
-          </SidebarMenuItem>
-          {menuMachine && (
-            <>
-              <SidebarMenuItem
-                icon={Edit2}
-                onClick={() => {
-                  setRenaming(menuMachine);
-                  setMenu(null);
-                }}
-              >
-                Rename
-              </SidebarMenuItem>
-              <SidebarMenuItem
-                icon={KeyRound}
-                onClick={() => {
-                  setPairTarget({ machineId: menuMachine.id });
-                  setMenu(null);
-                }}
-              >
-                Pair again
-              </SidebarMenuItem>
-              <SidebarMenuItem
-                icon={Trash2}
-                danger
-                onClick={() => {
-                  setRemoving(menuMachine);
-                  setMenu(null);
-                }}
-              >
-                Remove
-              </SidebarMenuItem>
+                ) : (
+                  <span className={styles['status-pill']}>{MACHINE_STATUS_LABEL[status]}</span>
+                )}
+              </MachineSummary>
+              <ConnectionNotice connection={connection} />
             </>
-          )}
-        </SidebarMenu>
-      )}
-
+          );
+        }}
+        renderItemActions={(machine) => (
+          <>
+            <SetDefaultButton machine={machine} isDefault={defaultMachineId === machine.id} />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={styles['action-btn']}
+              aria-label={`Pair ${machine.name} again`}
+              title="Pair again"
+              onClick={() => setPairTarget({ machineId: machine.id })}
+            >
+              <KeyRound className={styles['action-icon']} />
+            </Button>
+          </>
+        )}
+        logContext="MachinesSettingsTab"
+      />
       {pairTarget && (
         <AddMachineDialog
           repairMachineId={pairTarget.machineId}
@@ -293,14 +262,6 @@ export function MachinesSettingsTab() {
         currentTitle={renaming?.name ?? ''}
         title="Rename machine"
       />
-      <ConfirmDialog
-        isOpen={!!removing}
-        onClose={() => setRemoving(null)}
-        onConfirm={() => removing && void handleRemove(removing)}
-        title="Remove machine"
-        message={`Remove ${removing?.name ?? 'this machine'}? This device is revoked on the server when it's reachable. Its chats stay listed as a removed machine until you pair the same server again, and chats on the machine itself are kept.`}
-        confirmLabel="Remove"
-      />
-    </div>
+    </>
   );
 }

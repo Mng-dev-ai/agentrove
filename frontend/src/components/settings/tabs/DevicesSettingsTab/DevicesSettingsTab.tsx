@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import clsx from 'clsx';
-import { Button } from '@/components/ui/primitives/Button/Button';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
+import { Smartphone } from 'lucide-react';
+import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { CopyField } from '@/components/machines/CopyField';
 import { useDevicesQuery, useRevokeDeviceMutation } from '@/hooks/queries/useDeviceQueries';
 import { deviceService } from '@/services/deviceService';
 import { buildPairingLink } from '@/utils/machineUrl';
 import { getRelativeTime } from '@/utils/date';
 import type { PairedDevice } from '@/types/machine.types';
-import styles from '@/components/settings/tabs/MachinesSettingsTab/MachinesSettingsTab.module.scss';
+import styles from './DevicesSettingsTab.module.scss';
 
 interface ActivePairing {
   link: string;
@@ -53,13 +52,13 @@ function PairingLinkCard({
 }
 
 export function DevicesSettingsTab() {
-  const { data: devices, isLoading, error } = useDevicesQuery();
+  const { data: devices, error } = useDevicesQuery();
   const revokeDevice = useRevokeDeviceMutation();
   const [pairing, setPairing] = useState<ActivePairing | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [revoking, setRevoking] = useState<PairedDevice | null>(null);
 
   const handlePair = async () => {
+    if (isCreating) return;
     setIsCreating(true);
     try {
       const created = await deviceService.createPairingLink();
@@ -76,8 +75,9 @@ export function DevicesSettingsTab() {
     }
   };
 
-  const handleRevoke = async (device: PairedDevice) => {
-    setRevoking(null);
+  const handleRevoke = async (index: number) => {
+    const device = devices?.[index];
+    if (!device) return;
     try {
       await revokeDevice.mutateAsync(device.id);
       toast.success(`Revoked ${device.name}`);
@@ -87,64 +87,37 @@ export function DevicesSettingsTab() {
   };
 
   return (
-    <div className={styles.machines}>
-      <div className={styles.card}>
-        <div className={styles['instance-header']}>
-          <h2 className={styles['instance-title']}>Devices</h2>
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            onClick={() => void handlePair()}
-            isLoading={isCreating}
-            loadingText="Creating..."
-          >
-            Pair a device
-          </Button>
-        </div>
-        <p className={styles['instance-desc']}>
-          Apps paired with this server. Each one keeps its own session; revoke a device to sign it
-          out.
-        </p>
-        {pairing && <PairingLinkCard pairing={pairing} onExpired={() => setPairing(null)} />}
-
-        <div className={styles.list}>
-          {isLoading && <p className={styles.empty}>Loading devices…</p>}
-          {error && <p className={styles.empty}>Couldn&apos;t load devices: {error.message}</p>}
-          {devices?.length === 0 && <p className={styles.empty}>No paired devices yet.</p>}
-          {devices?.map((device) => (
-            <div key={device.id} className={clsx(styles.item, styles.row)}>
-              <div className={styles['row-main']}>
-                <div className={styles['row-title']}>
-                  <span className={styles.name}>{device.name}</span>
-                  {device.current && <span className={styles.badge}>This device</span>}
-                </div>
-                <span className={styles.host}>
-                  Paired {getRelativeTime(device.created_at)} · Last used{' '}
-                  {device.last_used_at ? getRelativeTime(device.last_used_at) : 'never'}
-                </span>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setRevoking(device)}
-                disabled={revokeDevice.isPending}
-              >
-                Revoke
-              </Button>
-            </div>
-          ))}
-        </div>
-      </div>
-      <ConfirmDialog
-        isOpen={!!revoking}
-        onClose={() => setRevoking(null)}
-        onConfirm={() => revoking && void handleRevoke(revoking)}
-        title="Revoke device"
-        message={`Revoke ${revoking?.name ?? 'this device'}? It's signed out immediately and has to be paired again.`}
-        confirmLabel="Revoke"
-      />
-    </div>
+    <ListManagementTab<PairedDevice>
+      title="Devices"
+      description="Apps paired with this server. Each one keeps its own session; revoke a device to sign it out."
+      items={devices ?? (error ? [] : null)}
+      emptyIcon={Smartphone}
+      emptyText={error ? `Couldn't load devices: ${error.message}` : 'No paired devices yet'}
+      emptyButtonText="Pair a Device"
+      addButtonText="Pair a Device"
+      deleteConfirmTitle="Revoke device"
+      deleteConfirmMessage={(device) =>
+        `Revoke ${device.name}? It's signed out immediately and has to be paired again.`
+      }
+      getItemKey={(device) => device.id}
+      onAdd={() => void handlePair()}
+      onDelete={handleRevoke}
+      headerContent={
+        pairing && <PairingLinkCard pairing={pairing} onExpired={() => setPairing(null)} />
+      }
+      renderItem={(device) => (
+        <>
+          <div className={styles['item-header']}>
+            <h3 className={styles['item-title']}>{device.name}</h3>
+            {device.current && <span className={styles.chip}>This device</span>}
+          </div>
+          <p className={styles['item-meta']}>
+            Paired {getRelativeTime(device.created_at)} · Last used{' '}
+            {device.last_used_at ? getRelativeTime(device.last_used_at) : 'never'}
+          </p>
+        </>
+      )}
+      logContext="DevicesSettingsTab"
+    />
   );
 }
