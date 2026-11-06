@@ -45,6 +45,7 @@ from acp.stdio import stdio_streams
 # agent binary would fail deterministically at handshake/session-setup time).
 SCENARIO = os.environ.get("FAKE_ACP_SCENARIO", "normal")
 LOG_PATH = os.environ.get("FAKE_ACP_LOG")
+NEW_SESSION_GATE = os.environ.get("FAKE_ACP_NEW_SESSION_GATE")
 # Real agents advertise their effort option after a model set; offer every tier
 # under each agent's config id so effort validation sees a live list.
 EFFORT_TIERS = (
@@ -178,6 +179,8 @@ class FakeAgent:
         )
         if SCENARIO == "crash_new_session":
             raise RuntimeError("simulated new_session failure")
+        while NEW_SESSION_GATE and not os.path.exists(NEW_SESSION_GATE):
+            await asyncio.sleep(0.05)
         return NewSessionResponse(session_id=f"fake-acp-session-{uuid4().hex}")
 
     async def load_session(

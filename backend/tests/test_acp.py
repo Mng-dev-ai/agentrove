@@ -22,11 +22,13 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.db_models.automation import Automation
 from app.models.db_models.chat import Chat
+from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.workspace import Workspace
 from app.services import channel as channel_module
 from app.services.automation import AutomationService
 from app.services.chat import ChatService
 from app.services import subthread_wake as wake_module
+from app.services import session_registry as session_registry_module
 from app.services.session_registry import session_registry
 from app.services.agent import AgentService
 from app.services.exceptions import AgentException
@@ -1970,6 +1972,56 @@ async def test_revocation_cancels_the_devices_running_turn(
         client, headers, chat_id=chat["id"], message_id=message_id
     )
     assert message["stream_status"] == "interrupted"
+
+
+async def test_revocation_during_agent_startup_never_submits_the_prompt(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    gate = tmp_path / "new-session-gate"
+    monkeypatch.setenv("FAKE_ACP_NEW_SESSION_GATE", str(gate))
+    monkeypatch.setattr(session_registry_module, "PENDING_CANCEL_TTL_SECONDS", 0)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    device_headers = {"Authorization": f"Bearer {paired['access_token']}"}
+    chat = await create_chat(client, device_headers, workspace, model_id="sonnet")
+    sent = await send_message(
+        client, device_headers, chat_id=chat["id"], model_id="sonnet", prompt="work"
+    )
+    assert sent.status_code == 200, sent.text
+    deadline = time.monotonic() + 10
+    while not fake_agent.events_of("new_session"):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+
+    revoke = asyncio.create_task(
+        client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    )
+    while (
+        await db_session.scalar(
+            select(PairedDevice.revoked_at).where(
+                PairedDevice.id == UUID(paired["device_id"])
+            )
+        )
+        is None
+    ):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+        db_session.expire_all()
+    await asyncio.sleep(0.1)
+    gate.touch()
+    assert (await revoke).status_code == 204
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=sent.json()["message_id"]
+    )
+
+    assert message["stream_status"] in ("interrupted", "failed")
+    assert fake_agent.main_turn_prompts() == []
 
 
 async def wait_for_latest_assistant(

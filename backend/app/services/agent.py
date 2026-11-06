@@ -513,6 +513,21 @@ class AgentService:
             )
         return servers
 
+    async def ensure_devices_active(
+        self, user_id: UUID, device_ids: frozenset[UUID]
+    ) -> None:
+        if not device_ids:
+            return
+        async with self.session_factory() as db:
+            active = await PairingService.all_active(db, user_id, device_ids)
+        if not active:
+            raise AgentException(
+                "A paired device behind this run has been revoked. "
+                "Rewrite its prompt from a password sign-in or an active device.",
+                error_code=ErrorCode.AUTH_INVALID_TOKEN,
+                status_code=403,
+            )
+
     async def _build_acp_config(
         self,
         *,
@@ -535,16 +550,7 @@ class AgentService:
         fast_mode: bool = False,
         channel_member: bool = False,
     ) -> AcpSessionConfig:
-        if device_ids:
-            async with self.session_factory() as db:
-                active = await PairingService.all_active(db, UUID(user_id), device_ids)
-            if not active:
-                raise AgentException(
-                    "A paired device behind this run has been revoked. "
-                    "Rewrite its prompt from a password sign-in or an active device.",
-                    error_code=ErrorCode.AUTH_INVALID_TOKEN,
-                    status_code=403,
-                )
+        await self.ensure_devices_active(UUID(user_id), device_ids)
         env: dict[str, str] = {}
 
         # claude-agent-acp hides the bypassPermissions session mode when running

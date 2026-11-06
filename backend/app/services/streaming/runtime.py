@@ -191,6 +191,9 @@ class ChatStreamRuntime:
                     "system",
                     {"data": {"worktree_cwd": self.chat.worktree_cwd}},
                 )
+            await AgentService(
+                session_factory=self.session_factory
+            ).ensure_devices_active(self.chat.user_id, self._request.device_ids)
             self._accepts_steering = True
             await self._consume_stream(stream_result, stream)
             await self._emit_prompt_suggestions()
@@ -1173,14 +1176,16 @@ class ChatStreamRuntime:
     async def cancel_device_turns(cls, device_ids: frozenset[UUID]) -> None:
         await asyncio.gather(
             *(
-                cls.cancel_chat_turn(chat_id, timeout=10)
+                cls.cancel_chat_turn(chat_id, timeout=10, persistent=True)
                 for chat_id, runtime in list(cls._active_runtimes.items())
                 if runtime._request.device_ids & device_ids
             )
         )
 
     @classmethod
-    async def cancel_chat_turn(cls, chat_id: str, timeout: float) -> None:
+    async def cancel_chat_turn(
+        cls, chat_id: str, timeout: float, *, persistent: bool = False
+    ) -> None:
         # Hold the response until the cancelled turn unwinds (a resend would 409).
         # Capture first — the unwind can start a successor we must not wait on.
         reservation = cls._starting_chat_ids.get(chat_id)
@@ -1188,7 +1193,7 @@ class ChatStreamRuntime:
         # Idle chats must not cancel — a stray pending-cancel flag could kill the next turn.
         if reservation is None and not tasks:
             return
-        await session_registry.cancel_generation(chat_id)
+        await session_registry.cancel_generation(chat_id, persistent=persistent)
         if reservation is not None:
             # The reserved turn's task registers before the reservation frees.
             with suppress(asyncio.TimeoutError):
