@@ -23,6 +23,7 @@ from app.core.security import (
     resolve_websocket_sandbox_access,
     wait_for_websocket_auth,
 )
+from app.core.user_manager import DeviceSession
 from app.services.terminal import terminal_session_registry
 from app.utils.parsing import parse_pty_dimension
 from app.utils.sandbox import normalize_relative_path
@@ -42,10 +43,12 @@ async def terminal_websocket(
     # (init/refresh/resize/close/detach). 30s receive timeout → keepalive ping.
     await websocket.accept()
 
-    user = await wait_for_websocket_auth(websocket)
-    if not user:
+    auth = await wait_for_websocket_auth(websocket)
+    if not auth:
         await websocket.close(code=WS_CLOSE_AUTH_FAILED, reason="Authentication failed")
         return
+    user, device_id = auth
+    device_session = DeviceSession(user.id, device_id)
 
     access = await resolve_websocket_sandbox_access(websocket, sandbox_id, user)
     if access is None:
@@ -71,6 +74,11 @@ async def terminal_websocket(
 
     try:
         while True:
+            if not await device_session.is_active():
+                await websocket.close(
+                    code=WS_CLOSE_AUTH_FAILED, reason="Device revoked"
+                )
+                break
             try:
                 message = await asyncio.wait_for(
                     websocket.receive(), timeout=WS_RECEIVE_TIMEOUT_SECONDS

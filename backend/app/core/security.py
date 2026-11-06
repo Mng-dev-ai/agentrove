@@ -119,10 +119,13 @@ def get_refresh_token_expiry() -> datetime:
     )
 
 
-async def authenticate_websocket_user(token: str) -> User | None:
+async def authenticate_websocket_user(token: str) -> tuple[User, UUID | None] | None:
     try:
         async with SessionLocal() as db:
-            return await get_user_from_token(token, db)
+            user = await get_user_from_token(token, db)
+            if user is None:
+                return None
+            return user, get_jwt_strategy(db).read_device_id(token)
     except (ValueError, OSError, SQLAlchemyError) as e:
         logger.warning("WebSocket authentication failed: %s", e)
         return None
@@ -130,7 +133,7 @@ async def authenticate_websocket_user(token: str) -> User | None:
 
 async def wait_for_websocket_auth(
     websocket: WebSocket, timeout: float = 10.0
-) -> User | None:
+) -> tuple[User, UUID | None] | None:
     # First frame must be JSON auth — WS can't send headers after the handshake.
     try:
         message = await asyncio.wait_for(websocket.receive(), timeout=timeout)

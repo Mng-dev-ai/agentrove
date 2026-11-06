@@ -34,7 +34,7 @@ from app.core.deps import (
     get_queue_service,
 )
 from app.core.security import get_current_user
-from app.core.user_manager import get_current_device_id
+from app.core.user_manager import DeviceSession, get_current_device_id
 from app.db.session import get_db
 from app.models.db_models.chat import Chat, MessageAttachment
 from app.models.db_models.user import User
@@ -317,6 +317,7 @@ async def get_active_streams(
 @router.get("/chats/events")
 async def stream_user_chat_events(
     current_user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
     chat_service: ChatService = Depends(get_chat_service),
     db: AsyncSession = Depends(get_db),
 ) -> EventSourceResponse:
@@ -324,7 +325,9 @@ async def stream_user_chat_events(
     # auth-chain DB session — FastAPI keeps yield deps open for the SSE lifetime.
     await db.close()
     return EventSourceResponse(
-        chat_service.create_chat_events_stream(current_user.id),
+        DeviceSession(current_user.id, device_id).guard(
+            chat_service.create_chat_events_stream(current_user.id)
+        ),
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
@@ -337,6 +340,7 @@ async def stream_user_chat_events(
 async def stream_user_streams(
     cursors: str | None = Query(None, max_length=8192),
     current_user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
     chat_service: ChatService = Depends(get_chat_service),
     db: AsyncSession = Depends(get_db),
 ) -> EventSourceResponse:
@@ -354,7 +358,9 @@ async def stream_user_streams(
     # Same as /chats/events: release DB session before long-lived SSE.
     await db.close()
     return EventSourceResponse(
-        chat_service.create_user_streams_feed(current_user.id, replay_cursors),
+        DeviceSession(current_user.id, device_id).guard(
+            chat_service.create_user_streams_feed(current_user.id, replay_cursors)
+        ),
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",

@@ -1,7 +1,8 @@
 import logging
+import time
 import uuid
 from collections.abc import AsyncIterator
-from typing import cast
+from typing import TypeVar, cast
 
 import jwt
 from fastapi import Depends, Request
@@ -18,7 +19,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.auth import UserCreate
@@ -147,6 +148,35 @@ async def is_device_active(
         )
     )
     return device is not None
+
+
+DEVICE_RECHECK_SECONDS = 5.0
+StreamItem = TypeVar("StreamItem")
+
+
+class DeviceSession:
+    def __init__(self, user_id: uuid.UUID, device_id: uuid.UUID | None) -> None:
+        self.user_id = user_id
+        self.device_id = device_id
+        self.checked_at = time.monotonic()
+
+    async def is_active(self) -> bool:
+        if self.device_id is None:
+            return True
+        if time.monotonic() - self.checked_at < DEVICE_RECHECK_SECONDS:
+            return True
+        async with SessionLocal() as db:
+            active = await is_device_active(db, self.device_id, self.user_id)
+        self.checked_at = time.monotonic()
+        return active
+
+    async def guard(
+        self, stream: AsyncIterator[StreamItem]
+    ) -> AsyncIterator[StreamItem]:
+        async for item in stream:
+            if not await self.is_active():
+                return
+            yield item
 
 
 class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
