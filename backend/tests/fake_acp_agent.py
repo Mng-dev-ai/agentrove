@@ -187,7 +187,17 @@ class FakeAgent:
         mcp_servers: list[Any] | None = None,
         **kwargs: Any,
     ) -> LoadSessionResponse:
-        log_event({"event": "load_session", "cwd": cwd, "session_id": session_id})
+        log_event(
+            {
+                "event": "load_session",
+                "cwd": cwd,
+                "session_id": session_id,
+                "mcp_servers": [
+                    server.model_dump(mode="json", by_alias=True)
+                    for server in (mcp_servers or [])
+                ],
+            }
+        )
         if SCENARIO == "load_session_missing":
             raise RequestError.resource_not_found(session_id)
         if SCENARIO == "load_session_replay" and self._client is not None:

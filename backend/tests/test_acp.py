@@ -6,19 +6,25 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 import httpx
 import jwt
 import pytest
 import pytest_asyncio
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
+from app.core import deps
 from app.core.config import get_settings
+from app.models.db_models.chat import Chat
 from app.models.db_models.workspace import Workspace
 from app.services import channel as channel_module
+from app.services import subthread_wake as wake_module
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.subthread_wake import SubThreadWake
 from tests.conftest import LoginClient, UserFactory
 from tests.fake_acp_agent import (
     ELICITATION_REQUESTED_SCHEMA,
@@ -1813,5 +1819,87 @@ async def test_channel_turn_token_is_bound_to_the_posting_device(
     await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
 
     [token] = minted_mcp_tokens(fake_agent)
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["did"] == paired["device_id"]
+
+
+async def wait_for_latest_assistant(
+    client: httpx.AsyncClient, headers: dict[str, str], chat_id: str
+) -> dict[str, Any]:
+    messages = await client.get(
+        f"/api/v1/chat/chats/{chat_id}/messages",
+        headers=headers,
+        params={"limit": 50},
+    )
+    assistant = max(
+        (m for m in messages.json()["items"] if m["role"] == "assistant"),
+        key=lambda m: m["created_at"],
+    )
+    return await wait_for_message(
+        client, headers, chat_id=chat_id, message_id=assistant["id"]
+    )
+
+
+async def test_wake_after_device_queued_turn_is_bound_to_that_device(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
+    headers, workspace = auth_workspace
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = (
+        await client.post(
+            "/api/v1/auth/pair",
+            json={"secret": pairing.json()["secret"], "device_name": "Laptop"},
+        )
+    ).json()
+    parent = await create_chat(client, headers, workspace, model_id="sonnet")
+    child = await create_chat(client, headers, workspace, model_id="sonnet")
+    await db_session.execute(
+        update(Chat)
+        .where(Chat.id == UUID(child["id"]))
+        .values(parent_chat_id=UUID(parent["id"]))
+    )
+    await db_session.commit()
+    started = await send_message(
+        client, headers, chat_id=parent["id"], model_id="sonnet", prompt="first"
+    )
+    await wait_for_message(
+        client, headers, chat_id=parent["id"], message_id=started.json()["message_id"]
+    )
+
+    queued = await client.post(
+        f"/api/v1/chat/chats/{parent['id']}/queue",
+        data={"content": "from laptop", "model_id": "sonnet", "send_now": "true"},
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert queued.status_code == 201, queued.text
+    assert not queued.json()["send_now_failed"]
+    await wait_for_latest_assistant(client, headers, parent["id"])
+    wake = SubThreadWake()
+    wake.on_chain_end(child["id"], parent["id"])
+    await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=5)
+    await wait_for_latest_assistant(client, headers, parent["id"])
+
+    _, queued_turn, wake_turn = fake_agent.main_turn_prompts()
+    assert "from laptop" in queued_turn["text"]
+    assert "sub-threads you delegated have finished" in wake_turn["text"]
+    [wake_session] = [
+        e
+        for e in fake_agent.events()
+        if e["event"] in ("new_session", "load_session")
+        and e["pid"] == wake_turn["pid"]
+    ]
+    [token] = [
+        v["value"]
+        for server in wake_session["mcp_servers"]
+        for v in server["env"]
+        if v["name"] == "AGENTROVE_ACCESS_TOKEN"
+    ]
     claims = jwt.decode(token, options={"verify_signature": False})
     assert claims["did"] == paired["device_id"]

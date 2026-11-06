@@ -13,7 +13,7 @@ from typing import Any, cast
 from uuid import UUID, uuid4
 
 from acp.exceptions import RequestError
-from sqlalchemy import select, update
+from sqlalchemy import Update, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
@@ -29,7 +29,7 @@ from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.queue import QueuedMessage
-from app.models.types import MessageAttachmentDict
+from app.models.types import MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.agent import (
@@ -821,6 +821,28 @@ class ChatStreamRuntime:
             )
             return None
 
+    @staticmethod
+    def record_turn_settings(
+        chat_id: UUID,
+        *,
+        model_id: str,
+        permission_mode: PermissionMode,
+        thinking_mode: str | None,
+        persona_name: str,
+        device_id: UUID | None,
+    ) -> Update:
+        return (
+            update(Chat)
+            .where(Chat.id == chat_id)
+            .values(
+                last_model_id=model_id,
+                last_permission_mode=permission_mode,
+                last_thinking_mode=thinking_mode,
+                last_persona_name=persona_name,
+                last_device_id=device_id,
+            )
+        )
+
     @classmethod
     @asynccontextmanager
     async def turn_scaffold(
@@ -913,6 +935,18 @@ class ChatStreamRuntime:
                 assistant_message_id=str(assistant_message.id),
                 session_id_override=session_id_override,
             )
+            async with session_factory() as db:
+                await db.execute(
+                    cls.record_turn_settings(
+                        chat.id,
+                        model_id=request.model_id,
+                        permission_mode=request.permission_mode,
+                        thinking_mode=request.thinking_mode,
+                        persona_name=request.selected_persona_name,
+                        device_id=request.device_id,
+                    ).values(updated_at=Chat.updated_at)
+                )
+                await db.commit()
             # The client repoints on this event — nothing fallible may follow it.
             if before_handoff is not None:
                 await before_handoff(user_message, assistant_message, checkpoint_id)
