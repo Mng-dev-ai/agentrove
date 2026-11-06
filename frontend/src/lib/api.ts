@@ -329,6 +329,28 @@ class APIClient {
 
     return response.blob();
   }
+
+  async openStream(endpoint: string, signal: AbortSignal, isRetry = false): Promise<Response> {
+    const response = await fetch(`${this.baseURL}${endpoint}`, {
+      method: 'GET',
+      headers: { ...this.authHeaders(false), Accept: 'text/event-stream' },
+      cache: 'no-store',
+      signal,
+    });
+
+    if (response.status === 401 && !isRetry && this.auth.getRefreshToken()) {
+      try {
+        await this.refreshTokenIfNeeded();
+      } catch (error) {
+        if (!shouldInvalidateSession(error)) throw error;
+        this.auth.onSessionExpired();
+        return response;
+      }
+      return this.openStream(endpoint, signal, true);
+    }
+
+    return response;
+  }
 }
 
 // Desktop has no VITE_* (port via setApiPort); default keeps the initial URL valid.

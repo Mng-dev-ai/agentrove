@@ -85,10 +85,15 @@ export function CloudSettingsTab() {
     }
   };
 
-  const handleDisconnect = () => {
-    cloudChatService.disconnect();
-    setEmail('');
-    toast.success('Disconnected from cloud instance');
+  const handleDisconnect = async () => {
+    try {
+      await cloudChatService.disconnect();
+      toast.success('Disconnected from cloud instance');
+    } catch {
+      toast.error('Disconnected locally, but the cloud session could not be revoked');
+    } finally {
+      setEmail('');
+    }
   };
 
   if (isConnected) {

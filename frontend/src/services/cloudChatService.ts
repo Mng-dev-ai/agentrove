@@ -2,6 +2,7 @@ import { CLOUD_CHATS_PER_PAGE } from '@/config/constants';
 import { queryClient } from '@/lib/queryClient';
 import { remoteApiClient, setCloudApiBaseUrl, trimTrailingSlash } from '@/lib/api';
 import { ensureResponse, serviceCall, buildQueryString } from '@/services/base/BaseService';
+import { AuthEventSource } from '@/services/authEventSource';
 import { buildChatFormData } from '@/services/chatService';
 import { cloudAuthStorage } from '@/utils/storage';
 import { markCloudChats, markCloudSandboxes, clearCloudOrigins } from '@/utils/chatOrigin';
@@ -47,10 +48,17 @@ async function connect(url: string, email: string, password: string): Promise<vo
   void queryClient.invalidateQueries({ predicate: (query) => query.state.status === 'error' });
 }
 
-function disconnect(): void {
-  cloudAuthStorage.clear();
-  clearCloudOrigins();
-  useCloudSettingsStore.getState().clearCloud();
+async function disconnect(): Promise<void> {
+  const refreshToken = cloudAuthStorage.getRefreshToken();
+  try {
+    if (refreshToken) {
+      await remoteApiClient.post('/auth/jwt/logout', { refresh_token: refreshToken });
+    }
+  } finally {
+    cloudAuthStorage.clear();
+    clearCloudOrigins();
+    useCloudSettingsStore.getState().clearCloud();
+  }
 }
 
 // List VPS chats and mark chat/sandbox IDs cloud-owned for routing.
@@ -155,14 +163,13 @@ async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
   });
 }
 
-// VPS chat lifecycle SSE. Mint token up front — EventSource skips 401 refresh.
-async function createChatEventsSource(): Promise<EventSource> {
+// VPS chat lifecycle SSE.
+async function createChatEventsSource(): Promise<AuthEventSource> {
   const token = await remoteApiClient.getValidToken();
   if (!token) {
     throw new Error('Not connected to cloud instance');
   }
-  const params = new URLSearchParams({ token });
-  return new EventSource(`${remoteApiClient.getBaseUrl()}/chat/chats/events?${params.toString()}`);
+  return new AuthEventSource(remoteApiClient, '/chat/chats/events');
 }
 
 export const cloudChatService = {

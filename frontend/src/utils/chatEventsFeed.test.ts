@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { AuthEventSource } from '@/services/authEventSource';
 import { subscribeChatEventsFeed } from './chatEventsFeed';
 
 vi.mock('@/utils/logger', () => ({ logger: { error: vi.fn() } }));
@@ -32,7 +33,7 @@ class FakeEventSource {
 const REOPEN_DELAY_MS = 15_000;
 
 let sources: FakeEventSource[];
-let createSource: ReturnType<typeof vi.fn<() => Promise<EventSource>>>;
+let createSource: ReturnType<typeof vi.fn<() => Promise<AuthEventSource>>>;
 const onChatEvent = vi.fn();
 const onResync = vi.fn();
 
@@ -42,14 +43,13 @@ const subscribe = () =>
 beforeEach(() => {
   vi.useFakeTimers();
   vi.stubGlobal('window', globalThis);
-  vi.stubGlobal('EventSource', FakeEventSource);
   onChatEvent.mockReset();
   onResync.mockReset();
   sources = [];
   createSource = vi.fn(async () => {
     const source = new FakeEventSource();
     sources.push(source);
-    return source as unknown as EventSource;
+    return source as unknown as AuthEventSource;
   });
 });
 
@@ -117,13 +117,13 @@ describe('subscribeChatEventsFeed', () => {
   });
 
   it('closes a source that finishes opening after unsubscribe', async () => {
-    let resolveSource!: (source: EventSource) => void;
+    let resolveSource!: (source: AuthEventSource) => void;
     createSource.mockReturnValueOnce(new Promise((resolve) => (resolveSource = resolve)));
     const unsubscribe = subscribe();
 
     unsubscribe();
     const late = new FakeEventSource();
-    resolveSource(late as unknown as EventSource);
+    resolveSource(late as unknown as AuthEventSource);
     await vi.advanceTimersByTimeAsync(0);
 
     expect(late.closed).toBe(true);

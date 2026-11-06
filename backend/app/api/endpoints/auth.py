@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_users import exceptions as fastapi_users_exceptions
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -92,17 +93,20 @@ async def register(
     user_create: UserCreate,
     user_manager: UserManager = Depends(get_user_manager),
 ) -> User:
-    if settings.REGISTRATION_DISABLED:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Registration is disabled",
-        )
-
     if settings.BLOCK_DISPOSABLE_EMAILS:
         if await email_service.is_disposable_email(user_create.email):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Disposable email addresses are not allowed. Please use a permanent email address.",
+            )
+
+    if not settings.REGISTRATION_OPEN:
+        session = user_manager.user_db.session
+        await session.execute(text("BEGIN IMMEDIATE"))
+        if await session.scalar(select(User.id).limit(1)) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Registration is closed",
             )
 
     try:

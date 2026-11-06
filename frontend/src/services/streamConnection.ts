@@ -1,4 +1,5 @@
 import { resolveChatClient } from '@/lib/api';
+import { AuthEventSource } from '@/services/authEventSource';
 import { chatService } from '@/services/chatService';
 import { useElicitationStore } from '@/store/elicitationStore';
 import { useStreamStore } from '@/store/streamStore';
@@ -14,7 +15,7 @@ interface StreamConnectionHandlers {
 }
 
 interface ManagedConnection {
-  source: EventSource | null;
+  source: AuthEventSource | null;
   // Chats replayed at open; missing chat forces reopen with fresh cursors.
   replayedChatIds: Set<string>;
   retryAttempts: number;
@@ -69,7 +70,7 @@ class StreamConnectionManager {
       for (const [client, connection] of this.connections) {
         if (
           connection.source &&
-          connection.source.readyState !== EventSource.CLOSED &&
+          connection.source.readyState !== AuthEventSource.CLOSED &&
           Date.now() - connection.lastActivityAt <= STALL_TIMEOUT_MS
         ) {
           continue;
@@ -207,9 +208,8 @@ class StreamConnectionManager {
     }
 
     const params = new URLSearchParams();
-    params.append('token', token);
     params.append('cursors', JSON.stringify(cursors));
-    const source = new EventSource(`${client.getBaseUrl()}/chat/chats/streams?${params}`);
+    const source = new AuthEventSource(client, `/chat/chats/streams?${params}`);
     connection.source = source;
     connection.lastActivityAt = Date.now();
     this.startStallWatchdog(client, connection);

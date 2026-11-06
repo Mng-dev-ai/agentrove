@@ -5,14 +5,11 @@ from email.mime.multipart import MIMEMultipart
 import aiosmtplib
 import httpx
 import pytest
-from fastapi_users.jwt import generate_jwt
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import get_settings
 from app.core.security import (
     create_mcp_access_token,
-    get_password_hash,
     hash_refresh_token,
 )
 from app.models.db_models.refresh_token import RefreshToken
@@ -112,8 +109,10 @@ async def test_register_creates_user_and_settings(
 async def test_register_rejects_duplicate_email(
     client: AsyncClient,
     create_user: UserFactory,
+    settings_override: SettingsOverride,
     email_capture: EmailCapture,
 ) -> None:
+    settings_override(REGISTRATION_OPEN=True)
     await create_user(email="taken@example.com", username="existing")
 
     response = await client.post(
@@ -132,8 +131,10 @@ async def test_register_rejects_duplicate_email(
 async def test_register_rejects_duplicate_username(
     client: AsyncClient,
     create_user: UserFactory,
+    settings_override: SettingsOverride,
     email_capture: EmailCapture,
 ) -> None:
+    settings_override(REGISTRATION_OPEN=True)
     await create_user(email="first@example.com", username="takenname")
 
     response = await client.post(
@@ -179,24 +180,53 @@ async def test_register_rejects_invalid_username(
     assert any(expected_message in str(err.get("msg", "")) for err in errors)
 
 
-async def test_register_rejects_disabled_registration(
+async def test_register_rejects_once_a_user_exists(
     client: AsyncClient,
-    settings_override: SettingsOverride,
+    db_session: AsyncSession,
     email_capture: EmailCapture,
 ) -> None:
-    settings_override(REGISTRATION_DISABLED=True)
-
-    response = await client.post(
+    first = await client.post(
         "/api/v1/auth/register",
         json={
-            "email": "blocked@example.com",
-            "username": "blocked",
+            "email": "owner@example.com",
+            "username": "owner",
+            "password": "password123",
+        },
+    )
+    second = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "intruder@example.com",
+            "username": "intruder",
             "password": "password123",
         },
     )
 
-    assert response.status_code == 403
-    assert response.json()["detail"] == "Registration is disabled"
+    assert first.status_code == 201
+    assert second.status_code == 403
+    assert second.json()["detail"] == "Registration is closed"
+    assert await get_user_by_email(db_session, "intruder@example.com") is None
+
+
+async def test_register_allows_additional_users_when_open(
+    client: AsyncClient,
+    create_user: UserFactory,
+    settings_override: SettingsOverride,
+    email_capture: EmailCapture,
+) -> None:
+    settings_override(REGISTRATION_OPEN=True)
+    await create_user(email="owner@example.com", username="owner")
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "teammate@example.com",
+            "username": "teammate",
+            "password": "password123",
+        },
+    )
+
+    assert response.status_code == 201
 
 
 async def test_login_returns_access_and_refresh_tokens(
@@ -334,62 +364,17 @@ async def test_mcp_access_token_authenticates_bearer_requests(
     assert response.json()["email"] == "mcp-token@example.com"
 
 
-async def test_query_token_authenticates_header_less_requests(
+async def test_query_token_is_not_accepted(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
 ) -> None:
-    # SSE/EventSource can't set headers, so routes accept ?token= instead.
     await create_user(email="query-token@example.com", username="querytoken")
     tokens = await login(email="query-token@example.com")
-
-    accepted = await client.get(
-        "/api/v1/models/", params={"token": tokens["access_token"]}
-    )
-    rejected = await client.get("/api/v1/models/", params={"token": "not-a-jwt"})
-
-    assert accepted.status_code == 200
-    assert rejected.status_code == 401
-
-
-async def test_query_token_rejects_deactivated_user(
-    client: AsyncClient,
-    create_user: UserFactory,
-    login: LoginClient,
-    db_session: AsyncSession,
-) -> None:
-    user = await create_user(
-        email="deactivated@example.com", username="deactivateduser"
-    )
-    tokens = await login(email="deactivated@example.com")
-    user.is_active = False
-    db_session.add(user)
-    await db_session.commit()
 
     response = await client.get(
         "/api/v1/models/", params={"token": tokens["access_token"]}
     )
-
-    assert response.status_code == 401
-
-
-async def test_query_token_rejects_password_reset_token(
-    client: AsyncClient,
-    create_user: UserFactory,
-) -> None:
-    user = await create_user(email="reset@example.com", username="resetuser")
-    settings = get_settings()
-    token = generate_jwt(
-        {
-            "sub": str(user.id),
-            "password_fgpt": get_password_hash(user.hashed_password),
-            "aud": "fastapi-users:reset",
-        },
-        settings.SECRET_KEY,
-        lifetime_seconds=3600,
-    )
-
-    response = await client.get("/api/v1/models/", params={"token": token})
 
     assert response.status_code == 401
 

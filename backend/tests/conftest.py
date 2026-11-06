@@ -55,7 +55,7 @@ class SettingsOverride:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.original = {
-            "REGISTRATION_DISABLED": self.settings.REGISTRATION_DISABLED,
+            "REGISTRATION_OPEN": self.settings.REGISTRATION_OPEN,
             "REQUIRE_EMAIL_VERIFICATION": self.settings.REQUIRE_EMAIL_VERIFICATION,
             "BLOCK_DISPOSABLE_EMAILS": self.settings.BLOCK_DISPOSABLE_EMAILS,
         }

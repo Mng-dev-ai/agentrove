@@ -61,6 +61,7 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      REGISTRATION_OPEN: ${REGISTRATION_OPEN:-false}
       STORAGE_PATH: /data/agentrove/storage
       DOCKER_IMAGE: ${DOCKER_IMAGE:-ghcr.io/mng-dev-ai/agentrove-sandbox:latest}
       # Empty → entrypoint joins/creates the compose sandbox network for this stack
