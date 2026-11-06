@@ -15,6 +15,10 @@ import {
   useMachineChatsTotalQuery,
 } from '@/hooks/queries/useMachineQueries';
 import { removeMachine } from '@/services/machineActions';
+import {
+  dismissLegacyCloudNotice,
+  unconvertibleLegacyCloudUrl,
+} from '@/services/legacyCloudMigration';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
 import { hostOf } from '@/utils/machineUrl';
 import { LOCAL_MACHINE_ID, type Machine, type MachineConnection } from '@/types/machine.types';
@@ -76,6 +80,7 @@ export function MachinesSettingsTab() {
   const [pairTarget, setPairTarget] = useState<{ machineId: string | null } | null>(null);
   const [renaming, setRenaming] = useState<Machine | null>(null);
   const [removing, setRemoving] = useState<Machine | null>(null);
+  const [legacyCloudUrl, setLegacyCloudUrl] = useState(unconvertibleLegacyCloudUrl);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -128,6 +133,26 @@ export function MachinesSettingsTab() {
           Run chats on several AgentRove instances at once — this computer, a VPS, a cloud VM —
           reached over Tailscale or https.
         </p>
+        {legacyCloudUrl && (
+          <div className={styles['legacy-notice']}>
+            <p>
+              Your earlier cloud server setting couldn&apos;t be converted, because machines must be
+              an https address without a path. Add {legacyCloudUrl} again over https with a pairing
+              link.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                dismissLegacyCloudNotice();
+                setLegacyCloudUrl(null);
+              }}
+            >
+              Dismiss
+            </Button>
+          </div>
+        )}
 
         <div className={styles.list}>
           <div className={clsx(styles.item, styles.row)}>

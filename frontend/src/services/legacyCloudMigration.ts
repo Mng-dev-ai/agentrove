@@ -6,6 +6,7 @@ import {
   readLegacyCloudRefreshToken,
   safeGetItem,
   safeRemoveItem,
+  safeSetItem,
 } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 
@@ -14,6 +15,7 @@ export const LEGACY_CLOUD_MACHINE_ID = 'legacy-cloud';
 const SETTINGS_KEY = 'cloud-settings-storage';
 const CHATS_KEY = 'cloud-chat-ids';
 const SANDBOXES_KEY = 'cloud-sandbox-ids';
+const NOTICE_DISMISSED_KEY = 'legacy-cloud-notice-dismissed';
 const LOGOUT_TIMEOUT_MS = 5_000;
 
 function readJson(key: string): unknown {
@@ -29,6 +31,25 @@ function readLegacyCloudUrl(): string | null {
   const stored = readJson(SETTINGS_KEY) as { state?: { cloudUrl?: unknown } } | null;
   const cloudUrl = stored?.state?.cloudUrl;
   return typeof cloudUrl === 'string' && cloudUrl ? cloudUrl.replace(/\/+$/, '') : null;
+}
+
+function legacyCloudOrigin(cloudUrl: string): string | null {
+  const origin = normalizeHttpsOrigin(cloudUrl);
+  if (!origin) return null;
+  const { pathname, search, hash } = new URL(cloudUrl);
+  return pathname === '/' && !search && !hash ? origin : null;
+}
+
+export function unconvertibleLegacyCloudUrl(): string | null {
+  const cloudUrl = readLegacyCloudUrl();
+  if (!cloudUrl || legacyCloudOrigin(cloudUrl) || safeGetItem(NOTICE_DISMISSED_KEY) !== null) {
+    return null;
+  }
+  return cloudUrl;
+}
+
+export function dismissLegacyCloudNotice(): void {
+  safeSetItem(NOTICE_DISMISSED_KEY, 'true');
 }
 
 function readLegacyIds(key: string): string[] {
@@ -63,7 +84,8 @@ async function runMigration(): Promise<void> {
     (key) => safeGetItem(key) !== null,
   );
   const cloudUrl = readLegacyCloudUrl();
-  const origin = cloudUrl ? normalizeHttpsOrigin(cloudUrl) : null;
+  const origin = cloudUrl ? legacyCloudOrigin(cloudUrl) : null;
+  if (cloudUrl && !origin) return;
 
   if (origin) {
     useMachineStore.getState().addMachine({

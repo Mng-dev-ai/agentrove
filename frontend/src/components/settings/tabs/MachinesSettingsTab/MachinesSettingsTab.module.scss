@@ -34,6 +34,18 @@
   color: var(--theme-text-quaternary);
 }
 
+.legacy-notice {
+  @include type.type-meta;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  color: var(--theme-text-secondary);
+}
+
 .list {
   display: flex;
   flex-direction: column;

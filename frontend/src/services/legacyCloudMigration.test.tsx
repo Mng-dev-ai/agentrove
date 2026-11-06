@@ -209,6 +209,46 @@ describe('legacy cloud migration', () => {
   });
 });
 
+describe('unconvertible legacy cloud URL', () => {
+  it.each(['http://vps.tail1.ts.net', 'https://vps.tail1.ts.net/agentrove'])(
+    'keeps %s and its session in place and shows the notice until dismissed',
+    async (cloudUrl) => {
+      localStorage.setItem('cloud-settings-storage', JSON.stringify({ state: { cloudUrl } }));
+      localStorage.setItem('cloud_refresh_token', 'legacy-refresh');
+      localStorage.setItem('cloud-chat-ids', JSON.stringify(['c1']));
+      const fetchMock = vi.fn<typeof fetch>();
+      vi.stubGlobal('fetch', fetchMock);
+      const { migrateLegacyCloud, chatMachineId, useMachineStore } = await load();
+      const { MachinesSettingsTab } =
+        await import('@/components/settings/tabs/MachinesSettingsTab/MachinesSettingsTab');
+      const { render, screen, fireEvent } = await import('@testing-library/react');
+      const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query');
+      const renderTab = () =>
+        render(
+          <QueryClientProvider client={new QueryClient()}>
+            <MachinesSettingsTab />
+          </QueryClientProvider>,
+        );
+
+      await migrateLegacyCloud();
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(useMachineStore.getState().machines).toEqual([]);
+      expect(chatMachineId('c1')).toBe('local');
+      for (const key of ['cloud-settings-storage', 'cloud_refresh_token', 'cloud-chat-ids']) {
+        expect(localStorage.getItem(key)).not.toBeNull();
+      }
+      const view = renderTab();
+      expect(screen.getByText(new RegExp(`add ${cloudUrl} again over https`, 'i'))).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+      expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+      view.unmount();
+      renderTab();
+      expect(screen.queryByRole('button', { name: 'Dismiss' })).toBeNull();
+    },
+  );
+});
+
 describe('pairing the migrated Cloud machine', () => {
   const failureOf = (promise: Promise<unknown>) =>
     promise.then(
