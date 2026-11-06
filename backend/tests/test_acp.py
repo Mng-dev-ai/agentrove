@@ -14,7 +14,7 @@ import httpx
 import jwt
 import pytest
 import pytest_asyncio
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
@@ -1802,18 +1802,29 @@ async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
     ).status_code == 200
     minted_before_revoke = len(minted_mcp_tokens(fake_agent))
 
+    chats_before_revoke = await db_session.scalar(select(func.count(Chat.id)))
+
     await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
-    second_run = await run_scheduled_automation_turn(
-        client, headers, db_session, automation.json()["id"]
+    await db_session.execute(
+        update(Automation)
+        .where(Automation.id == UUID(automation.json()["id"]))
+        .values(next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1))
+    )
+    await db_session.commit()
+    await AutomationService(
+        ChatService(UserService(), session_factory=SessionLocal),
+        session_factory=SessionLocal,
+    ).run_due_automations()
+    manual_run = await client.post(
+        f"/api/v1/automations/{automation.json()['id']}/run", headers=headers
     )
 
     assert (
         await client.get("/api/v1/auth/me", headers=agent_headers)
     ).status_code == 401
-    assert second_run["stream_status"] == "failed"
-    assert (
-        "paired device behind this run has been revoked" in second_run["content_text"]
-    )
+    assert manual_run.status_code == 403
+    assert "paired device behind this run has been revoked" in manual_run.text
+    assert await db_session.scalar(select(func.count(Chat.id))) == chats_before_revoke
     assert len(minted_mcp_tokens(fake_agent)) == minted_before_revoke
 
 

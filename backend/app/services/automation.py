@@ -16,6 +16,7 @@ from app.models.db_models.workspace import Workspace
 from app.models.schemas.automation import AutomationCreate, AutomationUpdate
 from app.models.schemas.chat import ChatCreate, ChatRequest
 from app.models.types import PermissionMode
+from app.services.agent import AgentService
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import AutomationException, ErrorCode, ServiceException
@@ -310,6 +311,9 @@ class AutomationService(BaseDbService[Automation]):
         # Re-check the saved model before creating the chat — a model retired
         # after creation would otherwise leave an orphan empty chat every slot.
         self._validate_model(automation.model_id)
+        await AgentService(session_factory=self.session_factory).ensure_devices_active(
+            user.id, device_ids
+        )
         # Timestamp in the title keeps recurring runs distinguishable in the
         # sidebar; sliced so a max-length name still fits ChatCreate's 255 cap.
         stamp = datetime.now(ZoneInfo(automation.timezone)).strftime("%b %d, %H:%M")
