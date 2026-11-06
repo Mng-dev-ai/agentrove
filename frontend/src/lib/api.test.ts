@@ -5,9 +5,10 @@ const { onSessionExpired } = vi.hoisted(() => ({ onSessionExpired: vi.fn() }));
 
 vi.mock('@/utils/authSession', () => ({ invalidateSessionAndRedirect: onSessionExpired }));
 
-import { apiClient } from './api';
+import { apiClient, getMachineClient } from './api';
 import { withAuth } from '@/services/base/BaseService';
 import { NetworkError } from '@/types/errors.types';
+import { MachineUnavailableError } from '@/services/machineSession';
 import { authStorage } from '@/utils/storage';
 
 const json = (body: unknown, status = 200) =>
@@ -74,6 +75,13 @@ describe('APIClient success + error shaping', () => {
   it('converts fetch rejections to NetworkError', async () => {
     fetchMock.mockRejectedValueOnce(new TypeError('Load failed'));
     await expect(apiClient.get('/thing')).rejects.toBeInstanceOf(NetworkError);
+  });
+
+  it('surfaces an unavailable machine without fetching', async () => {
+    await expect(getMachineClient('gone').get('/thing')).rejects.toBeInstanceOf(
+      MachineUnavailableError,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('rethrows fetch aborts unchanged', async () => {

@@ -231,9 +231,10 @@ class APIClient {
       config.body = formData;
     }
 
+    const url = `${this.resolveBaseUrl()}${endpoint}`;
     let response: Response;
     try {
-      response = await fetch(`${this.resolveBaseUrl()}${endpoint}`, config);
+      response = await fetch(url, config);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         throw error;
