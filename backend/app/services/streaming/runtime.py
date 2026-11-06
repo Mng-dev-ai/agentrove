@@ -376,7 +376,7 @@ class ChatStreamRuntime:
                 finally:
                     if not injected:
                         await queue.requeue_message(chat_id, queued)
-                        await queue.mark_send_now(chat_id, queued["id"])
+                        await queue.mark_send_now(chat_id, queued["id"], frozenset())
 
     @classmethod
     async def steer_app_notice(

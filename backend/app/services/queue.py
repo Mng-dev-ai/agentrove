@@ -2,7 +2,7 @@ import asyncio
 import json
 from datetime import datetime, timezone
 from typing import Any, ClassVar, Generic, TypeVar, cast
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel
 
@@ -154,13 +154,21 @@ class QueueService(BaseQueueService[QueuedMessage]):
     key_template = REDIS_KEY_CHAT_QUEUE
     item_type = QueuedMessage
 
-    async def mark_send_now(self, chat_id: str, message_id: str) -> bool:
+    async def mark_send_now(
+        self, chat_id: str, message_id: str, device_ids: frozenset[UUID]
+    ) -> bool:
         # Runtime checks this key to skip normal queue order.
         async with self._lock(chat_id):
             key = self._queue_key(chat_id)
             queue = await self._read_queue(key)
-            if not any(item["id"] == message_id for item in queue):
+            item = next((item for item in queue if item["id"] == message_id), None)
+            if item is None:
                 return False
+            if device_ids:
+                item["device_ids"] = sorted(
+                    {*item["device_ids"], *map(str, device_ids)}
+                )
+                await self._write_queue(key, queue)
 
             send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)
             await self.cache.set(send_now_key, message_id, ex=QUEUE_MESSAGE_TTL_SECONDS)

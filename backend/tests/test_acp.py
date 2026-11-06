@@ -2286,6 +2286,107 @@ async def test_edited_channel_queue_item_keeps_acting_for_the_device_that_queued
     assert me.status_code == 401
 
 
+async def test_chat_send_now_acts_for_the_clicking_device(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    base = f"/api/v1/chat/chats/{chat['id']}/queue"
+    queued = await client.post(
+        base,
+        data={"content": f"{MARKER_CANCEL} run long task", "model_id": "sonnet"},
+        headers=headers,
+    )
+    assert queued.status_code == 201, queued.text
+
+    sent = await client.post(
+        f"{base}/{queued.json()['id']}/send-now",
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert sent.status_code == 204, sent.text
+    messages = await client.get(
+        f"/api/v1/chat/chats/{chat['id']}/messages", headers=headers
+    )
+    [assistant] = [m for m in messages.json()["items"] if m["role"] == "assistant"]
+    await wait_for_message_event(
+        client, headers, message_id=assistant["id"], event_type="tool_started"
+    )
+
+    [token] = minted_mcp_tokens(fake_agent)
+    assert did_of(token) == [paired["device_id"]]
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    assert not ChatStreamRuntime.has_active_chat(chat["id"])
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=assistant["id"]
+    )
+    assert message["stream_status"] == "interrupted"
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 401
+
+
+async def test_channel_send_now_acts_for_the_clicking_device(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.1)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [
+                {
+                    "model_id": "sonnet",
+                    "permission_mode": "bypassPermissions",
+                    "display_name": "alice",
+                }
+            ],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+    channel_module.channel_service.states[UUID(channel_id)].paused = True
+    base = f"/api/v1/channels/{channel_id}/queue"
+    queued = await client.post(base, data={"content": "from password"}, headers=headers)
+    assert queued.status_code == 201, queued.text
+
+    sent = await client.post(
+        f"{base}/{queued.json()['id']}/send-now",
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert sent.status_code == 204, sent.text
+    deadline = time.monotonic() + 10
+    while not minted_mcp_tokens(fake_agent):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+    await client.post(f"/api/v1/channels/{channel_id}/stop", headers=headers)
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+
+    [token] = minted_mcp_tokens(fake_agent)
+    assert did_of(token) == [paired["device_id"]]
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 401
+
+
 async def test_manual_automation_run_is_bound_to_the_clicking_device(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],

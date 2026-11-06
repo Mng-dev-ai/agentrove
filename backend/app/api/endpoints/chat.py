@@ -769,7 +769,11 @@ async def queue_message(
     if send_now:
         try:
             await _send_now_queued_message(
-                chat_id, response.id, chat_service, queue_service
+                chat_id,
+                response.id,
+                current_user.device_ids,
+                chat_service,
+                queue_service,
             )
         except Exception:
             response.send_now_failed = True
@@ -844,19 +848,23 @@ async def send_now_queued_message(
     chat_id: UUID,
     message_id: UUID,
     _chat: Chat = Depends(ensure_chat_access),
+    current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
     queue_service: QueueService = Depends(get_queue_service),
 ) -> None:
-    await _send_now_queued_message(chat_id, message_id, chat_service, queue_service)
+    await _send_now_queued_message(
+        chat_id, message_id, current_user.device_ids, chat_service, queue_service
+    )
 
 
 async def _send_now_queued_message(
     chat_id: UUID,
     message_id: UUID,
+    device_ids: frozenset[UUID],
     chat_service: ChatService,
     queue_service: QueueService,
 ) -> None:
-    found = await queue_service.mark_send_now(str(chat_id), str(message_id))
+    found = await queue_service.mark_send_now(str(chat_id), str(message_id), device_ids)
     if not found:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

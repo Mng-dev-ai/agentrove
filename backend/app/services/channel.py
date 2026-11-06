@@ -778,7 +778,11 @@ class ChannelService(BaseDbService[Channel]):
             await self.send_next_queued(state)
 
     async def send_queued_now(
-        self, channel: Channel, queue: ChannelQueueService, message_id: UUID
+        self,
+        channel: Channel,
+        queue: ChannelQueueService,
+        message_id: UUID,
+        device_ids: frozenset[UUID],
     ) -> ChannelMessage:
         channel_id = str(channel.id)
         item = await queue.delete_message(channel_id, str(message_id))
@@ -789,7 +793,7 @@ class ChannelService(BaseDbService[Channel]):
                 channel,
                 item["content"],
                 item["attachments"] or [],
-                QueuedChannelMessage.model_validate(item).device_ids,
+                QueuedChannelMessage.model_validate(item).device_ids | device_ids,
             )
         except Exception:
             await queue.requeue_message(channel_id, item)

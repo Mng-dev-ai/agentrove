@@ -129,7 +129,9 @@ async def queue_message(
     )
     if send_now:
         try:
-            await channel_service.send_queued_now(channel, queue_service, response.id)
+            await channel_service.send_queued_now(
+                channel, queue_service, response.id, user.device_ids
+            )
         except Exception:
             response.send_now_failed = True
             logger.exception(
@@ -193,7 +195,9 @@ async def send_queued_message_now(
     queue_service: ChannelQueueService = Depends(get_channel_queue_service),
 ) -> Response:
     channel = await channel_service.get(channel_id, user)
-    await channel_service.send_queued_now(channel, queue_service, message_id)
+    await channel_service.send_queued_now(
+        channel, queue_service, message_id, user.device_ids
+    )
     return Response(status_code=204)
 
 
