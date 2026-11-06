@@ -106,7 +106,12 @@ def run_migrations_online() -> None:
     engine = create_engine(sync_url, poolclass=pool.NullPool)
     configure_sqlite(engine)
     with engine.connect() as connection:
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        connection.commit()
         do_run_migrations(connection)
+        violations = connection.exec_driver_sql("PRAGMA foreign_key_check").all()
+        if violations:
+            raise RuntimeError(f"Foreign key violations after migrating: {violations}")
     engine.dispose()
 
 
