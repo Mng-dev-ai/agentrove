@@ -2,10 +2,10 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterator
-from typing import TypeVar, cast
+from typing import Any, TypeVar, cast
 
 import jwt
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request, status
 from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
 from fastapi_users.authentication import (
     AuthenticationBackend,
@@ -188,11 +188,14 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
         )
         self.db = db
 
-    def read_device_id(self, token: str) -> uuid.UUID | None:
-        data = decode_jwt(
+    def read_claims(self, token: str) -> dict[str, Any]:
+        claims: dict[str, Any] = decode_jwt(
             token, self.decode_key, self.token_audience, algorithms=[self.algorithm]
         )
-        device_id = data.get("did")
+        return claims
+
+    def read_device_id(self, token: str) -> uuid.UUID | None:
+        device_id = self.read_claims(token).get("did")
         return None if device_id is None else uuid.UUID(device_id)
 
     async def read_token(
@@ -250,3 +253,15 @@ async def get_current_device_id(
         return strategy.read_device_id(token)
     except jwt.PyJWTError:
         return None
+
+
+async def reject_agent_token(
+    _: User = Depends(current_active_user),
+    token: str | None = Depends(bearer_transport.scheme),
+    strategy: AccessTokenStrategy = Depends(get_jwt_strategy),
+) -> None:
+    if token is not None and strategy.read_claims(token).get("mcp") is True:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Agent tokens cannot manage pairing or devices",
+        )

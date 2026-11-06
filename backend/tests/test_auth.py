@@ -1184,3 +1184,30 @@ async def test_mcp_token_bound_to_device_dies_with_device(
     )
 
     assert (await client.get("/api/v1/auth/me", headers=mcp_headers)).status_code == 401
+
+
+async def test_agent_token_cannot_create_pairing_links_or_manage_devices(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    user = await create_user(email="mcp-pair@example.com", username="mcppair")
+    tokens = await login(email="mcp-pair@example.com")
+    paired = (await pair_device(client, tokens["access_token"])).json()
+    mcp_headers = {
+        "Authorization": f"Bearer {create_mcp_access_token(str(user.id), None)}"
+    }
+
+    responses = [
+        await client.post("/api/v1/auth/pairing", headers=mcp_headers),
+        await client.get("/api/v1/auth/devices", headers=mcp_headers),
+        await client.delete(
+            f"/api/v1/auth/devices/{paired['device_id']}", headers=mcp_headers
+        ),
+    ]
+
+    for response in responses:
+        assert response.status_code == 403
+        assert (
+            response.json()["detail"] == "Agent tokens cannot manage pairing or devices"
+        )

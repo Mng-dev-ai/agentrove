@@ -87,7 +87,7 @@ async def get_current_user(
 def create_mcp_access_token(user_id: str, device_id: UUID | None) -> str:
     # Minted for the MCP server spawned into a chat session — audience must match
     # the JWTStrategy in user_manager.py (fastapi-users default) so the normal
-    # bearer path accepts it. `mcp` marks its origin in logs.
+    # bearer path accepts it. `mcp` bars it from pairing and device management.
     data: dict[str, object] = {
         "sub": str(user_id),
         "aud": ["fastapi-users:auth"],
