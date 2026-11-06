@@ -131,14 +131,14 @@ class AutomationService(BaseDbService[Automation]):
             return list(result.scalars().all())
 
     async def create_automation(
-        self, user: User, device_id: UUID | None, data: AutomationCreate
+        self, user: User, device_ids: frozenset[UUID], data: AutomationCreate
     ) -> Automation:
         self._validate_model(data.model_id)
         async with self.session_factory() as db:
             await self._validate_workspace(db, data.workspace_id, user.id)
             automation = Automation(
                 user_id=user.id,
-                device_id=device_id,
+                device_ids=device_ids,
                 **data.model_dump(),
                 next_run_at=self._compute_next_run_validated(
                     data.cron_expression, data.timezone
@@ -153,7 +153,7 @@ class AutomationService(BaseDbService[Automation]):
         self,
         automation_id: UUID,
         user: User,
-        device_id: UUID | None,
+        device_ids: frozenset[UUID],
         data: AutomationUpdate,
     ) -> Automation:
         changes = data.model_dump(exclude_unset=True)
@@ -165,7 +165,7 @@ class AutomationService(BaseDbService[Automation]):
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
             for field, value in changes.items():
                 setattr(automation, field, value)
-            automation.device_id = device_id
+            automation.device_ids = device_ids
             if SCHEDULE_FIELDS & changes.keys():
                 automation.next_run_at = self._compute_next_run_validated(
                     automation.cron_expression, automation.timezone
@@ -181,7 +181,7 @@ class AutomationService(BaseDbService[Automation]):
             await db.commit()
 
     async def run_automation(
-        self, automation_id: UUID, user: User, device_id: UUID | None
+        self, automation_id: UUID, user: User, device_ids: frozenset[UUID]
     ) -> Chat:
         # Manual "run now" — records last_run_at but leaves next_run_at alone so
         # the scheduled slot still fires.
@@ -189,7 +189,7 @@ class AutomationService(BaseDbService[Automation]):
             automation = await self._get_owned(db, automation_id, user.id)
             automation.last_run_at = datetime.now(timezone.utc)
             await db.commit()
-        return await self._fire(automation, user, device_id)
+        return await self._fire(automation, user, device_ids)
 
     async def run_due_automations(self) -> dict[str, Any]:
         # Dispatch job entry point. Advances schedules before firing so a crash
@@ -263,7 +263,7 @@ class AutomationService(BaseDbService[Automation]):
         for automation in to_fire:
             try:
                 await self._fire(
-                    automation, users[automation.user_id], automation.device_id
+                    automation, users[automation.user_id], automation.device_ids
                 )
             except ServiceException as exc:
                 if exc.error_code == ErrorCode.WORKSPACE_NOT_FOUND:
@@ -300,7 +300,7 @@ class AutomationService(BaseDbService[Automation]):
         )
 
     async def _fire(
-        self, automation: Automation, user: User, device_id: UUID | None
+        self, automation: Automation, user: User, device_ids: frozenset[UUID]
     ) -> Chat:
         # Re-check the saved model before creating the chat — a model retired
         # after creation would otherwise leave an orphan empty chat every slot.
@@ -328,7 +328,7 @@ class AutomationService(BaseDbService[Automation]):
                     selected_persona_name=automation.selected_persona_name,
                 ),
                 user,
-                device_id=device_id,
+                device_ids=device_ids,
             )
         except Exception:
             # Don't leave an empty orphan chat for a run that never started.

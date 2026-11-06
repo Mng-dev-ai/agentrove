@@ -341,7 +341,7 @@ class ChatStreamRuntime:
                         "base_branch": request.base_branch,
                         "selected_persona_name": request.selected_persona_name,
                         "fast_mode": request.fast_mode,
-                        "device_id": request.device_id,
+                        "device_ids": request.device_ids,
                     }
                     queued_message = QueuedMessage.model_validate(queued)
                     if any(
@@ -829,7 +829,7 @@ class ChatStreamRuntime:
         permission_mode: PermissionMode,
         thinking_mode: str | None,
         persona_name: str,
-        device_id: UUID | None,
+        device_ids: frozenset[UUID],
     ) -> Update:
         return (
             update(Chat)
@@ -839,7 +839,7 @@ class ChatStreamRuntime:
                 last_permission_mode=permission_mode,
                 last_thinking_mode=thinking_mode,
                 last_persona_name=persona_name,
-                last_device_id=device_id,
+                last_device_ids=device_ids,
             )
         )
 
@@ -943,7 +943,7 @@ class ChatStreamRuntime:
                         permission_mode=request.permission_mode,
                         thinking_mode=request.thinking_mode,
                         persona_name=request.selected_persona_name,
-                        device_id=request.device_id,
+                        device_ids=request.device_ids,
                     ).values(updated_at=Chat.updated_at)
                 )
                 await db.commit()
@@ -1256,7 +1256,7 @@ class ChatStreamRuntime:
         context_window = model.context_window
         resolved_session_id = session_id_override or chat.session_id
         return ChatStreamRequest(
-            device_id=QueuedMessage.model_validate(queued_msg).device_id,
+            device_ids=QueuedMessage.model_validate(queued_msg).device_ids,
             prompt=queued_msg["content"],
             system_prompt=system_prompt,
             custom_instructions=user_settings.custom_instructions,
@@ -1494,7 +1494,7 @@ class ChatStreamRuntime:
             )
             config: AcpSessionConfig = await ai_service.build_session_config(
                 user=user,
-                device_id=request.device_id,
+                device_ids=request.device_ids,
                 chat=runtime.chat,
                 model_id=request.model_id,
                 permission_mode=request.permission_mode,

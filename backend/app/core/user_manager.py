@@ -1,11 +1,11 @@
 import logging
 import uuid
 from collections.abc import AsyncIterator
-from typing import Any, cast
+from typing import cast
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
-from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
+from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, exceptions
 from fastapi_users.authentication import (
     AuthenticationBackend,
     BearerTransport,
@@ -13,6 +13,7 @@ from fastapi_users.authentication import (
 )
 from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +22,7 @@ from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.auth import UserCreate
-from app.services.device_session import is_device_active
+from app.services.device_session import active_device_ids
 from app.services.email import email_service
 
 settings = get_settings()
@@ -136,6 +137,9 @@ async def get_user_manager(
 bearer_transport = BearerTransport(tokenUrl="api/v1/auth/login")
 
 
+DEVICE_IDS = TypeAdapter(frozenset[uuid.UUID])
+
+
 class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
     def __init__(self, db: AsyncSession) -> None:
         super().__init__(
@@ -145,37 +149,43 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
         )
         self.db = db
 
-    def read_claims(self, token: str) -> dict[str, Any]:
-        claims: dict[str, Any] = decode_jwt(
-            token, self.decode_key, self.token_audience, algorithms=[self.algorithm]
-        )
-        return claims
-
-    def read_device_id(self, token: str) -> uuid.UUID | None:
-        device_id = self.read_claims(token).get("did")
-        return None if device_id is None else uuid.UUID(device_id)
-
     async def read_token(
         self, token: str | None, user_manager: BaseUserManager[User, uuid.UUID]
     ) -> User | None:
-        user: User | None = await super().read_token(token, user_manager)
-        if user is None or token is None:
+        if token is None:
             return None
         try:
-            device_id = self.read_device_id(token)
-        except jwt.PyJWTError:
+            claims = decode_jwt(
+                token, self.decode_key, self.token_audience, algorithms=[self.algorithm]
+            )
+            device_ids = DEVICE_IDS.validate_python(claims.get("did", []))
+            user: User = await user_manager.get(user_manager.parse_id(claims["sub"]))
+        except (
+            jwt.PyJWTError,
+            ValidationError,
+            exceptions.InvalidID,
+            exceptions.UserNotExists,
+        ):
             return None
-        if device_id is None:
-            return user
-        return user if await is_device_active(self.db, device_id, user.id) else None
+        if await active_device_ids(self.db, user.id, device_ids) != device_ids:
+            return None
+        user.device_ids = device_ids
+        user.agent_token = claims.get("mcp") is True
+        return user
 
-    async def write_token(self, user: User, device_id: uuid.UUID | None = None) -> str:
-        data = {"sub": str(user.id), "aud": self.token_audience}
-        if device_id is not None:
-            data["did"] = str(device_id)
+    async def write_session_token(
+        self, user: User, device_ids: frozenset[uuid.UUID]
+    ) -> str:
         return str(
             generate_jwt(
-                data, self.encode_key, self.lifetime_seconds, algorithm=self.algorithm
+                {
+                    "sub": str(user.id),
+                    "aud": self.token_audience,
+                    "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
+                },
+                self.encode_key,
+                self.lifetime_seconds,
+                algorithm=self.algorithm,
             )
         )
 
@@ -199,25 +209,8 @@ current_active_user = fastapi_users.current_user(active=True)
 optional_current_active_user = fastapi_users.current_user(active=True, optional=True)
 
 
-async def get_current_device_id(
-    _: User = Depends(current_active_user),
-    token: str | None = Depends(bearer_transport.scheme),
-    strategy: AccessTokenStrategy = Depends(get_jwt_strategy),
-) -> uuid.UUID | None:
-    if token is None:
-        return None
-    try:
-        return strategy.read_device_id(token)
-    except jwt.PyJWTError:
-        return None
-
-
-async def reject_agent_token(
-    _: User = Depends(current_active_user),
-    token: str | None = Depends(bearer_transport.scheme),
-    strategy: AccessTokenStrategy = Depends(get_jwt_strategy),
-) -> None:
-    if token is not None and strategy.read_claims(token).get("mcp") is True:
+async def reject_agent_token(user: User = Depends(current_active_user)) -> None:
+    if user.agent_token:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Agent tokens cannot manage pairing or devices",

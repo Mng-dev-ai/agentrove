@@ -92,7 +92,7 @@ class AcpSessionConfig:
     # Owner of the chat's workspace — keys the per-user agent home that
     # host-mode processes get as HOME in web mode.
     user_id: str
-    device_id: UUID | None
+    device_ids: frozenset[UUID]
     agent_kind: AgentKind = AgentKind.CLAUDE
     env: dict[str, str] = field(default_factory=dict)
     mcp_servers: list[dict[str, Any]] = field(default_factory=list)

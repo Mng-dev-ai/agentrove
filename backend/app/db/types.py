@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Any
 
 from cryptography.fernet import InvalidToken
-from sqlalchemy import CHAR, DateTime, String
+from sqlalchemy import CHAR, JSON, DateTime, String
 from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.types import TypeDecorator
 
@@ -56,6 +56,25 @@ class GUID(TypeDecorator[uuid_module.UUID]):
         if not isinstance(value, uuid_module.UUID):
             return uuid_module.UUID(str(value))
         return value
+
+
+class UUIDSet(TypeDecorator[frozenset[uuid_module.UUID]]):
+    impl = JSON
+    cache_ok = True
+
+    def process_bind_param(
+        self, value: frozenset[uuid_module.UUID] | None, _dialect: Dialect
+    ) -> list[str] | None:
+        if value is None:
+            return None
+        return sorted(str(item) for item in value)
+
+    def process_result_value(
+        self, value: list[str] | None, _dialect: Dialect
+    ) -> frozenset[uuid_module.UUID] | None:
+        if value is None:
+            return None
+        return frozenset(uuid_module.UUID(item) for item in value)
 
 
 class EncryptedString(TypeDecorator[str]):

@@ -14,11 +14,14 @@ from app.core.config import get_settings
 BASE_REVISION = "e3bdc269cf4a"
 COLUMN_VALUES = {("channel_messages", "status"): "completed"}
 NEW_TABLES = {"instance", "paired_devices", "pairing_secrets"}
-DEVICE_COLUMNS = {
-    "refresh_tokens": ("device_id", "CASCADE"),
-    "automations": ("device_id", "CASCADE"),
-    "chats": ("last_device_id", "NO ACTION"),
-    "channel_messages": ("device_id", "NO ACTION"),
+ADDED_TO_BASE_TABLES = {
+    "refresh_tokens": {
+        ("column", "device_id", "CHAR(32)", 0, None, 0),
+        ("index", "ix_refresh_tokens_device_id", 0, "c", 0, ("device_id",)),
+    },
+    "chats": {("column", "last_device_ids", "JSON", 1, "'[]'", 0)},
+    "channel_messages": {("column", "device_ids", "JSON", 1, "'[]'", 0)},
+    "automations": {("column", "device_ids", "JSON", 1, "'[]'", 0)},
 }
 
 
@@ -111,21 +114,6 @@ def _schema(engine: sa.Engine) -> dict[str, set[tuple[Any, ...]]]:
         }
 
 
-def _with_device_columns(
-    schema: dict[str, set[tuple[Any, ...]]],
-) -> dict[str, set[tuple[Any, ...]]]:
-    expected = {table: set(rows) for table, rows in schema.items()}
-    for table, (column, on_delete) in DEVICE_COLUMNS.items():
-        expected[table] |= {
-            ("column", column, "CHAR(32)", 0, None, 0),
-            ("foreign_key", "paired_devices", column, "id", "NO ACTION", on_delete),
-        }
-    expected["refresh_tokens"].add(
-        ("index", "ix_refresh_tokens_device_id", 0, "c", 0, ("device_id",))
-    )
-    return expected
-
-
 @pytest.fixture
 def migration_engine(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -153,9 +141,10 @@ def test_upgrade_and_downgrade_keep_every_row(migration_engine: sa.Engine) -> No
     } == base_counts
     head_schema = _schema(migration_engine)
     assert set(head_schema) - set(base_schema) == NEW_TABLES
-    assert {table: head_schema[table] for table in base_schema} == _with_device_columns(
-        base_schema
-    )
+    assert {table: head_schema[table] for table in base_schema} == {
+        table: rows | ADDED_TO_BASE_TABLES.get(table, set())
+        for table, rows in base_schema.items()
+    }
     _seed_empty_tables(migration_engine)
 
     command.downgrade(config, BASE_REVISION)

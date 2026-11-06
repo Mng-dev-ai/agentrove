@@ -22,6 +22,7 @@ from ..models.db_models.workspace import Workspace
 from ..services.sandbox_providers import SandboxProviderType
 from .config import get_settings
 from .user_manager import (
+    DEVICE_IDS,
     UserDatabase,
     UserManager,
     get_jwt_strategy,
@@ -84,20 +85,18 @@ async def get_current_user(
     return user
 
 
-def create_mcp_access_token(user_id: str, device_id: UUID | None) -> str:
+def create_mcp_access_token(user_id: str, device_ids: frozenset[UUID]) -> str:
     # Minted for the MCP server spawned into a chat session — audience must match
     # the JWTStrategy in user_manager.py (fastapi-users default) so the normal
     # bearer path accepts it. `mcp` bars it from pairing and device management.
-    data: dict[str, object] = {
-        "sub": str(user_id),
-        "aud": ["fastapi-users:auth"],
-        "mcp": True,
-    }
-    if device_id is not None:
-        data["did"] = str(device_id)
     return str(
         generate_jwt(
-            data,
+            {
+                "sub": str(user_id),
+                "aud": ["fastapi-users:auth"],
+                "mcp": True,
+                "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
+            },
             settings.SECRET_KEY,
             lifetime_seconds=settings.AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS,
             algorithm=settings.ALGORITHM,
@@ -119,13 +118,10 @@ def get_refresh_token_expiry() -> datetime:
     )
 
 
-async def authenticate_websocket_user(token: str) -> tuple[User, UUID | None] | None:
+async def authenticate_websocket_user(token: str) -> User | None:
     try:
         async with SessionLocal() as db:
-            user = await get_user_from_token(token, db)
-            if user is None:
-                return None
-            return user, get_jwt_strategy(db).read_device_id(token)
+            return await get_user_from_token(token, db)
     except (ValueError, OSError, SQLAlchemyError) as e:
         logger.warning("WebSocket authentication failed: %s", e)
         return None
@@ -133,7 +129,7 @@ async def authenticate_websocket_user(token: str) -> tuple[User, UUID | None] | 
 
 async def wait_for_websocket_auth(
     websocket: WebSocket, timeout: float = 10.0
-) -> tuple[User, UUID | None] | None:
+) -> User | None:
     # First frame must be JSON auth — WS can't send headers after the handshake.
     try:
         message = await asyncio.wait_for(websocket.receive(), timeout=timeout)

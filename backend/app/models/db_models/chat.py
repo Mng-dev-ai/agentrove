@@ -18,7 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 from app.db.migration_helpers import uuid_server_default
-from app.db.types import GUID, UTCDateTime, enum_values
+from app.db.types import GUID, UTCDateTime, UUIDSet, enum_values
 
 from .enums import AttachmentType, MessageRole, MessageStreamStatus
 
@@ -63,8 +63,8 @@ class Chat(Base):
     last_permission_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
     last_thinking_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     last_persona_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    last_device_id: Mapped[UUID | None] = mapped_column(
-        GUID(), ForeignKey("paired_devices.id"), nullable=True
+    last_device_ids: Mapped[frozenset[UUID]] = mapped_column(
+        UUIDSet(), nullable=False, server_default="[]"
     )
 
     user = relationship("User", back_populates="chats")

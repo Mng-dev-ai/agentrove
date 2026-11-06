@@ -14,7 +14,7 @@ class QueueMessageContent(BaseModel):
 
 
 class QueuedMessageEdit(QueueMessageContent):
-    device_id: UUID | None = None
+    device_ids: frozenset[UUID]
 
 
 class QueuedMessageBase(QueuedMessageEdit):

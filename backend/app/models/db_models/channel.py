@@ -14,7 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
-from app.db.types import GUID
+from app.db.types import GUID, UUIDSet
 from app.models.types import PermissionMode
 
 
@@ -69,8 +69,8 @@ class ChannelMessage(Base):
     source_message_id: Mapped[UUID | None] = mapped_column(
         GUID(), ForeignKey("messages.id", ondelete="SET NULL")
     )
-    device_id: Mapped[UUID | None] = mapped_column(
-        GUID(), ForeignKey("paired_devices.id")
+    device_ids: Mapped[frozenset[UUID]] = mapped_column(
+        UUIDSet(), nullable=False, server_default="[]"
     )
     tool_call_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     duration_ms: Mapped[int | None] = mapped_column(Integer)

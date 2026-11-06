@@ -1672,7 +1672,7 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     mints = iter(("token-one", "token-two", "token-three", "token-four"))
     monkeypatch.setattr(
         "app.services.agent.create_mcp_access_token",
-        lambda user_id, device_id: next(mints),
+        lambda user_id, device_ids: next(mints),
     )
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -1853,7 +1853,7 @@ async def test_channel_turn_token_is_bound_to_the_posting_device(
 
     [token] = minted_mcp_tokens(fake_agent)
     claims = jwt.decode(token, options={"verify_signature": False})
-    assert claims["did"] == paired["device_id"]
+    assert claims["did"] == [paired["device_id"]]
 
 
 async def wait_for_latest_assistant(
@@ -1935,7 +1935,7 @@ async def test_wake_after_device_queued_turn_is_bound_to_that_device(
         if v["name"] == "AGENTROVE_ACCESS_TOKEN"
     ]
     claims = jwt.decode(token, options={"verify_signature": False})
-    assert claims["did"] == paired["device_id"]
+    assert claims["did"] == [paired["device_id"]]
 
 
 async def test_manual_automation_run_is_bound_to_the_clicking_device(
@@ -1974,4 +1974,4 @@ async def test_manual_automation_run_is_bound_to_the_clicking_device(
     assert run["stream_status"] == "completed"
     [token] = minted_mcp_tokens(fake_agent)
     claims = jwt.decode(token, options={"verify_signature": False})
-    assert claims["did"] == paired["device_id"]
+    assert claims["did"] == [paired["device_id"]]

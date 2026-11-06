@@ -12,17 +12,19 @@ from app.db.session import SessionLocal
 from app.models.db_models.paired_device import PairedDevice
 
 
-async def is_device_active(
-    db: AsyncSession, device_id: uuid.UUID, user_id: uuid.UUID
-) -> bool:
-    device = await db.scalar(
+async def active_device_ids(
+    db: AsyncSession, user_id: uuid.UUID, device_ids: frozenset[uuid.UUID]
+) -> frozenset[uuid.UUID]:
+    if not device_ids:
+        return frozenset()
+    result = await db.scalars(
         select(PairedDevice.id).where(
-            PairedDevice.id == device_id,
+            PairedDevice.id.in_(device_ids),
             PairedDevice.user_id == user_id,
             PairedDevice.revoked_at.is_(None),
         )
     )
-    return device is not None
+    return frozenset(result.all())
 
 
 DEVICE_RECHECK_SECONDS = 5.0
@@ -32,24 +34,24 @@ StreamItem = TypeVar("StreamItem")
 class DeviceSession:
     live: ClassVar[set["DeviceSession"]] = set()
 
-    def __init__(self, user_id: uuid.UUID, device_id: uuid.UUID | None) -> None:
+    def __init__(self, user_id: uuid.UUID, device_ids: frozenset[uuid.UUID]) -> None:
         self.user_id = user_id
-        self.device_id = device_id
+        self.device_ids = device_ids
         self.checked_at = time.monotonic()
         self.revoked = False
         self.interrupt: asyncio.Timeout | None = None
 
     @classmethod
-    def revoke(cls, user_id: uuid.UUID, device_id: uuid.UUID | None = None) -> None:
+    def revoke(cls, device_ids: frozenset[uuid.UUID]) -> None:
         for session in cls.live:
-            if session.user_id == user_id and device_id in (None, session.device_id):
+            if session.device_ids & device_ids:
                 session.revoked = True
                 if session.interrupt is not None:
                     session.interrupt.reschedule(0)
 
     @contextmanager
     def _registered(self) -> Iterator[None]:
-        if self.device_id is not None:
+        if self.device_ids:
             DeviceSession.live.add(self)
         try:
             yield
@@ -68,12 +70,12 @@ class DeviceSession:
             self.interrupt = None
 
     async def check(self) -> bool:
-        if self.device_id is None:
+        if not self.device_ids:
             return True
         async with SessionLocal() as db:
-            active = await is_device_active(db, self.device_id, self.user_id)
+            active = await active_device_ids(db, self.user_id, self.device_ids)
         self.checked_at = time.monotonic()
-        return active and not self.revoked
+        return active == self.device_ids and not self.revoked
 
     async def is_active(self) -> bool:
         if time.monotonic() - self.checked_at < DEVICE_RECHECK_SECONDS:

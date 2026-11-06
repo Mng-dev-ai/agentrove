@@ -7,7 +7,7 @@ import aiosmtplib
 import httpx
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import update
+from sqlalchemy import delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
@@ -381,7 +381,7 @@ async def test_mcp_access_token_authenticates_bearer_requests(
     create_user: UserFactory,
 ) -> None:
     user = await create_user(email="mcp-token@example.com", username="mcptoken")
-    token = create_mcp_access_token(str(user.id), None)
+    token = create_mcp_access_token(str(user.id), frozenset())
 
     response = await client.get(
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
@@ -1099,13 +1099,41 @@ async def test_device_token_bound_to_another_users_device_is_rejected(
     paired = (await pair_device(client, owner["access_token"])).json()
     device = await db_session.get(PairedDevice, UUID(paired["device_id"]))
     assert device is not None
-    token = await AccessTokenStrategy(db_session).write_token(intruder, device.id)
+    token = await AccessTokenStrategy(db_session).write_session_token(
+        intruder, frozenset({device.id})
+    )
 
     response = await client.get(
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
     )
 
     assert response.status_code == 401
+
+
+async def test_dangling_device_id_fails_closed(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    db_session: AsyncSession,
+) -> None:
+    await create_user(email="dangling@example.com", username="dangling")
+    tokens = await login(email="dangling@example.com")
+    paired = (await pair_device(client, tokens["access_token"])).json()
+    await db_session.execute(
+        delete(PairedDevice).where(PairedDevice.id == UUID(paired["device_id"]))
+    )
+    await db_session.commit()
+
+    me = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    refreshed = await client.post(
+        "/api/v1/auth/jwt/refresh", json={"refresh_token": paired["refresh_token"]}
+    )
+
+    assert me.status_code == 401
+    assert refreshed.status_code == 401
 
 
 async def test_device_session_cannot_create_pairing_links(
@@ -1183,7 +1211,7 @@ async def test_mcp_token_bound_to_device_dies_with_device(
     paired = (await pair_device(client, tokens["access_token"])).json()
     mcp_headers = {
         "Authorization": "Bearer "
-        + create_mcp_access_token(str(user.id), UUID(paired["device_id"]))
+        + create_mcp_access_token(str(user.id), frozenset({UUID(paired["device_id"])}))
     }
     assert (await client.get("/api/v1/auth/me", headers=mcp_headers)).status_code == 200
 
@@ -1204,7 +1232,7 @@ async def test_agent_token_cannot_create_pairing_links_or_manage_devices(
     tokens = await login(email="mcp-pair@example.com")
     paired = (await pair_device(client, tokens["access_token"])).json()
     mcp_headers = {
-        "Authorization": f"Bearer {create_mcp_access_token(str(user.id), None)}"
+        "Authorization": f"Bearer {create_mcp_access_token(str(user.id), frozenset())}"
     }
 
     responses = [

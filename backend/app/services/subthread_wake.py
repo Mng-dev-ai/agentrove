@@ -156,7 +156,7 @@ class SubThreadWake:
                 request,
                 parent.user,
                 user_app_notice=self._build_notice(children),
-                device_id=parent.last_device_id,
+                device_ids=parent.last_device_ids,
             )
         except ChatException as exc:
             if exc.status_code != 409:

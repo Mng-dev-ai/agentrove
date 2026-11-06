@@ -59,7 +59,7 @@ class ChannelMemberTurn:
 @dataclass(kw_only=True)
 class ChatStreamRequest:
     member_turn: ChannelMemberTurn | None = None
-    device_id: UUID | None
+    device_ids: frozenset[UUID]
     prompt: str
     system_prompt: str
     custom_instructions: str | None

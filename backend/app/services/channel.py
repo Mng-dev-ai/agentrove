@@ -117,15 +117,8 @@ class MemberTurn:
         self.provider_task = task
 
     @property
-    def device_id(self) -> UUID | None:
-        return next(
-            (
-                message.device_id
-                for message in reversed(self.batch)
-                if message.device_id
-            ),
-            None,
-        )
+    def device_ids(self) -> frozenset[UUID]:
+        return frozenset().union(*(message.device_ids for message in self.batch))
 
 
 @dataclass
@@ -428,7 +421,8 @@ class ChannelService(BaseDbService[Channel]):
         attachments: list[MessageAttachmentDict] | None = None,
         source_message_id: UUID | None = None,
         tool_call_count: int = 0,
-        device_id: UUID | None = None,
+        *,
+        device_ids: frozenset[UUID],
     ) -> ChannelMessage:
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
@@ -447,7 +441,7 @@ class ChannelService(BaseDbService[Channel]):
                 channel_id=state.channel.id,
                 seq=seq,
                 member_id=member_id,
-                device_id=device_id,
+                device_ids=device_ids,
                 source_message_id=source_message_id,
                 tool_call_count=tool_call_count,
                 content=content,
@@ -584,10 +578,10 @@ class ChannelService(BaseDbService[Channel]):
         state: ChannelState,
         content: str,
         attachments: list[MessageAttachmentDict],
-        device_id: UUID | None,
+        device_ids: frozenset[UUID],
     ) -> ChannelMessage:
         message = await self.new_message(
-            state, content, attachments=attachments, device_id=device_id
+            state, content, attachments=attachments, device_ids=device_ids
         )
         await self.publish_message(state.channel, message)
         self.fan_out(state)
@@ -598,7 +592,7 @@ class ChannelService(BaseDbService[Channel]):
         channel: Channel,
         content: str,
         attachments: list[MessageAttachmentDict],
-        device_id: UUID | None,
+        device_ids: frozenset[UUID],
     ) -> ChannelMessage:
         state = self.state(channel)
         async with state.control:
@@ -619,7 +613,7 @@ class ChannelService(BaseDbService[Channel]):
                     for member_id in audience or []:
                         state.retries.pop(UUID(member_id), None)
                     await self.cancel_active(state, turns)
-                    message = await self.send(state, content, attachments, device_id)
+                    message = await self.send(state, content, attachments, device_ids)
             finally:
                 try:
                     await self.cancel_turns(turns)
@@ -726,7 +720,7 @@ class ChannelService(BaseDbService[Channel]):
                         state,
                         queued.content,
                         attachments=item["attachments"] or [],
-                        device_id=queued.device_id,
+                        device_ids=queued.device_ids,
                     )
                 except Exception:
                     await queue.requeue_message(channel_id, item)
@@ -764,7 +758,7 @@ class ChannelService(BaseDbService[Channel]):
                 channel,
                 item["content"],
                 item["attachments"] or [],
-                QueuedChannelMessage.model_validate(item).device_id,
+                QueuedChannelMessage.model_validate(item).device_ids,
             )
         except Exception:
             await queue.requeue_message(channel_id, item)
@@ -851,8 +845,8 @@ class ChannelService(BaseDbService[Channel]):
                     await self.chats.initiate_chat_completion(
                         request,
                         User(id=state.channel.user_id),
+                        device_ids=turn.device_ids,
                         member_turn=member_turn,
-                        device_id=turn.device_id,
                     )
                     break
                 except ChatException as exc:
@@ -991,7 +985,7 @@ class ChannelService(BaseDbService[Channel]):
             turn.member.id,
             source_message_id=turn.source_message_id,
             tool_call_count=len(turn.tool_call_ids),
-            device_id=turn.device_id,
+            device_ids=turn.device_ids,
         )
         await self.publish_message(state.channel, turn.message)
 

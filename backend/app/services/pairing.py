@@ -104,5 +104,5 @@ class PairingService:
             delete(RefreshToken).where(RefreshToken.device_id == device_id)
         )
         await db.commit()
-        DeviceSession.revoke(user_id, device_id)
+        DeviceSession.revoke(frozenset({device_id}))
         return True

@@ -6,7 +6,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.deps import get_automation_service
 from app.core.security import get_current_user
-from app.core.user_manager import get_current_device_id
 from app.models.db_models.user import User
 from app.models.schemas.automation import (
     Automation as AutomationSchema,
@@ -29,11 +28,12 @@ logger = logging.getLogger(__name__)
 async def create_automation(
     data: AutomationCreate,
     current_user: User = Depends(get_current_user),
-    device_id: UUID | None = Depends(get_current_device_id),
     automation_service: AutomationService = Depends(get_automation_service),
 ) -> AutomationSchema:
     try:
-        return await automation_service.create_automation(current_user, device_id, data)
+        return await automation_service.create_automation(
+            current_user, current_user.device_ids, data
+        )
     except AutomationException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     except SQLAlchemyError as e:
@@ -57,12 +57,11 @@ async def update_automation(
     automation_id: UUID,
     data: AutomationUpdate,
     current_user: User = Depends(get_current_user),
-    device_id: UUID | None = Depends(get_current_device_id),
     automation_service: AutomationService = Depends(get_automation_service),
 ) -> AutomationSchema:
     try:
         return await automation_service.update_automation(
-            automation_id, current_user, device_id, data
+            automation_id, current_user, current_user.device_ids, data
         )
     except AutomationException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
@@ -84,12 +83,11 @@ async def delete_automation(
 async def run_automation(
     automation_id: UUID,
     current_user: User = Depends(get_current_user),
-    device_id: UUID | None = Depends(get_current_device_id),
     automation_service: AutomationService = Depends(get_automation_service),
 ) -> AutomationRunResponse:
     try:
         chat = await automation_service.run_automation(
-            automation_id, current_user, device_id
+            automation_id, current_user, current_user.device_ids
         )
     except (AutomationException, ChatException) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e

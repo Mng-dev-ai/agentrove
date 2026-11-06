@@ -17,7 +17,6 @@ from app.core.user_manager import (
     UserManager,
     current_active_user,
     fastapi_users,
-    get_current_device_id,
     get_jwt_strategy,
     get_user_db,
     get_user_manager,
@@ -78,7 +77,7 @@ async def login(
         )
 
     strategy = get_jwt_strategy(db)
-    access_token = await strategy.write_token(user)
+    access_token = await strategy.write_session_token(user, frozenset())
 
     user_agent = request.headers.get("user-agent")
     client_ip = request.client.host if request.client else None
@@ -182,7 +181,9 @@ async def refresh_access_token(
         )
 
     strategy = get_jwt_strategy(db)
-    access_token = await strategy.write_token(user, device_id)
+    access_token = await strategy.write_session_token(
+        user, frozenset() if device_id is None else frozenset({device_id})
+    )
 
     return Token(
         access_token=access_token,
@@ -207,10 +208,9 @@ async def logout(
 )
 async def create_pairing_secret(
     current_user: User = Depends(current_active_user),
-    current_device_id: UUID | None = Depends(get_current_device_id),
     db: AsyncSession = Depends(get_db),
 ) -> PairingSecretOut:
-    if current_device_id is not None:
+    if current_user.device_ids:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Pairing links can only be created from a password sign-in",
@@ -240,7 +240,9 @@ async def pair(
             detail="Invalid or expired pairing link",
         )
 
-    access_token = await get_jwt_strategy(db).write_token(user, device.id)
+    access_token = await get_jwt_strategy(db).write_session_token(
+        user, frozenset({device.id})
+    )
     return PairResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -257,7 +259,6 @@ async def pair(
 )
 async def list_devices(
     current_user: User = Depends(current_active_user),
-    current_device_id: UUID | None = Depends(get_current_device_id),
     db: AsyncSession = Depends(get_db),
 ) -> list[PairedDeviceOut]:
     devices = await PairingService.list_devices(current_user.id, db)
@@ -267,7 +268,7 @@ async def list_devices(
             name=device.name,
             created_at=device.created_at,
             last_used_at=device.last_used_at,
-            current=device.id == current_device_id,
+            current=device.id in current_user.device_ids,
         )
         for device in devices
     ]

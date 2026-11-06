@@ -3,10 +3,16 @@ import sqlalchemy as sa
 
 from app.db.types import GUID, UTCDateTime
 
-revision = "f1a2b3c4d5e6"
+revision = "ed84c56cd8c4"
 down_revision = "e3bdc269cf4a"
 branch_labels = None
 depends_on = None
+
+DEVICE_SET_COLUMNS = (
+    ("chats", "last_device_ids"),
+    ("channel_messages", "device_ids"),
+    ("automations", "device_ids"),
+)
 
 
 def timestamps() -> list[sa.Column]:
@@ -56,25 +62,22 @@ def upgrade() -> None:
         sa.Column("instance_id", GUID(), nullable=False),
         *timestamps(),
     )
-    with op.batch_alter_table("refresh_tokens") as batch_op:
-        batch_op.add_column(sa.Column("device_id", GUID(), nullable=True))
-        batch_op.create_foreign_key(
-            "fk_refresh_tokens_device_id_paired_devices",
-            "paired_devices",
-            ["device_id"],
-            ["id"],
-            ondelete="CASCADE",
+    op.add_column("refresh_tokens", sa.Column("device_id", GUID(), nullable=True))
+    op.create_index(
+        op.f("ix_refresh_tokens_device_id"), "refresh_tokens", ["device_id"]
+    )
+    for table, column in DEVICE_SET_COLUMNS:
+        op.add_column(
+            table, sa.Column(column, sa.JSON(), nullable=False, server_default="[]")
         )
-        batch_op.create_index("ix_refresh_tokens_device_id", ["device_id"])
 
 
 def downgrade() -> None:
-    with op.batch_alter_table("refresh_tokens") as batch_op:
-        batch_op.drop_index("ix_refresh_tokens_device_id")
-        batch_op.drop_constraint(
-            "fk_refresh_tokens_device_id_paired_devices", type_="foreignkey"
-        )
-        batch_op.drop_column("device_id")
+    for table, column in DEVICE_SET_COLUMNS:
+        op.drop_column(table, column)
+    op.execute("DELETE FROM refresh_tokens WHERE device_id IS NOT NULL")
+    op.drop_index(op.f("ix_refresh_tokens_device_id"), table_name="refresh_tokens")
+    op.drop_column("refresh_tokens", "device_id")
     op.drop_table("instance")
     op.drop_table("pairing_secrets")
     op.drop_table("paired_devices")
