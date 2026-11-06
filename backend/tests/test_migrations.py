@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -77,28 +78,57 @@ def _row_counts(engine: sa.Engine) -> dict[str, int]:
         }
 
 
-def test_upgrade_and_downgrade_keep_every_row(
+@pytest.fixture
+def migration_engine(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+) -> Iterator[sa.Engine]:
     db_path = tmp_path / "migrations.db"
     monkeypatch.setattr(
         get_settings(), "DATABASE_URL", f"sqlite+aiosqlite:///{db_path}"
     )
-    config = _alembic_config()
     engine = sa.create_engine(f"sqlite:///{db_path}")
-
-    command.upgrade(config, BASE_REVISION)
+    command.upgrade(_alembic_config(), BASE_REVISION)
     _seed_empty_tables(engine)
-    base_counts = _row_counts(engine)
+    yield engine
+    engine.dispose()
+
+
+def test_upgrade_and_downgrade_keep_every_row(migration_engine: sa.Engine) -> None:
+    config = _alembic_config()
+    base_counts = _row_counts(migration_engine)
     assert all(count == 1 for count in base_counts.values())
 
     command.upgrade(config, "head")
-    assert {table: _row_counts(engine)[table] for table in base_counts} == base_counts
-    _seed_empty_tables(engine)
+    assert {
+        table: _row_counts(migration_engine)[table] for table in base_counts
+    } == base_counts
+    _seed_empty_tables(migration_engine)
 
     command.downgrade(config, BASE_REVISION)
-    assert _row_counts(engine) == base_counts
+    assert _row_counts(migration_engine) == base_counts
 
     command.upgrade(config, "head")
-    assert {table: _row_counts(engine)[table] for table in base_counts} == base_counts
-    engine.dispose()
+    assert {
+        table: _row_counts(migration_engine)[table] for table in base_counts
+    } == base_counts
+
+
+def test_preexisting_orphan_does_not_block_upgrade(migration_engine: sa.Engine) -> None:
+    with migration_engine.begin() as conn:
+        chats = sa.Table("chats", sa.MetaData(), autoload_with=conn)
+        chat = conn.execute(sa.select(chats)).mappings().one()
+        gap_id = uuid4().hex
+        conn.execute(chats.insert().values({**chat, "id": gap_id}))
+        conn.execute(
+            chats.insert().values(
+                {**chat, "id": uuid4().hex, "workspace_id": uuid4().hex}
+            )
+        )
+        conn.execute(chats.delete().where(chats.c.id == gap_id))
+    base_counts = _row_counts(migration_engine)
+
+    command.upgrade(_alembic_config(), "head")
+
+    assert {
+        table: _row_counts(migration_engine)[table] for table in base_counts
+    } == base_counts

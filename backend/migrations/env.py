@@ -1,3 +1,4 @@
+import logging
 from logging.config import fileConfig
 
 from sqlalchemy import create_engine, pool
@@ -32,6 +33,7 @@ target_metadata = Base.metadata
 
 settings = get_settings()
 database_url = settings.DATABASE_URL
+logger = logging.getLogger("alembic.env")
 
 _HELPERS_IMPORT = "from app.db.migration_helpers import uuid_server_default, now_server_default"
 
@@ -101,17 +103,42 @@ def do_run_migrations(connection: Connection) -> None:
         context.run_migrations()
 
 
+def foreign_key_violations(connection: Connection) -> set[tuple]:
+    inspector = sa.inspect(connection)
+    violations = set()
+    for table, rowid, parent, fkid in connection.exec_driver_sql(
+        "PRAGMA foreign_key_check"
+    ).all():
+        columns = tuple(
+            fk[3]
+            for fk in connection.exec_driver_sql(f'PRAGMA foreign_key_list("{table}")')
+            if fk[0] == fkid
+        )
+        primary_key = ", ".join(
+            f'"{column}"'
+            for column in inspector.get_pk_constraint(table)["constrained_columns"]
+        )
+        row = connection.exec_driver_sql(
+            f'SELECT {primary_key} FROM "{table}" WHERE rowid = ?', (rowid,)
+        ).one()
+        violations.add((table, tuple(row), parent, columns))
+    return violations
+
+
 def run_migrations_online() -> None:
     sync_url = database_url.replace("sqlite+aiosqlite://", "sqlite://", 1)
     engine = create_engine(sync_url, poolclass=pool.NullPool)
     configure_sqlite(engine)
     with engine.connect() as connection:
         connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+        existing = foreign_key_violations(connection)
         connection.commit()
+        if existing:
+            logger.warning("Foreign key violations before migrating: %s", existing)
         do_run_migrations(connection)
-        violations = connection.exec_driver_sql("PRAGMA foreign_key_check").all()
-        if violations:
-            raise RuntimeError(f"Foreign key violations after migrating: {violations}")
+        introduced = foreign_key_violations(connection) - existing
+        if introduced:
+            raise RuntimeError(f"Migration introduced foreign key violations: {introduced}")
     engine.dispose()
 
 
