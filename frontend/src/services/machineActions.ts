@@ -11,9 +11,9 @@ import {
 } from '@/services/machineSession';
 import { MachineVaultError, machineVault } from '@/services/machineVault';
 import { forgetMachineOrigins } from '@/utils/machineOrigin';
-import { normalizeHttpsOrigin, parsePairingLink, routeKindForOrigin } from '@/utils/machineUrl';
+import { parsePairingLink, routeKindForOrigin } from '@/utils/machineUrl';
 import { isDesktopApp } from '@/utils/platform';
-import type { Machine, MachineKind, MachineRoute } from '@/types/machine.types';
+import type { Machine, MachineKind } from '@/types/machine.types';
 
 export type PairFailure =
   | { kind: 'invalid_link' }
@@ -62,12 +62,6 @@ function vaultFailure(error: unknown, origin: string): PairFailure {
   }
 }
 
-function withRoute(routes: MachineRoute[], origin: string): MachineRoute[] {
-  return routes.some((route) => route.url === origin)
-    ? routes
-    : [...routes, { kind: routeKindForOrigin(origin), url: origin }];
-}
-
 export async function pairMachine(request: PairRequest): Promise<Machine> {
   const link = parsePairingLink(request.link);
   if (!link.ok) {
@@ -103,25 +97,25 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
     throw new PairError(vaultFailure(error, origin));
   }
   if (paired.instance_id !== instanceId) {
-    await machineVault.unpair(machineId, origin, paired.device_id).catch(() => undefined);
+    await machineVault.unpair(machineId, paired.device_id).catch(() => undefined);
     throw new PairError({ kind: 'different_server', origin });
   }
 
   storeMachineAccess(machineId, paired);
   const pairedFields = {
+    routes: [{ kind: routeKindForOrigin(origin), url: origin }],
     instanceId: paired.instance_id,
     deviceId: paired.device_id,
     pairedAt: new Date().toISOString(),
   };
   const store = useMachineStore.getState();
   if (existing) {
-    store.updateMachine(machineId, { ...pairedFields, routes: withRoute(existing.routes, origin) });
+    store.updateMachine(machineId, pairedFields);
   } else if (request.mode === 'add') {
     store.addMachine({
       id: machineId,
       name: request.name.trim(),
       kind: request.kind,
-      routes: [{ kind: routeKindForOrigin(origin), url: origin }],
       ...pairedFields,
     });
   }
@@ -133,14 +127,12 @@ export async function pairMachine(request: PairRequest): Promise<Machine> {
 export async function removeMachine(machineId: string): Promise<{ revoked: boolean }> {
   const machine = getMachine(machineId);
   if (!machine) return { revoked: true };
-  const connection = useMachineStore.getState().connections[machineId];
-  const routeUrl =
-    connection?.status === 'online' ? connection.routeUrl : (machine.routes[0]?.url ?? '');
+  const online = useMachineStore.getState().connections[machineId]?.status === 'online';
 
   let revoked = !machine.deviceId;
   try {
-    if (machine.deviceId && routeUrl) {
-      revoked = (await machineVault.unpair(machineId, routeUrl, machine.deviceId)).revoked;
+    if (machine.deviceId && online) {
+      revoked = (await machineVault.unpair(machineId, machine.deviceId)).revoked;
     } else {
       await machineVault.forget(machineId);
     }
@@ -154,18 +146,4 @@ export async function removeMachine(machineId: string): Promise<{ revoked: boole
   useMachineStore.getState().removeMachine(machineId);
   queryClient.removeQueries({ queryKey: queryKeys.machine.all(machineId) });
   return { revoked };
-}
-
-export function updateMachineRoutes(machineId: string, urls: string[]): void {
-  const routes = urls.map((url) => {
-    const origin = normalizeHttpsOrigin(url);
-    if (!origin) throw new Error(`${url} is not an https URL`);
-    return { kind: routeKindForOrigin(origin), url: origin };
-  });
-  if (routes.length === 0) throw new Error('Add at least one route');
-  const unique = routes.filter(
-    (route, index) => routes.findIndex((other) => other.url === route.url) === index,
-  );
-  useMachineStore.getState().updateMachine(machineId, { routes: unique });
-  void checkMachine(machineId);
 }

@@ -42,8 +42,8 @@ interface MachineVault {
     secret: string,
     deviceName: string,
   ): Promise<MachinePairResult>;
-  refresh(machineId: string, url: string): Promise<MachineAccessGrant>;
-  unpair(machineId: string, url: string, deviceId: string): Promise<{ revoked: boolean }>;
+  refresh(machineId: string): Promise<MachineAccessGrant>;
+  unpair(machineId: string, deviceId: string): Promise<{ revoked: boolean }>;
   forget(machineId: string): Promise<void>;
   probe(url: string): Promise<void>;
 }
@@ -73,13 +73,13 @@ async function invokeVault<T>(command: string, args: Record<string, string>): Pr
 const desktopVault: MachineVault = {
   pair: (machineId, url, secret, deviceName) =>
     invokeVault('machine_pair', { machineId, url, secret, deviceName }),
-  refresh: (machineId, url) => invokeVault('machine_refresh', { machineId, url }),
-  unpair: (machineId, url, deviceId) => invokeVault('machine_unpair', { machineId, url, deviceId }),
+  refresh: (machineId) => invokeVault('machine_refresh', { machineId }),
+  unpair: (machineId, deviceId) => invokeVault('machine_unpair', { machineId, deviceId }),
   forget: (machineId) => invokeVault('machine_forget', { machineId }),
   probe: (url) => invokeVault('machine_probe', { url }),
 };
 
-const memoryRefreshTokens = new Map<string, string>();
+const memorySessions = new Map<string, { origin: string; refreshToken: string }>();
 const memoryLocks = new Map<string, Promise<unknown>>();
 
 function withMachineLock<T>(machineId: string, task: () => Promise<T>): Promise<T> {
@@ -162,12 +162,14 @@ async function rotate(
   return { grant: grantFrom(body.access_token), refreshToken: body.refresh_token };
 }
 
-async function revokeDevice(origin: string, machineId: string, deviceId: string): Promise<boolean> {
-  const refreshToken = memoryRefreshTokens.get(machineId);
-  if (!refreshToken) return false;
+async function revokeDevice(machineId: string, deviceId: string): Promise<boolean> {
+  const session = memorySessions.get(machineId);
+  if (!session) return false;
+  const { origin } = session;
   let accessToken: string;
   try {
-    accessToken = (await rotate(origin, refreshToken, UNPAIR_TIMEOUT_MS)).grant.access_token;
+    accessToken = (await rotate(origin, session.refreshToken, UNPAIR_TIMEOUT_MS)).grant
+      .access_token;
   } catch (error) {
     return error instanceof MachineVaultError && error.code === 'session_revoked';
   }
@@ -207,37 +209,35 @@ const browserVault: MachineVault = {
         throw new MachineVaultError('bad_response', 'The machine returned an unexpected response');
       }
       const grant = grantFrom(body.access_token);
-      memoryRefreshTokens.set(machineId, body.refresh_token);
+      memorySessions.set(machineId, { origin, refreshToken: body.refresh_token });
       return { ...grant, device_id: body.device_id, instance_id: body.instance_id };
     }),
-  refresh: (machineId, url) =>
+  refresh: (machineId) =>
     withMachineLock(machineId, async () => {
-      const origin = requireOrigin(url);
-      const refreshToken = memoryRefreshTokens.get(machineId);
-      if (!refreshToken) {
+      const session = memorySessions.get(machineId);
+      if (!session) {
         throw new MachineVaultError('not_paired', 'This machine is not paired on this device');
       }
       try {
-        const rotated = await rotate(origin, refreshToken, REQUEST_TIMEOUT_MS);
-        memoryRefreshTokens.set(machineId, rotated.refreshToken);
+        const rotated = await rotate(session.origin, session.refreshToken, REQUEST_TIMEOUT_MS);
+        memorySessions.set(machineId, { ...session, refreshToken: rotated.refreshToken });
         return rotated.grant;
       } catch (error) {
         if (error instanceof MachineVaultError && error.code === 'session_revoked') {
-          memoryRefreshTokens.delete(machineId);
+          memorySessions.delete(machineId);
         }
         throw error;
       }
     }),
-  unpair: (machineId, url, deviceId) =>
+  unpair: (machineId, deviceId) =>
     withMachineLock(machineId, async () => {
-      const origin = requireOrigin(url);
-      const revoked = await revokeDevice(origin, machineId, deviceId);
-      memoryRefreshTokens.delete(machineId);
+      const revoked = await revokeDevice(machineId, deviceId);
+      memorySessions.delete(machineId);
       return { revoked };
     }),
   forget: (machineId) =>
     withMachineLock(machineId, async () => {
-      memoryRefreshTokens.delete(machineId);
+      memorySessions.delete(machineId);
     }),
   probe: async (url) => {
     const origin = requireOrigin(url);

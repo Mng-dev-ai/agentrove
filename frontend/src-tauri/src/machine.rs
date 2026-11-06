@@ -11,6 +11,7 @@ use tauri::State;
 const KEYCHAIN_SERVICE: &str = "agentrove";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 const UNPAIR_TIMEOUT: Duration = Duration::from_secs(5);
+const REFRESH_PATH: &str = "/api/v1/auth/jwt/refresh";
 
 #[derive(Debug, Serialize)]
 pub struct MachineError {
@@ -143,6 +144,40 @@ struct AccessClaims {
     exp: i64,
 }
 
+#[derive(Deserialize)]
+struct StoredSession {
+    origin: String,
+    refresh_token: String,
+}
+
+struct PairedSession {
+    origin: Url,
+    refresh_token: String,
+}
+
+impl PairedSession {
+    fn decode(secret: &str) -> Result<Self, MachineError> {
+        let stored: StoredSession =
+            serde_json::from_str(secret).map_err(|_| MachineError::not_paired())?;
+        Ok(Self {
+            origin: https_origin(&stored.origin).map_err(|_| MachineError::not_paired())?,
+            refresh_token: stored.refresh_token,
+        })
+    }
+
+    fn encode(&self) -> String {
+        serde_json::json!({
+            "origin": self.origin.as_str(),
+            "refresh_token": self.refresh_token,
+        })
+        .to_string()
+    }
+
+    fn endpoint(&self, path: &str) -> Result<Url, MachineError> {
+        endpoint(&self.origin, path)
+    }
+}
+
 fn http_client() -> Result<&'static Client, MachineError> {
     static CLIENT: OnceLock<Client> = OnceLock::new();
     if let Some(client) = CLIENT.get() {
@@ -233,27 +268,29 @@ async fn run_keychain<T: Send + 'static>(
         .map_err(|error| MachineError::new("internal", format!("Keychain task failed: {error}")))?
 }
 
-async fn read_refresh_token(machine_id: &str) -> Result<String, MachineError> {
+async fn read_session(machine_id: &str) -> Result<PairedSession, MachineError> {
     let machine_id = machine_id.to_string();
-    run_keychain(move || match keychain_entry(&machine_id)?.get_password() {
-        Ok(token) => Ok(token),
+    let secret = run_keychain(move || match keychain_entry(&machine_id)?.get_password() {
+        Ok(secret) => Ok(secret),
         Err(keyring::Error::NoEntry) => Err(MachineError::not_paired()),
         Err(error) => Err(MachineError::keychain(error)),
     })
-    .await
+    .await?;
+    PairedSession::decode(&secret)
 }
 
-async fn store_refresh_token(machine_id: &str, token: String) -> Result<(), MachineError> {
+async fn store_session(machine_id: &str, session: &PairedSession) -> Result<(), MachineError> {
     let machine_id = machine_id.to_string();
+    let secret = session.encode();
     run_keychain(move || {
         keychain_entry(&machine_id)?
-            .set_password(&token)
+            .set_password(&secret)
             .map_err(MachineError::keychain)
     })
     .await
 }
 
-async fn delete_refresh_token(machine_id: &str) -> Result<(), MachineError> {
+async fn delete_session(machine_id: &str) -> Result<(), MachineError> {
     let machine_id = machine_id.to_string();
     run_keychain(
         move || match keychain_entry(&machine_id)?.delete_credential() {
@@ -272,14 +309,13 @@ async fn read_json<T: DeserializeOwned>(response: reqwest::Response) -> Result<T
 }
 
 async fn rotate_refresh_token(
-    origin: &Url,
-    refresh_token: &str,
+    session: &PairedSession,
     timeout: Duration,
 ) -> Result<TokenResponse, MachineError> {
     let response = http_client()?
-        .post(endpoint(origin, "/api/v1/auth/jwt/refresh")?)
+        .post(session.endpoint(REFRESH_PATH)?)
         .timeout(timeout)
-        .json(&serde_json::json!({ "refresh_token": refresh_token }))
+        .json(&serde_json::json!({ "refresh_token": session.refresh_token }))
         .send()
         .await
         .map_err(MachineError::request)?;
@@ -344,8 +380,12 @@ pub async fn machine_pair(
     };
     let expires_at = access_token_expiry(&pair.access_token)?;
 
-    if let Err(error) = store_refresh_token(&machine_id, pair.refresh_token.clone()).await {
-        revoke_refresh_token(&origin, &pair.refresh_token).await;
+    let session = PairedSession {
+        origin,
+        refresh_token: pair.refresh_token,
+    };
+    if let Err(error) = store_session(&machine_id, &session).await {
+        revoke_refresh_token(&session.origin, &session.refresh_token).await;
         return Err(error);
     }
 
@@ -361,26 +401,31 @@ pub async fn machine_pair(
 pub async fn machine_refresh(
     locks: State<'_, MachineLocks>,
     machine_id: String,
-    url: String,
 ) -> Result<RefreshResult, MachineError> {
     validate_machine_id(&machine_id)?;
-    let origin = https_origin(&url)?;
 
     let lock = locks.for_machine(&machine_id);
     let _guard = lock.lock().await;
 
-    let refresh_token = read_refresh_token(&machine_id).await?;
-    let tokens = match rotate_refresh_token(&origin, &refresh_token, REQUEST_TIMEOUT).await {
+    let session = read_session(&machine_id).await?;
+    let tokens = match rotate_refresh_token(&session, REQUEST_TIMEOUT).await {
         Ok(tokens) => tokens,
         Err(error) => {
             if error.code == "session_revoked" {
-                delete_refresh_token(&machine_id).await?;
+                delete_session(&machine_id).await?;
             }
             return Err(error);
         }
     };
     let expires_at = access_token_expiry(&tokens.access_token)?;
-    store_refresh_token(&machine_id, tokens.refresh_token).await?;
+    store_session(
+        &machine_id,
+        &PairedSession {
+            origin: session.origin,
+            refresh_token: tokens.refresh_token,
+        },
+    )
+    .await?;
 
     Ok(RefreshResult {
         access_token: tokens.access_token,
@@ -388,18 +433,17 @@ pub async fn machine_refresh(
     })
 }
 
-async fn revoke_device(origin: &Url, machine_id: &str, device_id: &str) -> bool {
-    let refresh_token = match read_refresh_token(machine_id).await {
-        Ok(token) => token,
-        Err(_) => return false,
+async fn revoke_device(machine_id: &str, device_id: &str) -> bool {
+    let Ok(session) = read_session(machine_id).await else {
+        return false;
     };
-    let tokens = match rotate_refresh_token(origin, &refresh_token, UNPAIR_TIMEOUT).await {
+    let tokens = match rotate_refresh_token(&session, UNPAIR_TIMEOUT).await {
         Ok(tokens) => tokens,
         Err(error) => return error.code == "session_revoked",
     };
     let (Ok(client), Ok(url)) = (
         http_client(),
-        endpoint(origin, &format!("/api/v1/auth/devices/{device_id}")),
+        session.endpoint(&format!("/api/v1/auth/devices/{device_id}")),
     ) else {
         return false;
     };
@@ -421,18 +465,16 @@ async fn revoke_device(origin: &Url, machine_id: &str, device_id: &str) -> bool 
 pub async fn machine_unpair(
     locks: State<'_, MachineLocks>,
     machine_id: String,
-    url: String,
     device_id: String,
 ) -> Result<UnpairResult, MachineError> {
     validate_machine_id(&machine_id)?;
-    let origin = https_origin(&url)?;
     validate_device_id(&device_id)?;
 
     let lock = locks.for_machine(&machine_id);
     let _guard = lock.lock().await;
 
-    let revoked = revoke_device(&origin, &machine_id, &device_id).await;
-    delete_refresh_token(&machine_id).await?;
+    let revoked = revoke_device(&machine_id, &device_id).await;
+    delete_session(&machine_id).await?;
     Ok(UnpairResult { revoked })
 }
 
@@ -446,7 +488,7 @@ pub async fn machine_forget(
     let lock = locks.for_machine(&machine_id);
     let _guard = lock.lock().await;
 
-    delete_refresh_token(&machine_id).await
+    delete_session(&machine_id).await
 }
 
 #[tauri::command]
@@ -462,5 +504,48 @@ pub async fn machine_probe(url: String) -> Result<(), MachineError> {
         Ok(())
     } else {
         Err(MachineError::status(response.status()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stored(origin: &str) -> String {
+        serde_json::json!({ "origin": origin, "refresh_token": "refresh" }).to_string()
+    }
+
+    #[test]
+    fn refresh_and_unpair_only_target_the_stored_origin() {
+        let paired = Url::parse("https://paired.example:8443").unwrap();
+        for origin in [
+            "https://paired.example:8443",
+            "https://paired.example:8443/other/path?next=https://evil.example",
+        ] {
+            let session = PairedSession::decode(&stored(origin)).unwrap();
+            let refresh = session.endpoint(REFRESH_PATH).unwrap();
+            let unpair = session
+                .endpoint(&format!("/api/v1/auth/devices/{}", "device-1"))
+                .unwrap();
+            for url in [refresh, unpair] {
+                assert_eq!(url.origin(), paired.origin());
+            }
+            let reloaded = PairedSession::decode(&session.encode()).unwrap();
+            assert_eq!(reloaded.origin, session.origin);
+        }
+    }
+
+    #[test]
+    fn stored_session_without_an_https_origin_is_not_paired() {
+        for origin in [
+            "http://paired.example",
+            "https://user:pass@paired.example",
+            "paired.example",
+        ] {
+            let error = PairedSession::decode(&stored(origin)).err().unwrap();
+            assert_eq!(error.code, "not_paired");
+        }
+        let error = PairedSession::decode("legacy-refresh-token").err().unwrap();
+        assert_eq!(error.code, "not_paired");
     }
 }

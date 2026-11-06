@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
-import { Edit2, KeyRound, MoreHorizontal, Route, Star, Trash2 } from 'lucide-react';
+import { Edit2, KeyRound, MoreHorizontal, Star, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
@@ -9,7 +9,6 @@ import { SidebarMenu, SidebarMenuItem } from '@/components/layout/Sidebar/Sideba
 import { MachineStatusDot } from '@/components/machines/MachineStatusDot';
 import { MACHINE_STATUS_LABEL } from '@/components/machines/machineStatusLabel';
 import { AddMachineDialog } from '@/components/machines/AddMachineDialog';
-import { EditRoutesDialog } from '@/components/machines/EditRoutesDialog';
 import { CopyField } from '@/components/machines/CopyField';
 import {
   useMachineActiveStreamsQuery,
@@ -59,8 +58,7 @@ function ConnectionNotice({ connection }: { connection: MachineConnection | unde
   if (connection?.status === 'different_server') {
     return (
       <p className={styles.notice}>
-        This route now answers as a different AgentRove server. Requests are blocked until the
-        routes point back to the paired server.
+        This route now answers as a different AgentRove server, so requests to it are blocked.
       </p>
     );
   }
@@ -82,7 +80,6 @@ export function MachinesSettingsTab() {
   const [menu, setMenu] = useState<MenuState | null>(null);
   const [pairTarget, setPairTarget] = useState<{ machineId: string | null } | null>(null);
   const [renaming, setRenaming] = useState<Machine | null>(null);
-  const [editingRoutes, setEditingRoutes] = useState<Machine | null>(null);
   const [removing, setRemoving] = useState<Machine | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -235,15 +232,6 @@ export function MachinesSettingsTab() {
                 Rename
               </SidebarMenuItem>
               <SidebarMenuItem
-                icon={Route}
-                onClick={() => {
-                  setEditingRoutes(menuMachine);
-                  setMenu(null);
-                }}
-              >
-                Edit routes
-              </SidebarMenuItem>
-              <SidebarMenuItem
                 icon={KeyRound}
                 onClick={() => {
                   setPairTarget({ machineId: menuMachine.id });
@@ -272,9 +260,6 @@ export function MachinesSettingsTab() {
           repairMachineId={pairTarget.machineId}
           onClose={() => setPairTarget(null)}
         />
-      )}
-      {editingRoutes && (
-        <EditRoutesDialog machine={editingRoutes} onClose={() => setEditingRoutes(null)} />
       )}
       <RenameModal
         isOpen={!!renaming}

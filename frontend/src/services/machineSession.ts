@@ -47,9 +47,9 @@ export function markMachineSessionRevoked(machineId: string): void {
 }
 
 export async function refreshMachineAccess(machineId: string): Promise<string> {
-  const routeUrl = onlineRouteUrl(machineId);
+  onlineRouteUrl(machineId);
   try {
-    const grant = await machineVault.refresh(machineId, routeUrl);
+    const grant = await machineVault.refresh(machineId);
     storeMachineAccess(machineId, grant);
     return grant.access_token;
   } catch (error) {
@@ -140,7 +140,7 @@ async function resolveConnection(machine: Machine): Promise<MachineConnection> {
 
   if (!hasFreshAccess(machine.id)) {
     try {
-      storeMachineAccess(machine.id, await machineVault.refresh(machine.id, routeUrl));
+      storeMachineAccess(machine.id, await machineVault.refresh(machine.id));
     } catch (error) {
       if (isSessionLost(error)) {
         dropMachineAccess(machine.id);
