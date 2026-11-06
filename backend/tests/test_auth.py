@@ -106,6 +106,29 @@ async def test_register_creates_user_and_settings(
     assert await get_user_settings(db_session, user.id) is not None
 
 
+async def test_register_ignores_privilege_fields(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    email_capture: EmailCapture,
+) -> None:
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "escalate@example.com",
+            "username": "escalate",
+            "password": "password123",
+            "is_superuser": True,
+            "is_verified": True,
+        },
+    )
+
+    assert response.status_code == 201
+    user = await get_user_by_email(db_session, "escalate@example.com")
+    assert user is not None
+    assert user.is_superuser is False
+    assert user.is_verified is False
+
+
 async def test_register_rejects_duplicate_email(
     client: AsyncClient,
     create_user: UserFactory,

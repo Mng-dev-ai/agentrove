@@ -17,7 +17,6 @@ export class AuthEventSource extends EventTarget {
   private readonly client: StreamClient;
   private readonly endpoint: string;
   private readonly controller = new AbortController();
-  private lastEventId = '';
   private reconnectDelayMs = DEFAULT_RECONNECT_DELAY_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -99,10 +98,7 @@ export class AuthEventSource extends EventTarget {
           if (this.readyState === AuthEventSource.CLOSED) return;
           if (data) {
             this.dispatchEvent(
-              new MessageEvent(eventType || 'message', {
-                data: data.slice(0, -1),
-                lastEventId: this.lastEventId,
-              }),
+              new MessageEvent(eventType || 'message', { data: data.slice(0, -1) }),
             );
           }
           eventType = '';
@@ -117,8 +113,6 @@ export class AuthEventSource extends EventTarget {
             eventType = fieldValue;
           } else if (field === 'data') {
             data += `${fieldValue}\n`;
-          } else if (field === 'id' && !fieldValue.includes('\0')) {
-            this.lastEventId = fieldValue;
           } else if (field === 'retry' && /^\d+$/.test(fieldValue)) {
             this.reconnectDelayMs = Number(fieldValue);
           }

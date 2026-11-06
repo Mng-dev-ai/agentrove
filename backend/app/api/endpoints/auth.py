@@ -1,11 +1,8 @@
-from typing import cast
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_users import exceptions as fastapi_users_exceptions
 from slowapi import Limiter
 from slowapi.util import get_remote_address
-from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +10,7 @@ from app.core.config import get_settings
 from app.core.deps import get_refresh_token_service
 from app.core.security import verify_password
 from app.core.user_manager import (
+    RegistrationClosed,
     UserDatabase,
     UserManager,
     current_active_user,
@@ -100,17 +98,13 @@ async def register(
                 detail="Disposable email addresses are not allowed. Please use a permanent email address.",
             )
 
-    if not settings.REGISTRATION_OPEN:
-        session = user_manager.user_db.session
-        await session.execute(text("BEGIN IMMEDIATE"))
-        if await session.scalar(select(User.id).limit(1)) is not None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Registration is closed",
-            )
-
     try:
-        user = await user_manager.create(user_create)
+        user = await user_manager.register(user_create)
+    except RegistrationClosed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Registration is closed",
+        )
     except fastapi_users_exceptions.UserAlreadyExists:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -133,7 +127,7 @@ async def register(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Registration failed due to a constraint violation",
             )
-    return cast(User, user)
+    return user
 
 
 router.include_router(

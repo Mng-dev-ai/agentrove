@@ -196,7 +196,6 @@ class StreamConnectionManager {
     cursors: Record<string, number>,
     chatIds: Set<string>,
   ): Promise<void> {
-    // Mint fresh token every open — long-lived feed may outlive the cached one.
     const token = await client.getValidToken();
     if (this.connections.get(client) !== connection || connection.generation !== generation) {
       return;

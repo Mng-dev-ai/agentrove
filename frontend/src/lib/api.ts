@@ -204,6 +204,21 @@ class APIClient {
     }
   }
 
+  private async recoverFromUnauthorized(): Promise<boolean> {
+    if (!this.auth.getRefreshToken()) {
+      this.auth.onSessionExpired();
+      return false;
+    }
+    try {
+      await this.refreshTokenIfNeeded();
+      return true;
+    } catch (error) {
+      if (!shouldInvalidateSession(error)) throw error;
+      this.auth.onSessionExpired();
+      return false;
+    }
+  }
+
   private async handleResponse<T>(response: Response): Promise<T | null> {
     if (!response.ok) {
       const errorMessage = await extractErrorMessage(response);
@@ -254,21 +269,9 @@ class APIClient {
     }
 
     if (response.status === 401 && !isRetry && !endpoint.includes('/auth/jwt/')) {
-      const hasRefreshToken = !!this.auth.getRefreshToken();
-      if (hasRefreshToken) {
-        try {
-          await this.refreshTokenIfNeeded();
-          return this.request<T>(endpoint, method, options, additionalHeaders, true);
-        } catch (error) {
-          if (shouldInvalidateSession(error)) {
-            this.auth.onSessionExpired();
-            throw new Error('Session expired');
-          }
-          throw error;
-        }
+      if (await this.recoverFromUnauthorized()) {
+        return this.request<T>(endpoint, method, options, additionalHeaders, true);
       }
-      // 401 without refresh → session dead; don't leave UI looking connected.
-      this.auth.onSessionExpired();
       throw new Error('Session expired');
     }
 
@@ -338,14 +341,7 @@ class APIClient {
       signal,
     });
 
-    if (response.status === 401 && !isRetry && this.auth.getRefreshToken()) {
-      try {
-        await this.refreshTokenIfNeeded();
-      } catch (error) {
-        if (!shouldInvalidateSession(error)) throw error;
-        this.auth.onSessionExpired();
-        return response;
-      }
+    if (response.status === 401 && !isRetry && (await this.recoverFromUnauthorized())) {
       return this.openStream(endpoint, signal, true);
     }
 

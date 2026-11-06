@@ -165,10 +165,6 @@ async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
 
 // VPS chat lifecycle SSE.
 async function createChatEventsSource(): Promise<AuthEventSource> {
-  const token = await remoteApiClient.getValidToken();
-  if (!token) {
-    throw new Error('Not connected to cloud instance');
-  }
   return new AuthEventSource(remoteApiClient, '/chat/chats/events');
 }
 

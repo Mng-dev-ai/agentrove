@@ -280,11 +280,6 @@ function normalizePositiveInt(value: unknown): number {
 
 async function createChatEventsSource(): Promise<AuthEventSource> {
   // Local only (VPS uses cloudChatService).
-  const token = await apiClient.getValidToken();
-  if (!token) {
-    throw new Error('Authentication token required');
-  }
-
   return new AuthEventSource(apiClient, '/chat/chats/events');
 }
 
