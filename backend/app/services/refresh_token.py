@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
@@ -6,11 +8,7 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import (
-    generate_refresh_token,
-    get_refresh_token_expiry,
-    hash_refresh_token,
-)
+from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.refresh_token import RefreshToken
@@ -18,12 +16,27 @@ from app.models.db_models.user import User
 from app.services.db import SessionFactoryType
 from app.services.exceptions import AuthException
 
+settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+def hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 class RefreshTokenService:
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         self.session_factory = session_factory or SessionLocal
+
+    @staticmethod
+    def generate_refresh_token() -> str:
+        return secrets.token_urlsafe(32)
+
+    @staticmethod
+    def get_refresh_token_expiry() -> datetime:
+        return datetime.now(timezone.utc) + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
 
     async def create_refresh_token(
         self,
@@ -33,9 +46,9 @@ class RefreshTokenService:
         user_agent: str | None = None,
         ip_address: str | None = None,
     ) -> str:
-        token = generate_refresh_token()
+        token = self.generate_refresh_token()
         token_hash = hash_refresh_token(token)
-        expires_at = get_refresh_token_expiry()
+        expires_at = self.get_refresh_token_expiry()
 
         refresh_token = RefreshToken(
             token_hash=token_hash,
@@ -104,9 +117,9 @@ class RefreshTokenService:
                 .values(revoked_at=datetime.now(timezone.utc))
             )
 
-        new_token = generate_refresh_token()
+        new_token = self.generate_refresh_token()
         new_token_hash = hash_refresh_token(new_token)
-        new_expires_at = get_refresh_token_expiry()
+        new_expires_at = self.get_refresh_token_expiry()
 
         new_refresh_token = RefreshToken(
             token_hash=new_token_hash,

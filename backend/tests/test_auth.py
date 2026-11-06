@@ -10,15 +10,12 @@ from httpx import AsyncClient
 from sqlalchemy import delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import (
-    create_mcp_access_token,
-    hash_refresh_token,
-)
+from app.core.security import create_mcp_access_token
 from app.core.user_manager import AccessTokenStrategy
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
 from app.services.email import EmailService, email_service
-from app.services.refresh_token import RefreshTokenService
+from app.services.refresh_token import RefreshTokenService, hash_refresh_token
 
 from tests.conftest import EmailCapture, LoginClient, SettingsOverride, UserFactory
 from tests.helpers import count_refresh_tokens, get_user_by_email, get_user_settings

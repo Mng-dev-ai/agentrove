@@ -35,7 +35,7 @@ from app.services.acp.adapters import (
 )
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
-from app.services.device_session import active_device_ids
+from app.services.pairing import PairingService
 from app.services.exceptions import AgentException, ErrorCode
 from app.constants import MODELS
 from app.services.git import GitService
@@ -537,7 +537,9 @@ class AgentService:
     ) -> AcpSessionConfig:
         if device_ids:
             async with self.session_factory() as db:
-                active = await active_device_ids(db, UUID(user_id), device_ids)
+                active = await PairingService.active_device_ids(
+                    db, UUID(user_id), device_ids
+                )
             if active != device_ids:
                 raise AgentException(
                     "A paired device behind this run has been revoked. "

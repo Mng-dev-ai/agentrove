@@ -17,7 +17,7 @@ from app.models.schemas.chat import ChatRequest
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import NORMAL_SESSION_MODE
-from app.services.device_session import active_device_ids
+from app.services.pairing import PairingService
 from app.services.exceptions import ChatException
 from app.services.user import UserService
 
@@ -124,7 +124,7 @@ class SubThreadWake:
             for child_id in finished
             if (child := await self._load_child(db, child_id)) is not None
         ]
-        active = await active_device_ids(
+        active = await PairingService.active_device_ids(
             db,
             parent.user_id,
             frozenset[UUID]().union(*(child.device_ids for child in loaded)),

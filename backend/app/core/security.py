@@ -3,8 +3,6 @@ import base64
 import hashlib
 import json
 import logging
-import secrets
-from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from cryptography.fernet import Fernet
@@ -101,20 +99,6 @@ def create_mcp_access_token(user_id: str, device_ids: frozenset[UUID]) -> str:
             lifetime_seconds=settings.AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS,
             algorithm=settings.ALGORITHM,
         )
-    )
-
-
-def generate_refresh_token() -> str:
-    return secrets.token_urlsafe(32)
-
-
-def hash_refresh_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def get_refresh_token_expiry() -> datetime:
-    return datetime.now(timezone.utc) + timedelta(
-        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
     )
 
 

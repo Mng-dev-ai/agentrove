@@ -17,7 +17,7 @@ from app.models.db_models.enums import (
 from markupsafe import Markup
 from app.core.security import get_password_hash
 from app.db.session import SessionLocal
-from app.services.pairing import PairingService
+from app.services.device_revocation import DeviceRevocationService
 from starlette.requests import Request
 
 
@@ -93,7 +93,7 @@ class UserAdmin(ModelView, model=User):
             data["hashed_password"] = get_password_hash(password)
             if not is_created:
                 async with SessionLocal() as db:
-                    await PairingService.revoke_all(model.id, db)
+                    await DeviceRevocationService.revoke_all(model.id, db)
         await super().on_model_change(data, model, is_created, request)
 
     name = "User"

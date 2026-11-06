@@ -5,26 +5,8 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from typing import ClassVar, TypeVar
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.db.session import SessionLocal
-from app.models.db_models.paired_device import PairedDevice
-
-
-async def active_device_ids(
-    db: AsyncSession, user_id: uuid.UUID, device_ids: frozenset[uuid.UUID]
-) -> frozenset[uuid.UUID]:
-    if not device_ids:
-        return frozenset()
-    result = await db.scalars(
-        select(PairedDevice.id).where(
-            PairedDevice.id.in_(device_ids),
-            PairedDevice.user_id == user_id,
-            PairedDevice.revoked_at.is_(None),
-        )
-    )
-    return frozenset(result.all())
+from app.services.pairing import PairingService
 
 
 DEVICE_RECHECK_SECONDS = 5.0
@@ -73,7 +55,9 @@ class DeviceSession:
         if not self.device_ids:
             return True
         async with SessionLocal() as db:
-            active = await active_device_ids(db, self.user_id, self.device_ids)
+            active = await PairingService.active_device_ids(
+                db, self.user_id, self.device_ids
+            )
         self.checked_at = time.monotonic()
         return active == self.device_ids and not self.revoked
 

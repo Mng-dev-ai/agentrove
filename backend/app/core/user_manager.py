@@ -22,7 +22,7 @@ from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.auth import UserCreate
-from app.services.device_session import active_device_ids
+from app.services.pairing import PairingService
 from app.services.email import email_service
 
 settings = get_settings()
@@ -92,9 +92,11 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     ) -> None:
         # Reset implies compromise — kill refresh tokens from the old password.
         # Inline import avoids circular import with core.security.
-        from app.services.pairing import PairingService
+        from app.services.device_revocation import DeviceRevocationService
 
-        revoked = await PairingService.revoke_all(user.id, self.user_db.session)
+        revoked = await DeviceRevocationService.revoke_all(
+            user.id, self.user_db.session
+        )
         logger.info(
             "Revoked %s refresh tokens for user %s after password reset",
             revoked,
@@ -165,7 +167,10 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
             exceptions.UserNotExists,
         ):
             return None
-        if await active_device_ids(self.db, user.id, device_ids) != device_ids:
+        if (
+            await PairingService.active_device_ids(self.db, user.id, device_ids)
+            != device_ids
+        ):
             return None
         user.device_ids = device_ids
         user.agent_token = claims.get("mcp") is True

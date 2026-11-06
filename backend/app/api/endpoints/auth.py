@@ -36,6 +36,7 @@ from app.models.schemas.auth import (
     UserOut,
     UserRead,
 )
+from app.services.device_revocation import DeviceRevocationService
 from app.services.email import email_service
 from app.services.exceptions import AuthException
 from app.services.instance import get_instance_id
@@ -290,7 +291,7 @@ async def revoke_device(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Other devices can only be revoked from a password sign-in",
         )
-    if not await PairingService.revoke_device(current_user.id, device_id, db):
+    if not await DeviceRevocationService.revoke_device(current_user.id, device_id, db):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Device not found"
         )

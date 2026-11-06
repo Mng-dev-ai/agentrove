@@ -43,7 +43,7 @@ from app.services.acp.adapters import (
     NATIVE_FILE_TYPES,
 )
 from app.services.agent import AgentService
-from app.services.device_session import active_device_ids
+from app.services.pairing import PairingService
 from app.services.git import GitService
 from app.services.push import PushService
 from app.services.queue import ChannelQueueService
@@ -527,7 +527,7 @@ class ChannelService(BaseDbService[Channel]):
         self, db: AsyncSession, channel: Channel, member: ChannelMember
     ) -> list[ChannelMessage]:
         batch = list((await db.scalars(self.unseen(member))).all())
-        active = await active_device_ids(
+        active = await PairingService.active_device_ids(
             db,
             channel.user_id,
             frozenset().union(*(message.device_ids for message in batch)),
