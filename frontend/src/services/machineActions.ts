@@ -127,6 +127,7 @@ export async function removeMachine(machineId: string): Promise<{ revoked: boole
   const machine = getMachine(machineId);
   if (!machine) return { revoked: true };
   const online = useMachineStore.getState().connections[machineId]?.status === 'online';
+  await queryClient.cancelQueries({ queryKey: queryKeys.machine.all(machineId) });
 
   let revoked = !machine.pairing;
   try {

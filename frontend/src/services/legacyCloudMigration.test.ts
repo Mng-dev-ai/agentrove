@@ -3,11 +3,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 const stored = (key: string) => JSON.parse(localStorage.getItem(key) ?? 'null') as unknown;
 
-async function load() {
+async function load(machineIds: string[] = []) {
   vi.resetModules();
   const origin = await import('@/store/machineOrigin');
   const migration = await import('@/services/legacyCloudMigration');
   const { useMachineStore } = await import('@/store/machineStore');
+  for (const id of machineIds) {
+    useMachineStore
+      .getState()
+      .addMachine({ id, name: id, url: `https://${id}.ts.net`, pairing: null });
+  }
   return { ...origin, ...migration, useMachineStore };
 }
 
@@ -26,7 +31,7 @@ describe('machine origin maps', () => {
 
   it('never reassigns an id another machine already owns', async () => {
     const { assignChatsToMachine, assignSandboxesToMachine, chatMachineId, sandboxMachineId } =
-      await load();
+      await load(['vps', 'ec2']);
     assignChatsToMachine('local', ['shared-chat']);
     assignChatsToMachine('vps', ['shared-chat', 'vps-chat']);
     assignSandboxesToMachine('vps', ['sbx']);
@@ -39,12 +44,25 @@ describe('machine origin maps', () => {
   });
 
   it('frees a removed machine’s ids without touching other machines', async () => {
-    const { assignChatsToMachine, forgetMachineOrigins, chatMachineId } = await load();
+    const { assignChatsToMachine, forgetMachineOrigins, chatMachineId } = await load([
+      'vps',
+      'ec2',
+    ]);
     assignChatsToMachine('vps', ['a']);
     assignChatsToMachine('ec2', ['b']);
     forgetMachineOrigins('vps');
     expect(chatMachineId('a')).toBe('local');
     expect(chatMachineId('b')).toBe('ec2');
+  });
+
+  it('ignores late ids for a machine that is no longer in the store', async () => {
+    const { assignChatRecordsToMachine, chatMachineId, sandboxMachineId, useMachineStore } =
+      await load(['vps']);
+    useMachineStore.getState().removeMachine('vps');
+    assignChatRecordsToMachine('vps', [{ id: 'late', sandbox_id: 'sbx' }]);
+    expect(chatMachineId('late')).toBe('local');
+    expect(sandboxMachineId('sbx')).toBe('local');
+    expect(stored('machine-chat-origins')).toBeNull();
   });
 });
 

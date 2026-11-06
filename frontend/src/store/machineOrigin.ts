@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { getMachine } from '@/store/machineStore';
 
 const CHATS_KEY = 'machine-chat-origins';
 const SANDBOXES_KEY = 'machine-sandbox-origins';
@@ -50,6 +51,7 @@ function assign(
   machineId: string,
   ids: Iterable<string>,
 ): boolean {
+  if (machineId !== LOCAL_MACHINE_ID && !getMachine(machineId)) return false;
   let changed = false;
   for (const id of ids) {
     if (!id || origins.has(id)) continue;
