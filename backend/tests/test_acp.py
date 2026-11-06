@@ -28,6 +28,9 @@ from app.services.automation import AutomationService
 from app.services.chat import ChatService
 from app.services import subthread_wake as wake_module
 from app.services.session_registry import session_registry
+from app.services.agent import AgentService
+from app.services.exceptions import AgentException
+from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_wake import SubThreadWake
 from app.services.user import UserService
@@ -2034,7 +2037,7 @@ async def test_wake_ignores_the_devices_of_the_parents_last_turn(
             f"/api/v1/auth/devices/{paired['device_id']}", headers=headers
         )
     wake = SubThreadWake()
-    wake.on_chain_end(child["id"], parent["id"])
+    wake.on_chain_end(child["id"], parent["id"], frozenset())
     await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=5)
     wake_message = await wait_for_latest_assistant(client, headers, parent["id"])
 
@@ -2095,7 +2098,7 @@ async def test_wake_acts_for_the_reporting_childs_devices(
         )
 
     wake = SubThreadWake()
-    wake.on_chain_end(child["id"], parent["id"])
+    wake.on_chain_end(child["id"], parent["id"], frozenset({UUID(paired["device_id"])}))
     await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=5)
 
     if revoke_before_wake:
@@ -2122,6 +2125,101 @@ async def test_wake_acts_for_the_reporting_childs_devices(
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
     )
     assert me.status_code == 401
+
+
+async def fail_to_resolve_cwd(*_args: Any) -> str:
+    raise AgentException("Working directory unavailable")
+
+
+@pytest.mark.parametrize(
+    ("follow_up", "revoked", "wakes"),
+    [("failed_start", "A", False), ("password", "A", False), ("B", "B", True)],
+)
+async def test_report_acts_for_the_devices_of_the_turn_that_filed_it(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    follow_up: str,
+    revoked: str,
+    wakes: bool,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 3600)
+    wake = SubThreadWake()
+    monkeypatch.setattr(runtime_module, "subthread_wake", wake)
+    headers, workspace = auth_workspace
+    devices = {name: await pair_device(client, headers, name) for name in ("A", "B")}
+    device_headers = {
+        name: {"Authorization": f"Bearer {device['access_token']}"}
+        for name, device in devices.items()
+    }
+    parent = await create_chat(client, headers, workspace, model_id="sonnet")
+    child = await create_chat(client, headers, workspace, model_id="sonnet")
+    await db_session.execute(
+        update(Chat)
+        .where(Chat.id == UUID(child["id"]))
+        .values(parent_chat_id=UUID(parent["id"]))
+    )
+    await db_session.commit()
+    reported = await client.post(
+        "/api/v1/chat/chat",
+        data={
+            "prompt": "work",
+            "chat_id": child["id"],
+            "model_id": "sonnet",
+            "report_to_parent": "true",
+        },
+        headers=device_headers["A"],
+    )
+    assert reported.status_code == 200, reported.text
+    await wait_for_message(
+        client, headers, chat_id=child["id"], message_id=reported.json()["message_id"]
+    )
+
+    if follow_up == "failed_start":
+        with monkeypatch.context() as patch:
+            patch.setattr(AgentService, "resolve_cwd", fail_to_resolve_cwd)
+            failed = await send_message(
+                client,
+                device_headers["B"],
+                chat_id=child["id"],
+                model_id="sonnet",
+                prompt="follow up",
+            )
+        assert failed.status_code == 400, failed.text
+    else:
+        sent = await send_message(
+            client,
+            headers if follow_up == "password" else device_headers[follow_up],
+            chat_id=child["id"],
+            model_id="sonnet",
+            prompt="follow up",
+        )
+        await wait_for_message(
+            client, headers, chat_id=child["id"], message_id=sent.json()["message_id"]
+        )
+    await client.delete(
+        f"/api/v1/auth/devices/{devices[revoked]['device_id']}", headers=headers
+    )
+    await wake._flush(parent["id"])
+    for task in wake._tasks:
+        task.cancel()
+
+    assert wake._pending == {}
+    parent_messages = await client.get(
+        f"/api/v1/chat/chats/{parent['id']}/messages", headers=headers
+    )
+    assert bool(parent_messages.json()["items"]) is wakes
+    if not wakes:
+        return
+    wake_message = await wait_for_latest_assistant(client, headers, parent["id"])
+    assert wake_message["stream_status"] == "completed"
+    wake_turn = fake_agent.main_turn_prompts()[-1]
+    assert child["id"] in wake_turn["text"]
+    assert did_of(minted_mcp_tokens(fake_agent)[-1]) == [devices["A"]["device_id"]]
 
 
 @pytest.mark.parametrize(

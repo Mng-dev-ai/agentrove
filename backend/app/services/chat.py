@@ -1129,7 +1129,6 @@ class ChatService(BaseDbService[Chat]):
                     permission_mode=request.permission_mode,
                     thinking_mode=request.thinking_mode,
                     persona_name=request.selected_persona_name,
-                    device_ids=device_ids,
                 ).values(updated_at=now)
             )
             await db.commit()

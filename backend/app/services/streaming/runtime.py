@@ -830,7 +830,6 @@ class ChatStreamRuntime:
         permission_mode: PermissionMode,
         thinking_mode: str | None,
         persona_name: str,
-        device_ids: frozenset[UUID],
     ) -> Update:
         return (
             update(Chat)
@@ -840,7 +839,6 @@ class ChatStreamRuntime:
                 last_permission_mode=permission_mode,
                 last_thinking_mode=thinking_mode,
                 last_persona_name=persona_name,
-                last_device_ids=device_ids,
             )
         )
 
@@ -944,7 +942,6 @@ class ChatStreamRuntime:
                         permission_mode=request.permission_mode,
                         thinking_mode=request.thinking_mode,
                         persona_name=request.selected_persona_name,
-                        device_ids=request.device_ids,
                     ).values(updated_at=Chat.updated_at)
                 )
                 await db.commit()
@@ -1210,7 +1207,11 @@ class ChatStreamRuntime:
 
     @classmethod
     def _on_background_task_done(
-        cls, chat_id: str, report_parent_id: str | None, task: asyncio.Task[str]
+        cls,
+        chat_id: str,
+        report_parent_id: str | None,
+        device_ids: frozenset[UUID],
+        task: asyncio.Task[str],
     ) -> None:
         try:
             if task.cancelled():
@@ -1233,7 +1234,7 @@ class ChatStreamRuntime:
         finally:
             cls._background_task_chat_ids.pop(task, None)
             try:
-                subthread_wake.on_chain_end(chat_id, report_parent_id)
+                subthread_wake.on_chain_end(chat_id, report_parent_id, device_ids)
             except Exception:
                 logger.exception("Failed to record chain end for chat %s", chat_id)
 
@@ -1250,7 +1251,12 @@ class ChatStreamRuntime:
         )
         cls._background_task_chat_ids[background_task] = chat_id
         background_task.add_done_callback(
-            partial(cls._on_background_task_done, chat_id, request.report_parent_id)
+            partial(
+                cls._on_background_task_done,
+                chat_id,
+                request.report_parent_id,
+                request.device_ids,
+            )
         )
         return background_task
 

@@ -1058,8 +1058,8 @@ async def test_child_result_steers_only_a_turn_acting_for_its_devices(
     db_session.add(device)
     await db_session.flush()
     child.parent_chat_id = parent.id
-    child.last_device_ids = frozenset({device.id}) if child_on_device else frozenset()
     await db_session.commit()
+    child_devices = frozenset({device.id}) if child_on_device else frozenset()
     script = [
         StreamEvent(type="assistant_text", text="Working"),
         WAIT_FOR_STEER,
@@ -1071,12 +1071,12 @@ async def test_child_result_steers_only_a_turn_acting_for_its_devices(
     await wait_for_steerable_runtime(parent.id)
 
     wake = SubThreadWake()
-    wake._pending[str(parent.id)] = {str(child.id)}
+    wake._pending[str(parent.id)] = {str(child.id): child_devices}
     await wake._flush(str(parent.id))
 
     if child_on_device:
         assert acp_session.steer_calls == []
-        assert wake._pending == {str(parent.id): {str(child.id)}}
+        assert wake._pending == {str(parent.id): {str(child.id): child_devices}}
         await client.delete(f"/api/v1/chat/chats/{parent.id}/stream", headers=headers)
     else:
         [steered] = acp_session.steer_calls

@@ -9,7 +9,6 @@ branch_labels = None
 depends_on = None
 
 DEVICE_SET_COLUMNS = (
-    ("chats", "last_device_ids"),
     ("channel_messages", "device_ids"),
     ("automations", "device_ids"),
 )

@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock
+from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -62,7 +63,7 @@ async def test_fan_out_batches_into_one_wake(
     monkeypatch.setattr(ChatService, "initiate_chat_completion", initiate)
 
     for child in children:
-        wake.on_chain_end(str(child.id), str(parent.id))
+        wake.on_chain_end(str(child.id), str(parent.id), frozenset())
     await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=2)
 
     initiate.assert_awaited_once()
@@ -91,8 +92,8 @@ async def test_busy_child_is_held_and_chain_end_schedules_again(
     initiate = AsyncMock()
     monkeypatch.setattr(ChatService, "initiate_chat_completion", initiate)
 
-    wake.on_chain_end(busy_id, parent_id)
-    wake.on_chain_end(str(finished.id), parent_id)
+    wake.on_chain_end(busy_id, parent_id, frozenset())
+    wake.on_chain_end(str(finished.id), parent_id, frozenset())
     await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=2)
 
     initiate.assert_awaited_once()
@@ -100,12 +101,12 @@ async def test_busy_child_is_held_and_chain_end_schedules_again(
         f"Finished sub-threads:\n- **[{finished.title}](/chat/{finished.id})** (unknown)"
     )
     assert busy_id not in initiate.call_args.args[0].prompt
-    assert wake._pending == {parent_id: {busy_id}}
+    assert wake._pending == {parent_id: {busy_id: frozenset()}}
     assert wake._scheduled == set()
 
     active.clear()
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 3600)
-    wake.on_chain_end(busy_id, None)
+    wake.on_chain_end(busy_id, None, frozenset())
     assert wake._scheduled == {parent_id}
 
 
@@ -116,21 +117,21 @@ async def test_failed_steer_and_conflicting_wake_requeue(
 ) -> None:
     parent, children = chats
     parent_id = str(parent.id)
-    child_ids = {str(child.id) for child in children}
+    reports = {str(child.id): frozenset[UUID]() for child in children}
     active = {parent_id}
     monkeypatch.setattr(ChatStreamRuntime, "has_active_chat", active.__contains__)
     steer = AsyncMock(return_value=False)
     monkeypatch.setattr(ChatStreamRuntime, "steer_app_notice", steer)
     initiate = AsyncMock(side_effect=ChatException("Already active", status_code=409))
     monkeypatch.setattr(ChatService, "initiate_chat_completion", initiate)
-    wake._pending[parent_id] = child_ids.copy()
+    wake._pending[parent_id] = reports.copy()
 
     await wake._flush(parent_id)
 
     steer.assert_awaited_once()
     assert steer.call_args.args[0] == parent_id
     initiate.assert_not_awaited()
-    assert wake._pending == {parent_id: child_ids}
+    assert wake._pending == {parent_id: reports}
     assert wake._scheduled == set()
 
     active.clear()
@@ -138,5 +139,5 @@ async def test_failed_steer_and_conflicting_wake_requeue(
     await wake._flush(parent_id)
 
     initiate.assert_awaited_once()
-    assert wake._pending == {parent_id: child_ids}
+    assert wake._pending == {parent_id: reports}
     assert wake._scheduled == {parent_id}
