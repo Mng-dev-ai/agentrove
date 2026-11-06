@@ -52,7 +52,11 @@ async function disconnect(): Promise<void> {
   const refreshToken = cloudAuthStorage.getRefreshToken();
   try {
     if (refreshToken) {
-      await remoteApiClient.post('/auth/jwt/logout', { refresh_token: refreshToken });
+      await remoteApiClient.post(
+        '/auth/jwt/logout',
+        { refresh_token: refreshToken },
+        AbortSignal.timeout(5000),
+      );
     }
   } finally {
     cloudAuthStorage.clear();
