@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 import uuid
@@ -160,15 +161,22 @@ class DeviceSession:
         self.device_id = device_id
         self.checked_at = time.monotonic()
 
-    async def is_active(self) -> bool:
+    async def check(self) -> bool:
         if self.device_id is None:
-            return True
-        if time.monotonic() - self.checked_at < DEVICE_RECHECK_SECONDS:
             return True
         async with SessionLocal() as db:
             active = await is_device_active(db, self.device_id, self.user_id)
         self.checked_at = time.monotonic()
         return active
+
+    async def is_active(self) -> bool:
+        if time.monotonic() - self.checked_at < DEVICE_RECHECK_SECONDS:
+            return True
+        return await self.check()
+
+    async def watch(self) -> None:
+        while await self.check():
+            await asyncio.sleep(DEVICE_RECHECK_SECONDS)
 
     async def guard(
         self, stream: AsyncIterator[StreamItem]
