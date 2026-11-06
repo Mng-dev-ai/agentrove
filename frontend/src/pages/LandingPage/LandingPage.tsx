@@ -10,12 +10,11 @@ import { Input as ChatInput } from '@/components/chat/message-input/Input';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
 import { BranchWorktreeSelector } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
-import { CloudWorkspaceSelector } from '@/components/chat/workspace-selector/CloudWorkspaceSelector';
+import { MachineWorkspaceSelector } from '@/components/chat/workspace-selector/MachineWorkspaceSelector';
 import {
-  useCloudWorkspacesQuery,
-  useCloudWorkspaceResourcesQuery,
-  useCloudSettingsQuery,
-} from '@/hooks/queries/useCloudQueries';
+  useMachineWorkspacesQuery,
+  useMachineWorkspaceResourcesQuery,
+} from '@/hooks/queries/useMachineQueries';
 import { useChatStore } from '@/store/chatStore';
 import { useUIStore } from '@/store/uiStore';
 import { useModelStore } from '@/store/modelStore';
@@ -29,16 +28,16 @@ import {
   DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
-import { cloudChatService } from '@/services/cloudChatService';
-import { markCloudChats } from '@/utils/chatOrigin';
+import { machineName, machineStatus, useTargetMachineId } from '@/store/machineStore';
+import { machineChatService } from '@/services/machineChatService';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { useAuthStore } from '@/store/authStore';
 import { useCreateChatMutation } from '@/hooks/queries/useChatQueries';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useFilesMetadataQuery } from '@/hooks/queries/useSandboxQueries';
 import { useModelSelection, useModelMap } from '@/hooks/queries/useModelQueries';
-import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { useSettingsForMachineQuery } from '@/hooks/queries/useSettingsQueries';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -115,95 +114,89 @@ export function LandingPage() {
   const consumedInitialMessageRef = useRef(false);
   const routeState = location.state as {
     workspaceId?: string;
-    cloudWorkspaceId?: string;
+    machineId?: string;
     initialMessage?: string;
   } | null;
   const initialWorkspaceId = routeState?.workspaceId ?? null;
-  const initialCloudWorkspaceId = routeState?.cloudWorkspaceId ?? null;
+  const initialMachineId = routeState?.machineId ?? LOCAL_MACHINE_ID;
   const initialMessage = routeState?.initialMessage ?? null;
   // location.key (not target id) so re-clicking the same "new thread" re-applies it.
   const consumedNavKeyRef = useRef<string | null>(null);
 
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
+  const targetMachineId = useTargetMachineId();
+  const isRemote = targetMachineId !== LOCAL_MACHINE_ID;
+  const [workspaceIdByMachine, setWorkspaceIdByMachine] = useState<Record<string, string>>({});
+  const selectedWorkspaceId = workspaceIdByMachine[targetMachineId] ?? null;
+  const localWorkspaceId = workspaceIdByMachine[LOCAL_MACHINE_ID] ?? null;
 
-  const isCloud = useChatSettingsStore((state) => state.runOnCloud);
-  const [selectedCloudWorkspaceId, setSelectedCloudWorkspaceId] = useState<string | null>(null);
-
-  // Single entry points for selection changes: clear the workspace-scoped default
+  // Single entry point for selection changes: clear the workspace-scoped default
   // base only on a genuine switch (prior selection existed and differs) so
   // auto-select (null -> first) and reload keep a persisted base for the same workspace.
+  const selectWorkspace = useCallback(
+    (machineId: string, id: string) => {
+      const previous = workspaceIdByMachine[machineId];
+      if (previous === id) return;
+      if (previous !== undefined) clearDefaultWorktreeBase();
+      setWorkspaceIdByMachine((prev) => ({ ...prev, [machineId]: id }));
+    },
+    [workspaceIdByMachine],
+  );
   const handleWorkspaceChange = useCallback(
     (id: string | null) => {
-      if (selectedWorkspaceId !== null && id !== selectedWorkspaceId) clearDefaultWorktreeBase();
-      setSelectedWorkspaceId(id);
+      if (id) selectWorkspace(targetMachineId, id);
     },
-    [selectedWorkspaceId],
-  );
-
-  const handleCloudWorkspaceChange = useCallback(
-    (id: string) => {
-      if (selectedCloudWorkspaceId !== null && id !== selectedCloudWorkspaceId)
-        clearDefaultWorktreeBase();
-      setSelectedCloudWorkspaceId(id);
-    },
-    [selectedCloudWorkspaceId],
+    [selectWorkspace, targetMachineId],
   );
 
   // Default local workspace when list loads or current pick is gone.
   useEffect(() => {
     if (!workspaces.length) return;
-    if (selectedWorkspaceId && workspaces.some((ws) => ws.id === selectedWorkspaceId)) return;
-    handleWorkspaceChange(workspaces[0].id);
-  }, [workspaces, selectedWorkspaceId, handleWorkspaceChange]);
+    if (localWorkspaceId && workspaces.some((ws) => ws.id === localWorkspaceId)) return;
+    selectWorkspace(LOCAL_MACHINE_ID, workspaces[0].id);
+  }, [workspaces, localWorkspaceId, selectWorkspace]);
 
-  // One-shot per navigation: preselect workspace + match run location (cloud/local).
+  // One-shot per navigation: preselect workspace + switch to the machine that owns it.
   useEffect(() => {
     if (location.key === consumedNavKeyRef.current) return;
     consumedNavKeyRef.current = location.key;
-    if (initialCloudWorkspaceId) {
-      handleCloudWorkspaceChange(initialCloudWorkspaceId);
-      useChatSettingsStore.getState().setRunOnCloud(true);
-    } else if (initialWorkspaceId) {
-      handleWorkspaceChange(initialWorkspaceId);
-      useChatSettingsStore.getState().setRunOnCloud(false);
+    if (initialWorkspaceId) {
+      selectWorkspace(initialMachineId, initialWorkspaceId);
+      useChatSettingsStore.getState().setTargetMachine(initialMachineId);
     }
-  }, [
-    location.key,
-    initialWorkspaceId,
-    initialCloudWorkspaceId,
-    handleWorkspaceChange,
-    handleCloudWorkspaceChange,
-  ]);
+  }, [location.key, initialWorkspaceId, initialMachineId, selectWorkspace]);
 
   if (initialMessage && !consumedInitialMessageRef.current) {
     consumedInitialMessageRef.current = true;
     setMessage(initialMessage);
   }
 
-  // Slash commands are per-instance — VPS list for cloud before a chat exists.
+  // Slash commands are per-instance — the target machine's list before a chat exists.
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
     selectedWorkspaceId ?? undefined,
     undefined,
     {
-      enabled: isAuthenticated && !!selectedWorkspaceId && !isCloud,
+      enabled: isAuthenticated && !!selectedWorkspaceId && !isRemote,
     },
   );
-  const { data: cloudWorkspaceResources } = useCloudWorkspaceResourcesQuery(
-    selectedCloudWorkspaceId ?? undefined,
-    isAuthenticated && isCloud,
+  const { data: machineWorkspaceResources } = useMachineWorkspaceResourcesQuery(
+    targetMachineId,
+    selectedWorkspaceId ?? undefined,
+    isAuthenticated && isRemote,
   );
-  const resolvedWorkspaceResources = isCloud ? cloudWorkspaceResources : workspaceResources;
+  const resolvedWorkspaceResources = isRemote ? machineWorkspaceResources : workspaceResources;
 
-  // Personas are per-instance — VPS list for cloud so create resolves against it.
-  const { data: settings } = useSettingsQuery({ enabled: isAuthenticated });
-  const { data: cloudSettings } = useCloudSettingsQuery(isAuthenticated && isCloud);
-  const resolvedPersonas = isCloud ? cloudSettings?.personas : settings?.personas;
+  // Personas are per-instance — the target machine's list so create resolves against it.
+  const { data: settings } = useSettingsForMachineQuery(targetMachineId, isAuthenticated);
+  const resolvedPersonas = settings?.personas;
 
-  // Sandbox for editor/@file/branch on the backend that owns the workspace.
-  const { data: cloudWorkspaces } = useCloudWorkspacesQuery(isAuthenticated && isCloud);
-  const selectedSandboxId = isCloud
-    ? cloudWorkspaces?.find((ws) => ws.id === selectedCloudWorkspaceId)?.sandbox_id
-    : workspaces.find((ws) => ws.id === selectedWorkspaceId)?.sandbox_id;
+  // Sandbox for editor/@file/branch on the machine that owns the workspace.
+  const { data: machineWorkspaces } = useMachineWorkspacesQuery(
+    targetMachineId,
+    isAuthenticated && isRemote,
+  );
+  const selectedSandboxId = (isRemote ? machineWorkspaces : workspaces)?.find(
+    (ws) => ws.id === selectedWorkspaceId,
+  )?.sandbox_id;
 
   const {
     data: filesMetadata = [],
@@ -260,26 +253,26 @@ export function LandingPage() {
 
       const title = trimmedPrompt.replace(/\s+/g, ' ').slice(0, 80) || 'New Chat';
 
-      if (isCloud) {
-        if (!useCloudSettingsStore.getState().connectedEmail) {
-          toast.error('Connect a cloud instance in Settings first');
+      if (isRemote) {
+        if (machineStatus(targetMachineId) !== 'online') {
+          toast.error(`${machineName(targetMachineId)} is not connected`);
           return;
         }
-        if (!selectedCloudWorkspaceId) {
-          toast.error('Please select a cloud workspace');
+        if (!selectedWorkspaceId) {
+          toast.error('Please select a workspace');
           return;
         }
 
         setIsLoading(true);
         try {
           const chatSettings = useChatSettingsStore.getState();
-          const newChat = await cloudChatService.createChat({
+          const newChat = await machineChatService.createChat(targetMachineId, {
             title,
             model_id: selectedModelId,
-            workspace_id: selectedCloudWorkspaceId,
+            workspace_id: selectedWorkspaceId,
           });
-          // Same toolbar default coercion as useMessageActions (cloud matches local).
-          await cloudChatService.startCompletion({
+          // Same toolbar default coercion as useMessageActions (remote matches local).
+          await machineChatService.startCompletion(targetMachineId, {
             prompt: trimmedPrompt,
             chat_id: newChat.id,
             model_id: selectedModelId,
@@ -308,24 +301,22 @@ export function LandingPage() {
           setMessage('');
           useChatStore.getState().setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, []);
 
-          // Origin + invalidate so sidebar lists re-sort by last_chat_at.
-          markCloudChats([newChat.id]);
-          const cloud = useCloudSettingsStore.getState();
+          // Invalidate so sidebar lists re-sort by last_chat_at.
           void Promise.all([
             queryClient.invalidateQueries({
-              queryKey: queryKeys.cloudChats(cloud.cloudUrl, cloud.connectedEmail),
+              queryKey: queryKeys.machine.chats(targetMachineId),
             }),
             queryClient.invalidateQueries({
-              queryKey: queryKeys.cloudWorkspaces(cloud.cloudUrl, cloud.connectedEmail),
+              queryKey: queryKeys.machine.workspaces(targetMachineId),
             }),
-          ]).catch((err) => console.error('Failed to refresh cloud sidebar after new chat', err));
+          ]).catch((err) => console.error('Failed to refresh sidebar after new chat', err));
 
           useModelStore.getState().selectModel(newChat.id, selectedModelId);
           useChatSettingsStore.getState().initChatFromDefaults(newChat.id);
           // Completion already started — navigate without initialPrompt (no second turn).
           navigate(`/chat/${newChat.id}`);
         } catch (error) {
-          toast.error(error instanceof Error ? error.message : 'Failed to start cloud chat');
+          toast.error(error instanceof Error ? error.message : 'Failed to start chat');
         } finally {
           setIsLoading(false);
         }
@@ -363,8 +354,8 @@ export function LandingPage() {
       navigate,
       selectedModelId,
       selectedWorkspaceId,
-      isCloud,
-      selectedCloudWorkspaceId,
+      isRemote,
+      targetMachineId,
       attachedFiles,
       modelMap,
       queryClient,
@@ -382,10 +373,11 @@ export function LandingPage() {
   const composerSelectors = useMemo(
     () => (
       <div className={styles['selector-row']}>
-        {isCloud ? (
-          <CloudWorkspaceSelector
-            selectedWorkspaceId={selectedCloudWorkspaceId}
-            onWorkspaceChange={handleCloudWorkspaceChange}
+        {isRemote ? (
+          <MachineWorkspaceSelector
+            machineId={targetMachineId}
+            selectedWorkspaceId={selectedWorkspaceId}
+            onWorkspaceChange={handleWorkspaceChange}
             disabled={isLoading}
           />
         ) : (
@@ -400,10 +392,9 @@ export function LandingPage() {
       </div>
     ),
     [
-      isCloud,
-      selectedCloudWorkspaceId,
+      isRemote,
+      targetMachineId,
       selectedWorkspaceId,
-      handleCloudWorkspaceChange,
       handleWorkspaceChange,
       isLoading,
       isAuthenticated,

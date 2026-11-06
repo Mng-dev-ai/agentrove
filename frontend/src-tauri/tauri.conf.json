@@ -38,7 +38,7 @@
     "icon": ["icons/icon.icns", "icons/icon.png"],
     "resources": ["../backend-sidecar/"],
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": null
     }
   },
   "plugins": {

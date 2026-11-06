@@ -72,37 +72,33 @@ export const queryKeys = {
   workspaces: ['workspaces'] as const,
   workspaceResources: (workspaceId?: string, chatId?: string) =>
     ['workspaces', workspaceId, 'resources', chatId] as const,
-  cloudWorkspaces: (cloudUrl?: string, connectedEmail?: string | null) =>
-    ['cloud', 'workspaces', cloudUrl, connectedEmail] as const,
-  cloudWorkspaceResources: (
-    cloudUrl?: string,
-    connectedEmail?: string | null,
-    workspaceId?: string,
-  ) => ['cloud', 'workspaces', cloudUrl, connectedEmail, 'resources', workspaceId] as const,
-  cloudSettings: (cloudUrl?: string, connectedEmail?: string | null) =>
-    ['cloud', 'settings', cloudUrl, connectedEmail] as const,
-  cloudChats: (cloudUrl?: string, connectedEmail?: string | null) =>
-    ['cloud', 'chats', cloudUrl, connectedEmail] as const,
-  cloudActiveStreams: (cloudUrl?: string, connectedEmail?: string | null) =>
-    ['cloud', 'active-streams', cloudUrl, connectedEmail] as const,
-  // Prefix key for invalidating every cloud chats query regardless of instance/account.
-  cloudChatsAll: ['cloud', 'chats'] as const,
+  machine: {
+    all: (machineId: string) => ['machine', machineId] as const,
+    workspaces: (machineId: string) => ['machine', machineId, 'workspaces'] as const,
+    workspaceResources: (machineId: string, workspaceId?: string) =>
+      ['machine', machineId, 'workspaces', workspaceId, 'resources'] as const,
+    settings: (machineId: string) => ['machine', machineId, 'settings'] as const,
+    chats: (machineId: string) => ['machine', machineId, 'chats'] as const,
+    chatsPage: (machineId: string, page: number) =>
+      ['machine', machineId, 'chats', 'page', page] as const,
+    activeStreams: (machineId: string) => ['machine', machineId, 'active-streams'] as const,
+    automations: (machineId: string) => ['machine', machineId, 'automations'] as const,
+  },
   inbox: ['inbox'] as const,
   memories: (workspaceId: string | null) => ['memories', workspaceId] as const,
   memoriesAll: ['memories'] as const,
   automations: ['automations'] as const,
-  cloudAutomations: (cloudUrl?: string, connectedEmail?: string | null) =>
-    ['cloud', 'automations', cloudUrl, connectedEmail] as const,
   channels: (workspaceId?: string) => ['channels', workspaceId ?? null] as const,
   channelsAll: ['channels'] as const,
   channel: (channelId?: string) => ['channel', channelId] as const,
   channelMessageActivity: (channelId: string, messageId: string) =>
     ['channel', channelId, 'activity', messageId] as const,
   models: 'models',
+  devices: ['devices'] as const,
   github: {
     repos: (query: string) => ['github-repos', query] as const,
     // Keyed by chatId because the response depends on which backend's GitHub
-    // credentials served it (local vs the chat-owning cloud VPS).
+    // credentials served it (the machine that owns the chat).
     pullsAll: (owner: string, repo: string, chatId?: string) =>
       ['github-pulls', owner, repo, chatId ?? null] as const,
     pulls: (owner: string, repo: string, chatId?: string, filters?: PullRequestFilters) =>

@@ -1,4 +1,6 @@
 import { useCallback, useEffect, memo, useMemo } from 'react';
+import { useChatMachineId } from '@/utils/machineOrigin';
+import { useMachineName, useMachineStatus } from '@/store/machineStore';
 import { useShallow } from 'zustand/react/shallow';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import { isAssistantMessage } from '@/utils/message';
@@ -26,6 +28,9 @@ import styles from './Chat.module.scss';
 
 export const Chat = memo(function Chat() {
   const { chatId } = useChatContext();
+  const machineId = useChatMachineId(chatId);
+  const machineOnline = useMachineStatus(machineId) === 'online';
+  const machineLabel = useMachineName(machineId);
   const { state, actions } = useChatSessionContext();
 
   const {
@@ -357,6 +362,8 @@ export const Chat = memo(function Chat() {
           contextUsage={contextUsage}
           showTip={false}
           chatId={chatId}
+          disabled={!machineOnline}
+          placeholder={machineOnline ? undefined : `${machineLabel} is offline — read-only`}
         />
       }
     >

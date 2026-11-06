@@ -106,8 +106,15 @@ export function TerminalTab({
     // do not leak into the next PTY — the server repaints via tmux on request.
     terminalRef.current?.reset();
 
-    // Route to the cloud VPS WS host when the sandbox lives there, else local.
-    const baseUrl = resolveSandboxWs(sandboxId);
+    // Route to the WS host of the machine that owns the sandbox.
+    let baseUrl: string;
+    try {
+      baseUrl = resolveSandboxWs(sandboxId);
+    } catch (error) {
+      setSessionState('error');
+      setCloseReason(error instanceof Error ? error.message : 'Machine unavailable');
+      return;
+    }
 
     const params = new URLSearchParams();
     if (terminalId) params.set('terminalId', terminalId);
@@ -260,8 +267,8 @@ export function TerminalTab({
       };
     };
 
-    // Mint a fresh token instead of reading the cached one — the cloud access
-    // token lives only in memory, so it's absent right after a page reload.
+    // Mint a fresh token instead of reading the cached one — machine access
+    // tokens live only in memory, so they're absent right after a page reload.
     void resolveSandboxClient(sandboxId)
       .getValidToken()
       .then((token) => {

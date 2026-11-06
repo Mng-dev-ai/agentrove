@@ -9,7 +9,6 @@ import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import toast from 'react-hot-toast';
 import { GeneralSettingsTab } from '@/components/settings/tabs/GeneralSettingsTab/GeneralSettingsTab';
-import { CloudSettingsTab } from '@/components/settings/tabs/CloudSettingsTab/CloudSettingsTab';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
@@ -45,6 +44,15 @@ const InstructionsSettingsTab = lazyNamed(
   'InstructionsSettingsTab',
 );
 
+const MachinesSettingsTab = lazyNamed(
+  () => import('@/components/settings/tabs/MachinesSettingsTab/MachinesSettingsTab'),
+  'MachinesSettingsTab',
+);
+const DevicesSettingsTab = lazyNamed(
+  () => import('@/components/settings/tabs/DevicesSettingsTab/DevicesSettingsTab'),
+  'DevicesSettingsTab',
+);
+
 const getErrorMessage = (error: unknown): string | undefined =>
   error instanceof Error ? error.message : undefined;
 
@@ -61,7 +69,7 @@ export function SettingsPage() {
   const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
   const userDisplayName = currentUser?.username || currentUser?.email || '';
   const logoutMutation = useLogout();
-  // Deep-link tab from location.state (e.g. Cloud CTA).
+  // Deep-link tab from location.state (e.g. the machine picker's Add machine).
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
     const requested = (location.state as { tab?: TabKey } | null)?.tab;
     return requested && requested in TAB_LABELS ? requested : 'general';
@@ -328,9 +336,19 @@ export function SettingsPage() {
                     </div>
                   )}
 
-                  {activeTab === 'cloud' && (
-                    <div role="tabpanel" id="cloud-panel" aria-labelledby="cloud-tab">
-                      <CloudSettingsTab />
+                  {activeTab === 'machines' && (
+                    <div role="tabpanel" id="machines-panel" aria-labelledby="machines-tab">
+                      <Suspense fallback={tabLoadingFallback}>
+                        <MachinesSettingsTab />
+                      </Suspense>
+                    </div>
+                  )}
+
+                  {activeTab === 'devices' && (
+                    <div role="tabpanel" id="devices-panel" aria-labelledby="devices-tab">
+                      <Suspense fallback={tabLoadingFallback}>
+                        <DevicesSettingsTab />
+                      </Suspense>
                     </div>
                   )}
                 </div>

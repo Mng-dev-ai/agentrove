@@ -1,38 +1,46 @@
 import { useEffect } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { cloudChatService } from '@/services/cloudChatService';
+import { machineChatService } from '@/services/machineChatService';
 import { patchChatInCache } from '@/hooks/queries/useChatQueries';
-import { markCloudChats, markCloudSandboxes } from '@/utils/chatOrigin';
-import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
+import {
+  assignChatRecordsToMachine,
+  assignChatsToMachine,
+  chatMachineId,
+} from '@/utils/machineOrigin';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { subscribeChatEventsFeed } from '@/utils/chatEventsFeed';
-import { resyncActiveStreams } from '@/utils/activeStreams';
+import { registerActiveStreams, resyncActiveStreams } from '@/utils/activeStreams';
 import { logger } from '@/utils/logger';
 import { insertStartedTurnInCache } from '@/hooks/stream/cachePatch';
 import type { ChatEvent } from '@/types/chat.types';
+import type { ActiveStreamSnapshot } from '@/types/stream.types';
 
-// Full refetch is simpler than local's optimistic insert — cloud lists reorder server-side.
-function invalidateCloudLists(queryClient: QueryClient): void {
-  const { cloudUrl, connectedEmail } = useCloudSettingsStore.getState();
-  void queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll });
-  void queryClient.invalidateQueries({
-    queryKey: queryKeys.cloudWorkspaces(cloudUrl, connectedEmail),
-  });
+function invalidateMachineLists(queryClient: QueryClient, machineId: string): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(machineId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(machineId) });
 }
 
-// Cloud twin of useChatEvents — VPS lifecycle SSE so remote creates/turns surface live.
-export function useCloudChatEvents(options?: { enabled?: boolean }) {
-  const enabled = options?.enabled ?? true;
-  const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
+function ownedStreams(machineId: string, streams: ActiveStreamSnapshot[]): ActiveStreamSnapshot[] {
+  return streams.filter((stream) => chatMachineId(stream.chat_id) === machineId);
+}
+
+export function useRemoteMachineSync(machineId: string): void {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!enabled || !cloudUrl) return;
-
-    // Cancel in-flight resync on disconnect/VPS switch (same guard as useCloudStreamRestoration).
     let cancelled = false;
+
+    machineChatService
+      .getActiveStreams(machineId)
+      .then((active) => {
+        if (cancelled) return;
+        registerActiveStreams(ownedStreams(machineId, active));
+      })
+      .catch((error) => {
+        logger.error('Machine stream restoration failed', 'useRemoteMachineSync', error);
+      });
 
     const onChatEvent = (event: MessageEvent) => {
       if (!event.data) return;
@@ -40,42 +48,40 @@ export function useCloudChatEvents(options?: { enabled?: boolean }) {
       try {
         parsed = JSON.parse(event.data) as ChatEvent;
       } catch (error) {
-        logger.error('Malformed cloud chat event', 'useCloudChatEvents', error);
+        logger.error('Malformed machine chat event', 'useRemoteMachineSync', error);
         return;
       }
 
       if (parsed.kind === 'chat_created') {
         const chat = parsed.chat;
-        // Register origin before any consumer touches the chat — its reads,
-        // status checks, and SSE reconnects must route to the VPS.
-        markCloudChats([chat.id]);
-        markCloudSandboxes([chat.sandbox_id]);
+        assignChatRecordsToMachine(machineId, [chat]);
+        if (chatMachineId(chat.id) !== machineId) return;
         queryClient.setQueryData(queryKeys.chat(chat.id), chat);
         if (chat.parent_chat_id) {
           void queryClient.invalidateQueries({
             queryKey: queryKeys.subThreads(chat.parent_chat_id),
           });
         }
-        invalidateCloudLists(queryClient);
+        invalidateMachineLists(queryClient, machineId);
         useUIStore.getState().openChatTab(chat.id);
         return;
       }
 
       if (parsed.kind === 'title_updated') {
-        // Single-chat cache for tabs/header; cloud sidebar is a separate list query.
+        if (chatMachineId(parsed.chat_id) !== machineId) return;
         patchChatInCache(queryClient, parsed.chat_id, (chat) => ({
           ...chat,
           title: parsed.title,
         }));
-        void queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(machineId) });
         return;
       }
 
       if (parsed.kind === 'stream_started') {
-        // Mark cloud-owned before reconnect — turn may be on a chat this device never listed.
-        markCloudChats([parsed.chat_id]);
+        assignChatsToMachine(machineId, [parsed.chat_id]);
+        if (chatMachineId(parsed.chat_id) !== machineId) return;
         useUIStore.getState().openChatTab(parsed.chat_id);
-        invalidateCloudLists(queryClient);
+        invalidateMachineLists(queryClient, machineId);
         void queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
         insertStartedTurnInCache(queryClient, parsed);
         useStreamStore.getState().addStreamMetadataIfAbsent({
@@ -87,24 +93,26 @@ export function useCloudChatEvents(options?: { enabled?: boolean }) {
     };
 
     const unsubscribe = subscribeChatEventsFeed({
-      createSource: () => cloudChatService.createChatEventsSource(),
+      createSource: () => machineChatService.createChatEventsSource(machineId),
       onChatEvent,
-      // Missed events while down; getActiveStreams also marks chat IDs cloud-owned.
       onResync: () => {
-        invalidateCloudLists(queryClient);
+        invalidateMachineLists(queryClient, machineId);
         void queryClient.invalidateQueries({ queryKey: ['chat'] });
         resyncActiveStreams(
-          () => cloudChatService.getActiveStreams(),
+          () =>
+            machineChatService
+              .getActiveStreams(machineId)
+              .then((streams) => ownedStreams(machineId, streams)),
           () => cancelled,
-          'useCloudChatEvents',
+          'useRemoteMachineSync',
         );
       },
-      logContext: 'useCloudChatEvents',
+      logContext: 'useRemoteMachineSync',
     });
 
     return () => {
       cancelled = true;
       unsubscribe();
     };
-  }, [enabled, cloudUrl, queryClient]);
+  }, [machineId, queryClient]);
 }

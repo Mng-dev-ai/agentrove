@@ -6,9 +6,11 @@ import {
   Key,
   ScrollText,
   Clock,
-  Cloud,
   GitBranch,
+  Server,
+  Smartphone,
 } from 'lucide-react';
+import { isTauri } from '@tauri-apps/api/core';
 
 export type TabKey =
   | 'general'
@@ -18,7 +20,8 @@ export type TabKey =
   | 'automations'
   | 'env_vars'
   | 'instructions'
-  | 'cloud';
+  | 'machines'
+  | 'devices';
 
 export interface SettingsNavItem {
   id: TabKey;
@@ -34,7 +37,8 @@ export const SETTINGS_NAV: SettingsNavItem[] = [
   { id: 'automations', label: 'Automations', icon: Clock },
   { id: 'env_vars', label: 'Env Variables', icon: Key },
   { id: 'instructions', label: 'Instructions', icon: ScrollText },
-  { id: 'cloud', label: 'Cloud', icon: Cloud },
+  { id: 'machines', label: 'Machines', icon: Server },
+  ...(isTauri() ? [] : [{ id: 'devices' as const, label: 'Devices', icon: Smartphone }]),
 ];
 
 export const TAB_LABELS: Record<TabKey, string> = Object.fromEntries(

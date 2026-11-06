@@ -87,6 +87,22 @@ npm install
 npm run desktop:dev
 ```
 
+Release builds are signed with a Developer ID identity and notarized. `npm run desktop:build` reads these from the environment (nothing is stored in the repo):
+
+```bash
+APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+# Notarization: Apple ID with an app-specific password...
+APPLE_ID=you@example.com
+APPLE_PASSWORD=xxxx-xxxx-xxxx-xxxx
+APPLE_TEAM_ID=TEAMID
+# ...or an App Store Connect API key instead of the three above
+APPLE_API_ISSUER=<issuer-uuid>
+APPLE_API_KEY=<key-id>
+APPLE_API_KEY_PATH=/path/to/AuthKey_<key-id>.p8
+```
+
+In CI, also set `APPLE_CERTIFICATE` (base64 `.p12`) and `APPLE_CERTIFICATE_PASSWORD` so the identity is imported into a temporary keychain. For a local unsigned build, set `APPLE_SIGNING_IDENTITY=-` (ad-hoc); Machines pairing tokens are kept in the macOS Keychain, which ties them to the app's signature, so an ad-hoc build asks for Keychain access again after every rebuild.
+
 ## Mobile (iOS)
 
 Agentrove also builds a native iOS app with Tauri. Since iOS can't run the local

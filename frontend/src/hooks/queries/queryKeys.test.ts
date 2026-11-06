@@ -37,7 +37,6 @@ const CONTRACT: ReadonlyArray<readonly [string, readonly unknown[], readonly unk
   ],
   ['searchAll', queryKeys.sandbox.searchAll(SB), queryKeys.sandbox.search(SB, 'q', '/cwd')],
   ['pullsAll', queryKeys.github.pullsAll('o', 'r', 'c'), queryKeys.github.pulls('o', 'r', 'c')],
-  ['cloudChatsAll', queryKeys.cloudChatsAll, queryKeys.cloudChats('https://c', 'me@x.com')],
   ['channelsAll', queryKeys.channelsAll, queryKeys.channels('ws1')],
   ['memoriesAll', queryKeys.memoriesAll, queryKeys.memories('ws1')],
 ];

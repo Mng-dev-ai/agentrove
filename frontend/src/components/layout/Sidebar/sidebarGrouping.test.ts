@@ -95,8 +95,8 @@ describe('buildRecentChatSections workspace grouping', () => {
         ],
         {
           workspaceBadgeById: new Map([
-            ['ws-1', { name: 'Alpha', isCloud: false }],
-            ['ws-2', { name: 'Beta', isCloud: true }],
+            ['ws-1', { name: 'Alpha', machineId: 'local' }],
+            ['ws-2', { name: 'Beta', machineId: 'vps' }],
           ]),
         },
       ),

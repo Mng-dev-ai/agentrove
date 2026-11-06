@@ -22,7 +22,10 @@ import { buildRecentChatSections } from './sidebarGrouping';
 import { useSidebarChatActions } from './useSidebarChatActions';
 import { useSidebarWorkspaceActions } from './useSidebarWorkspaceActions';
 import { countActiveSidebarFilters } from '@/store/sidebarFilters';
-import { useCloudChatIds } from '@/utils/chatOrigin';
+import { useChatOrigins } from '@/utils/machineOrigin';
+import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import type { MachineBadge } from './SidebarChatItem';
 import styles from './Sidebar.module.scss';
 
 export interface SidebarProps {
@@ -72,7 +75,7 @@ export function Sidebar({
     pinnedChats,
     recentChats,
     workspaceBadgeById,
-    cloudWorkspaces,
+    machineWorkspaces,
     isLoadingChats,
     hasMore,
     isFetchingMore,
@@ -102,15 +105,42 @@ export function Sidebar({
 
   const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
   // Status filters OR together (any selected badge state matches); source and
-  // workspace AND with them. Cloud-ness comes from chatOrigin (marked at fetch
-  // time, hydrated at module load) — the workspace badge map lags behind the
-  // cloud workspaces query and would misclassify cloud chats as local meanwhile.
-  const cloudChatIds = useCloudChatIds();
+  // workspace AND with them. Ownership comes from the machine origin map (set at
+  // fetch time, hydrated at module load) — the workspace badge map lags behind the
+  // per-machine workspaces queries and would misclassify remote chats meanwhile.
+  const chatOrigins = useChatOrigins();
+  const machines = useMachineStore((state) => state.machines);
+  const connections = useMachineStore((state) => state.connections);
+  const machineOptions = useMemo(
+    () => [
+      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
+      ...machines.map((machine) => ({ id: machine.id, name: machine.name })),
+    ],
+    [machines],
+  );
+  const sourceFilter = machineOptions.some((machine) => machine.id === filters.source)
+    ? filters.source
+    : 'all';
+  const machineBadgeForChat = useCallback(
+    (chatId: string): MachineBadge | undefined => {
+      if (machines.length === 0) return undefined;
+      const machineId = chatOrigins.get(chatId) ?? LOCAL_MACHINE_ID;
+      if (machineId === LOCAL_MACHINE_ID) return { name: LOCAL_MACHINE_NAME, offline: false };
+      return {
+        name: machines.find((machine) => machine.id === machineId)?.name ?? 'Removed machine',
+        offline: connections[machineId]?.status !== 'online',
+      };
+    },
+    [machines, connections, chatOrigins],
+  );
   const chatMatchesFilters = useCallback(
     (chat: Chat) => {
       if (filters.workspaceId && chat.workspace_id !== filters.workspaceId) return false;
       if (filters.agentKind && chat.session_agent_kind !== filters.agentKind) return false;
-      if (filters.source !== 'all' && cloudChatIds.has(chat.id) !== (filters.source === 'cloud')) {
+      if (
+        sourceFilter !== 'all' &&
+        (chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID) !== sourceFilter
+      ) {
         return false;
       }
       if (filters.statuses.length === 0) return true;
@@ -121,7 +151,7 @@ export function Sidebar({
         (filters.statuses.includes('needs-you') && blockedChatIdSet.has(chat.id))
       );
     },
-    [filters, streamingChatIdSet, completedChatIds, blockedChatIdSet, cloudChatIds],
+    [filters, sourceFilter, streamingChatIdSet, completedChatIds, blockedChatIdSet, chatOrigins],
   );
   const visiblePinnedChats = useMemo(
     () => (hasActiveFilters ? pinnedChats.filter(chatMatchesFilters) : pinnedChats),
@@ -204,6 +234,7 @@ export function Sidebar({
     blockedChatIdSet,
     completedChatIdSet: completedChatIds,
     workspaceBadgeById,
+    machineBadgeForChat,
     showWorkspaceBadges,
     onChatSelect: chatActions.handleChatSelect,
     onOpenInSplit: chatActions.showSplitAffordance ? chatActions.handleOpenInSplit : undefined,
@@ -248,6 +279,7 @@ export function Sidebar({
           filters={filters}
           onChangeFilters={(next) => useUIStore.getState().setSidebarFilters(next)}
           workspaceBadgeById={workspaceBadgeById}
+          machineOptions={machineOptions}
           hasMore={hasMore}
           isFetchingMore={isFetchingMore}
           onLoadMore={loadMore}
@@ -268,7 +300,7 @@ export function Sidebar({
         chat={chatActions}
         workspace={workspaceActions}
         workspaces={workspaces}
-        cloudWorkspaces={cloudWorkspaces}
+        machineWorkspaces={machineWorkspaces}
       />
     </>
   );

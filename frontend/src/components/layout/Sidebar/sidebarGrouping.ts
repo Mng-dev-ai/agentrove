@@ -73,7 +73,7 @@ export function buildRecentChatSections({
       if (!group) {
         group = {
           key: chat.workspace_id,
-          // Briefly unresolved while the cloud workspaces query loads
+          // Briefly unresolved while a machine's workspaces query loads
           label: workspaceBadgeById.get(chat.workspace_id)?.name ?? 'Unknown workspace',
           chats: [],
         };

@@ -201,7 +201,7 @@ class StreamConnectionManager {
       return;
     }
     if (!token) {
-      // Use open-time chat set — cloud expiry clears origin registry mid-flight.
+      // Use open-time chat set — the routing registry can change mid-flight.
       this.failClient(client, connection, chatIds);
       return;
     }

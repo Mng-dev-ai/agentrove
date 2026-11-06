@@ -4,7 +4,7 @@ import type { AgentKind } from '@/types/chat.types';
 
 // unread is server-persisted; running/done/needs-you are session-only stream state.
 export type SidebarStatusFilter = 'unread' | 'running' | 'done' | 'needs-you';
-export type SidebarSourceFilter = 'all' | 'local' | 'cloud';
+export type SidebarSourceFilter = 'all' | string;
 export type SidebarGroupBy = 'none' | 'date' | 'workspace' | 'status';
 export type FilterCategory = 'status' | 'agent' | 'source' | 'workspace' | 'groupBy';
 

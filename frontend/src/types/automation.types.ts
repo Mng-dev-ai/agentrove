@@ -49,5 +49,5 @@ export interface AutomationForm {
   thinking_mode: string;
   worktree: boolean;
   persona_name: string;
-  onCloud: boolean;
+  machineId: string;
 }

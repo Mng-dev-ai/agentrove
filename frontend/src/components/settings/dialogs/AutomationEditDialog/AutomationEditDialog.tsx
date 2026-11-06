@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Clock, Brain, Shield, Cloud, GitFork, Monitor } from 'lucide-react';
+import { Clock, Brain, Shield, GitFork } from 'lucide-react';
 import type { Persona } from '@/types/user.types';
 import type { AutomationForm } from '@/types/automation.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
@@ -25,7 +25,8 @@ import {
 } from '@/components/chat/permission-mode-selector/permissionModes';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { useCloudWorkspacesQuery } from '@/hooks/queries/useCloudQueries';
+import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
 import {
   buildCronExpression,
@@ -36,11 +37,6 @@ import {
 } from '@/utils/automationSchedule';
 import styles from './AutomationEditDialog.module.scss';
 
-const RUN_LOCATION_OPTIONS: readonly [ToggleDropdownOption, ToggleDropdownOption] = [
-  { label: 'Local', icon: Monitor },
-  { label: 'Cloud', icon: Cloud },
-];
-
 const WORKTREE_OPTIONS: readonly [ToggleDropdownOption, ToggleDropdownOption] = [
   { label: 'No worktree' },
   { label: 'Worktree' },
@@ -50,9 +46,8 @@ interface AutomationEditDialogProps {
   isOpen: boolean;
   isEditing: boolean;
   form: AutomationForm;
-  localPersonas: Persona[];
-  cloudPersonas: Persona[];
-  cloudConnected: boolean;
+  personas: Persona[];
+  machineOptions: { id: string; name: string }[];
   error: string | null;
   isSaving: boolean;
   onClose: () => void;
@@ -64,9 +59,8 @@ export function AutomationEditDialog({
   isOpen,
   isEditing,
   form,
-  localPersonas,
-  cloudPersonas,
-  cloudConnected,
+  personas,
+  machineOptions,
   error,
   isSaving,
   onClose,
@@ -74,23 +68,23 @@ export function AutomationEditDialog({
   onChange,
 }: AutomationEditDialogProps) {
   const { data: models = [] } = useModelsQuery();
+  const isLocal = form.machineId === LOCAL_MACHINE_ID;
   const localWorkspaces = useWorkspacesList();
-  const { data: cloudWorkspaces = [] } = useCloudWorkspacesQuery(cloudConnected);
+  const { data: machineWorkspaces = [] } = useMachineWorkspacesQuery(form.machineId, !isLocal);
 
-  const workspaces = form.onCloud ? cloudWorkspaces : localWorkspaces;
-  const personas = form.onCloud ? cloudPersonas : localPersonas;
+  const workspaces = isLocal ? localWorkspaces : machineWorkspaces;
 
   // Seed model when missing/left registry. Effect (onChange writes parent state).
-  // Never reseed cloud edits — VPS registry lag would silently swap the model on save.
+  // Never reseed remote edits — registry lag would silently swap the model on save.
   useEffect(() => {
-    if (isEditing && form.onCloud) return;
+    if (isEditing && !isLocal) return;
     if (models.length > 0 && !models.some((m) => m.model_id === form.model_id)) {
       onChange('model_id', models[0].model_id);
     }
-  }, [models, form.model_id, form.onCloud, isEditing, onChange]);
+  }, [models, form.model_id, isLocal, isEditing, onChange]);
 
-  // Workspace only exists on one backend; re-seed on local/cloud toggle. No cloud-edit
-  // guard — workspaces come from the owning backend, so missing id means deleted.
+  // Workspace only exists on one machine; re-seed on machine change. No remote-edit
+  // guard — workspaces come from the owning machine, so missing id means deleted.
   useEffect(() => {
     if (workspaces.length > 0 && !workspaces.some((w) => w.id === form.workspace_id)) {
       onChange('workspace_id', workspaces[0].id);
@@ -147,16 +141,22 @@ export function AutomationEditDialog({
           <div>
             <Label className={styles.label}>Workspace</Label>
             <div className={styles.row}>
-              {cloudConnected && (
-                <ToggleDropdown
-                  options={RUN_LOCATION_OPTIONS}
-                  value={form.onCloud}
-                  onSelect={(enabled) => onChange('onCloud', enabled)}
-                  width="8rem"
-                  // An automation is stored on the backend that runs it, so the
+              {machineOptions.length > 1 && (
+                <Select
+                  value={form.machineId}
+                  onChange={(e) => onChange('machineId', e.target.value)}
+                  className={styles.select}
+                  aria-label="Machine"
+                  // An automation is stored on the machine that runs it, so the
                   // location can't move after creation.
                   disabled={isEditing}
-                />
+                >
+                  {machineOptions.map((machine) => (
+                    <option key={machine.id} value={machine.id}>
+                      {machine.name}
+                    </option>
+                  ))}
+                </Select>
               )}
               <Select
                 value={form.workspace_id}
@@ -171,9 +171,7 @@ export function AutomationEditDialog({
               </Select>
             </div>
             {workspaces.length === 0 && (
-              <p className={styles.hint}>
-                No {form.onCloud ? 'cloud' : 'local'} workspaces available yet.
-              </p>
+              <p className={styles.hint}>No workspaces available on this machine yet.</p>
             )}
           </div>
 
