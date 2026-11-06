@@ -43,6 +43,7 @@ from app.services.acp.adapters import (
     NATIVE_FILE_TYPES,
 )
 from app.services.agent import AgentService
+from app.services.device_session import active_device_ids
 from app.services.git import GitService
 from app.services.push import PushService
 from app.services.queue import ChannelQueueService
@@ -528,6 +529,24 @@ class ChannelService(BaseDbService[Channel]):
             .order_by(ChannelMessage.seq)
         )
 
+    async def unseen_batch(
+        self, db: AsyncSession, channel: Channel, member: ChannelMember
+    ) -> list[ChannelMessage]:
+        batch = list((await db.scalars(self.unseen(member))).all())
+        active = await active_device_ids(
+            db,
+            channel.user_id,
+            frozenset().union(*(message.device_ids for message in batch)),
+        )
+        revoked = [message for message in batch if not message.device_ids <= active]
+        if revoked:
+            db.add_all(
+                ChannelDelivery(member_id=member.id, message_id=message.id)
+                for message in revoked
+            )
+            await db.commit()
+        return [message for message in batch if message.device_ids <= active]
+
     def fan_out(self, state: ChannelState) -> None:
         state.quiet_until = asyncio.get_running_loop().time() + DEBOUNCE_SECONDS
         self.schedule(state)
@@ -638,6 +657,18 @@ class ChannelService(BaseDbService[Channel]):
                 state.turns.pop(turn.member.id)
         await self.publish_activity(state)
 
+    async def cancel_device_turns(self, device_ids: frozenset[UUID]) -> None:
+        for state in list(self.states.values()):
+            async with state.lock:
+                turns = [
+                    turn
+                    for turn in state.turns.values()
+                    if turn.device_ids & device_ids
+                ]
+                if turns:
+                    await self.cancel_active(state, turns)
+            await self.cancel_turns(turns)
+
     async def cancel_turns(self, turns: list[MemberTurn]) -> None:
         await asyncio.gather(
             *(
@@ -681,7 +712,7 @@ class ChannelService(BaseDbService[Channel]):
                         await self.finish(state, previous)
                         state.turns.pop(member.id)
                     async with self.session_factory() as db:
-                        batch = list((await db.scalars(self.unseen(member))).all())
+                        batch = await self.unseen_batch(db, state.channel, member)
                         if not any(
                             self.addressed(message, member) for message in batch
                         ):

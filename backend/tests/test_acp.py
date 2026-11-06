@@ -31,7 +31,7 @@ from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_wake import SubThreadWake
 from app.services.user import UserService
-from tests.conftest import LoginClient, UserFactory
+from tests.conftest import EmailCapture, LoginClient, UserFactory
 from tests.fake_acp_agent import (
     ELICITATION_REQUESTED_SCHEMA,
     MARKER_AGENT_EXIT_MID_PROMPT,
@@ -1911,6 +1911,52 @@ async def test_channel_turn_acts_for_the_devices_that_addressed_the_member(
         member: (sorted(devices[name]["device_id"] for name in names), status)
         for member, (names, status) in expected.items()
     }
+
+
+@pytest.mark.parametrize("revoke", ["device", "password_reset"])
+async def test_revocation_cancels_the_devices_running_turn(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    email_capture: EmailCapture,
+    revoke: str,
+) -> None:
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    device_headers = {"Authorization": f"Bearer {paired['access_token']}"}
+    chat = await create_chat(client, device_headers, workspace, model_id="sonnet")
+    sent = await send_message(
+        client,
+        device_headers,
+        chat_id=chat["id"],
+        model_id="sonnet",
+        prompt=f"{MARKER_CANCEL} run long task",
+    )
+    message_id = sent.json()["message_id"]
+    await wait_for_message_event(
+        client, headers, message_id=message_id, event_type="tool_started"
+    )
+
+    if revoke == "device":
+        await client.delete(
+            f"/api/v1/auth/devices/{paired['device_id']}", headers=headers
+        )
+    else:
+        await client.post(
+            "/api/v1/auth/forgot-password", json={"email": "user@example.com"}
+        )
+        [reset] = email_capture.password_reset
+        await client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": reset["token"], "password": "newpassword123"},
+        )
+
+    assert not ChatStreamRuntime.has_active_chat(chat["id"])
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=message_id
+    )
+    assert message["stream_status"] == "interrupted"
 
 
 async def wait_for_latest_assistant(

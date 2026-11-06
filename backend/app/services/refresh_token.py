@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, delete, func, or_, select, update
+from sqlalchemy import ColumnElement, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
@@ -11,9 +11,8 @@ from app.core.security import (
     get_refresh_token_expiry,
     hash_refresh_token,
 )
-from app.services.device_session import DeviceSession
 from app.db.session import SessionLocal
-from app.models.db_models.paired_device import PairedDevice, PairingSecret
+from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.refresh_token import RefreshToken
 from app.models.db_models.user import User
 from app.services.db import SessionFactoryType
@@ -147,24 +146,10 @@ class RefreshTokenService:
         return True
 
     async def revoke_all_tokens(self, user_id: UUID, db: AsyncSession) -> int:
-        device_ids = frozenset(
-            await db.scalars(
-                update(PairedDevice)
-                .where(PairedDevice.user_id == user_id)
-                .values(
-                    revoked_at=func.coalesce(
-                        PairedDevice.revoked_at, datetime.now(timezone.utc)
-                    )
-                )
-                .returning(PairedDevice.id)
-            )
-        )
-        await db.execute(delete(PairingSecret).where(PairingSecret.user_id == user_id))
         result = await db.execute(
             delete(RefreshToken).where(RefreshToken.user_id == user_id)
         )
         await db.commit()
-        DeviceSession.revoke(device_ids)
         return int(getattr(result, "rowcount", 0))
 
     async def cleanup_expired_and_revoked_tokens(

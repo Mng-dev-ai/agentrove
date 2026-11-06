@@ -16,6 +16,7 @@ from app.core import deps
 from app.models.db_models.channel import Channel, ChannelDelivery, ChannelMessage
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
+from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatRequest
@@ -25,6 +26,7 @@ from app.services.channel import (
     ChannelService,
     ChannelState,
     MemberTurn,
+    TurnStatus,
     channel_service,
 )
 from app.services.sandbox_providers.base import SandboxProvider
@@ -436,6 +438,42 @@ async def test_unsuccessful_turn_redelivers_batch_and_cancelled_duration_falls_b
         )
     await channel_runtime.wake(channel_state)
     assert len(channel_runtime.requests) == 2
+
+
+async def test_revoking_a_device_cancels_its_member_turn_and_drops_its_messages(
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    device = PairedDevice(user_id=channel_state.channel.user_id, name="Laptop")
+    db_session.add(device)
+    await db_session.commit()
+    message = await channel_service.new_message(
+        channel_state, "Run the migration", device_ids=frozenset({device.id})
+    )
+    channel_runtime.events = [("assistant_text", {"text": "Partial reply"})]
+    channel_runtime.gate = asyncio.Event()
+    wake = asyncio.create_task(channel_runtime.wake(channel_state))
+    await asyncio.wait_for(channel_runtime.emitted.wait(), timeout=5)
+    member = channel_state.channel.members[0]
+    turn = channel_state.turns[member.id]
+    assert channel_runtime.device_ids == [frozenset({device.id})]
+
+    device.revoked_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    await channel_service.cancel_device_turns(frozenset({device.id}))
+    await asyncio.gather(wake, return_exceptions=True)
+    await channel_runtime.wake(channel_state)
+
+    assert turn.status is TurnStatus.FINISHED
+    assert turn.message is not None
+    reply = await db_session.get(ChannelMessage, turn.message.id)
+    assert reply is not None
+    assert reply.status == "cancelled"
+    assert len(channel_runtime.requests) == 1
+    assert (await db_session.scalars(select(ChannelDelivery.message_id))).all() == [
+        message.id
+    ]
 
 
 @pytest.mark.parametrize("action", ["messages", "stop"])

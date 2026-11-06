@@ -92,11 +92,9 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     ) -> None:
         # Reset implies compromise — kill refresh tokens from the old password.
         # Inline import avoids circular import with core.security.
-        from app.services.refresh_token import RefreshTokenService
+        from app.services.pairing import PairingService
 
-        revoked = await RefreshTokenService().revoke_all_tokens(
-            user.id, self.user_db.session
-        )
+        revoked = await PairingService.revoke_all(user.id, self.user_db.session)
         logger.info(
             "Revoked %s refresh tokens for user %s after password reset",
             revoked,

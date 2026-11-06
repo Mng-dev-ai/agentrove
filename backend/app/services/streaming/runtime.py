@@ -192,7 +192,6 @@ class ChatStreamRuntime:
                     {"data": {"worktree_cwd": self.chat.worktree_cwd}},
                 )
             self._accepts_steering = True
-            self._active_runtimes[self.chat_id] = self
             await self._consume_stream(stream_result, stream)
             await self._emit_prompt_suggestions()
 
@@ -1162,6 +1161,25 @@ class ChatStreamRuntime:
             if task_chat_id == chat_id and not task.done()
         }
 
+    @asynccontextmanager
+    async def _registered(self) -> AsyncIterator[None]:
+        self._active_runtimes[self.chat_id] = self
+        try:
+            yield
+        finally:
+            if self._active_runtimes.get(self.chat_id) is self:
+                self._active_runtimes.pop(self.chat_id)
+
+    @classmethod
+    async def cancel_device_turns(cls, device_ids: frozenset[UUID]) -> None:
+        await asyncio.gather(
+            *(
+                cls.cancel_chat_turn(chat_id, timeout=10)
+                for chat_id, runtime in list(cls._active_runtimes.items())
+                if runtime._request.device_ids & device_ids
+            )
+        )
+
     @classmethod
     async def cancel_chat_turn(cls, chat_id: str, timeout: float) -> None:
         # Hold the response until the cancelled turn unwinds (a resend would 409).
@@ -1480,7 +1498,7 @@ class ChatStreamRuntime:
             request=request,
             session_factory=session_factory,
         )
-        async with cache_connection() as cache:
+        async with cache_connection() as cache, runtime._registered():
             runtime.cache = cache
 
             ai_service = AgentService(session_factory=runtime.session_factory)
@@ -1609,8 +1627,6 @@ class ChatStreamRuntime:
                 raise
             finally:
                 runtime._accepts_steering = False
-                if cls._active_runtimes.get(runtime.chat_id) is runtime:
-                    cls._active_runtimes.pop(runtime.chat_id)
                 await runtime._close_stream()
                 session.active_generation_task = None
                 session.last_used_at = time.monotonic()
