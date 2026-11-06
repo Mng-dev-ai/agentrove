@@ -1,17 +1,21 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
+from uuid import UUID
 
 import aiosmtplib
 import httpx
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import (
     create_mcp_access_token,
     hash_refresh_token,
 )
+from app.core.user_manager import AccessTokenStrategy
+from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
 from app.services.email import EmailService, email_service
 from app.services.refresh_token import RefreshTokenService
@@ -946,3 +950,159 @@ async def test_forgot_password_succeeds_without_smtp_configured(
     )
 
     assert response.status_code == 202
+
+
+async def pair_device(
+    client: AsyncClient, access_token: str, device_name: str = "Laptop"
+) -> httpx.Response:
+    pairing = await client.post(
+        "/api/v1/auth/pairing",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert pairing.status_code == 200, pairing.text
+    return await client.post(
+        "/api/v1/auth/pair",
+        json={"secret": pairing.json()["secret"], "device_name": device_name},
+    )
+
+
+async def test_pairing_secret_is_single_use(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    await create_user(email="pair@example.com", username="pairuser")
+    tokens = await login(email="pair@example.com")
+    pairing = await client.post(
+        "/api/v1/auth/pairing",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    secret = pairing.json()["secret"]
+
+    first = await client.post(
+        "/api/v1/auth/pair", json={"secret": secret, "device_name": "  Laptop  "}
+    )
+    second = await client.post(
+        "/api/v1/auth/pair", json={"secret": secret, "device_name": "Laptop"}
+    )
+
+    assert first.status_code == 200, first.text
+    instance = await client.get("/api/v1/instance")
+    assert first.json()["instance_id"] == instance.json()["instance_id"]
+    devices = await client.get(
+        "/api/v1/auth/devices",
+        headers={"Authorization": f"Bearer {first.json()['access_token']}"},
+    )
+    assert [(d["name"], d["current"]) for d in devices.json()] == [("Laptop", True)]
+    assert second.status_code == 400
+    assert second.json()["detail"] == "Invalid or expired pairing link"
+
+
+async def test_pairing_rejects_expired_secret(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    db_session: AsyncSession,
+) -> None:
+    await create_user(email="pair-expired@example.com", username="pairexpired")
+    tokens = await login(email="pair-expired@example.com")
+    pairing = await client.post(
+        "/api/v1/auth/pairing",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    await db_session.execute(
+        update(PairingSecret).values(
+            expires_at=datetime.now(timezone.utc) - timedelta(seconds=1)
+        )
+    )
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/pair",
+        json={"secret": pairing.json()["secret"], "device_name": "Laptop"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid or expired pairing link"
+
+
+async def test_revoked_device_tokens_are_rejected_immediately(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    await create_user(email="revoke@example.com", username="revokeuser")
+    tokens = await login(email="revoke@example.com")
+    paired = (await pair_device(client, tokens["access_token"])).json()
+    device_headers = {"Authorization": f"Bearer {paired['access_token']}"}
+    assert (
+        await client.get("/api/v1/auth/me", headers=device_headers)
+    ).status_code == 200
+    refreshed = await client.post(
+        "/api/v1/auth/jwt/refresh", json={"refresh_token": paired["refresh_token"]}
+    )
+    assert refreshed.status_code == 200
+    refreshed_headers = {"Authorization": f"Bearer {refreshed.json()['access_token']}"}
+
+    response = await client.delete(
+        f"/api/v1/auth/devices/{paired['device_id']}", headers=device_headers
+    )
+
+    assert response.status_code == 204
+    for headers in (device_headers, refreshed_headers):
+        assert (await client.get("/api/v1/auth/me", headers=headers)).status_code == 401
+    for refresh_token in (paired["refresh_token"], refreshed.json()["refresh_token"]):
+        refresh = await client.post(
+            "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}
+        )
+        assert refresh.status_code == 401
+    password_session = await client.get(
+        "/api/v1/auth/devices",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert password_session.json() == []
+
+
+async def test_cannot_revoke_another_users_device(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    await create_user(email="owner@example.com", username="owneruser")
+    await create_user(email="other@example.com", username="otheruser")
+    owner = await login(email="owner@example.com")
+    other = await login(email="other@example.com")
+    paired = (await pair_device(client, owner["access_token"])).json()
+
+    response = await client.delete(
+        f"/api/v1/auth/devices/{paired['device_id']}",
+        headers={"Authorization": f"Bearer {other['access_token']}"},
+    )
+
+    assert response.status_code == 404
+    me = await client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert me.status_code == 200
+
+
+async def test_device_token_bound_to_another_users_device_is_rejected(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    db_session: AsyncSession,
+) -> None:
+    await create_user(email="device-owner@example.com", username="deviceowner")
+    intruder = await create_user(email="intruder@example.com", username="intruder")
+    owner = await login(email="device-owner@example.com")
+    paired = (await pair_device(client, owner["access_token"])).json()
+    device = await db_session.get(PairedDevice, UUID(paired["device_id"]))
+    assert device is not None
+    token = await AccessTokenStrategy(db_session).write_token(intruder, device.id)
+
+    response = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 401

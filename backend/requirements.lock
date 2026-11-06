@@ -171,7 +171,9 @@ pydantic-settings==2.12.0
     #   -r backend/requirements.txt
     #   mcp
 pyjwt==2.8.0
-    # via fastapi-users
+    # via
+    #   -r backend/requirements.txt
+    #   fastapi-users
 python-dateutil==2.9.0.post0
     # via croniter
 python-dotenv==1.2.1
