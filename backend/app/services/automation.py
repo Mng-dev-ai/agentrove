@@ -180,14 +180,16 @@ class AutomationService(BaseDbService[Automation]):
             await db.delete(automation)
             await db.commit()
 
-    async def run_automation(self, automation_id: UUID, user: User) -> Chat:
+    async def run_automation(
+        self, automation_id: UUID, user: User, device_id: UUID | None
+    ) -> Chat:
         # Manual "run now" — records last_run_at but leaves next_run_at alone so
         # the scheduled slot still fires.
         async with self.session_factory() as db:
             automation = await self._get_owned(db, automation_id, user.id)
             automation.last_run_at = datetime.now(timezone.utc)
             await db.commit()
-        return await self._fire(automation, user)
+        return await self._fire(automation, user, device_id)
 
     async def run_due_automations(self) -> dict[str, Any]:
         # Dispatch job entry point. Advances schedules before firing so a crash
@@ -260,7 +262,9 @@ class AutomationService(BaseDbService[Automation]):
 
         for automation in to_fire:
             try:
-                await self._fire(automation, users[automation.user_id])
+                await self._fire(
+                    automation, users[automation.user_id], automation.device_id
+                )
             except ServiceException as exc:
                 if exc.error_code == ErrorCode.WORKSPACE_NOT_FOUND:
                     # Soft-deleted workspace: the run can never succeed again.
@@ -295,7 +299,9 @@ class AutomationService(BaseDbService[Automation]):
             automation.workspace_id,
         )
 
-    async def _fire(self, automation: Automation, user: User) -> Chat:
+    async def _fire(
+        self, automation: Automation, user: User, device_id: UUID | None
+    ) -> Chat:
         # Re-check the saved model before creating the chat — a model retired
         # after creation would otherwise leave an orphan empty chat every slot.
         self._validate_model(automation.model_id)
@@ -322,7 +328,7 @@ class AutomationService(BaseDbService[Automation]):
                     selected_persona_name=automation.selected_persona_name,
                 ),
                 user,
-                device_id=automation.device_id,
+                device_id=device_id,
             )
         except Exception:
             # Don't leave an empty orphan chat for a run that never started.

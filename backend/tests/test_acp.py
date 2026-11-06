@@ -4,6 +4,7 @@ import os
 import sys
 import time
 from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -12,19 +13,24 @@ import httpx
 import jwt
 import pytest
 import pytest_asyncio
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 from app.core import deps
 from app.core.config import get_settings
+from app.db.session import SessionLocal
+from app.models.db_models.automation import Automation
 from app.models.db_models.chat import Chat
 from app.models.db_models.workspace import Workspace
 from app.services import channel as channel_module
+from app.services.automation import AutomationService
+from app.services.chat import ChatService
 from app.services import subthread_wake as wake_module
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_wake import SubThreadWake
+from app.services.user import UserService
 from tests.conftest import LoginClient, UserFactory
 from tests.fake_acp_agent import (
     ELICITATION_REQUESTED_SCHEMA,
@@ -1729,8 +1735,31 @@ async def run_automation_turn(
     )
 
 
+async def run_scheduled_automation_turn(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    db_session: AsyncSession,
+    automation_id: str,
+) -> dict[str, Any]:
+    await db_session.execute(
+        update(Automation)
+        .where(Automation.id == UUID(automation_id))
+        .values(next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1))
+    )
+    await db_session.commit()
+    await AutomationService(
+        ChatService(UserService(), session_factory=SessionLocal),
+        session_factory=SessionLocal,
+    ).run_due_automations()
+    chat_id = await db_session.scalar(
+        select(Chat.id).order_by(Chat.created_at.desc()).limit(1)
+    )
+    return await wait_for_latest_assistant(client, headers, str(chat_id))
+
+
 async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
     client: httpx.AsyncClient,
+    db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
@@ -1755,7 +1784,9 @@ async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
         headers={"Authorization": f"Bearer {paired['access_token']}"},
     )
     assert automation.status_code == 201, automation.text
-    first_run = await run_automation_turn(client, headers, automation.json()["id"])
+    first_run = await run_scheduled_automation_turn(
+        client, headers, db_session, automation.json()["id"]
+    )
     assert first_run["stream_status"] == "completed"
     [token, *_] = minted_mcp_tokens(fake_agent)
     agent_headers = {"Authorization": f"Bearer {token}"}
@@ -1765,7 +1796,9 @@ async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
     minted_before_revoke = len(minted_mcp_tokens(fake_agent))
 
     await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
-    second_run = await run_automation_turn(client, headers, automation.json()["id"])
+    second_run = await run_scheduled_automation_turn(
+        client, headers, db_session, automation.json()["id"]
+    )
 
     assert (
         await client.get("/api/v1/auth/me", headers=agent_headers)
@@ -1901,5 +1934,44 @@ async def test_wake_after_device_queued_turn_is_bound_to_that_device(
         for v in server["env"]
         if v["name"] == "AGENTROVE_ACCESS_TOKEN"
     ]
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["did"] == paired["device_id"]
+
+
+async def test_manual_automation_run_is_bound_to_the_clicking_device(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = (
+        await client.post(
+            "/api/v1/auth/pair",
+            json={"secret": pairing.json()["secret"], "device_name": "Laptop"},
+        )
+    ).json()
+    automation = await client.post(
+        "/api/v1/automations",
+        json={
+            "name": "Nightly",
+            "prompt": "Summarize",
+            "model_id": "sonnet",
+            "cron_expression": "0 9 * * *",
+            "workspace_id": str(workspace.id),
+        },
+        headers=headers,
+    )
+    assert automation.status_code == 201, automation.text
+
+    run = await run_automation_turn(
+        client,
+        {"Authorization": f"Bearer {paired['access_token']}"},
+        automation.json()["id"],
+    )
+
+    assert run["stream_status"] == "completed"
+    [token] = minted_mcp_tokens(fake_agent)
     claims = jwt.decode(token, options={"verify_signature": False})
     assert claims["did"] == paired["device_id"]

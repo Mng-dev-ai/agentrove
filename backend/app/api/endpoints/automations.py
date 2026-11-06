@@ -84,10 +84,13 @@ async def delete_automation(
 async def run_automation(
     automation_id: UUID,
     current_user: User = Depends(get_current_user),
+    device_id: UUID | None = Depends(get_current_device_id),
     automation_service: AutomationService = Depends(get_automation_service),
 ) -> AutomationRunResponse:
     try:
-        chat = await automation_service.run_automation(automation_id, current_user)
+        chat = await automation_service.run_automation(
+            automation_id, current_user, device_id
+        )
     except (AutomationException, ChatException) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     return AutomationRunResponse(chat_id=chat.id)
