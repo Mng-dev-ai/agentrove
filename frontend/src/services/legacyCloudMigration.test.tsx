@@ -127,7 +127,7 @@ describe('machine origin maps', () => {
     await resolveChatClient('vps-chat').get('/chat/chats/vps-chat');
     expect(fetchMock).toHaveBeenLastCalledWith(
       'https://vps.ts.net/api/v1/chat/chats/vps-chat',
-      expect.anything(),
+      expect.objectContaining({ redirect: 'error' }),
     );
   });
 

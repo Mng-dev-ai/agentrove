@@ -121,11 +121,13 @@ async function refreshLocalSession(baseUrl: string): Promise<string> {
 class APIClient {
   private resolveBaseUrl: () => string;
   private auth: ClientAuth;
+  private redirect: RequestRedirect;
   private refreshingPromise: Promise<string> | null = null;
 
-  constructor(resolveBaseUrl: () => string, auth: ClientAuth) {
+  constructor(resolveBaseUrl: () => string, auth: ClientAuth, redirect: RequestRedirect) {
     this.resolveBaseUrl = resolveBaseUrl;
     this.auth = auth;
+    this.redirect = redirect;
   }
 
   getBaseUrl(): string {
@@ -221,6 +223,7 @@ class APIClient {
       },
       signal,
       ...customConfig,
+      redirect: this.redirect,
     };
 
     if (data) {
@@ -280,6 +283,7 @@ class APIClient {
     const response = await fetch(`${this.resolveBaseUrl()}${endpoint}`, {
       method: 'GET',
       headers: this.authHeaders(false),
+      redirect: this.redirect,
       signal,
     });
 
@@ -311,6 +315,7 @@ class APIClient {
       method: 'GET',
       headers: { ...this.authHeaders(false), Accept: 'text/event-stream' },
       cache: 'no-store',
+      redirect: this.redirect,
       signal,
     });
 
@@ -337,7 +342,7 @@ const localAuth: ClientAuth = {
   onSessionExpired: invalidateSessionAndRedirect,
 };
 
-export const apiClient = new APIClient(() => API_BASE_URL, localAuth);
+export const apiClient = new APIClient(() => API_BASE_URL, localAuth, 'follow');
 
 function machineAuth(machineId: string): ClientAuth {
   return {
@@ -360,7 +365,11 @@ export function getMachineClient(machineId: string): APIClient {
   if (machineId === LOCAL_MACHINE_ID) return apiClient;
   let client = machineClients.get(machineId);
   if (!client) {
-    client = new APIClient(() => `${onlineMachineUrl(machineId)}/api/v1`, machineAuth(machineId));
+    client = new APIClient(
+      () => `${onlineMachineUrl(machineId)}/api/v1`,
+      machineAuth(machineId),
+      'error',
+    );
     machineClients.set(machineId, client);
   }
   return client;
