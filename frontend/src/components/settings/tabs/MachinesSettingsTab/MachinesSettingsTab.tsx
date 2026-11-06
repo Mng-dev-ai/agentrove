@@ -298,7 +298,7 @@ export function MachinesSettingsTab() {
         onClose={() => setRemoving(null)}
         onConfirm={() => removing && void handleRemove(removing)}
         title="Remove machine"
-        message={`Remove ${removing?.name ?? 'this machine'}? This device is revoked on the server when it's reachable, and its chats disappear from this app. Chats on the machine itself are kept.`}
+        message={`Remove ${removing?.name ?? 'this machine'}? This device is revoked on the server when it's reachable. Its chats stay listed as a removed machine until you pair the same server again, and chats on the machine itself are kept.`}
         confirmLabel="Remove"
       />
     </div>
