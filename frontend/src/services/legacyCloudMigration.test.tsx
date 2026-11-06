@@ -134,6 +134,21 @@ describe('machine origin maps', () => {
     );
   });
 
+  it('keeps assignments it could not save when a later one is saved', async () => {
+    const { assignChatsToMachine, chatMachineId } = await load(['vps', 'ec2']);
+    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('Quota exceeded', 'QuotaExceededError');
+    });
+    assignChatsToMachine('vps', ['vps-chat']);
+    setItem.mockRestore();
+
+    assignChatsToMachine('ec2', ['ec2-chat']);
+
+    expect(chatMachineId('vps-chat')).toBe('vps');
+    expect(chatMachineId('ec2-chat')).toBe('ec2');
+    expect(stored('machine-chat-origins')).toEqual({ 'vps-chat': 'vps', 'ec2-chat': 'ec2' });
+  });
+
   it('ignores late ids for a machine that is no longer in the store', async () => {
     const { assignChatRecordsToMachine, chatMachineId, sandboxMachineId, useMachineStore } =
       await load(['vps']);

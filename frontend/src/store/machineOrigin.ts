@@ -51,8 +51,26 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-function update(key: OriginKey, change: (map: Map<string, string>) => boolean): boolean {
+function isLiveMachine(machineId: string): boolean {
+  return machineId === LOCAL_MACHINE_ID || !!getMachine(machineId);
+}
+
+function withUnsaved(key: OriginKey): Map<string, string> {
   const map = load(key);
+  for (const [id, value] of maps[key]) {
+    const stored = map.get(id);
+    if (
+      stored === undefined ||
+      (stored !== value && key !== REMOVED_MACHINES_KEY && isLiveMachine(value))
+    ) {
+      map.set(id, value);
+    }
+  }
+  return map;
+}
+
+function update(key: OriginKey, change: (map: Map<string, string>) => boolean): boolean {
+  const map = withUnsaved(key);
   const changed = change(map);
   if (changed) persist(key, map);
   maps[key] = map;
@@ -62,7 +80,7 @@ function update(key: OriginKey, change: (map: Map<string, string>) => boolean): 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key !== null && !(event.key in maps)) return;
-    for (const key of Object.keys(maps) as OriginKey[]) maps[key] = load(key);
+    for (const key of Object.keys(maps) as OriginKey[]) maps[key] = withUnsaved(key);
     notify();
   });
 }
@@ -134,7 +152,7 @@ export function recordRemovedMachine(machineId: string, identity: MachineIdentit
 export function claimRemovedMachineOrigins(machineId: string, identities: MachineIdentity[]): void {
   const keys = new Set(identities.map(identityKey));
   const removedIds = new Set(
-    [...load(REMOVED_MACHINES_KEY)]
+    [...withUnsaved(REMOVED_MACHINES_KEY)]
       .filter(([, key]) => keys.has(key))
       .map(([removedId]) => removedId),
   );
