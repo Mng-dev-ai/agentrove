@@ -43,16 +43,92 @@ describe('machine origin maps', () => {
     expect(stored('machine-chat-origins')).toEqual({ 'shared-chat': 'local', 'vps-chat': 'vps' });
   });
 
-  it('frees a removed machine’s ids without touching other machines', async () => {
-    const { assignChatsToMachine, forgetMachineOrigins, chatMachineId } = await load([
-      'vps',
-      'ec2',
-    ]);
-    assignChatsToMachine('vps', ['a']);
-    assignChatsToMachine('ec2', ['b']);
-    forgetMachineOrigins('vps');
-    expect(chatMachineId('a')).toBe('local');
-    expect(chatMachineId('b')).toBe('ec2');
+  const pairing = (instanceId: string) => ({
+    instanceId,
+    deviceId: `device-${instanceId}`,
+    pairedAt: '2026-01-01T00:00:00Z',
+  });
+
+  async function removePairedMachines() {
+    const loaded = await load();
+    const store = loaded.useMachineStore.getState();
+    for (const [id, instanceId] of [
+      ['vps', 'vps-instance'],
+      ['ec2', 'ec2-instance'],
+    ]) {
+      store.addMachine({ id, name: id, url: `https://${id}.ts.net`, pairing: pairing(instanceId) });
+      store.setConnection(id, { status: 'offline' });
+    }
+    loaded.assignChatRecordsToMachine('vps', [{ id: 'vps-chat', sandbox_id: 'vps-sbx' }]);
+    loaded.assignChatsToMachine('ec2', ['ec2-chat']);
+    const { removeMachine } = await import('@/services/machineActions');
+    await removeMachine('vps');
+    await removeMachine('ec2');
+    return loaded;
+  }
+
+  it('keeps a removed machine’s chats on it so no other machine gets their requests', async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    vi.stubGlobal('fetch', fetchMock);
+    const { chatMachineId } = await removePairedMachines();
+    const { resolveChatClient, resolveSandboxClient } = await import('@/lib/api');
+    const { MachineUnavailableError } = await import('@/services/machineSession');
+    const { machineName } = await import('@/store/machineStore');
+
+    await expect(resolveChatClient('vps-chat').get('/chat/chats/vps-chat')).rejects.toBeInstanceOf(
+      MachineUnavailableError,
+    );
+    await expect(resolveSandboxClient('vps-sbx').get('/sandbox/vps-sbx')).rejects.toBeInstanceOf(
+      MachineUnavailableError,
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(machineName(chatMachineId('vps-chat'))).toBe('Removed machine');
+  });
+
+  it('routes a removed machine’s chats to a new pairing with the same server', async () => {
+    const { chatMachineId, sandboxMachineId } = await removePairedMachines();
+    const exp = Math.floor(Date.now() / 1000) + 3600;
+    const accessToken = `e30.${btoa(JSON.stringify({ exp }))}.sig`;
+    const fetchMock = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (!url.startsWith('https://vps.ts.net/')) {
+        return new Response(JSON.stringify({ instance_id: 'local-instance' }));
+      }
+      const path = new URL(url).pathname;
+      if (path === '/health') return new Response(JSON.stringify({ status: 'healthy' }));
+      if (path === '/api/v1/instance') {
+        return new Response(JSON.stringify({ instance_id: 'vps-instance' }));
+      }
+      if (path === '/api/v1/auth/pair') {
+        return new Response(
+          JSON.stringify({
+            access_token: accessToken,
+            refresh_token: 'refresh',
+            device_id: 'new-device',
+            instance_id: 'vps-instance',
+          }),
+        );
+      }
+      return new Response(JSON.stringify({ id: 'vps-chat' }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { pairMachine } = await import('@/services/machineActions');
+    const { resolveChatClient } = await import('@/lib/api');
+
+    const machine = await pairMachine({
+      mode: 'add',
+      name: 'VPS again',
+      link: 'https://vps.ts.net/#pair=secret',
+    });
+
+    expect(chatMachineId('vps-chat')).toBe(machine.id);
+    expect(sandboxMachineId('vps-sbx')).toBe(machine.id);
+    expect(chatMachineId('ec2-chat')).toBe('ec2');
+    await resolveChatClient('vps-chat').get('/chat/chats/vps-chat');
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      'https://vps.ts.net/api/v1/chat/chats/vps-chat',
+      expect.anything(),
+    );
   });
 
   it('ignores late ids for a machine that is no longer in the store', async () => {

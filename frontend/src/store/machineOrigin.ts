@@ -4,6 +4,7 @@ import { getMachine } from '@/store/machineStore';
 
 const CHATS_KEY = 'machine-chat-origins';
 const SANDBOXES_KEY = 'machine-sandbox-origins';
+const REMOVED_MACHINES_KEY = 'machine-removed-instances';
 
 function load(key: string): Map<string, string> {
   try {
@@ -30,6 +31,7 @@ function persist(key: string, origins: Map<string, string>): void {
 
 const chatOrigins = load(CHATS_KEY);
 const sandboxOrigins = load(SANDBOXES_KEY);
+const removedMachineInstances = load(REMOVED_MACHINES_KEY);
 let chatOriginsSnapshot: ReadonlyMap<string, string> = new Map(chatOrigins);
 const listeners = new Set<() => void>();
 
@@ -100,15 +102,28 @@ export function useChatOrigins(): ReadonlyMap<string, string> {
   return useSyncExternalStore(subscribe, () => chatOriginsSnapshot);
 }
 
-export function forgetMachineOrigins(machineId: string): void {
+export function recordRemovedMachine(machineId: string, instanceId: string): void {
+  removedMachineInstances.set(machineId, instanceId);
+  persist(REMOVED_MACHINES_KEY, removedMachineInstances);
+}
+
+export function claimRemovedMachineOrigins(instanceId: string, machineId: string): void {
+  const removedIds = new Set(
+    [...removedMachineInstances]
+      .filter(([, removedInstanceId]) => removedInstanceId === instanceId)
+      .map(([removedId]) => removedId),
+  );
+  if (removedIds.size === 0) return;
   for (const [origins, key] of [
     [chatOrigins, CHATS_KEY],
     [sandboxOrigins, SANDBOXES_KEY],
   ] as const) {
     for (const [id, owner] of origins) {
-      if (owner === machineId) origins.delete(id);
+      if (removedIds.has(owner)) origins.set(id, machineId);
     }
     persist(key, origins);
   }
+  for (const removedId of removedIds) removedMachineInstances.delete(removedId);
+  persist(REMOVED_MACHINES_KEY, removedMachineInstances);
   notify();
 }

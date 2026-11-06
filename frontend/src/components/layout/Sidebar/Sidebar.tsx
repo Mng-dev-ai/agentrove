@@ -128,9 +128,10 @@ export function Sidebar({
   const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
   const machineBadgeForChat = useCallback(
     (chatId: string): MachineBadge | undefined => {
-      if (machines.length === 0) return undefined;
       const machineId = chatOrigins.get(chatId) ?? LOCAL_MACHINE_ID;
-      if (machineId === LOCAL_MACHINE_ID) return { name: LOCAL_MACHINE_NAME, offline: false };
+      if (machineId === LOCAL_MACHINE_ID) {
+        return machines.length === 0 ? undefined : { name: LOCAL_MACHINE_NAME, offline: false };
+      }
       return {
         name: machines.find((machine) => machine.id === machineId)?.name ?? 'Removed machine',
         offline: connections[machineId]?.status !== 'online',
