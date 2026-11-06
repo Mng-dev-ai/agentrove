@@ -24,6 +24,7 @@ interface SidebarChatListProps {
   filters: SidebarFilters;
   onChangeFilters: (filters: SidebarFilters) => void;
   workspaceBadgeById: Map<string, WorkspaceBadge>;
+  machineOptions: { id: string; name: string }[];
   hasMore: boolean;
   isFetchingMore: boolean;
   onLoadMore: () => void;
@@ -42,6 +43,7 @@ export function SidebarChatList({
   filters,
   onChangeFilters,
   workspaceBadgeById,
+  machineOptions,
   hasMore,
   isFetchingMore,
   onLoadMore,
@@ -82,6 +84,7 @@ export function SidebarChatList({
                 filters={filters}
                 onChange={onChangeFilters}
                 workspaceBadgeById={workspaceBadgeById}
+                machineOptions={machineOptions}
               />
             </SidebarSectionHeader>
             {isRecentsCollapsed ? (
@@ -115,7 +118,7 @@ export function SidebarChatList({
               </div>
             ) : null}
           </div>
-          {/* Outside Recents: a cloud page of only pinned chats still needs Load more. */}
+          {/* Outside Recents: a remote page of only pinned chats still needs Load more. */}
           {hasMore && (
             <Button
               variant="unstyled"

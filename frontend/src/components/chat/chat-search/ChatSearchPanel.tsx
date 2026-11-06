@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/primitives/Input/Input';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearchChatsQuery } from '@/hooks/queries/useChatQueries';
-import { useSearchCloudChatsQuery } from '@/hooks/queries/useCloudQueries';
+import { useSearchMachineChatsQueries } from '@/hooks/queries/useMachineQueries';
+import { machineName, useOnlineRemoteMachineIds } from '@/store/machineStore';
 import type { ChatSearchResult } from '@/types/chat.types';
 import { ChatSearchResultGroup } from './ChatSearchResultGroup';
 import styles from './ChatSearchPanel.module.scss';
@@ -52,15 +53,21 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
     activeInputRef.current?.focus();
   });
 
-  // Local and cloud chats live on separate backends — search both and merge,
-  // like the sidebar's merged lists. Each source errors independently so a
-  // down VPS doesn't take local search with it.
+  // Each machine is a separate backend — search all online ones and merge, like
+  // the sidebar's merged lists. Each source errors independently so a down
+  // machine doesn't take local search with it.
   const local = useSearchChatsQuery(debouncedQuery);
-  const cloud = useSearchCloudChatsQuery(debouncedQuery);
-  const isFetching = local.isFetching || cloud.isFetching;
-  const hasLoaded = !!local.data || !!cloud.data;
-  const error = local.error ?? cloud.error;
-  const truncated = !!local.data?.truncated || !!cloud.data?.truncated;
+  const remoteIds = useOnlineRemoteMachineIds();
+  const remote = useSearchMachineChatsQueries(remoteIds, debouncedQuery);
+  const sources = [local, ...remote];
+  const isFetching = sources.some((source) => source.isFetching);
+  const hasLoaded = sources.some((source) => !!source.data);
+  const error = sources.find((source) => source.error)?.error ?? null;
+  const truncated = sources.some((source) => !!source.data?.truncated);
+  const failedSources = [
+    local.error ? 'local' : null,
+    ...remote.map((source, index) => (source.error ? machineName(remoteIds[index]) : null)),
+  ].filter((name): name is string => !!name);
 
   const handleClear = useCallback(() => {
     setQuery('');
@@ -77,14 +84,10 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
     [query, handleClear],
   );
 
-  const { grouped, totalMatches, resultCount } = useMemo(() => {
-    const results = [...(local.data?.results ?? []), ...(cloud.data?.results ?? [])];
-    return {
-      grouped: groupByWorkspace(results),
-      totalMatches: results.reduce((acc, r) => acc + r.match_count, 0),
-      resultCount: results.length,
-    };
-  }, [local.data, cloud.data]);
+  const results = sources.flatMap((source) => source.data?.results ?? []);
+  const grouped = groupByWorkspace(results);
+  const totalMatches = results.reduce((acc, r) => acc + r.match_count, 0);
+  const resultCount = results.length;
 
   const hasQuery = debouncedQuery.trim().length >= 2;
   const hasResults = resultCount > 0;
@@ -147,8 +150,7 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
 
         {hasQuery && error && hasLoaded && (
           <p className={styles['error-message']}>
-            {[local.error && 'local', cloud.error && 'cloud'].filter(Boolean).join(' and ')} search
-            failed — results may be incomplete.
+            {failedSources.join(' and ')} search failed — results may be incomplete.
           </p>
         )}
 

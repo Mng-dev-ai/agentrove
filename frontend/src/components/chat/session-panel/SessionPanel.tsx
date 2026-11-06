@@ -2,13 +2,13 @@ import { memo, useEffect, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
-  Cloud,
   CornerLeftUp,
   ExternalLink,
   Folder,
   GitBranch,
   Monitor,
   Plus,
+  Server,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -34,7 +34,9 @@ import { getAgentKindForModelId, type Chat } from '@/types/chat.types';
 import type { Channel } from '@/types/channel.types';
 import type { DiffMode, GitDiffTotals } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
-import { useIsCloudChat } from '@/utils/chatOrigin';
+import { useChatMachineId } from '@/utils/machineOrigin';
+import { useMachineName } from '@/store/machineStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { getRelativeTime } from '@/utils/date';
 import { getContextUsageDisplay } from '@/utils/contextUsage';
 import { stripMarkdownTitle } from '@/utils/format';
@@ -107,15 +109,22 @@ function EnvironmentCard({
   branch: string | null;
   children?: ReactNode;
 }) {
-  const isCloud = useIsCloudChat(chat.id);
+  const machineId = useChatMachineId(chat.id);
+  const machineLabel = useMachineName(machineId);
   const isDocker = workspace?.sandbox_provider === 'docker';
   const path = chat.worktree_cwd ?? workspace?.workspace_path;
   return (
     <Card title="Environment">
       <Row
-        icon={isCloud ? <Cloud className={styles.glyph} /> : <Monitor className={styles.glyph} />}
+        icon={
+          machineId === LOCAL_MACHINE_ID ? (
+            <Monitor className={styles.glyph} />
+          ) : (
+            <Server className={styles.glyph} />
+          )
+        }
       >
-        {isCloud ? 'Cloud' : 'This computer'}
+        {machineLabel}
         {workspace && (
           <span className={styles.secondary}>
             {' · '}

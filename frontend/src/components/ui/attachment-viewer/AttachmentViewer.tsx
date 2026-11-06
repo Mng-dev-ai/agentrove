@@ -16,7 +16,7 @@ import styles from './AttachmentViewer.module.scss';
 interface AttachmentViewerProps {
   attachments: MessageAttachment[];
   uploadingAttachmentIds?: string[];
-  // Routes fetch/download to the chat's backend (cloud relative URLs need the VPS).
+  // Routes fetch/download to the machine that owns the chat.
   chatId?: string;
 }
 

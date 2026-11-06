@@ -32,15 +32,15 @@ interface ChatSettingsState {
   worktreeBaseBranchByChat: Record<string, string | undefined>;
   // Codex-only 1.5x tier; other agents ignore it.
   fastModeByChat: Record<string, boolean>;
-  // Global landing-composer choice (cloud chats have no local id to key by).
-  runOnCloud: boolean;
+  // Global landing-composer choice; null follows the default machine.
+  targetMachineId: string | null;
   personaByChat: Record<string, string>;
   setPermissionMode: (chatId: string, mode: PermissionMode) => void;
   setThinkingMode: (chatId: string, mode: string) => void;
   setWorktree: (chatId: string, enabled: boolean) => void;
   setWorktreeBaseBranch: (chatId: string, branch: string | undefined) => void;
   setFastMode: (chatId: string, enabled: boolean) => void;
-  setRunOnCloud: (enabled: boolean) => void;
+  setTargetMachine: (machineId: string) => void;
   setPersona: (chatId: string, name: string) => void;
   initChatFromDefaults: (chatId: string) => void;
 }
@@ -53,7 +53,7 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
       worktreeByChat: {},
       worktreeBaseBranchByChat: {},
       fastModeByChat: {},
-      runOnCloud: false,
+      targetMachineId: null,
       personaByChat: {},
       setPermissionMode: (chatId, mode) =>
         set((state) => ({
@@ -86,20 +86,20 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         set((state) => ({
           fastModeByChat: { ...state.fastModeByChat, [chatId]: enabled },
         })),
-      setRunOnCloud: (enabled) =>
+      setTargetMachine: (machineId) =>
         set((state) => {
-          if (enabled === state.runOnCloud) return {};
-          // Local<->cloud swaps the active workspace without a workspace-change
+          if (machineId === state.targetMachineId) return {};
+          // A machine switch swaps the active workspace without a workspace-change
           // event, so the workspace-scoped default base must reset here too.
           const next = { ...state.worktreeBaseBranchByChat };
           delete next[DEFAULT_KEY];
-          return { runOnCloud: enabled, worktreeBaseBranchByChat: next };
+          return { targetMachineId: machineId, worktreeBaseBranchByChat: next };
         }),
       setPersona: (chatId, name) =>
         set((state) => ({
           personaByChat: { ...state.personaByChat, [chatId]: name },
         })),
-      // Seed a new local chat from __default__ toolbar settings (not used for cloud).
+      // Seed a new chat from __default__ toolbar settings.
       initChatFromDefaults: (chatId) => {
         const state = get();
         const permission = state.permissionModeByChat[DEFAULT_KEY];

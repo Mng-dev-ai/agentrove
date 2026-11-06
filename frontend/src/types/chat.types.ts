@@ -103,7 +103,7 @@ export interface Chat {
   last_persona_name: string | null;
 }
 
-// /chat/chats/events SSE — useChatEvents (local) / useCloudChatEvents (VPS).
+// /chat/chats/events SSE — useChatEvents (local) / useRemoteMachineSync (remote machines).
 export type ChatEvent =
   | { kind: 'chat_created'; chat: Chat }
   | {

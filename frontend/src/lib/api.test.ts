@@ -5,18 +5,10 @@ const { onSessionExpired } = vi.hoisted(() => ({ onSessionExpired: vi.fn() }));
 
 vi.mock('@/utils/authSession', () => ({ invalidateSessionAndRedirect: onSessionExpired }));
 
-import {
-  apiClient,
-  remoteApiClient,
-  resolveChatClient,
-  resolveSandboxClient,
-  setCloudApiBaseUrl,
-} from './api';
+import { apiClient } from './api';
 import { withAuth } from '@/services/base/BaseService';
-import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { NetworkError } from '@/types/errors.types';
-import { isCloudChat, markCloudChats, markCloudSandboxes } from '@/utils/chatOrigin';
-import { authStorage, cloudAuthStorage } from '@/utils/storage';
+import { authStorage } from '@/utils/storage';
 
 const json = (body: unknown, status = 200) =>
   new Response(body == null ? '' : JSON.stringify(body), { status });
@@ -151,22 +143,6 @@ describe('APIClient 401 handling', () => {
     expect(authStorage.getToken()).toBe('access');
     expect(authStorage.getRefreshToken()).toBe('refresh-tok');
   });
-
-  it('disconnects the cloud when the VPS refresh token is rejected', async () => {
-    useCloudSettingsStore.getState().setCloud('https://vps.example', 'me@example.com');
-    setCloudApiBaseUrl('https://vps.example');
-    await cloudAuthStorage.setTokens('cloud-access', 'cloud-refresh');
-    markCloudChats(['cloud-chat']);
-    fetchMock.mockResolvedValue(json({ detail: 'invalid' }, 401));
-
-    await expect(remoteApiClient.get('/chat/chats')).rejects.toThrow('Session expired');
-
-    expect(cloudAuthStorage.getRefreshToken()).toBeNull();
-    expect(isCloudChat('cloud-chat')).toBe(false);
-    expect(useCloudSettingsStore.getState()).toMatchObject({ cloudUrl: '', connectedEmail: null });
-    expect(onSessionExpired).not.toHaveBeenCalled();
-    expect(authStorage.getToken()).toBe('access');
-  });
 });
 
 describe('withAuth error classification', () => {
@@ -259,21 +235,5 @@ describe('getValidToken', () => {
 
     await expect(apiClient.getValidToken()).resolves.toBeNull();
     expect(onSessionExpired).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe('client routing', () => {
-  it('routes cloud chats to the remote client and everything else locally', () => {
-    markCloudChats(['cloud-chat']);
-    expect(resolveChatClient('cloud-chat')).toBe(remoteApiClient);
-    expect(resolveChatClient('local-chat')).toBe(apiClient);
-    expect(resolveChatClient(undefined)).toBe(apiClient);
-  });
-
-  it('routes cloud sandboxes to the remote client and everything else locally', () => {
-    markCloudSandboxes(['cloud-sbx']);
-    expect(resolveSandboxClient('cloud-sbx')).toBe(remoteApiClient);
-    expect(resolveSandboxClient('local-sbx')).toBe(apiClient);
-    expect(resolveSandboxClient(undefined)).toBe(apiClient);
   });
 });

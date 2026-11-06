@@ -7,16 +7,17 @@ import { useAppBadge } from '@/hooks/useAppBadge';
 import { Layout } from '@/components/layout/Layout/Layout';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
-import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
+import { useOnlineRemoteMachineIds } from '@/store/machineStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useUIStore } from '@/store/uiStore';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { LoadingScreen } from '@/components/ui/LoadingScreen/LoadingScreen';
 import { useGlobalStream } from '@/hooks/useGlobalStream';
 import { useLocalStreamRestoration } from '@/hooks/useLocalStreamRestoration';
-import { useCloudStreamRestoration } from '@/hooks/useCloudStreamRestoration';
 import { useChatEvents } from '@/hooks/useChatEvents';
-import { useCloudChatEvents } from '@/hooks/useCloudChatEvents';
+import { useRemoteMachineSync } from '@/hooks/useRemoteMachineSync';
+import { useMachineStatusPolling } from '@/hooks/useMachineStatusPolling';
+import { migrateLegacyCloud } from '@/services/legacyCloudMigration';
 import { authService } from '@/services/authService';
 import { toasterConfig } from '@/config/toaster';
 import { AuthRoute } from '@/components/routes/AuthRoute/AuthRoute';
@@ -24,10 +25,10 @@ import { setApiPort } from '@/lib/api';
 import { isTauri, invoke } from '@tauri-apps/api/core';
 import { isDesktopApp, isMobileApp } from '@/utils/platform';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import { authStorage, cloudAuthStorage } from '@/utils/storage';
+import { authStorage } from '@/utils/storage';
 import { useNotificationPermissionPrompt } from '@/hooks/useNotificationPermissionPrompt';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
-import { clearCloudOrigins } from '@/utils/chatOrigin';
+import { isPairingHash } from '@/utils/machineUrl';
 import { PALETTES } from '@/styles/palettes';
 import { checkDesktopUpdate } from '@/services/desktopUpdateService';
 import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
@@ -54,6 +55,11 @@ const ResetPasswordPage = lazyNamed(
 );
 const SettingsPage = lazyNamed(() => import('@/pages/SettingsPage/SettingsPage'), 'SettingsPage');
 
+function RemoteMachineSync({ machineId }: { machineId: string }) {
+  useRemoteMachineSync(machineId);
+  return null;
+}
+
 function AppContent() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hasToken = !!authService.getToken();
@@ -78,9 +84,9 @@ function AppContent() {
   }, [user, hasToken, isAuthenticated]);
 
   useLocalStreamRestoration({ enabled: isSessionAuthenticated });
-  useCloudStreamRestoration({ enabled: isSessionAuthenticated });
   useChatEvents({ enabled: isSessionAuthenticated });
-  useCloudChatEvents({ enabled: isSessionAuthenticated });
+  useMachineStatusPolling(isSessionAuthenticated);
+  const onlineMachineIds = useOnlineRemoteMachineIds();
   useNotificationPermissionPrompt(isSessionAuthenticated);
   usePushNotifications(isSessionAuthenticated);
 
@@ -90,6 +96,10 @@ function AppContent() {
 
   return (
     <Suspense fallback={<LoadingScreen />}>
+      {isSessionAuthenticated &&
+        onlineMachineIds.map((machineId) => (
+          <RemoteMachineSync key={machineId} machineId={machineId} />
+        ))}
       <Routes>
         <Route
           path="/login"
@@ -209,19 +219,21 @@ export default function App() {
   useMountEffect(() => {
     let cancelled = false;
 
-    Promise.all([authStorage.hydrate(), cloudAuthStorage.hydrate()])
+    if (isPairingHash(window.location.hash)) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    }
+    migrateLegacyCloud().catch((error) => {
+      console.error('Legacy cloud migration failed:', error);
+    });
+
+    authStorage
+      .hydrate()
       .catch((error) => {
         console.error('Auth storage hydration failed:', error);
       })
       .finally(() => {
         if (cancelled) return;
         useAuthStore.getState().setAuthenticated(!!authStorage.getToken());
-        // No hydrated refresh token → drop cloud UI state and origin routing IDs.
-        const cloud = useCloudSettingsStore.getState();
-        if (cloud.connectedEmail && !cloudAuthStorage.getRefreshToken()) {
-          cloud.clearCloud();
-          clearCloudOrigins();
-        }
         setAuthHydrated(true);
       });
 

@@ -1,17 +1,107 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { useQueries, type UseQueryResult } from '@tanstack/react-query';
+import { MACHINE_CHATS_PER_PAGE } from '@/config/constants';
 import { useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
-import {
-  useCloudWorkspacesQuery,
-  useInfiniteCloudChatsQuery,
-} from '@/hooks/queries/useCloudQueries';
+import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
+import { queryKeys } from '@/hooks/queries/queryKeys';
+import { machineChatService } from '@/services/machineChatService';
+import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
+import { mergeRecentChatSources, type RecentChatSource } from '@/utils/mergeChatSources';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import type { PaginatedChats } from '@/types/api.types';
 import type { Workspace } from '@/types/workspace.types';
 
 export interface WorkspaceBadge {
   name: string;
-  isCloud: boolean;
+  machineId: string;
 }
 
-// Merge local pinned/unpinned + cloud into Pinned/Recents; one loadMore advances both pages.
+interface RemoteChatSource extends RecentChatSource {
+  isLoading: boolean;
+  isFetchingMore: boolean;
+}
+
+interface PagePlan {
+  machineId: string;
+  page: number;
+  online: boolean;
+  isLastPage: boolean;
+}
+
+function combineRemoteSources(
+  plan: PagePlan[],
+  results: UseQueryResult<PaginatedChats>[],
+): Map<string, RemoteChatSource> {
+  const sources = new Map<string, RemoteChatSource>();
+  plan.forEach(({ machineId, page, online, isLastPage }, index) => {
+    const result = results[index];
+    const source = sources.get(machineId) ?? {
+      chats: [],
+      hasMore: false,
+      isLoading: false,
+      isFetchingMore: false,
+    };
+    const seen = new Set(source.chats.map((chat) => chat.id));
+    const items = result.data?.items ?? [];
+    source.chats = [...source.chats, ...items.filter((chat) => !seen.has(chat.id))];
+    if (isLastPage) {
+      source.hasMore = online && !!result.data && result.data.page < result.data.pages;
+    }
+    source.isLoading ||= online && result.isLoading;
+    source.isFetchingMore ||= page > 1 && result.isFetching;
+    sources.set(machineId, source);
+  });
+  return sources;
+}
+
+function useRemoteChatSources(machineIds: string[], enabled: boolean) {
+  const onlineKey = useMachineStore((state) =>
+    machineIds.map((id) => state.connections[id]?.status === 'online').join(','),
+  );
+  const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
+
+  const plan = useMemo(() => {
+    const online = onlineKey.split(',');
+    return machineIds.flatMap((machineId, machineIndex) => {
+      const pages = pageCounts[machineId] ?? 1;
+      return Array.from({ length: pages }, (_, index) => ({
+        machineId,
+        page: index + 1,
+        online: online[machineIndex] === 'true',
+        isLastPage: index + 1 === pages,
+      }));
+    });
+  }, [machineIds, onlineKey, pageCounts]);
+
+  const combine = useCallback(
+    (results: UseQueryResult<PaginatedChats>[]) => combineRemoteSources(plan, results),
+    [plan],
+  );
+  const sources = useQueries({
+    queries: plan.map(({ machineId, page, online }) => ({
+      queryKey: queryKeys.machine.chatsPage(machineId, page),
+      queryFn: () =>
+        machineChatService.listChats(machineId, { page, per_page: MACHINE_CHATS_PER_PAGE }),
+      enabled: enabled && online,
+      staleTime: 10_000,
+      refetchInterval: 15_000,
+    })),
+    combine,
+  });
+
+  const loadMore = useCallback(
+    (machineIdsWithMore: string[]) =>
+      setPageCounts((counts) => {
+        const next = { ...counts };
+        for (const machineId of machineIdsWithMore) next[machineId] = (counts[machineId] ?? 1) + 1;
+        return next;
+      }),
+    [],
+  );
+
+  return { sources, loadMore };
+}
+
 export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = true) {
   const { data: pinnedChatsData } = useInfiniteChatsQuery({ pinned: true, enabled });
   const {
@@ -21,79 +111,63 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     isFetchingNextPage: isFetchingMoreLocal,
     isLoading: isLoadingLocal,
   } = useInfiniteChatsQuery({ pinned: false, enabled });
-  const {
-    data: cloudChatsData,
-    hasNextPage: hasMoreCloud,
-    fetchNextPage: fetchMoreCloud,
-    isFetchingNextPage: isFetchingMoreCloud,
-    isLoading: isLoadingCloud,
-  } = useInfiniteCloudChatsQuery(enabled);
-
-  const cloudChats = useMemo(
-    () => cloudChatsData?.pages.flatMap((page) => page.items) ?? [],
-    [cloudChatsData?.pages],
+  const remoteMachineIds = useRemoteMachineIds();
+  const { sources: remoteSources, loadMore: loadMoreRemote } = useRemoteChatSources(
+    remoteMachineIds,
+    enabled,
   );
+  const remoteSourceList = useMemo(() => [...remoteSources.values()], [remoteSources]);
 
-  // Pinned cloud chats ride along in the unfiltered cloud list — the VPS sorts pinned
-  // first, so loaded pages always contain every pinned cloud chat.
   const pinnedChats = useMemo(() => {
     const localPinned = pinnedChatsData?.pages.flatMap((page) => page.items) ?? [];
-    const cloudPinned = cloudChats.filter((chat) => chat.pinned_at);
-    return [...localPinned, ...cloudPinned].sort(
+    const remotePinned = remoteSourceList.flatMap((source) =>
+      source.chats.filter((chat) => chat.pinned_at),
+    );
+    return [...localPinned, ...remotePinned].sort(
       (a, b) => Date.parse(b.pinned_at!) - Date.parse(a.pinned_at!),
     );
-  }, [pinnedChatsData?.pages, cloudChats]);
+  }, [pinnedChatsData?.pages, remoteSourceList]);
 
-  // One recency-ordered list spanning every workspace, merged client-side by updated_at.
   const recentChats = useMemo(() => {
     const local = localChatsData?.pages.flatMap((page) => page.items) ?? [];
-    const cloud = cloudChats.filter((chat) => !chat.pinned_at);
-    const merged = [...local, ...cloud].sort(
-      (a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at),
-    );
-    // Windowed merge: while a source still has unloaded pages, anything older than its
-    // oldest loaded chat can't be placed yet — an unloaded chat from that source may be
-    // newer. Hold those rows back; Load more advances the window. Both backends return
-    // newest-first, so each source's oldest loaded chat is its last element (cloud lists
-    // pinned first, but those are filtered out and the unpinned tail stays newest-first).
-    let floor = -Infinity;
-    if (hasMoreLocal && local.length > 0) {
-      floor = Math.max(floor, Date.parse(local[local.length - 1].updated_at));
-    }
-    if (hasMoreCloud && cloud.length > 0) {
-      floor = Math.max(floor, Date.parse(cloud[cloud.length - 1].updated_at));
-    }
-    return merged.filter((chat) => Date.parse(chat.updated_at) >= floor);
-  }, [localChatsData?.pages, cloudChats, hasMoreLocal, hasMoreCloud]);
+    return mergeRecentChatSources([
+      { chats: local, hasMore: !!hasMoreLocal },
+      ...remoteSourceList.map((source) => ({
+        chats: source.chats.filter((chat) => !chat.pinned_at),
+        hasMore: source.hasMore,
+      })),
+    ]);
+  }, [localChatsData?.pages, hasMoreLocal, remoteSourceList]);
 
-  // Resolves each row's workspace badge; cloud workspaces carry the cloud icon and
-  // route rename/delete to the VPS. Workspace IDs are UUIDs from separate DBs — no collisions.
-  const { data: cloudWorkspaces } = useCloudWorkspacesQuery(enabled);
+  const machineWorkspaces = useMachinesWorkspaces(remoteMachineIds, enabled);
   const workspaceBadgeById = useMemo(() => {
     const map = new Map<string, WorkspaceBadge>();
     for (const workspace of workspaces) {
-      map.set(workspace.id, { name: workspace.name, isCloud: false });
+      map.set(workspace.id, { name: workspace.name, machineId: LOCAL_MACHINE_ID });
     }
-    for (const workspace of cloudWorkspaces ?? []) {
-      map.set(workspace.id, { name: workspace.name, isCloud: true });
+    for (const [machineId, list] of Object.entries(machineWorkspaces)) {
+      for (const workspace of list) map.set(workspace.id, { name: workspace.name, machineId });
     }
     return map;
-  }, [workspaces, cloudWorkspaces]);
+  }, [workspaces, machineWorkspaces]);
 
+  const remoteWithMore = [...remoteSources.entries()]
+    .filter(([, source]) => source.hasMore)
+    .map(([machineId]) => machineId);
+  const remoteWithMoreKey = remoteWithMore.join('\n');
   const loadMore = useCallback(() => {
-    // Both sources page independently; advance whichever still has more.
     if (hasMoreLocal) void fetchMoreLocal();
-    if (hasMoreCloud) void fetchMoreCloud();
-  }, [hasMoreLocal, fetchMoreLocal, hasMoreCloud, fetchMoreCloud]);
+    if (remoteWithMoreKey) loadMoreRemote(remoteWithMoreKey.split('\n'));
+  }, [hasMoreLocal, fetchMoreLocal, remoteWithMoreKey, loadMoreRemote]);
 
   return {
     pinnedChats,
     recentChats,
     workspaceBadgeById,
-    cloudWorkspaces,
-    isLoadingChats: isLoadingLocal || isLoadingCloud,
-    hasMore: !!hasMoreLocal || !!hasMoreCloud,
-    isFetchingMore: isFetchingMoreLocal || isFetchingMoreCloud,
+    machineWorkspaces,
+    isLoadingChats: isLoadingLocal || remoteSourceList.some((source) => source.isLoading),
+    hasMore: !!hasMoreLocal || remoteWithMore.length > 0,
+    isFetchingMore: isFetchingMoreLocal || remoteSourceList.some((source) => source.isFetchingMore),
     loadMore,
   };
 }

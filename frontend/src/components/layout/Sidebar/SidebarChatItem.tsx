@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef } from 'react';
-import { ChevronRight, Cloud, CornerDownRight } from 'lucide-react';
+import { ChevronRight, CornerDownRight, Server } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { chatStatusTone, CHAT_STATUS_LABEL, type ChatStatusTone } from '@/utils/message';
@@ -15,6 +15,11 @@ import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
 import styles from './SidebarChatItem.module.scss';
 
+export interface MachineBadge {
+  name: string;
+  offline: boolean;
+}
+
 interface SidebarChatItemProps {
   chat: Chat;
   isSelected: boolean;
@@ -25,6 +30,8 @@ interface SidebarChatItemProps {
   isChatBlocked: boolean;
   isChatCompleted: boolean;
   workspaceBadge?: WorkspaceBadge;
+  machineName?: string;
+  machineOffline?: boolean;
   onSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   canOpenInSplit?: boolean;
@@ -45,6 +52,8 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   isChatBlocked,
   isChatCompleted,
   workspaceBadge,
+  machineName,
+  machineOffline = false,
   onSelect,
   onOpenInSplit,
   canOpenInSplit = false,
@@ -179,15 +188,30 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         </FloatingTooltip>
       }
       subtitle={
-        workspaceBadge && (
+        (workspaceBadge || machineName) && (
           <span
             className={clsx(
               styles['workspace-badge'],
               hasLeadingSlot && styles['workspace-badge--indented'],
             )}
           >
-            {workspaceBadge.isCloud && <Cloud className={styles['cloud-icon']} />}
-            <span className={styles['workspace-name']}>{workspaceBadge.name}</span>
+            {machineName && (
+              <span
+                className={clsx(
+                  styles['machine-badge'],
+                  machineOffline && styles['machine-badge--offline'],
+                )}
+              >
+                <Server className={styles['machine-icon']} />
+                <span className={styles['workspace-name']}>
+                  {machineOffline ? `${machineName} · Machine offline` : machineName}
+                </span>
+              </span>
+            )}
+            {machineName && workspaceBadge && <span aria-hidden>·</span>}
+            {workspaceBadge && (
+              <span className={styles['workspace-name']}>{workspaceBadge.name}</span>
+            )}
           </span>
         )
       }

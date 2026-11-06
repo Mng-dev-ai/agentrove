@@ -14,6 +14,7 @@ import {
   type SidebarStatusFilter,
 } from '@/store/sidebarFilters';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { SidebarFilterSubmenu } from './SidebarFilterSubmenu';
 import styles from './SidebarFilterMenu.module.scss';
 
@@ -67,12 +68,14 @@ interface SidebarFilterMenuProps {
   filters: SidebarFilters;
   onChange: (filters: SidebarFilters) => void;
   workspaceBadgeById: Map<string, WorkspaceBadge>;
+  machineOptions: { id: string; name: string }[];
 }
 
 export function SidebarFilterMenu({
   filters,
   onChange,
   workspaceBadgeById,
+  machineOptions,
 }: SidebarFilterMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [submenu, setSubmenu] = useState<{
@@ -190,14 +193,14 @@ export function SidebarFilterMenu({
     onChange({ ...filters, statuses });
   };
 
-  // The badge map is the single owner of the local+cloud workspace merge; the
-  // picker just flattens it (insertion order: local first, then cloud).
+  // The badge map is the single owner of the cross-machine workspace merge; the
+  // picker just flattens it (insertion order: local first, then remote machines).
   const workspaceOptions = useMemo(
     () =>
       Array.from(workspaceBadgeById, ([id, badge]) => ({
         id,
         name: badge.name,
-        isCloud: badge.isCloud,
+        isRemote: badge.machineId !== LOCAL_MACHINE_ID,
       })),
     [workspaceBadgeById],
   );
@@ -212,8 +215,8 @@ export function SidebarFilterMenu({
     ? (AGENT_OPTIONS.find((o) => o.value === filters.agentKind)?.label ?? 'All')
     : 'All';
   const sourceSummary =
-    filters.source === 'all' ? 'All' : filters.source === 'local' ? 'Local' : 'Cloud';
-  // The name can be briefly unresolved while the cloud workspaces query loads
+    machineOptions.find((machine) => machine.id === filters.source)?.name ?? 'All';
+  // The name can be briefly unresolved while a machine's workspaces query loads
   const workspaceSummary = filters.workspaceId
     ? (workspaceOptions.find((w) => w.id === filters.workspaceId)?.name ?? '1 selected')
     : 'All';
@@ -310,6 +313,7 @@ export function SidebarFilterMenu({
                 view={submenu.view}
                 filters={filters}
                 workspaceOptions={workspaceOptions}
+                machineOptions={machineOptions}
                 submenuRef={submenuRef}
                 style={{
                   top: submenu.top,

@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { Check, Cloud } from 'lucide-react';
+import { Check, Server } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -16,7 +16,12 @@ import styles from './SidebarFilterSubmenu.module.scss';
 interface WorkspaceOption {
   id: string;
   name: string;
-  isCloud: boolean;
+  isRemote: boolean;
+}
+
+interface MachineOption {
+  id: string;
+  name: string;
 }
 
 function FilterOptionRow({
@@ -44,6 +49,7 @@ interface SidebarFilterSubmenuProps {
   view: FilterCategory;
   filters: SidebarFilters;
   workspaceOptions: WorkspaceOption[];
+  machineOptions: MachineOption[];
   submenuRef: React.Ref<HTMLDivElement>;
   style: React.CSSProperties;
   onMouseEnter: () => void;
@@ -57,6 +63,7 @@ export function SidebarFilterSubmenu({
   view,
   filters,
   workspaceOptions,
+  machineOptions,
   submenuRef,
   style,
   onMouseEnter,
@@ -122,19 +129,16 @@ export function SidebarFilterSubmenu({
           >
             All
           </FilterOptionRow>
-          <FilterOptionRow
-            selected={filters.source === 'local'}
-            onSelect={() => onSelectAndClose({ source: 'local' })}
-          >
-            Local
-          </FilterOptionRow>
-          <FilterOptionRow
-            selected={filters.source === 'cloud'}
-            onSelect={() => onSelectAndClose({ source: 'cloud' })}
-          >
-            <Cloud className={styles['option-icon']} />
-            Cloud
-          </FilterOptionRow>
+          {machineOptions.map((machine) => (
+            <FilterOptionRow
+              key={machine.id}
+              selected={filters.source === machine.id}
+              onSelect={() => onSelectAndClose({ source: machine.id })}
+            >
+              <Server className={styles['option-icon']} />
+              <span className={styles['option-name']}>{machine.name}</span>
+            </FilterOptionRow>
+          ))}
         </>
       )}
 
@@ -163,7 +167,7 @@ export function SidebarFilterSubmenu({
               selected={filters.workspaceId === workspace.id}
               onSelect={() => onSelectAndClose({ workspaceId: workspace.id })}
             >
-              {workspace.isCloud && <Cloud className={styles['option-icon']} />}
+              {workspace.isRemote && <Server className={styles['option-icon']} />}
               <span className={styles['option-name']}>{workspace.name}</span>
             </FilterOptionRow>
           ))}

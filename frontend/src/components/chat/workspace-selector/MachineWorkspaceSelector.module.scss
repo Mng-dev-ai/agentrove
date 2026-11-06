@@ -1,0 +1,7 @@
+@use '@/styles/globals/typography' as type;
+
+.error-message {
+  @include type.type-meta;
+  padding: var(--space-1) var(--space-1-5);
+  color: var(--theme-error-text);
+}

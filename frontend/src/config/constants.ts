@@ -40,4 +40,4 @@ export const EMPTY_BUILTIN_COMMANDS: Record<AgentKind, SlashCommand[]> = {
   opencode: [],
 };
 
-export const CLOUD_CHATS_PER_PAGE = 25;
+export const MACHINE_CHATS_PER_PAGE = 25;

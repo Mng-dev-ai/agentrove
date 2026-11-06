@@ -22,7 +22,7 @@ function shouldPersistQuery(query: Query): boolean {
   if (key[0] === queryKeys.chats && key[1] === 'infinite') return true;
   if (key[0] === queryKeys.auth.user) return true;
   if (key.length === 1 && key[0] === queryKeys.workspaces[0]) return true;
-  return key[0] === queryKeys.cloudChatsAll[0] && key[1] === queryKeys.cloudChatsAll[1];
+  return key[0] === 'machine' && key[2] === 'chats' && key[3] === 'page';
 }
 
 export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
@@ -32,5 +32,5 @@ export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
   }),
   dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
   // Bump on response-shape changes. v2 purges v1 that briefly cached settings (secrets).
-  buster: 'v2',
+  buster: 'v3',
 };

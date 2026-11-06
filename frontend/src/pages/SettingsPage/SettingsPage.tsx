@@ -9,7 +9,6 @@ import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import toast from 'react-hot-toast';
 import { GeneralSettingsTab } from '@/components/settings/tabs/GeneralSettingsTab/GeneralSettingsTab';
-import { CloudSettingsTab } from '@/components/settings/tabs/CloudSettingsTab/CloudSettingsTab';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
@@ -325,12 +324,6 @@ export function SettingsPage() {
                           onPersist={handlePersistInstructions}
                         />
                       </Suspense>
-                    </div>
-                  )}
-
-                  {activeTab === 'cloud' && (
-                    <div role="tabpanel" id="cloud-panel" aria-labelledby="cloud-tab">
-                      <CloudSettingsTab />
                     </div>
                   )}
                 </div>

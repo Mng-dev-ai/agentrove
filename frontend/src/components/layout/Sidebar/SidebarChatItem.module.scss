@@ -1,3 +1,4 @@
+@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
@@ -107,7 +108,23 @@
   }
 }
 
-.cloud-icon {
+.machine-badge {
+  display: inline-flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.machine-badge--offline {
+  color: colors.status-color('warning', 600);
+
+  :global([data-theme='dark']) & {
+    color: colors.status-color('warning', 400);
+  }
+}
+
+.machine-icon {
   height: var(--space-2-5);
   width: var(--space-2-5);
   flex-shrink: 0;

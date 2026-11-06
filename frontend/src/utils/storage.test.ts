@@ -73,51 +73,6 @@ describe('authStorage (browser backend)', () => {
   });
 });
 
-describe('cloudAuthStorage (browser backend)', () => {
-  it('keeps the access token in memory and persists only the refresh token', async () => {
-    const { cloudAuthStorage } = await load();
-    await cloudAuthStorage.setTokens('cloud-access', 'cloud-refresh');
-    expect(cloudAuthStorage.getAccessToken()).toBe('cloud-access');
-    expect(cloudAuthStorage.getRefreshToken()).toBe('cloud-refresh');
-    expect(localStorage.getItem('cloud_refresh_token')).toBe('cloud-refresh');
-    expect(Object.values(localStorage)).not.toContain('cloud-access');
-  });
-
-  it('clears everything on clear', async () => {
-    const { cloudAuthStorage } = await load();
-    await cloudAuthStorage.setTokens('x', 'cloud-refresh');
-
-    cloudAuthStorage.clear();
-    expect(cloudAuthStorage.getAccessToken()).toBeNull();
-    expect(cloudAuthStorage.getRefreshToken()).toBeNull();
-    expect(localStorage.getItem('cloud_refresh_token')).toBeNull();
-  });
-
-  it('applies cloud refresh token changes from other tabs via the storage event', async () => {
-    const { cloudAuthStorage } = await load();
-    await cloudAuthStorage.setTokens('a', 'cloud-refresh');
-
-    window.dispatchEvent(
-      new StorageEvent('storage', { key: 'cloud_refresh_token', newValue: 'rotated' }),
-    );
-
-    expect(cloudAuthStorage.getRefreshToken()).toBe('rotated');
-    expect(cloudAuthStorage.getAccessToken()).toBe('a');
-  });
-
-  it('drops the memory-only access token when another tab disconnects', async () => {
-    const { cloudAuthStorage } = await load();
-    await cloudAuthStorage.setTokens('a', 'cloud-refresh');
-
-    window.dispatchEvent(
-      new StorageEvent('storage', { key: 'cloud_refresh_token', newValue: null }),
-    );
-
-    expect(cloudAuthStorage.getRefreshToken()).toBeNull();
-    expect(cloudAuthStorage.getAccessToken()).toBeNull();
-  });
-});
-
 describe('chatStorage event ids', () => {
   it('scopes event ids per chat under the chat: key namespace', async () => {
     const { chatStorage } = await load();
