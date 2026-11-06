@@ -18,7 +18,7 @@ from app.models.schemas.queue import (
     QueuedMessage,
     QueuedMessageEdit,
 )
-
+from app.services.pairing import PairingService
 from app.utils.cache import CacheStore
 
 ItemT = TypeVar("ItemT", bound=BaseModel)
@@ -93,13 +93,13 @@ class BaseQueueService(Generic[ItemT]):
 
             for item in queue:
                 if item["id"] == message_id:
-                    kept = (
-                        item["device_ids"]
-                        if item["attachments"] or item["content"] == update.content
-                        else []
+                    device_ids = PairingService.edited_device_ids(
+                        frozenset(map(UUID, item["device_ids"])),
+                        update.device_ids,
+                        bool(item["attachments"]) or item["content"] == update.content,
                     )
                     item["content"] = update.content
-                    item["device_ids"] = sorted({*kept, *map(str, update.device_ids)})
+                    item["device_ids"] = sorted(map(str, device_ids))
                     await self._write_queue(key, queue)
                     updated: ItemT = self.item_type.model_validate(item)
                     return updated

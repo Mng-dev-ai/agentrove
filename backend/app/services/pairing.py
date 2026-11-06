@@ -84,6 +84,14 @@ class PairingService:
         return list(result.all())
 
     @staticmethod
+    def edited_device_ids(
+        stored: frozenset[UUID],
+        editor: frozenset[UUID],
+        earlier_content_survives: bool,
+    ) -> frozenset[UUID]:
+        return stored | editor if earlier_content_survives else editor
+
+    @staticmethod
     async def active_device_ids(
         db: AsyncSession, user_id: UUID, device_ids: frozenset[UUID]
     ) -> frozenset[UUID]:

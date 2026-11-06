@@ -19,6 +19,7 @@ from app.models.types import PermissionMode
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import AutomationException, ErrorCode, ServiceException
+from app.services.pairing import PairingService
 
 logger = logging.getLogger(__name__)
 
@@ -163,11 +164,13 @@ class AutomationService(BaseDbService[Automation]):
             automation = await self._get_owned(db, automation_id, user.id)
             if "workspace_id" in changes:
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
-            if changes.get("prompt", automation.prompt) == automation.prompt:
-                device_ids = automation.device_ids | device_ids
+            automation.device_ids = PairingService.edited_device_ids(
+                automation.device_ids,
+                device_ids,
+                changes.get("prompt", automation.prompt) == automation.prompt,
+            )
             for field, value in changes.items():
                 setattr(automation, field, value)
-            automation.device_ids = device_ids
             if SCHEDULE_FIELDS & changes.keys():
                 automation.next_run_at = self._compute_next_run_validated(
                     automation.cron_expression, automation.timezone
