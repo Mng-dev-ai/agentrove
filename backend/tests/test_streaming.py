@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
 from app.core import deps
-from app.constants import MODELS, REDIS_KEY_USER_STREAMS_LIVE
+from app.constants import MODELS, REDIS_KEY_CHAT_QUEUE, REDIS_KEY_USER_STREAMS_LIVE
 from app.db.session import SessionLocal, engine
 from app.models.db_models.chat import Chat, Message, MessageEvent
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
@@ -812,6 +812,7 @@ async def test_stream_failure_marks_message_failed_and_emits_bootstrap_error(
     assert await get_event_types(client, headers, message_id) == ["error"]
 
 
+@pytest.mark.parametrize("stored_before_devices", [False, True])
 async def test_queued_message_is_processed_automatically_after_stream_completes(
     client: AsyncClient,
     db_session: AsyncSession,
@@ -819,6 +820,7 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
     streaming_cache: EndpointCache,
+    stored_before_devices: bool,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -838,6 +840,14 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
         headers=headers,
     )
     assert queue_response.status_code == 201
+    if stored_before_devices:
+        key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat.id)
+        stored = json.loads(await streaming_cache.store.get(key) or "[]")
+        for item in stored:
+            del item["device_ids"]
+        await streaming_cache.store.set(key, json.dumps(stored))
+    listed = await client.get(f"/api/v1/chat/chats/{chat.id}/queue", headers=headers)
+    assert [item["content"] for item in listed.json()] == ["Follow-up prompt"]
 
     first_result = await send_message(client, headers, chat, prompt="First prompt")
     first_message_id = first_result["message_id"]

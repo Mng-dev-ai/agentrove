@@ -44,7 +44,10 @@ class BaseQueueService(Generic[ItemT]):
         raw = await self.cache.get(key)
         if not raw:
             return []
-        return cast(list[dict[str, Any]], json.loads(raw))
+        return [
+            {"device_ids": [], **item}
+            for item in cast(list[dict[str, Any]], json.loads(raw))
+        ]
 
     async def _write_queue(self, key: str, queue: list[dict[str, Any]]) -> None:
         if not queue:
