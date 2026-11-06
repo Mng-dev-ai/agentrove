@@ -29,9 +29,9 @@ class RefreshTokenService:
         self,
         user_id: UUID,
         db: AsyncSession,
+        device_id: UUID | None,
         user_agent: str | None = None,
         ip_address: str | None = None,
-        device_id: UUID | None = None,
     ) -> str:
         token = generate_refresh_token()
         token_hash = hash_refresh_token(token)

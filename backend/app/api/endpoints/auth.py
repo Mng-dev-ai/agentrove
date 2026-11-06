@@ -84,6 +84,7 @@ async def login(
     refresh_token = await refresh_token_service.create_refresh_token(
         user_id=user.id,
         db=db,
+        device_id=None,
         user_agent=user_agent,
         ip_address=client_ip,
     )
