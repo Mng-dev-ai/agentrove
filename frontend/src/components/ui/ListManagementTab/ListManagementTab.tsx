@@ -18,6 +18,7 @@ interface ListManagementTabProps<T> {
   emptyButtonText: string;
   addButtonText: string;
   deleteConfirmTitle: string;
+  deleteConfirmLabel?: string;
   deleteConfirmMessage: (item: T) => string;
   getItemKey: (item: T, index: number) => string;
   onAdd: () => void;
@@ -39,6 +40,7 @@ export function ListManagementTab<T>({
   emptyButtonText,
   addButtonText,
   deleteConfirmTitle,
+  deleteConfirmLabel = 'Delete',
   deleteConfirmMessage,
   getItemKey,
   onAdd,
@@ -164,7 +166,7 @@ export function ListManagementTab<T>({
             ? deleteConfirmMessage(deleteTargetItem)
             : 'Are you sure you want to delete this item? This action cannot be undone.'
         }
-        confirmLabel="Delete"
+        confirmLabel={deleteConfirmLabel}
         cancelLabel="Cancel"
       />
     </div>

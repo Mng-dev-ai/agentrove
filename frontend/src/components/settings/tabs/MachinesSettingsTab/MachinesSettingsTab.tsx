@@ -146,6 +146,7 @@ export function MachinesSettingsTab() {
         emptyButtonText="Add Your First Machine"
         addButtonText="Add Machine"
         deleteConfirmTitle="Remove machine"
+        deleteConfirmLabel="Remove"
         deleteConfirmMessage={(machine) =>
           `Remove ${machine.name}? This device is revoked on the server when it's reachable. Its chats stay listed as a removed machine until you pair the same server again, and chats on the machine itself are kept.`
         }

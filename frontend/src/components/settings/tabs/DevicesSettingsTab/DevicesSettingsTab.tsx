@@ -96,6 +96,7 @@ export function DevicesSettingsTab() {
       emptyButtonText="Pair a Device"
       addButtonText="Pair a Device"
       deleteConfirmTitle="Revoke device"
+      deleteConfirmLabel="Revoke"
       deleteConfirmMessage={(device) =>
         `Revoke ${device.name}? It's signed out immediately and has to be paired again.`
       }
