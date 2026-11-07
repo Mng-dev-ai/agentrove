@@ -309,10 +309,12 @@ export function useChatStreaming({
       cancelPendingStart();
       markStreamIdleAfterAbort();
       if (chatId) {
-        void chatService.stopStream(chatId).catch((error) => {
-          logger.error('Pending stream stop request failed', 'useChatStreaming', error);
-          setWasAborted(false);
-        });
+        void chatService
+          .stopStream(chatId)
+          .catch((error) => {
+            logger.error('Pending stream stop request failed', 'useChatStreaming', error);
+          })
+          .then(() => setWasAborted(false));
       }
       clearInput();
       return;
