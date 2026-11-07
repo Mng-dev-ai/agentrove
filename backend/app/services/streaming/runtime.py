@@ -344,6 +344,7 @@ class ChatStreamRuntime:
                         "selected_persona_name": request.selected_persona_name,
                         "fast_mode": request.fast_mode,
                         "device_ids": request.device_ids,
+                        "report_to_parent": request.report_parent_id is not None,
                     }
                     queued_message = QueuedMessage.model_validate(queued)
                     if any(
@@ -1286,8 +1287,9 @@ class ChatStreamRuntime:
         )
         context_window = model.context_window
         resolved_session_id = session_id_override or chat.session_id
+        queued_message = QueuedMessage.model_validate(queued_msg)
         return ChatStreamRequest(
-            device_ids=QueuedMessage.model_validate(queued_msg).device_ids,
+            device_ids=queued_message.device_ids,
             prompt=queued_msg["content"],
             system_prompt=system_prompt,
             custom_instructions=user_settings.custom_instructions,
@@ -1315,6 +1317,9 @@ class ChatStreamRuntime:
             fast_mode=queued_msg.get("fast_mode", False),
             attachments=queued_msg["attachments"],
             selected_persona_name=selected_persona_name,
+            report_parent_id=str(chat.parent_chat_id)
+            if queued_message.report_to_parent and chat.parent_chat_id
+            else None,
         )
 
     @classmethod

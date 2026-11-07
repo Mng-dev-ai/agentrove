@@ -25,6 +25,7 @@ class QueuedMessageBase(QueuedMessageEdit):
     base_branch: BaseBranch = None
     fast_mode: bool = False
     selected_persona_name: str = DEFAULT_PERSONA_NAME
+    report_to_parent: bool = False
 
 
 class QueuedMessage(QueuedMessageBase):

@@ -198,11 +198,12 @@ class AgentroveClient:
         base_branch: str | None = None,
         fast_mode: bool = False,
         persona: str | None = None,
+        report_to_parent: bool = False,
     ) -> dict[str, Any]:
         data = self._turn_form(
             model_id, permission_mode, thinking_mode, worktree, base_branch, fast_mode, persona
         )
-        data.update(content=prompt, send_now=send_now)
+        data.update(content=prompt, send_now=send_now, report_to_parent=report_to_parent)
         resp = await self.request(
             "POST", f"/chat/chats/{chat_id}/queue", data=data, expected=(201,)
         )
