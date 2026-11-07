@@ -215,7 +215,7 @@ export function ChatPage() {
             tileId === 'agent:primary' ? (
               <ChatComponent />
             ) : (
-              paneChatId && <AgentPane chatId={paneChatId} />
+              paneChatId && <AgentPane key={paneChatId} chatId={paneChatId} />
             )
           }
         />
