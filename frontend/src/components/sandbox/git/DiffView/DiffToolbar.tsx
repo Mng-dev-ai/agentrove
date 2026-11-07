@@ -1,6 +1,13 @@
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronsUpDown, MoreHorizontal, RotateCcw, Undo2 } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronsUpDown,
+  MessageSquare,
+  MoreHorizontal,
+  RotateCcw,
+  Undo2,
+} from 'lucide-react';
 import clsx from 'clsx';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -9,6 +16,7 @@ import type { FileDiffMetadata } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
 import type { useAnchoredPanel } from '@/hooks/useAnchoredPanel';
 import {
+  COMMENTS_PANEL_WIDTH,
   DIFF_MODE_OPTIONS,
   DIFF_STYLE_OPTIONS,
   FILES_PANEL_WIDTH,
@@ -40,6 +48,9 @@ interface DiffToolbarProps {
   filesMenu: AnchoredPanel;
   overflowMenu: AnchoredPanel;
   filesSidebar: ReactNode;
+  commentCount: number;
+  commentsMenu: AnchoredPanel;
+  commentsPanel: ReactNode;
 }
 
 export function DiffToolbar({
@@ -64,6 +75,9 @@ export function DiffToolbar({
   filesMenu,
   overflowMenu,
   filesSidebar,
+  commentCount,
+  commentsMenu,
+  commentsPanel,
 }: DiffToolbarProps) {
   // Diffstat surfaced in the toolbar so change size stays visible when the
   // sidebar is collapsed (narrow tiles) or scrolled away.
@@ -145,6 +159,40 @@ export function DiffToolbar({
       <div className={styles.spacer} />
 
       {isNarrow && diffstat}
+
+      {commentCount > 0 && (
+        <>
+          <Button
+            ref={commentsMenu.triggerRef}
+            onClick={commentsMenu.toggle}
+            variant="unstyled"
+            aria-haspopup="dialog"
+            aria-expanded={commentsMenu.isOpen}
+            aria-label={`${commentCount} pending ${commentCount === 1 ? 'comment' : 'comments'}`}
+            className={styles['comments-chip']}
+          >
+            <MessageSquare className={styles['menu-item-icon']} />
+            {isNarrow
+              ? commentCount
+              : `${commentCount} ${commentCount === 1 ? 'comment' : 'comments'}`}
+          </Button>
+          {commentsMenu.isOpen &&
+            createPortal(
+              <div
+                ref={commentsMenu.panelRef}
+                style={{
+                  top: commentsMenu.pos.top,
+                  left: commentsMenu.pos.left,
+                  width: COMMENTS_PANEL_WIDTH,
+                }}
+                className={clsx(styles['overflow-panel'], styles['comments-panel'])}
+              >
+                {commentsPanel}
+              </div>,
+              document.body,
+            )}
+        </>
+      )}
 
       {showFiles && (
         <FloatingTooltip

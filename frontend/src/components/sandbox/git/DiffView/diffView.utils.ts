@@ -48,6 +48,7 @@ export const NARROW_BREAKPOINT = 600;
 
 export const FILES_PANEL_WIDTH = 256;
 export const OVERFLOW_PANEL_WIDTH = 220;
+export const COMMENTS_PANEL_WIDTH = 320;
 
 // 6px below trigger, left-aligned, clamped so the panel stays on screen.
 export const computeMenuPos = (rect: DOMRect) => ({
@@ -55,15 +56,15 @@ export const computeMenuPos = (rect: DOMRect) => ({
   left: Math.max(8, Math.min(rect.left, window.innerWidth - FILES_PANEL_WIDTH - 8)),
 });
 
-// 6px below trigger, right-aligned to the trigger (overflow lives at the
-// toolbar's right edge), clamped so the panel stays on screen.
-export const computeOverflowMenuPos = (rect: DOMRect) => ({
+// 6px below trigger, right-aligned to the trigger (these live at the toolbar's
+// right edge), clamped so the panel stays on screen.
+const rightAlignedPos = (width: number) => (rect: DOMRect) => ({
   top: rect.bottom + 6,
-  left: Math.max(
-    8,
-    Math.min(rect.right - OVERFLOW_PANEL_WIDTH, window.innerWidth - OVERFLOW_PANEL_WIDTH - 8),
-  ),
+  left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
 });
+
+export const computeOverflowMenuPos = rightAlignedPos(OVERFLOW_PANEL_WIDTH);
+export const computeCommentsMenuPos = rightAlignedPos(COMMENTS_PANEL_WIDTH);
 
 // Dir-major path order: a directory's files sort together, before any of its
 // subdirectories' files. The raw patch isn't display-ordered (untracked diffs

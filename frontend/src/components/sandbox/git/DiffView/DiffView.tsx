@@ -19,6 +19,8 @@ import { WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
 import type { DiffMode } from '@/types/sandbox.types';
+import type { DiffComment } from '@/store/diffCommentsStore';
+import { DiffCommentsPanel } from './DiffCommentsPanel';
 import { DiffPane } from './DiffPane';
 import { DiffToolbar } from './DiffToolbar';
 import { useDiffDiscard } from './useDiffDiscard';
@@ -29,6 +31,7 @@ import {
   DIFF_UNSAFE_CSS,
   NARROW_BREAKPOINT,
   compareFilePaths,
+  computeCommentsMenuPos,
   computeMenuPos,
   findNextUnreviewed,
   computeOverflowMenuPos,
@@ -88,14 +91,6 @@ const DiffViewContent = memo(function DiffViewContent({
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [isNarrow, setIsNarrow] = useState(false);
   const {
-    pendingComment,
-    resetComments,
-    handleSelectionChange,
-    handleSelectionEnd,
-    handleSubmitComment,
-  } = useDiffComments(chatId, cwd);
-
-  const {
     data: diffData,
     isFetching,
     isError,
@@ -146,6 +141,21 @@ const DiffViewContent = memo(function DiffViewContent({
   // scopes — reset on scope change. Ref check avoids a double render. Discard
   // dialog state is cleared too so a confirm can't act on the prior scope's file.
   const scopeKey = `${sandboxId ?? ''}\0${cwd ?? ''}\0${mode}`;
+  const {
+    pendingComment,
+    commentsByFile,
+    comments,
+    editingCommentId,
+    setEditingCommentId,
+    resetComments,
+    cancelComposer,
+    handleSelectionChange,
+    handleSelectionEnd,
+    handleSubmitComment,
+    updateComment,
+    deleteComment,
+    sendComments,
+  } = useDiffComments(chatId, cwd, scopeKey);
   const prevScopeRef = useRef(scopeKey);
   if (prevScopeRef.current !== scopeKey) {
     prevScopeRef.current = scopeKey;
@@ -161,8 +171,15 @@ const DiffViewContent = memo(function DiffViewContent({
   // portaled to escape the toolbar's clip and stacking context.
   const filesMenu = useAnchoredPanel(computeMenuPos);
   const overflowMenu = useAnchoredPanel(computeOverflowMenuPos);
+  const commentsMenu = useAnchoredPanel(computeCommentsMenuPos);
   const { close: closeFilesMenu } = filesMenu;
   const { close: closeOverflowMenu } = overflowMenu;
+  const { close: closeCommentsMenu } = commentsMenu;
+
+  // The chip (the panel's trigger) unmounts once the list empties.
+  useEffect(() => {
+    if (comments.length === 0) closeCommentsMenu();
+  }, [comments.length, closeCommentsMenu]);
 
   // Closing a menu is a no-op when it isn't open, so every discard-all trigger
   // (toolbar, overflow menu, empty state) shares this handler.
@@ -305,6 +322,27 @@ const DiffViewContent = memo(function DiffViewContent({
     if (next) jumpToFile(next);
   }, [parsedFiles, reviewedNames, currentFile, jumpToFile]);
 
+  const jumpToComment = useCallback(
+    (comment: DiffComment) => {
+      jumpToFile(comment.path, `[data-diff-comment="${CSS.escape(comment.id)}"]`);
+      closeCommentsMenu();
+    },
+    [jumpToFile, closeCommentsMenu],
+  );
+
+  const editComment = useCallback(
+    (comment: DiffComment) => {
+      setEditingCommentId(comment.id);
+      jumpToComment(comment);
+    },
+    [setEditingCommentId, jumpToComment],
+  );
+
+  const sendCommentsToAgent = useCallback(() => {
+    sendComments();
+    closeCommentsMenu();
+  }, [sendComments, closeCommentsMenu]);
+
   const toggleAllFromMenu = useCallback(() => {
     toggleAll();
     closeOverflowMenu();
@@ -324,6 +362,16 @@ const DiffViewContent = memo(function DiffViewContent({
       reviewedFiles={reviewedNames}
     />
   ) : null;
+
+  const commentsPanel = (
+    <DiffCommentsPanel
+      commentsByFile={commentsByFile}
+      onJump={jumpToComment}
+      onEdit={editComment}
+      onDelete={deleteComment}
+      onSend={sendCommentsToAgent}
+    />
+  );
 
   return (
     <WorkerPoolContextProvider
@@ -353,6 +401,9 @@ const DiffViewContent = memo(function DiffViewContent({
           filesMenu={filesMenu}
           overflowMenu={overflowMenu}
           filesSidebar={filesSidebar}
+          commentCount={comments.length}
+          commentsMenu={commentsMenu}
+          commentsPanel={commentsPanel}
         />
 
         <div className={styles.content}>
@@ -383,13 +434,18 @@ const DiffViewContent = memo(function DiffViewContent({
             chatId={chatId}
             options={options}
             pendingComment={pendingComment}
+            commentsByFile={commentsByFile}
+            editingCommentId={editingCommentId}
             onToggle={handleToggleCollapsed}
             onToggleReviewed={toggleViewed}
             onDiscard={setDiscardTarget}
             onSelectionChange={handleSelectionChange}
             onSelectionEnd={handleSelectionEnd}
             onSubmitComment={handleSubmitComment}
-            onCancelComment={resetComments}
+            onCancelComment={cancelComposer}
+            onEditComment={setEditingCommentId}
+            onUpdateComment={updateComment}
+            onDeleteComment={deleteComment}
           />
         </div>
 

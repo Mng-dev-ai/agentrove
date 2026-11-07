@@ -94,3 +94,11 @@
   height: var(--space-3-5);
   width: var(--space-3-5);
 }
+
+.comment-body {
+  @include type.type-body;
+  padding: var(--space-2) var(--space-3);
+  color: var(--theme-text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

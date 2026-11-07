@@ -40,8 +40,10 @@ export function useDiffScroll({
     jumpRafRef.current = 0;
   }, []);
 
+  // `targetSelector` narrows the jump to an element inside the file (a comment
+  // card); it only has layout once the Virtualizer renders that part of the file.
   const jumpToFile = useCallback(
-    (name: string) => {
+    (name: string, targetSelector?: string) => {
       setActiveFile(name);
       // Expanding to show the file releases our review-collapse claim on it.
       reviewCollapsedRef.current.delete(name);
@@ -68,13 +70,21 @@ export function useDiffScroll({
         // the Virtualizer only renders from scroll/intersection events.
         let frames = 0;
         const step = () => {
-          const delta = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+          const target = targetSelector ? el.querySelector(targetSelector) : null;
+          const targetTop =
+            target && target.getClientRects().length > 0
+              ? target.getBoundingClientRect().top - scroller.clientHeight / 3
+              : null;
+          const delta =
+            (targetTop ?? el.getBoundingClientRect().top) - scroller.getBoundingClientRect().top;
           if (Math.abs(delta) < 1) {
             scroller.scrollTop += delta;
-            return;
+            // Hold at the file top until the target renders in (or the frame cap hits).
+            if (!targetSelector || targetTop !== null) return;
+          } else {
+            scroller.scrollTop +=
+              Math.sign(delta) * Math.min(Math.abs(delta), Math.max(Math.abs(delta) * 0.3, 24));
           }
-          scroller.scrollTop +=
-            Math.sign(delta) * Math.min(Math.abs(delta), Math.max(Math.abs(delta) * 0.3, 24));
           // Frame cap so a target that never settles can't animate forever.
           if ((frames += 1) < 180) jumpRafRef.current = requestAnimationFrame(step);
         };

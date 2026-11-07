@@ -7,6 +7,9 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import { useUIStore } from '@/store/uiStore';
 import type { FileDiffMetadata, SelectedLineRange, DiffLineAnnotation } from '@pierre/diffs';
 import { DiffCommentComposer } from '@/components/sandbox/git/DiffCommentComposer/DiffCommentComposer';
+import { DiffCommentCard } from '@/components/sandbox/git/DiffCommentComposer/DiffCommentCard';
+import type { DiffComment } from '@/store/diffCommentsStore';
+import { annotationSide, formatLineLabel } from '@/utils/diffSelection';
 import type { FileChangeStats } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { FileDiff } from '@pierre/diffs/react';
 import clsx from 'clsx';
@@ -27,9 +30,7 @@ const STATUS_BADGE_MODIFIERS: Record<string, string> = {
   'rename-changed': styles['status-badge--renamed'],
 };
 
-// Stable empty value — the library re-renders a file whenever the annotations
-// array identity changes.
-const NO_ANNOTATIONS: DiffLineAnnotation[] = [];
+type AnnotationMeta = { kind: 'composer' } | { kind: 'comment'; comment: DiffComment };
 
 const FileDiffRenderer = memo(function FileDiffRenderer({
   file,
@@ -37,20 +38,30 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
   canComment,
   commentRange,
   isComposing,
+  comments,
+  editingCommentId,
   onSelectionChange,
   onSelectionEnd,
   onSubmitComment,
   onCancelComment,
+  onEditComment,
+  onUpdateComment,
+  onDeleteComment,
 }: {
   file: FileDiffMetadata;
   options: Record<string, unknown>;
   canComment: boolean;
   commentRange: SelectedLineRange | null;
   isComposing: boolean;
+  comments: DiffComment[];
+  editingCommentId: string | null;
   onSelectionChange: (fileName: string, range: SelectedLineRange | null) => void;
   onSelectionEnd: (fileName: string, range: SelectedLineRange | null) => void;
   onSubmitComment: (file: FileDiffMetadata, range: SelectedLineRange, comment: string) => void;
   onCancelComment: () => void;
+  onEditComment: (id: string | null) => void;
+  onUpdateComment: (id: string, body: string) => void;
+  onDeleteComment: (id: string) => void;
 }) {
   // Selection is gated on a chat being connected — the comment has nowhere to
   // go otherwise. Fully controlled via `selectedLines` so closing the composer
@@ -73,33 +84,68 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
     [options, canComment, file.name, onSelectionChange, onSelectionEnd],
   );
 
-  const annotations = useMemo<DiffLineAnnotation[]>(
-    () =>
-      isComposing && commentRange
-        ? [
-            {
-              side: commentRange.endSide ?? commentRange.side ?? 'additions',
-              lineNumber: commentRange.end,
-            },
-          ]
-        : NO_ANNOTATIONS,
-    [isComposing, commentRange],
-  );
+  // Memoized — the library re-renders a file whenever the annotations array
+  // identity changes.
+  const annotations = useMemo<DiffLineAnnotation<AnnotationMeta>[]>(() => {
+    const out: DiffLineAnnotation<AnnotationMeta>[] = comments.map((comment) => ({
+      side: annotationSide(comment),
+      lineNumber: comment.end,
+      metadata: { kind: 'comment', comment },
+    }));
+    if (isComposing && commentRange) {
+      out.push({
+        side: annotationSide(commentRange),
+        lineNumber: commentRange.end,
+        metadata: { kind: 'composer' },
+      });
+    }
+    return out;
+  }, [comments, isComposing, commentRange]);
 
-  const renderComposer = useCallback(() => {
-    if (!commentRange) return null;
-    return (
-      <DiffCommentComposer
-        lineLabel={
-          commentRange.start === commentRange.end
-            ? `line ${commentRange.start}`
-            : `lines ${commentRange.start}-${commentRange.end}`
-        }
-        onSubmit={(comment) => onSubmitComment(file, commentRange, comment)}
-        onCancel={onCancelComment}
-      />
-    );
-  }, [file, commentRange, onSubmitComment, onCancelComment]);
+  const renderAnnotation = useCallback(
+    ({ metadata }: DiffLineAnnotation<AnnotationMeta>) => {
+      if (metadata.kind === 'comment') {
+        const { comment } = metadata;
+        return (
+          <div data-diff-comment={comment.id}>
+            {comment.id === editingCommentId ? (
+              <DiffCommentComposer
+                lineLabel={formatLineLabel(comment)}
+                initialValue={comment.body}
+                onSubmit={(body) => onUpdateComment(comment.id, body)}
+                onCancel={() => onEditComment(null)}
+              />
+            ) : (
+              <DiffCommentCard
+                lineLabel={formatLineLabel(comment)}
+                body={comment.body}
+                onEdit={() => onEditComment(comment.id)}
+                onDelete={() => onDeleteComment(comment.id)}
+              />
+            )}
+          </div>
+        );
+      }
+      if (!commentRange) return null;
+      return (
+        <DiffCommentComposer
+          lineLabel={formatLineLabel(commentRange)}
+          onSubmit={(comment) => onSubmitComment(file, commentRange, comment)}
+          onCancel={onCancelComment}
+        />
+      );
+    },
+    [
+      file,
+      commentRange,
+      editingCommentId,
+      onSubmitComment,
+      onCancelComment,
+      onEditComment,
+      onUpdateComment,
+      onDeleteComment,
+    ],
+  );
 
   return (
     <ErrorBoundary
@@ -110,7 +156,7 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
         options={fileOptions}
         selectedLines={commentRange}
         lineAnnotations={annotations}
-        renderAnnotation={renderComposer}
+        renderAnnotation={renderAnnotation}
       />
     </ErrorBoundary>
   );
@@ -149,6 +195,8 @@ export const DiffFileRow = memo(function DiffFileRow({
   options,
   commentRange,
   isComposing,
+  comments,
+  editingCommentId,
   onToggle,
   onToggleReviewed,
   onDiscard,
@@ -156,6 +204,9 @@ export const DiffFileRow = memo(function DiffFileRow({
   onSelectionEnd,
   onSubmitComment,
   onCancelComment,
+  onEditComment,
+  onUpdateComment,
+  onDeleteComment,
 }: {
   file: FileDiffMetadata;
   contentKey: string | undefined;
@@ -169,6 +220,8 @@ export const DiffFileRow = memo(function DiffFileRow({
   options: Record<string, unknown>;
   commentRange: SelectedLineRange | null;
   isComposing: boolean;
+  comments: DiffComment[];
+  editingCommentId: string | null;
   onToggle: (name: string) => void;
   onToggleReviewed: (name: string) => void;
   onDiscard: (file: FileDiffMetadata) => void;
@@ -176,6 +229,9 @@ export const DiffFileRow = memo(function DiffFileRow({
   onSelectionEnd: (fileName: string, range: SelectedLineRange | null) => void;
   onSubmitComment: (file: FileDiffMetadata, range: SelectedLineRange, comment: string) => void;
   onCancelComment: () => void;
+  onEditComment: (id: string | null) => void;
+  onUpdateComment: (id: string, body: string) => void;
+  onDeleteComment: (id: string) => void;
 }) {
   const isRenamed = isRenameFileType(file.type);
   return (
@@ -264,10 +320,15 @@ export const DiffFileRow = memo(function DiffFileRow({
           canComment={!!chatId}
           commentRange={commentRange}
           isComposing={isComposing}
+          comments={comments}
+          editingCommentId={editingCommentId}
           onSelectionChange={onSelectionChange}
           onSelectionEnd={onSelectionEnd}
           onSubmitComment={onSubmitComment}
           onCancelComment={onCancelComment}
+          onEditComment={onEditComment}
+          onUpdateComment={onUpdateComment}
+          onDeleteComment={onDeleteComment}
         />
       )}
     </div>

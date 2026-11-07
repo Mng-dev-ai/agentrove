@@ -1,13 +1,17 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { FileDiffMetadata, SelectedLineRange } from '@pierre/diffs';
 import { useUIStore } from '@/store/uiStore';
+import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
 import { getSelectedDiffText } from '@/utils/diffSelection';
+import { compareFilePaths } from '@/components/sandbox/git/DiffView/diffView.utils';
 
 interface PendingDiffComment {
   fileName: string;
   range: SelectedLineRange;
   composing: boolean;
 }
+
+const NO_COMMENTS: DiffComment[] = [];
 
 // The library reports selections in anchor→pointer order, so an upward drag
 // yields start > end. Old/new line numbers aren't comparable across sides
@@ -19,9 +23,30 @@ function normalizeSelection(range: SelectedLineRange): SelectedLineRange {
   return { start: range.end, end: range.start, side: range.side, endSide: range.endSide };
 }
 
-// Diff review comments → editor-selection chip on the chat input. `composing` opens on drag end.
-export function useDiffComments(chatId: string | undefined, cwd: string | undefined) {
+// Diff review comments: a line selection opens the composer (`composing` on drag
+// end), submits land in the scope's persisted pending list, and sending moves
+// them all onto the chat input as editor-selection chips.
+export function useDiffComments(
+  chatId: string | undefined,
+  cwd: string | undefined,
+  scopeKey: string,
+) {
   const [pendingComment, setPendingComment] = useState<PendingDiffComment | null>(null);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const storedComments = useDiffCommentsStore((s) => s.commentsByScope[scopeKey]);
+  // Without a chat there's nowhere to send them (landing page shares the scope).
+  const comments = (chatId && storedComments) || NO_COMMENTS;
+
+  const commentsByFile = useMemo(() => {
+    const sorted = [...comments].sort((a, b) => compareFilePaths(a.path, b.path) || a.end - b.end);
+    const map = new Map<string, DiffComment[]>();
+    for (const comment of sorted) {
+      const list = map.get(comment.path);
+      if (list) list.push(comment);
+      else map.set(comment.path, [comment]);
+    }
+    return map;
+  }, [comments]);
 
   // Keep raw anchor-order during drag so the library's equality guards stay effective.
   const handleSelectionChange = useCallback((fileName: string, range: SelectedLineRange | null) => {
@@ -34,33 +59,88 @@ export function useDiffComments(chatId: string | undefined, cwd: string | undefi
     );
   }, []);
 
-  const resetComments = useCallback(() => setPendingComment(null), []);
+  const openComposer = useCallback(() => {
+    setPendingComment((prev) =>
+      prev ? { ...prev, range: normalizeSelection(prev.range), composing: true } : prev,
+    );
+  }, []);
+
+  const cancelComposer = useCallback(() => setPendingComment(null), []);
+
+  const resetComments = useCallback(() => {
+    setPendingComment(null);
+    setEditingCommentId(null);
+  }, []);
 
   const handleSubmitComment = useCallback(
-    (file: FileDiffMetadata, range: SelectedLineRange, comment: string) => {
+    (file: FileDiffMetadata, range: SelectedLineRange, body: string) => {
       if (!chatId) return;
-      // Attach even when snippet extraction comes up empty — losing the typed
-      // comment is worse than an empty code block.
-      const snippet = getSelectedDiffText(file, range);
-      useUIStore.getState().addComposerSelection(chatId, {
-        // Same workspace-root basis as "open in editor" and editor selections.
-        path: cwd ? `${cwd}/${file.name}` : file.name,
-        startLine: range.start,
-        endLine: range.end,
-        languageId: 'diff',
-        text: snippet ?? '',
-        comment,
+      useDiffCommentsStore.getState().addComment(scopeKey, {
+        path: file.name,
+        start: range.start,
+        end: range.end,
+        side: range.side,
+        endSide: range.endSide,
+        // Keep the comment even when snippet extraction comes up empty — losing
+        // the typed text is worse than an empty code block.
+        snippet: getSelectedDiffText(file, range) ?? '',
+        body,
       });
       setPendingComment(null);
     },
-    [chatId, cwd],
+    [chatId, scopeKey],
   );
+
+  const updateComment = useCallback(
+    (id: string, body: string) => {
+      useDiffCommentsStore.getState().updateComment(scopeKey, id, body);
+      setEditingCommentId(null);
+    },
+    [scopeKey],
+  );
+
+  const deleteComment = useCallback(
+    (id: string) => {
+      useDiffCommentsStore.getState().removeComment(scopeKey, id);
+      setEditingCommentId((prev) => (prev === id ? null : prev));
+    },
+    [scopeKey],
+  );
+
+  const sendComments = useCallback(() => {
+    if (!chatId) return;
+    const { addComposerSelection } = useUIStore.getState();
+    for (const list of commentsByFile.values()) {
+      for (const comment of list) {
+        addComposerSelection(chatId, {
+          // Same workspace-root basis as "open in editor" and editor selections.
+          path: cwd ? `${cwd}/${comment.path}` : comment.path,
+          startLine: comment.start,
+          endLine: comment.end,
+          languageId: 'diff',
+          text: comment.snippet,
+          comment: comment.body,
+        });
+      }
+    }
+    useDiffCommentsStore.getState().clearScope(scopeKey);
+    setEditingCommentId(null);
+  }, [chatId, cwd, scopeKey, commentsByFile]);
 
   return {
     pendingComment,
+    comments,
+    commentsByFile,
+    editingCommentId,
+    setEditingCommentId,
     resetComments,
+    cancelComposer,
+    openComposer,
     handleSelectionChange,
     handleSelectionEnd,
     handleSubmitComment,
+    updateComment,
+    deleteComment,
+    sendComments,
   };
 }
