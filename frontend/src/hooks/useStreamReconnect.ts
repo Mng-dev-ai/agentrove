@@ -1,11 +1,9 @@
 import { useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { logger } from '@/utils/logger';
-import { chatService } from '@/services/chatService';
+import { syncChatStatus } from '@/services/chatStatusSync';
 import { chatStorage } from '@/utils/storage';
 import { useStreamStore } from '@/store/streamStore';
-import { useElicitationStore } from '@/store/elicitationStore';
-import { usePermissionStore } from '@/store/permissionStore';
 import { pruneIfStillOrphan } from '@/utils/activeStreams';
 import type { Message } from '@/types/chat.types';
 import type { StreamState } from '@/types/stream.types';
@@ -60,21 +58,8 @@ export function useStreamReconnect({
       try {
         if (useStreamStore.getState().getStreamByChat(chatId)) return;
 
-        const status = await chatService.checkChatStatus(chatId);
+        const status = await syncChatStatus(chatId, () => !cancelled);
         if (cancelled) return;
-
-        // Pending forms can't ride event replay — the cursor may already be past
-        // their control event — so the status response is the source of truth.
-        if (status?.pending_elicitations) {
-          useElicitationStore
-            .getState()
-            .reconcileElicitationRequests(chatId, status.pending_elicitations);
-        }
-        if (status?.pending_permission_ids) {
-          usePermissionStore
-            .getState()
-            .reconcilePermissionRequests(chatId, status.pending_permission_ids);
-        }
 
         if (!status?.has_active_task) {
           pruneIfStillOrphan(chatId, false);

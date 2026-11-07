@@ -8,7 +8,11 @@ interface ElicitationState {
   enqueueElicitationRequest: (chatId: string, request: ElicitationRequest) => void;
   resolveElicitationRequest: (chatId: string, requestId: string) => void;
   // Server truth from GET /chats/{id}/status — event replay can miss pending forms.
-  reconcileElicitationRequests: (chatId: string, requests: ElicitationRequest[]) => void;
+  reconcileElicitationRequests: (
+    chatId: string,
+    requests: ElicitationRequest[],
+    knownIds: Set<string>,
+  ) => void;
 }
 
 function writeQueue(
@@ -45,13 +49,17 @@ export const useElicitationStore = create<ElicitationState>((set, get) => ({
     });
   },
 
-  reconcileElicitationRequests: (chatId: string, requests: ElicitationRequest[]) => {
+  reconcileElicitationRequests: (
+    chatId: string,
+    requests: ElicitationRequest[],
+    knownIds: Set<string>,
+  ) => {
     set((state) => {
       const queue = state.pendingRequests.get(chatId) ?? [];
       const serverIds = new Set(requests.map((r) => r.request_id));
       // Keep the local entries the server still lists, in queue order, by identity —
       // the head must stay the same object so unsubmitted answers survive.
-      const kept = queue.filter((r) => serverIds.has(r.request_id));
+      const kept = queue.filter((r) => serverIds.has(r.request_id) || !knownIds.has(r.request_id));
       const keptIds = new Set(kept.map((r) => r.request_id));
       const added = requests.filter((r) => !keptIds.has(r.request_id));
       const nextQueue = [...kept, ...added];

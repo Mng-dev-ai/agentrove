@@ -8,7 +8,11 @@ interface PermissionState {
   enqueuePermissionRequest: (chatId: string, request: PermissionRequest) => boolean;
   resolvePermissionRequest: (chatId: string, requestId: string) => void;
   clearPermissionRequests: (chatId: string) => void;
-  reconcilePermissionRequests: (chatId: string, requestIds: string[]) => void;
+  reconcilePermissionRequests: (
+    chatId: string,
+    requestIds: string[],
+    knownIds: Set<string>,
+  ) => void;
 }
 
 export const usePermissionStore = create<PermissionState>((set, get) => ({
@@ -51,12 +55,14 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
     });
   },
 
-  reconcilePermissionRequests: (chatId: string, requestIds: string[]) => {
+  reconcilePermissionRequests: (chatId: string, requestIds: string[], knownIds: Set<string>) => {
     set((state) => {
       const queue = state.pendingRequests.get(chatId);
       if (!queue) return state;
       const serverIds = new Set(requestIds);
-      const nextQueue = queue.filter((r) => serverIds.has(r.request_id));
+      const nextQueue = queue.filter(
+        (r) => serverIds.has(r.request_id) || !knownIds.has(r.request_id),
+      );
       if (nextQueue.length === queue.length) return state;
       const nextRequests = new Map(state.pendingRequests);
       if (nextQueue.length === 0) {
