@@ -158,6 +158,14 @@ export const MessageRenderer = memo(function MessageRenderer({
       {...segmentViewProps}
     />
   ));
+  let suggestionsStart = tailSegments.length;
+  while (
+    rollUpTrace &&
+    suggestionsStart > 0 &&
+    tailSegments[suggestionsStart - 1].kind === 'suggestions'
+  ) {
+    suggestionsStart--;
+  }
 
   return (
     <AgentToolsContext value={agentTools}>
@@ -165,16 +173,14 @@ export const MessageRenderer = memo(function MessageRenderer({
         {hasSteering && awaitingFullRender && (
           <TraceLoadState failed={fullRender.isError} onRetry={() => void fullRender.refetch()} />
         )}
-        {rollUpTrace ? (
-          rollupSegments.length > 0 && (
-            <WorkedRollup durationMs={durationMs} onExpand={requestFullRender}>
-              {traceNodes}
-            </WorkedRollup>
-          )
-        ) : (
-          traceNodes
-        )}
-        {tailNodes}
+        {rollUpTrace
+          ? rollupSegments.length > 0 && (
+              <WorkedRollup durationMs={durationMs} onExpand={requestFullRender}>
+                {traceNodes}
+              </WorkedRollup>
+            )
+          : traceNodes}
+        {tailNodes.slice(0, suggestionsStart)}
         {renderUiSegments.map((segment) => (
           <SegmentView
             key={segment.id}
@@ -184,6 +190,7 @@ export const MessageRenderer = memo(function MessageRenderer({
             {...segmentViewProps}
           />
         ))}
+        {tailNodes.slice(suggestionsStart)}
       </div>
     </AgentToolsContext>
   );
