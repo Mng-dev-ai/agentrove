@@ -119,3 +119,22 @@
     color: var(--theme-text-primary);
   }
 }
+
+.outdated-tag {
+  @include type.type-meta(500);
+  flex-shrink: 0;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+  font-family: var(--font-sans);
+  color: var(--theme-text-tertiary);
+  background-color: var(--theme-surface-tertiary);
+}
+
+.comment-snippet {
+  @include type.type-mono-meta;
+  overflow-x: auto;
+  border-bottom: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-2) var(--space-3);
+  color: var(--theme-text-tertiary);
+}

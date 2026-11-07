@@ -11,6 +11,7 @@ import { DiffCommentCard } from '@/components/sandbox/git/DiffCommentComposer/Di
 import { useShallow } from 'zustand/react/shallow';
 import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
 import { annotationSide, formatLineLabel } from '@/utils/diffSelection';
+import { reviewKeyFor } from '@/utils/diffReviewKey';
 import type { FileChangeStats } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { FileDiff } from '@pierre/diffs/react';
 import clsx from 'clsx';
@@ -31,7 +32,9 @@ const STATUS_BADGE_MODIFIERS: Record<string, string> = {
   'rename-changed': styles['status-badge--renamed'],
 };
 
-type AnnotationMeta = { kind: 'composer' } | { kind: 'comment'; comment: DiffComment };
+type AnnotationMeta =
+  | { kind: 'composer' }
+  | { kind: 'comment'; comment: DiffComment; isOutdated: boolean };
 
 const FileDiffRenderer = memo(function FileDiffRenderer({
   file,
@@ -59,6 +62,7 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
   onCancelComment: () => void;
 }) {
   const editingCommentId = useDiffCommentsStore((s) => s.editingCommentId);
+  const reviewKey = useMemo(() => reviewKeyFor(file), [file]);
 
   // Selection is gated on a chat being connected — the comment has nowhere to
   // go otherwise. Fully controlled via `selectedLines` so closing the composer
@@ -84,11 +88,15 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
   // Memoized — the library re-renders a file whenever the annotations array
   // identity changes.
   const annotations = useMemo<DiffLineAnnotation<AnnotationMeta>[]>(() => {
-    const out: DiffLineAnnotation<AnnotationMeta>[] = comments.map((comment) => ({
-      side: annotationSide(comment),
-      lineNumber: comment.end,
-      metadata: { kind: 'comment', comment },
-    }));
+    const out: DiffLineAnnotation<AnnotationMeta>[] = comments.map((comment) => {
+      const isOutdated = comment.contentKey !== reviewKey;
+      return {
+        side: annotationSide(comment),
+        // 0 = file-level annotation above the first hunk.
+        lineNumber: isOutdated ? 0 : comment.end,
+        metadata: { kind: 'comment', comment, isOutdated },
+      };
+    });
     if (isComposing && commentRange) {
       out.push({
         side: annotationSide(commentRange),
@@ -97,12 +105,12 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
       });
     }
     return out;
-  }, [comments, isComposing, commentRange]);
+  }, [comments, reviewKey, isComposing, commentRange]);
 
   const renderAnnotation = useCallback(
     ({ metadata }: DiffLineAnnotation<AnnotationMeta>) => {
       if (metadata.kind === 'comment') {
-        const { comment } = metadata;
+        const { comment, isOutdated } = metadata;
         return (
           <div data-diff-comment={comment.id}>
             {comment.id === editingCommentId ? (
@@ -118,6 +126,7 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
               <DiffCommentCard
                 lineLabel={formatLineLabel(comment)}
                 body={comment.body}
+                outdatedSnippet={isOutdated ? comment.snippet : null}
                 onEdit={() => useDiffCommentsStore.getState().setEditingCommentId(comment.id)}
                 onDelete={() => useDiffCommentsStore.getState().removeComment(scopeKey, comment.id)}
               />

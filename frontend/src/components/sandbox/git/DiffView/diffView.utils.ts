@@ -1,5 +1,6 @@
 import type { CreatePatchOptionsNonabortable, FileDiffMetadata, FileContents } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
+import { reviewKeyFor } from '@/utils/diffReviewKey';
 
 export const DIFF_THEMES = { dark: 'pierre-dark', light: 'pierre-light' } as const;
 
@@ -108,15 +109,6 @@ function extractContents(
   };
 }
 
-export function hashDiffContent(content: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < content.length; i += 1) {
-    hash ^= content.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(36);
-}
-
 // The runtime FileDiffMetadata carries an `oldMode` the published types omit
 // (they only declare `mode`/`prevMode`); widen locally to copy it through.
 type FileDiffWithOldMode = FileDiffMetadata & { oldMode?: string };
@@ -125,14 +117,9 @@ type FileDiffWithOldMode = FileDiffMetadata & { oldMode?: string };
 // the two apart.
 export const whitespaceKeySuffix = (ignoreWhitespace: boolean) => (ignoreWhitespace ? ':ws' : '');
 
-// path -> `path\0contentHash`. The hash folds a file's changed lines in, so a
-// key stored as "reviewed" stops matching once the file's content shifts.
 export function buildReviewKeys(files: FileDiffMetadata[]): Map<string, string> {
   const map = new Map<string, string>();
-  for (const file of files) {
-    const content = `${file.deletionLines.join('')}\0${file.additionLines.join('')}`;
-    map.set(file.name, `${file.name}\0${hashDiffContent(content)}`);
-  }
+  for (const file of files) map.set(file.name, reviewKeyFor(file));
   return map;
 }
 

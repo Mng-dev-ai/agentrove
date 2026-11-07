@@ -32,19 +32,33 @@ export function DiffCommentActions({ onEdit, onDelete }: DiffCommentActionsProps
   );
 }
 
+export function DiffCommentOutdatedTag() {
+  return <span className={styles['outdated-tag']}>Outdated</span>;
+}
+
 interface DiffCommentCardProps extends DiffCommentActionsProps {
   lineLabel: string;
   body: string;
+  // Outdated comments aren't line-anchored, so the snippet carries the context.
+  outdatedSnippet: string | null;
 }
 
 // Saved pending comment, rendered inline in the same card as the composer.
-export function DiffCommentCard({ lineLabel, body, onEdit, onDelete }: DiffCommentCardProps) {
+export function DiffCommentCard({
+  lineLabel,
+  body,
+  outdatedSnippet,
+  onEdit,
+  onDelete,
+}: DiffCommentCardProps) {
   return (
     <div className={styles.composer}>
       <div className={styles['composer-header']}>
         <span className={styles['composer-title']}>Comment on {lineLabel}</span>
+        {outdatedSnippet !== null && <DiffCommentOutdatedTag />}
         <DiffCommentActions onEdit={onEdit} onDelete={onDelete} />
       </div>
+      {outdatedSnippet && <pre className={styles['comment-snippet']}>{outdatedSnippet}</pre>}
       <p className={styles['comment-body']}>{body}</p>
     </div>
   );

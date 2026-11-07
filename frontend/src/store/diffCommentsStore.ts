@@ -6,6 +6,8 @@ export interface DiffComment extends SelectedLineRange {
   id: string;
   // Diff-relative file name; the workspace path is resolved at send time.
   path: string;
+  // The file's review key at submit; a mismatch later means the lines moved.
+  contentKey: string;
   snippet: string;
   body: string;
 }

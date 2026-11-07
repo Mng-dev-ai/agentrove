@@ -3,11 +3,15 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
 import type { DiffComment } from '@/store/diffCommentsStore';
 import { formatLineLabel } from '@/utils/diffSelection';
-import { DiffCommentActions } from '@/components/sandbox/git/DiffCommentComposer/DiffCommentCard';
+import {
+  DiffCommentActions,
+  DiffCommentOutdatedTag,
+} from '@/components/sandbox/git/DiffCommentComposer/DiffCommentCard';
 import styles from './DiffCommentsPanel.module.scss';
 
 interface DiffCommentsPanelProps {
   commentsByFile: Map<string, DiffComment[]>;
+  reviewKeyByFile: Map<string, string>;
   onJump: (comment: DiffComment) => void;
   onEdit: (comment: DiffComment) => void;
   onDelete: (id: string) => void;
@@ -16,6 +20,7 @@ interface DiffCommentsPanelProps {
 
 export function DiffCommentsPanel({
   commentsByFile,
+  reviewKeyByFile,
   onJump,
   onEdit,
   onDelete,
@@ -40,7 +45,10 @@ export function DiffCommentsPanel({
             {comments.map((comment) => (
               <div key={comment.id} className={styles.item}>
                 <Button variant="unstyled" onClick={() => onJump(comment)} className={styles.jump}>
-                  <span className={styles.line}>{formatLineLabel(comment)}</span>
+                  <span className={styles.line}>
+                    {formatLineLabel(comment)}
+                    {comment.contentKey !== reviewKeyByFile.get(path) && <DiffCommentOutdatedTag />}
+                  </span>
                   <span className={styles.text}>{comment.body}</span>
                 </Button>
                 <DiffCommentActions

@@ -3,6 +3,7 @@ import type { FileDiffMetadata, SelectedLineRange } from '@pierre/diffs';
 import { useUIStore } from '@/store/uiStore';
 import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
 import { getSelectedDiffText } from '@/utils/diffSelection';
+import { reviewKeyFor } from '@/utils/diffReviewKey';
 import { compareFilePaths } from '@/utils/filePaths';
 
 interface PendingDiffComment {
@@ -12,6 +13,9 @@ interface PendingDiffComment {
 }
 
 const NO_COMMENTS: DiffComment[] = [];
+
+const OUTDATED_NOTE =
+  '(Outdated: the file changed after this comment, so these line numbers refer to an earlier version.)';
 
 // The library reports selections in anchor→pointer order, so an upward drag
 // yields start > end. Old/new line numbers aren't comparable across sides
@@ -76,6 +80,7 @@ export function useDiffComments(
       if (!chatId) return;
       useDiffCommentsStore.getState().addComment(scopeKey, {
         path: file.name,
+        contentKey: reviewKeyFor(file),
         start: range.start,
         end: range.end,
         side: range.side,
@@ -95,24 +100,30 @@ export function useDiffComments(
     [scopeKey],
   );
 
-  const sendComments = useCallback(() => {
-    if (!chatId) return;
-    const { addComposerSelection } = useUIStore.getState();
-    for (const list of commentsByFile.values()) {
-      for (const comment of list) {
-        addComposerSelection(chatId, {
-          // Same workspace-root basis as "open in editor" and editor selections.
-          path: cwd ? `${cwd}/${comment.path}` : comment.path,
-          startLine: comment.start,
-          endLine: comment.end,
-          languageId: 'diff',
-          text: comment.snippet,
-          comment: comment.body,
-        });
+  const sendComments = useCallback(
+    (reviewKeyByFile: Map<string, string>) => {
+      if (!chatId) return;
+      const { addComposerSelection } = useUIStore.getState();
+      for (const list of commentsByFile.values()) {
+        for (const comment of list) {
+          addComposerSelection(chatId, {
+            // Same workspace-root basis as "open in editor" and editor selections.
+            path: cwd ? `${cwd}/${comment.path}` : comment.path,
+            startLine: comment.start,
+            endLine: comment.end,
+            languageId: 'diff',
+            text: comment.snippet,
+            comment:
+              comment.contentKey === reviewKeyByFile.get(comment.path)
+                ? comment.body
+                : `${OUTDATED_NOTE}\n${comment.body}`,
+          });
+        }
       }
-    }
-    useDiffCommentsStore.getState().clearScope(scopeKey);
-  }, [chatId, cwd, scopeKey, commentsByFile]);
+      useDiffCommentsStore.getState().clearScope(scopeKey);
+    },
+    [chatId, cwd, scopeKey, commentsByFile],
+  );
 
   return {
     pendingComment,

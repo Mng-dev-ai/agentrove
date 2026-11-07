@@ -17,6 +17,7 @@ import {
 } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { useDiffComments } from '@/hooks/useDiffComments';
 import { compareFilePaths } from '@/utils/filePaths';
+import { hashDiffContent } from '@/utils/diffReviewKey';
 import { WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
@@ -38,7 +39,6 @@ import {
   computeMenuPos,
   findNextUnreviewed,
   computeOverflowMenuPos,
-  hashDiffContent,
   rebuildWithCollapsedContext,
   whitespaceKeySuffix,
 } from './diffView.utils';
@@ -354,9 +354,9 @@ const DiffViewContent = memo(function DiffViewContent({
   );
 
   const sendCommentsToAgent = useCallback(() => {
-    sendComments();
+    sendComments(reviewKeyByFile);
     closeCommentsMenu();
-  }, [sendComments, closeCommentsMenu]);
+  }, [sendComments, reviewKeyByFile, closeCommentsMenu]);
 
   const stepFile = useCallback(
     (offset: number) => {
@@ -428,6 +428,7 @@ const DiffViewContent = memo(function DiffViewContent({
   const commentsPanel = (
     <DiffCommentsPanel
       commentsByFile={commentsByFile}
+      reviewKeyByFile={reviewKeyByFile}
       onJump={jumpToComment}
       onEdit={editComment}
       onDelete={deleteComment}
