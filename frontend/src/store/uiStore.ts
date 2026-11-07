@@ -98,6 +98,8 @@ type UIStoreState = ThemeState &
     ) => void;
     // Diff tab to select when that chat's diff view next renders.
     pendingDiffMode: { chatId: string; mode: DiffMode } | null;
+    diffStyle: 'unified' | 'split';
+    setDiffStyle: (style: 'unified' | 'split') => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
     // Selection chips for a chat's input; serialized into the prompt at send.
@@ -336,6 +338,8 @@ export const useUIStore = create<UIStoreState>()(
       pendingFileOpen: null,
       fileOpenNonce: 0,
       pendingDiffMode: null,
+      diffStyle: 'unified',
+      setDiffStyle: (diffStyle) => set({ diffStyle }),
       openFileInEditor: (path, chatId, line, split = false) => {
         const state = get();
         const splitIndex = chatId ? state.splitChatIds.indexOf(chatId) : -1;
@@ -635,6 +639,7 @@ export const useUIStore = create<UIStoreState>()(
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,
         sessionPanelOpen: state.sessionPanelOpen,
+        diffStyle: state.diffStyle,
         // Status filters are session-only (empty at mount) — don't persist them.
         sidebarFilters: { ...state.sidebarFilters, statuses: [] },
         collapsedSidebarSections: state.collapsedSidebarSections,

@@ -81,7 +81,8 @@ const DiffViewContent = memo(function DiffViewContent({
     setMode(pendingDiffMode.mode);
     useUIStore.setState({ pendingDiffMode: null });
   }, [pendingDiffMode, chatId]);
-  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
+  const diffStyle = useUIStore((s) => s.diffStyle);
+  const setDiffStyle = useUIStore((s) => s.setDiffStyle);
   // Scrollspy: file whose diff currently tops the pane.
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [isNarrow, setIsNarrow] = useState(false);
