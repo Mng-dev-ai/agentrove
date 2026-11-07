@@ -122,7 +122,9 @@ export function useDiffScroll({
     if (!root || !showFiles) return;
     let raf = 0;
     const onScroll = () => {
-      if (raf) return;
+      // A jump owns the highlight until the next user gesture cancels it — the
+      // target may sit too low to ever reach the reference line.
+      if (raf || jumpRafRef.current) return;
       raf = requestAnimationFrame(() => {
         raf = 0;
         const pane = paneRef.current;
