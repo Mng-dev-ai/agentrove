@@ -15,12 +15,11 @@ import { paintedChatIds } from '@/utils/tileHelpers';
 import { TitleBarTab, TitleBarTabs } from '@/components/layout/TitleBarTab/TitleBarTab';
 import styles from './ChatTabs.module.scss';
 
-type ChatTabStatus = 'blocked' | 'streaming' | 'completed';
+type ChatTabStatus = 'blocked' | 'streaming';
 
 const STATUS_LABELS: Record<ChatTabStatus, string> = {
   blocked: 'Needs you',
   streaming: 'Running',
-  completed: 'Done',
 };
 
 interface ChatTabProps {
@@ -41,7 +40,6 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   }, [isChatGone, chatId]);
 
   const title = chatQuery.data?.title ? stripMarkdownTitle(chatQuery.data.title) : '…';
-  // Streaming uses AsciiSpinner; blocked/completed map straight to ChatStatusDot.
   const statusDotTone: ChatStatusTone | null = status && status !== 'streaming' ? status : null;
   const agentKind = useChatAgentKind(
     chatId,
@@ -84,8 +82,6 @@ export function ChatTabs() {
   const splitChatIds = useUIStore((s) => s.splitChatIds);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const activeStreamMetadata = useStreamStore((s) => s.activeStreamMetadata);
-  // Marked on stream success; sidebar clears when the chat is viewed.
-  const completedChatIds = useStreamStore((s) => s.completedChatIds);
   // Pending plan/permission requests or agent question forms — blocked on the user.
   const blockedChatIdSet = useBlockedChatIds();
 
@@ -98,6 +94,11 @@ export function ChatTabs() {
   const streamingChatIdSet = useMemo(
     () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
     [activeStreamMetadata],
+  );
+
+  const visibleTabs = useMemo(
+    () => chatTabs.filter((chatId) => streamingChatIdSet.has(chatId) || blockedChatIdSet.has(chatId)),
+    [chatTabs, streamingChatIdSet, blockedChatIdSet],
   );
 
   const handleSelect = useCallback(
@@ -119,7 +120,7 @@ export function ChatTabs() {
       const ui = useUIStore.getState();
       // Closed tab leaves the working set — tear down its split too.
       if (ui.splitChatIds.includes(chatId)) ui.closeSplitChat(chatId);
-      const tabs = ui.chatTabs;
+      const tabs = visibleTabs;
       const index = tabs.indexOf(chatId);
       ui.closeChatTab(chatId);
       if (chatId !== routedChatId) return;
@@ -127,21 +128,15 @@ export function ChatTabs() {
       const next = remaining[Math.min(index, remaining.length - 1)];
       navigate(next ? `/chat/${next}` : '/');
     },
-    [navigate, routedChatId],
+    [navigate, routedChatId, visibleTabs],
   );
 
-  if (isMobile || chatTabs.length === 0) return null;
+  if (isMobile || visibleTabs.length === 0) return null;
 
   return (
     <TitleBarTabs>
-      {chatTabs.map((chatId) => {
-        const status: ChatTabStatus | null = blockedChatIdSet.has(chatId)
-          ? 'blocked'
-          : streamingChatIdSet.has(chatId)
-            ? 'streaming'
-            : completedChatIds.has(chatId)
-              ? 'completed'
-              : null;
+      {visibleTabs.map((chatId) => {
+        const status: ChatTabStatus = blockedChatIdSet.has(chatId) ? 'blocked' : 'streaming';
         return (
           <ChatTab
             key={chatId}
