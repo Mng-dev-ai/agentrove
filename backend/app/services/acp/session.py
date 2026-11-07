@@ -137,6 +137,9 @@ class AcpSession:
         # Effort values the live session advertises for the current model;
         # None when the agent reports no config options to check against.
         self.effort_levels = effort_levels
+        self.current_model = ""
+        self.current_mode = ""
+        self.current_fast_mode = False
 
     @property
     def handler(self) -> AcpClientHandler:
@@ -309,19 +312,13 @@ class AcpSession:
         reasoning_effort: str | None = None,
         effort_explicit: bool = False,
     ) -> None:
-        try:
-            config_options = await self._set_model_on_conn(
-                self._conn,
-                self._agent_kind,
-                self.acp_session_id,
-                model_id,
-                reasoning_effort,
-            )
-        except Exception:
-            logger.warning("Failed to set ACP model: %s", model_id, exc_info=True)
-            return
-        # Effort options are model-scoped for some agents, so re-read and
-        # re-apply them after a switch.
+        config_options = await self._set_model_on_conn(
+            self._conn,
+            self._agent_kind,
+            self.acp_session_id,
+            model_id,
+            reasoning_effort,
+        )
         self.effort_levels = self._advertised_effort(self._agent_kind, config_options)
         await self._set_effort_on_conn(
             self._conn,
@@ -331,6 +328,7 @@ class AcpSession:
             self.effort_levels,
             effort_explicit,
         )
+        self.current_model = model_id
 
     def ensure_effort_supported(self, reasoning_effort: str | None) -> None:
         if (
@@ -342,20 +340,16 @@ class AcpSession:
             raise unsupported_effort_error(reasoning_effort, self.effort_levels)
 
     async def set_mode(self, mode_id: str) -> None:
-        try:
-            await self._set_mode_on_conn(
-                self._conn, self._agent_kind, self.acp_session_id, mode_id
-            )
-        except Exception:
-            logger.warning("Failed to set ACP mode: %s", mode_id, exc_info=True)
+        await self._set_mode_on_conn(
+            self._conn, self._agent_kind, self.acp_session_id, mode_id
+        )
+        self.current_mode = mode_id
 
     async def set_fast_mode(self, enabled: bool) -> None:
-        try:
-            await self._set_fast_mode_on_conn(
-                self._conn, self._agent_kind, self.acp_session_id, enabled
-            )
-        except Exception:
-            logger.warning("Failed to set Codex fast mode: %s", enabled, exc_info=True)
+        await self._set_fast_mode_on_conn(
+            self._conn, self._agent_kind, self.acp_session_id, enabled
+        )
+        self.current_fast_mode = enabled
 
     async def close(self) -> None:
         # Orderly shutdown: cancel pending client RPCs, close the ACP connection, then
@@ -498,14 +492,30 @@ class AcpSession:
                 acp_session_id = response.session_id
                 config_options = response.config_options
 
+            session = cls(
+                handler=handler,
+                conn=conn,
+                process=process,
+                acp_session_id=acp_session_id,
+                agent_kind=config.agent_kind,
+                stderr_task=stderr_task,
+                exit_watch_task=exit_watch_task,
+                effort_levels=cls._advertised_effort(config.agent_kind, config_options),
+                supports_steering=(
+                    config.agent_kind in (AgentKind.CLAUDE, AgentKind.CODEX)
+                    and isinstance(
+                        steering := (initialize_response.field_meta or {}).get(
+                            "steering"
+                        ),
+                        dict,
+                    )
+                    and steering.get("supported") is True
+                ),
+            )
             if config.model:
                 try:
-                    config_options = await cls._set_model_on_conn(
-                        conn,
-                        config.agent_kind,
-                        acp_session_id,
-                        config.model,
-                        config.reasoning_effort,
+                    await session.set_model(
+                        config.model, config.reasoning_effort, config.effort_explicit
                     )
                 except Exception:
                     logger.warning(
@@ -513,39 +523,25 @@ class AcpSession:
                     )
 
             if config.permission_mode and config.permission_mode != "default":
-                try:
-                    await cls._set_mode_on_conn(
-                        conn,
-                        config.agent_kind,
-                        acp_session_id,
-                        config.permission_mode,
-                    )
-                except Exception:
-                    logger.warning(
-                        "Failed to set initial mode: %s",
-                        config.permission_mode,
-                        exc_info=True,
-                    )
+                await session.set_mode(config.permission_mode)
+            elif config.permission_mode == "default":
+                session.current_mode = "default"
 
-            effort_levels = cls._advertised_effort(config.agent_kind, config_options)
-            await cls._set_effort_on_conn(
-                conn,
-                config.agent_kind,
-                acp_session_id,
-                config.reasoning_effort,
-                effort_levels,
-                config.effort_explicit,
-            )
+            if not session.current_model:
+                await cls._set_effort_on_conn(
+                    conn,
+                    config.agent_kind,
+                    acp_session_id,
+                    config.reasoning_effort,
+                    session.effort_levels,
+                    config.effort_explicit,
+                )
 
-            # Fast mode is per-turn service tier state inside codex-acp; default
-            # is off so only enable when the user opted in.
             if config.fast_mode:
                 try:
-                    await cls._set_fast_mode_on_conn(
-                        conn, config.agent_kind, acp_session_id, True
-                    )
+                    await session.set_fast_mode(True)
                 except Exception:
-                    logger.warning("Failed to enable Codex fast mode")
+                    logger.warning("Failed to enable Codex fast mode", exc_info=True)
 
         except Exception as exc:
             stderr_output = ""
@@ -579,24 +575,7 @@ class AcpSession:
                 await cls._force_kill_group(process)
             raise
 
-        return cls(
-            handler=handler,
-            conn=conn,
-            process=process,
-            acp_session_id=acp_session_id,
-            agent_kind=config.agent_kind,
-            stderr_task=stderr_task,
-            exit_watch_task=exit_watch_task,
-            effort_levels=effort_levels,
-            supports_steering=(
-                config.agent_kind in (AgentKind.CLAUDE, AgentKind.CODEX)
-                and isinstance(
-                    steering := (initialize_response.field_meta or {}).get("steering"),
-                    dict,
-                )
-                and steering.get("supported") is True
-            ),
-        )
+        return session
 
     @staticmethod
     async def _set_mode_on_conn(

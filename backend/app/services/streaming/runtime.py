@@ -1586,33 +1586,31 @@ class ChatStreamRuntime:
             session.active_generation_task = asyncio.current_task()
             stream: AsyncIterator[StreamEvent] | None = None
             try:
-                session_updates: list[Any] = []
-                if config.model and config.model != session.current_model:
-                    session_updates.append(
-                        session.acp_session.set_model(
+                if config.model and config.model != session.acp_session.current_model:
+                    try:
+                        await session.acp_session.set_model(
                             config.model,
                             config.reasoning_effort,
                             config.effort_explicit,
                         )
-                    )
+                    except Exception:
+                        logger.warning(
+                            "Failed to set ACP model: %s", config.model, exc_info=True
+                        )
                 if (
                     config.permission_mode
-                    and config.permission_mode != session.current_mode
+                    and config.permission_mode != session.acp_session.current_mode
                 ):
-                    session_updates.append(
-                        session.acp_session.set_mode(config.permission_mode)
-                    )
-                if config.fast_mode != session.current_fast_mode:
-                    session_updates.append(
-                        session.acp_session.set_fast_mode(config.fast_mode)
-                    )
-                if session_updates:
-                    await asyncio.gather(*session_updates)
-                if config.model:
-                    session.current_model = config.model
-                if config.permission_mode:
-                    session.current_mode = config.permission_mode
-                session.current_fast_mode = config.fast_mode
+                    await session.acp_session.set_mode(config.permission_mode)
+                if config.fast_mode != session.acp_session.current_fast_mode:
+                    try:
+                        await session.acp_session.set_fast_mode(config.fast_mode)
+                    except Exception:
+                        logger.warning(
+                            "Failed to set Codex fast mode: %s",
+                            config.fast_mode,
+                            exc_info=True,
+                        )
                 if config.effort_explicit:
                     session.acp_session.ensure_effort_supported(config.reasoning_effort)
 
