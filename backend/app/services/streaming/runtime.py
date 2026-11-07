@@ -98,22 +98,28 @@ class ChatStreamRuntime:
     # Reserved before the background task registers — closes the double-send
     # window. The event fires when the reservation is released.
     _starting_chat_ids: dict[str, asyncio.Event] = {}
+    _restoring_chat_ids: dict[str, asyncio.Event] = {}
 
     @classmethod
     @asynccontextmanager
-    async def chat_start_slot(cls, chat_id: str) -> AsyncIterator[bool]:
+    async def chat_start_slot(
+        cls, chat_id: str, *, restoring: bool = False
+    ) -> AsyncIterator[bool]:
         # One turn per chat — concurrent turns would share and corrupt the ACP
         # session. No awaits before the yield, so check-and-reserve is atomic.
-        reserved = chat_id not in cls._starting_chat_ids and not cls.has_active_chat(
-            chat_id
+        reserved = (
+            chat_id not in cls._starting_chat_ids
+            and chat_id not in cls._restoring_chat_ids
+            and not cls.has_active_chat(chat_id)
         )
+        reservations = cls._restoring_chat_ids if restoring else cls._starting_chat_ids
         if reserved:
-            cls._starting_chat_ids[chat_id] = asyncio.Event()
+            reservations[chat_id] = asyncio.Event()
         try:
             yield reserved
         finally:
             if reserved:
-                cls._starting_chat_ids.pop(chat_id).set()
+                reservations.pop(chat_id).set()
 
     def __init__(
         self,
@@ -1156,6 +1162,10 @@ class ChatStreamRuntime:
     @classmethod
     def has_pending_start(cls, chat_id: str) -> bool:
         return chat_id in cls._starting_chat_ids
+
+    @classmethod
+    def has_pending_restore(cls, chat_id: str) -> bool:
+        return chat_id in cls._restoring_chat_ids
 
     @classmethod
     def _chat_tasks(cls, chat_id: str) -> set[asyncio.Task[str]]:

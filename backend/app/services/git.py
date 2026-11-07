@@ -301,14 +301,15 @@ GIT_RESTORE_CHECKPOINT_ALL_TEMPLATE = Template(
     'tmp=$$(mktemp) && cp $patch_file "$$tmp"; '
     "status=$$?; rm -f $patch_file; "
     'if [ $$status -ne 0 ]; then rm -f "$$tmp"; exit $$status; fi; '
-    'fi; cd "$$(git rev-parse --show-toplevel)" && '
-    "git reset --hard '$base_head' >/dev/null 2>&1; "
-    "status=$$?; "
-    "if [ $$status -eq 0 ]; then git clean -fd >/dev/null 2>&1; status=$$?; fi; "
-    'if [ $$status -eq 0 ] && [ -n "$$tmp" ]; then '
-    'git apply --whitespace=nowarn "$$tmp" 2>&1; status=$$?; '
-    "fi; "
-    'rm -f "$$tmp"; exit $$status'
+    "fi; index=''; trap 'rm -f \"$$tmp\" \"$$index\"' EXIT; "
+    'cd "$$(git rev-parse --show-toplevel)" || exit; '
+    'if [ -n "$$tmp" ]; then '
+    'index=$$(mktemp) && rm -f "$$index" || exit; '
+    "GIT_INDEX_FILE=\"$$index\" git read-tree '$base_head' && "
+    'GIT_INDEX_FILE="$$index" git apply --cached --check --whitespace=nowarn "$$tmp" 2>&1 || exit; '
+    "fi; git reset --hard '$base_head' >/dev/null 2>&1 && "
+    "git clean -fd >/dev/null 2>&1 || exit; "
+    'if [ -n "$$tmp" ]; then git apply --whitespace=nowarn "$$tmp" 2>&1; fi'
 )
 
 

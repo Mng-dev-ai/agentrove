@@ -869,6 +869,11 @@ async def _send_now_queued_message(
     chat_service: ChatService,
     queue_service: QueueService,
 ) -> None:
+    if ChatStreamRuntime.has_pending_restore(str(chat_id)):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot send now while a checkpoint is being restored.",
+        )
     found = await queue_service.mark_send_now(str(chat_id), str(message_id), device_ids)
     if not found:
         raise HTTPException(
@@ -886,7 +891,7 @@ async def _send_now_queued_message(
         await session_registry.cancel_generation(str(chat_id))
     else:
         try:
-            await ChatStreamRuntime.process_send_now_idle(
+            started = await ChatStreamRuntime.process_send_now_idle(
                 str(chat_id), chat_service.session_factory
             )
         except asyncio.CancelledError:
@@ -897,6 +902,12 @@ async def _send_now_queued_message(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Failed to start send-now execution",
             ) from e
+
+        if not started and ChatStreamRuntime.has_pending_restore(str(chat_id)):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot send now while a checkpoint is being restored.",
+            )
 
 
 @router.delete(

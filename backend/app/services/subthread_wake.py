@@ -86,7 +86,10 @@ class SubThreadWake:
         from app.services.streaming.runtime import ChatStreamRuntime
 
         mid_turn = ChatStreamRuntime.has_active_chat(parent_id)
-        if not mid_turn and ChatStreamRuntime.has_pending_start(parent_id):
+        if not mid_turn and (
+            ChatStreamRuntime.has_pending_start(parent_id)
+            or ChatStreamRuntime.has_pending_restore(parent_id)
+        ):
             self._schedule(parent_id)
             return
         async with SessionLocal() as db:
@@ -126,7 +129,11 @@ class SubThreadWake:
         starting = {
             c: d
             for c, d in reports.items()
-            if c not in running and ChatStreamRuntime.has_pending_start(c)
+            if c not in running
+            and (
+                ChatStreamRuntime.has_pending_start(c)
+                or ChatStreamRuntime.has_pending_restore(c)
+            )
         }
         self._requeue(parent_id, running, schedule=False)
         self._requeue(parent_id, starting, schedule=True)
