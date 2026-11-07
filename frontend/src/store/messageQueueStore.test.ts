@@ -55,12 +55,12 @@ describe('queueMessage', () => {
     expect(queueOf('c1')[0]).toMatchObject({ id: 'server-1', content: 'hello', synced: true });
   });
 
-  it('keeps the unsynced local message on a network error and returns the temp id', async () => {
+  it('rolls back the optimistic add and rethrows on a network error', async () => {
     svc.queueMessage.mockRejectedValue(new NetworkError());
-    const returned = await useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5');
-
-    expect(queueOf('c1')).toHaveLength(1);
-    expect(queueOf('c1')[0]).toMatchObject({ id: returned.id, synced: false });
+    await expect(
+      useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5'),
+    ).rejects.toBeInstanceOf(NetworkError);
+    expect(queueOf('c1')).toBe(EMPTY_QUEUE);
   });
 
   it('rolls back the optimistic add and rethrows on a non-network error', async () => {
@@ -77,14 +77,12 @@ describe('queueMessage', () => {
     expect(queueOf('c1')).toBe(EMPTY_QUEUE);
   });
 
-  it('falls back to an unsynced queued message when sending immediately hits a network error', async () => {
+  it('rethrows without queuing locally when sending immediately hits a network error', async () => {
     svc.queueMessage.mockRejectedValue(new NetworkError());
-    const returned = await useMessageQueueStore
-      .getState()
-      .queueMessage('c1', 'hello', 'gpt-5', { sendNow: true });
-
-    expect(queueOf('c1')).toHaveLength(1);
-    expect(queueOf('c1')[0]).toMatchObject({ id: returned.id, content: 'hello', synced: false });
+    await expect(
+      useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5', { sendNow: true }),
+    ).rejects.toBeInstanceOf(NetworkError);
+    expect(queueOf('c1')).toBe(EMPTY_QUEUE);
   });
 });
 
