@@ -128,11 +128,13 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
       }
       if (!commentRange) return null;
       return (
-        <DiffCommentComposer
-          lineLabel={formatLineLabel(commentRange)}
-          onSubmit={(comment) => onSubmitComment(file, commentRange, comment)}
-          onCancel={onCancelComment}
-        />
+        <div data-diff-composer="">
+          <DiffCommentComposer
+            lineLabel={formatLineLabel(commentRange)}
+            onSubmit={(comment) => onSubmitComment(file, commentRange, comment)}
+            onCancel={onCancelComment}
+          />
+        </div>
       );
     },
     [

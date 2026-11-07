@@ -25,7 +25,6 @@ export function DiffCommentComposer({
   return (
     <div
       className={styles.composer}
-      data-diff-composer=""
       onKeyDown={(event) => {
         if (event.key === 'Escape') onCancel();
       }}

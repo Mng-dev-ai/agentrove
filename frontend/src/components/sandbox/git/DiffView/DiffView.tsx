@@ -27,6 +27,7 @@ import { DiffToolbar } from './DiffToolbar';
 import { useDiffDiscard } from './useDiffDiscard';
 import { useDiffReview } from './useDiffReview';
 import { useDiffScroll } from './useDiffScroll';
+import { useDiffShortcuts } from './useDiffShortcuts';
 import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
@@ -157,6 +158,7 @@ const DiffViewContent = memo(function DiffViewContent({
     setEditingCommentId,
     resetComments,
     cancelComposer,
+    openComposer,
     handleSelectionChange,
     handleSelectionEnd,
     handleSubmitComment,
@@ -180,6 +182,8 @@ const DiffViewContent = memo(function DiffViewContent({
   const filesMenu = useAnchoredPanel(computeMenuPos);
   const overflowMenu = useAnchoredPanel(computeOverflowMenuPos);
   const commentsMenu = useAnchoredPanel(computeCommentsMenuPos);
+  // Anchored to the overflow trigger, which also hosts its menu entry.
+  const shortcutsMenu = useAnchoredPanel(computeOverflowMenuPos);
   const { close: closeFilesMenu } = filesMenu;
   const { close: closeOverflowMenu } = overflowMenu;
   const { close: closeCommentsMenu } = commentsMenu;
@@ -351,6 +355,43 @@ const DiffViewContent = memo(function DiffViewContent({
     closeCommentsMenu();
   }, [sendComments, closeCommentsMenu]);
 
+  const stepFile = useCallback(
+    (offset: number) => {
+      const index = parsedFiles.findIndex((f) => f.name === currentFile);
+      const next = parsedFiles[index + offset];
+      if (next) jumpToFile(next.name);
+    },
+    [parsedFiles, currentFile, jumpToFile],
+  );
+
+  const commentOnSelection = useCallback(() => {
+    openComposer();
+    // The composer may already be open (autoFocus only fires on mount).
+    requestAnimationFrame(() =>
+      rootRef.current?.querySelector<HTMLTextAreaElement>('[data-diff-composer] textarea')?.focus(),
+    );
+  }, [openComposer]);
+
+  const { toggle: toggleShortcutsMenu } = shortcutsMenu;
+  const shortcuts = useMemo(
+    () => ({
+      j: () => stepFile(1),
+      k: () => stepFile(-1),
+      v: () => {
+        if (currentFile) toggleViewed(currentFile);
+      },
+      c: commentOnSelection,
+      '?': toggleShortcutsMenu,
+    }),
+    [stepFile, currentFile, toggleViewed, commentOnSelection, toggleShortcutsMenu],
+  );
+  useDiffShortcuts(rootRef, showFiles && isVisible, shortcuts);
+
+  const openShortcutsFromMenu = useCallback(() => {
+    closeOverflowMenu();
+    toggleShortcutsMenu();
+  }, [closeOverflowMenu, toggleShortcutsMenu]);
+
   const toggleAllFromMenu = useCallback(() => {
     toggleAll();
     closeOverflowMenu();
@@ -417,6 +458,9 @@ const DiffViewContent = memo(function DiffViewContent({
           commentCount={comments.length}
           commentsMenu={commentsMenu}
           commentsPanel={commentsPanel}
+          shortcutsMenu={shortcutsMenu}
+          onOpenShortcuts={openShortcutsFromMenu}
+          canComment={!!chatId}
         />
 
         <div className={styles.content}>

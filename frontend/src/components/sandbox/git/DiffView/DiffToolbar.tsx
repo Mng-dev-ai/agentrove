@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   ChevronDown,
   ChevronsUpDown,
+  Keyboard,
   MessageSquare,
   MoreHorizontal,
   RotateCcw,
@@ -51,7 +52,17 @@ interface DiffToolbarProps {
   commentCount: number;
   commentsMenu: AnchoredPanel;
   commentsPanel: ReactNode;
+  shortcutsMenu: AnchoredPanel;
+  onOpenShortcuts: () => void;
+  canComment: boolean;
 }
+
+const SHORTCUTS = [
+  { keys: ['j', 'k'], label: 'Next / previous file' },
+  { keys: ['v'], label: 'Toggle viewed' },
+  { keys: ['c'], label: 'Comment on selected lines' },
+  { keys: ['?'], label: 'Show shortcuts' },
+];
 
 export function DiffToolbar({
   mode,
@@ -78,6 +89,9 @@ export function DiffToolbar({
   commentCount,
   commentsMenu,
   commentsPanel,
+  shortcutsMenu,
+  onOpenShortcuts,
+  canComment,
 }: DiffToolbarProps) {
   // Diffstat surfaced in the toolbar so change size stays visible when the
   // sidebar is collapsed (narrow tiles) or scrolled away.
@@ -239,8 +253,14 @@ export function DiffToolbar({
       {(isNarrow || showFiles) && (
         <>
           <Button
-            ref={overflowMenu.triggerRef}
-            onClick={overflowMenu.toggle}
+            ref={(node) => {
+              overflowMenu.triggerRef.current = node;
+              shortcutsMenu.triggerRef.current = node;
+            }}
+            onClick={() => {
+              shortcutsMenu.close();
+              overflowMenu.toggle();
+            }}
             variant="unstyled"
             aria-haspopup="menu"
             aria-expanded={overflowMenu.isOpen}
@@ -277,6 +297,17 @@ export function DiffToolbar({
                     Discard all changes
                   </Button>
                 )}
+                {showFiles && (
+                  <Button
+                    variant="unstyled"
+                    onClick={onOpenShortcuts}
+                    className={styles['menu-item']}
+                  >
+                    <Keyboard className={styles['menu-item-icon']} />
+                    Keyboard shortcuts
+                    <kbd className={clsx(styles.kbd, styles['kbd--end'])}>?</kbd>
+                  </Button>
+                )}
                 {isNarrow && showFiles && <div className={styles['menu-divider']} />}
                 {isNarrow && (
                   <div className={styles['style-row']}>
@@ -289,6 +320,34 @@ export function DiffToolbar({
                     />
                   </div>
                 )}
+              </div>,
+              document.body,
+            )}
+          {shortcutsMenu.isOpen &&
+            createPortal(
+              <div
+                ref={shortcutsMenu.panelRef}
+                role="dialog"
+                aria-label="Keyboard shortcuts"
+                style={{
+                  top: shortcutsMenu.pos.top,
+                  left: shortcutsMenu.pos.left,
+                  width: OVERFLOW_PANEL_WIDTH,
+                }}
+                className={styles['overflow-panel']}
+              >
+                {SHORTCUTS.filter((s) => canComment || !s.keys.includes('c')).map((shortcut) => (
+                  <div key={shortcut.label} className={styles['shortcut-row']}>
+                    {shortcut.label}
+                    <span className={styles['shortcut-keys']}>
+                      {shortcut.keys.map((key) => (
+                        <kbd key={key} className={styles.kbd}>
+                          {key}
+                        </kbd>
+                      ))}
+                    </span>
+                  </div>
+                ))}
               </div>,
               document.body,
             )}
