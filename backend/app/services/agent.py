@@ -35,7 +35,8 @@ from app.services.acp.adapters import (
 )
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
-from app.services.exceptions import AgentException
+from app.services.pairing import PairingService
+from app.services.exceptions import AgentException, ErrorCode
 from app.constants import MODELS
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
@@ -124,6 +125,7 @@ class AgentService:
         self,
         *,
         user: User,
+        device_ids: frozenset[UUID],
         chat: Chat,
         model_id: str,
         permission_mode: PermissionMode,
@@ -150,6 +152,9 @@ class AgentService:
         return await self._build_acp_config(
             user_settings=user_settings,
             user_id=str(user.id),
+            device_ids=device_ids,
+            agentrove_mcp=not channel_member
+            or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind],
             agent_kind=agent_kind,
             permission_mode=permission_mode,
             model_id=model_id,
@@ -398,6 +403,8 @@ class AgentService:
         config = await self._build_acp_config(
             user_settings=user_settings,
             user_id=str(user.id),
+            device_ids=frozenset(),
+            agentrove_mcp=False,
             agent_kind=agent_kind,
             permission_mode=NORMAL_SESSION_MODE[agent_kind],
             model_id=model_id,
@@ -467,6 +474,7 @@ class AgentService:
     @staticmethod
     def _build_mcp_server_configs(
         user_id: str,
+        device_ids: frozenset[UUID],
         sandbox_provider: SandboxProviderType,
         *,
         agentrove_mcp: bool,
@@ -488,7 +496,7 @@ class AgentService:
                 api_base = settings.BASE_URL
             env = {
                 "AGENTROVE_API_URL": f"{api_base}{settings.API_V1_STR}",
-                "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(user_id),
+                "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(user_id, device_ids),
             }
             # The chat this session runs in — lets the agent create sub-threads under it
             if current_chat_id:
@@ -505,11 +513,28 @@ class AgentService:
             )
         return servers
 
+    async def ensure_devices_active(
+        self, user_id: UUID, device_ids: frozenset[UUID]
+    ) -> None:
+        if not device_ids:
+            return
+        async with self.session_factory() as db:
+            active = await PairingService.all_active(db, user_id, device_ids)
+        if not active:
+            raise AgentException(
+                "A paired device behind this run has been revoked. "
+                "Rewrite its prompt from a password sign-in or an active device.",
+                error_code=ErrorCode.AUTH_INVALID_TOKEN,
+                status_code=403,
+            )
+
     async def _build_acp_config(
         self,
         *,
         user_settings: UserSettings,
         user_id: str,
+        device_ids: frozenset[UUID],
+        agentrove_mcp: bool,
         agent_kind: AgentKind,
         permission_mode: PermissionMode,
         model_id: str,
@@ -525,6 +550,7 @@ class AgentService:
         fast_mode: bool = False,
         channel_member: bool = False,
     ) -> AcpSessionConfig:
+        await self.ensure_devices_active(UUID(user_id), device_ids)
         env: dict[str, str] = {}
 
         # claude-agent-acp hides the bypassPermissions session mode when running
@@ -560,13 +586,14 @@ class AgentService:
             sandbox_provider=sandbox_provider,
             cwd=cwd,
             user_id=user_id,
+            device_ids=device_ids,
             agent_kind=agent_kind,
             env=env,
             mcp_servers=self._build_mcp_server_configs(
                 user_id,
+                device_ids,
                 sandbox_provider,
-                agentrove_mcp=not channel_member
-                or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind],
+                agentrove_mcp=agentrove_mcp,
                 current_chat_id=None if channel_member else chat_id,
             ),
             model=model_id,

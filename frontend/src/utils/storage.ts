@@ -3,7 +3,6 @@ import { isTauri } from '@tauri-apps/api/core';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
-const CLOUD_REFRESH_TOKEN_KEY = 'cloud_refresh_token';
 const AUTH_STORE_PATH = 'auth.store.json';
 const CHAT_EVENT_ID_PREFIX = 'chat:';
 const CHAT_EVENT_ID_SUFFIX = ':lastEventId';
@@ -209,87 +208,6 @@ export const authStorage = {
   },
 };
 
-// VPS auth: only the refresh token is persisted; access token stays in memory.
-let cloudAccessToken: string | null = null;
-let cloudRefreshToken: string | null = null;
-let cloudCacheInitialized = false;
-
-async function persistCloudRefreshToken(): Promise<void> {
-  const store = await getDesktopAuthStore();
-  if (!store) {
-    return;
-  }
-
-  try {
-    if (cloudRefreshToken) {
-      await store.set(CLOUD_REFRESH_TOKEN_KEY, cloudRefreshToken);
-    } else {
-      await store.delete(CLOUD_REFRESH_TOKEN_KEY);
-    }
-    await store.save();
-  } catch (error) {
-    logger.error('Desktop cloud auth persist failed', 'storage.persistCloudRefreshToken', error);
-  }
-}
-
-export const cloudAuthStorage = {
-  hydrate: async (): Promise<void> => {
-    if (cloudCacheInitialized) {
-      return;
-    }
-
-    if (!isTauri()) {
-      cloudRefreshToken = safeGetItem(CLOUD_REFRESH_TOKEN_KEY);
-      cloudCacheInitialized = true;
-      return;
-    }
-
-    const store = await getDesktopAuthStore();
-    if (store) {
-      try {
-        cloudRefreshToken = (await store.get<string>(CLOUD_REFRESH_TOKEN_KEY)) ?? null;
-      } catch (error) {
-        logger.error('Desktop cloud auth read failed', 'storage.cloudAuthStorage.hydrate', error);
-      }
-    }
-
-    cloudCacheInitialized = true;
-  },
-  getAccessToken: (): string | null => cloudAccessToken,
-  getRefreshToken: (): string | null => {
-    if (!cloudCacheInitialized && !isTauri()) {
-      cloudRefreshToken = safeGetItem(CLOUD_REFRESH_TOKEN_KEY);
-      cloudCacheInitialized = true;
-    }
-    return cloudRefreshToken;
-  },
-  setTokens: async (accessToken: string, refreshToken: string): Promise<void> => {
-    cloudAccessToken = accessToken;
-    cloudRefreshToken = refreshToken;
-    cloudCacheInitialized = true;
-
-    // No localStorage cleanup on Tauri — this key is only written in browsers.
-    if (isTauri()) {
-      await persistCloudRefreshToken();
-      return;
-    }
-
-    safeSetItem(CLOUD_REFRESH_TOKEN_KEY, refreshToken);
-  },
-  clear: (): void => {
-    cloudAccessToken = null;
-    cloudRefreshToken = null;
-    cloudCacheInitialized = true;
-
-    if (isTauri()) {
-      void persistCloudRefreshToken();
-      return;
-    }
-
-    safeRemoveItem(CLOUD_REFRESH_TOKEN_KEY);
-  },
-};
-
 // Cross-tab: another tab rotating tokens must update this tab's memory cache
 // or the next refresh replays a rotated-away token.
 if (typeof window !== 'undefined' && !isTauri()) {
@@ -298,12 +216,6 @@ if (typeof window !== 'undefined' && !isTauri()) {
       cachedToken = event.newValue;
     } else if (event.key === REFRESH_TOKEN_KEY) {
       cachedRefreshToken = event.newValue;
-    } else if (event.key === CLOUD_REFRESH_TOKEN_KEY) {
-      cloudRefreshToken = event.newValue;
-      // Access token is memory-only — drop it when another tab disconnects.
-      if (event.newValue === null) {
-        cloudAccessToken = null;
-      }
     }
   });
 }

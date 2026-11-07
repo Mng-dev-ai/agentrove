@@ -1,0 +1,31 @@
+@use '@/styles/globals/colors' as colors;
+
+.dot {
+  display: inline-block;
+  height: var(--space-1-5);
+  width: var(--space-1-5);
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background-color: var(--theme-text-quaternary);
+}
+
+.dot--online {
+  background-color: colors.status-color('success', 500);
+
+  :global([data-theme='dark']) & {
+    background-color: colors.status-color('success', 400);
+  }
+}
+
+.dot--session-revoked {
+  background-color: colors.status-color('warning', 500);
+}
+
+.dot--origin-blocked,
+.dot--different-server {
+  background-color: colors.status-color('error', 500);
+}
+
+.dot--checking {
+  opacity: 0.5;
+}

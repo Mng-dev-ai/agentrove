@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_users import exceptions as fastapi_users_exceptions
@@ -18,19 +20,27 @@ from app.core.user_manager import (
     get_jwt_strategy,
     get_user_db,
     get_user_manager,
+    reject_agent_token,
 )
 from app.db.session import get_db
 from app.models.db_models.user import User
 from app.models.schemas.auth import (
     LogoutRequest,
+    PairedDeviceOut,
+    PairingSecretOut,
+    PairRequest,
+    PairResponse,
     RefreshTokenRequest,
     Token,
     UserCreate,
     UserOut,
     UserRead,
 )
+from app.services.device_revocation import DeviceRevocationService
 from app.services.email import email_service
 from app.services.exceptions import AuthException
+from app.services.instance import get_instance_id
+from app.services.pairing import PairingService
 from app.services.refresh_token import RefreshTokenService
 
 settings = get_settings()
@@ -67,14 +77,15 @@ async def login(
             detail="Please verify your email before logging in",
         )
 
-    strategy = get_jwt_strategy()
-    access_token = await strategy.write_token(user)
+    strategy = get_jwt_strategy(db)
+    access_token = await strategy.write_session_token(user, frozenset())
 
     user_agent = request.headers.get("user-agent")
     client_ip = request.client.host if request.client else None
     refresh_token = await refresh_token_service.create_refresh_token(
         user_id=user.id,
         db=db,
+        device_id=None,
         user_agent=user_agent,
         ip_address=client_ip,
     )
@@ -155,7 +166,11 @@ async def refresh_access_token(
     client_ip = request.client.host if request.client else None
 
     try:
-        user, new_refresh_token = await refresh_token_service.validate_and_rotate(
+        (
+            user,
+            new_refresh_token,
+            device_id,
+        ) = await refresh_token_service.validate_and_rotate(
             token=refresh_request.refresh_token,
             db=db,
             user_agent=user_agent,
@@ -167,8 +182,10 @@ async def refresh_access_token(
             detail="Invalid or expired refresh token",
         )
 
-    strategy = get_jwt_strategy()
-    access_token = await strategy.write_token(user)
+    strategy = get_jwt_strategy(db)
+    access_token = await strategy.write_session_token(
+        user, frozenset() if device_id is None else frozenset({device_id})
+    )
 
     return Token(
         access_token=access_token,
@@ -184,3 +201,97 @@ async def logout(
     refresh_token_service: RefreshTokenService = Depends(get_refresh_token_service),
 ) -> None:
     await refresh_token_service.revoke_token(logout_request.refresh_token, db)
+
+
+@router.post(
+    "/pairing",
+    response_model=PairingSecretOut,
+    dependencies=[Depends(reject_agent_token)],
+)
+async def create_pairing_secret(
+    current_user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> PairingSecretOut:
+    if current_user.device_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Pairing links can only be created from a password sign-in",
+        )
+    secret, expires_at = await PairingService.create_secret(current_user.id, db)
+    return PairingSecretOut(secret=secret, expires_at=expires_at)
+
+
+@router.post("/pair", response_model=PairResponse)
+@limiter.limit("5/minute")
+async def pair(
+    request: Request,
+    pair_request: PairRequest,
+    db: AsyncSession = Depends(get_db),
+) -> PairResponse:
+    try:
+        user, device, refresh_token = await PairingService.redeem(
+            secret=pair_request.secret,
+            device_name=pair_request.device_name,
+            db=db,
+            user_agent=request.headers.get("user-agent"),
+            ip_address=request.client.host if request.client else None,
+        )
+    except AuthException:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired pairing link",
+        )
+
+    access_token = await get_jwt_strategy(db).write_session_token(
+        user, frozenset({device.id})
+    )
+    return PairResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        device_id=device.id,
+        instance_id=await get_instance_id(db),
+    )
+
+
+@router.get(
+    "/devices",
+    response_model=list[PairedDeviceOut],
+    dependencies=[Depends(reject_agent_token)],
+)
+async def list_devices(
+    current_user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[PairedDeviceOut]:
+    devices = await PairingService.list_devices(current_user.id, db)
+    return [
+        PairedDeviceOut(
+            id=device.id,
+            name=device.name,
+            created_at=device.created_at,
+            last_used_at=device.last_used_at,
+            current=device.id in current_user.device_ids,
+        )
+        for device in devices
+    ]
+
+
+@router.delete(
+    "/devices/{device_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(reject_agent_token)],
+)
+async def revoke_device(
+    device_id: UUID,
+    current_user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    if current_user.device_ids and device_id not in current_user.device_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Other devices can only be revoked from a password sign-in",
+        )
+    if not await DeviceRevocationService.revoke_device(current_user.id, device_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Device not found"
+        )

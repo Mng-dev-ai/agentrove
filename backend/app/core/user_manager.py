@@ -3,14 +3,17 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import cast
 
-from fastapi import Depends, Request
-from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin
+import jwt
+from fastapi import Depends, HTTPException, Request, status
+from fastapi_users import BaseUserManager, FastAPIUsers, UUIDIDMixin, exceptions
 from fastapi_users.authentication import (
     AuthenticationBackend,
     BearerTransport,
     JWTStrategy,
 )
 from fastapi_users.db import SQLAlchemyUserDatabase
+from fastapi_users.jwt import decode_jwt, generate_jwt
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +22,7 @@ from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.auth import UserCreate
+from app.services.pairing import PairingService
 from app.services.email import email_service
 
 settings = get_settings()
@@ -88,9 +92,9 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     ) -> None:
         # Reset implies compromise — kill refresh tokens from the old password.
         # Inline import avoids circular import with core.security.
-        from app.services.refresh_token import RefreshTokenService
+        from app.services.device_revocation import DeviceRevocationService
 
-        revoked = await RefreshTokenService().revoke_all_tokens(
+        revoked = await DeviceRevocationService.revoke_all(
             user.id, self.user_db.session
         )
         logger.info(
@@ -133,12 +137,61 @@ async def get_user_manager(
 bearer_transport = BearerTransport(tokenUrl="api/v1/auth/login")
 
 
-def get_jwt_strategy() -> JWTStrategy:
-    return JWTStrategy(
-        secret=settings.SECRET_KEY,
-        lifetime_seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        algorithm=settings.ALGORITHM,
-    )
+DEVICE_IDS = TypeAdapter(frozenset[uuid.UUID])
+
+
+class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
+    def __init__(self, db: AsyncSession) -> None:
+        super().__init__(
+            secret=settings.SECRET_KEY,
+            lifetime_seconds=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            algorithm=settings.ALGORITHM,
+        )
+        self.db = db
+
+    async def read_token(
+        self, token: str | None, user_manager: BaseUserManager[User, uuid.UUID]
+    ) -> User | None:
+        if token is None:
+            return None
+        try:
+            claims = decode_jwt(
+                token, self.decode_key, self.token_audience, algorithms=[self.algorithm]
+            )
+            device_ids = DEVICE_IDS.validate_python(claims.get("did", []))
+            user: User = await user_manager.get(user_manager.parse_id(claims["sub"]))
+        except (
+            jwt.PyJWTError,
+            ValidationError,
+            exceptions.InvalidID,
+            exceptions.UserNotExists,
+        ):
+            return None
+        if not await PairingService.all_active(self.db, user.id, device_ids):
+            return None
+        user.device_ids = device_ids
+        user.agent_token = claims.get("mcp") is True
+        return user
+
+    async def write_session_token(
+        self, user: User, device_ids: frozenset[uuid.UUID]
+    ) -> str:
+        return str(
+            generate_jwt(
+                {
+                    "sub": str(user.id),
+                    "aud": self.token_audience,
+                    "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
+                },
+                self.encode_key,
+                self.lifetime_seconds,
+                algorithm=self.algorithm,
+            )
+        )
+
+
+def get_jwt_strategy(db: AsyncSession = Depends(get_db)) -> AccessTokenStrategy:
+    return AccessTokenStrategy(db)
 
 
 auth_backend = AuthenticationBackend(
@@ -154,3 +207,11 @@ fastapi_users = FastAPIUsers[User, uuid.UUID](
 
 current_active_user = fastapi_users.current_user(active=True)
 optional_current_active_user = fastapi_users.current_user(active=True, optional=True)
+
+
+async def reject_agent_token(user: User = Depends(current_active_user)) -> None:
+    if user.agent_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Agent tokens cannot manage pairing or devices",
+        )

@@ -1046,6 +1046,7 @@ class ChatService(BaseDbService[Chat]):
         request: ChatRequest,
         current_user: User,
         *,
+        device_ids: frozenset[UUID],
         member_turn: ChannelMemberTurn | None = None,
         user_app_notice: str | None = None,
     ) -> ChatCompletionResult:
@@ -1058,7 +1059,7 @@ class ChatService(BaseDbService[Chat]):
                     status_code=409,
                 )
             return await self._initiate_chat_completion_reserved(
-                request, current_user, member_turn, user_app_notice
+                request, current_user, member_turn, user_app_notice, device_ids
             )
 
     async def _initiate_chat_completion_reserved(
@@ -1067,6 +1068,7 @@ class ChatService(BaseDbService[Chat]):
         current_user: User,
         member_turn: ChannelMemberTurn | None,
         user_app_notice: str | None,
+        device_ids: frozenset[UUID],
     ) -> ChatCompletionResult:
         user_settings = await self._user_service.get_user_settings(current_user.id)
         chat = await self.get_chat(
@@ -1121,15 +1123,13 @@ class ChatService(BaseDbService[Chat]):
             # Record the turn's settings alongside the bump — the server-side
             # source of truth that MCP follow-ups and the UI inherit.
             await db.execute(
-                update(Chat)
-                .where(Chat.id == chat.id)
-                .values(
-                    updated_at=now,
-                    last_model_id=request.model_id,
-                    last_permission_mode=request.permission_mode,
-                    last_thinking_mode=request.thinking_mode,
-                    last_persona_name=request.selected_persona_name,
-                )
+                ChatStreamRuntime.record_turn_settings(
+                    chat.id,
+                    model_id=request.model_id,
+                    permission_mode=request.permission_mode,
+                    thinking_mode=request.thinking_mode,
+                    persona_name=request.selected_persona_name,
+                ).values(updated_at=now)
             )
             await db.commit()
 
@@ -1160,6 +1160,7 @@ class ChatService(BaseDbService[Chat]):
         ) as (user_message, assistant_message, checkpoint_id):
             task = await self._enqueue_chat_task(
                 member_turn=member_turn,
+                device_ids=device_ids,
                 prompt=request.prompt,
                 system_prompt=system_prompt,
                 custom_instructions=user_settings.custom_instructions,
@@ -1220,6 +1221,7 @@ class ChatService(BaseDbService[Chat]):
         self,
         *,
         member_turn: ChannelMemberTurn | None,
+        device_ids: frozenset[UUID],
         prompt: str,
         system_prompt: str,
         custom_instructions: str | None,
@@ -1244,6 +1246,7 @@ class ChatService(BaseDbService[Chat]):
         workspace = chat.workspace
         request = ChatStreamRequest(
             member_turn=member_turn,
+            device_ids=device_ids,
             prompt=prompt,
             system_prompt=system_prompt,
             custom_instructions=custom_instructions,

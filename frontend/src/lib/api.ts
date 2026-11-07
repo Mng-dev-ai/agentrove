@@ -1,8 +1,16 @@
-import { authStorage, cloudAuthStorage } from '@/utils/storage';
+import { authStorage } from '@/utils/storage';
 import { invalidateSessionAndRedirect } from '@/utils/authSession';
-import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
-import { isCloudChat, isCloudSandbox, clearCloudOrigins } from '@/utils/chatOrigin';
+import { chatMachineId, sandboxMachineId } from '@/store/machineOrigin';
+import { jwtExpiryMs } from '@/utils/jwt';
 import { NetworkError } from '@/types/errors.types';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import {
+  getMachineAccessToken,
+  isSessionLost,
+  markMachineSessionRevoked,
+  onlineMachineUrl,
+  refreshMachineAccess,
+} from '@/services/machineSession';
 
 type RequestMethod = 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
 
@@ -30,7 +38,7 @@ class RefreshTokenError extends Error {
 
 export type { ApiStreamResponse as StreamResponse } from '@/types/stream.types';
 
-export const trimTrailingSlash = (url: string): string => url.replace(/\/+$/, '');
+const trimTrailingSlash = (url: string): string => url.replace(/\/+$/, '');
 
 const resolveHttpBaseUrl = (rawUrl: string): string =>
   trimTrailingSlash(new URL(rawUrl, window.location.origin).toString());
@@ -41,33 +49,12 @@ const resolveWsBaseUrl = (rawUrl: string): string => {
   return trimTrailingSlash(normalized.toString());
 };
 
-// Per-client auth store: local vs VPS so tokens don't clobber each other.
 interface ClientAuth {
   getToken: () => string | null;
-  getRefreshToken: () => string | null;
-  setTokens: (accessToken: string, refreshToken: string) => Promise<void>;
+  canRefresh: () => boolean;
+  refresh: (baseUrl: string) => Promise<string>;
   onSessionExpired: () => void;
 }
-
-const localAuth: ClientAuth = {
-  getToken: () => authStorage.getToken(),
-  getRefreshToken: () => authStorage.getRefreshToken(),
-  setTokens: (accessToken, refreshToken) => authStorage.setTokens(accessToken, refreshToken),
-  onSessionExpired: invalidateSessionAndRedirect,
-};
-
-const cloudAuth: ClientAuth = {
-  getToken: () => cloudAuthStorage.getAccessToken(),
-  getRefreshToken: () => cloudAuthStorage.getRefreshToken(),
-  setTokens: (accessToken, refreshToken) => cloudAuthStorage.setTokens(accessToken, refreshToken),
-  // Expired VPS refresh can't recover silently — clear cloud so UI shows disconnected.
-  onSessionExpired: () => {
-    cloudAuthStorage.clear();
-    // Match manual disconnect: drop origin IDs so stale routing can't hit a dead VPS.
-    clearCloudOrigins();
-    useCloudSettingsStore.getState().clearCloud();
-  },
-};
 
 // Desktop reinstall can leave a stale refresh token after backend identity reset; 401 is terminal.
 function shouldInvalidateSession(error: unknown): boolean {
@@ -78,14 +65,8 @@ const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
 
 // Missing/undecodable claims or exp within buffer → don't open long-lived connections on it.
 function accessTokenExpiresSoon(token: string): boolean {
-  try {
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-    const claims = JSON.parse(atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4)));
-    if (typeof claims.exp !== 'number') return true;
-    return claims.exp * 1000 - Date.now() < ACCESS_TOKEN_EXPIRY_BUFFER_MS;
-  } catch {
-    return true;
-  }
+  const expiresAt = jwtExpiryMs(token);
+  return expiresAt === null || expiresAt - Date.now() < ACCESS_TOKEN_EXPIRY_BUFFER_MS;
 }
 
 const extractErrorMessage = async (response: Response): Promise<string> => {
@@ -101,18 +82,56 @@ const extractErrorMessage = async (response: Response): Promise<string> => {
   }
 };
 
-class APIClient {
-  private baseURL: string;
-  private auth: ClientAuth;
-  private refreshingPromise: Promise<TokenResponse> | null = null;
+async function refreshLocalSession(baseUrl: string): Promise<string> {
+  const refreshToken = authStorage.getRefreshToken();
+  if (!refreshToken) {
+    throw new RefreshTokenError(401, 'No refresh token available');
+  }
 
-  constructor(baseURL: string, auth: ClientAuth) {
-    this.baseURL = baseURL;
+  const response = await fetch(`${baseUrl}/auth/jwt/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  }).catch(() => {
+    throw new RefreshTokenError(0);
+  });
+
+  const data: TokenResponse | null = response.ok ? await response.json() : null;
+
+  const currentRefreshToken = authStorage.getRefreshToken();
+  if (currentRefreshToken !== refreshToken) {
+    if (!currentRefreshToken) {
+      throw new RefreshTokenError(401, 'No refresh token available');
+    }
+    const currentToken = authStorage.getToken();
+    if (!currentToken || accessTokenExpiresSoon(currentToken)) {
+      throw new RefreshTokenError(0);
+    }
+    return currentToken;
+  }
+
+  if (!data) {
+    throw new RefreshTokenError(response.status);
+  }
+  // Await: desktop persist is disk; quit mid-write can leave the rotated-away token.
+  await authStorage.setTokens(data.access_token, data.refresh_token);
+  return data.access_token;
+}
+
+class APIClient {
+  private resolveBaseUrl: () => string;
+  private auth: ClientAuth;
+  private redirect: RequestRedirect;
+  private refreshingPromise: Promise<string> | null = null;
+
+  constructor(resolveBaseUrl: () => string, auth: ClientAuth, redirect: RequestRedirect) {
+    this.resolveBaseUrl = resolveBaseUrl;
     this.auth = auth;
+    this.redirect = redirect;
   }
 
   getBaseUrl(): string {
-    return this.baseURL;
+    return this.resolveBaseUrl();
   }
 
   // Prefer this over guessing which store pairs with the client (e.g. SSE query param).
@@ -123,11 +142,11 @@ class APIClient {
   // For SSE openers that bypass request(): may need a refresh after restart / dead feed.
   async getValidToken(): Promise<string | null> {
     const cached = this.auth.getToken();
-    if (!this.auth.getRefreshToken()) return cached;
+    if (!this.auth.canRefresh()) return cached;
     // Don't rotate on every open — churns refresh tokens and can strand clients mid-rotation.
     if (cached && !accessTokenExpiresSoon(cached)) return cached;
     try {
-      return (await this.refreshTokenIfNeeded()).access_token;
+      return await this.refreshTokenIfNeeded();
     } catch (error) {
       // Terminal refresh failure: tear down so SSE reopen loops don't retry forever.
       if (shouldInvalidateSession(error)) {
@@ -138,10 +157,6 @@ class APIClient {
     }
   }
 
-  setBaseUrl(url: string): void {
-    this.baseURL = url;
-  }
-
   private authHeaders(includeContentType = true): Record<string, string> {
     const token = this.auth.getToken();
     return {
@@ -150,52 +165,12 @@ class APIClient {
     };
   }
 
-  private async performTokenRefresh(): Promise<TokenResponse> {
-    const refreshToken = this.auth.getRefreshToken();
-    if (!refreshToken) {
-      throw new RefreshTokenError(401, 'No refresh token available');
-    }
-
-    const response = await fetch(`${this.baseURL}/auth/jwt/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    }).catch(() => {
-      throw new RefreshTokenError(0);
-    });
-
-    const data: TokenResponse | null = response.ok ? await response.json() : null;
-
-    const currentRefreshToken = this.auth.getRefreshToken();
-    if (currentRefreshToken !== refreshToken) {
-      if (!currentRefreshToken) {
-        throw new RefreshTokenError(401, 'No refresh token available');
-      }
-      const currentToken = this.auth.getToken();
-      if (!currentToken || accessTokenExpiresSoon(currentToken)) {
-        throw new RefreshTokenError(0);
-      }
-      return {
-        access_token: currentToken,
-        refresh_token: currentRefreshToken,
-        token_type: 'bearer',
-      };
-    }
-
-    if (!data) {
-      throw new RefreshTokenError(response.status);
-    }
-    // Await: desktop persist is disk; quit mid-write can leave the rotated-away token.
-    await this.auth.setTokens(data.access_token, data.refresh_token);
-    return data;
-  }
-
-  private async refreshTokenIfNeeded(): Promise<TokenResponse> {
+  private async refreshTokenIfNeeded(): Promise<string> {
     if (this.refreshingPromise) {
       return this.refreshingPromise;
     }
 
-    this.refreshingPromise = this.performTokenRefresh();
+    this.refreshingPromise = this.auth.refresh(this.resolveBaseUrl());
 
     try {
       return await this.refreshingPromise;
@@ -205,7 +180,7 @@ class APIClient {
   }
 
   private async recoverFromUnauthorized(): Promise<boolean> {
-    if (!this.auth.getRefreshToken()) {
+    if (!this.auth.canRefresh()) {
       this.auth.onSessionExpired();
       return false;
     }
@@ -248,6 +223,7 @@ class APIClient {
       },
       signal,
       ...customConfig,
+      redirect: this.redirect,
     };
 
     if (data) {
@@ -258,9 +234,10 @@ class APIClient {
       config.body = formData;
     }
 
+    const url = `${this.resolveBaseUrl()}${endpoint}`;
     let response: Response;
     try {
-      response = await fetch(`${this.baseURL}${endpoint}`, config);
+      response = await fetch(url, config);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         throw error;
@@ -303,15 +280,15 @@ class APIClient {
   }
 
   async getBlob(endpoint: string, signal?: AbortSignal, isRetry = false): Promise<Blob> {
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
+    const response = await fetch(`${this.resolveBaseUrl()}${endpoint}`, {
       method: 'GET',
       headers: this.authHeaders(false),
+      redirect: this.redirect,
       signal,
     });
 
     if (response.status === 401 && !isRetry) {
-      const hasRefreshToken = !!this.auth.getRefreshToken();
-      if (hasRefreshToken) {
+      if (this.auth.canRefresh()) {
         try {
           await this.refreshTokenIfNeeded();
           return this.getBlob(endpoint, signal, true);
@@ -334,10 +311,11 @@ class APIClient {
   }
 
   async openStream(endpoint: string, signal: AbortSignal, isRetry = false): Promise<Response> {
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
+    const response = await fetch(`${this.resolveBaseUrl()}${endpoint}`, {
       method: 'GET',
       headers: { ...this.authHeaders(false), Accept: 'text/event-stream' },
       cache: 'no-store',
+      redirect: this.redirect,
       signal,
     });
 
@@ -356,41 +334,70 @@ let API_BASE_URL: string = resolveHttpBaseUrl(
 export let WS_BASE_URL: string = resolveWsBaseUrl(
   import.meta.env.VITE_WS_URL ?? 'ws://localhost:8081/api/v1/ws',
 );
-// VPS WS for cloud sandbox terminals; empty until a VPS is connected.
-let CLOUD_WS_BASE_URL = '';
 
-export const apiClient = new APIClient(API_BASE_URL, localAuth);
+const localAuth: ClientAuth = {
+  getToken: () => authStorage.getToken(),
+  canRefresh: () => !!authStorage.getRefreshToken(),
+  refresh: refreshLocalSession,
+  onSessionExpired: invalidateSessionAndRedirect,
+};
 
-// Cloud-run client; cloud settings hydrate sync so a saved VPS works after restart.
-export const remoteApiClient = new APIClient('', cloudAuth);
-const savedCloudUrl = useCloudSettingsStore.getState().cloudUrl;
-if (savedCloudUrl) setCloudApiBaseUrl(savedCloudUrl);
+export const apiClient = new APIClient(() => API_BASE_URL, localAuth, 'follow');
 
-// Local vs VPS by chat origin.
+function machineAuth(machineId: string): ClientAuth {
+  return {
+    getToken: () => getMachineAccessToken(machineId),
+    canRefresh: () => true,
+    refresh: async () => {
+      try {
+        return await refreshMachineAccess(machineId);
+      } catch (error) {
+        throw new RefreshTokenError(isSessionLost(error) ? 401 : 0);
+      }
+    },
+    onSessionExpired: () => markMachineSessionRevoked(machineId),
+  };
+}
+
+const machineClients = new Map<string, APIClient>();
+
+export function getMachineClient(machineId: string): APIClient {
+  if (machineId === LOCAL_MACHINE_ID) return apiClient;
+  let client = machineClients.get(machineId);
+  if (!client) {
+    client = new APIClient(
+      () => `${onlineMachineUrl(machineId)}/api/v1`,
+      machineAuth(machineId),
+      'error',
+    );
+    machineClients.set(machineId, client);
+  }
+  return client;
+}
+
+export function disposeMachineClient(machineId: string): void {
+  machineClients.delete(machineId);
+}
+
+function getMachineWsBaseUrl(machineId: string): string {
+  if (machineId === LOCAL_MACHINE_ID) return WS_BASE_URL;
+  return resolveWsBaseUrl(`${onlineMachineUrl(machineId)}/api/v1/ws`);
+}
+
 export function resolveChatClient(chatId: string | undefined): APIClient {
-  return chatId && isCloudChat(chatId) ? remoteApiClient : apiClient;
+  return getMachineClient(chatMachineId(chatId));
 }
 
-// Local vs VPS by sandbox origin (files, git, search).
 export function resolveSandboxClient(sandboxId: string | undefined): APIClient {
-  return sandboxId && isCloudSandbox(sandboxId) ? remoteApiClient : apiClient;
+  return getMachineClient(sandboxMachineId(sandboxId));
 }
 
-// Terminals bypass APIClient; mint tokens via getValidToken() (cloud access is memory-only).
 export function resolveSandboxWs(sandboxId: string): string {
-  return isCloudSandbox(sandboxId) ? CLOUD_WS_BASE_URL : WS_BASE_URL;
+  return getMachineWsBaseUrl(sandboxMachineId(sandboxId));
 }
 
 export function setApiPort(port: number): void {
   const origin = `http://127.0.0.1:${port}`;
   API_BASE_URL = `${origin}/api/v1`;
   WS_BASE_URL = `ws://127.0.0.1:${port}/api/v1/ws`;
-  apiClient.setBaseUrl(API_BASE_URL);
-}
-
-// `url` is the VPS origin (e.g. https://vps.example.com); the API lives under /api/v1.
-export function setCloudApiBaseUrl(url: string): void {
-  const base = trimTrailingSlash(url);
-  remoteApiClient.setBaseUrl(`${base}/api/v1`);
-  CLOUD_WS_BASE_URL = resolveWsBaseUrl(`${base}/api/v1/ws`);
 }

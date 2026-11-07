@@ -26,6 +26,7 @@ from app.models.schemas.chat import Message as MessageSchema
 from app.models.schemas.queue import (
     QueueAddResponse,
     QueuedChannelMessage,
+    QueuedMessageEdit,
     QueueMessageContent,
 )
 from app.services.channel import channel_service
@@ -102,7 +103,7 @@ async def post_message(
     except (StorageException, SandboxException) as exc:
         raise HTTPException(exc.status_code, str(exc)) from exc
     response: ChannelMessageRead = ChannelMessageRead.model_validate(
-        await channel_service.post(channel, content, attachments)
+        await channel_service.post(channel, content, attachments, user.device_ids)
     )
     return response
 
@@ -123,12 +124,14 @@ async def queue_message(
         raise HTTPException(exc.status_code, str(exc)) from exc
     response = await queue_service.add_message(
         str(channel_id),
-        QueueMessageContent(content=content),
+        QueuedMessageEdit(content=content, device_ids=user.device_ids),
         [dict(item) for item in attachments] or None,
     )
     if send_now:
         try:
-            await channel_service.send_queued_now(channel, queue_service, response.id)
+            await channel_service.send_queued_now(
+                channel, queue_service, response.id, user.device_ids
+            )
         except Exception:
             response.send_now_failed = True
             logger.exception(
@@ -162,7 +165,9 @@ async def update_queued_message(
 ) -> QueuedChannelMessage:
     await channel_service.get(channel_id, user)
     result = await queue_service.update_message(
-        str(channel_id), str(message_id), update.content
+        str(channel_id),
+        str(message_id),
+        QueuedMessageEdit(content=update.content, device_ids=user.device_ids),
     )
     if result is None:
         raise HTTPException(404, "Queued message not found")
@@ -190,7 +195,9 @@ async def send_queued_message_now(
     queue_service: ChannelQueueService = Depends(get_channel_queue_service),
 ) -> Response:
     channel = await channel_service.get(channel_id, user)
-    await channel_service.send_queued_now(channel, queue_service, message_id)
+    await channel_service.send_queued_now(
+        channel, queue_service, message_id, user.device_ids
+    )
     return Response(status_code=204)
 
 

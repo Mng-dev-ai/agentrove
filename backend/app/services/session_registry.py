@@ -40,7 +40,7 @@ class SessionRegistry:
         # Pending cancels are tracked separately so a cancel request that
         # arrives between generations (no active task to cancel) is still
         # honoured when the next generation starts.
-        self._pending_cancels: dict[str, float] = {}
+        self._pending_cancels: dict[str, float | None] = {}
 
     async def get_or_create(
         self,
@@ -83,8 +83,13 @@ class SessionRegistry:
         session.last_used_at = time.monotonic()
         return session, created
 
-    async def cancel_generation(self, chat_id: str) -> None:
-        self._pending_cancels[chat_id] = time.monotonic()
+    async def cancel_generation(
+        self, chat_id: str, *, persistent: bool = False
+    ) -> None:
+        if persistent:
+            self._pending_cancels[chat_id] = None
+        elif self._pending_cancels.get(chat_id, 0.0) is not None:
+            self._pending_cancels[chat_id] = time.monotonic()
         session = self._sessions.get(chat_id)
         if session is None:
             return
@@ -138,12 +143,13 @@ class SessionRegistry:
         ]
 
     def consume_pending_cancel(self, chat_id: str) -> bool:
-        created_at = self._pending_cancels.pop(chat_id, None)
-        if created_at is None:
+        if chat_id not in self._pending_cancels:
             return False
-        if (time.monotonic() - created_at) <= PENDING_CANCEL_TTL_SECONDS:
-            return True
-        return False
+        created_at = self._pending_cancels.pop(chat_id)
+        return (
+            created_at is None
+            or (time.monotonic() - created_at) <= PENDING_CANCEL_TTL_SECONDS
+        )
 
     async def terminate(self, chat_id: str) -> None:
         session = self._sessions.pop(chat_id, None)
@@ -203,6 +209,7 @@ class SessionRegistry:
             "agent_kind": config.agent_kind.value,
             "channel_member": config.channel_member,
             "cwd": config.cwd,
+            "device_ids": sorted(map(str, config.device_ids)),
             "env": config.env,
             "mcp_servers": SessionRegistry._redact_mcp_tokens(config.mcp_servers),
             "system_prompt": config.system_prompt,

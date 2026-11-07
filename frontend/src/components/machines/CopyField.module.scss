@@ -1,0 +1,25 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.copy-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1-5);
+}
+
+.code {
+  @include type.type-mono(0.75rem, 1rem, 400);
+  @include type.type-overflow;
+  min-width: 0;
+  flex: 1;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  color: var(--theme-text-secondary);
+}
+
+.icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}

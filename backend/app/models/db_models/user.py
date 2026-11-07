@@ -19,6 +19,9 @@ from app.db.types import GUID, EncryptedString, UTCDateTime
 
 class User(SQLAlchemyBaseUserTableUUID, Base):
     __tablename__ = "users"
+    __allow_unmapped__ = True
+    device_ids: frozenset[UUID]
+    agent_token: bool
 
     id: Mapped[UUID] = mapped_column(
         GUID(),

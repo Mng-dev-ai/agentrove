@@ -4,20 +4,41 @@ import os
 import sys
 import time
 from collections.abc import Iterator
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
+from uuid import UUID
 
 import httpx
+import jwt
 import pytest
 import pytest_asyncio
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
+from app.core import deps
 from app.core.config import get_settings
+from app.db.session import SessionLocal
+from app.models.db_models.automation import Automation
+from app.models.db_models.channel import ChannelDelivery
+from app.models.db_models.chat import Chat
+from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.workspace import Workspace
+from app.services import channel as channel_module
+from app.services.automation import AutomationService
+from app.services.chat import ChatService
+from app.services import subthread_wake as wake_module
+from app.services import session_registry as session_registry_module
 from app.services.session_registry import session_registry
+from app.services.agent import AgentService
+from app.services.exceptions import AgentException
+from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
-from tests.conftest import LoginClient, UserFactory
+from app.services.subthread_wake import SubThreadWake
+from app.services.user import UserService
+from tests.conftest import EmailCapture, LoginClient, UserFactory
 from tests.fake_acp_agent import (
     ELICITATION_REQUESTED_SCHEMA,
     MARKER_AGENT_EXIT_MID_PROMPT,
@@ -329,7 +350,7 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
 
     new_sessions = fake_agent.events_of("new_session")
     assert new_sessions
-    assert [s["name"] for s in new_sessions[-1]["mcp_servers"]] == ["agentrove"]
+    assert new_sessions[-1]["mcp_servers"] == []
     assert [
         e["value"]
         for e in fake_agent.events_of("set_config_option")
@@ -1657,7 +1678,8 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     # not change the session fingerprint, or every turn respawns the agent.
     mints = iter(("token-one", "token-two", "token-three", "token-four"))
     monkeypatch.setattr(
-        "app.services.agent.create_mcp_access_token", lambda user_id: next(mints)
+        "app.services.agent.create_mcp_access_token",
+        lambda user_id, device_ids: next(mints),
     )
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -1693,3 +1715,950 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     assert mcp_env["AGENTROVE_CURRENT_CHAT_ID"] == chat["id"]
     assert "AGENTROVE_EMAIL" not in mcp_env
     assert "AGENTROVE_PASSWORD" not in mcp_env
+
+
+def minted_mcp_tokens(fake_agent: FakeAgentHandle) -> list[str]:
+    return [
+        variable["value"]
+        for event in fake_agent.events_of("new_session")
+        for server in event["mcp_servers"]
+        for variable in server.get("env") or []
+        if variable["name"] == "AGENTROVE_ACCESS_TOKEN"
+    ]
+
+
+async def run_automation_turn(
+    client: httpx.AsyncClient, headers: dict[str, str], automation_id: str
+) -> dict[str, Any]:
+    run = await client.post(f"/api/v1/automations/{automation_id}/run", headers=headers)
+    assert run.status_code == 200, run.text
+    chat_id = run.json()["chat_id"]
+    messages = await client.get(
+        f"/api/v1/chat/chats/{chat_id}/messages", headers=headers
+    )
+    [assistant] = [m for m in messages.json()["items"] if m["role"] == "assistant"]
+    return await wait_for_message(
+        client, headers, chat_id=chat_id, message_id=assistant["id"]
+    )
+
+
+async def run_scheduled_automation_turn(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    db_session: AsyncSession,
+    automation_id: str,
+) -> dict[str, Any]:
+    await db_session.execute(
+        update(Automation)
+        .where(Automation.id == UUID(automation_id))
+        .values(next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1))
+    )
+    await db_session.commit()
+    await AutomationService(
+        ChatService(UserService(), session_factory=SessionLocal),
+        session_factory=SessionLocal,
+    ).run_due_automations()
+    chat_id = await db_session.scalar(
+        select(Chat.id).order_by(Chat.created_at.desc()).limit(1)
+    )
+    return await wait_for_latest_assistant(client, headers, str(chat_id))
+
+
+async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = (
+        await client.post(
+            "/api/v1/auth/pair",
+            json={"secret": pairing.json()["secret"], "device_name": "Laptop"},
+        )
+    ).json()
+    automation = await client.post(
+        "/api/v1/automations",
+        json={
+            "name": "Nightly",
+            "prompt": "Summarize",
+            "model_id": "sonnet",
+            "cron_expression": "0 9 * * *",
+            "workspace_id": str(workspace.id),
+        },
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert automation.status_code == 201, automation.text
+    first_run = await run_scheduled_automation_turn(
+        client, headers, db_session, automation.json()["id"]
+    )
+    assert first_run["stream_status"] == "completed"
+    [token, *_] = minted_mcp_tokens(fake_agent)
+    agent_headers = {"Authorization": f"Bearer {token}"}
+    assert (
+        await client.get("/api/v1/auth/me", headers=agent_headers)
+    ).status_code == 200
+    minted_before_revoke = len(minted_mcp_tokens(fake_agent))
+
+    chats_before_revoke = await db_session.scalar(select(func.count(Chat.id)))
+
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    await db_session.execute(
+        update(Automation)
+        .where(Automation.id == UUID(automation.json()["id"]))
+        .values(next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1))
+    )
+    await db_session.commit()
+    await AutomationService(
+        ChatService(UserService(), session_factory=SessionLocal),
+        session_factory=SessionLocal,
+    ).run_due_automations()
+    manual_run = await client.post(
+        f"/api/v1/automations/{automation.json()['id']}/run", headers=headers
+    )
+
+    assert (
+        await client.get("/api/v1/auth/me", headers=agent_headers)
+    ).status_code == 401
+    assert manual_run.status_code == 403
+    assert "paired device behind this run has been revoked" in manual_run.text
+    assert await db_session.scalar(select(func.count(Chat.id))) == chats_before_revoke
+    assert len(minted_mcp_tokens(fake_agent)) == minted_before_revoke
+
+
+async def pair_device(
+    client: httpx.AsyncClient, headers: dict[str, str], name: str
+) -> dict[str, Any]:
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = await client.post(
+        "/api/v1/auth/pair",
+        json={"secret": pairing.json()["secret"], "device_name": name},
+    )
+    return dict(paired.json())
+
+
+@pytest.mark.parametrize(
+    ("posts", "revoked", "expected"),
+    [
+        (
+            [("A", "@alice review this"), ("B", "@bob test that")],
+            "A",
+            {"alice": (["A", "B"], 401), "bob": (["A", "B"], 401)},
+        ),
+        (
+            [("A", "@alice review this"), ("B", "@bob test that")],
+            "B",
+            {"alice": (["A", "B"], 401), "bob": (["A", "B"], 401)},
+        ),
+        (
+            [("A", "@bob review this"), ("B", "@alice test that")],
+            "A",
+            {"alice": (["A", "B"], 401), "bob": (["A", "B"], 401)},
+        ),
+        (
+            [("A", "@alice first"), ("B", "@alice second")],
+            "A",
+            {"alice": (["A", "B"], 401)},
+        ),
+        (
+            [("A", "@alice first"), ("B", "@alice second")],
+            "B",
+            {"alice": (["A", "B"], 401)},
+        ),
+    ],
+)
+async def test_channel_turn_acts_for_the_devices_behind_its_prompt(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    posts: list[tuple[str, str]],
+    revoked: str,
+    expected: dict[str, tuple[list[str], int]],
+) -> None:
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.5)
+    headers, workspace = auth_workspace
+    devices = {name: await pair_device(client, headers, name) for name in ("A", "B")}
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [
+                {
+                    "model_id": "sonnet",
+                    "permission_mode": "bypassPermissions",
+                    "display_name": name,
+                }
+                for name in ("alice", "bob")
+            ],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+
+    for device, content in posts:
+        posted = await client.post(
+            f"/api/v1/channels/{channel_id}/messages",
+            data={"content": content},
+            headers={"Authorization": f"Bearer {devices[device]['access_token']}"},
+        )
+        assert posted.status_code == 201, posted.text
+    deadline = time.monotonic() + 10
+    while len(fake_agent.main_turn_prompts()) < len(expected):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+    await client.post(f"/api/v1/channels/{channel_id}/stop", headers=headers)
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+    await client.delete(
+        f"/api/v1/auth/devices/{devices[revoked]['device_id']}", headers=headers
+    )
+
+    tokens = {
+        event["pid"]: variable["value"]
+        for event in fake_agent.events_of("new_session")
+        for server in event["mcp_servers"]
+        for variable in server.get("env") or []
+        if variable["name"] == "AGENTROVE_ACCESS_TOKEN"
+    }
+    actual = {}
+    for prompt in fake_agent.main_turn_prompts():
+        member = "alice" if "You are alice" in prompt["text"] else "bob"
+        token = tokens[prompt["pid"]]
+        claims = jwt.decode(token, options={"verify_signature": False})
+        me = await client.get(
+            "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        )
+        actual[member] = (sorted(claims["did"]), me.status_code)
+    assert actual == {
+        member: (sorted(devices[name]["device_id"] for name in names), status)
+        for member, (names, status) in expected.items()
+    }
+
+
+@pytest.mark.parametrize("revoke", ["device", "password_reset"])
+async def test_revocation_cancels_the_devices_running_turn(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    email_capture: EmailCapture,
+    revoke: str,
+) -> None:
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    device_headers = {"Authorization": f"Bearer {paired['access_token']}"}
+    chat = await create_chat(client, device_headers, workspace, model_id="sonnet")
+    sent = await send_message(
+        client,
+        device_headers,
+        chat_id=chat["id"],
+        model_id="sonnet",
+        prompt=f"{MARKER_CANCEL} run long task",
+    )
+    message_id = sent.json()["message_id"]
+    await wait_for_message_event(
+        client, headers, message_id=message_id, event_type="tool_started"
+    )
+
+    if revoke == "device":
+        await client.delete(
+            f"/api/v1/auth/devices/{paired['device_id']}", headers=headers
+        )
+    else:
+        await client.post(
+            "/api/v1/auth/forgot-password", json={"email": "user@example.com"}
+        )
+        [reset] = email_capture.password_reset
+        await client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": reset["token"], "password": "newpassword123"},
+        )
+
+    assert not ChatStreamRuntime.has_active_chat(chat["id"])
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=message_id
+    )
+    assert message["stream_status"] == "interrupted"
+
+
+async def test_revocation_during_agent_startup_never_submits_the_prompt(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    gate = tmp_path / "new-session-gate"
+    monkeypatch.setenv("FAKE_ACP_NEW_SESSION_GATE", str(gate))
+    monkeypatch.setattr(session_registry_module, "PENDING_CANCEL_TTL_SECONDS", 0)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    device_headers = {"Authorization": f"Bearer {paired['access_token']}"}
+    chat = await create_chat(client, device_headers, workspace, model_id="sonnet")
+    sent = await send_message(
+        client, device_headers, chat_id=chat["id"], model_id="sonnet", prompt="work"
+    )
+    assert sent.status_code == 200, sent.text
+    deadline = time.monotonic() + 10
+    while not fake_agent.events_of("new_session"):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+
+    revoke = asyncio.create_task(
+        client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    )
+    while (
+        await db_session.scalar(
+            select(PairedDevice.revoked_at).where(
+                PairedDevice.id == UUID(paired["device_id"])
+            )
+        )
+        is None
+    ):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+        db_session.expire_all()
+    await asyncio.sleep(0.1)
+    gate.touch()
+    assert (await revoke).status_code == 204
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=sent.json()["message_id"]
+    )
+
+    assert message["stream_status"] in ("interrupted", "failed")
+    assert fake_agent.main_turn_prompts() == []
+
+
+async def wait_for_latest_assistant(
+    client: httpx.AsyncClient, headers: dict[str, str], chat_id: str
+) -> dict[str, Any]:
+    messages = await client.get(
+        f"/api/v1/chat/chats/{chat_id}/messages",
+        headers=headers,
+        params={"limit": 50},
+    )
+    assistant = max(
+        (m for m in messages.json()["items"] if m["role"] == "assistant"),
+        key=lambda m: m["created_at"],
+    )
+    return await wait_for_message(
+        client, headers, chat_id=chat_id, message_id=assistant["id"]
+    )
+
+
+@pytest.mark.parametrize("revoke_parent_device", [False, True])
+async def test_wake_ignores_the_devices_of_the_parents_last_turn(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    revoke_parent_device: bool,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
+    headers, workspace = auth_workspace
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = (
+        await client.post(
+            "/api/v1/auth/pair",
+            json={"secret": pairing.json()["secret"], "device_name": "Laptop"},
+        )
+    ).json()
+    parent = await create_chat(client, headers, workspace, model_id="sonnet")
+    child = await create_chat(client, headers, workspace, model_id="sonnet")
+    await db_session.execute(
+        update(Chat)
+        .where(Chat.id == UUID(child["id"]))
+        .values(parent_chat_id=UUID(parent["id"]))
+    )
+    await db_session.commit()
+    started = await send_message(
+        client, headers, chat_id=parent["id"], model_id="sonnet", prompt="first"
+    )
+    await wait_for_message(
+        client, headers, chat_id=parent["id"], message_id=started.json()["message_id"]
+    )
+
+    queued = await client.post(
+        f"/api/v1/chat/chats/{parent['id']}/queue",
+        data={"content": "from laptop", "model_id": "sonnet", "send_now": "true"},
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert queued.status_code == 201, queued.text
+    assert not queued.json()["send_now_failed"]
+    await wait_for_latest_assistant(client, headers, parent["id"])
+    if revoke_parent_device:
+        await client.delete(
+            f"/api/v1/auth/devices/{paired['device_id']}", headers=headers
+        )
+    wake = SubThreadWake()
+    wake.on_chain_end(child["id"], parent["id"], frozenset())
+    await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=5)
+    wake_message = await wait_for_latest_assistant(client, headers, parent["id"])
+
+    assert wake_message["stream_status"] == "completed"
+    assert wake._pending == {}
+    _, queued_turn, wake_turn = fake_agent.main_turn_prompts()
+    assert "from laptop" in queued_turn["text"]
+    assert "sub-threads you delegated have finished" in wake_turn["text"]
+    assert child["id"] in wake_turn["text"]
+    [wake_session] = [
+        e
+        for e in fake_agent.events()
+        if e["event"] in ("new_session", "load_session")
+        and e["pid"] == wake_turn["pid"]
+    ]
+    [token] = [
+        v["value"]
+        for server in wake_session["mcp_servers"]
+        for v in server["env"]
+        if v["name"] == "AGENTROVE_ACCESS_TOKEN"
+    ]
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["did"] == []
+
+
+@pytest.mark.parametrize("revoke_before_wake", [False, True])
+async def test_wake_acts_for_the_reporting_childs_devices(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    revoke_before_wake: bool,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    device_headers = {"Authorization": f"Bearer {paired['access_token']}"}
+    parent = await create_chat(client, headers, workspace, model_id="sonnet")
+    child = await create_chat(client, device_headers, workspace, model_id="sonnet")
+    await db_session.execute(
+        update(Chat)
+        .where(Chat.id == UUID(child["id"]))
+        .values(parent_chat_id=UUID(parent["id"]))
+    )
+    await db_session.commit()
+    sent = await send_message(
+        client, device_headers, chat_id=child["id"], model_id="sonnet", prompt="work"
+    )
+    await wait_for_message(
+        client, headers, chat_id=child["id"], message_id=sent.json()["message_id"]
+    )
+    if revoke_before_wake:
+        await client.delete(
+            f"/api/v1/auth/devices/{paired['device_id']}", headers=headers
+        )
+
+    wake = SubThreadWake()
+    wake.on_chain_end(child["id"], parent["id"], frozenset({UUID(paired["device_id"])}))
+    await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=5)
+
+    if revoke_before_wake:
+        [child_turn] = fake_agent.main_turn_prompts()
+        assert "work" in child_turn["text"]
+        assert wake._pending == {}
+        return
+    await wait_for_latest_assistant(client, headers, parent["id"])
+    _, wake_turn = fake_agent.main_turn_prompts()
+    assert "sub-threads you delegated have finished" in wake_turn["text"]
+    [wake_session] = [
+        e for e in fake_agent.events_of("new_session") if e["pid"] == wake_turn["pid"]
+    ]
+    [token] = [
+        v["value"]
+        for server in wake_session["mcp_servers"]
+        for v in server["env"]
+        if v["name"] == "AGENTROVE_ACCESS_TOKEN"
+    ]
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["did"] == [paired["device_id"]]
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 401
+
+
+async def fail_to_resolve_cwd(*_args: Any) -> str:
+    raise AgentException("Working directory unavailable")
+
+
+@pytest.mark.parametrize(
+    ("follow_up", "revoked", "wakes"),
+    [("failed_start", "A", False), ("password", "A", False), ("B", "B", True)],
+)
+async def test_report_acts_for_the_devices_of_the_turn_that_filed_it(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    follow_up: str,
+    revoked: str,
+    wakes: bool,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 3600)
+    wake = SubThreadWake()
+    monkeypatch.setattr(runtime_module, "subthread_wake", wake)
+    headers, workspace = auth_workspace
+    devices = {name: await pair_device(client, headers, name) for name in ("A", "B")}
+    device_headers = {
+        name: {"Authorization": f"Bearer {device['access_token']}"}
+        for name, device in devices.items()
+    }
+    parent = await create_chat(client, headers, workspace, model_id="sonnet")
+    child = await create_chat(client, headers, workspace, model_id="sonnet")
+    await db_session.execute(
+        update(Chat)
+        .where(Chat.id == UUID(child["id"]))
+        .values(parent_chat_id=UUID(parent["id"]))
+    )
+    await db_session.commit()
+    reported = await client.post(
+        "/api/v1/chat/chat",
+        data={
+            "prompt": "work",
+            "chat_id": child["id"],
+            "model_id": "sonnet",
+            "report_to_parent": "true",
+        },
+        headers=device_headers["A"],
+    )
+    assert reported.status_code == 200, reported.text
+    await wait_for_message(
+        client, headers, chat_id=child["id"], message_id=reported.json()["message_id"]
+    )
+
+    if follow_up == "failed_start":
+        with monkeypatch.context() as patch:
+            patch.setattr(AgentService, "resolve_cwd", fail_to_resolve_cwd)
+            failed = await send_message(
+                client,
+                device_headers["B"],
+                chat_id=child["id"],
+                model_id="sonnet",
+                prompt="follow up",
+            )
+        assert failed.status_code == 400, failed.text
+    else:
+        sent = await send_message(
+            client,
+            headers if follow_up == "password" else device_headers[follow_up],
+            chat_id=child["id"],
+            model_id="sonnet",
+            prompt="follow up",
+        )
+        await wait_for_message(
+            client, headers, chat_id=child["id"], message_id=sent.json()["message_id"]
+        )
+    await client.delete(
+        f"/api/v1/auth/devices/{devices[revoked]['device_id']}", headers=headers
+    )
+    await wake._flush(parent["id"])
+    for task in wake._tasks:
+        task.cancel()
+
+    assert wake._pending == {}
+    parent_messages = await client.get(
+        f"/api/v1/chat/chats/{parent['id']}/messages", headers=headers
+    )
+    assert bool(parent_messages.json()["items"]) is wakes
+    if not wakes:
+        return
+    wake_message = await wait_for_latest_assistant(client, headers, parent["id"])
+    assert wake_message["stream_status"] == "completed"
+    wake_turn = fake_agent.main_turn_prompts()[-1]
+    assert child["id"] in wake_turn["text"]
+    assert did_of(minted_mcp_tokens(fake_agent)[-1]) == [devices["A"]["device_id"]]
+
+
+@pytest.mark.parametrize(
+    ("edit", "saver_kept"),
+    [
+        (None, True),
+        ({"name": "Renamed"}, True),
+        ({"prompt": "Summarize"}, True),
+        ({"prompt": "Summarize again"}, False),
+    ],
+)
+async def test_automation_turn_acts_for_the_devices_behind_its_saved_prompt(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    edit: dict[str, str] | None,
+    saver_kept: bool,
+) -> None:
+    headers, workspace = auth_workspace
+    saver = await pair_device(client, headers, "Laptop")
+    other = await pair_device(client, headers, "Phone")
+    other_headers = {"Authorization": f"Bearer {other['access_token']}"}
+    automation = await client.post(
+        "/api/v1/automations",
+        json={
+            "name": "Nightly",
+            "prompt": "Summarize",
+            "model_id": "sonnet",
+            "cron_expression": "0 9 * * *",
+            "workspace_id": str(workspace.id),
+        },
+        headers={"Authorization": f"Bearer {saver['access_token']}"},
+    )
+    assert automation.status_code == 201, automation.text
+    automation_id = automation.json()["id"]
+
+    if edit is None:
+        run = await run_automation_turn(client, other_headers, automation_id)
+    else:
+        edited = await client.patch(
+            f"/api/v1/automations/{automation_id}", json=edit, headers=other_headers
+        )
+        assert edited.status_code == 200, edited.text
+        run = await run_scheduled_automation_turn(
+            client, headers, db_session, automation_id
+        )
+
+    assert run["stream_status"] == "completed"
+    [token] = minted_mcp_tokens(fake_agent)
+    claims = jwt.decode(token, options={"verify_signature": False})
+    expected = [saver["device_id"]] if saver_kept else []
+    assert sorted(claims["did"]) == sorted([*expected, other["device_id"]])
+    await client.delete(f"/api/v1/auth/devices/{saver['device_id']}", headers=headers)
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == (401 if saver_kept else 200)
+
+
+def did_of(token: str) -> list[str]:
+    return list(jwt.decode(token, options={"verify_signature": False})["did"])
+
+
+@pytest.mark.parametrize(
+    ("attach", "content", "queuer_kept"),
+    [
+        (True, "rewritten", True),
+        (False, "from laptop", True),
+        (False, "rewritten", False),
+    ],
+)
+async def test_edited_chat_queue_item_acts_for_the_devices_behind_what_survives(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    attach: bool,
+    content: str,
+    queuer_kept: bool,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    base = f"/api/v1/chat/chats/{chat['id']}/queue"
+    queued = await client.post(
+        base,
+        data={"content": "from laptop", "model_id": "sonnet"},
+        files=[("attached_files", ("shot.png", PNG_BYTES, "image/png"))]
+        if attach
+        else None,
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert queued.status_code == 201, queued.text
+    item = f"{base}/{queued.json()['id']}"
+
+    edited = await client.patch(item, json={"content": content}, headers=headers)
+    assert edited.status_code == 200, edited.text
+    assert bool(edited.json()["attachments"]) is attach
+    assert (await client.post(f"{item}/send-now", headers=headers)).status_code == 204
+    await wait_for_latest_assistant(client, headers, chat["id"])
+
+    [token] = minted_mcp_tokens(fake_agent)
+    assert did_of(token) == ([paired["device_id"]] if queuer_kept else [])
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == (401 if queuer_kept else 200)
+
+
+async def test_edited_channel_queue_item_keeps_acting_for_the_device_that_queued_it(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.1)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [
+                {
+                    "model_id": "sonnet",
+                    "permission_mode": "bypassPermissions",
+                    "display_name": "alice",
+                }
+            ],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+    channel_module.channel_service.states[UUID(channel_id)].paused = True
+    base = f"/api/v1/channels/{channel_id}/queue"
+    queued = await client.post(
+        base,
+        data={"content": "from laptop"},
+        files=[("attached_files", ("shot.png", PNG_BYTES, "image/png"))],
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert queued.status_code == 201, queued.text
+    item = f"{base}/{queued.json()['id']}"
+
+    edited = await client.patch(item, json={"content": "rewritten"}, headers=headers)
+    assert edited.status_code == 200, edited.text
+    assert (await client.post(f"{item}/send-now", headers=headers)).status_code == 204
+    deadline = time.monotonic() + 10
+    while not minted_mcp_tokens(fake_agent):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+    await client.post(f"/api/v1/channels/{channel_id}/stop", headers=headers)
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+
+    [token] = minted_mcp_tokens(fake_agent)
+    assert did_of(token) == [paired["device_id"]]
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 401
+
+
+async def test_chat_send_now_acts_for_the_clicking_device(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    base = f"/api/v1/chat/chats/{chat['id']}/queue"
+    queued = await client.post(
+        base,
+        data={"content": f"{MARKER_CANCEL} run long task", "model_id": "sonnet"},
+        headers=headers,
+    )
+    assert queued.status_code == 201, queued.text
+
+    sent = await client.post(
+        f"{base}/{queued.json()['id']}/send-now",
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert sent.status_code == 204, sent.text
+    messages = await client.get(
+        f"/api/v1/chat/chats/{chat['id']}/messages", headers=headers
+    )
+    [assistant] = [m for m in messages.json()["items"] if m["role"] == "assistant"]
+    await wait_for_message_event(
+        client, headers, message_id=assistant["id"], event_type="tool_started"
+    )
+
+    [token] = minted_mcp_tokens(fake_agent)
+    assert did_of(token) == [paired["device_id"]]
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    assert not ChatStreamRuntime.has_active_chat(chat["id"])
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=assistant["id"]
+    )
+    assert message["stream_status"] == "interrupted"
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 401
+
+
+async def test_channel_send_now_acts_for_the_clicking_device(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.1)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [
+                {
+                    "model_id": "sonnet",
+                    "permission_mode": "bypassPermissions",
+                    "display_name": "alice",
+                }
+            ],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+    channel_module.channel_service.states[UUID(channel_id)].paused = True
+    base = f"/api/v1/channels/{channel_id}/queue"
+    queued = await client.post(base, data={"content": "from password"}, headers=headers)
+    assert queued.status_code == 201, queued.text
+
+    sent = await client.post(
+        f"{base}/{queued.json()['id']}/send-now",
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert sent.status_code == 204, sent.text
+    deadline = time.monotonic() + 10
+    while not minted_mcp_tokens(fake_agent):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+    await client.post(f"/api/v1/channels/{channel_id}/stop", headers=headers)
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+
+    [token] = minted_mcp_tokens(fake_agent)
+    assert did_of(token) == [paired["device_id"]]
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    me = await client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert me.status_code == 401
+
+
+async def test_channel_send_now_keeps_the_clicking_device_when_posting_fails(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.1)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [
+                {
+                    "model_id": "sonnet",
+                    "permission_mode": "bypassPermissions",
+                    "display_name": "alice",
+                }
+            ],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+    [member] = channel.json()["members"]
+    channel_module.channel_service.states[UUID(channel_id)].paused = True
+    base = f"/api/v1/channels/{channel_id}/queue"
+    queued = await client.post(base, data={"content": "from password"}, headers=headers)
+    assert queued.status_code == 201, queued.text
+    item = f"{base}/{queued.json()['id']}"
+
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            channel_module.channel_service,
+            "post",
+            AsyncMock(side_effect=RuntimeError("post failed")),
+        )
+        with pytest.raises(RuntimeError):
+            await client.post(
+                f"{item}/send-now",
+                headers={"Authorization": f"Bearer {paired['access_token']}"},
+            )
+    await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
+    assert (await client.post(f"{item}/send-now", headers=headers)).status_code == 204
+    deadline = time.monotonic() + 10
+    while not await db_session.scalar(
+        select(ChannelDelivery.message_id).where(
+            ChannelDelivery.member_id == UUID(member["id"])
+        )
+    ):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+        db_session.expire_all()
+    await client.post(f"/api/v1/channels/{channel_id}/stop", headers=headers)
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+
+    assert fake_agent.main_turn_prompts() == []
+    assert minted_mcp_tokens(fake_agent) == []
+
+
+async def test_manual_automation_run_is_bound_to_the_clicking_device(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = (
+        await client.post(
+            "/api/v1/auth/pair",
+            json={"secret": pairing.json()["secret"], "device_name": "Laptop"},
+        )
+    ).json()
+    automation = await client.post(
+        "/api/v1/automations",
+        json={
+            "name": "Nightly",
+            "prompt": "Summarize",
+            "model_id": "sonnet",
+            "cron_expression": "0 9 * * *",
+            "workspace_id": str(workspace.id),
+        },
+        headers=headers,
+    )
+    assert automation.status_code == 201, automation.text
+
+    run = await run_automation_turn(
+        client,
+        {"Authorization": f"Bearer {paired['access_token']}"},
+        automation.json()["id"],
+    )
+
+    assert run["stream_status"] == "completed"
+    [token] = minted_mcp_tokens(fake_agent)
+    claims = jwt.decode(token, options={"verify_signature": False})
+    assert claims["did"] == [paired["device_id"]]

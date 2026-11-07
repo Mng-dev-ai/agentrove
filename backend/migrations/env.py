@@ -1,6 +1,7 @@
+import logging
 from logging.config import fileConfig
 
-from sqlalchemy import create_engine, pool
+from sqlalchemy import create_engine, event, pool
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection
 
@@ -12,7 +13,9 @@ from app.models.db_models import (  # noqa: F401
     chat,
     channel,
     inbox,
+    instance,
     memory,
+    paired_device,
     push,
     refresh_token,
     user,
@@ -30,6 +33,7 @@ target_metadata = Base.metadata
 
 settings = get_settings()
 database_url = settings.DATABASE_URL
+logger = logging.getLogger("alembic.env")
 
 _HELPERS_IMPORT = "from app.db.migration_helpers import uuid_server_default, now_server_default"
 
@@ -87,24 +91,65 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def do_run_migrations(connection: Connection) -> None:
+def do_run_migrations(connection: Connection, existing: set[tuple]) -> None:
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
         render_item=render_item,
         compare_server_default=compare_server_default,
+        transactional_ddl=True,
     )
 
     with context.begin_transaction():
         context.run_migrations()
+        introduced = foreign_key_violations(connection) - existing
+        if introduced:
+            raise RuntimeError(f"Migration introduced foreign key violations: {introduced}")
+
+
+def disable_foreign_keys_and_driver_transactions(dbapi_connection, _) -> None:
+    dbapi_connection.execute("PRAGMA foreign_keys=OFF")
+    dbapi_connection.isolation_level = None
+
+
+def begin_transaction(connection: Connection) -> None:
+    connection.exec_driver_sql("BEGIN")
+
+
+def foreign_key_violations(connection: Connection) -> set[tuple]:
+    inspector = sa.inspect(connection)
+    violations = set()
+    for table, rowid, parent, fkid in connection.exec_driver_sql(
+        "PRAGMA foreign_key_check"
+    ).all():
+        columns = tuple(
+            fk[3]
+            for fk in connection.exec_driver_sql(f'PRAGMA foreign_key_list("{table}")')
+            if fk[0] == fkid
+        )
+        primary_key = ", ".join(
+            f'"{column}"'
+            for column in inspector.get_pk_constraint(table)["constrained_columns"]
+        )
+        row = connection.exec_driver_sql(
+            f'SELECT {primary_key} FROM "{table}" WHERE rowid = ?', (rowid,)
+        ).one()
+        violations.add((table, tuple(row), parent, columns))
+    return violations
 
 
 def run_migrations_online() -> None:
     sync_url = database_url.replace("sqlite+aiosqlite://", "sqlite://", 1)
     engine = create_engine(sync_url, poolclass=pool.NullPool)
     configure_sqlite(engine)
+    event.listen(engine, "connect", disable_foreign_keys_and_driver_transactions)
+    event.listen(engine, "begin", begin_transaction)
     with engine.connect() as connection:
-        do_run_migrations(connection)
+        existing = foreign_key_violations(connection)
+        connection.commit()
+        if existing:
+            logger.warning("Foreign key violations before migrating: %s", existing)
+        do_run_migrations(connection, existing)
     engine.dispose()
 
 

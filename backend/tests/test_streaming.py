@@ -17,11 +17,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
 from app.core import deps
-from app.constants import MODELS, REDIS_KEY_USER_STREAMS_LIVE
+from app.constants import MODELS, REDIS_KEY_CHAT_QUEUE, REDIS_KEY_USER_STREAMS_LIVE
 from app.db.session import SessionLocal, engine
 from app.models.db_models.chat import Chat, Message, MessageEvent
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.memory import Memory
+from app.models.db_models.paired_device import PairedDevice
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import ChatException
@@ -32,6 +33,7 @@ from app.services.sandbox_providers.types import CommandResult
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import StreamEnvelope, StreamEvent
+from app.services.subthread_wake import SubThreadWake
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
@@ -810,6 +812,7 @@ async def test_stream_failure_marks_message_failed_and_emits_bootstrap_error(
     assert await get_event_types(client, headers, message_id) == ["error"]
 
 
+@pytest.mark.parametrize("stored_before_devices", [False, True])
 async def test_queued_message_is_processed_automatically_after_stream_completes(
     client: AsyncClient,
     db_session: AsyncSession,
@@ -817,6 +820,7 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
     streaming_cache: EndpointCache,
+    stored_before_devices: bool,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -836,6 +840,14 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
         headers=headers,
     )
     assert queue_response.status_code == 201
+    if stored_before_devices:
+        key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat.id)
+        stored = json.loads(await streaming_cache.store.get(key) or "[]")
+        for item in stored:
+            del item["device_ids"]
+        await streaming_cache.store.set(key, json.dumps(stored))
+    listed = await client.get(f"/api/v1/chat/chats/{chat.id}/queue", headers=headers)
+    assert [item["content"] for item in listed.json()] == ["Follow-up prompt"]
 
     first_result = await send_message(client, headers, chat, prompt="First prompt")
     first_message_id = first_result["message_id"]
@@ -1025,6 +1037,52 @@ async def test_send_now_steers_active_turn_inline(
         f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
     )
     assert queue_list_response.json() == []
+
+
+@pytest.mark.parametrize("child_on_device", [False, True])
+async def test_child_result_steers_only_a_turn_acting_for_its_devices(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    child_on_device: bool,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    parent = await create_chat_row(db_session, user, workspace, session_id="p-1")
+    child = await create_chat_row(db_session, user, workspace, title="Child")
+    device = PairedDevice(user_id=user.id, name="Laptop")
+    db_session.add(device)
+    await db_session.flush()
+    child.parent_chat_id = parent.id
+    await db_session.commit()
+    child_devices = frozenset({device.id}) if child_on_device else frozenset()
+    script = [
+        StreamEvent(type="assistant_text", text="Working"),
+        WAIT_FOR_STEER,
+        StreamEvent(type="assistant_text", text="Done"),
+    ]
+    acp_session = FakeAcpSession([script], session_id="p-1", steer_outcome="injected")
+    acp_factory.queue(acp_session)
+    await send_message(client, headers, parent, prompt="Delegate")
+    await wait_for_steerable_runtime(parent.id)
+
+    wake = SubThreadWake()
+    wake._pending[str(parent.id)] = {str(child.id): child_devices}
+    await wake._flush(str(parent.id))
+
+    if child_on_device:
+        assert acp_session.steer_calls == []
+        assert wake._pending == {str(parent.id): {str(child.id): child_devices}}
+        await client.delete(f"/api/v1/chat/chats/{parent.id}/stream", headers=headers)
+    else:
+        [steered] = acp_session.steer_calls
+        assert str(child.id) in steered
+        assert wake._pending == {}
+        await run_background_task(parent.id)
 
 
 async def test_send_now_starts_immediately_when_chat_is_idle(

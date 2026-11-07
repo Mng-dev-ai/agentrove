@@ -13,7 +13,7 @@ from typing import Any, cast
 from uuid import UUID, uuid4
 
 from acp.exceptions import RequestError
-from sqlalchemy import select, update
+from sqlalchemy import Update, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
@@ -28,7 +28,8 @@ from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
-from app.models.types import MessageAttachmentDict
+from app.models.schemas.queue import QueuedMessage
+from app.models.types import MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.agent import (
@@ -190,8 +191,10 @@ class ChatStreamRuntime:
                     "system",
                     {"data": {"worktree_cwd": self.chat.worktree_cwd}},
                 )
+            await AgentService(
+                session_factory=self.session_factory
+            ).ensure_devices_active(self.chat.user_id, self._request.device_ids)
             self._accepts_steering = True
-            self._active_runtimes[self.chat_id] = self
             await self._consume_stream(stream_result, stream)
             await self._emit_prompt_suggestions()
 
@@ -340,8 +343,13 @@ class ChatStreamRuntime:
                         "base_branch": request.base_branch,
                         "selected_persona_name": request.selected_persona_name,
                         "fast_mode": request.fast_mode,
+                        "device_ids": request.device_ids,
                     }
-                    if any(queued.get(key) != value for key, value in options.items()):
+                    queued_message = QueuedMessage.model_validate(queued)
+                    if any(
+                        getattr(queued_message, key) != value
+                        for key, value in options.items()
+                    ):
                         return False
                     injected = await runtime._steer(
                         session, queued["content"], queued["attachments"]
@@ -371,12 +379,14 @@ class ChatStreamRuntime:
                 finally:
                     if not injected:
                         await queue.requeue_message(chat_id, queued)
-                        await queue.mark_send_now(chat_id, queued["id"])
+                        await queue.mark_send_now(chat_id, queued["id"], frozenset())
 
     @classmethod
-    async def steer_app_notice(cls, chat_id: str, prompt: str, notice: str) -> bool:
+    async def steer_app_notice(
+        cls, chat_id: str, prompt: str, notice: str, device_ids: frozenset[UUID]
+    ) -> bool:
         runtime = cls._active_runtimes.get(chat_id)
-        if runtime is None:
+        if runtime is None or not device_ids <= runtime._request.device_ids:
             return False
         async with runtime._steering_lock:
             session = runtime._steering_session()
@@ -815,6 +825,26 @@ class ChatStreamRuntime:
             )
             return None
 
+    @staticmethod
+    def record_turn_settings(
+        chat_id: UUID,
+        *,
+        model_id: str,
+        permission_mode: PermissionMode,
+        thinking_mode: str | None,
+        persona_name: str,
+    ) -> Update:
+        return (
+            update(Chat)
+            .where(Chat.id == chat_id)
+            .values(
+                last_model_id=model_id,
+                last_permission_mode=permission_mode,
+                last_thinking_mode=thinking_mode,
+                last_persona_name=persona_name,
+            )
+        )
+
     @classmethod
     @asynccontextmanager
     async def turn_scaffold(
@@ -907,6 +937,17 @@ class ChatStreamRuntime:
                 assistant_message_id=str(assistant_message.id),
                 session_id_override=session_id_override,
             )
+            async with session_factory() as db:
+                await db.execute(
+                    cls.record_turn_settings(
+                        chat.id,
+                        model_id=request.model_id,
+                        permission_mode=request.permission_mode,
+                        thinking_mode=request.thinking_mode,
+                        persona_name=request.selected_persona_name,
+                    ).values(updated_at=Chat.updated_at)
+                )
+                await db.commit()
             # The client repoints on this event — nothing fallible may follow it.
             if before_handoff is not None:
                 await before_handoff(user_message, assistant_message, checkpoint_id)
@@ -1122,8 +1163,29 @@ class ChatStreamRuntime:
             if task_chat_id == chat_id and not task.done()
         }
 
+    @asynccontextmanager
+    async def _registered(self) -> AsyncIterator[None]:
+        self._active_runtimes[self.chat_id] = self
+        try:
+            yield
+        finally:
+            if self._active_runtimes.get(self.chat_id) is self:
+                self._active_runtimes.pop(self.chat_id)
+
     @classmethod
-    async def cancel_chat_turn(cls, chat_id: str, timeout: float) -> None:
+    async def cancel_device_turns(cls, device_ids: frozenset[UUID]) -> None:
+        await asyncio.gather(
+            *(
+                cls.cancel_chat_turn(chat_id, timeout=10, persistent=True)
+                for chat_id, runtime in list(cls._active_runtimes.items())
+                if runtime._request.device_ids & device_ids
+            )
+        )
+
+    @classmethod
+    async def cancel_chat_turn(
+        cls, chat_id: str, timeout: float, *, persistent: bool = False
+    ) -> None:
         # Hold the response until the cancelled turn unwinds (a resend would 409).
         # Capture first — the unwind can start a successor we must not wait on.
         reservation = cls._starting_chat_ids.get(chat_id)
@@ -1131,7 +1193,7 @@ class ChatStreamRuntime:
         # Idle chats must not cancel — a stray pending-cancel flag could kill the next turn.
         if reservation is None and not tasks:
             return
-        await session_registry.cancel_generation(chat_id)
+        await session_registry.cancel_generation(chat_id, persistent=persistent)
         if reservation is not None:
             # The reserved turn's task registers before the reservation frees.
             with suppress(asyncio.TimeoutError):
@@ -1150,7 +1212,11 @@ class ChatStreamRuntime:
 
     @classmethod
     def _on_background_task_done(
-        cls, chat_id: str, report_parent_id: str | None, task: asyncio.Task[str]
+        cls,
+        chat_id: str,
+        report_parent_id: str | None,
+        device_ids: frozenset[UUID],
+        task: asyncio.Task[str],
     ) -> None:
         try:
             if task.cancelled():
@@ -1173,7 +1239,7 @@ class ChatStreamRuntime:
         finally:
             cls._background_task_chat_ids.pop(task, None)
             try:
-                subthread_wake.on_chain_end(chat_id, report_parent_id)
+                subthread_wake.on_chain_end(chat_id, report_parent_id, device_ids)
             except Exception:
                 logger.exception("Failed to record chain end for chat %s", chat_id)
 
@@ -1190,7 +1256,12 @@ class ChatStreamRuntime:
         )
         cls._background_task_chat_ids[background_task] = chat_id
         background_task.add_done_callback(
-            partial(cls._on_background_task_done, chat_id, request.report_parent_id)
+            partial(
+                cls._on_background_task_done,
+                chat_id,
+                request.report_parent_id,
+                request.device_ids,
+            )
         )
         return background_task
 
@@ -1216,6 +1287,7 @@ class ChatStreamRuntime:
         context_window = model.context_window
         resolved_session_id = session_id_override or chat.session_id
         return ChatStreamRequest(
+            device_ids=QueuedMessage.model_validate(queued_msg).device_ids,
             prompt=queued_msg["content"],
             system_prompt=system_prompt,
             custom_instructions=user_settings.custom_instructions,
@@ -1439,7 +1511,7 @@ class ChatStreamRuntime:
             request=request,
             session_factory=session_factory,
         )
-        async with cache_connection() as cache:
+        async with cache_connection() as cache, runtime._registered():
             runtime.cache = cache
 
             ai_service = AgentService(session_factory=runtime.session_factory)
@@ -1453,6 +1525,7 @@ class ChatStreamRuntime:
             )
             config: AcpSessionConfig = await ai_service.build_session_config(
                 user=user,
+                device_ids=request.device_ids,
                 chat=runtime.chat,
                 model_id=request.model_id,
                 permission_mode=request.permission_mode,
@@ -1567,8 +1640,6 @@ class ChatStreamRuntime:
                 raise
             finally:
                 runtime._accepts_steering = False
-                if cls._active_runtimes.get(runtime.chat_id) is runtime:
-                    cls._active_runtimes.pop(runtime.chat_id)
                 await runtime._close_stream()
                 session.active_generation_task = None
                 session.last_used_at = time.monotonic()

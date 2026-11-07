@@ -1,4 +1,6 @@
+import hashlib
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
@@ -6,34 +8,47 @@ from uuid import UUID
 from sqlalchemy import ColumnElement, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import (
-    generate_refresh_token,
-    get_refresh_token_expiry,
-    hash_refresh_token,
-)
+from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.refresh_token import RefreshToken
 from app.models.db_models.user import User
 from app.services.db import SessionFactoryType
 from app.services.exceptions import AuthException
 
+settings = get_settings()
 logger = logging.getLogger(__name__)
+
+
+def hash_refresh_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
 
 
 class RefreshTokenService:
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         self.session_factory = session_factory or SessionLocal
 
+    @staticmethod
+    def generate_refresh_token() -> str:
+        return secrets.token_urlsafe(32)
+
+    @staticmethod
+    def get_refresh_token_expiry() -> datetime:
+        return datetime.now(timezone.utc) + timedelta(
+            days=settings.REFRESH_TOKEN_EXPIRE_DAYS
+        )
+
     async def create_refresh_token(
         self,
         user_id: UUID,
         db: AsyncSession,
+        device_id: UUID | None,
         user_agent: str | None = None,
         ip_address: str | None = None,
     ) -> str:
-        token = generate_refresh_token()
+        token = self.generate_refresh_token()
         token_hash = hash_refresh_token(token)
-        expires_at = get_refresh_token_expiry()
+        expires_at = self.get_refresh_token_expiry()
 
         refresh_token = RefreshToken(
             token_hash=token_hash,
@@ -41,6 +56,7 @@ class RefreshTokenService:
             expires_at=expires_at,
             user_agent=user_agent,
             ip_address=ip_address,
+            device_id=device_id,
         )
 
         db.add(refresh_token)
@@ -54,7 +70,7 @@ class RefreshTokenService:
         db: AsyncSession,
         user_agent: str | None = None,
         ip_address: str | None = None,
-    ) -> tuple[User, str]:
+    ) -> tuple[User, str, UUID | None]:
         token_hash = hash_refresh_token(token)
 
         result = await db.execute(
@@ -78,6 +94,18 @@ class RefreshTokenService:
         if not user or not user.is_active:
             raise AuthException("Invalid or expired refresh token")
 
+        if refresh_token.device_id is not None:
+            device = await db.scalar(
+                select(PairedDevice).where(
+                    PairedDevice.id == refresh_token.device_id,
+                    PairedDevice.user_id == user.id,
+                    PairedDevice.revoked_at.is_(None),
+                )
+            )
+            if device is None:
+                raise AuthException("Invalid or expired refresh token")
+            device.last_used_at = datetime.now(timezone.utc)
+
         if refresh_token.parent_id is not None:
             await db.execute(
                 update(RefreshToken)
@@ -89,9 +117,9 @@ class RefreshTokenService:
                 .values(revoked_at=datetime.now(timezone.utc))
             )
 
-        new_token = generate_refresh_token()
+        new_token = self.generate_refresh_token()
         new_token_hash = hash_refresh_token(new_token)
-        new_expires_at = get_refresh_token_expiry()
+        new_expires_at = self.get_refresh_token_expiry()
 
         new_refresh_token = RefreshToken(
             token_hash=new_token_hash,
@@ -100,12 +128,13 @@ class RefreshTokenService:
             user_agent=user_agent,
             ip_address=ip_address,
             parent_id=refresh_token.id,
+            device_id=refresh_token.device_id,
         )
 
         db.add(new_refresh_token)
         await db.commit()
 
-        return user, new_token
+        return user, new_token, refresh_token.device_id
 
     @staticmethod
     def _with_children(token_id: UUID) -> ColumnElement[bool]:

@@ -1,15 +1,16 @@
 import { Suspense, useCallback, useMemo, useState } from 'react';
-import { Clock, Cloud, Play } from 'lucide-react';
+import { Clock, Server, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
-import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
-import { useCloudSettingsQuery } from '@/hooks/queries/useCloudQueries';
+import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
+import { useMachineSettingsQuery } from '@/hooks/queries/useMachineQueries';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import {
-  useAutomationsQuery,
-  useCloudAutomationsQuery,
+  useAutomationsAcrossMachines,
+  type MachineAutomation,
   useCreateAutomationMutation,
   useUpdateAutomationMutation,
   useDeleteAutomationMutation,
@@ -31,7 +32,6 @@ import {
 } from '@/utils/automationSchedule';
 import { lazyNamed } from '@/utils/lazyNamed';
 import type {
-  Automation,
   AutomationCreateRequest,
   AutomationForm,
   AutomationUpdateRequest,
@@ -43,11 +43,7 @@ const AutomationEditDialog = lazyNamed(
   'AutomationEditDialog',
 );
 
-// onCloud tags origin so edits/deletes/runs hit the owning backend.
-interface AutomationListItem {
-  automation: Automation;
-  onCloud: boolean;
-}
+type AutomationListItem = MachineAutomation;
 
 const NEXT_RUN_FORMAT: Intl.DateTimeFormatOptions = {
   month: 'short',
@@ -68,7 +64,7 @@ function createDefaultForm(): AutomationForm {
     thinking_mode: DEFAULT_THINKING_MODE,
     worktree: DEFAULT_WORKTREE,
     persona_name: DEFAULT_PERSONA,
-    onCloud: false,
+    machineId: LOCAL_MACHINE_ID,
   };
 }
 
@@ -87,19 +83,28 @@ function formFromItem(item: AutomationListItem): AutomationForm {
     thinking_mode: automation.thinking_mode ?? '',
     worktree: automation.worktree,
     persona_name: automation.selected_persona_name,
-    onCloud: item.onCloud,
+    machineId: item.machineId,
   };
 }
 
 export function AutomationsSettingsTab() {
   const { localSettings } = useSettingsContext();
-  const cloudUrl = useCloudSettingsStore((state) => state.cloudUrl);
-  const cloudConnected = !!cloudUrl;
-
-  const { data: localAutomations } = useAutomationsQuery();
-  const { data: cloudAutomations, isLoading: cloudLoading } =
-    useCloudAutomationsQuery(cloudConnected);
-  const { data: cloudSettings } = useCloudSettingsQuery(cloudConnected);
+  const items = useAutomationsAcrossMachines();
+  const machines = useMachineStore((state) => state.machines);
+  const connections = useMachineStore((state) => state.connections);
+  const machineNames = useMemo(
+    () => new Map(machines.map((machine) => [machine.id, machine.name])),
+    [machines],
+  );
+  const machineOptions = useMemo(
+    () => [
+      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
+      ...machines
+        .filter((machine) => connections[machine.id]?.status === 'online')
+        .map((machine) => ({ id: machine.id, name: machine.name })),
+    ],
+    [machines, connections],
+  );
   const modelMap = useModelMap();
 
   const createMutation = useCreateAutomationMutation();
@@ -107,20 +112,18 @@ export function AutomationsSettingsTab() {
   const deleteMutation = useDeleteAutomationMutation();
   const runMutation = useRunAutomationMutation();
 
-  const items = useMemo<AutomationListItem[] | null>(() => {
-    // Stay in loading state until both backends answer — resolving with only
-    // the local list flashes the empty state when automations live on cloud.
-    if (!localAutomations || cloudLoading) return null;
-    return [
-      ...localAutomations.map((automation) => ({ automation, onCloud: false })),
-      ...(cloudAutomations ?? []).map((automation) => ({ automation, onCloud: true })),
-    ];
-  }, [localAutomations, cloudAutomations, cloudLoading]);
-
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<AutomationListItem | null>(null);
   const [form, setForm] = useState<AutomationForm>(createDefaultForm);
   const [formError, setFormError] = useState<string | null>(null);
+  const formMachineId = editingItem?.machineId ?? form.machineId;
+  const { data: formMachineSettings } = useMachineSettingsQuery(
+    formMachineId,
+    isDialogOpen && formMachineId !== LOCAL_MACHINE_ID,
+  );
+  const formPersonas =
+    (formMachineId === LOCAL_MACHINE_ID ? localSettings.personas : formMachineSettings?.personas) ??
+    [];
 
   const handleFormChange = useCallback(
     <K extends keyof AutomationForm>(field: K, value: AutomationForm[K]) => {
@@ -150,13 +153,12 @@ export function AutomationsSettingsTab() {
     if (!item) return;
     await deleteMutation.mutateAsync({
       automationId: item.automation.id,
-      onCloud: item.onCloud,
+      machineId: item.machineId,
     });
   };
 
   const handleSave = async () => {
-    const onCloud = editingItem?.onCloud ?? form.onCloud;
-    const personas = (onCloud ? cloudSettings?.personas : localSettings.personas) ?? [];
+    const personas = formPersonas;
     // Coerce raw form settings to the selected model's agent, same as normal
     // sends — a stale mode from another agent family would fail at run time.
     const agentFields = buildAgentChatFields(
@@ -190,10 +192,10 @@ export function AutomationsSettingsTab() {
         await updateMutation.mutateAsync({
           automationId: editingItem.automation.id,
           data,
-          onCloud: editingItem.onCloud,
+          machineId: editingItem.machineId,
         });
       } else {
-        await createMutation.mutateAsync({ data, onCloud: form.onCloud });
+        await createMutation.mutateAsync({ data, machineId: form.machineId });
       }
       setIsDialogOpen(false);
       toast.success('Saved', { id: 'automation-saved' });
@@ -208,7 +210,7 @@ export function AutomationsSettingsTab() {
       await updateMutation.mutateAsync({
         automationId: item.automation.id,
         data: patch,
-        onCloud: item.onCloud,
+        machineId: item.machineId,
       });
     } catch {
       toast.error('Failed to update automation');
@@ -219,7 +221,7 @@ export function AutomationsSettingsTab() {
     try {
       await runMutation.mutateAsync({
         automationId: item.automation.id,
-        onCloud: item.onCloud,
+        machineId: item.machineId,
       });
       toast.success(`"${item.automation.name}" started — check the sidebar for its chat`);
     } catch (error) {
@@ -249,10 +251,10 @@ export function AutomationsSettingsTab() {
           <>
             <div className={styles['item-header']}>
               <h3 className={styles['item-title']}>{item.automation.name}</h3>
-              {item.onCloud && (
-                <span className={styles['cloud-badge']}>
-                  <Cloud className={styles['cloud-icon']} />
-                  Cloud
+              {item.machineId !== LOCAL_MACHINE_ID && (
+                <span className={styles['machine-badge']}>
+                  <Server className={styles['machine-icon']} />
+                  {machineNames.get(item.machineId) ?? 'Machine'}
                 </span>
               )}
             </div>
@@ -297,9 +299,8 @@ export function AutomationsSettingsTab() {
             isOpen={isDialogOpen}
             isEditing={editingItem !== null}
             form={form}
-            localPersonas={localSettings.personas ?? []}
-            cloudPersonas={cloudSettings?.personas ?? []}
-            cloudConnected={cloudConnected}
+            personas={formPersonas}
+            machineOptions={machineOptions}
             error={formError}
             isSaving={createMutation.isPending || updateMutation.isPending}
             onClose={() => setIsDialogOpen(false)}

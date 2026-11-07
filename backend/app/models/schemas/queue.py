@@ -13,7 +13,11 @@ class QueueMessageContent(BaseModel):
     content: str = Field(..., min_length=1, max_length=100000)
 
 
-class QueuedMessageBase(QueueMessageContent):
+class QueuedMessageEdit(QueueMessageContent):
+    device_ids: frozenset[UUID]
+
+
+class QueuedMessageBase(QueuedMessageEdit):
     model_id: str = Field(..., min_length=1, max_length=255)
     permission_mode: PermissionMode = "bypassPermissions"
     thinking_mode: str | None = None
@@ -29,7 +33,7 @@ class QueuedMessage(QueuedMessageBase):
     attachments: list[dict[str, Any]] | None = None
 
 
-class QueuedChannelMessage(QueueMessageContent):
+class QueuedChannelMessage(QueuedMessageEdit):
     id: UUID
     queued_at: datetime
     attachments: list[dict[str, Any]] | None = None

@@ -1,0 +1,103 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.body {
+  padding: var(--space-5);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  margin-bottom: var(--space-5);
+}
+
+.icon-box {
+  display: flex;
+  height: var(--space-8);
+  width: var(--space-8);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-tertiary);
+}
+
+.header-icon {
+  height: var(--space-4);
+  width: var(--space-4);
+  color: var(--theme-text-tertiary);
+}
+
+.title {
+  @include type.type-body(500);
+  color: var(--theme-text-primary);
+}
+
+.error {
+  @include type.type-meta;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-4);
+  border: 1px solid colors.status-color('error', 500, 0.3);
+  border-radius: var(--radius-lg);
+  background-color: colors.status-color('error', 500, 0.06);
+  padding: var(--space-2-5) var(--space-3);
+  color: var(--theme-error-text);
+}
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.label {
+  @include type.type-default;
+  margin-bottom: var(--space-1);
+  color: var(--theme-text-secondary);
+}
+
+.hint {
+  @include type.type-meta;
+  margin-top: var(--space-1);
+  color: var(--theme-text-quaternary);
+}
+
+.help {
+  @include type.type-meta;
+  color: var(--theme-text-quaternary);
+}
+
+.help-summary {
+  display: inline-flex;
+  cursor: pointer;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  color: var(--theme-text-tertiary);
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  .help[open] & .help-chevron {
+    transform: rotate(90deg);
+  }
+}
+
+.help-chevron {
+  height: var(--space-3);
+  width: var(--space-3);
+}
+
+.help-text {
+  margin-top: var(--space-1-5);
+  padding-left: var(--space-4);
+}
+
+.mono {
+  @include type.type-mono(0.75rem, 1rem, 400);
+  color: var(--theme-text-secondary);
+}

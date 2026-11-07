@@ -2,16 +2,19 @@ import { useState, useRef, useCallback, type RefObject } from 'react';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import type { NavigateFunction } from 'react-router-dom';
 import type { Workspace } from '@/types/workspace.types';
+import type { Chat } from '@/types/chat.types';
 import {
   useDeleteWorkspaceMutation,
   useUpdateWorkspaceMutation,
 } from '@/hooks/queries/useWorkspaceQueries';
 import {
-  useCloudUpdateWorkspaceMutation,
-  useCloudDeleteWorkspaceMutation,
-} from '@/hooks/queries/useCloudQueries';
+  useMachineUpdateWorkspaceMutation,
+  useMachineDeleteWorkspaceMutation,
+} from '@/hooks/queries/useMachineQueries';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore } from '@/store/uiStore';
+import { useChatOrigins } from '@/store/machineOrigin';
 import { mutateWithToast } from './sidebarHelpers';
 
 interface UseSidebarWorkspaceActionsParams {
@@ -21,6 +24,7 @@ interface UseSidebarWorkspaceActionsParams {
   isMobile: boolean;
   navigate: NavigateFunction;
   workspaceBadgeById: Map<string, WorkspaceBadge>;
+  chats: Chat[];
   scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -31,27 +35,29 @@ export function useSidebarWorkspaceActions({
   isMobile,
   navigate,
   workspaceBadgeById,
+  chats,
   scrollContainerRef,
 }: UseSidebarWorkspaceActionsParams) {
   const [workspaceToDelete, setWorkspaceToDelete] = useState<{
     id: string;
-    isCloud: boolean;
+    machineId: string;
   } | null>(null);
   const [workspaceToRename, setWorkspaceToRename] = useState<{
     workspace: Workspace;
-    isCloud: boolean;
+    machineId: string;
   } | null>(null);
   const [workspaceDropdown, setWorkspaceDropdown] = useState<{
     workspaceId: string;
-    isCloud: boolean;
+    machineId: string | null;
     position: { top: number; left: number };
   } | null>(null);
 
   const workspaceDropdownRef = useRef<HTMLDivElement>(null);
+  const chatOrigins = useChatOrigins();
   const deleteWorkspace = useDeleteWorkspaceMutation();
   const updateWorkspace = useUpdateWorkspaceMutation();
-  const cloudUpdateWorkspace = useCloudUpdateWorkspaceMutation();
-  const cloudDeleteWorkspace = useCloudDeleteWorkspaceMutation();
+  const machineUpdateWorkspace = useMachineUpdateWorkspaceMutation();
+  const machineDeleteWorkspace = useMachineDeleteWorkspaceMutation();
 
   useMountEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -83,19 +89,9 @@ export function useSidebarWorkspaceActions({
   });
 
   const handleNewWorkspaceThread = useCallback(
-    (workspaceId: string) => {
-      navigate('/', { state: { workspaceId } });
-      if (isMobile) {
-        useUIStore.getState().setSidebarOpen(false);
-      }
-    },
-    [navigate, isMobile],
-  );
-
-  const handleNewCloudThread = useCallback(
-    (workspaceId: string) => {
-      // Landing composer flips to cloud and preselects this VPS workspace.
-      navigate('/', { state: { cloudWorkspaceId: workspaceId } });
+    (workspaceId: string, machineId: string) => {
+      // Landing composer switches to the owning machine and preselects this workspace.
+      navigate('/', { state: { workspaceId, machineId } });
       if (isMobile) {
         useUIStore.getState().setSidebarOpen(false);
       }
@@ -105,25 +101,32 @@ export function useSidebarWorkspaceActions({
 
   const openWorkspaceMenu = useCallback(
     (workspaceId: string, position: { top: number; left: number }) => {
-      const isCloud = workspaceBadgeById.get(workspaceId)?.isCloud ?? false;
-      setWorkspaceDropdown({ workspaceId, isCloud, position });
+      const routedMachineId = chats
+        .filter((chat) => chat.workspace_id === workspaceId)
+        .map((chat) => chatOrigins.get(chat.id))
+        .find((id) => id !== undefined);
+      const machineId = workspaceBadgeById.get(workspaceId)?.machineId ?? routedMachineId ?? null;
+      setWorkspaceDropdown({ workspaceId, machineId, position });
     },
-    [workspaceBadgeById],
+    [workspaceBadgeById, chats, chatOrigins],
   );
 
-  const handleRenameWorkspace = useCallback((workspace: Workspace, isCloud: boolean) => {
-    setWorkspaceToRename({ workspace, isCloud });
+  const handleRenameWorkspace = useCallback((workspace: Workspace, machineId: string) => {
+    setWorkspaceToRename({ workspace, machineId });
     setWorkspaceDropdown(null);
   }, []);
 
   const handleSaveWorkspaceRename = useCallback(
     async (newName: string) => {
       if (!workspaceToRename) return;
-      const { workspace, isCloud } = workspaceToRename;
-      const mutation = isCloud ? cloudUpdateWorkspace : updateWorkspace;
+      const { workspace, machineId } = workspaceToRename;
+      const data = { name: newName };
       try {
         await mutateWithToast(
-          () => mutation.mutateAsync({ workspaceId: workspace.id, data: { name: newName } }),
+          () =>
+            machineId === LOCAL_MACHINE_ID
+              ? updateWorkspace.mutateAsync({ workspaceId: workspace.id, data })
+              : machineUpdateWorkspace.mutateAsync({ machineId, workspaceId: workspace.id, data }),
           'Workspace renamed',
           'Failed to rename workspace',
         );
@@ -133,21 +136,23 @@ export function useSidebarWorkspaceActions({
         setWorkspaceToRename(null);
       }
     },
-    [workspaceToRename, updateWorkspace, cloudUpdateWorkspace],
+    [workspaceToRename, updateWorkspace, machineUpdateWorkspace],
   );
 
-  const handleDeleteWorkspace = useCallback((workspaceId: string, isCloud: boolean) => {
-    setWorkspaceToDelete({ id: workspaceId, isCloud });
+  const handleDeleteWorkspace = useCallback((workspaceId: string, machineId: string) => {
+    setWorkspaceToDelete({ id: workspaceId, machineId });
     setWorkspaceDropdown(null);
   }, []);
 
   const confirmDeleteWorkspace = useCallback(async () => {
     if (!workspaceToDelete) return;
-    const { id, isCloud } = workspaceToDelete;
-    const mutation = isCloud ? cloudDeleteWorkspace : deleteWorkspace;
+    const { id, machineId } = workspaceToDelete;
     try {
       await mutateWithToast(
-        () => mutation.mutateAsync(id),
+        () =>
+          machineId === LOCAL_MACHINE_ID
+            ? deleteWorkspace.mutateAsync(id)
+            : machineDeleteWorkspace.mutateAsync({ machineId, workspaceId: id }),
         'Workspace deleted',
         'Failed to delete workspace',
       );
@@ -162,7 +167,7 @@ export function useSidebarWorkspaceActions({
   }, [
     workspaceToDelete,
     deleteWorkspace,
-    cloudDeleteWorkspace,
+    machineDeleteWorkspace,
     selectedChatId,
     selectedChannelId,
     selectedChatWorkspaceId,
@@ -178,9 +183,8 @@ export function useSidebarWorkspaceActions({
     workspaceToRename,
     setWorkspaceToRename,
     updateWorkspace,
-    cloudUpdateWorkspace,
+    machineUpdateWorkspace,
     handleNewWorkspaceThread,
-    handleNewCloudThread,
     openWorkspaceMenu,
     handleRenameWorkspace,
     handleSaveWorkspaceRename,

@@ -1,3 +1,5 @@
+from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
 from fastapi_users import schemas
@@ -6,6 +8,7 @@ from pydantic import (
     ConfigDict,
     EmailStr,
     Field,
+    StringConstraints,
     computed_field,
     field_validator,
 )
@@ -67,3 +70,32 @@ class RefreshTokenRequest(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str
+
+
+class PairingSecretOut(BaseModel):
+    secret: str
+    expires_at: datetime
+
+
+class PairRequest(BaseModel):
+    secret: str
+    device_name: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+    ]
+
+
+class PairResponse(Token):
+    device_id: UUID
+    instance_id: UUID
+
+
+class PairedDeviceOut(BaseModel):
+    id: UUID
+    name: str
+    created_at: datetime
+    last_used_at: datetime | None
+    current: bool
+
+
+class InstanceOut(BaseModel):
+    instance_id: UUID

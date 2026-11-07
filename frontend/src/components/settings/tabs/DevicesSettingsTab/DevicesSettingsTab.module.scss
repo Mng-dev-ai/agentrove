@@ -1,0 +1,44 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.pairing {
+  @include type.type-meta;
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  color: var(--theme-text-tertiary);
+}
+
+.mono {
+  @include type.type-mono;
+}
+
+.item-header {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.item-title {
+  @include type.type-default(500);
+  @include type.type-overflow;
+  min-width: 0;
+  color: var(--theme-text-primary);
+}
+
+.chip {
+  @include type.type-meta;
+  flex-shrink: 0;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-tertiary);
+}
+
+.item-meta {
+  @include type.type-mono(0.75rem, 1rem, 400);
+  color: var(--theme-text-quaternary);
+}

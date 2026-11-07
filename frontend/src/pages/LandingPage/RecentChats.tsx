@@ -6,7 +6,8 @@ import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { formatRelativeTime } from '@/utils/date';
 import { stripMarkdownTitle } from '@/utils/format';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
-import { Cloud } from 'lucide-react';
+import { Server } from 'lucide-react';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { chatStatusTone, CHAT_STATUS_LABEL } from '@/utils/message';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
@@ -81,9 +82,12 @@ export function RecentChats({ chats, workspaceBadgeById, onChatSelect }: RecentC
               <span className={styles.text}>
                 <span className={styles.title}>{title}</span>
                 <span className={styles.meta}>
-                  {/* Same source of truth as SidebarChatItem's cloud marker. */}
-                  {workspaceBadge?.isCloud && (
-                    <Cloud size={12} aria-label="Cloud" className={styles['cloud-icon']} />
+                  {workspaceBadge && workspaceBadge.machineId !== LOCAL_MACHINE_ID && (
+                    <Server
+                      size={12}
+                      aria-label="Remote machine"
+                      className={styles['cloud-icon']}
+                    />
                   )}
                   {meta}
                 </span>

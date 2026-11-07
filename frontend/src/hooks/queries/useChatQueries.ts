@@ -13,9 +13,10 @@ import type {
   QueryClient,
 } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
-import { cloudChatService } from '@/services/cloudChatService';
-import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
-import { isCloudChat } from '@/utils/chatOrigin';
+import { machineChatService } from '@/services/machineChatService';
+import { useMachineStore } from '@/store/machineStore';
+import { chatMachineId } from '@/store/machineOrigin';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import type { Chat, ChatSearchResponse, ContextUsage, CreateChatRequest } from '@/types/chat.types';
@@ -34,10 +35,10 @@ function isGlobalChatsQuery(query: Query): boolean {
   return key.length >= 5 && key[3] === GLOBAL_WORKSPACE_SENTINEL && key[4] === null;
 }
 
-// Cloud sidebar is a separate query local infinite-chats patches don't touch.
-function invalidateCloudChats(queryClient: QueryClient, chatId: string) {
-  if (isCloudChat(chatId)) {
-    queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll });
+function invalidateMachineChats(queryClient: QueryClient, chatId: string) {
+  const machineId = chatMachineId(chatId);
+  if (machineId !== LOCAL_MACHINE_ID) {
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(machineId) });
   }
 }
 
@@ -246,9 +247,9 @@ export async function markChatViewed(queryClient: QueryClient, chatId: string): 
     logger.error('Failed to mark chat viewed', 'markChatViewed', error);
     return;
   }
-  // Cloud rows live in a separate query the patch above can't reach — refetch
-  // them only after the VPS stamp landed, or the refetch would restore the dot.
-  invalidateCloudChats(queryClient, chatId);
+  // Remote rows live in separate queries the patch above can't reach — refetch
+  // them only after the machine stamp landed, or the refetch would restore the dot.
+  invalidateMachineChats(queryClient, chatId);
 }
 
 export const useCreateChatMutation = createMutation<Chat, Error, CreateChatRequest>(
@@ -300,7 +301,7 @@ export const useUpdateChatMutation = createMutation<
 
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
-    invalidateCloudChats(queryClient, updatedChat.id);
+    invalidateMachineChats(queryClient, updatedChat.id);
 
     if (updatedChat.parent_chat_id) {
       queryClient.invalidateQueries({
@@ -320,7 +321,7 @@ export const usePinChatMutation = createMutation<Chat, Error, { chatId: string; 
       queryKey: [queryKeys.chats, 'infinite'],
     });
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-    invalidateCloudChats(queryClient, updatedChat.id);
+    invalidateMachineChats(queryClient, updatedChat.id);
   },
 );
 
@@ -370,13 +371,13 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
-    invalidateCloudChats(queryClient, chatId);
+    invalidateMachineChats(queryClient, chatId);
     useMessageQueueStore.getState().cleanupChat(chatId);
     useUIStore.getState().cleanupChat(chatId);
   },
 );
 
-// Wipe both backends; drop successful side's caches even if the other fails (partial wipe is real).
+// Wipe every online machine; drop successful machines' caches even if another fails.
 export const useDeleteAllChatsMutation = () => {
   const queryClient = useQueryClient();
   return useMutation<void, Error, void>({
@@ -388,14 +389,13 @@ export const useDeleteAllChatsMutation = () => {
           queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
         }),
       ];
-      const { cloudUrl, connectedEmail } = useCloudSettingsStore.getState();
-      if (connectedEmail) {
+      const { machines, connections } = useMachineStore.getState();
+      for (const { id } of machines) {
+        if (connections[id]?.status !== 'online') continue;
         wipes.push(
-          cloudChatService.deleteAllChats().then(() => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.cloudChatsAll });
-            queryClient.invalidateQueries({
-              queryKey: queryKeys.cloudWorkspaces(cloudUrl, connectedEmail),
-            });
+          machineChatService.deleteAllChats(id).then(() => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(id) });
+            queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(id) });
           }),
         );
       }
@@ -442,8 +442,8 @@ export const useCreateSubThreadMutation = (parentChatId: string) => {
         queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] }),
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces }),
       ]);
-      // Cloud parent isn't in local infinite query — refresh so sub_thread_count unlocks expand.
-      invalidateCloudChats(queryClient, parentChatId);
+      // Remote parent isn't in local infinite query — refresh so sub_thread_count unlocks expand.
+      invalidateMachineChats(queryClient, parentChatId);
     },
   });
 };

@@ -4,8 +4,9 @@ import { settingsService } from '@/services/settingsService';
 import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
-import { useCloudSettingsQuery } from './useCloudQueries';
-import { useIsCloudChat } from '@/utils/chatOrigin';
+import { useMachineSettingsQuery } from './useMachineQueries';
+import { useChatMachineId } from '@/store/machineOrigin';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
 const settingsQuery = () => ({
   queryKey: [queryKeys.settings],
@@ -19,15 +20,18 @@ export const useSettingsQuery = (options?: Partial<UseQueryOptions<UserSettings>
   });
 };
 
-// Settings are per-instance: a cloud chat's personas and stream actions live on
-// the VPS that owns it, not the local backend. Routes to the owning instance the
-// same way resolveChatClient routes per-chat API calls. useIsCloudChat hydrates
-// synchronously from localStorage, so deep links resolve before the query fires.
+// Settings are per-instance: a remote chat's personas and stream actions live on
+// the machine that owns it. Routes the same way resolveChatClient routes per-chat
+// calls; origins hydrate synchronously, so deep links resolve before the query fires.
 export const useSettingsForChatQuery = (chatId: string | undefined, enabled = true) => {
-  const chatIsCloud = useIsCloudChat(chatId);
-  const localQuery = useSettingsQuery({ enabled: enabled && !chatIsCloud });
-  const cloudQuery = useCloudSettingsQuery(enabled && chatIsCloud);
-  return chatIsCloud ? cloudQuery : localQuery;
+  return useSettingsForMachineQuery(useChatMachineId(chatId), enabled);
+};
+
+export const useSettingsForMachineQuery = (machineId: string, enabled = true) => {
+  const isLocal = machineId === LOCAL_MACHINE_ID;
+  const localQuery = useSettingsQuery({ enabled: enabled && isLocal });
+  const machineQuery = useMachineSettingsQuery(machineId, enabled && !isLocal);
+  return isLocal ? localQuery : machineQuery;
 };
 
 // Settings are never persisted to storage (they carry secrets), so a cold tab

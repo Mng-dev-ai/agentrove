@@ -45,6 +45,7 @@ from acp.stdio import stdio_streams
 # agent binary would fail deterministically at handshake/session-setup time).
 SCENARIO = os.environ.get("FAKE_ACP_SCENARIO", "normal")
 LOG_PATH = os.environ.get("FAKE_ACP_LOG")
+NEW_SESSION_GATE = os.environ.get("FAKE_ACP_NEW_SESSION_GATE")
 # Real agents advertise their effort option after a model set; offer every tier
 # under each agent's config id so effort validation sees a live list.
 EFFORT_TIERS = (
@@ -178,6 +179,8 @@ class FakeAgent:
         )
         if SCENARIO == "crash_new_session":
             raise RuntimeError("simulated new_session failure")
+        while NEW_SESSION_GATE and not os.path.exists(NEW_SESSION_GATE):
+            await asyncio.sleep(0.05)
         return NewSessionResponse(session_id=f"fake-acp-session-{uuid4().hex}")
 
     async def load_session(
@@ -187,7 +190,17 @@ class FakeAgent:
         mcp_servers: list[Any] | None = None,
         **kwargs: Any,
     ) -> LoadSessionResponse:
-        log_event({"event": "load_session", "cwd": cwd, "session_id": session_id})
+        log_event(
+            {
+                "event": "load_session",
+                "cwd": cwd,
+                "session_id": session_id,
+                "mcp_servers": [
+                    server.model_dump(mode="json", by_alias=True)
+                    for server in (mcp_servers or [])
+                ],
+            }
+        )
         if SCENARIO == "load_session_missing":
             raise RequestError.resource_not_found(session_id)
         if SCENARIO == "load_session_replay" and self._client is not None:

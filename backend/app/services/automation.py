@@ -16,9 +16,11 @@ from app.models.db_models.workspace import Workspace
 from app.models.schemas.automation import AutomationCreate, AutomationUpdate
 from app.models.schemas.chat import ChatCreate, ChatRequest
 from app.models.types import PermissionMode
+from app.services.agent import AgentService
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import AutomationException, ErrorCode, ServiceException
+from app.services.pairing import PairingService
 
 logger = logging.getLogger(__name__)
 
@@ -130,12 +132,15 @@ class AutomationService(BaseDbService[Automation]):
             )
             return list(result.scalars().all())
 
-    async def create_automation(self, user: User, data: AutomationCreate) -> Automation:
+    async def create_automation(
+        self, user: User, device_ids: frozenset[UUID], data: AutomationCreate
+    ) -> Automation:
         self._validate_model(data.model_id)
         async with self.session_factory() as db:
             await self._validate_workspace(db, data.workspace_id, user.id)
             automation = Automation(
                 user_id=user.id,
+                device_ids=device_ids,
                 **data.model_dump(),
                 next_run_at=self._compute_next_run_validated(
                     data.cron_expression, data.timezone
@@ -147,7 +152,11 @@ class AutomationService(BaseDbService[Automation]):
             return automation
 
     async def update_automation(
-        self, automation_id: UUID, user: User, data: AutomationUpdate
+        self,
+        automation_id: UUID,
+        user: User,
+        device_ids: frozenset[UUID],
+        data: AutomationUpdate,
     ) -> Automation:
         changes = data.model_dump(exclude_unset=True)
         if "model_id" in changes:
@@ -156,6 +165,11 @@ class AutomationService(BaseDbService[Automation]):
             automation = await self._get_owned(db, automation_id, user.id)
             if "workspace_id" in changes:
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
+            automation.device_ids = PairingService.edited_device_ids(
+                automation.device_ids,
+                device_ids,
+                changes.get("prompt", automation.prompt) == automation.prompt,
+            )
             for field, value in changes.items():
                 setattr(automation, field, value)
             if SCHEDULE_FIELDS & changes.keys():
@@ -172,14 +186,16 @@ class AutomationService(BaseDbService[Automation]):
             await db.delete(automation)
             await db.commit()
 
-    async def run_automation(self, automation_id: UUID, user: User) -> Chat:
+    async def run_automation(
+        self, automation_id: UUID, user: User, device_ids: frozenset[UUID]
+    ) -> Chat:
         # Manual "run now" — records last_run_at but leaves next_run_at alone so
         # the scheduled slot still fires.
         async with self.session_factory() as db:
             automation = await self._get_owned(db, automation_id, user.id)
             automation.last_run_at = datetime.now(timezone.utc)
             await db.commit()
-        return await self._fire(automation, user)
+        return await self._fire(automation, user, automation.device_ids | device_ids)
 
     async def run_due_automations(self) -> dict[str, Any]:
         # Dispatch job entry point. Advances schedules before firing so a crash
@@ -252,7 +268,9 @@ class AutomationService(BaseDbService[Automation]):
 
         for automation in to_fire:
             try:
-                await self._fire(automation, users[automation.user_id])
+                await self._fire(
+                    automation, users[automation.user_id], automation.device_ids
+                )
             except ServiceException as exc:
                 if exc.error_code == ErrorCode.WORKSPACE_NOT_FOUND:
                     # Soft-deleted workspace: the run can never succeed again.
@@ -287,10 +305,15 @@ class AutomationService(BaseDbService[Automation]):
             automation.workspace_id,
         )
 
-    async def _fire(self, automation: Automation, user: User) -> Chat:
+    async def _fire(
+        self, automation: Automation, user: User, device_ids: frozenset[UUID]
+    ) -> Chat:
         # Re-check the saved model before creating the chat — a model retired
         # after creation would otherwise leave an orphan empty chat every slot.
         self._validate_model(automation.model_id)
+        await AgentService(session_factory=self.session_factory).ensure_devices_active(
+            user.id, device_ids
+        )
         # Timestamp in the title keeps recurring runs distinguishable in the
         # sidebar; sliced so a max-length name still fits ChatCreate's 255 cap.
         stamp = datetime.now(ZoneInfo(automation.timezone)).strftime("%b %d, %H:%M")
@@ -314,6 +337,7 @@ class AutomationService(BaseDbService[Automation]):
                     selected_persona_name=automation.selected_persona_name,
                 ),
                 user,
+                device_ids=device_ids,
             )
         except Exception:
             # Don't leave an empty orphan chat for a run that never started.

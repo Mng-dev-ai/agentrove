@@ -20,6 +20,12 @@
     "process:allow-restart",
     "notification:default",
     "dialog:default",
-    "opener:default"
+    "opener:default",
+    "allow-get-backend-port",
+    "allow-machine-pair",
+    "allow-machine-refresh",
+    "allow-machine-unpair",
+    "allow-machine-forget",
+    "allow-machine-probe"
   ]
 }

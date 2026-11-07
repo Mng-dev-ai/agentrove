@@ -17,6 +17,7 @@ from app.models.schemas.chat import ChatRequest
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import NORMAL_SESSION_MODE
+from app.services.pairing import PairingService
 from app.services.exceptions import ChatException
 from app.services.user import UserService
 
@@ -38,20 +39,31 @@ class ChildResult:
     chat_id: str
     title: str
     outcome: str
+    device_ids: frozenset[UUID]
 
 
 class SubThreadWake:
     def __init__(self) -> None:
-        self._pending: dict[str, set[str]] = {}
+        self._pending: dict[str, dict[str, frozenset[UUID]]] = {}
         self._scheduled: set[str] = set()
         self._tasks: set[asyncio.Task[None]] = set()
 
-    def on_chain_end(self, chat_id: str, report_parent_id: str | None) -> None:
+    def on_chain_end(
+        self,
+        chat_id: str,
+        report_parent_id: str | None,
+        device_ids: frozenset[UUID],
+    ) -> None:
         if report_parent_id is not None:
-            self._pending.setdefault(report_parent_id, set()).add(chat_id)
-        for parent_id, child_ids in list(self._pending.items()):
-            if parent_id == chat_id or chat_id in child_ids:
+            self._add_reports(report_parent_id, {chat_id: device_ids})
+        for parent_id, reports in list(self._pending.items()):
+            if parent_id == chat_id or chat_id in reports:
                 self._schedule(parent_id)
+
+    def _add_reports(self, parent_id: str, reports: dict[str, frozenset[UUID]]) -> None:
+        pending = self._pending.setdefault(parent_id, {})
+        for child_id, device_ids in reports.items():
+            pending[child_id] = pending.get(child_id, frozenset()) | device_ids
 
     def _schedule(self, parent_id: str) -> None:
         if parent_id in self._scheduled:
@@ -84,46 +96,72 @@ class SubThreadWake:
             if parent is None or parent.deleted_at is not None:
                 self._pending.pop(parent_id, None)
                 return
-            children = await self._take_finished(db, parent_id)
+            children = await self._take_finished(db, parent)
         if not children:
             return
+        device_ids = frozenset[UUID]().union(*(c.device_ids for c in children))
         if mid_turn:
-            await self._steer_into_turn(parent_id, children)
+            await self._steer_into_turn(parent_id, children, device_ids)
         else:
-            await self._start_wake_turn(parent, children)
+            await self._start_wake_turn(parent, children, device_ids)
 
-    def _requeue(self, parent_id: str, child_ids: set[str], *, schedule: bool) -> None:
-        if not child_ids:
+    def _requeue(
+        self, parent_id: str, reports: dict[str, frozenset[UUID]], *, schedule: bool
+    ) -> None:
+        if not reports:
             return
-        self._pending.setdefault(parent_id, set()).update(child_ids)
+        self._add_reports(parent_id, reports)
         if schedule:
             self._schedule(parent_id)
 
-    def _hold_busy(self, parent_id: str, child_ids: set[str]) -> set[str]:
+    def _hold_busy(
+        self, parent_id: str, reports: dict[str, frozenset[UUID]]
+    ) -> dict[str, frozenset[UUID]]:
         # Avoid circular import with runtime.py.
         from app.services.streaming.runtime import ChatStreamRuntime
 
-        running = {c for c in child_ids if ChatStreamRuntime.has_active_chat(c)}
+        running = {
+            c: d for c, d in reports.items() if ChatStreamRuntime.has_active_chat(c)
+        }
         starting = {
-            c for c in child_ids - running if ChatStreamRuntime.has_pending_start(c)
+            c: d
+            for c, d in reports.items()
+            if c not in running and ChatStreamRuntime.has_pending_start(c)
         }
         self._requeue(parent_id, running, schedule=False)
         self._requeue(parent_id, starting, schedule=True)
-        return child_ids - running - starting
+        return {
+            c: d for c, d in reports.items() if c not in running and c not in starting
+        }
 
-    async def _take_finished(
-        self, db: AsyncSession, parent_id: str
-    ) -> list[ChildResult]:
-        finished = self._hold_busy(parent_id, self._pending.pop(parent_id, set()))
-        loaded = [await self._load_child(db, child_id) for child_id in finished]
-        idle = self._hold_busy(parent_id, {child.chat_id for child in loaded})
+    async def _take_finished(self, db: AsyncSession, parent: Chat) -> list[ChildResult]:
+        parent_id = str(parent.id)
+        finished = self._hold_busy(parent_id, self._pending.pop(parent_id, {}))
+        loaded = [
+            child
+            for child_id, device_ids in finished.items()
+            if (child := await self._load_child(db, child_id, device_ids)) is not None
+        ]
+        active = await PairingService.active_device_ids(
+            db,
+            parent.user_id,
+            frozenset[UUID]().union(*(child.device_ids for child in loaded)),
+        )
+        idle = self._hold_busy(
+            parent_id,
+            {
+                child.chat_id: child.device_ids
+                for child in loaded
+                if child.device_ids <= active
+            },
+        )
         return sorted(
             (child for child in loaded if child.chat_id in idle),
             key=attrgetter("title"),
         )
 
     async def _steer_into_turn(
-        self, parent_id: str, children: list[ChildResult]
+        self, parent_id: str, children: list[ChildResult], device_ids: frozenset[UUID]
     ) -> None:
         # Avoid circular import with runtime.py.
         from app.services.streaming.runtime import ChatStreamRuntime
@@ -132,14 +170,17 @@ class SubThreadWake:
             parent_id,
             self._build_prompt(children, MID_TURN_OPENING),
             self._build_notice(children),
+            device_ids,
         ):
             self._requeue(
                 parent_id,
-                {child.chat_id for child in children},
+                {child.chat_id: child.device_ids for child in children},
                 schedule=not ChatStreamRuntime.has_active_chat(parent_id),
             )
 
-    async def _start_wake_turn(self, parent: Chat, children: list[ChildResult]) -> None:
+    async def _start_wake_turn(
+        self, parent: Chat, children: list[ChildResult], device_ids: frozenset[UUID]
+    ) -> None:
         # Avoid circular import with chat.py.
         from app.services.chat import ChatService
 
@@ -153,14 +194,20 @@ class SubThreadWake:
             return
         try:
             await ChatService(UserService()).initiate_chat_completion(
-                request, parent.user, user_app_notice=self._build_notice(children)
+                request,
+                parent.user,
+                user_app_notice=self._build_notice(children),
+                device_ids=device_ids,
             )
-        except ChatException as exc:
-            if exc.status_code != 409:
-                raise
+        except Exception as exc:
+            busy = isinstance(exc, ChatException) and exc.status_code == 409
             self._requeue(
-                str(parent.id), {child.chat_id for child in children}, schedule=True
+                str(parent.id),
+                {child.chat_id: child.device_ids for child in children},
+                schedule=busy,
             )
+            if not busy:
+                raise
 
     @staticmethod
     def _wake_request(parent: Chat, prompt: str) -> ChatRequest | None:
@@ -181,8 +228,12 @@ class SubThreadWake:
         )
 
     @staticmethod
-    async def _load_child(db: AsyncSession, child_id: str) -> ChildResult:
+    async def _load_child(
+        db: AsyncSession, child_id: str, device_ids: frozenset[UUID]
+    ) -> ChildResult | None:
         title = await db.scalar(select(Chat.title).where(Chat.id == UUID(child_id)))
+        if title is None:
+            return None
         outcome = await db.scalar(
             select(Message.stream_status)
             .where(
@@ -195,8 +246,9 @@ class SubThreadWake:
         )
         return ChildResult(
             chat_id=child_id,
-            title=title or "Untitled",
+            title=title,
             outcome=outcome.value if outcome else "unknown",
+            device_ids=device_ids,
         )
 
     @staticmethod

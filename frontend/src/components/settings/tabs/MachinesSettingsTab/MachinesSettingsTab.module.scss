@@ -1,0 +1,105 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.local-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+}
+
+.row {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.row-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.row-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.name {
+  @include type.type-default(500);
+  @include type.type-overflow;
+  min-width: 0;
+  color: var(--theme-text-primary);
+}
+
+.host {
+  @include type.type-mono(0.75rem, 1rem, 400);
+  @include type.type-overflow;
+  min-width: 0;
+  color: var(--theme-text-quaternary);
+}
+
+.counts {
+  @include type.type-meta;
+  flex-shrink: 0;
+  color: var(--theme-text-tertiary);
+  white-space: nowrap;
+}
+
+.chip {
+  @include type.type-meta;
+  flex-shrink: 0;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-tertiary);
+}
+
+.status-pill {
+  @include type.type-meta;
+  flex-shrink: 0;
+  color: var(--theme-text-tertiary);
+}
+
+.action-btn {
+  height: var(--space-7);
+  width: var(--space-7);
+  color: var(--theme-text-quaternary);
+
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
+  }
+}
+
+.action-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.notice {
+  @include type.type-meta;
+  margin-top: var(--space-2);
+  padding-left: calc(var(--space-1-5) + var(--space-3));
+  color: var(--theme-text-quaternary);
+}
+
+.mono {
+  @include type.type-mono;
+}

@@ -34,6 +34,7 @@ from app.models.schemas.channel import (
     ChannelRead,
 )
 from app.models.schemas.chat import ChatRequest, Message as MessageSchema
+from app.models.schemas.queue import QueuedChannelMessage
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import (
@@ -42,6 +43,7 @@ from app.services.acp.adapters import (
     NATIVE_FILE_TYPES,
 )
 from app.services.agent import AgentService
+from app.services.pairing import PairingService
 from app.services.git import GitService
 from app.services.push import PushService
 from app.services.queue import ChannelQueueService
@@ -114,6 +116,10 @@ class MemberTurn:
 
     def started(self, task: asyncio.Task[str]) -> None:
         self.provider_task = task
+
+    @property
+    def device_ids(self) -> frozenset[UUID]:
+        return frozenset().union(*(message.device_ids for message in self.batch))
 
 
 @dataclass
@@ -416,6 +422,8 @@ class ChannelService(BaseDbService[Channel]):
         attachments: list[MessageAttachmentDict] | None = None,
         source_message_id: UUID | None = None,
         tool_call_count: int = 0,
+        *,
+        device_ids: frozenset[UUID],
     ) -> ChannelMessage:
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
@@ -434,6 +442,7 @@ class ChannelService(BaseDbService[Channel]):
                 channel_id=state.channel.id,
                 seq=seq,
                 member_id=member_id,
+                device_ids=device_ids,
                 source_message_id=source_message_id,
                 tool_call_count=tool_call_count,
                 content=content,
@@ -514,6 +523,24 @@ class ChannelService(BaseDbService[Channel]):
             .order_by(ChannelMessage.seq)
         )
 
+    async def unseen_batch(
+        self, db: AsyncSession, channel: Channel, member: ChannelMember
+    ) -> list[ChannelMessage]:
+        batch = list((await db.scalars(self.unseen(member))).all())
+        active = await PairingService.active_device_ids(
+            db,
+            channel.user_id,
+            frozenset().union(*(message.device_ids for message in batch)),
+        )
+        revoked = [message for message in batch if not message.device_ids <= active]
+        if revoked:
+            db.add_all(
+                ChannelDelivery(member_id=member.id, message_id=message.id)
+                for message in revoked
+            )
+            await db.commit()
+        return [message for message in batch if message.device_ids <= active]
+
     def fan_out(self, state: ChannelState) -> None:
         state.quiet_until = asyncio.get_running_loop().time() + DEBOUNCE_SECONDS
         self.schedule(state)
@@ -570,8 +597,11 @@ class ChannelService(BaseDbService[Channel]):
         state: ChannelState,
         content: str,
         attachments: list[MessageAttachmentDict],
+        device_ids: frozenset[UUID],
     ) -> ChannelMessage:
-        message = await self.new_message(state, content, attachments=attachments)
+        message = await self.new_message(
+            state, content, attachments=attachments, device_ids=device_ids
+        )
         await self.publish_message(state.channel, message)
         self.fan_out(state)
         return message
@@ -581,6 +611,7 @@ class ChannelService(BaseDbService[Channel]):
         channel: Channel,
         content: str,
         attachments: list[MessageAttachmentDict],
+        device_ids: frozenset[UUID],
     ) -> ChannelMessage:
         state = self.state(channel)
         async with state.control:
@@ -601,7 +632,7 @@ class ChannelService(BaseDbService[Channel]):
                     for member_id in audience or []:
                         state.retries.pop(UUID(member_id), None)
                     await self.cancel_active(state, turns)
-                    message = await self.send(state, content, attachments)
+                    message = await self.send(state, content, attachments, device_ids)
             finally:
                 try:
                     await self.cancel_turns(turns)
@@ -619,6 +650,18 @@ class ChannelService(BaseDbService[Channel]):
             if turn.task is not None and turn.task.done():
                 state.turns.pop(turn.member.id)
         await self.publish_activity(state)
+
+    async def cancel_device_turns(self, device_ids: frozenset[UUID]) -> None:
+        for state in list(self.states.values()):
+            async with state.lock:
+                turns = [
+                    turn
+                    for turn in state.turns.values()
+                    if turn.device_ids & device_ids
+                ]
+                if turns:
+                    await self.cancel_active(state, turns)
+            await self.cancel_turns(turns)
 
     async def cancel_turns(self, turns: list[MemberTurn]) -> None:
         await asyncio.gather(
@@ -663,7 +706,7 @@ class ChannelService(BaseDbService[Channel]):
                         await self.finish(state, previous)
                         state.turns.pop(member.id)
                     async with self.session_factory() as db:
-                        batch = list((await db.scalars(self.unseen(member))).all())
+                        batch = await self.unseen_batch(db, state.channel, member)
                         if not any(
                             self.addressed(message, member) for message in batch
                         ):
@@ -703,8 +746,12 @@ class ChannelService(BaseDbService[Channel]):
                 if item is None:
                     return
                 try:
+                    queued = QueuedChannelMessage.model_validate(item)
                     message = await self.new_message(
-                        state, item["content"], attachments=item["attachments"] or []
+                        state,
+                        queued.content,
+                        attachments=item["attachments"] or [],
+                        device_ids=queued.device_ids,
                     )
                 except Exception:
                     await queue.requeue_message(channel_id, item)
@@ -731,15 +778,23 @@ class ChannelService(BaseDbService[Channel]):
             await self.send_next_queued(state)
 
     async def send_queued_now(
-        self, channel: Channel, queue: ChannelQueueService, message_id: UUID
+        self,
+        channel: Channel,
+        queue: ChannelQueueService,
+        message_id: UUID,
+        device_ids: frozenset[UUID],
     ) -> ChannelMessage:
         channel_id = str(channel.id)
         item = await queue.delete_message(channel_id, str(message_id))
         if item is None:
             raise HTTPException(404, "Queued message not found")
+        queue.add_devices(item, device_ids)
         try:
             message = await self.post(
-                channel, item["content"], item["attachments"] or []
+                channel,
+                item["content"],
+                item["attachments"] or [],
+                QueuedChannelMessage.model_validate(item).device_ids,
             )
         except Exception:
             await queue.requeue_message(channel_id, item)
@@ -826,6 +881,7 @@ class ChannelService(BaseDbService[Channel]):
                     await self.chats.initiate_chat_completion(
                         request,
                         User(id=state.channel.user_id),
+                        device_ids=turn.device_ids,
                         member_turn=member_turn,
                     )
                     break
@@ -965,6 +1021,7 @@ class ChannelService(BaseDbService[Channel]):
             turn.member.id,
             source_message_id=turn.source_message_id,
             tool_call_count=len(turn.tool_call_ids),
+            device_ids=turn.device_ids,
         )
         await self.publish_message(state.channel, turn.message)
 

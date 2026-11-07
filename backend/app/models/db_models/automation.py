@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
 from app.db.migration_helpers import uuid_server_default
-from app.db.types import GUID, UTCDateTime
+from app.db.types import GUID, UTCDateTime, UUIDSet
 
 
 class Automation(Base):
@@ -21,6 +21,9 @@ class Automation(Base):
     )
     user_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    device_ids: Mapped[frozenset[UUID]] = mapped_column(
+        UUIDSet(), nullable=False, server_default="[]"
     )
     workspace_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False

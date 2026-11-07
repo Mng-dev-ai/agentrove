@@ -16,7 +16,7 @@
   color: var(--theme-text-primary);
 }
 
-.cloud-badge {
+.machine-badge {
   @include type.type-meta;
   display: flex;
   align-items: center;
@@ -27,7 +27,7 @@
   color: var(--theme-text-tertiary);
 }
 
-.cloud-icon {
+.machine-icon {
   height: var(--space-3);
   width: var(--space-3);
 }

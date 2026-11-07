@@ -17,8 +17,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useChatQuery, markChatViewed } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
-import { useCloudWorkspacesQuery } from '@/hooks/queries/useCloudQueries';
-import { useIsCloudChat } from '@/utils/chatOrigin';
+import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
+import { useChatMachineId } from '@/store/machineOrigin';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { SessionPanel } from '@/components/chat/session-panel/SessionPanel';
@@ -143,13 +144,14 @@ export function ChatPage() {
   }, [activeViews, chatId, isWorkspaceLoaded, currentChat?.sandbox_id, refetchFilesMetadata]);
 
   const workspaces = useWorkspacesList();
-  // Cloud chats' workspaces live on the VPS, not in the local list.
-  const isCloud = useIsCloudChat(chatId);
-  const { data: cloudWorkspaces } = useCloudWorkspacesQuery(isCloud);
-  const currentWorkspace = (isCloud ? cloudWorkspaces : workspaces)?.find(
+  // Remote chats' workspaces live on their machine, not in the local list.
+  const chatMachine = useChatMachineId(chatId);
+  const isRemote = chatMachine !== LOCAL_MACHINE_ID;
+  const { data: machineWorkspaces } = useMachineWorkspacesQuery(chatMachine, isRemote);
+  const currentWorkspace = (isRemote ? machineWorkspaces : workspaces)?.find(
     (w) => w.id === currentChat?.workspace_id,
   );
-  // Cloud chats resolve personas against the VPS settings list.
+  // Remote chats resolve personas against their machine's settings list.
   const { data: settings } = useSettingsForChatQuery(chatId);
 
   const { data: workspaceResources } = useWorkspaceResourcesQuery(

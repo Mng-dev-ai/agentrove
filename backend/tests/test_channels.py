@@ -16,6 +16,7 @@ from app.core import deps
 from app.models.db_models.channel import Channel, ChannelDelivery, ChannelMessage
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
+from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatRequest
@@ -25,6 +26,7 @@ from app.services.channel import (
     ChannelService,
     ChannelState,
     MemberTurn,
+    TurnStatus,
     channel_service,
 )
 from app.services.sandbox_providers.base import SandboxProvider
@@ -77,6 +79,7 @@ class ScriptedTurns:
         self.gate: asyncio.Event | None = None
         self.emitted = asyncio.Event()
         self.provider_tasks: dict[str, asyncio.Task[str]] = {}
+        self.device_ids: list[frozenset[UUID]] = []
 
     async def initiate_chat_completion(
         self,
@@ -84,8 +87,10 @@ class ScriptedTurns:
         user: User,
         *,
         member_turn: ChannelMemberTurn,
+        device_ids: frozenset[UUID],
     ) -> None:
         self.requests.append(request)
+        self.device_ids.append(device_ids)
         async with channel_service.session_factory() as db:
             source = await create_source_message(
                 db, request.chat_id, duration_ms=self.duration_ms
@@ -294,7 +299,9 @@ async def test_pass_turn_never_creates_or_publishes_a_message(
     db_session: AsyncSession,
     deltas: tuple[str, ...],
 ) -> None:
-    message = await channel_service.new_message(channel_state, "Any objections?")
+    message = await channel_service.new_message(
+        channel_state, "Any objections?", device_ids=frozenset()
+    )
     channel_runtime.events = [("assistant_text", {"text": text}) for text in deltas]
     await channel_runtime.wake(channel_state)
 
@@ -314,7 +321,9 @@ async def test_pass_turn_never_creates_or_publishes_a_message(
 async def test_tool_segments_counts_and_source_duration_are_persisted(
     channel_state: ChannelState, channel_runtime: ScriptedTurns
 ) -> None:
-    await channel_service.new_message(channel_state, "Check the implementation")
+    await channel_service.new_message(
+        channel_state, "Check the implementation", device_ids=frozenset()
+    )
     channel_runtime.events = [
         ("assistant_text", {"text": "I will inspect the files."}),
         ("tool_started", {"tool": {"id": "read"}}),
@@ -337,7 +346,9 @@ async def test_tool_segments_counts_and_source_duration_are_persisted(
 async def test_sequence_increases_across_user_agent_and_deleted_messages(
     channel_state: ChannelState, channel_runtime: ScriptedTurns
 ) -> None:
-    first = await channel_service.new_message(channel_state, "Review this")
+    first = await channel_service.new_message(
+        channel_state, "Review this", device_ids=frozenset()
+    )
     channel_runtime.events = [
         ("assistant_text", {"text": "Checking now."}),
         ("tool_started", {"tool": {"id": "check"}}),
@@ -345,7 +356,9 @@ async def test_sequence_increases_across_user_agent_and_deleted_messages(
         ("tool_completed", {"tool": {"id": "check"}}),
     ]
     await channel_runtime.wake(channel_state)
-    second = await channel_service.new_message(channel_state, "Explain the result")
+    second = await channel_service.new_message(
+        channel_state, "Explain the result", device_ids=frozenset()
+    )
     channel_runtime.events = [("assistant_text", {"text": "Here is the result."})]
     await channel_runtime.wake(channel_state)
 
@@ -377,8 +390,12 @@ async def test_unsuccessful_turn_redelivers_batch_and_cancelled_duration_falls_b
     db_session: AsyncSession,
     outcome: str,
 ) -> None:
-    first = await channel_service.new_message(channel_state, "First question")
-    second = await channel_service.new_message(channel_state, "Second question")
+    first = await channel_service.new_message(
+        channel_state, "First question", device_ids=frozenset()
+    )
+    second = await channel_service.new_message(
+        channel_state, "Second question", device_ids=frozenset()
+    )
     channel_runtime.duration_ms = None
     channel_runtime.events = [
         ("assistant_text", {"text": "Partial reply"}),
@@ -423,6 +440,42 @@ async def test_unsuccessful_turn_redelivers_batch_and_cancelled_duration_falls_b
     assert len(channel_runtime.requests) == 2
 
 
+async def test_revoking_a_device_cancels_its_member_turn_and_drops_its_messages(
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    device = PairedDevice(user_id=channel_state.channel.user_id, name="Laptop")
+    db_session.add(device)
+    await db_session.commit()
+    message = await channel_service.new_message(
+        channel_state, "Run the migration", device_ids=frozenset({device.id})
+    )
+    channel_runtime.events = [("assistant_text", {"text": "Partial reply"})]
+    channel_runtime.gate = asyncio.Event()
+    wake = asyncio.create_task(channel_runtime.wake(channel_state))
+    await asyncio.wait_for(channel_runtime.emitted.wait(), timeout=5)
+    member = channel_state.channel.members[0]
+    turn = channel_state.turns[member.id]
+    assert channel_runtime.device_ids == [frozenset({device.id})]
+
+    device.revoked_at = datetime.now(timezone.utc)
+    await db_session.commit()
+    await channel_service.cancel_device_turns(frozenset({device.id}))
+    await asyncio.gather(wake, return_exceptions=True)
+    await channel_runtime.wake(channel_state)
+
+    assert turn.status is TurnStatus.FINISHED
+    assert turn.message is not None
+    reply = await db_session.get(ChannelMessage, turn.message.id)
+    assert reply is not None
+    assert reply.status == "cancelled"
+    assert len(channel_runtime.requests) == 1
+    assert (await db_session.scalars(select(ChannelDelivery.message_id))).all() == [
+        message.id
+    ]
+
+
 @pytest.mark.parametrize("action", ["messages", "stop"])
 async def test_running_turn_is_interrupted_by_owner(
     client: AsyncClient,
@@ -432,8 +485,12 @@ async def test_running_turn_is_interrupted_by_owner(
     db_session: AsyncSession,
     action: str,
 ) -> None:
-    first = await channel_service.new_message(channel_state, "First question")
-    second = await channel_service.new_message(channel_state, "Second question")
+    first = await channel_service.new_message(
+        channel_state, "First question", device_ids=frozenset()
+    )
+    second = await channel_service.new_message(
+        channel_state, "Second question", device_ids=frozenset()
+    )
     channel_runtime.events = [("assistant_text", {"text": "Partial reply"})]
     channel_runtime.gate = asyncio.Event()
     wake = asyncio.create_task(channel_runtime.wake(channel_state))
@@ -500,7 +557,9 @@ async def test_mentions_wake_only_addressed_members_and_keep_the_rest_as_context
     state = channel_service.states[UUID(response.json()["id"])]
     alpha, beta = state.channel.members
     targeted = await channel_service.new_message(
-        state, "@alpha check @beta/file.ts and https://x.dev/@beta"
+        state,
+        "@alpha check @beta/file.ts and https://x.dev/@beta",
+        device_ids=frozenset(),
     )
     assert targeted.audience == [str(alpha.id)]
 
@@ -509,7 +568,9 @@ async def test_mentions_wake_only_addressed_members_and_keep_the_rest_as_context
     await channel_runtime.wake(state)
     assert [request.chat_id for request in channel_runtime.requests] == [alpha.chat_id]
 
-    await channel_service.new_message(state, "@everyone thoughts?")
+    await channel_service.new_message(
+        state, "@everyone thoughts?", device_ids=frozenset()
+    )
     channel_runtime.events = [("assistant_text", {"text": "PASS"})]
     await channel_runtime.wake(state)
     prompts = {request.chat_id: request.prompt for request in channel_runtime.requests}
@@ -534,10 +595,14 @@ async def test_stop_marks_all_messages_seen_for_every_member(
     )
     assert response.status_code == 201, response.text
     state = channel_service.states[UUID(response.json()["id"])]
-    first = await channel_service.new_message(state, "First question")
-    second = await channel_service.new_message(state, "Second question")
+    first = await channel_service.new_message(
+        state, "First question", device_ids=frozenset()
+    )
+    second = await channel_service.new_message(
+        state, "Second question", device_ids=frozenset()
+    )
     reply = await channel_service.new_message(
-        state, "Prior reply", state.channel.members[0].id
+        state, "Prior reply", state.channel.members[0].id, device_ids=frozenset()
     )
     await db_session.execute(
         update(ChannelMessage)
@@ -566,7 +631,9 @@ async def test_backoff_doubles_caps_skips_wakes_and_clears_on_success(
     channel_runtime: ScriptedTurns,
     db_session: AsyncSession,
 ) -> None:
-    message = await channel_service.new_message(channel_state, "Please retry")
+    message = await channel_service.new_message(
+        channel_state, "Please retry", device_ids=frozenset()
+    )
     member = channel_state.channel.members[0]
     channel_runtime.events = [("error", {"error": "Provider unavailable"})]
     loop = asyncio.get_running_loop()
@@ -603,7 +670,9 @@ async def test_backoff_doubles_caps_skips_wakes_and_clears_on_success(
 async def test_activity_reports_members_waiting_for_approval(
     channel_state: ChannelState, channel_runtime: ScriptedTurns
 ) -> None:
-    await channel_service.new_message(channel_state, "Run the migration")
+    await channel_service.new_message(
+        channel_state, "Run the migration", device_ids=frozenset()
+    )
     channel_runtime.events = [
         (
             "permission_request",
@@ -648,6 +717,7 @@ async def test_channel_routes_require_the_owner(
         "Agent reply",
         channel_state.channel.members[0].id,
         source_message_id=source_message.id,
+        device_ids=frozenset(),
     )
     base = f"/api/v1/channels/{channel_state.channel.id}"
     queued = await client.post(
@@ -782,6 +852,7 @@ async def test_activity_requires_a_live_agent_message_with_a_source(
         "Agent reply",
         channel_state.channel.members[0].id,
         source_message_id=source_message.id,
+        device_ids=frozenset(),
     )
     path = f"/api/v1/channels/{channel_state.channel.id}/messages/{message.id}/activity"
     response = await client.get(path, headers=owner[0])

@@ -1,11 +1,15 @@
-import { apiClient, remoteApiClient, resolveChatClient, StreamResponse } from '@/lib/api';
+import { apiClient, getMachineClient, resolveChatClient, StreamResponse } from '@/lib/api';
 import { ensureResponse, serviceCall, buildQueryString } from '@/services/base/BaseService';
-import { ServiceError } from '@/services/base/ServiceError';
 import { AuthEventSource } from '@/services/authEventSource';
-import { useCloudSettingsStore } from '@/store/cloudSettingsStore';
 import { validateRequired, validateId } from '@/utils/validation';
 import { chatStorage } from '@/utils/storage';
-import { isCloudChat, markCloudChats, markCloudSandboxes } from '@/utils/chatOrigin';
+import {
+  assignChatRecordsToMachine,
+  assignChatsToMachine,
+  chatMachineId,
+} from '@/store/machineOrigin';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { machineStatus, useMachineStore } from '@/store/machineStore';
 import type {
   ChatRequest,
   Chat,
@@ -21,7 +25,7 @@ import type { CursorPaginationParams, PaginatedChats, PaginatedMessages } from '
 import type { ComposerSelection } from '@/store/uiStore';
 
 export function buildChatFormData(request: ChatRequest): FormData {
-  // Shared with cloudChatService so multipart fields can't drift.
+  // Shared with machineChatService so multipart fields can't drift.
   const formData = new FormData();
   formData.append('prompt', request.prompt);
   if (request.user_message_id) {
@@ -172,7 +176,9 @@ async function listChats(params?: {
     const endpoint = `/chat/chats${queryString}`;
 
     const response = await apiClient.get<PaginatedChats>(endpoint);
-    return ensureResponse(response, 'Failed to fetch chats');
+    const data = ensureResponse(response, 'Failed to fetch chats');
+    assignChatRecordsToMachine(LOCAL_MACHINE_ID, data.items);
+    return data;
   });
 }
 
@@ -180,55 +186,53 @@ async function searchChats(query: string): Promise<ChatSearchResponse> {
   return serviceCall(async () => {
     const queryString = buildQueryString({ q: query });
     const response = await apiClient.get<ChatSearchResponse>(`/chat/chats/search${queryString}`);
-    return ensureResponse(response, 'Failed to search chats');
+    const data = ensureResponse(response, 'Failed to search chats');
+    assignChatsToMachine(
+      LOCAL_MACHINE_ID,
+      data.results.map((result) => result.chat_id),
+    );
+    return data;
   });
 }
 
 async function getChat(chatId: string): Promise<Chat> {
   validateId(chatId, 'Chat ID');
 
-  const fetchChat = (client: typeof apiClient, options?: { maxRetries: number }) =>
-    serviceCall(
-      async () =>
-        ensureResponse(await client.get<Chat>(`/chat/chats/${chatId}`), 'Failed to fetch chat'),
-      options,
-    );
-
-  let chat: Chat;
-  try {
-    chat = await fetchChat(resolveChatClient(chatId));
-  } catch (error) {
-    // Origin ids only cover loaded list pages; an unknown id may be an older cloud chat.
-    const mayBeCloud =
-      !isCloudChat(chatId) &&
-      error instanceof ServiceError &&
-      error.status === 404 &&
-      !!useCloudSettingsStore.getState().cloudUrl;
-    if (!mayBeCloud) throw error;
+  return serviceCall(async () => {
+    const machineId = chatMachineId(chatId);
     try {
-      chat = await fetchChat(remoteApiClient, { maxRetries: 0 });
-    } catch {
-      throw error;
+      const response = await resolveChatClient(chatId).get<Chat>(`/chat/chats/${chatId}`);
+      const chat = ensureResponse(response, 'Failed to fetch chat');
+      assignChatRecordsToMachine(machineId, [chat]);
+      return chat;
+    } catch (error) {
+      if (machineId !== LOCAL_MACHINE_ID || (error as Error & { status?: number }).status !== 404) {
+        throw error;
+      }
+      return findRemoteChat(chatId, error);
     }
-    markCloudChats([chat.id]);
+  });
+}
+
+async function findRemoteChat(chatId: string, notFound: unknown): Promise<Chat> {
+  for (const machine of useMachineStore.getState().machines) {
+    if (machineStatus(machine.id) !== 'online') continue;
+    const chat = await getMachineClient(machine.id)
+      .get<Chat>(`/chat/chats/${chatId}`)
+      .catch(() => null);
+    if (!chat) continue;
+    assignChatRecordsToMachine(machine.id, [chat]);
+    if (chatMachineId(chatId) === machine.id) return chat;
   }
-  // Deep-link: mark sandbox cloud-owned before the sidebar list has run.
-  if (isCloudChat(chatId)) {
-    markCloudSandboxes([chat.sandbox_id]);
-  }
-  return chat;
+  throw notFound;
 }
 
 async function createChat(data: CreateChatRequest): Promise<Chat> {
   return serviceCall(async () => {
-    // Sub-thread inherits parent backend; mark child cloud-owned when parent is.
-    const parentChatId = data.parent_chat_id;
-    const response = await resolveChatClient(parentChatId).post<Chat>('/chat/chats', data);
+    const machineId = chatMachineId(data.parent_chat_id);
+    const response = await resolveChatClient(data.parent_chat_id).post<Chat>('/chat/chats', data);
     const chat = ensureResponse(response, 'Failed to create chat');
-    if (parentChatId && isCloudChat(parentChatId)) {
-      markCloudChats([chat.id]);
-      markCloudSandboxes([chat.sandbox_id]);
-    }
+    assignChatRecordsToMachine(machineId, [chat]);
     return chat;
   });
 }
@@ -279,7 +283,6 @@ function normalizePositiveInt(value: unknown): number {
 }
 
 async function createChatEventsSource(): Promise<AuthEventSource> {
-  // Local only (VPS uses cloudChatService).
   return new AuthEventSource(apiClient, '/chat/chats/events');
 }
 
@@ -290,10 +293,7 @@ async function getSubThreads(chatId: string): Promise<Chat[]> {
       `/chat/chats/${chatId}/sub-threads`,
     );
     const subThreads = ensureResponse(response, 'Failed to fetch sub-threads');
-    if (isCloudChat(chatId)) {
-      markCloudChats(subThreads.map((chat) => chat.id));
-      markCloudSandboxes(subThreads.map((chat) => chat.sandbox_id));
-    }
+    assignChatRecordsToMachine(chatMachineId(chatId), subThreads);
     return subThreads;
   });
 }

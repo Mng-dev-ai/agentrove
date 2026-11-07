@@ -3,14 +3,11 @@ import base64
 import hashlib
 import json
 import logging
-import secrets
-from datetime import datetime, timedelta, timezone
-from typing import cast
 from uuid import UUID
 
 from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException, WebSocket, status
-from fastapi_users.jwt import decode_jwt, generate_jwt
+from fastapi_users.jwt import generate_jwt
 from fastapi_users.password import PasswordHelper
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,7 +19,13 @@ from ..models.db_models.user import User
 from ..models.db_models.workspace import Workspace
 from ..services.sandbox_providers import SandboxProviderType
 from .config import get_settings
-from .user_manager import optional_current_active_user
+from .user_manager import (
+    DEVICE_IDS,
+    UserDatabase,
+    UserManager,
+    get_jwt_strategy,
+    optional_current_active_user,
+)
 
 settings = get_settings()
 password_helper = PasswordHelper()
@@ -60,31 +63,12 @@ def get_password_hash(password: str) -> str:
 
 
 async def get_user_from_token(token: str, db: AsyncSession) -> User | None:
-    try:
-        payload = decode_jwt(
-            token,
-            settings.SECRET_KEY,
-            algorithms=[settings.ALGORITHM],
-            audience=["fastapi-users:auth"],
-        )
-        user_id_str = payload.get("sub")
-        if not user_id_str:
-            logger.warning("No sub in token payload")
-            return None
-
-        user_id = UUID(user_id_str)
-        result = await db.execute(select(User).filter(User.id == user_id))
-        user = result.scalar_one_or_none()
-        if user is not None and not user.is_active:
-            return None
-        if user:
-            logger.info("Successfully validated token for user %s", user_id)
-        else:
-            logger.warning("User %s not found in database", user_id)
-        return cast(User | None, user)
-    except Exception as e:
-        logger.error("Error validating token: %s", e)
+    user = await get_jwt_strategy(db).read_token(
+        token, UserManager(UserDatabase(db, User))
+    )
+    if user is None or not user.is_active:
         return None
+    return user
 
 
 async def get_current_user(
@@ -99,31 +83,22 @@ async def get_current_user(
     return user
 
 
-def create_mcp_access_token(user_id: str) -> str:
+def create_mcp_access_token(user_id: str, device_ids: frozenset[UUID]) -> str:
     # Minted for the MCP server spawned into a chat session — audience must match
     # the JWTStrategy in user_manager.py (fastapi-users default) so the normal
-    # bearer path accepts it. `mcp` marks its origin in logs.
+    # bearer path accepts it. `mcp` bars it from pairing and device management.
     return str(
         generate_jwt(
-            {"sub": str(user_id), "aud": ["fastapi-users:auth"], "mcp": True},
+            {
+                "sub": str(user_id),
+                "aud": ["fastapi-users:auth"],
+                "mcp": True,
+                "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
+            },
             settings.SECRET_KEY,
             lifetime_seconds=settings.AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS,
             algorithm=settings.ALGORITHM,
         )
-    )
-
-
-def generate_refresh_token() -> str:
-    return secrets.token_urlsafe(32)
-
-
-def hash_refresh_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
-def get_refresh_token_expiry() -> datetime:
-    return datetime.now(timezone.utc) + timedelta(
-        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
     )
 
 

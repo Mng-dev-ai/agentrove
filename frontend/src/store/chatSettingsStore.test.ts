@@ -16,7 +16,7 @@ beforeEach(() => {
     worktreeByChat: {},
     worktreeBaseBranchByChat: {},
     fastModeByChat: {},
-    runOnCloud: false,
+    targetMachineId: null,
     personaByChat: {},
   });
 });
@@ -30,20 +30,21 @@ describe('setWorktreeBaseBranch', () => {
   });
 });
 
-describe('setRunOnCloud', () => {
+describe('setTargetMachine', () => {
   it('resets the default base branch when switching target, keeping per-chat bases', () => {
     state().setWorktreeBaseBranch(DEFAULT_CHAT_SETTINGS_KEY, 'develop');
     state().setWorktreeBaseBranch('c1', 'feature');
 
-    state().setRunOnCloud(true);
+    state().setTargetMachine('vps');
 
-    expect(state().runOnCloud).toBe(true);
+    expect(state().targetMachineId).toBe('vps');
     expect(state().worktreeBaseBranchByChat).toEqual({ c1: 'feature' });
   });
 
-  it('keeps the default base branch when the flag does not change', () => {
+  it('keeps the default base branch when the target does not change', () => {
+    state().setTargetMachine('vps');
     state().setWorktreeBaseBranch(DEFAULT_CHAT_SETTINGS_KEY, 'develop');
-    state().setRunOnCloud(false);
+    state().setTargetMachine('vps');
     expect(state().worktreeBaseBranchByChat[DEFAULT_CHAT_SETTINGS_KEY]).toBe('develop');
   });
 });

@@ -54,7 +54,9 @@ class FakeChatService:
             workspace_id=chat_data.workspace_id,
         )
 
-    async def initiate_chat_completion(self, request: ChatRequest, user: User) -> None:
+    async def initiate_chat_completion(
+        self, request: ChatRequest, user: User, *, device_ids: frozenset[UUID]
+    ) -> None:
         if self.completion_error:
             raise self.completion_error
         self.completions.append((request, user))

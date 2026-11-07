@@ -4,7 +4,7 @@ import type { AgentKind } from '@/types/chat.types';
 
 // unread is server-persisted; running/done/needs-you are session-only stream state.
 export type SidebarStatusFilter = 'unread' | 'running' | 'done' | 'needs-you';
-export type SidebarSourceFilter = 'all' | 'local' | 'cloud';
+export type SidebarSourceFilter = 'all' | string;
 export type SidebarGroupBy = 'none' | 'date' | 'workspace' | 'status';
 export type FilterCategory = 'status' | 'agent' | 'source' | 'workspace' | 'groupBy';
 
@@ -54,6 +54,10 @@ export const EMPTY_SIDEBAR_FILTERS: SidebarFilters = {
 // Resets filter dimensions but keeps presentation (groupBy).
 export function clearSidebarFilters(filters: SidebarFilters): SidebarFilters {
   return { ...EMPTY_SIDEBAR_FILTERS, groupBy: filters.groupBy };
+}
+
+export function withKnownSource(filters: SidebarFilters, sourceIds: string[]): SidebarFilters {
+  return sourceIds.includes(filters.source) ? filters : { ...filters, source: 'all' };
 }
 
 export function countActiveSidebarFilters(filters: SidebarFilters): number {

@@ -99,7 +99,7 @@ function LocalFilePreview({ file, uploading }: { file: File; uploading: boolean 
 }
 
 function AuthenticatedPreview({ attachment }: { attachment: QueueAttachment }) {
-  // A cloud chat's attachment URLs only exist on the VPS — route like AttachmentViewer.
+  // A remote chat's attachment URLs only exist on its machine — route like AttachmentViewer.
   const { chatId } = useChatContext();
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);

@@ -31,7 +31,9 @@ async def create_automation(
     automation_service: AutomationService = Depends(get_automation_service),
 ) -> AutomationSchema:
     try:
-        return await automation_service.create_automation(current_user, data)
+        return await automation_service.create_automation(
+            current_user, current_user.device_ids, data
+        )
     except AutomationException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     except SQLAlchemyError as e:
@@ -59,7 +61,7 @@ async def update_automation(
 ) -> AutomationSchema:
     try:
         return await automation_service.update_automation(
-            automation_id, current_user, data
+            automation_id, current_user, current_user.device_ids, data
         )
     except AutomationException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
@@ -84,7 +86,9 @@ async def run_automation(
     automation_service: AutomationService = Depends(get_automation_service),
 ) -> AutomationRunResponse:
     try:
-        chat = await automation_service.run_automation(automation_id, current_user)
+        chat = await automation_service.run_automation(
+            automation_id, current_user, current_user.device_ids
+        )
     except (AutomationException, ChatException) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     return AutomationRunResponse(chat_id=chat.id)

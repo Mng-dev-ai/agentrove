@@ -25,6 +25,9 @@ class RefreshToken(Base):
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         GUID(), nullable=True, index=True
     )
+    device_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(), nullable=True, index=True
+    )
     user_agent: Mapped[str | None] = mapped_column(String(512), nullable=True)
     ip_address: Mapped[str | None] = mapped_column(String(45), nullable=True)
 

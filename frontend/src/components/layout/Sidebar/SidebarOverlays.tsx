@@ -1,4 +1,5 @@
 import type { Workspace } from '@/types/workspace.types';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
 import { ChatDropdown } from './ChatDropdown';
@@ -10,15 +11,17 @@ interface SidebarOverlaysProps {
   chat: SidebarChatActions;
   workspace: SidebarWorkspaceActions;
   workspaces: Workspace[];
-  cloudWorkspaces: Workspace[] | undefined;
+  machineWorkspaces: Record<string, Workspace[]>;
 }
 
 export function SidebarOverlays({
   chat,
   workspace,
   workspaces,
-  cloudWorkspaces,
+  machineWorkspaces,
 }: SidebarOverlaysProps) {
+  const menu = workspace.workspaceDropdown;
+  const menuMachineId = menu?.machineId ?? null;
   return (
     <>
       {chat.dropdown && (
@@ -40,30 +43,29 @@ export function SidebarOverlays({
         />
       )}
 
-      {workspace.workspaceDropdown && (
+      {menu && (
         <WorkspaceContextMenu
           ref={workspace.workspaceDropdownRef}
-          position={workspace.workspaceDropdown.position}
+          position={menu.position}
+          disabled={menuMachineId === null}
           onNewThread={() => {
-            const { workspaceId, isCloud } = workspace.workspaceDropdown!;
+            if (menuMachineId === null) return;
             workspace.setWorkspaceDropdown(null);
-            (isCloud ? workspace.handleNewCloudThread : workspace.handleNewWorkspaceThread)(
-              workspaceId,
-            );
+            workspace.handleNewWorkspaceThread(menu.workspaceId, menuMachineId);
           }}
           onRename={() => {
-            const list = workspace.workspaceDropdown!.isCloud
-              ? (cloudWorkspaces ?? [])
-              : workspaces;
-            const ws = list.find((w) => w.id === workspace.workspaceDropdown!.workspaceId);
-            if (ws) workspace.handleRenameWorkspace(ws, workspace.workspaceDropdown!.isCloud);
+            if (menuMachineId === null) return;
+            const list =
+              menuMachineId === LOCAL_MACHINE_ID
+                ? workspaces
+                : (machineWorkspaces[menuMachineId] ?? []);
+            const ws = list.find((w) => w.id === menu.workspaceId);
+            if (ws) workspace.handleRenameWorkspace(ws, menuMachineId);
           }}
-          onDelete={() =>
-            workspace.handleDeleteWorkspace(
-              workspace.workspaceDropdown!.workspaceId,
-              workspace.workspaceDropdown!.isCloud,
-            )
-          }
+          onDelete={() => {
+            if (menuMachineId === null) return;
+            workspace.handleDeleteWorkspace(menu.workspaceId, menuMachineId);
+          }}
           onClose={() => workspace.setWorkspaceDropdown(null)}
         />
       )}
@@ -103,7 +105,9 @@ export function SidebarOverlays({
         onClose={() => workspace.setWorkspaceToRename(null)}
         onSave={workspace.handleSaveWorkspaceRename}
         currentTitle={workspace.workspaceToRename?.workspace.name || ''}
-        isLoading={workspace.updateWorkspace.isPending || workspace.cloudUpdateWorkspace.isPending}
+        isLoading={
+          workspace.updateWorkspace.isPending || workspace.machineUpdateWorkspace.isPending
+        }
       />
     </>
   );
