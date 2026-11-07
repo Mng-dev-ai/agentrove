@@ -83,6 +83,8 @@ const extractErrorMessage = async (response: Response): Promise<string> => {
 };
 
 const LOCAL_REFRESH_LOCK = 'agentrove-local-session-refresh';
+// Must exceed the backend SQLite busy_timeout (30s): aborting doesn't stop the server consuming the token.
+const REFRESH_TIMEOUT_MS = 45_000;
 
 async function refreshLocalSession(baseUrl: string): Promise<string> {
   const observedRefreshToken = authStorage.getRefreshToken();
@@ -107,15 +109,28 @@ async function rotateLocalSession(
     }
   }
 
-  const response = await fetch(`${baseUrl}/auth/jwt/refresh`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  }).catch(() => {
-    throw new RefreshTokenError(0);
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REFRESH_TIMEOUT_MS);
+  let response: Response;
+  let data: TokenResponse | null;
+  try {
+    response = await fetch(`${baseUrl}/auth/jwt/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+      signal: controller.signal,
+    }).catch(() => {
+      throw new RefreshTokenError(0);
+    });
 
-  const data: TokenResponse | null = response.ok ? await response.json() : null;
+    data = response.ok
+      ? await response.json().catch(() => {
+          throw new RefreshTokenError(0);
+        })
+      : null;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const currentRefreshToken = authStorage.getRefreshToken();
   if (currentRefreshToken !== refreshToken) {
