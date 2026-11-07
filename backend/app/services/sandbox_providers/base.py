@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 GIT_LS_FILES_CMD = "git ls-files --cached --others --exclude-standard -z"
+HOST_GIT_ASKPASS_SCRIPT = (
+    "#!/bin/sh\n"
+    'case "$1" in\n'
+    '"Username for \'https://github.com\': ") echo "x-access-token" ;;\n'
+    '"Password for \'https://x-access-token@github.com\': ") echo "$GITHUB_TOKEN" ;;\n'
+    "esac\n"
+)
 
 
 class SandboxProvider:
@@ -46,10 +53,12 @@ class SandboxProvider:
         if SandboxProviderType(provider_type) == SandboxProviderType.DOCKER:
             return SANDBOX_GIT_ASKPASS_PATH
         script = Path(settings.get_host_sandbox_base_dir()) / "git-askpass.sh"
-        if not script.exists():
+        if not script.exists() or script.read_text() != HOST_GIT_ASKPASS_SCRIPT:
             script.parent.mkdir(parents=True, exist_ok=True)
-            script.write_text('#!/bin/sh\necho "$GITHUB_TOKEN"\n')
-            script.chmod(0o700)
+            staged = script.with_suffix(".tmp")
+            staged.write_text(HOST_GIT_ASKPASS_SCRIPT)
+            staged.chmod(0o700)
+            staged.replace(script)
         return str(script)
 
     @staticmethod
