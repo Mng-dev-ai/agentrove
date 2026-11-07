@@ -86,7 +86,6 @@ class StreamService {
     const streamMessageId = currentStream.messageId ?? messageId;
 
     useStreamStore.getState().removeStream(streamId);
-    usePermissionStore.getState().clearPermissionRequests(currentStream.chatId);
 
     if (error && errorCallback) {
       errorCallback(error, streamMessageId, streamPublicId);
@@ -254,6 +253,7 @@ class StreamService {
     }
 
     if (parsed.kind === 'error') {
+      usePermissionStore.getState().clearPermissionRequests(chatId);
       const message =
         typeof parsed.payload?.error === 'string' ? parsed.payload.error : 'An error occurred';
       const wrappedError = new StreamProcessingError(

@@ -5,6 +5,7 @@ import { chatService } from '@/services/chatService';
 import { chatStorage } from '@/utils/storage';
 import { useStreamStore } from '@/store/streamStore';
 import { useElicitationStore } from '@/store/elicitationStore';
+import { usePermissionStore } from '@/store/permissionStore';
 import { pruneIfStillOrphan } from '@/utils/activeStreams';
 import type { Message } from '@/types/chat.types';
 import type { StreamState } from '@/types/stream.types';
@@ -68,6 +69,11 @@ export function useStreamReconnect({
           useElicitationStore
             .getState()
             .reconcileElicitationRequests(chatId, status.pending_elicitations);
+        }
+        if (status?.pending_permission_ids) {
+          usePermissionStore
+            .getState()
+            .reconcilePermissionRequests(chatId, status.pending_permission_ids);
         }
 
         if (!status?.has_active_task) {

@@ -99,6 +99,7 @@ INACTIVE_TASK_RESPONSE: dict[str, Any] = {
     "stream_id": None,
     "last_seq": 0,
     "pending_elicitations": [],
+    "pending_permission_ids": [],
 }
 
 # Bounds the HTTP hold for pathological unwinds.
@@ -549,6 +550,9 @@ async def get_stream_status(
             "stream_id": active_assistant_message.active_stream_id,
             "last_seq": active_assistant_message.last_seq,
             "pending_elicitations": session_registry.pending_elicitations(str(chat_id)),
+            "pending_permission_ids": session_registry.pending_permission_ids(
+                str(chat_id)
+            ),
         }
     except SQLAlchemyError as e:
         logger.error("Database error checking chat status: %s", e, exc_info=True)

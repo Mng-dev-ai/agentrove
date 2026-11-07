@@ -155,6 +155,7 @@ class ChatStatusResponse(BaseModel):
     stream_id: UUID | None = None
     last_seq: int = 0
     pending_elicitations: list[PendingElicitation] = Field(default_factory=list)
+    pending_permission_ids: list[str] = Field(default_factory=list)
 
 
 class ActiveStreamStatus(BaseModel):

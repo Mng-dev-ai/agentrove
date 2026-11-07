@@ -126,6 +126,12 @@ class SessionRegistry:
             content=content,
         )
 
+    def pending_permission_ids(self, chat_id: str) -> list[str]:
+        session = self._sessions.get(chat_id)
+        if session is None or not session.acp_session.is_alive():
+            return []
+        return list(session.acp_session.handler._pending_permissions)
+
     def pending_elicitations(self, chat_id: str) -> list[dict[str, Any]]:
         session = self._sessions.get(chat_id)
         if session is None or not session.acp_session.is_alive():

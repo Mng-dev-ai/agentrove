@@ -2,6 +2,7 @@ import { resolveChatClient } from '@/lib/api';
 import { AuthEventSource } from '@/services/authEventSource';
 import { chatService } from '@/services/chatService';
 import { useElicitationStore } from '@/store/elicitationStore';
+import { usePermissionStore } from '@/store/permissionStore';
 import { useStreamStore } from '@/store/streamStore';
 import { chatStorage } from '@/utils/storage';
 import { logger } from '@/utils/logger';
@@ -262,6 +263,11 @@ class StreamConnectionManager {
     useElicitationStore
       .getState()
       .reconcileElicitationRequests(chatId, status.pending_elicitations);
+    if (status.pending_permission_ids) {
+      usePermissionStore
+        .getState()
+        .reconcilePermissionRequests(chatId, status.pending_permission_ids);
+    }
   }
 
   private startStallWatchdog(client: StreamApiClient, connection: ManagedConnection): void {
