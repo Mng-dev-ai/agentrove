@@ -871,6 +871,7 @@ class ChatStreamRuntime:
                 chat_uuid,
                 prompt,
                 MessageRole.USER,
+                stream_status=MessageStreamStatus.COMPLETED,
                 attachments=attachments,
                 app_notice=user_app_notice,
                 message_id=user_message_id,
@@ -1071,6 +1072,7 @@ class ChatStreamRuntime:
                 result = await db.execute(
                     select(Message.id).where(
                         Message.stream_status == MessageStreamStatus.IN_PROGRESS,
+                        Message.role == MessageRole.ASSISTANT,
                         Message.deleted_at.is_(None),
                     )
                 )
