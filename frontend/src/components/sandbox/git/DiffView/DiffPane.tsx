@@ -26,7 +26,7 @@ interface DiffPaneProps {
   openDiscardAll: () => void;
   canDiscard: boolean;
   discardPending: boolean;
-  reviewKeyByFile: Map<string, string>;
+  ignoreWhitespace: boolean;
   collapsedFiles: Set<string>;
   reviewedNames: Set<string>;
   statsByFile: Map<string, FileChangeStats>;
@@ -34,6 +34,7 @@ interface DiffPaneProps {
   chatId: string | undefined;
   options: Record<string, unknown>;
   pendingComment: { fileName: string; range: SelectedLineRange; composing: boolean } | null;
+  scopeKey: string;
   onToggle: (name: string) => void;
   onToggleReviewed: (name: string) => void;
   onDiscard: (file: FileDiffMetadata) => void;
@@ -58,7 +59,7 @@ export function DiffPane({
   openDiscardAll,
   canDiscard,
   discardPending,
-  reviewKeyByFile,
+  ignoreWhitespace,
   collapsedFiles,
   reviewedNames,
   statsByFile,
@@ -66,6 +67,7 @@ export function DiffPane({
   chatId,
   options,
   pendingComment,
+  scopeKey,
   onToggle,
   onToggleReviewed,
   onDiscard,
@@ -116,7 +118,7 @@ export function DiffPane({
             <DiffFileRow
               key={file.name}
               file={file}
-              contentKey={reviewKeyByFile.get(file.name)}
+              ignoreWhitespace={ignoreWhitespace}
               isExpanded={!collapsedFiles.has(file.name)}
               isReviewed={reviewedNames.has(file.name)}
               stats={statsByFile.get(file.name)}
@@ -127,6 +129,7 @@ export function DiffPane({
               options={options}
               commentRange={pendingComment?.fileName === file.name ? pendingComment.range : null}
               isComposing={pendingComment?.fileName === file.name && pendingComment.composing}
+              scopeKey={scopeKey}
               onToggle={onToggle}
               onToggleReviewed={onToggleReviewed}
               onDiscard={onDiscard}

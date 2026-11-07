@@ -13,25 +13,30 @@ import type { FileDiffMetadata } from '@pierre/diffs';
 import {
   DiffFileSidebar,
   type FileChangeStats,
+  type SidebarFilter,
 } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { useDiffComments } from '@/hooks/useDiffComments';
+import { compareFilePaths } from '@/utils/filePaths';
+import { buildReviewKeys, hashDiffContent } from '@/utils/diffReviewKey';
 import { WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
 import type { DiffMode } from '@/types/sandbox.types';
+import { DiffCommentsPanel } from './DiffCommentsPanel';
 import { DiffPane } from './DiffPane';
 import { DiffToolbar } from './DiffToolbar';
 import { useDiffDiscard } from './useDiffDiscard';
 import { useDiffReview } from './useDiffReview';
 import { useDiffScroll } from './useDiffScroll';
+import { useDiffShortcuts } from './useDiffShortcuts';
 import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
   NARROW_BREAKPOINT,
-  compareFilePaths,
+  computeCommentsMenuPos,
   computeMenuPos,
+  findNextUnreviewed,
   computeOverflowMenuPos,
-  hashDiffContent,
   rebuildWithCollapsedContext,
 } from './diffView.utils';
 import styles from './DiffView.module.scss';
@@ -75,24 +80,25 @@ const DiffViewContent = memo(function DiffViewContent({
   // Expanded by default; set tracks user-collapsed exceptions.
   const [collapsedFiles, toggleCollapsed, setCollapsedFiles] = useToggleSet<string>();
   const [mode, setMode] = useState<DiffMode>('all');
+  // Owned here, not by the sidebar — the narrow files dropdown remounts it on each open.
+  const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>({
+    query: '',
+    hideReviewed: false,
+    onlyCommented: false,
+  });
+  const [collapsedDirs, toggleDir] = useToggleSet<string>();
   const pendingDiffMode = useUIStore((s) => s.pendingDiffMode);
   useEffect(() => {
     if (!pendingDiffMode || pendingDiffMode.chatId !== chatId) return;
     setMode(pendingDiffMode.mode);
     useUIStore.setState({ pendingDiffMode: null });
   }, [pendingDiffMode, chatId]);
-  const [diffStyle, setDiffStyle] = useState<'unified' | 'split'>('unified');
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
+  const diffStyle = useUIStore((s) => s.diffStyle);
+  const setDiffStyle = useUIStore((s) => s.setDiffStyle);
   // Scrollspy: file whose diff currently tops the pane.
   const [activeFile, setActiveFile] = useState<string | null>(null);
   const [isNarrow, setIsNarrow] = useState(false);
-  const {
-    pendingComment,
-    resetComments,
-    handleSelectionChange,
-    handleSelectionEnd,
-    handleSubmitComment,
-  } = useDiffComments(chatId, cwd);
-
   const {
     data: diffData,
     isFetching,
@@ -144,6 +150,19 @@ const DiffViewContent = memo(function DiffViewContent({
   // scopes — reset on scope change. Ref check avoids a double render. Discard
   // dialog state is cleared too so a confirm can't act on the prior scope's file.
   const scopeKey = `${sandboxId ?? ''}\0${cwd ?? ''}\0${mode}`;
+  const {
+    pendingComment,
+    commentsByFile,
+    comments,
+    resetComments,
+    cancelComposer,
+    openComposer,
+    handleSelectionChange,
+    handleSelectionEnd,
+    handleSubmitComment,
+    deleteComment,
+    sendComments,
+  } = useDiffComments(chatId, cwd, scopeKey, rootRef);
   const prevScopeRef = useRef(scopeKey);
   if (prevScopeRef.current !== scopeKey) {
     prevScopeRef.current = scopeKey;
@@ -159,16 +178,20 @@ const DiffViewContent = memo(function DiffViewContent({
   // portaled to escape the toolbar's clip and stacking context.
   const filesMenu = useAnchoredPanel(computeMenuPos);
   const overflowMenu = useAnchoredPanel(computeOverflowMenuPos);
+  const commentsMenu = useAnchoredPanel(computeCommentsMenuPos);
+  const [overflowView, setOverflowView] = useState<'menu' | 'shortcuts'>('menu');
   const { close: closeFilesMenu } = filesMenu;
   const { close: closeOverflowMenu } = overflowMenu;
+  const { close: closeCommentsMenu } = commentsMenu;
 
-  // Closing a menu is a no-op when it isn't open, so every discard-all trigger
-  // (toolbar, overflow menu, empty state) shares this handler.
-  const openDiscardAll = useCallback(() => {
-    setDiscardAllOpen(true);
-    closeFilesMenu();
-    closeOverflowMenu();
-  }, [setDiscardAllOpen, closeFilesMenu, closeOverflowMenu]);
+  useEffect(() => {
+    if (!overflowMenu.isOpen) setOverflowView('menu');
+  }, [overflowMenu.isOpen]);
+
+  // The chip (the panel's trigger) unmounts once the list empties.
+  useEffect(() => {
+    if (comments.length === 0) closeCommentsMenu();
+  }, [comments.length, closeCommentsMenu]);
 
   const diffContent = diffData?.diff ?? '';
   const diffCacheKey = useMemo(
@@ -185,11 +208,13 @@ const DiffViewContent = memo(function DiffViewContent({
         .map((f) =>
           f.type === 'new' || f.type === 'deleted'
             ? f
-            : rebuildWithCollapsedContext(f, parseDiffFromFile),
+            : rebuildWithCollapsedContext(f, parseDiffFromFile, ignoreWhitespace),
         )
         .sort((a, b) => compareFilePaths(a.name, b.name))
     );
-  }, [diffContent, diffCacheKey]);
+  }, [diffContent, diffCacheKey, ignoreWhitespace]);
+
+  const reviewKeyByFile = useMemo(() => buildReviewKeys(parsedFiles), [parsedFiles]);
 
   const statsByFile = useMemo(() => {
     const map = new Map<string, FileChangeStats>();
@@ -215,22 +240,17 @@ const DiffViewContent = memo(function DiffViewContent({
     return { additions, deletions };
   }, [statsByFile]);
 
-  const {
-    reviewKeyByFile,
-    reviewedNames,
-    allCollapsed,
-    toggleAll,
-    handleToggleCollapsed,
-    toggleReviewed,
-  } = useDiffReview({
-    parsedFiles,
-    scopeKey,
-    isPlaceholder: isPlaceholderData,
-    collapsedFiles,
-    setCollapsedFiles,
-    toggleCollapsed,
-    reviewCollapsedRef,
-  });
+  const { reviewedNames, allCollapsed, toggleAll, handleToggleCollapsed, toggleReviewed } =
+    useDiffReview({
+      parsedFiles,
+      reviewKeyByFile,
+      scopeKey,
+      isPlaceholder: isPlaceholderData,
+      collapsedFiles,
+      setCollapsedFiles,
+      toggleCollapsed,
+      reviewCollapsedRef,
+    });
 
   // Refetches can drop the tracked file (e.g. after a discard) — fall back to
   // the first file so the sidebar highlight never points at a missing row.
@@ -259,7 +279,7 @@ const DiffViewContent = memo(function DiffViewContent({
   // `!isPlaceholderData` blocks acting on rows from the previous mode's fetch.
   const canDiscard = ready && hasChanges && mode === 'all' && !isPlaceholderData;
 
-  const { jumpToFile } = useDiffScroll({
+  const { jumpToFile, jumpToComment } = useDiffScroll({
     rootRef,
     paneRef,
     scopeKey,
@@ -288,10 +308,42 @@ const DiffViewContent = memo(function DiffViewContent({
     wasVisibleRef.current = isVisible;
   }, [isVisible, refetch, sandboxId]);
 
-  const toggleAllFromMenu = useCallback(() => {
-    toggleAll();
-    closeOverflowMenu();
-  }, [toggleAll, closeOverflowMenu]);
+  // GitHub "Viewed": marking a file moves on to the next one still to review.
+  const toggleViewed = useCallback(
+    (name: string) => {
+      if (!toggleReviewed(name)) return;
+      const next = findNextUnreviewed(parsedFiles, new Set(reviewedNames).add(name), name);
+      if (next) jumpToFile(next);
+    },
+    [toggleReviewed, parsedFiles, reviewedNames, jumpToFile],
+  );
+
+  const jumpToNextUnreviewed = useCallback(() => {
+    const next = findNextUnreviewed(parsedFiles, reviewedNames, currentFile);
+    if (next) jumpToFile(next);
+  }, [parsedFiles, reviewedNames, currentFile, jumpToFile]);
+
+  const { isOpen: overflowOpen, toggle: toggleOverflowMenu } = overflowMenu;
+  const toggleShortcutsHelp = useCallback(() => {
+    if (overflowOpen && overflowView === 'shortcuts') {
+      closeOverflowMenu();
+      return;
+    }
+    setOverflowView('shortcuts');
+    if (!overflowOpen) toggleOverflowMenu();
+  }, [overflowOpen, overflowView, closeOverflowMenu, toggleOverflowMenu]);
+
+  const shortcuts = useDiffShortcuts({
+    rootRef,
+    enabled: showFiles && isVisible,
+    files: parsedFiles,
+    currentFile,
+    jumpToFile,
+    toggleViewed,
+    canComment: !!chatId,
+    openComposer,
+    toggleShortcutsHelp,
+  });
 
   if (!sandboxId) {
     return <div className={styles['no-sandbox']}>No sandbox connected</div>;
@@ -305,8 +357,24 @@ const DiffViewContent = memo(function DiffViewContent({
       activeFile={currentFile}
       onSelectFile={selectFile}
       reviewedFiles={reviewedNames}
+      commentsByFile={commentsByFile}
+      filter={sidebarFilter}
+      onFilterChange={setSidebarFilter}
+      collapsedDirs={collapsedDirs}
+      onToggleDir={toggleDir}
     />
   ) : null;
+
+  const commentsPanel = (
+    <DiffCommentsPanel
+      commentsByFile={commentsByFile}
+      reviewKeyByFile={reviewKeyByFile}
+      onJump={jumpToComment}
+      onDelete={deleteComment}
+      onSend={() => sendComments(reviewKeyByFile)}
+      onClose={closeCommentsMenu}
+    />
+  );
 
   return (
     <WorkerPoolContextProvider
@@ -327,14 +395,23 @@ const DiffViewContent = memo(function DiffViewContent({
           parsedFiles={parsedFiles}
           totals={totals}
           reviewedCount={reviewedNames.size}
+          onNextUnreviewed={jumpToNextUnreviewed}
           canDiscard={canDiscard}
           discardAllPending={restoreAllPending}
           allCollapsed={allCollapsed}
-          onToggleAll={toggleAllFromMenu}
-          onDiscardAll={openDiscardAll}
+          onToggleAll={toggleAll}
+          ignoreWhitespace={ignoreWhitespace}
+          onIgnoreWhitespaceChange={setIgnoreWhitespace}
+          onDiscardAll={() => setDiscardAllOpen(true)}
           filesMenu={filesMenu}
           overflowMenu={overflowMenu}
           filesSidebar={filesSidebar}
+          commentCount={comments.length}
+          commentsMenu={commentsMenu}
+          commentsPanel={commentsPanel}
+          overflowView={overflowView}
+          onShowShortcuts={() => setOverflowView('shortcuts')}
+          shortcuts={shortcuts}
         />
 
         <div className={styles.content}>
@@ -354,10 +431,10 @@ const DiffViewContent = memo(function DiffViewContent({
             showFiles={showFiles}
             parsedFiles={parsedFiles}
             onRefetch={() => refetch()}
-            openDiscardAll={openDiscardAll}
+            openDiscardAll={() => setDiscardAllOpen(true)}
             canDiscard={canDiscard}
             discardPending={restoreFilePending}
-            reviewKeyByFile={reviewKeyByFile}
+            ignoreWhitespace={ignoreWhitespace}
             collapsedFiles={collapsedFiles}
             reviewedNames={reviewedNames}
             statsByFile={statsByFile}
@@ -365,13 +442,14 @@ const DiffViewContent = memo(function DiffViewContent({
             chatId={chatId}
             options={options}
             pendingComment={pendingComment}
+            scopeKey={scopeKey}
             onToggle={handleToggleCollapsed}
-            onToggleReviewed={toggleReviewed}
+            onToggleReviewed={toggleViewed}
             onDiscard={setDiscardTarget}
             onSelectionChange={handleSelectionChange}
             onSelectionEnd={handleSelectionEnd}
             onSubmitComment={handleSubmitComment}
-            onCancelComment={resetComments}
+            onCancelComment={cancelComposer}
           />
         </div>
 

@@ -7,13 +7,19 @@ import styles from './DiffCommentComposer.module.scss';
 
 interface DiffCommentComposerProps {
   lineLabel: string;
+  initialValue?: string;
   onSubmit: (comment: string) => void;
   onCancel: () => void;
 }
 
 // Pierre line annotation under selected lines; frosted-card look matches InlineChatWidget.
-export function DiffCommentComposer({ lineLabel, onSubmit, onCancel }: DiffCommentComposerProps) {
-  const [comment, setComment] = useState('');
+export function DiffCommentComposer({
+  lineLabel,
+  initialValue = '',
+  onSubmit,
+  onCancel,
+}: DiffCommentComposerProps) {
+  const [comment, setComment] = useState(initialValue);
   const trimmed = comment.trim();
 
   return (
@@ -57,12 +63,12 @@ export function DiffCommentComposer({ lineLabel, onSubmit, onCancel }: DiffComme
           placeholder="Leave feedback for the agent…"
           className={styles['composer-textarea']}
         />
-        <FloatingTooltip content="Add to chat (Enter)" className={styles['submit-slot']}>
+        <FloatingTooltip content="Save comment (Enter)" className={styles['submit-slot']}>
           <Button
             type="submit"
             variant="unstyled"
             disabled={!trimmed}
-            aria-label="Add comment to chat"
+            aria-label="Save comment"
             className={styles['composer-submit']}
           >
             <CornerDownLeft className={styles['icon-sm']} />

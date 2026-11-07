@@ -107,3 +107,12 @@ export function getSelectedDiffText(
     .map((row) => `${row.prefix}${row.text.replace(TRAILING_NEWLINE, '')}`)
     .join('\n');
 }
+
+export function formatLineLabel(range: SelectedLineRange): string {
+  return range.start === range.end ? `line ${range.start}` : `lines ${range.start}-${range.end}`;
+}
+
+// Annotations anchor at the range end, on the side the selection ended on.
+export function annotationSide(range: SelectedLineRange): SelectionSide {
+  return range.endSide ?? range.side ?? 'additions';
+}

@@ -1,5 +1,5 @@
 import { memo, useMemo, useCallback } from 'react';
-import { CheckCircle2, ChevronRight, Circle, ExternalLink, Undo2 } from 'lucide-react';
+import { ChevronRight, ExternalLink, Square, SquareCheck, Undo2 } from 'lucide-react';
 import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -7,6 +7,11 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import { useUIStore } from '@/store/uiStore';
 import type { FileDiffMetadata, SelectedLineRange, DiffLineAnnotation } from '@pierre/diffs';
 import { DiffCommentComposer } from '@/components/sandbox/git/DiffCommentComposer/DiffCommentComposer';
+import { DiffCommentCard } from '@/components/sandbox/git/DiffCommentComposer/DiffCommentCard';
+import { useShallow } from 'zustand/react/shallow';
+import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
+import { annotationSide, formatLineLabel } from '@/utils/diffSelection';
+import { reviewKeyFor, whitespaceKeySuffix } from '@/utils/diffReviewKey';
 import type { FileChangeStats } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { FileDiff } from '@pierre/diffs/react';
 import clsx from 'clsx';
@@ -27,31 +32,39 @@ const STATUS_BADGE_MODIFIERS: Record<string, string> = {
   'rename-changed': styles['status-badge--renamed'],
 };
 
-// Stable empty value — the library re-renders a file whenever the annotations
-// array identity changes.
-const NO_ANNOTATIONS: DiffLineAnnotation[] = [];
+type AnnotationMeta =
+  | { kind: 'composer' }
+  | { kind: 'comment'; comment: DiffComment; isOutdated: boolean };
 
 const FileDiffRenderer = memo(function FileDiffRenderer({
   file,
+  reviewKey,
   options,
   canComment,
   commentRange,
   isComposing,
+  scopeKey,
+  comments,
   onSelectionChange,
   onSelectionEnd,
   onSubmitComment,
   onCancelComment,
 }: {
   file: FileDiffMetadata;
+  reviewKey: string;
   options: Record<string, unknown>;
   canComment: boolean;
   commentRange: SelectedLineRange | null;
   isComposing: boolean;
+  scopeKey: string;
+  comments: DiffComment[];
   onSelectionChange: (fileName: string, range: SelectedLineRange | null) => void;
   onSelectionEnd: (fileName: string, range: SelectedLineRange | null) => void;
   onSubmitComment: (file: FileDiffMetadata, range: SelectedLineRange, comment: string) => void;
   onCancelComment: () => void;
 }) {
+  const editingCommentId = useDiffCommentsStore((s) => s.editingCommentId);
+
   // Selection is gated on a chat being connected — the comment has nowhere to
   // go otherwise. Fully controlled via `selectedLines` so closing the composer
   // clears the highlight; start/change echoes keep the drag highlight live
@@ -73,33 +86,68 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
     [options, canComment, file.name, onSelectionChange, onSelectionEnd],
   );
 
-  const annotations = useMemo<DiffLineAnnotation[]>(
-    () =>
-      isComposing && commentRange
-        ? [
-            {
-              side: commentRange.endSide ?? commentRange.side ?? 'additions',
-              lineNumber: commentRange.end,
-            },
-          ]
-        : NO_ANNOTATIONS,
-    [isComposing, commentRange],
-  );
+  // Memoized — the library re-renders a file whenever the annotations array
+  // identity changes.
+  const annotations = useMemo<DiffLineAnnotation<AnnotationMeta>[]>(() => {
+    const out: DiffLineAnnotation<AnnotationMeta>[] = comments.map((comment) => {
+      const isOutdated = comment.contentKey !== reviewKey;
+      return {
+        side: annotationSide(comment),
+        // 0 = file-level annotation above the first hunk.
+        lineNumber: isOutdated ? 0 : comment.end,
+        metadata: { kind: 'comment', comment, isOutdated },
+      };
+    });
+    if (isComposing && commentRange) {
+      out.push({
+        side: annotationSide(commentRange),
+        lineNumber: commentRange.end,
+        metadata: { kind: 'composer' },
+      });
+    }
+    return out;
+  }, [comments, reviewKey, isComposing, commentRange]);
 
-  const renderComposer = useCallback(() => {
-    if (!commentRange) return null;
-    return (
-      <DiffCommentComposer
-        lineLabel={
-          commentRange.start === commentRange.end
-            ? `line ${commentRange.start}`
-            : `lines ${commentRange.start}-${commentRange.end}`
-        }
-        onSubmit={(comment) => onSubmitComment(file, commentRange, comment)}
-        onCancel={onCancelComment}
-      />
-    );
-  }, [file, commentRange, onSubmitComment, onCancelComment]);
+  const renderAnnotation = useCallback(
+    ({ metadata }: DiffLineAnnotation<AnnotationMeta>) => {
+      if (metadata.kind === 'comment') {
+        const { comment, isOutdated } = metadata;
+        return (
+          <div data-diff-comment={comment.id}>
+            {comment.id === editingCommentId ? (
+              <DiffCommentComposer
+                lineLabel={formatLineLabel(comment)}
+                initialValue={comment.body}
+                onSubmit={(body) =>
+                  useDiffCommentsStore.getState().updateComment(scopeKey, comment.id, body)
+                }
+                onCancel={() => useDiffCommentsStore.getState().setEditingCommentId(null)}
+              />
+            ) : (
+              <DiffCommentCard
+                lineLabel={formatLineLabel(comment)}
+                body={comment.body}
+                outdatedSnippet={isOutdated ? comment.snippet : null}
+                onEdit={() => useDiffCommentsStore.getState().setEditingCommentId(comment.id)}
+                onDelete={() => useDiffCommentsStore.getState().removeComment(scopeKey, comment.id)}
+              />
+            )}
+          </div>
+        );
+      }
+      if (!commentRange) return null;
+      return (
+        <div data-diff-composer="">
+          <DiffCommentComposer
+            lineLabel={formatLineLabel(commentRange)}
+            onSubmit={(comment) => onSubmitComment(file, commentRange, comment)}
+            onCancel={onCancelComment}
+          />
+        </div>
+      );
+    },
+    [file, scopeKey, commentRange, editingCommentId, onSubmitComment, onCancelComment],
+  );
 
   return (
     <ErrorBoundary
@@ -110,7 +158,7 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
         options={fileOptions}
         selectedLines={commentRange}
         lineAnnotations={annotations}
-        renderAnnotation={renderComposer}
+        renderAnnotation={renderAnnotation}
       />
     </ErrorBoundary>
   );
@@ -138,7 +186,7 @@ function FileStatusBadge({ type }: { type?: string }) {
 
 export const DiffFileRow = memo(function DiffFileRow({
   file,
-  contentKey,
+  ignoreWhitespace,
   isExpanded,
   isReviewed,
   stats,
@@ -149,6 +197,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   options,
   commentRange,
   isComposing,
+  scopeKey,
   onToggle,
   onToggleReviewed,
   onDiscard,
@@ -158,7 +207,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   onCancelComment,
 }: {
   file: FileDiffMetadata;
-  contentKey: string | undefined;
+  ignoreWhitespace: boolean;
   isExpanded: boolean;
   isReviewed: boolean;
   stats: FileChangeStats | undefined;
@@ -169,6 +218,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   options: Record<string, unknown>;
   commentRange: SelectedLineRange | null;
   isComposing: boolean;
+  scopeKey: string;
   onToggle: (name: string) => void;
   onToggleReviewed: (name: string) => void;
   onDiscard: (file: FileDiffMetadata) => void;
@@ -178,6 +228,12 @@ export const DiffFileRow = memo(function DiffFileRow({
   onCancelComment: () => void;
 }) {
   const isRenamed = isRenameFileType(file.type);
+  const reviewKey = useMemo(() => reviewKeyFor(file), [file]);
+  const comments = useDiffCommentsStore(
+    useShallow((s) =>
+      chatId ? (s.commentsByScope[scopeKey] ?? []).filter((c) => c.path === file.name) : [],
+    ),
+  );
   return (
     <div data-diff-file-path={file.name}>
       <div className={clsx(styles.header, isExpanded && styles['header--expanded'])}>
@@ -236,42 +292,37 @@ export const DiffFileRow = memo(function DiffFileRow({
           </FloatingTooltip>
         )}
         <FileStats stats={stats} />
-        <FloatingTooltip
-          content={isReviewed ? 'Reviewed — click to unmark' : 'Mark as reviewed'}
-          className={styles['review-slot']}
+        <Button
+          variant="unstyled"
+          type="button"
+          role="checkbox"
+          aria-checked={isReviewed}
+          aria-label={`Viewed ${file.name}`}
+          onClick={() => onToggleReviewed(file.name)}
+          className={clsx(styles.viewed, isReviewed && styles['viewed--checked'])}
         >
-          <Button
-            variant="unstyled"
-            type="button"
-            onClick={() => onToggleReviewed(file.name)}
-            aria-pressed={isReviewed}
-            aria-label={
-              isReviewed ? `Mark ${file.name} as not reviewed` : `Mark ${file.name} as reviewed`
-            }
-            className={clsx(
-              styles['review-toggle'],
-              isReviewed ? styles['review-toggle--reviewed'] : styles['review-toggle--unreviewed'],
-            )}
-          >
-            {isReviewed ? (
-              <CheckCircle2 className={styles['review-icon']} />
-            ) : (
-              <Circle className={styles['review-icon']} />
-            )}
-          </Button>
-        </FloatingTooltip>
+          {isReviewed ? (
+            <SquareCheck className={styles['viewed-icon']} />
+          ) : (
+            <Square className={styles['viewed-icon']} />
+          )}
+          Viewed
+        </Button>
       </div>
       {isExpanded && (
         // Keyed by content hash — the library's VirtualizedFileDiff ignores a
         // new fileDiff after hydration (`this.fileDiff ??= fileDiff`), so a
         // refetch with changed content must remount to render fresh lines.
         <FileDiffRenderer
-          key={contentKey}
+          key={`${reviewKey}${whitespaceKeySuffix(ignoreWhitespace)}`}
           file={file}
+          reviewKey={reviewKey}
           options={options}
           canComment={!!chatId}
           commentRange={commentRange}
           isComposing={isComposing}
+          scopeKey={scopeKey}
+          comments={comments}
           onSelectionChange={onSelectionChange}
           onSelectionEnd={onSelectionEnd}
           onSubmitComment={onSubmitComment}

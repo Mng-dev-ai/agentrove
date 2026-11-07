@@ -1,5 +1,6 @@
-import type { FileDiffMetadata, FileContents } from '@pierre/diffs';
+import type { CreatePatchOptionsNonabortable, FileDiffMetadata, FileContents } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
+import { whitespaceKeySuffix } from '@/utils/diffReviewKey';
 
 export const DIFF_THEMES = { dark: 'pierre-dark', light: 'pierre-light' } as const;
 
@@ -48,6 +49,7 @@ export const NARROW_BREAKPOINT = 600;
 
 export const FILES_PANEL_WIDTH = 256;
 export const OVERFLOW_PANEL_WIDTH = 220;
+export const COMMENTS_PANEL_WIDTH = 320;
 
 // 6px below trigger, left-aligned, clamped so the panel stays on screen.
 export const computeMenuPos = (rect: DOMRect) => ({
@@ -55,27 +57,28 @@ export const computeMenuPos = (rect: DOMRect) => ({
   left: Math.max(8, Math.min(rect.left, window.innerWidth - FILES_PANEL_WIDTH - 8)),
 });
 
-// 6px below trigger, right-aligned to the trigger (overflow lives at the
-// toolbar's right edge), clamped so the panel stays on screen.
-export const computeOverflowMenuPos = (rect: DOMRect) => ({
+// 6px below trigger, right-aligned to the trigger (these live at the toolbar's
+// right edge), clamped so the panel stays on screen.
+const rightAlignedPos = (width: number) => (rect: DOMRect) => ({
   top: rect.bottom + 6,
-  left: Math.max(
-    8,
-    Math.min(rect.right - OVERFLOW_PANEL_WIDTH, window.innerWidth - OVERFLOW_PANEL_WIDTH - 8),
-  ),
+  left: Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8)),
 });
 
-// Dir-major path order: a directory's files sort together, before any of its
-// subdirectories' files. The raw patch isn't display-ordered (untracked diffs
-// are appended after the tracked diff), and even git's own path sort splits a
-// directory (`a/sub/x.ts` lands between `a/b.ts` and `a/z.ts`). The sidebar's
-// consecutive dir grouping and its sidebar-order == scroll-order assumption
-// both rely on this ordering.
-export function compareFilePaths(a: string, b: string): number {
-  const dirA = a.slice(0, a.lastIndexOf('/') + 1);
-  const dirB = b.slice(0, b.lastIndexOf('/') + 1);
-  if (dirA !== dirB) return dirA < dirB ? -1 : 1;
-  return a < b ? -1 : a > b ? 1 : 0;
+export const computeOverflowMenuPos = rightAlignedPos(OVERFLOW_PANEL_WIDTH);
+export const computeCommentsMenuPos = rightAlignedPos(COMMENTS_PANEL_WIDTH);
+
+// First unreviewed file after `after` in pane order, wrapping around.
+export function findNextUnreviewed(
+  files: FileDiffMetadata[],
+  reviewed: Set<string>,
+  after: string | null,
+): string | null {
+  const start = after ? files.findIndex((f) => f.name === after) : -1;
+  for (let i = 1; i <= files.length; i += 1) {
+    const name = files[(start + i) % files.length].name;
+    if (!reviewed.has(name)) return name;
+  }
+  return null;
 }
 
 // Nearest scrollable ancestor, bounded to the diff pane — the Virtualizer owns
@@ -106,15 +109,6 @@ function extractContents(
   };
 }
 
-export function hashDiffContent(content: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < content.length; i += 1) {
-    hash ^= content.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(36);
-}
-
 // The runtime FileDiffMetadata carries an `oldMode` the published types omit
 // (they only declare `mode`/`prevMode`); widen locally to copy it through.
 type FileDiffWithOldMode = FileDiffMetadata & { oldMode?: string };
@@ -123,21 +117,28 @@ type FileDiffWithOldMode = FileDiffMetadata & { oldMode?: string };
 // the expand-on-click UI.
 export function rebuildWithCollapsedContext(
   fullFile: FileDiffMetadata,
-  parseDiffFromFile: (old: FileContents, cur: FileContents) => FileDiffMetadata,
+  parseDiffFromFile: (
+    old: FileContents,
+    cur: FileContents,
+    options?: CreatePatchOptionsNonabortable,
+  ) => FileDiffMetadata,
+  ignoreWhitespace: boolean,
 ): FileDiffMetadata {
   const contents = extractContents(fullFile);
   if (!contents) return fullFile;
+  const keySuffix = whitespaceKeySuffix(ignoreWhitespace);
   const rebuilt = parseDiffFromFile(
     {
       name: fullFile.prevName ?? fullFile.name,
       contents: contents.oldContent,
-      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:old` : undefined,
+      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:old${keySuffix}` : undefined,
     },
     {
       name: fullFile.name,
       contents: contents.newContent,
-      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:new` : undefined,
+      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:new${keySuffix}` : undefined,
     },
+    { ignoreWhitespace },
   );
   rebuilt.type = fullFile.type;
   rebuilt.prevName = fullFile.prevName;

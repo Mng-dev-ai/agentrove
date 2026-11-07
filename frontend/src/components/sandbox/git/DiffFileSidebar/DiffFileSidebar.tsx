@@ -1,7 +1,18 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { CheckCircle2, Circle } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronRight,
+  Circle,
+  EyeOff,
+  MessageSquare,
+  Search,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import type { ChangeTypes, FileDiffMetadata } from '@pierre/diffs';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { Input } from '@/components/ui/primitives/Input/Input';
+import type { DiffComment } from '@/store/diffCommentsStore';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import clsx from 'clsx';
 import styles from './DiffFileSidebar.module.scss';
@@ -9,6 +20,12 @@ import styles from './DiffFileSidebar.module.scss';
 export interface FileChangeStats {
   additions: number;
   deletions: number;
+}
+
+export interface SidebarFilter {
+  query: string;
+  hideReviewed: boolean;
+  onlyCommented: boolean;
 }
 
 // Single-letter badges — the sidebar is too narrow for the full status words.
@@ -45,14 +62,61 @@ function StatTicks({ additions, deletions }: FileChangeStats) {
 // Tail-biased truncation — the deepest segment disambiguates sibling groups, so
 // the head ellipsizes first. CSS-only left-ellipsis (direction: rtl) is not an
 // option: bidi reorders slash-separated segments.
-function DirLabel({ dir }: { dir: string }) {
+function DirLabel({
+  dir,
+  fileCount,
+  isCollapsed,
+  onToggle,
+}: {
+  dir: string;
+  fileCount: number;
+  isCollapsed: boolean;
+  onToggle: (dir: string) => void;
+}) {
   const cut = dir.lastIndexOf('/');
   return (
     <FloatingTooltip content={dir} className={styles['block-full']}>
-      <div className={styles['dir-label']}>
+      <Button
+        variant="unstyled"
+        type="button"
+        onClick={() => onToggle(dir)}
+        aria-expanded={!isCollapsed}
+        className={styles['dir-label']}
+      >
+        <ChevronRight
+          className={clsx(styles['dir-chevron'], !isCollapsed && styles['dir-chevron--open'])}
+        />
         <span className={styles['dir-head']}>{cut === -1 ? dir : dir.slice(0, cut)}</span>
         {cut !== -1 && <span className={styles['dir-tail']}>/{dir.slice(cut + 1)}</span>}
-      </div>
+        {isCollapsed && <span className={styles['dir-count']}>{fileCount}</span>}
+      </Button>
+    </FloatingTooltip>
+  );
+}
+
+function FilterToggle({
+  label,
+  icon: Icon,
+  isOn,
+  onToggle,
+}: {
+  label: string;
+  icon: LucideIcon;
+  isOn: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <FloatingTooltip content={label} className={styles['filter-toggle-slot']}>
+      <Button
+        variant="unstyled"
+        type="button"
+        aria-pressed={isOn}
+        aria-label={label}
+        onClick={onToggle}
+        className={clsx(styles['filter-toggle'], isOn && styles['filter-toggle--on'])}
+      >
+        <Icon className={styles['filter-icon']} />
+      </Button>
     </FloatingTooltip>
   );
 }
@@ -64,6 +128,11 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
   activeFile,
   onSelectFile,
   reviewedFiles,
+  commentsByFile,
+  filter,
+  onFilterChange,
+  collapsedDirs,
+  onToggleDir,
 }: {
   files: FileDiffMetadata[];
   statsByFile: Map<string, FileChangeStats>;
@@ -71,12 +140,21 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
   activeFile: string | null;
   onSelectFile: (name: string) => void;
   reviewedFiles: Set<string>;
+  commentsByFile: Map<string, DiffComment[]>;
+  filter: SidebarFilter;
+  onFilterChange: (filter: SidebarFilter) => void;
+  collapsedDirs: Set<string>;
+  onToggleDir: (dir: string) => void;
 }) {
   // Files arrive dir-major sorted (DiffView's parsedFiles), so a directory's
   // files are contiguous — consecutive grouping is enough, no tree build needed.
   const groups = useMemo(() => {
+    const query = filter.query.trim().toLowerCase();
     const out: { dir: string; files: FileDiffMetadata[] }[] = [];
     for (const file of files) {
+      if (query && !file.name.toLowerCase().includes(query)) continue;
+      if (filter.hideReviewed && reviewedFiles.has(file.name)) continue;
+      if (filter.onlyCommented && !commentsByFile.has(file.name)) continue;
       const cut = file.name.lastIndexOf('/');
       const dir = cut === -1 ? '' : file.name.slice(0, cut);
       const last = out[out.length - 1];
@@ -84,7 +162,7 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
       else out.push({ dir, files: [file] });
     }
     return out;
-  }, [files]);
+  }, [files, filter, reviewedFiles, commentsByFile]);
 
   // Keep the scrollspy-highlighted row visible as the diff pane scrolls. `files`
   // is a dep too: a refetch can rebuild the list (moving the row) while the
@@ -107,59 +185,111 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
         <span className={styles['stat-add']}>+{totals.additions}</span>
         <span className={styles['stat-del']}>&minus;{totals.deletions}</span>
       </div>
+      <div className={styles.filter}>
+        <Search className={styles['filter-icon']} />
+        <Input
+          variant="unstyled"
+          value={filter.query}
+          onChange={(event) => onFilterChange({ ...filter, query: event.target.value })}
+          placeholder="Filter files"
+          aria-label="Filter files"
+          className={styles['filter-input']}
+        />
+        {filter.query && (
+          <Button
+            variant="unstyled"
+            type="button"
+            onClick={() => onFilterChange({ ...filter, query: '' })}
+            aria-label="Clear filter"
+            className={styles['filter-toggle']}
+          >
+            <X className={styles['filter-icon']} />
+          </Button>
+        )}
+        <FilterToggle
+          label="Hide reviewed"
+          icon={EyeOff}
+          isOn={filter.hideReviewed}
+          onToggle={() => onFilterChange({ ...filter, hideReviewed: !filter.hideReviewed })}
+        />
+        <FilterToggle
+          label="Only commented"
+          icon={MessageSquare}
+          isOn={filter.onlyCommented}
+          onToggle={() => onFilterChange({ ...filter, onlyCommented: !filter.onlyCommented })}
+        />
+      </div>
 
       <div ref={listRef} className={styles.list}>
+        {groups.length === 0 && <div className={styles.empty}>No matching files</div>}
         {groups.map((group) => (
           <div key={`${group.dir}\0${group.files[0].name}`}>
-            {group.dir && <DirLabel dir={group.dir} />}
-            {group.files.map((file) => {
-              const isActive = file.name === activeFile;
-              const isReviewed = reviewedFiles.has(file.name);
-              const badge = SIDEBAR_BADGES[file.type];
-              const stats = statsByFile.get(file.name);
-              return (
-                <FloatingTooltip
-                  key={file.name}
-                  content={
-                    stats && (stats.additions > 0 || stats.deletions > 0)
-                      ? `${file.name} · +${stats.additions} −${stats.deletions}`
-                      : file.name
-                  }
-                  className={styles['block-full']}
-                >
-                  <Button
-                    variant="unstyled"
-                    type="button"
-                    data-sidebar-file={file.name}
-                    onClick={() => onSelectFile(file.name)}
-                    className={clsx(styles['file-row'], isActive && styles['file-row--active'])}
+            {group.dir && (
+              <DirLabel
+                dir={group.dir}
+                fileCount={group.files.length}
+                isCollapsed={collapsedDirs.has(group.dir)}
+                onToggle={onToggleDir}
+              />
+            )}
+            {!collapsedDirs.has(group.dir) &&
+              group.files.map((file) => {
+                const commentCount = commentsByFile.get(file.name)?.length ?? 0;
+                const isActive = file.name === activeFile;
+                const isReviewed = reviewedFiles.has(file.name);
+                const badge = SIDEBAR_BADGES[file.type];
+                const stats = statsByFile.get(file.name);
+                return (
+                  <FloatingTooltip
+                    key={file.name}
+                    content={
+                      stats && (stats.additions > 0 || stats.deletions > 0)
+                        ? `${file.name} · +${stats.additions} −${stats.deletions}`
+                        : file.name
+                    }
+                    className={styles['block-full']}
                   >
-                    {isReviewed ? (
-                      <CheckCircle2
-                        className={clsx(styles['review-icon'], styles['review-icon--reviewed'])}
-                      />
-                    ) : (
-                      <Circle
-                        className={clsx(styles['review-icon'], styles['review-icon--unreviewed'])}
-                      />
-                    )}
-                    <span
-                      className={clsx(
-                        styles['file-name'],
-                        isActive && styles['file-name--active'],
-                        file.type === 'deleted' && styles['file-name--deleted'],
-                      )}
+                    <Button
+                      variant="unstyled"
+                      type="button"
+                      data-sidebar-file={file.name}
+                      onClick={() => onSelectFile(file.name)}
+                      className={clsx(styles['file-row'], isActive && styles['file-row--active'])}
                     >
-                      {file.name.slice(file.name.lastIndexOf('/') + 1)}
-                    </span>
-                    {badge && (
-                      <span className={clsx(styles.badge, badge.modifier)}>{badge.label}</span>
-                    )}
-                    {stats && <StatTicks additions={stats.additions} deletions={stats.deletions} />}
-                  </Button>
-                </FloatingTooltip>
-              );
-            })}
+                      {isReviewed ? (
+                        <CheckCircle2
+                          className={clsx(styles['review-icon'], styles['review-icon--reviewed'])}
+                        />
+                      ) : (
+                        <Circle
+                          className={clsx(styles['review-icon'], styles['review-icon--unreviewed'])}
+                        />
+                      )}
+                      <span
+                        className={clsx(
+                          styles['file-name'],
+                          isActive && styles['file-name--active'],
+                          file.type === 'deleted' && styles['file-name--deleted'],
+                        )}
+                      >
+                        {file.name.slice(file.name.lastIndexOf('/') + 1)}
+                      </span>
+                      {commentCount > 0 && (
+                        <span className={styles['comment-count']}>
+                          <MessageSquare className={styles['comment-icon']} />
+                          {commentCount}
+                        </span>
+                      )}
+                      {badge && (
+                        <span className={clsx(styles.badge, badge.modifier)}>{badge.label}</span>
+                      )}
+                      {stats && (
+                        <StatTicks additions={stats.additions} deletions={stats.deletions} />
+                      )}
+                    </Button>
+                  </FloatingTooltip>
+                );
+              })}
           </div>
         ))}
       </div>

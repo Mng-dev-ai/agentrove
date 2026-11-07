@@ -52,7 +52,7 @@
 }
 
 .composer-textarea {
-  @include type.type-body;
+  @include type.type-default;
   max-height: var(--space-24);
   flex: 1;
   resize: none;
@@ -93,4 +93,48 @@
 .icon-sm {
   height: var(--space-3-5);
   width: var(--space-3-5);
+}
+
+.comment-body {
+  @include type.type-default;
+  padding: var(--space-2) var(--space-3);
+  color: var(--theme-text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.comment-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.comment-action {
+  @include anim.transition-colors;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+}
+
+.outdated-tag {
+  @include type.type-meta(500);
+  flex-shrink: 0;
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-1);
+  font-family: var(--font-sans);
+  color: var(--theme-text-tertiary);
+  background-color: var(--theme-surface-tertiary);
+}
+
+.comment-snippet {
+  @include type.type-mono-meta;
+  overflow-x: auto;
+  border-bottom: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-2) var(--space-3);
+  color: var(--theme-text-tertiary);
 }

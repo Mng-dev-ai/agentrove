@@ -1,0 +1,100 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-1) var(--space-1-5) var(--space-2);
+}
+
+.title {
+  @include type.type-meta(500);
+  color: var(--theme-text-secondary);
+}
+
+.list {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  padding: var(--space-1-5) var(--space-2) var(--space-0-5);
+}
+
+.file-name {
+  @include type.type-mono-meta;
+  @include type.type-overflow;
+  min-width: 0;
+  color: var(--theme-text-quaternary);
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-0-5);
+  padding-right: var(--space-1);
+}
+
+.jump {
+  @include anim.transition-colors;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  text-align: left;
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
+}
+
+.line {
+  @include type.type-mono-meta;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+  color: var(--theme-text-quaternary);
+}
+
+.text {
+  @include type.type-meta;
+  @include type.type-lineclamp(2);
+  color: var(--theme-text-secondary);
+}
+
+.send {
+  @include anim.transition-colors;
+  @include type.type-meta;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-1-5);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-secondary);
+  background-color: var(--theme-surface-tertiary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+}
+
+.icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+}
