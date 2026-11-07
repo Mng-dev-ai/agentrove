@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { createPortal } from 'react-dom';
 import {
   ChevronDown,
   ChevronsUpDown,
@@ -17,7 +16,6 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { SegmentedControl } from '@/components/ui/primitives/SegmentedControl/SegmentedControl';
 import type { FileDiffMetadata } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
-import type { useAnchoredPanel } from '@/hooks/useAnchoredPanel';
 import type { DiffShortcut } from './useDiffShortcuts';
 import {
   COMMENTS_PANEL_WIDTH,
@@ -26,9 +24,8 @@ import {
   FILES_PANEL_WIDTH,
   OVERFLOW_PANEL_WIDTH,
 } from './diffView.utils';
+import { DiffToolbarPanel, type AnchoredPanel } from './DiffToolbarPanel';
 import styles from './DiffToolbar.module.scss';
-
-type AnchoredPanel = ReturnType<typeof useAnchoredPanel>;
 
 interface DiffToolbarProps {
   mode: DiffMode;
@@ -149,21 +146,13 @@ export function DiffToolbar({
               )}
             />
           </Button>
-          {filesMenu.isOpen &&
-            createPortal(
-              <div
-                ref={filesMenu.panelRef}
-                style={{
-                  top: filesMenu.pos.top,
-                  left: filesMenu.pos.left,
-                  width: FILES_PANEL_WIDTH,
-                }}
-                className={styles['files-panel']}
-              >
-                {filesSidebar}
-              </div>,
-              document.body,
-            )}
+          <DiffToolbarPanel
+            panel={filesMenu}
+            width={FILES_PANEL_WIDTH}
+            className={styles['files-panel']}
+          >
+            {filesSidebar}
+          </DiffToolbarPanel>
         </>
       )}
 
@@ -190,21 +179,13 @@ export function DiffToolbar({
               ? commentCount
               : `${commentCount} ${commentCount === 1 ? 'comment' : 'comments'}`}
           </Button>
-          {commentsMenu.isOpen &&
-            createPortal(
-              <div
-                ref={commentsMenu.panelRef}
-                style={{
-                  top: commentsMenu.pos.top,
-                  left: commentsMenu.pos.left,
-                  width: COMMENTS_PANEL_WIDTH,
-                }}
-                className={clsx(styles['overflow-panel'], styles['comments-panel'])}
-              >
-                {commentsPanel}
-              </div>,
-              document.body,
-            )}
+          <DiffToolbarPanel
+            panel={commentsMenu}
+            width={COMMENTS_PANEL_WIDTH}
+            className={clsx(styles['overflow-panel'], styles['comments-panel'])}
+          >
+            {commentsPanel}
+          </DiffToolbarPanel>
         </>
       )}
 
@@ -263,91 +244,79 @@ export function DiffToolbar({
           >
             <MoreHorizontal className={styles['overflow-icon']} />
           </Button>
-          {overflowMenu.isOpen &&
-            createPortal(
-              <div
-                ref={overflowMenu.panelRef}
-                style={{
-                  top: overflowMenu.pos.top,
-                  left: overflowMenu.pos.left,
-                  width: OVERFLOW_PANEL_WIDTH,
-                }}
-                className={styles['overflow-panel']}
-              >
-                {overflowView === 'shortcuts' ? (
-                  shortcuts.map((shortcut) => (
-                    <div key={shortcut.key} className={styles['shortcut-row']}>
-                      {shortcut.label}
-                      <kbd className={styles.kbd}>{shortcut.key}</kbd>
-                    </div>
-                  ))
-                ) : (
-                  <>
-                    {showFiles && (
-                      <Button
-                        variant="unstyled"
-                        onClick={onToggleAll}
-                        className={styles['menu-item']}
-                      >
-                        <ChevronsUpDown className={styles['menu-item-icon']} />
-                        {allCollapsed ? 'Expand all files' : 'Collapse all files'}
-                      </Button>
-                    )}
-                    {showFiles && (
-                      <Button
-                        variant="unstyled"
-                        role="menuitemcheckbox"
-                        aria-checked={ignoreWhitespace}
-                        onClick={onToggleWhitespace}
-                        className={styles['menu-item']}
-                      >
-                        {ignoreWhitespace ? (
-                          <SquareCheck className={styles['menu-item-icon']} />
-                        ) : (
-                          <Square className={styles['menu-item-icon']} />
-                        )}
-                        Ignore whitespace
-                      </Button>
-                    )}
-                    {showFiles && canDiscard && (
-                      <Button
-                        variant="unstyled"
-                        disabled={discardAllPending}
-                        onClick={onDiscardAll}
-                        className={styles['menu-item']}
-                      >
-                        <Undo2 className={styles['menu-item-icon']} />
-                        Discard all changes
-                      </Button>
-                    )}
-                    {showFiles && (
-                      <Button
-                        variant="unstyled"
-                        onClick={onShowShortcuts}
-                        className={styles['menu-item']}
-                      >
-                        <Keyboard className={styles['menu-item-icon']} />
-                        Keyboard shortcuts
-                        <kbd className={clsx(styles.kbd, styles['kbd--end'])}>?</kbd>
-                      </Button>
-                    )}
-                    {isNarrow && showFiles && <div className={styles['menu-divider']} />}
-                    {isNarrow && (
-                      <div className={styles['style-row']}>
-                        <span className={styles['style-row-label']}>Diff style</span>
-                        <SegmentedControl
-                          options={DIFF_STYLE_OPTIONS}
-                          value={diffStyle}
-                          onChange={onDiffStyleChange}
-                          size="sm"
-                        />
-                      </div>
-                    )}
-                  </>
+          <DiffToolbarPanel
+            panel={overflowMenu}
+            width={OVERFLOW_PANEL_WIDTH}
+            className={styles['overflow-panel']}
+          >
+            {overflowView === 'shortcuts' ? (
+              shortcuts.map((shortcut) => (
+                <div key={shortcut.key} className={styles['shortcut-row']}>
+                  {shortcut.label}
+                  <kbd className={styles.kbd}>{shortcut.key}</kbd>
+                </div>
+              ))
+            ) : (
+              <>
+                {showFiles && (
+                  <Button variant="unstyled" onClick={onToggleAll} className={styles['menu-item']}>
+                    <ChevronsUpDown className={styles['menu-item-icon']} />
+                    {allCollapsed ? 'Expand all files' : 'Collapse all files'}
+                  </Button>
                 )}
-              </div>,
-              document.body,
+                {showFiles && (
+                  <Button
+                    variant="unstyled"
+                    role="menuitemcheckbox"
+                    aria-checked={ignoreWhitespace}
+                    onClick={onToggleWhitespace}
+                    className={styles['menu-item']}
+                  >
+                    {ignoreWhitespace ? (
+                      <SquareCheck className={styles['menu-item-icon']} />
+                    ) : (
+                      <Square className={styles['menu-item-icon']} />
+                    )}
+                    Ignore whitespace
+                  </Button>
+                )}
+                {showFiles && canDiscard && (
+                  <Button
+                    variant="unstyled"
+                    disabled={discardAllPending}
+                    onClick={onDiscardAll}
+                    className={styles['menu-item']}
+                  >
+                    <Undo2 className={styles['menu-item-icon']} />
+                    Discard all changes
+                  </Button>
+                )}
+                {showFiles && (
+                  <Button
+                    variant="unstyled"
+                    onClick={onShowShortcuts}
+                    className={styles['menu-item']}
+                  >
+                    <Keyboard className={styles['menu-item-icon']} />
+                    Keyboard shortcuts
+                    <kbd className={clsx(styles.kbd, styles['kbd--end'])}>?</kbd>
+                  </Button>
+                )}
+                {isNarrow && showFiles && <div className={styles['menu-divider']} />}
+                {isNarrow && (
+                  <div className={styles['style-row']}>
+                    <span className={styles['style-row-label']}>Diff style</span>
+                    <SegmentedControl
+                      options={DIFF_STYLE_OPTIONS}
+                      value={diffStyle}
+                      onChange={onDiffStyleChange}
+                      size="sm"
+                    />
+                  </div>
+                )}
+              </>
             )}
+          </DiffToolbarPanel>
         </>
       )}
     </div>
