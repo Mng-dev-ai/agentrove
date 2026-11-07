@@ -7,6 +7,8 @@ import {
   MessageSquare,
   MoreHorizontal,
   RotateCcw,
+  Square,
+  SquareCheck,
   Undo2,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -45,6 +47,8 @@ interface DiffToolbarProps {
   discardAllPending: boolean;
   allCollapsed: boolean;
   onToggleAll: () => void;
+  ignoreWhitespace: boolean;
+  onToggleWhitespace: () => void;
   onDiscardAll: () => void;
   filesMenu: AnchoredPanel;
   overflowMenu: AnchoredPanel;
@@ -82,6 +86,8 @@ export function DiffToolbar({
   discardAllPending,
   allCollapsed,
   onToggleAll,
+  ignoreWhitespace,
+  onToggleWhitespace,
   onDiscardAll,
   filesMenu,
   overflowMenu,
@@ -284,6 +290,22 @@ export function DiffToolbar({
                   <Button variant="unstyled" onClick={onToggleAll} className={styles['menu-item']}>
                     <ChevronsUpDown className={styles['menu-item-icon']} />
                     {allCollapsed ? 'Expand all files' : 'Collapse all files'}
+                  </Button>
+                )}
+                {showFiles && (
+                  <Button
+                    variant="unstyled"
+                    role="menuitemcheckbox"
+                    aria-checked={ignoreWhitespace}
+                    onClick={onToggleWhitespace}
+                    className={styles['menu-item']}
+                  >
+                    {ignoreWhitespace ? (
+                      <SquareCheck className={styles['menu-item-icon']} />
+                    ) : (
+                      <Square className={styles['menu-item-icon']} />
+                    )}
+                    Ignore whitespace
                   </Button>
                 )}
                 {showFiles && canDiscard && (

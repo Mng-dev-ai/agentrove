@@ -1,4 +1,4 @@
-import type { FileDiffMetadata, FileContents } from '@pierre/diffs';
+import type { CreatePatchOptionsNonabortable, FileDiffMetadata, FileContents } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
 
 export const DIFF_THEMES = { dark: 'pierre-dark', light: 'pierre-light' } as const;
@@ -138,21 +138,29 @@ type FileDiffWithOldMode = FileDiffMetadata & { oldMode?: string };
 // the expand-on-click UI.
 export function rebuildWithCollapsedContext(
   fullFile: FileDiffMetadata,
-  parseDiffFromFile: (old: FileContents, cur: FileContents) => FileDiffMetadata,
+  parseDiffFromFile: (
+    old: FileContents,
+    cur: FileContents,
+    options?: CreatePatchOptionsNonabortable,
+  ) => FileDiffMetadata,
+  ignoreWhitespace: boolean,
 ): FileDiffMetadata {
   const contents = extractContents(fullFile);
   if (!contents) return fullFile;
+  // The highlight cache is keyed by these; whitespace mode yields different hunks.
+  const keySuffix = ignoreWhitespace ? ':ws' : '';
   const rebuilt = parseDiffFromFile(
     {
       name: fullFile.prevName ?? fullFile.name,
       contents: contents.oldContent,
-      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:old` : undefined,
+      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:old${keySuffix}` : undefined,
     },
     {
       name: fullFile.name,
       contents: contents.newContent,
-      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:new` : undefined,
+      cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:new${keySuffix}` : undefined,
     },
+    { ignoreWhitespace },
   );
   rebuilt.type = fullFile.type;
   rebuilt.prevName = fullFile.prevName;

@@ -94,6 +94,7 @@ const DiffViewContent = memo(function DiffViewContent({
     setMode(pendingDiffMode.mode);
     useUIStore.setState({ pendingDiffMode: null });
   }, [pendingDiffMode, chatId]);
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
   const diffStyle = useUIStore((s) => s.diffStyle);
   const setDiffStyle = useUIStore((s) => s.setDiffStyle);
   // Scrollspy: file whose diff currently tops the pane.
@@ -216,11 +217,11 @@ const DiffViewContent = memo(function DiffViewContent({
         .map((f) =>
           f.type === 'new' || f.type === 'deleted'
             ? f
-            : rebuildWithCollapsedContext(f, parseDiffFromFile),
+            : rebuildWithCollapsedContext(f, parseDiffFromFile, ignoreWhitespace),
         )
         .sort((a, b) => compareFilePaths(a.name, b.name))
     );
-  }, [diffContent, diffCacheKey]);
+  }, [diffContent, diffCacheKey, ignoreWhitespace]);
 
   const statsByFile = useMemo(() => {
     const map = new Map<string, FileChangeStats>();
@@ -392,6 +393,11 @@ const DiffViewContent = memo(function DiffViewContent({
     toggleShortcutsMenu();
   }, [closeOverflowMenu, toggleShortcutsMenu]);
 
+  const toggleWhitespaceFromMenu = useCallback(() => {
+    setIgnoreWhitespace((prev) => !prev);
+    closeOverflowMenu();
+  }, [closeOverflowMenu]);
+
   const toggleAllFromMenu = useCallback(() => {
     toggleAll();
     closeOverflowMenu();
@@ -451,6 +457,8 @@ const DiffViewContent = memo(function DiffViewContent({
           discardAllPending={restoreAllPending}
           allCollapsed={allCollapsed}
           onToggleAll={toggleAllFromMenu}
+          ignoreWhitespace={ignoreWhitespace}
+          onToggleWhitespace={toggleWhitespaceFromMenu}
           onDiscardAll={openDiscardAll}
           filesMenu={filesMenu}
           overflowMenu={overflowMenu}
@@ -484,6 +492,7 @@ const DiffViewContent = memo(function DiffViewContent({
             canDiscard={canDiscard}
             discardPending={restoreFilePending}
             reviewKeyByFile={reviewKeyByFile}
+            ignoreWhitespace={ignoreWhitespace}
             collapsedFiles={collapsedFiles}
             reviewedNames={reviewedNames}
             statsByFile={statsByFile}
