@@ -87,7 +87,14 @@ export const useStreamStore = create<StreamState>((set, get) => ({
       nextStreams.set(stream.id, stream);
       nextIndex.set(getChatMessageKey(stream.chatId, stream.messageId), stream.id);
 
+      let nextCompleted = state.completedChatIds;
+      if (nextCompleted.has(stream.chatId)) {
+        nextCompleted = new Set(nextCompleted);
+        nextCompleted.delete(stream.chatId);
+      }
+
       return {
+        completedChatIds: nextCompleted,
         activeStreams: nextStreams,
         streamIdByChatMessage: nextIndex,
         activeStreamMetadata: upsertStreamMetadata(state.activeStreamMetadata, {
