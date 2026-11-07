@@ -9,18 +9,6 @@
   margin-bottom: var(--space-2);
 }
 
-.legacy-notice {
-  @include type.type-meta;
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  margin-bottom: var(--space-1);
-  padding: var(--space-3);
-  border: 1px solid var(--theme-border);
-  border-radius: var(--radius-xl);
-  color: var(--theme-text-secondary);
-}
-
 .local-card {
   display: flex;
   align-items: center;

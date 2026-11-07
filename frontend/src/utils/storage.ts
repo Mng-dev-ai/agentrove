@@ -3,7 +3,6 @@ import { isTauri } from '@tauri-apps/api/core';
 
 const AUTH_TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
-const CLOUD_REFRESH_TOKEN_KEY = 'cloud_refresh_token';
 const AUTH_STORE_PATH = 'auth.store.json';
 const CHAT_EVENT_ID_PREFIX = 'chat:';
 const CHAT_EVENT_ID_SUFFIX = ':lastEventId';
@@ -208,24 +207,6 @@ export const authStorage = {
     safeRemoveItem(REFRESH_TOKEN_KEY);
   },
 };
-
-export async function readLegacyCloudRefreshToken(): Promise<string | null> {
-  const store = await getDesktopAuthStore();
-  if (!store) return safeGetItem(CLOUD_REFRESH_TOKEN_KEY);
-  try {
-    return (await store.get<string>(CLOUD_REFRESH_TOKEN_KEY)) ?? null;
-  } catch (error) {
-    logger.error('Legacy cloud token read failed', 'storage.readLegacyCloudRefreshToken', error);
-    return null;
-  }
-}
-
-export async function deleteLegacyCloudRefreshToken(): Promise<void> {
-  safeRemoveItem(CLOUD_REFRESH_TOKEN_KEY);
-  const store = await getDesktopAuthStore();
-  if (!store) return;
-  if (await store.delete(CLOUD_REFRESH_TOKEN_KEY)) await store.save();
-}
 
 // Cross-tab: another tab rotating tokens must update this tab's memory cache
 // or the next refresh replays a rotated-away token.

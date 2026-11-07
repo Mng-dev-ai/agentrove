@@ -17,7 +17,6 @@ import { useLocalStreamRestoration } from '@/hooks/useLocalStreamRestoration';
 import { useChatEvents } from '@/hooks/useChatEvents';
 import { useRemoteMachineSync } from '@/hooks/useRemoteMachineSync';
 import { useMachineStatusPolling } from '@/hooks/useMachineStatusPolling';
-import { migrateLegacyCloud } from '@/services/legacyCloudMigration';
 import { followMachinesFromOtherTabs } from '@/services/machineActions';
 import { authService } from '@/services/authService';
 import { toasterConfig } from '@/config/toaster';
@@ -223,9 +222,6 @@ export default function App() {
     if (isPairingHash(window.location.hash)) {
       window.history.replaceState(null, '', window.location.pathname + window.location.search);
     }
-    migrateLegacyCloud().catch((error) => {
-      console.error('Legacy cloud migration failed:', error);
-    });
     const stopFollowingMachines = followMachinesFromOtherTabs();
 
     authStorage
