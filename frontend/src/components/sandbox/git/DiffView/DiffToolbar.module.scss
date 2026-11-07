@@ -315,9 +315,6 @@
 
 .comment-text {
   @include type.type-meta;
-  display: -webkit-box;
-  overflow: hidden;
+  @include type.type-lineclamp(2);
   color: var(--theme-text-secondary);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
 }

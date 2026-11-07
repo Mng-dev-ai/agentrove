@@ -13,6 +13,7 @@ import type { FileDiffMetadata } from '@pierre/diffs';
 import {
   DiffFileSidebar,
   type FileChangeStats,
+  type SidebarFilter,
 } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { useDiffComments } from '@/hooks/useDiffComments';
 import { WorkerPoolContextProvider } from '@pierre/diffs/react';
@@ -79,6 +80,13 @@ const DiffViewContent = memo(function DiffViewContent({
   // Expanded by default; set tracks user-collapsed exceptions.
   const [collapsedFiles, toggleCollapsed, setCollapsedFiles] = useToggleSet<string>();
   const [mode, setMode] = useState<DiffMode>('all');
+  // Owned here, not by the sidebar — the narrow files dropdown remounts it on each open.
+  const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>({
+    query: '',
+    hideReviewed: false,
+    onlyCommented: false,
+  });
+  const [collapsedDirs, toggleDir] = useToggleSet<string>();
   const pendingDiffMode = useUIStore((s) => s.pendingDiffMode);
   useEffect(() => {
     if (!pendingDiffMode || pendingDiffMode.chatId !== chatId) return;
@@ -360,6 +368,11 @@ const DiffViewContent = memo(function DiffViewContent({
       activeFile={currentFile}
       onSelectFile={selectFile}
       reviewedFiles={reviewedNames}
+      commentsByFile={commentsByFile}
+      filter={sidebarFilter}
+      onFilterChange={setSidebarFilter}
+      collapsedDirs={collapsedDirs}
+      onToggleDir={toggleDir}
     />
   ) : null;
 
