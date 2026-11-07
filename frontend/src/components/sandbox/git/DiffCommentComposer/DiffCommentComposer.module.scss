@@ -102,3 +102,20 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.comment-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.comment-action {
+  @include anim.transition-colors;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+}
