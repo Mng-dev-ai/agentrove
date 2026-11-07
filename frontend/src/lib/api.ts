@@ -82,10 +82,29 @@ const extractErrorMessage = async (response: Response): Promise<string> => {
   }
 };
 
+const LOCAL_REFRESH_LOCK = 'agentrove-local-session-refresh';
+
 async function refreshLocalSession(baseUrl: string): Promise<string> {
+  const observedRefreshToken = authStorage.getRefreshToken();
+  return navigator.locks.request(LOCAL_REFRESH_LOCK, () =>
+    rotateLocalSession(baseUrl, observedRefreshToken),
+  );
+}
+
+async function rotateLocalSession(
+  baseUrl: string,
+  observedRefreshToken: string | null,
+): Promise<string> {
+  authStorage.reload();
   const refreshToken = authStorage.getRefreshToken();
   if (!refreshToken) {
     throw new RefreshTokenError(401, 'No refresh token available');
+  }
+  if (refreshToken !== observedRefreshToken) {
+    const currentToken = authStorage.getToken();
+    if (currentToken && !accessTokenExpiresSoon(currentToken)) {
+      return currentToken;
+    }
   }
 
   const response = await fetch(`${baseUrl}/auth/jwt/refresh`, {

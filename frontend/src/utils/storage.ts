@@ -175,6 +175,13 @@ export const authStorage = {
     }
     return cachedRefreshToken;
   },
+  reload: (): void => {
+    if (isTauri() || !getStorage()) {
+      return;
+    }
+    tokenCacheInitialized = false;
+    initTokenCacheFromLocalStorage();
+  },
   setTokens: async (token: string, refreshToken: string): Promise<void> => {
     cachedToken = token;
     cachedRefreshToken = refreshToken;
