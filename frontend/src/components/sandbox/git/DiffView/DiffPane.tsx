@@ -30,8 +30,7 @@ interface DiffPaneProps {
   openDiscardAll: () => void;
   canDiscard: boolean;
   discardPending: boolean;
-  reviewKeyByFile: Map<string, string>;
-  ignoreWhitespace: boolean;
+  contentKeyByFile: Map<string, string>;
   collapsedFiles: Set<string>;
   reviewedNames: Set<string>;
   statsByFile: Map<string, FileChangeStats>;
@@ -68,8 +67,7 @@ export function DiffPane({
   openDiscardAll,
   canDiscard,
   discardPending,
-  reviewKeyByFile,
-  ignoreWhitespace,
+  contentKeyByFile,
   collapsedFiles,
   reviewedNames,
   statsByFile,
@@ -132,7 +130,7 @@ export function DiffPane({
             <DiffFileRow
               key={file.name}
               file={file}
-              contentKey={`${reviewKeyByFile.get(file.name)}${ignoreWhitespace ? '\0ws' : ''}`}
+              contentKey={contentKeyByFile.get(file.name)}
               isExpanded={!collapsedFiles.has(file.name)}
               isReviewed={reviewedNames.has(file.name)}
               stats={statsByFile.get(file.name)}

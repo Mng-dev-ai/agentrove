@@ -8,10 +8,10 @@ import {
 } from 'react';
 import type { FileDiffMetadata } from '@pierre/diffs';
 import { useDiffReviewStore } from '@/store/diffReviewStore';
-import { hashDiffContent } from './diffView.utils';
 
 interface UseDiffReviewParams {
   parsedFiles: FileDiffMetadata[];
+  reviewKeyByFile: Map<string, string>;
   scopeKey: string;
   // True while a scope switch is still serving the previous scope's rows
   // (keepPreviousData) — parsedFiles and scopeKey disagree until the fetch lands.
@@ -26,6 +26,7 @@ interface UseDiffReviewParams {
 // GitHub-style "Viewed" + auto-collapse that yields to the user's manual toggles.
 export function useDiffReview({
   parsedFiles,
+  reviewKeyByFile,
   scopeKey,
   isPlaceholder,
   collapsedFiles,
@@ -37,17 +38,6 @@ export function useDiffReview({
   // so it can spot a pre-existing manual collapse without depending on the set.
   const collapsedFilesRef = useRef(collapsedFiles);
   collapsedFilesRef.current = collapsedFiles;
-
-  // path -> `path\0contentHash`. The hash folds a file's changed lines in, so a
-  // key stored as "reviewed" stops matching once the file's content shifts.
-  const reviewKeyByFile = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const file of parsedFiles) {
-      const content = `${file.deletionLines.join('')}\0${file.additionLines.join('')}`;
-      map.set(file.name, `${file.name}\0${hashDiffContent(content)}`);
-    }
-    return map;
-  }, [parsedFiles]);
 
   // Persisted reviewed keys for this scope (survives reloads). Undefined until
   // the user marks anything, so default to empty.
@@ -145,7 +135,6 @@ export function useDiffReview({
   );
 
   return {
-    reviewKeyByFile,
     reviewedNames,
     allCollapsed,
     toggleAll,

@@ -33,12 +33,14 @@ import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
   NARROW_BREAKPOINT,
+  buildReviewKeys,
   computeCommentsMenuPos,
   computeMenuPos,
   findNextUnreviewed,
   computeOverflowMenuPos,
   hashDiffContent,
   rebuildWithCollapsedContext,
+  whitespaceKeySuffix,
 } from './diffView.utils';
 import styles from './DiffView.module.scss';
 // Per-palette pierre diff-surface overrides, generated from palettes.ts (see vite.config.ts).
@@ -223,6 +225,14 @@ const DiffViewContent = memo(function DiffViewContent({
     );
   }, [diffContent, diffCacheKey, ignoreWhitespace]);
 
+  const reviewKeyByFile = useMemo(() => buildReviewKeys(parsedFiles), [parsedFiles]);
+  const contentKeyByFile = useMemo(() => {
+    const suffix = whitespaceKeySuffix(ignoreWhitespace);
+    const map = new Map<string, string>();
+    reviewKeyByFile.forEach((key, name) => map.set(name, `${key}${suffix}`));
+    return map;
+  }, [reviewKeyByFile, ignoreWhitespace]);
+
   const statsByFile = useMemo(() => {
     const map = new Map<string, FileChangeStats>();
     for (const file of parsedFiles) {
@@ -247,22 +257,17 @@ const DiffViewContent = memo(function DiffViewContent({
     return { additions, deletions };
   }, [statsByFile]);
 
-  const {
-    reviewKeyByFile,
-    reviewedNames,
-    allCollapsed,
-    toggleAll,
-    handleToggleCollapsed,
-    toggleReviewed,
-  } = useDiffReview({
-    parsedFiles,
-    scopeKey,
-    isPlaceholder: isPlaceholderData,
-    collapsedFiles,
-    setCollapsedFiles,
-    toggleCollapsed,
-    reviewCollapsedRef,
-  });
+  const { reviewedNames, allCollapsed, toggleAll, handleToggleCollapsed, toggleReviewed } =
+    useDiffReview({
+      parsedFiles,
+      reviewKeyByFile,
+      scopeKey,
+      isPlaceholder: isPlaceholderData,
+      collapsedFiles,
+      setCollapsedFiles,
+      toggleCollapsed,
+      reviewCollapsedRef,
+    });
 
   // Refetches can drop the tracked file (e.g. after a discard) — fall back to
   // the first file so the sidebar highlight never points at a missing row.
@@ -491,8 +496,7 @@ const DiffViewContent = memo(function DiffViewContent({
             openDiscardAll={openDiscardAll}
             canDiscard={canDiscard}
             discardPending={restoreFilePending}
-            reviewKeyByFile={reviewKeyByFile}
-            ignoreWhitespace={ignoreWhitespace}
+            contentKeyByFile={contentKeyByFile}
             collapsedFiles={collapsedFiles}
             reviewedNames={reviewedNames}
             statsByFile={statsByFile}

@@ -121,6 +121,21 @@ export function hashDiffContent(content: string): string {
 // (they only declare `mode`/`prevMode`); widen locally to copy it through.
 type FileDiffWithOldMode = FileDiffMetadata & { oldMode?: string };
 
+// Whitespace mode yields different hunks, so caches and remount keys must tell
+// the two apart.
+export const whitespaceKeySuffix = (ignoreWhitespace: boolean) => (ignoreWhitespace ? ':ws' : '');
+
+// path -> `path\0contentHash`. The hash folds a file's changed lines in, so a
+// key stored as "reviewed" stops matching once the file's content shifts.
+export function buildReviewKeys(files: FileDiffMetadata[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const file of files) {
+    const content = `${file.deletionLines.join('')}\0${file.additionLines.join('')}`;
+    map.set(file.name, `${file.name}\0${hashDiffContent(content)}`);
+  }
+  return map;
+}
+
 // Re-diff with limited context so the library emits collapsedBefore gaps for
 // the expand-on-click UI.
 export function rebuildWithCollapsedContext(
@@ -134,8 +149,7 @@ export function rebuildWithCollapsedContext(
 ): FileDiffMetadata {
   const contents = extractContents(fullFile);
   if (!contents) return fullFile;
-  // The highlight cache is keyed by these; whitespace mode yields different hunks.
-  const keySuffix = ignoreWhitespace ? ':ws' : '';
+  const keySuffix = whitespaceKeySuffix(ignoreWhitespace);
   const rebuilt = parseDiffFromFile(
     {
       name: fullFile.prevName ?? fullFile.name,
