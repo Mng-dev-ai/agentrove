@@ -261,11 +261,6 @@
   color: var(--theme-text-tertiary);
 }
 
-.shortcut-keys {
-  display: flex;
-  gap: var(--space-1);
-}
-
 .kbd {
   @include type.type-mono-meta;
   min-width: var(--space-4);

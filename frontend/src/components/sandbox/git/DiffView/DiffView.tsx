@@ -29,7 +29,7 @@ import { DiffToolbar } from './DiffToolbar';
 import { useDiffDiscard } from './useDiffDiscard';
 import { useDiffReview } from './useDiffReview';
 import { useDiffScroll } from './useDiffScroll';
-import { useDiffShortcuts } from './useDiffShortcuts';
+import { useDiffShortcuts, type DiffShortcut } from './useDiffShortcuts';
 import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
@@ -182,11 +182,14 @@ const DiffViewContent = memo(function DiffViewContent({
   const filesMenu = useAnchoredPanel(computeMenuPos);
   const overflowMenu = useAnchoredPanel(computeOverflowMenuPos);
   const commentsMenu = useAnchoredPanel(computeCommentsMenuPos);
-  // Anchored to the overflow trigger, which also hosts its menu entry.
-  const shortcutsMenu = useAnchoredPanel(computeOverflowMenuPos);
+  const [overflowView, setOverflowView] = useState<'menu' | 'shortcuts'>('menu');
   const { close: closeFilesMenu } = filesMenu;
   const { close: closeOverflowMenu } = overflowMenu;
   const { close: closeCommentsMenu } = commentsMenu;
+
+  useEffect(() => {
+    if (!overflowMenu.isOpen) setOverflowView('menu');
+  }, [overflowMenu.isOpen]);
 
   // The chip (the panel's trigger) unmounts once the list empties.
   useEffect(() => {
@@ -375,25 +378,35 @@ const DiffViewContent = memo(function DiffViewContent({
     );
   }, [openComposer]);
 
-  const { toggle: toggleShortcutsMenu } = shortcutsMenu;
-  const shortcuts = useMemo(
-    () => ({
-      j: () => stepFile(1),
-      k: () => stepFile(-1),
-      v: () => {
-        if (currentFile) toggleViewed(currentFile);
+  const { isOpen: overflowOpen, toggle: toggleOverflowMenu } = overflowMenu;
+  const toggleShortcutsHelp = useCallback(() => {
+    if (overflowOpen && overflowView === 'shortcuts') {
+      closeOverflowMenu();
+      return;
+    }
+    setOverflowView('shortcuts');
+    if (!overflowOpen) toggleOverflowMenu();
+  }, [overflowOpen, overflowView, closeOverflowMenu, toggleOverflowMenu]);
+
+  const shortcuts = useMemo<DiffShortcut[]>(
+    () => [
+      { key: 'j', label: 'Next file', run: () => stepFile(1) },
+      { key: 'k', label: 'Previous file', run: () => stepFile(-1) },
+      {
+        key: 'v',
+        label: 'Toggle viewed',
+        run: () => {
+          if (currentFile) toggleViewed(currentFile);
+        },
       },
-      c: commentOnSelection,
-      '?': toggleShortcutsMenu,
-    }),
-    [stepFile, currentFile, toggleViewed, commentOnSelection, toggleShortcutsMenu],
+      ...(chatId
+        ? [{ key: 'c', label: 'Comment on selected lines', run: commentOnSelection }]
+        : []),
+      { key: '?', label: 'Show shortcuts', run: toggleShortcutsHelp },
+    ],
+    [stepFile, currentFile, toggleViewed, chatId, commentOnSelection, toggleShortcutsHelp],
   );
   useDiffShortcuts(rootRef, showFiles && isVisible, shortcuts);
-
-  const openShortcutsFromMenu = useCallback(() => {
-    closeOverflowMenu();
-    toggleShortcutsMenu();
-  }, [closeOverflowMenu, toggleShortcutsMenu]);
 
   const toggleWhitespaceFromMenu = useCallback(() => {
     setIgnoreWhitespace((prev) => !prev);
@@ -469,9 +482,9 @@ const DiffViewContent = memo(function DiffViewContent({
           commentCount={comments.length}
           commentsMenu={commentsMenu}
           commentsPanel={commentsPanel}
-          shortcutsMenu={shortcutsMenu}
-          onOpenShortcuts={openShortcutsFromMenu}
-          canComment={!!chatId}
+          overflowView={overflowView}
+          onShowShortcuts={() => setOverflowView('shortcuts')}
+          shortcuts={shortcuts}
         />
 
         <div className={styles.content}>
