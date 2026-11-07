@@ -1,5 +1,14 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { CheckCircle2, ChevronRight, Circle, MessageSquare, Search } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronRight,
+  Circle,
+  EyeOff,
+  MessageSquare,
+  Search,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import type { ChangeTypes, FileDiffMetadata } from '@pierre/diffs';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
@@ -87,23 +96,28 @@ function DirLabel({
 
 function FilterToggle({
   label,
+  icon: Icon,
   isOn,
   onToggle,
 }: {
   label: string;
+  icon: LucideIcon;
   isOn: boolean;
   onToggle: () => void;
 }) {
   return (
-    <Button
-      variant="unstyled"
-      type="button"
-      aria-pressed={isOn}
-      onClick={onToggle}
-      className={clsx(styles['filter-toggle'], isOn && styles['filter-toggle--on'])}
-    >
-      {label}
-    </Button>
+    <FloatingTooltip content={label} className={styles['filter-toggle-slot']}>
+      <Button
+        variant="unstyled"
+        type="button"
+        aria-pressed={isOn}
+        aria-label={label}
+        onClick={onToggle}
+        className={clsx(styles['filter-toggle'], isOn && styles['filter-toggle--on'])}
+      >
+        <Icon className={styles['filter-icon']} />
+      </Button>
+    </FloatingTooltip>
   );
 }
 
@@ -163,31 +177,6 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
 
   return (
     <div className={styles.sidebar}>
-      <div className={styles.filter}>
-        <div className={styles['filter-field']}>
-          <Search className={styles['filter-icon']} />
-          <Input
-            variant="unstyled"
-            value={filter.query}
-            onChange={(event) => onFilterChange({ ...filter, query: event.target.value })}
-            placeholder="Filter files"
-            aria-label="Filter files"
-            className={styles['filter-input']}
-          />
-        </div>
-        <div className={styles['filter-toggles']}>
-          <FilterToggle
-            label="Hide reviewed"
-            isOn={filter.hideReviewed}
-            onToggle={() => onFilterChange({ ...filter, hideReviewed: !filter.hideReviewed })}
-          />
-          <FilterToggle
-            label="Only commented"
-            isOn={filter.onlyCommented}
-            onToggle={() => onFilterChange({ ...filter, onlyCommented: !filter.onlyCommented })}
-          />
-        </div>
-      </div>
       <div className={styles['sidebar-header']}>
         <span className={styles['file-count']}>
           {files.length} {files.length === 1 ? 'file' : 'files'}
@@ -195,6 +184,40 @@ export const DiffFileSidebar = memo(function DiffFileSidebar({
         <div className={styles.spacer} />
         <span className={styles['stat-add']}>+{totals.additions}</span>
         <span className={styles['stat-del']}>&minus;{totals.deletions}</span>
+      </div>
+      <div className={styles.filter}>
+        <Search className={styles['filter-icon']} />
+        <Input
+          variant="unstyled"
+          value={filter.query}
+          onChange={(event) => onFilterChange({ ...filter, query: event.target.value })}
+          placeholder="Filter files"
+          aria-label="Filter files"
+          className={styles['filter-input']}
+        />
+        {filter.query && (
+          <Button
+            variant="unstyled"
+            type="button"
+            onClick={() => onFilterChange({ ...filter, query: '' })}
+            aria-label="Clear filter"
+            className={styles['filter-toggle']}
+          >
+            <X className={styles['filter-icon']} />
+          </Button>
+        )}
+        <FilterToggle
+          label="Hide reviewed"
+          icon={EyeOff}
+          isOn={filter.hideReviewed}
+          onToggle={() => onFilterChange({ ...filter, hideReviewed: !filter.hideReviewed })}
+        />
+        <FilterToggle
+          label="Only commented"
+          icon={MessageSquare}
+          isOn={filter.onlyCommented}
+          onToggle={() => onFilterChange({ ...filter, onlyCommented: !filter.onlyCommented })}
+        />
       </div>
 
       <div ref={listRef} className={styles.list}>
