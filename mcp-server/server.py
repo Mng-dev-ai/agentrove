@@ -269,6 +269,42 @@ async def list_chats(
 
 
 @mcp.tool()
+async def search_chats(
+    query: str, scope: Literal["workspace", "all"] = "workspace", limit: int = 10
+) -> dict[str, Any]:
+    """Search past chat transcripts for a phrase (case-insensitive substring, 2-200 chars).
+
+    For recalling what was discussed or decided in earlier chats that nobody saved to
+    memory — try search_memory first. scope "workspace" searches this chat's workspace,
+    "all" searches every workspace. Newest first; returns up to `limit` chats (1-200),
+    each with up to 5 matching message snippets. Read a hit in full with get_messages.
+    truncated means more matches exist; narrow the query.
+    """
+    workspace_id = await _current_workspace_id() if scope == "workspace" else None
+    data = await client.search_chats(query, workspace_id, limit)
+    results = [
+        {
+            "chat_id": r["chat_id"],
+            "title": r["chat_title"],
+            "workspace_id": r["workspace_id"],
+            "workspace_name": r["workspace_name"],
+            "match_count": r["match_count"],
+            "matches": [
+                {
+                    "message_id": m["message_id"],
+                    "role": m["role"],
+                    "snippet": m["snippet_before"] + m["snippet_match"] + m["snippet_after"],
+                    "created_at": m["created_at"],
+                }
+                for m in r["matches"]
+            ],
+        }
+        for r in data["results"]
+    ]
+    return {"results": results, "truncated": data["truncated"]}
+
+
+@mcp.tool()
 async def list_personas() -> dict[str, Any]:
     """List custom personas available for send_message's `persona` argument.
 

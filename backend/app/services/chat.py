@@ -163,6 +163,7 @@ class ChatService(BaseDbService[Chat]):
         user: User,
         query: str,
         *,
+        workspace_id: UUID | None = None,
         limit: int = 50,
         per_chat_limit: int = 5,
     ) -> ChatSearchResponse:
@@ -193,6 +194,8 @@ class ChatService(BaseDbService[Chat]):
                 .order_by(Message.created_at.desc())
                 .limit(SEARCH_MAX_ROWS)
             )
+            if workspace_id is not None:
+                stmt = stmt.where(Chat.workspace_id == workspace_id)
             result = await db.execute(stmt)
             rows = result.all()
 
