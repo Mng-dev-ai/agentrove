@@ -16,6 +16,7 @@ import {
   type SidebarFilter,
 } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { useDiffComments } from '@/hooks/useDiffComments';
+import { compareFilePaths } from '@/utils/filePaths';
 import { WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
@@ -32,7 +33,6 @@ import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
   NARROW_BREAKPOINT,
-  compareFilePaths,
   computeCommentsMenuPos,
   computeMenuPos,
   findNextUnreviewed,

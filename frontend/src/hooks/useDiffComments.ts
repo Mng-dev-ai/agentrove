@@ -3,7 +3,7 @@ import type { FileDiffMetadata, SelectedLineRange } from '@pierre/diffs';
 import { useUIStore } from '@/store/uiStore';
 import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
 import { getSelectedDiffText } from '@/utils/diffSelection';
-import { compareFilePaths } from '@/components/sandbox/git/DiffView/diffView.utils';
+import { compareFilePaths } from '@/utils/filePaths';
 
 interface PendingDiffComment {
   fileName: string;
