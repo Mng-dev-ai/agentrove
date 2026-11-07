@@ -114,6 +114,19 @@ export const MessageRenderer = memo(function MessageRenderer({
   // the full render on chat open.
   const rollUpTrace =
     traceSegments.length > 0 && (tailSegments.length > 0 || omittedToolResults !== undefined);
+  const { rollupSegments, renderUiSegments } = React.useMemo(() => {
+    if (!rollUpTrace) return { rollupSegments: traceSegments, renderUiSegments: [] };
+    const rollupSegments: MessageSegment[] = [];
+    const renderUiSegments: MessageSegment[] = [];
+    for (const segment of traceSegments) {
+      if (segment.kind === 'tool' && segment.tool.name === 'mcp__agentrove__render_ui') {
+        renderUiSegments.push(segment);
+      } else {
+        rollupSegments.push(segment);
+      }
+    }
+    return { rollupSegments, renderUiSegments };
+  }, [traceSegments, rollUpTrace]);
   const segmentViewProps = {
     chatId,
     agentKind,
@@ -126,7 +139,7 @@ export const MessageRenderer = memo(function MessageRenderer({
   const traceNodes = awaitingFullRender ? (
     <TraceLoadState failed={fullRender.isError} onRetry={() => void fullRender.refetch()} />
   ) : (
-    traceSegments.map((segment) => (
+    rollupSegments.map((segment) => (
       <SegmentView
         key={segment.id}
         segment={segment}
@@ -153,13 +166,24 @@ export const MessageRenderer = memo(function MessageRenderer({
           <TraceLoadState failed={fullRender.isError} onRetry={() => void fullRender.refetch()} />
         )}
         {rollUpTrace ? (
-          <WorkedRollup durationMs={durationMs} onExpand={requestFullRender}>
-            {traceNodes}
-          </WorkedRollup>
+          rollupSegments.length > 0 && (
+            <WorkedRollup durationMs={durationMs} onExpand={requestFullRender}>
+              {traceNodes}
+            </WorkedRollup>
+          )
         ) : (
           traceNodes
         )}
         {tailNodes}
+        {renderUiSegments.map((segment) => (
+          <SegmentView
+            key={segment.id}
+            segment={segment}
+            isActiveThinking={segment.id === activeThinkingId}
+            isActiveText={segment.id === activeTextId}
+            {...segmentViewProps}
+          />
+        ))}
       </div>
     </AgentToolsContext>
   );
