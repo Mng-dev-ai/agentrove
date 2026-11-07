@@ -97,7 +97,8 @@ export function ChatTabs() {
   );
 
   const visibleTabs = useMemo(
-    () => chatTabs.filter((chatId) => streamingChatIdSet.has(chatId) || blockedChatIdSet.has(chatId)),
+    () =>
+      chatTabs.filter((chatId) => streamingChatIdSet.has(chatId) || blockedChatIdSet.has(chatId)),
     [chatTabs, streamingChatIdSet, blockedChatIdSet],
   );
 
