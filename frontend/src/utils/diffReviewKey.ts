@@ -15,3 +15,13 @@ export function reviewKeyFor(file: FileDiffMetadata): string {
   const content = `${file.deletionLines.join('')}\0${file.additionLines.join('')}`;
   return `${file.name}\0${hashDiffContent(content)}`;
 }
+
+export function buildReviewKeys(files: FileDiffMetadata[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const file of files) map.set(file.name, reviewKeyFor(file));
+  return map;
+}
+
+// Whitespace mode yields different hunks, so caches and remount keys must tell
+// the two apart.
+export const whitespaceKeySuffix = (ignoreWhitespace: boolean) => (ignoreWhitespace ? ':ws' : '');

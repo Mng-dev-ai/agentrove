@@ -11,7 +11,7 @@ import { DiffCommentCard } from '@/components/sandbox/git/DiffCommentComposer/Di
 import { useShallow } from 'zustand/react/shallow';
 import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
 import { annotationSide, formatLineLabel } from '@/utils/diffSelection';
-import { reviewKeyFor } from '@/utils/diffReviewKey';
+import { reviewKeyFor, whitespaceKeySuffix } from '@/utils/diffReviewKey';
 import type { FileChangeStats } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { FileDiff } from '@pierre/diffs/react';
 import clsx from 'clsx';
@@ -38,6 +38,7 @@ type AnnotationMeta =
 
 const FileDiffRenderer = memo(function FileDiffRenderer({
   file,
+  reviewKey,
   options,
   canComment,
   commentRange,
@@ -50,6 +51,7 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
   onCancelComment,
 }: {
   file: FileDiffMetadata;
+  reviewKey: string;
   options: Record<string, unknown>;
   canComment: boolean;
   commentRange: SelectedLineRange | null;
@@ -62,7 +64,6 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
   onCancelComment: () => void;
 }) {
   const editingCommentId = useDiffCommentsStore((s) => s.editingCommentId);
-  const reviewKey = useMemo(() => reviewKeyFor(file), [file]);
 
   // Selection is gated on a chat being connected — the comment has nowhere to
   // go otherwise. Fully controlled via `selectedLines` so closing the composer
@@ -185,7 +186,7 @@ function FileStatusBadge({ type }: { type?: string }) {
 
 export const DiffFileRow = memo(function DiffFileRow({
   file,
-  contentKey,
+  ignoreWhitespace,
   isExpanded,
   isReviewed,
   stats,
@@ -206,7 +207,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   onCancelComment,
 }: {
   file: FileDiffMetadata;
-  contentKey: string | undefined;
+  ignoreWhitespace: boolean;
   isExpanded: boolean;
   isReviewed: boolean;
   stats: FileChangeStats | undefined;
@@ -227,6 +228,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   onCancelComment: () => void;
 }) {
   const isRenamed = isRenameFileType(file.type);
+  const reviewKey = useMemo(() => reviewKeyFor(file), [file]);
   const comments = useDiffCommentsStore(
     useShallow((s) =>
       chatId ? (s.commentsByScope[scopeKey] ?? []).filter((c) => c.path === file.name) : [],
@@ -312,8 +314,9 @@ export const DiffFileRow = memo(function DiffFileRow({
         // new fileDiff after hydration (`this.fileDiff ??= fileDiff`), so a
         // refetch with changed content must remount to render fresh lines.
         <FileDiffRenderer
-          key={contentKey}
+          key={`${reviewKey}${whitespaceKeySuffix(ignoreWhitespace)}`}
           file={file}
+          reviewKey={reviewKey}
           options={options}
           canComment={!!chatId}
           commentRange={commentRange}

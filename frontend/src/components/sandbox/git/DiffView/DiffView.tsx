@@ -17,7 +17,7 @@ import {
 } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { useDiffComments } from '@/hooks/useDiffComments';
 import { compareFilePaths } from '@/utils/filePaths';
-import { hashDiffContent } from '@/utils/diffReviewKey';
+import { buildReviewKeys, hashDiffContent } from '@/utils/diffReviewKey';
 import { WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
@@ -34,13 +34,11 @@ import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
   NARROW_BREAKPOINT,
-  buildReviewKeys,
   computeCommentsMenuPos,
   computeMenuPos,
   findNextUnreviewed,
   computeOverflowMenuPos,
   rebuildWithCollapsedContext,
-  whitespaceKeySuffix,
 } from './diffView.utils';
 import styles from './DiffView.module.scss';
 // Per-palette pierre diff-surface overrides, generated from palettes.ts (see vite.config.ts).
@@ -226,12 +224,6 @@ const DiffViewContent = memo(function DiffViewContent({
   }, [diffContent, diffCacheKey, ignoreWhitespace]);
 
   const reviewKeyByFile = useMemo(() => buildReviewKeys(parsedFiles), [parsedFiles]);
-  const contentKeyByFile = useMemo(() => {
-    const suffix = whitespaceKeySuffix(ignoreWhitespace);
-    const map = new Map<string, string>();
-    reviewKeyByFile.forEach((key, name) => map.set(name, `${key}${suffix}`));
-    return map;
-  }, [reviewKeyByFile, ignoreWhitespace]);
 
   const statsByFile = useMemo(() => {
     const map = new Map<string, FileChangeStats>();
@@ -507,7 +499,7 @@ const DiffViewContent = memo(function DiffViewContent({
             openDiscardAll={openDiscardAll}
             canDiscard={canDiscard}
             discardPending={restoreFilePending}
-            contentKeyByFile={contentKeyByFile}
+            ignoreWhitespace={ignoreWhitespace}
             collapsedFiles={collapsedFiles}
             reviewedNames={reviewedNames}
             statsByFile={statsByFile}

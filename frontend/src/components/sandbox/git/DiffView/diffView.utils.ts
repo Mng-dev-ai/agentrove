@@ -1,6 +1,6 @@
 import type { CreatePatchOptionsNonabortable, FileDiffMetadata, FileContents } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
-import { reviewKeyFor } from '@/utils/diffReviewKey';
+import { whitespaceKeySuffix } from '@/utils/diffReviewKey';
 
 export const DIFF_THEMES = { dark: 'pierre-dark', light: 'pierre-light' } as const;
 
@@ -112,16 +112,6 @@ function extractContents(
 // The runtime FileDiffMetadata carries an `oldMode` the published types omit
 // (they only declare `mode`/`prevMode`); widen locally to copy it through.
 type FileDiffWithOldMode = FileDiffMetadata & { oldMode?: string };
-
-// Whitespace mode yields different hunks, so caches and remount keys must tell
-// the two apart.
-export const whitespaceKeySuffix = (ignoreWhitespace: boolean) => (ignoreWhitespace ? ':ws' : '');
-
-export function buildReviewKeys(files: FileDiffMetadata[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const file of files) map.set(file.name, reviewKeyFor(file));
-  return map;
-}
 
 // Re-diff with limited context so the library emits collapsedBefore gaps for
 // the expand-on-click UI.
