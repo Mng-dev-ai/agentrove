@@ -1264,6 +1264,9 @@ class ChatService(BaseDbService[Chat]):
                 "session_id": chat.session_id,
                 "session_agent_kind": chat.session_agent_kind,
                 "worktree_cwd": chat.worktree_cwd,
+                "parent_chat_id": str(chat.parent_chat_id)
+                if chat.parent_chat_id
+                else None,
             },
             permission_mode=permission_mode,
             model_id=model_id,

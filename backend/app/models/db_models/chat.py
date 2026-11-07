@@ -143,6 +143,8 @@ class Chat(Base):
             raise ValueError("Missing sandbox_provider in chat data")
         chat._sandbox_provider = sandbox_provider
         chat.worktree_cwd = data.get("worktree_cwd")
+        parent_chat_id = data.get("parent_chat_id")
+        chat.parent_chat_id = UUID(parent_chat_id) if parent_chat_id else None
         return chat
 
 

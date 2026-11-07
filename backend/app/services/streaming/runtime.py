@@ -1306,6 +1306,9 @@ class ChatStreamRuntime:
                 "session_id": resolved_session_id,
                 "session_agent_kind": chat.session_agent_kind,
                 "worktree_cwd": chat.worktree_cwd,
+                "parent_chat_id": str(chat.parent_chat_id)
+                if chat.parent_chat_id
+                else None,
             },
             permission_mode=queued_msg["permission_mode"],
             model_id=queued_msg["model_id"],
