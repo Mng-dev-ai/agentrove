@@ -251,7 +251,10 @@ export function useChatStreaming({
   });
 
   useEffect(() => {
-    if (wasAborted && announcedMessageId && announcedMessageId !== abortedMessageIdRef.current) {
+    if (!wasAborted || !announcedMessageId) return;
+    if (abortedMessageIdRef.current === null) {
+      abortedMessageIdRef.current = announcedMessageId;
+    } else if (abortedMessageIdRef.current !== announcedMessageId) {
       setWasAborted(false);
     }
   }, [wasAborted, announcedMessageId]);

@@ -55,7 +55,7 @@ function InputLayout() {
       ? 'ready'
       : 'streaming'
     : state.isLoading
-      ? state.hasContent
+      ? state.hasContent && state.chatId
         ? 'ready'
         : 'loading'
       : state.hasContent
