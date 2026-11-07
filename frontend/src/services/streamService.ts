@@ -1,6 +1,7 @@
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { queryClient } from '@/lib/queryClient';
 import { useStreamStore } from '@/store/streamStore';
+import { usePermissionStore } from '@/store/permissionStore';
 import { useChannelQueueStore, useMessageQueueStore } from '@/store/messageQueueStore';
 import { useChannelStore } from '@/store/channelStore';
 import { isChannelEnvelope, type ChannelEnvelope } from '@/types/channel.types';
@@ -85,6 +86,7 @@ class StreamService {
     const streamMessageId = currentStream.messageId ?? messageId;
 
     useStreamStore.getState().removeStream(streamId);
+    usePermissionStore.getState().clearPermissionRequests(currentStream.chatId);
 
     if (error && errorCallback) {
       errorCallback(error, streamMessageId, streamPublicId);
@@ -242,6 +244,7 @@ class StreamService {
       const durationMs =
         typeof parsed.payload?.duration_ms === 'number' ? parsed.payload.duration_ms : null;
       useStreamStore.getState().removeStream(streamId);
+      usePermissionStore.getState().clearPermissionRequests(chatId);
       // Only successful finish earns the sidebar "Done" badge.
       if (parsed.kind === 'complete') {
         useStreamStore.getState().markCompleted(chatId);
@@ -282,6 +285,7 @@ class StreamService {
       Date.now() - stream.startTime,
     );
     useStreamStore.getState().abortStream(stream.id);
+    usePermissionStore.getState().clearPermissionRequests(stream.chatId);
   }
 
   // Register + requestReplay so pre-registration events aren't dropped on an open feed.

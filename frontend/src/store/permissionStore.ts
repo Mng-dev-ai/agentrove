@@ -7,6 +7,7 @@ interface PermissionState {
   // true if newly enqueued (gate one-time side effects like notifications).
   enqueuePermissionRequest: (chatId: string, request: PermissionRequest) => boolean;
   resolvePermissionRequest: (chatId: string, requestId: string) => void;
+  clearPermissionRequests: (chatId: string) => void;
 }
 
 export const usePermissionStore = create<PermissionState>((set, get) => ({
@@ -36,6 +37,15 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
       } else {
         nextRequests.set(chatId, nextQueue);
       }
+      return { pendingRequests: nextRequests };
+    });
+  },
+
+  clearPermissionRequests: (chatId: string) => {
+    set((state) => {
+      if (!state.pendingRequests.has(chatId)) return state;
+      const nextRequests = new Map(state.pendingRequests);
+      nextRequests.delete(chatId);
       return { pendingRequests: nextRequests };
     });
   },
