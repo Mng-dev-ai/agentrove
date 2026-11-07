@@ -7,6 +7,7 @@ import {
   type RefObject,
   type SetStateAction,
 } from 'react';
+import type { DiffComment } from '@/store/diffCommentsStore';
 import { SCROLL_KEYS, findScroller } from './diffView.utils';
 
 interface UseDiffScrollParams {
@@ -94,6 +95,12 @@ export function useDiffScroll({
     [cancelJump, paneRef, reviewCollapsedRef, rootRef, setActiveFile, setCollapsedFiles],
   );
 
+  const jumpToComment = useCallback(
+    (comment: DiffComment) =>
+      jumpToFile(comment.path, `[data-diff-comment="${CSS.escape(comment.id)}"]`),
+    [jumpToFile],
+  );
+
   // Scope changes must cancel before a stale frame can run against the new diff.
   useLayoutEffect(() => cancelJump, [cancelJump, scopeKey]);
 
@@ -153,5 +160,5 @@ export function useDiffScroll({
     };
   }, [paneRef, rootRef, setActiveFile, showFiles]);
 
-  return { jumpToFile };
+  return { jumpToFile, jumpToComment };
 }

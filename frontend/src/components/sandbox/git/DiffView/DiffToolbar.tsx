@@ -46,7 +46,7 @@ interface DiffToolbarProps {
   allCollapsed: boolean;
   onToggleAll: () => void;
   ignoreWhitespace: boolean;
-  onToggleWhitespace: () => void;
+  onIgnoreWhitespaceChange: (ignoreWhitespace: boolean) => void;
   onDiscardAll: () => void;
   filesMenu: AnchoredPanel;
   overflowMenu: AnchoredPanel;
@@ -78,7 +78,7 @@ export function DiffToolbar({
   allCollapsed,
   onToggleAll,
   ignoreWhitespace,
-  onToggleWhitespace,
+  onIgnoreWhitespaceChange,
   onDiscardAll,
   filesMenu,
   overflowMenu,
@@ -259,7 +259,14 @@ export function DiffToolbar({
             ) : (
               <>
                 {showFiles && (
-                  <Button variant="unstyled" onClick={onToggleAll} className={styles['menu-item']}>
+                  <Button
+                    variant="unstyled"
+                    onClick={() => {
+                      onToggleAll();
+                      overflowMenu.close();
+                    }}
+                    className={styles['menu-item']}
+                  >
                     <ChevronsUpDown className={styles['menu-item-icon']} />
                     {allCollapsed ? 'Expand all files' : 'Collapse all files'}
                   </Button>
@@ -269,7 +276,10 @@ export function DiffToolbar({
                     variant="unstyled"
                     role="menuitemcheckbox"
                     aria-checked={ignoreWhitespace}
-                    onClick={onToggleWhitespace}
+                    onClick={() => {
+                      onIgnoreWhitespaceChange(!ignoreWhitespace);
+                      overflowMenu.close();
+                    }}
                     className={styles['menu-item']}
                   >
                     {ignoreWhitespace ? (
@@ -284,7 +294,10 @@ export function DiffToolbar({
                   <Button
                     variant="unstyled"
                     disabled={discardAllPending}
-                    onClick={onDiscardAll}
+                    onClick={() => {
+                      onDiscardAll();
+                      overflowMenu.close();
+                    }}
                     className={styles['menu-item']}
                   >
                     <Undo2 className={styles['menu-item-icon']} />

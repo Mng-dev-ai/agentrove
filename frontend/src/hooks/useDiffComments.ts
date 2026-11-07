@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type RefObject } from 'react';
 import type { FileDiffMetadata, SelectedLineRange } from '@pierre/diffs';
 import { useUIStore } from '@/store/uiStore';
 import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
@@ -34,6 +34,7 @@ export function useDiffComments(
   chatId: string | undefined,
   cwd: string | undefined,
   scopeKey: string,
+  rootRef: RefObject<HTMLDivElement | null>,
 ) {
   const [pendingComment, setPendingComment] = useState<PendingDiffComment | null>(null);
   const storedComments = useDiffCommentsStore((s) => s.commentsByScope[scopeKey]);
@@ -66,7 +67,11 @@ export function useDiffComments(
     setPendingComment((prev) =>
       prev ? { ...prev, range: normalizeSelection(prev.range), composing: true } : prev,
     );
-  }, []);
+    // The composer may already be open (autoFocus only fires on mount).
+    requestAnimationFrame(() =>
+      rootRef.current?.querySelector<HTMLTextAreaElement>('[data-diff-composer] textarea')?.focus(),
+    );
+  }, [rootRef]);
 
   const cancelComposer = useCallback(() => setPendingComment(null), []);
 

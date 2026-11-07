@@ -22,14 +22,13 @@ import { WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
 import type { DiffMode } from '@/types/sandbox.types';
-import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
 import { DiffCommentsPanel } from './DiffCommentsPanel';
 import { DiffPane } from './DiffPane';
 import { DiffToolbar } from './DiffToolbar';
 import { useDiffDiscard } from './useDiffDiscard';
 import { useDiffReview } from './useDiffReview';
 import { useDiffScroll } from './useDiffScroll';
-import { useDiffShortcuts, type DiffShortcut } from './useDiffShortcuts';
+import { useDiffShortcuts } from './useDiffShortcuts';
 import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
@@ -163,7 +162,7 @@ const DiffViewContent = memo(function DiffViewContent({
     handleSubmitComment,
     deleteComment,
     sendComments,
-  } = useDiffComments(chatId, cwd, scopeKey);
+  } = useDiffComments(chatId, cwd, scopeKey, rootRef);
   const prevScopeRef = useRef(scopeKey);
   if (prevScopeRef.current !== scopeKey) {
     prevScopeRef.current = scopeKey;
@@ -193,14 +192,6 @@ const DiffViewContent = memo(function DiffViewContent({
   useEffect(() => {
     if (comments.length === 0) closeCommentsMenu();
   }, [comments.length, closeCommentsMenu]);
-
-  // Closing a menu is a no-op when it isn't open, so every discard-all trigger
-  // (toolbar, overflow menu, empty state) shares this handler.
-  const openDiscardAll = useCallback(() => {
-    setDiscardAllOpen(true);
-    closeFilesMenu();
-    closeOverflowMenu();
-  }, [setDiscardAllOpen, closeFilesMenu, closeOverflowMenu]);
 
   const diffContent = diffData?.diff ?? '';
   const diffCacheKey = useMemo(
@@ -288,7 +279,7 @@ const DiffViewContent = memo(function DiffViewContent({
   // `!isPlaceholderData` blocks acting on rows from the previous mode's fetch.
   const canDiscard = ready && hasChanges && mode === 'all' && !isPlaceholderData;
 
-  const { jumpToFile } = useDiffScroll({
+  const { jumpToFile, jumpToComment } = useDiffScroll({
     rootRef,
     paneRef,
     scopeKey,
@@ -332,44 +323,6 @@ const DiffViewContent = memo(function DiffViewContent({
     if (next) jumpToFile(next);
   }, [parsedFiles, reviewedNames, currentFile, jumpToFile]);
 
-  const jumpToComment = useCallback(
-    (comment: DiffComment) => {
-      jumpToFile(comment.path, `[data-diff-comment="${CSS.escape(comment.id)}"]`);
-      closeCommentsMenu();
-    },
-    [jumpToFile, closeCommentsMenu],
-  );
-
-  const editComment = useCallback(
-    (comment: DiffComment) => {
-      useDiffCommentsStore.getState().setEditingCommentId(comment.id);
-      jumpToComment(comment);
-    },
-    [jumpToComment],
-  );
-
-  const sendCommentsToAgent = useCallback(() => {
-    sendComments(reviewKeyByFile);
-    closeCommentsMenu();
-  }, [sendComments, reviewKeyByFile, closeCommentsMenu]);
-
-  const stepFile = useCallback(
-    (offset: number) => {
-      const index = parsedFiles.findIndex((f) => f.name === currentFile);
-      const next = parsedFiles[index + offset];
-      if (next) jumpToFile(next.name);
-    },
-    [parsedFiles, currentFile, jumpToFile],
-  );
-
-  const commentOnSelection = useCallback(() => {
-    openComposer();
-    // The composer may already be open (autoFocus only fires on mount).
-    requestAnimationFrame(() =>
-      rootRef.current?.querySelector<HTMLTextAreaElement>('[data-diff-composer] textarea')?.focus(),
-    );
-  }, [openComposer]);
-
   const { isOpen: overflowOpen, toggle: toggleOverflowMenu } = overflowMenu;
   const toggleShortcutsHelp = useCallback(() => {
     if (overflowOpen && overflowView === 'shortcuts') {
@@ -380,35 +333,17 @@ const DiffViewContent = memo(function DiffViewContent({
     if (!overflowOpen) toggleOverflowMenu();
   }, [overflowOpen, overflowView, closeOverflowMenu, toggleOverflowMenu]);
 
-  const shortcuts = useMemo<DiffShortcut[]>(
-    () => [
-      { key: 'j', label: 'Next file', run: () => stepFile(1) },
-      { key: 'k', label: 'Previous file', run: () => stepFile(-1) },
-      {
-        key: 'v',
-        label: 'Toggle viewed',
-        run: () => {
-          if (currentFile) toggleViewed(currentFile);
-        },
-      },
-      ...(chatId
-        ? [{ key: 'c', label: 'Comment on selected lines', run: commentOnSelection }]
-        : []),
-      { key: '?', label: 'Show shortcuts', run: toggleShortcutsHelp },
-    ],
-    [stepFile, currentFile, toggleViewed, chatId, commentOnSelection, toggleShortcutsHelp],
-  );
-  useDiffShortcuts(rootRef, showFiles && isVisible, shortcuts);
-
-  const toggleWhitespaceFromMenu = useCallback(() => {
-    setIgnoreWhitespace((prev) => !prev);
-    closeOverflowMenu();
-  }, [closeOverflowMenu]);
-
-  const toggleAllFromMenu = useCallback(() => {
-    toggleAll();
-    closeOverflowMenu();
-  }, [toggleAll, closeOverflowMenu]);
+  const shortcuts = useDiffShortcuts({
+    rootRef,
+    enabled: showFiles && isVisible,
+    files: parsedFiles,
+    currentFile,
+    jumpToFile,
+    toggleViewed,
+    canComment: !!chatId,
+    openComposer,
+    toggleShortcutsHelp,
+  });
 
   if (!sandboxId) {
     return <div className={styles['no-sandbox']}>No sandbox connected</div>;
@@ -435,9 +370,9 @@ const DiffViewContent = memo(function DiffViewContent({
       commentsByFile={commentsByFile}
       reviewKeyByFile={reviewKeyByFile}
       onJump={jumpToComment}
-      onEdit={editComment}
       onDelete={deleteComment}
-      onSend={sendCommentsToAgent}
+      onSend={() => sendComments(reviewKeyByFile)}
+      onClose={closeCommentsMenu}
     />
   );
 
@@ -464,10 +399,10 @@ const DiffViewContent = memo(function DiffViewContent({
           canDiscard={canDiscard}
           discardAllPending={restoreAllPending}
           allCollapsed={allCollapsed}
-          onToggleAll={toggleAllFromMenu}
+          onToggleAll={toggleAll}
           ignoreWhitespace={ignoreWhitespace}
-          onToggleWhitespace={toggleWhitespaceFromMenu}
-          onDiscardAll={openDiscardAll}
+          onIgnoreWhitespaceChange={setIgnoreWhitespace}
+          onDiscardAll={() => setDiscardAllOpen(true)}
           filesMenu={filesMenu}
           overflowMenu={overflowMenu}
           filesSidebar={filesSidebar}
@@ -496,7 +431,7 @@ const DiffViewContent = memo(function DiffViewContent({
             showFiles={showFiles}
             parsedFiles={parsedFiles}
             onRefetch={() => refetch()}
-            openDiscardAll={openDiscardAll}
+            openDiscardAll={() => setDiscardAllOpen(true)}
             canDiscard={canDiscard}
             discardPending={restoreFilePending}
             ignoreWhitespace={ignoreWhitespace}
