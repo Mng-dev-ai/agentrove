@@ -1,4 +1,4 @@
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Send, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
 import type { DiffComment } from '@/store/diffCommentsStore';
@@ -24,7 +24,8 @@ export function DiffCommentsPanel({
     <>
       <div className={styles['comments-header']}>
         <span className={styles['comments-title']}>Pending comments</span>
-        <Button size="sm" onClick={onSend}>
+        <Button variant="unstyled" onClick={onSend} className={styles.chip}>
+          <Send className={styles['menu-item-icon']} />
           Send to agent
         </Button>
       </div>

@@ -189,7 +189,7 @@ export function DiffToolbar({
             aria-haspopup="dialog"
             aria-expanded={commentsMenu.isOpen}
             aria-label={`${commentCount} pending ${commentCount === 1 ? 'comment' : 'comments'}`}
-            className={styles['comments-chip']}
+            className={styles.chip}
           >
             <MessageSquare className={styles['menu-item-icon']} />
             {isNarrow

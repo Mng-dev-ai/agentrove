@@ -227,7 +227,7 @@
   color: var(--theme-text-tertiary);
 }
 
-.comments-chip {
+.chip {
   @include anim.transition-colors;
   @include type.type-meta;
   display: flex;
