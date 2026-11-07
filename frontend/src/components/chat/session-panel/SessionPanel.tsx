@@ -1,4 +1,4 @@
-import { memo, useEffect, type ReactNode } from 'react';
+import { memo, useEffect, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -280,6 +280,7 @@ function ParentThreadCard({ parentChatId }: { parentChatId: string }) {
 function SubThreadsCard({ chatId }: { chatId: string }) {
   const navigate = useNavigate();
   const { data: subThreads } = useSubThreadsQuery(chatId);
+  const [expanded, setExpanded] = useState(false);
   return (
     <Card
       title="Sub-threads"
@@ -301,13 +302,25 @@ function SubThreadsCard({ chatId }: { chatId: string }) {
       }
     >
       {subThreads && subThreads.length > 0 ? (
-        subThreads.map((thread) => (
-          <SubThreadRow
-            key={thread.id}
-            thread={thread}
-            onSelect={(id) => navigate(`/chat/${id}`)}
-          />
-        ))
+        <>
+          {(expanded ? subThreads : subThreads.slice(0, 10)).map((thread) => (
+            <SubThreadRow
+              key={thread.id}
+              thread={thread}
+              onSelect={(id) => navigate(`/chat/${id}`)}
+            />
+          ))}
+          {subThreads.length > 10 && (
+            <Button
+              variant="unstyled"
+              type="button"
+              className={clsx(styles['thread-row'], styles['show-more'])}
+              onClick={() => setExpanded(!expanded)}
+            >
+              {expanded ? 'Show less' : `Show ${subThreads.length - 10} more`}
+            </Button>
+          )}
+        </>
       ) : (
         <p className={styles.empty}>No sub-threads yet</p>
       )}

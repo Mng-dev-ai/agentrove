@@ -52,7 +52,7 @@ export const RunLocationSelector = memo(function RunLocationSelector({
         aria-label="Run on machine"
         aria-expanded={isOpen}
       >
-        <MachineStatusDot status={selected.status} />
+        {selected.status !== 'online' && <MachineStatusDot status={selected.status} />}
         <span className={toggleStyles['trigger-label']}>{selected.name}</span>
         <ChevronDown className={toggleStyles.chevron} />
       </Button>
@@ -86,7 +86,7 @@ export const RunLocationSelector = memo(function RunLocationSelector({
                     isSelected && toggleStyles['option-check--selected'],
                   )}
                 />
-                <MachineStatusDot status={option.status} />
+                {!isOnline && <MachineStatusDot status={option.status} />}
                 <span className={styles.name}>{option.name}</span>
                 {!isOnline && (
                   <span className={styles.status}>{MACHINE_STATUS_LABEL[option.status]}</span>

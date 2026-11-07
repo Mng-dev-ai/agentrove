@@ -72,6 +72,11 @@
   }
 }
 
+.show-more {
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
+}
+
 .row-icon {
   position: relative;
   display: flex;
