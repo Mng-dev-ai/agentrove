@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
 from app.core.security import create_mcp_access_token
+from app.core.user_manager import password_fingerprint
 from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat
 from app.models.db_models.user import User, UserSettings
@@ -500,6 +501,7 @@ class AgentService:
                 "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(
                     user_id, hashed_password, device_ids
                 ),
+                "AGENTROVE_CREDENTIAL_EPOCH": password_fingerprint(hashed_password),
             }
             # The chat this session runs in — lets the agent create sub-threads under it
             if current_chat_id:
