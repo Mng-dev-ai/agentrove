@@ -126,10 +126,22 @@
 }
 
 .progress {
+  @include anim.transition-colors;
   display: flex;
   flex-shrink: 0;
   align-items: center;
   gap: var(--space-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-1-5);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
+
+  &:disabled {
+    cursor: default;
+    background-color: transparent;
+  }
 }
 
 .progress-track {

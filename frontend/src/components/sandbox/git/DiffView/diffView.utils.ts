@@ -78,6 +78,20 @@ export function compareFilePaths(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+// First unreviewed file after `after` in pane order, wrapping around.
+export function findNextUnreviewed(
+  files: FileDiffMetadata[],
+  reviewed: Set<string>,
+  after: string | null,
+): string | null {
+  const start = after ? files.findIndex((f) => f.name === after) : -1;
+  for (let i = 1; i <= files.length; i += 1) {
+    const name = files[(start + i) % files.length].name;
+    if (!reviewed.has(name)) return name;
+  }
+  return null;
+}
+
 // Nearest scrollable ancestor, bounded to the diff pane — the Virtualizer owns
 // the scroll container and doesn't expose a ref to it. The overflow style is
 // checked, not just the heights: scrollHeight/clientHeight round to integers,

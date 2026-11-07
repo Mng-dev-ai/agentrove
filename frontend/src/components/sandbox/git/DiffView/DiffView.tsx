@@ -30,6 +30,7 @@ import {
   NARROW_BREAKPOINT,
   compareFilePaths,
   computeMenuPos,
+  findNextUnreviewed,
   computeOverflowMenuPos,
   hashDiffContent,
   rebuildWithCollapsedContext,
@@ -289,6 +290,21 @@ const DiffViewContent = memo(function DiffViewContent({
     wasVisibleRef.current = isVisible;
   }, [isVisible, refetch, sandboxId]);
 
+  // GitHub "Viewed": marking a file moves on to the next one still to review.
+  const toggleViewed = useCallback(
+    (name: string) => {
+      if (!toggleReviewed(name)) return;
+      const next = findNextUnreviewed(parsedFiles, new Set(reviewedNames).add(name), name);
+      if (next) jumpToFile(next);
+    },
+    [toggleReviewed, parsedFiles, reviewedNames, jumpToFile],
+  );
+
+  const jumpToNextUnreviewed = useCallback(() => {
+    const next = findNextUnreviewed(parsedFiles, reviewedNames, currentFile);
+    if (next) jumpToFile(next);
+  }, [parsedFiles, reviewedNames, currentFile, jumpToFile]);
+
   const toggleAllFromMenu = useCallback(() => {
     toggleAll();
     closeOverflowMenu();
@@ -328,6 +344,7 @@ const DiffViewContent = memo(function DiffViewContent({
           parsedFiles={parsedFiles}
           totals={totals}
           reviewedCount={reviewedNames.size}
+          onNextUnreviewed={jumpToNextUnreviewed}
           canDiscard={canDiscard}
           discardAllPending={restoreAllPending}
           allCollapsed={allCollapsed}
@@ -367,7 +384,7 @@ const DiffViewContent = memo(function DiffViewContent({
             options={options}
             pendingComment={pendingComment}
             onToggle={handleToggleCollapsed}
-            onToggleReviewed={toggleReviewed}
+            onToggleReviewed={toggleViewed}
             onDiscard={setDiscardTarget}
             onSelectionChange={handleSelectionChange}
             onSelectionEnd={handleSelectionEnd}

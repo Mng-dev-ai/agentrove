@@ -1,5 +1,5 @@
 import { memo, useMemo, useCallback } from 'react';
-import { CheckCircle2, ChevronRight, Circle, ExternalLink, Undo2 } from 'lucide-react';
+import { ChevronRight, ExternalLink, Square, SquareCheck, Undo2 } from 'lucide-react';
 import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -236,30 +236,22 @@ export const DiffFileRow = memo(function DiffFileRow({
           </FloatingTooltip>
         )}
         <FileStats stats={stats} />
-        <FloatingTooltip
-          content={isReviewed ? 'Reviewed — click to unmark' : 'Mark as reviewed'}
-          className={styles['review-slot']}
+        <Button
+          variant="unstyled"
+          type="button"
+          role="checkbox"
+          aria-checked={isReviewed}
+          aria-label={`Viewed ${file.name}`}
+          onClick={() => onToggleReviewed(file.name)}
+          className={clsx(styles.viewed, isReviewed && styles['viewed--checked'])}
         >
-          <Button
-            variant="unstyled"
-            type="button"
-            onClick={() => onToggleReviewed(file.name)}
-            aria-pressed={isReviewed}
-            aria-label={
-              isReviewed ? `Mark ${file.name} as not reviewed` : `Mark ${file.name} as reviewed`
-            }
-            className={clsx(
-              styles['review-toggle'],
-              isReviewed ? styles['review-toggle--reviewed'] : styles['review-toggle--unreviewed'],
-            )}
-          >
-            {isReviewed ? (
-              <CheckCircle2 className={styles['review-icon']} />
-            ) : (
-              <Circle className={styles['review-icon']} />
-            )}
-          </Button>
-        </FloatingTooltip>
+          {isReviewed ? (
+            <SquareCheck className={styles['viewed-icon']} />
+          ) : (
+            <Square className={styles['viewed-icon']} />
+          )}
+          Viewed
+        </Button>
       </div>
       {isExpanded && (
         // Keyed by content hash — the library's VirtualizedFileDiff ignores a

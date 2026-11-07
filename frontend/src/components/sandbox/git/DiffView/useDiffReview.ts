@@ -108,12 +108,12 @@ export function useDiffReview({
   );
 
   const toggleReviewed = useCallback(
-    (name: string) => {
+    (name: string): boolean => {
       // Placeholder rows belong to the previous scope — a ✓ would persist a key
       // hashed from them under the new scope, which its real diff never matches.
-      if (isPlaceholder) return;
+      if (isPlaceholder) return false;
       const key = reviewKeyByFile.get(name);
-      if (!key) return;
+      if (!key) return false;
       const store = useDiffReviewStore.getState();
       const willReview = !(store.reviewedByScope[scopeKey]?.includes(key) ?? false);
       store.toggleReviewed(scopeKey, key);
@@ -139,6 +139,7 @@ export function useDiffReview({
           return next;
         });
       }
+      return willReview;
     },
     [isPlaceholder, reviewCollapsedRef, reviewKeyByFile, scopeKey, setCollapsedFiles],
   );

@@ -31,6 +31,7 @@ interface DiffToolbarProps {
   parsedFiles: FileDiffMetadata[];
   totals: { additions: number; deletions: number };
   reviewedCount: number;
+  onNextUnreviewed: () => void;
   canDiscard: boolean;
   discardAllPending: boolean;
   allCollapsed: boolean;
@@ -54,6 +55,7 @@ export function DiffToolbar({
   parsedFiles,
   totals,
   reviewedCount,
+  onNextUnreviewed,
   canDiscard,
   discardAllPending,
   allCollapsed,
@@ -144,20 +146,34 @@ export function DiffToolbar({
 
       {isNarrow && diffstat}
 
-      {/* Review progress — hidden on narrow where the toolbar is tight. */}
-      {!isNarrow && showFiles && (
-        <div className={styles.progress}>
-          <div className={styles['progress-track']}>
-            {/* showFiles guarantees parsedFiles is non-empty. */}
-            <div
-              className={styles['progress-fill']}
-              style={{ width: `${(reviewedCount / parsedFiles.length) * 100}%` }}
-            />
-          </div>
-          <span className={styles['progress-label']}>
-            {reviewedCount}/{parsedFiles.length} reviewed
-          </span>
-        </div>
+      {showFiles && (
+        <FloatingTooltip
+          content={
+            reviewedCount === parsedFiles.length ? 'All files reviewed' : 'Next unreviewed file'
+          }
+          className={styles['tooltip-inline']}
+        >
+          <Button
+            variant="unstyled"
+            onClick={onNextUnreviewed}
+            disabled={reviewedCount === parsedFiles.length}
+            className={styles.progress}
+          >
+            {!isNarrow && (
+              <div className={styles['progress-track']}>
+                {/* showFiles guarantees parsedFiles is non-empty. */}
+                <div
+                  className={styles['progress-fill']}
+                  style={{ width: `${(reviewedCount / parsedFiles.length) * 100}%` }}
+                />
+              </div>
+            )}
+            <span className={styles['progress-label']}>
+              {reviewedCount}/{parsedFiles.length}
+              {!isNarrow && ' reviewed'}
+            </span>
+          </Button>
+        </FloatingTooltip>
       )}
 
       {/* Diff style inline on wide; narrow tucks it into the overflow menu. */}
