@@ -55,7 +55,9 @@ function InputLayout() {
       ? 'ready'
       : 'streaming'
     : state.isLoading
-      ? 'loading'
+      ? state.hasContent
+        ? 'ready'
+        : 'loading'
       : state.hasContent
         ? 'ready'
         : 'idle';
