@@ -32,7 +32,6 @@ export function useDiffComments(
   scopeKey: string,
 ) {
   const [pendingComment, setPendingComment] = useState<PendingDiffComment | null>(null);
-  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const storedComments = useDiffCommentsStore((s) => s.commentsByScope[scopeKey]);
   // Without a chat there's nowhere to send them (landing page shares the scope).
   const comments = (chatId && storedComments) || NO_COMMENTS;
@@ -69,7 +68,7 @@ export function useDiffComments(
 
   const resetComments = useCallback(() => {
     setPendingComment(null);
-    setEditingCommentId(null);
+    useDiffCommentsStore.getState().setEditingCommentId(null);
   }, []);
 
   const handleSubmitComment = useCallback(
@@ -91,19 +90,8 @@ export function useDiffComments(
     [chatId, scopeKey],
   );
 
-  const updateComment = useCallback(
-    (id: string, body: string) => {
-      useDiffCommentsStore.getState().updateComment(scopeKey, id, body);
-      setEditingCommentId(null);
-    },
-    [scopeKey],
-  );
-
   const deleteComment = useCallback(
-    (id: string) => {
-      useDiffCommentsStore.getState().removeComment(scopeKey, id);
-      setEditingCommentId((prev) => (prev === id ? null : prev));
-    },
+    (id: string) => useDiffCommentsStore.getState().removeComment(scopeKey, id),
     [scopeKey],
   );
 
@@ -124,22 +112,18 @@ export function useDiffComments(
       }
     }
     useDiffCommentsStore.getState().clearScope(scopeKey);
-    setEditingCommentId(null);
   }, [chatId, cwd, scopeKey, commentsByFile]);
 
   return {
     pendingComment,
     comments,
     commentsByFile,
-    editingCommentId,
-    setEditingCommentId,
     resetComments,
     cancelComposer,
     openComposer,
     handleSelectionChange,
     handleSelectionEnd,
     handleSubmitComment,
-    updateComment,
     deleteComment,
     sendComments,
   };

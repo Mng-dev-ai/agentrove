@@ -7,13 +7,9 @@ import { Virtualizer } from '@pierre/diffs/react';
 import { DiffFileRow } from '@/components/sandbox/git/DiffFileRow/DiffFileRow';
 import type { FileChangeStats } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import type { DiffMode } from '@/types/sandbox.types';
-import type { DiffComment } from '@/store/diffCommentsStore';
 import { DiffEmptyState } from './DiffEmptyState';
 import { DIFF_EMPTY_LABELS, VIRTUALIZER_CONFIG } from './diffView.utils';
 import styles from './DiffView.module.scss';
-
-// Stable empty value — a fresh [] per render would re-render every file.
-const NO_COMMENTS: DiffComment[] = [];
 
 interface DiffPaneProps {
   paneRef: RefObject<HTMLDivElement | null>;
@@ -38,8 +34,7 @@ interface DiffPaneProps {
   chatId: string | undefined;
   options: Record<string, unknown>;
   pendingComment: { fileName: string; range: SelectedLineRange; composing: boolean } | null;
-  commentsByFile: Map<string, DiffComment[]>;
-  editingCommentId: string | null;
+  scopeKey: string;
   onToggle: (name: string) => void;
   onToggleReviewed: (name: string) => void;
   onDiscard: (file: FileDiffMetadata) => void;
@@ -47,9 +42,6 @@ interface DiffPaneProps {
   onSelectionEnd: (fileName: string, range: SelectedLineRange | null) => void;
   onSubmitComment: (file: FileDiffMetadata, range: SelectedLineRange, comment: string) => void;
   onCancelComment: () => void;
-  onEditComment: (id: string | null) => void;
-  onUpdateComment: (id: string, body: string) => void;
-  onDeleteComment: (id: string) => void;
 }
 
 export function DiffPane({
@@ -75,8 +67,7 @@ export function DiffPane({
   chatId,
   options,
   pendingComment,
-  commentsByFile,
-  editingCommentId,
+  scopeKey,
   onToggle,
   onToggleReviewed,
   onDiscard,
@@ -84,9 +75,6 @@ export function DiffPane({
   onSelectionEnd,
   onSubmitComment,
   onCancelComment,
-  onEditComment,
-  onUpdateComment,
-  onDeleteComment,
 }: DiffPaneProps) {
   return (
     <div ref={paneRef} className={styles.pane}>
@@ -141,8 +129,7 @@ export function DiffPane({
               options={options}
               commentRange={pendingComment?.fileName === file.name ? pendingComment.range : null}
               isComposing={pendingComment?.fileName === file.name && pendingComment.composing}
-              comments={commentsByFile.get(file.name) ?? NO_COMMENTS}
-              editingCommentId={editingCommentId}
+              scopeKey={scopeKey}
               onToggle={onToggle}
               onToggleReviewed={onToggleReviewed}
               onDiscard={onDiscard}
@@ -150,9 +137,6 @@ export function DiffPane({
               onSelectionEnd={onSelectionEnd}
               onSubmitComment={onSubmitComment}
               onCancelComment={onCancelComment}
-              onEditComment={onEditComment}
-              onUpdateComment={onUpdateComment}
-              onDeleteComment={onDeleteComment}
             />
           ))}
         </Virtualizer>

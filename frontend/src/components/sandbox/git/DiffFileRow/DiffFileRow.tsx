@@ -8,7 +8,8 @@ import { useUIStore } from '@/store/uiStore';
 import type { FileDiffMetadata, SelectedLineRange, DiffLineAnnotation } from '@pierre/diffs';
 import { DiffCommentComposer } from '@/components/sandbox/git/DiffCommentComposer/DiffCommentComposer';
 import { DiffCommentCard } from '@/components/sandbox/git/DiffCommentComposer/DiffCommentCard';
-import type { DiffComment } from '@/store/diffCommentsStore';
+import { useShallow } from 'zustand/react/shallow';
+import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
 import { annotationSide, formatLineLabel } from '@/utils/diffSelection';
 import type { FileChangeStats } from '@/components/sandbox/git/DiffFileSidebar/DiffFileSidebar';
 import { FileDiff } from '@pierre/diffs/react';
@@ -38,31 +39,27 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
   canComment,
   commentRange,
   isComposing,
+  scopeKey,
   comments,
-  editingCommentId,
   onSelectionChange,
   onSelectionEnd,
   onSubmitComment,
   onCancelComment,
-  onEditComment,
-  onUpdateComment,
-  onDeleteComment,
 }: {
   file: FileDiffMetadata;
   options: Record<string, unknown>;
   canComment: boolean;
   commentRange: SelectedLineRange | null;
   isComposing: boolean;
+  scopeKey: string;
   comments: DiffComment[];
-  editingCommentId: string | null;
   onSelectionChange: (fileName: string, range: SelectedLineRange | null) => void;
   onSelectionEnd: (fileName: string, range: SelectedLineRange | null) => void;
   onSubmitComment: (file: FileDiffMetadata, range: SelectedLineRange, comment: string) => void;
   onCancelComment: () => void;
-  onEditComment: (id: string | null) => void;
-  onUpdateComment: (id: string, body: string) => void;
-  onDeleteComment: (id: string) => void;
 }) {
+  const editingCommentId = useDiffCommentsStore((s) => s.editingCommentId);
+
   // Selection is gated on a chat being connected — the comment has nowhere to
   // go otherwise. Fully controlled via `selectedLines` so closing the composer
   // clears the highlight; start/change echoes keep the drag highlight live
@@ -112,15 +109,17 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
               <DiffCommentComposer
                 lineLabel={formatLineLabel(comment)}
                 initialValue={comment.body}
-                onSubmit={(body) => onUpdateComment(comment.id, body)}
-                onCancel={() => onEditComment(null)}
+                onSubmit={(body) =>
+                  useDiffCommentsStore.getState().updateComment(scopeKey, comment.id, body)
+                }
+                onCancel={() => useDiffCommentsStore.getState().setEditingCommentId(null)}
               />
             ) : (
               <DiffCommentCard
                 lineLabel={formatLineLabel(comment)}
                 body={comment.body}
-                onEdit={() => onEditComment(comment.id)}
-                onDelete={() => onDeleteComment(comment.id)}
+                onEdit={() => useDiffCommentsStore.getState().setEditingCommentId(comment.id)}
+                onDelete={() => useDiffCommentsStore.getState().removeComment(scopeKey, comment.id)}
               />
             )}
           </div>
@@ -137,16 +136,7 @@ const FileDiffRenderer = memo(function FileDiffRenderer({
         </div>
       );
     },
-    [
-      file,
-      commentRange,
-      editingCommentId,
-      onSubmitComment,
-      onCancelComment,
-      onEditComment,
-      onUpdateComment,
-      onDeleteComment,
-    ],
+    [file, scopeKey, commentRange, editingCommentId, onSubmitComment, onCancelComment],
   );
 
   return (
@@ -197,8 +187,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   options,
   commentRange,
   isComposing,
-  comments,
-  editingCommentId,
+  scopeKey,
   onToggle,
   onToggleReviewed,
   onDiscard,
@@ -206,9 +195,6 @@ export const DiffFileRow = memo(function DiffFileRow({
   onSelectionEnd,
   onSubmitComment,
   onCancelComment,
-  onEditComment,
-  onUpdateComment,
-  onDeleteComment,
 }: {
   file: FileDiffMetadata;
   contentKey: string | undefined;
@@ -222,8 +208,7 @@ export const DiffFileRow = memo(function DiffFileRow({
   options: Record<string, unknown>;
   commentRange: SelectedLineRange | null;
   isComposing: boolean;
-  comments: DiffComment[];
-  editingCommentId: string | null;
+  scopeKey: string;
   onToggle: (name: string) => void;
   onToggleReviewed: (name: string) => void;
   onDiscard: (file: FileDiffMetadata) => void;
@@ -231,11 +216,13 @@ export const DiffFileRow = memo(function DiffFileRow({
   onSelectionEnd: (fileName: string, range: SelectedLineRange | null) => void;
   onSubmitComment: (file: FileDiffMetadata, range: SelectedLineRange, comment: string) => void;
   onCancelComment: () => void;
-  onEditComment: (id: string | null) => void;
-  onUpdateComment: (id: string, body: string) => void;
-  onDeleteComment: (id: string) => void;
 }) {
   const isRenamed = isRenameFileType(file.type);
+  const comments = useDiffCommentsStore(
+    useShallow((s) =>
+      chatId ? (s.commentsByScope[scopeKey] ?? []).filter((c) => c.path === file.name) : [],
+    ),
+  );
   return (
     <div data-diff-file-path={file.name}>
       <div className={clsx(styles.header, isExpanded && styles['header--expanded'])}>
@@ -322,15 +309,12 @@ export const DiffFileRow = memo(function DiffFileRow({
           canComment={!!chatId}
           commentRange={commentRange}
           isComposing={isComposing}
+          scopeKey={scopeKey}
           comments={comments}
-          editingCommentId={editingCommentId}
           onSelectionChange={onSelectionChange}
           onSelectionEnd={onSelectionEnd}
           onSubmitComment={onSubmitComment}
           onCancelComment={onCancelComment}
-          onEditComment={onEditComment}
-          onUpdateComment={onUpdateComment}
-          onDeleteComment={onDeleteComment}
         />
       )}
     </div>

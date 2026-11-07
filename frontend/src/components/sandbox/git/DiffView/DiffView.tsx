@@ -21,7 +21,7 @@ import { WorkerPoolContextProvider } from '@pierre/diffs/react';
 import type { WorkerPoolOptions, WorkerInitializationRenderOptions } from '@pierre/diffs/worker';
 import DiffsWorker from '@pierre/diffs/worker/worker.js?worker';
 import type { DiffMode } from '@/types/sandbox.types';
-import type { DiffComment } from '@/store/diffCommentsStore';
+import { useDiffCommentsStore, type DiffComment } from '@/store/diffCommentsStore';
 import { DiffCommentsPanel } from './DiffCommentsPanel';
 import { DiffPane } from './DiffPane';
 import { DiffToolbar } from './DiffToolbar';
@@ -157,15 +157,12 @@ const DiffViewContent = memo(function DiffViewContent({
     pendingComment,
     commentsByFile,
     comments,
-    editingCommentId,
-    setEditingCommentId,
     resetComments,
     cancelComposer,
     openComposer,
     handleSelectionChange,
     handleSelectionEnd,
     handleSubmitComment,
-    updateComment,
     deleteComment,
     sendComments,
   } = useDiffComments(chatId, cwd, scopeKey);
@@ -350,10 +347,10 @@ const DiffViewContent = memo(function DiffViewContent({
 
   const editComment = useCallback(
     (comment: DiffComment) => {
-      setEditingCommentId(comment.id);
+      useDiffCommentsStore.getState().setEditingCommentId(comment.id);
       jumpToComment(comment);
     },
-    [setEditingCommentId, jumpToComment],
+    [jumpToComment],
   );
 
   const sendCommentsToAgent = useCallback(() => {
@@ -504,8 +501,7 @@ const DiffViewContent = memo(function DiffViewContent({
             chatId={chatId}
             options={options}
             pendingComment={pendingComment}
-            commentsByFile={commentsByFile}
-            editingCommentId={editingCommentId}
+            scopeKey={scopeKey}
             onToggle={handleToggleCollapsed}
             onToggleReviewed={toggleViewed}
             onDiscard={setDiscardTarget}
@@ -513,9 +509,6 @@ const DiffViewContent = memo(function DiffViewContent({
             onSelectionEnd={handleSelectionEnd}
             onSubmitComment={handleSubmitComment}
             onCancelComment={cancelComposer}
-            onEditComment={setEditingCommentId}
-            onUpdateComment={updateComment}
-            onDeleteComment={deleteComment}
           />
         </div>
 

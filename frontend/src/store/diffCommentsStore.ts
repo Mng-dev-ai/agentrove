@@ -13,6 +13,9 @@ export interface DiffComment extends SelectedLineRange {
 interface DiffCommentsState {
   // scopeKey → pending review comments not yet sent to the agent.
   commentsByScope: Record<string, DiffComment[]>;
+  // Comment whose inline card is swapped for the editor; session-only.
+  editingCommentId: string | null;
+  setEditingCommentId: (id: string | null) => void;
   addComment: (scopeKey: string, comment: Omit<DiffComment, 'id'>) => void;
   updateComment: (scopeKey: string, id: string, body: string) => void;
   removeComment: (scopeKey: string, id: string) => void;
@@ -34,6 +37,8 @@ export const useDiffCommentsStore = create<DiffCommentsState>()(
   persist(
     (set) => ({
       commentsByScope: {},
+      editingCommentId: null,
+      setEditingCommentId: (editingCommentId) => set({ editingCommentId }),
       addComment: (scopeKey, comment) =>
         set((state) =>
           withScope(state.commentsByScope, scopeKey, [
@@ -42,23 +47,32 @@ export const useDiffCommentsStore = create<DiffCommentsState>()(
           ]),
         ),
       updateComment: (scopeKey, id, body) =>
-        set((state) =>
-          withScope(
+        set((state) => ({
+          ...withScope(
             state.commentsByScope,
             scopeKey,
             (state.commentsByScope[scopeKey] ?? []).map((c) => (c.id === id ? { ...c, body } : c)),
           ),
-        ),
+          editingCommentId: null,
+        })),
       removeComment: (scopeKey, id) =>
-        set((state) =>
-          withScope(
+        set((state) => ({
+          ...withScope(
             state.commentsByScope,
             scopeKey,
             (state.commentsByScope[scopeKey] ?? []).filter((c) => c.id !== id),
           ),
-        ),
-      clearScope: (scopeKey) => set((state) => withScope(state.commentsByScope, scopeKey, [])),
+          editingCommentId: state.editingCommentId === id ? null : state.editingCommentId,
+        })),
+      clearScope: (scopeKey) =>
+        set((state) => ({
+          ...withScope(state.commentsByScope, scopeKey, []),
+          editingCommentId: null,
+        })),
     }),
-    { name: 'diff-comments-storage' },
+    {
+      name: 'diff-comments-storage',
+      partialize: (state) => ({ commentsByScope: state.commentsByScope }),
+    },
   ),
 );
