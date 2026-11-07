@@ -22,13 +22,33 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 GIT_LS_FILES_CMD = "git ls-files --cached --others --exclude-standard -z"
-HOST_GIT_ASKPASS_SCRIPT = (
-    "#!/bin/sh\n"
-    'case "$1" in\n'
-    '"Username for \'https://github.com\': ") echo "x-access-token" ;;\n'
-    '"Password for \'https://x-access-token@github.com\': ") echo "$GITHUB_TOKEN" ;;\n'
-    "esac\n"
-)
+HOST_GIT_ASKPASS_SCRIPT = """\
+#!/bin/sh
+case "$1" in
+"Username for '"*"': ")
+    answer=x-access-token
+    url=${1#"Username for '"}
+    ;;
+"Password for '"*"': ")
+    answer=$GITHUB_TOKEN
+    url=${1#"Password for '"}
+    ;;
+*) exit 0 ;;
+esac
+url=${url%"': "}
+case "$url" in
+https://*) ;;
+*) exit 0 ;;
+esac
+authority=${url#https://}
+authority=${authority%%/*}
+case "$authority" in
+*@*@*) exit 0 ;;
+esac
+case "${authority#*@}" in
+github.com | www.github.com) echo "$answer" ;;
+esac
+"""
 
 
 class SandboxProvider:
