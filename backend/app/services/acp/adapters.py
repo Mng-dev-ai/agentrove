@@ -467,7 +467,7 @@ class OpencodeAgentAdapter(AgentAdapter):
         env = (
             {
                 "OPENCODE_CONFIG_CONTENT": json.dumps(
-                    {"instructions": [instructions_file_path]}
+                    {**self.BASE_CONFIG, "instructions": [instructions_file_path]}
                 )
             }
             if instructions_file_path
