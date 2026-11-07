@@ -1679,7 +1679,7 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     mints = iter(("token-one", "token-two", "token-three", "token-four"))
     monkeypatch.setattr(
         "app.services.agent.create_mcp_access_token",
-        lambda user_id, device_ids: next(mints),
+        lambda user_id, hashed_password, device_ids: next(mints),
     )
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")

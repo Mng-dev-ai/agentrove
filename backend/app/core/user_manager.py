@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import logging
 import uuid
 from collections.abc import AsyncIterator
@@ -140,6 +142,12 @@ bearer_transport = BearerTransport(tokenUrl="api/v1/auth/login")
 DEVICE_IDS = TypeAdapter(frozenset[uuid.UUID])
 
 
+def password_fingerprint(hashed_password: str) -> str:
+    return hmac.new(
+        settings.SECRET_KEY.encode(), hashed_password.encode(), hashlib.sha256
+    ).hexdigest()[:16]
+
+
 class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
     def __init__(self, db: AsyncSession) -> None:
         super().__init__(
@@ -167,6 +175,8 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
             exceptions.UserNotExists,
         ):
             return None
+        if claims.get("pwd") != password_fingerprint(user.hashed_password):
+            return None
         if not await PairingService.all_active(self.db, user.id, device_ids):
             return None
         user.device_ids = device_ids
@@ -182,6 +192,7 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
                     "sub": str(user.id),
                     "aud": self.token_audience,
                     "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
+                    "pwd": password_fingerprint(user.hashed_password),
                 },
                 self.encode_key,
                 self.lifetime_seconds,

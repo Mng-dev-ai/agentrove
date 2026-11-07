@@ -25,6 +25,7 @@ from .user_manager import (
     UserManager,
     get_jwt_strategy,
     optional_current_active_user,
+    password_fingerprint,
 )
 
 settings = get_settings()
@@ -83,7 +84,9 @@ async def get_current_user(
     return user
 
 
-def create_mcp_access_token(user_id: str, device_ids: frozenset[UUID]) -> str:
+def create_mcp_access_token(
+    user_id: str, hashed_password: str, device_ids: frozenset[UUID]
+) -> str:
     # Minted for the MCP server spawned into a chat session — audience must match
     # the JWTStrategy in user_manager.py (fastapi-users default) so the normal
     # bearer path accepts it. `mcp` bars it from pairing and device management.
@@ -94,6 +97,7 @@ def create_mcp_access_token(user_id: str, device_ids: frozenset[UUID]) -> str:
                 "aud": ["fastapi-users:auth"],
                 "mcp": True,
                 "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
+                "pwd": password_fingerprint(hashed_password),
             },
             settings.SECRET_KEY,
             lifetime_seconds=settings.AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS,

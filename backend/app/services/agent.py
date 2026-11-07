@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
@@ -474,6 +474,7 @@ class AgentService:
     @staticmethod
     def _build_mcp_server_configs(
         user_id: str,
+        hashed_password: str,
         device_ids: frozenset[UUID],
         sandbox_provider: SandboxProviderType,
         *,
@@ -496,7 +497,9 @@ class AgentService:
                 api_base = settings.BASE_URL
             env = {
                 "AGENTROVE_API_URL": f"{api_base}{settings.API_V1_STR}",
-                "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(user_id, device_ids),
+                "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(
+                    user_id, hashed_password, device_ids
+                ),
             }
             # The chat this session runs in — lets the agent create sub-threads under it
             if current_chat_id:
@@ -551,6 +554,12 @@ class AgentService:
         channel_member: bool = False,
     ) -> AcpSessionConfig:
         await self.ensure_devices_active(UUID(user_id), device_ids)
+        async with self.session_factory() as db:
+            hashed_password = (
+                await db.execute(
+                    select(User.hashed_password).where(User.id == UUID(user_id))
+                )
+            ).scalar_one()
         env: dict[str, str] = {}
 
         # claude-agent-acp hides the bypassPermissions session mode when running
@@ -591,6 +600,7 @@ class AgentService:
             env=env,
             mcp_servers=self._build_mcp_server_configs(
                 user_id,
+                hashed_password,
                 device_ids,
                 sandbox_provider,
                 agentrove_mcp=agentrove_mcp,
