@@ -344,12 +344,14 @@ class ChatStreamRuntime:
                         "selected_persona_name": request.selected_persona_name,
                         "fast_mode": request.fast_mode,
                         "device_ids": request.device_ids,
-                        "report_to_parent": request.report_parent_id is not None,
                     }
                     queued_message = QueuedMessage.model_validate(queued)
                     if any(
                         getattr(queued_message, key) != value
                         for key, value in options.items()
+                    ) or (
+                        queued_message.report_to_parent
+                        and request.report_parent_id is None
                     ):
                         return False
                     injected = await runtime._steer(
