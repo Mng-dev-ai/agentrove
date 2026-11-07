@@ -73,6 +73,15 @@ class AgentroveClient:
         resp = await self.request("GET", "/chat/chats", params=params)
         return resp.json()
 
+    async def search_chats(
+        self, query: str, workspace_id: str | None, limit: int
+    ) -> dict[str, Any]:
+        params: dict[str, Any] = {"q": query, "limit": limit}
+        if workspace_id:
+            params["workspace_id"] = workspace_id
+        resp = await self.request("GET", "/chat/chats/search", params=params)
+        return resp.json()
+
     async def get_chat(self, chat_id: str) -> dict[str, Any]:
         resp = await self.request("GET", f"/chat/chats/{chat_id}")
         return resp.json()

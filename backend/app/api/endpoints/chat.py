@@ -271,6 +271,7 @@ async def get_chats(
 @router.get("/chats/search", response_model=ChatSearchResponse)
 async def search_chats(
     q: str = Query(..., min_length=2, max_length=200),
+    workspace_id: UUID | None = None,
     limit: int = Query(50, ge=1, le=200),
     per_chat_limit: int = Query(5, ge=1, le=50),
     current_user: User = Depends(get_current_user),
@@ -285,7 +286,11 @@ async def search_chats(
         )
     try:
         return await chat_service.search_messages(
-            current_user, stripped, limit=limit, per_chat_limit=per_chat_limit
+            current_user,
+            stripped,
+            workspace_id=workspace_id,
+            limit=limit,
+            per_chat_limit=per_chat_limit,
         )
     except SQLAlchemyError as e:
         logger.error("Database error searching chats: %s", e, exc_info=True)
