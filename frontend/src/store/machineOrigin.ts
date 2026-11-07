@@ -90,7 +90,9 @@ function assign(key: OriginKey, machineId: string, ids: Iterable<string>): boole
   return update(key, (origins) => {
     let changed = false;
     for (const id of ids) {
-      if (!id || origins.has(id)) continue;
+      if (!id) continue;
+      const owner = origins.get(id);
+      if (owner !== undefined && isLiveMachine(owner)) continue;
       origins.set(id, machineId);
       changed = true;
     }
