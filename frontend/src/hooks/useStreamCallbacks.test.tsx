@@ -53,6 +53,10 @@ function renderCallbacks(initialMessages: Message[] = [makeMessage('a1')]) {
       const [streamState, setStreamState] = useState<'idle' | 'loading' | 'streaming'>('streaming');
       const [currentMessageId, setCurrentMessageId] = useState<string | null>('a1');
       const pendingStopRef = useRef(new Set<string>());
+      const currentMessageIdRef = useRef(currentMessageId);
+      currentMessageIdRef.current = currentMessageId;
+      const streamStateRef = useRef(streamState);
+      streamStateRef.current = streamState;
       const callbacks = useStreamCallbacks({
         messages,
         chatId: 'c1',
@@ -62,6 +66,8 @@ function renderCallbacks(initialMessages: Message[] = [makeMessage('a1')]) {
         setStreamState,
         setCurrentMessageId,
         pendingStopRef,
+        currentMessageIdRef,
+        streamStateRef,
         ...handlers,
       });
       return { ...callbacks, messages, streamState, currentMessageId, pendingStopRef };
