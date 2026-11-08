@@ -90,6 +90,10 @@ export function useChatStreaming({
   const [pendingUserMessageId, setPendingUserMessageIdState] = useState<string | null>(null);
   const pendingStopRef = useRef<Set<string>>(new Set());
   const prevChatIdRef = useRef<string | undefined>(chatId);
+  const abortedMessageIdRef = useRef<string | null>(null);
+  const announcedMessageId = useStreamStore(
+    (state) => state.activeStreamMetadata.find((stream) => stream.chatId === chatId)?.messageId,
+  );
   const currentMessageIdRef = useRef<string | null>(null);
   currentMessageIdRef.current = currentMessageId;
 
@@ -246,12 +250,24 @@ export function useChatStreaming({
     replayStream,
   });
 
+  useEffect(() => {
+    if (!wasAborted || !announcedMessageId) return;
+    if (abortedMessageIdRef.current === null) {
+      abortedMessageIdRef.current = announcedMessageId;
+    } else if (abortedMessageIdRef.current !== announcedMessageId) {
+      setWasAborted(false);
+    }
+  }, [wasAborted, announcedMessageId]);
+
   const markStreamIdleAfterAbort = useCallback(() => {
+    abortedMessageIdRef.current =
+      useStreamStore.getState().activeStreamMetadata.find((stream) => stream.chatId === chatId)
+        ?.messageId ?? null;
     setStreamState('idle');
     setCurrentMessageId(null);
     setWasAborted(true);
     setPendingUserMessageId(null);
-  }, [setPendingUserMessageId]);
+  }, [chatId, setPendingUserMessageId]);
 
   // Track pending stops so store presence doesn't flip UI back to streaming mid-flight.
   const stopActiveStreams = useCallback(
@@ -293,10 +309,12 @@ export function useChatStreaming({
       cancelPendingStart();
       markStreamIdleAfterAbort();
       if (chatId) {
-        void chatService.stopStream(chatId).catch((error) => {
-          logger.error('Pending stream stop request failed', 'useChatStreaming', error);
-          setWasAborted(false);
-        });
+        void chatService
+          .stopStream(chatId)
+          .catch((error) => {
+            logger.error('Pending stream stop request failed', 'useChatStreaming', error);
+          })
+          .then(() => setWasAborted(false));
       }
       clearInput();
       return;
