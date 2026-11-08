@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 
 class MessageService(BaseDbService[Message]):
+    TERMINAL_EVENT_KINDS = ("complete", "cancelled", "error")
+
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         super().__init__(session_factory)
 
@@ -160,6 +162,8 @@ class MessageService(BaseDbService[Message]):
         session_id: str | None = None,
         record_activity: bool = True,
     ) -> tuple[bool, int | None]:
+        # Periodic snapshot for reconnect hydration. Returns (applied, duration_ms):
+        # (False, None) for a missing or terminal row; duration is None until recorded.
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
             values: dict[str, Any] = {
@@ -254,6 +258,16 @@ class MessageService(BaseDbService[Message]):
                 )
             next_seq = int(next_seq)
 
+            if event_type in self.TERMINAL_EVENT_KINDS:
+                existing_seq = await db.scalar(
+                    select(MessageEvent.seq).where(
+                        MessageEvent.message_id == message_id,
+                        MessageEvent.event_type.in_(self.TERMINAL_EVENT_KINDS),
+                    )
+                )
+                if existing_seq is not None:
+                    return int(existing_seq)
+
             now = datetime.now(timezone.utc)
             await db.execute(
                 insert(MessageEvent).values(
@@ -272,6 +286,16 @@ class MessageService(BaseDbService[Message]):
 
             await db.commit()
             return next_seq
+
+    async def get_terminal_event(self, message_id: UUID) -> MessageEvent | None:
+        async with self.session_factory() as db:
+            result = await db.execute(
+                select(MessageEvent).where(
+                    MessageEvent.message_id == message_id,
+                    MessageEvent.event_type.in_(self.TERMINAL_EVENT_KINDS),
+                )
+            )
+            return cast(MessageEvent | None, result.scalar_one_or_none())
 
     async def append_events_batch(
         self,
