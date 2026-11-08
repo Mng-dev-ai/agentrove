@@ -198,6 +198,12 @@ MODELS: dict[str, ModelInfo] = {
         500_000,
         effort_levels=("low", "medium", "high", "xhigh", "max", "ultra"),
     ),
+    "gpt-6.1-terra": ModelInfo(
+        "GPT 6.1 Terra",
+        AgentKind.CODEX,
+        500_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max", "ultra"),
+    ),
     "gpt-6-astra": ModelInfo(
         "GPT 6 Astra",
         AgentKind.CODEX,
@@ -350,6 +356,12 @@ MODELS: dict[str, ModelInfo] = {
     "copilot:claude-haiku-4.5": ModelInfo("Haiku 4.5", AgentKind.COPILOT, 160_000),
     "copilot:gpt-6.1-sol": ModelInfo(
         "GPT 6.1 Sol",
+        AgentKind.COPILOT,
+        304_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
+    "copilot:gpt-6.1-terra": ModelInfo(
+        "GPT 6.1 Terra",
         AgentKind.COPILOT,
         304_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
@@ -676,6 +688,12 @@ MODELS: dict[str, ModelInfo] = {
         1_000_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
+    "opencode:opencode/crouton-alpha-free": ModelInfo(
+        "Crouton Alpha Free (OpenCode)",
+        AgentKind.OPENCODE,
+        1_048_576,
+        effort_levels=("minimal", "low", "medium", "high", "xhigh", "max"),
+    ),
     "opencode:opencode/deepseek-v4-pro": ModelInfo(
         "DeepSeek V4 Pro (OpenCode)",
         AgentKind.OPENCODE,
@@ -962,6 +980,15 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:opencode/grok-build-0.1": ModelInfo(
         "Grok Build 0.1 (OpenCode)", AgentKind.OPENCODE, 256_000
     ),
+    "opencode:opencode/iceman-free": ModelInfo(
+        "Iceman Free (OpenCode)", AgentKind.OPENCODE, 262_144
+    ),
+    "opencode:opencode/inkling-2-small-free": ModelInfo(
+        "Inkling 2 Small Free (OpenCode)",
+        AgentKind.OPENCODE,
+        1_048_576,
+        effort_levels=("none", "minimal", "low", "medium", "high", "max"),
+    ),
     "opencode:opencode/kimi-k2.5": ModelInfo(
         "Kimi K2.5 (OpenCode)", AgentKind.OPENCODE, 262_144, legacy=True
     ),
@@ -1014,9 +1041,6 @@ MODELS: dict[str, ModelInfo] = {
         1_048_576,
         effort_levels=("minimal", "low", "medium", "high", "xhigh", "max"),
     ),
-    "opencode:opencode/nemotron-3-ultra-free": ModelInfo(
-        "Nemotron 3 Ultra Free (OpenCode)", AgentKind.OPENCODE, 1_000_000
-    ),
     "opencode:opencode/nemotron-3.5-lightning-free": ModelInfo(
         "Nemotron 3.5 Lightning Free (OpenCode)", AgentKind.OPENCODE, 262_144
     ),
@@ -1055,6 +1079,12 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_000_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
+    "opencode:opencode-go/crouton-alpha-free": ModelInfo(
+        "Crouton Alpha Free (Opencode Go)",
+        AgentKind.OPENCODE,
+        1_048_576,
+        effort_levels=("minimal", "low", "medium", "high", "xhigh", "max"),
     ),
     "opencode:opencode-go/deepseek-v4-pro": ModelInfo(
         "DeepSeek V4 Pro (New) (Opencode Go)",
@@ -1118,6 +1148,12 @@ MODELS: dict[str, ModelInfo] = {
         256_000,
         legacy=True,
         effort_levels=("none", "low", "high"),
+    ),
+    "opencode:opencode-go/hy4": ModelInfo(
+        "Hy4 (Opencode Go)",
+        AgentKind.OPENCODE,
+        1_048_576,
+        effort_levels=("none", "high"),
     ),
     "opencode:opencode-go/hy4-preview": ModelInfo(
         "Hy4 preview (Opencode Go)",
@@ -1613,6 +1649,12 @@ MODELS: dict[str, ModelInfo] = {
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
+    "opencode:amazon-bedrock/global.openai.gpt-6.1-terra": ModelInfo(
+        "GPT-6.1 Terra (Global) (Amazon Bedrock)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("none", "low", "medium", "high", "xhigh", "max"),
+    ),
     "opencode:amazon-bedrock/global.xai.grok-4.6": ModelInfo(
         "Grok 4.6 (Global) (Amazon Bedrock)",
         AgentKind.OPENCODE,
@@ -1824,6 +1866,12 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
+    "opencode:amazon-bedrock/openai.gpt-6.1-terra": ModelInfo(
+        "GPT-6.1 Terra (Amazon Bedrock)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("none", "low", "medium", "high", "xhigh", "max"),
     ),
     "opencode:amazon-bedrock/openai.gpt-oss-120b": ModelInfo(
         "gpt-oss-120b (Amazon Bedrock)",
@@ -2039,6 +2087,12 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
+    "opencode:amazon-bedrock/us.openai.gpt-6.1-terra": ModelInfo(
+        "GPT-6.1 Terra (US) (Amazon Bedrock)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("none", "low", "medium", "high", "xhigh", "max"),
     ),
     "opencode:amazon-bedrock/us.xai.grok-4.6": ModelInfo(
         "Grok 4.6 (US) (Amazon Bedrock)",
@@ -2274,20 +2328,17 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:google/gemini-2.5-flash": ModelInfo(
         "Gemini 2.5 Flash (Google)", AgentKind.OPENCODE, 1_048_576, legacy=True
     ),
-    "opencode:google/gemini-2.5-flash-image": ModelInfo(
-        "Nano Banana (Google)", AgentKind.OPENCODE, 32_768, legacy=True
-    ),
     "opencode:google/gemini-2.5-flash-lite": ModelInfo(
         "Gemini 2.5 Flash-Lite (Google)", AgentKind.OPENCODE, 1_048_576, legacy=True
     ),
     "opencode:google/gemini-2.5-flash-preview-tts": ModelInfo(
-        "Gemini 2.5 Flash Preview TTS (Google)", AgentKind.OPENCODE, 8_192, legacy=True
+        "Gemini 2.5 Flash Preview TTS (Google)", AgentKind.OPENCODE, 8192, legacy=True
     ),
     "opencode:google/gemini-2.5-pro": ModelInfo(
         "Gemini 2.5 Pro (Google)", AgentKind.OPENCODE, 1_048_576, legacy=True
     ),
     "opencode:google/gemini-2.5-pro-preview-tts": ModelInfo(
-        "Gemini 2.5 Pro Preview TTS (Google)", AgentKind.OPENCODE, 8_192
+        "Gemini 2.5 Pro Preview TTS (Google)", AgentKind.OPENCODE, 8192
     ),
     "opencode:google/gemini-3-flash-preview": ModelInfo(
         "Gemini 3 Flash Preview (Google)",
@@ -2302,20 +2353,10 @@ MODELS: dict[str, ModelInfo] = {
         65_536,
         effort_levels=("low", "high"),
     ),
-    "opencode:google/gemini-3-pro-image-preview": ModelInfo(
-        "Nano Banana Pro (Google)", AgentKind.OPENCODE, 131_072, legacy=True
-    ),
     "opencode:google/gemini-3.1-flash-image": ModelInfo(
         "Nano Banana 2 (Google)",
         AgentKind.OPENCODE,
         131_072,
-        effort_levels=("minimal", "high"),
-    ),
-    "opencode:google/gemini-3.1-flash-image-preview": ModelInfo(
-        "Nano Banana 2 (Google)",
-        AgentKind.OPENCODE,
-        65_536,
-        legacy=True,
         effort_levels=("minimal", "high"),
     ),
     "opencode:google/gemini-3.1-flash-lite": ModelInfo(
@@ -2338,7 +2379,7 @@ MODELS: dict[str, ModelInfo] = {
         effort_levels=("minimal", "low", "medium", "high"),
     ),
     "opencode:google/gemini-3.1-flash-tts-preview": ModelInfo(
-        "Gemini 3.1 Flash TTS Preview (Google)", AgentKind.OPENCODE, 8_192
+        "Gemini 3.1 Flash TTS Preview (Google)", AgentKind.OPENCODE, 8192
     ),
     "opencode:google/gemini-3.1-pro-preview": ModelInfo(
         "Gemini 3.1 Pro Preview (Google)",
@@ -2395,10 +2436,10 @@ MODELS: dict[str, ModelInfo] = {
         effort_levels=("low", "medium", "high"),
     ),
     "opencode:google/gemini-embedding-001": ModelInfo(
-        "Gemini Embedding 001 (Google)", AgentKind.OPENCODE, 2_048, legacy=True
+        "Gemini Embedding 001 (Google)", AgentKind.OPENCODE, 2048, legacy=True
     ),
     "opencode:google/gemini-embedding-2": ModelInfo(
-        "Gemini Embedding 2 (Google)", AgentKind.OPENCODE, 8_192
+        "Gemini Embedding 2 (Google)", AgentKind.OPENCODE, 8192
     ),
     "opencode:google/gemini-flash-latest": ModelInfo(
         "Gemini Flash Latest (Google)",
@@ -2603,7 +2644,7 @@ MODELS: dict[str, ModelInfo] = {
         effort_levels=("low", "medium", "high"),
     ),
     "opencode:google-vertex/gemini-embedding-001": ModelInfo(
-        "Gemini Embedding 001 (Google Vertex)", AgentKind.OPENCODE, 2_048
+        "Gemini Embedding 001 (Google Vertex)", AgentKind.OPENCODE, 2048
     ),
     "opencode:google-vertex/gemini-nano-banana-2.1": ModelInfo(
         "Nano Banana 2.1 (Google Vertex)",
@@ -2869,13 +2910,13 @@ MODELS: dict[str, ModelInfo] = {
         effort_levels=("low", "medium", "high"),
     ),
     "opencode:openai/text-embedding-3-large": ModelInfo(
-        "text-embedding-3-large (Openai)", AgentKind.OPENCODE, 8_191
+        "text-embedding-3-large (Openai)", AgentKind.OPENCODE, 8191
     ),
     "opencode:openai/text-embedding-3-small": ModelInfo(
-        "text-embedding-3-small (Openai)", AgentKind.OPENCODE, 8_191
+        "text-embedding-3-small (Openai)", AgentKind.OPENCODE, 8191
     ),
     "opencode:openai/text-embedding-ada-002": ModelInfo(
-        "text-embedding-ada-002 (Openai)", AgentKind.OPENCODE, 8_192
+        "text-embedding-ada-002 (Openai)", AgentKind.OPENCODE, 8192
     ),
     "opencode:openrouter/aion-labs/aion-2.0": ModelInfo(
         "Aion-2.0 (Openrouter)", AgentKind.OPENCODE, 131_072, legacy=True
@@ -3239,8 +3280,20 @@ MODELS: dict[str, ModelInfo] = {
         65_536,
         effort_levels=("none", "minimal", "high"),
     ),
+    "opencode:openrouter/google/gemini-omni-1.1-flash": ModelInfo(
+        "Gemini Omni 1.1 Flash (Openrouter)",
+        AgentKind.OPENCODE,
+        131_072,
+        effort_levels=("low", "high"),
+    ),
+    "opencode:openrouter/google/gemini-omni-1.2-flash": ModelInfo(
+        "Gemini Omni 1.2 Flash (Openrouter)",
+        AgentKind.OPENCODE,
+        131_072,
+        effort_levels=("low", "high"),
+    ),
     "opencode:openrouter/google/gemma-2-27b-it": ModelInfo(
-        "Gemma 2 27B (Openrouter)", AgentKind.OPENCODE, 8_192, legacy=True
+        "Gemma 2 27B (Openrouter)", AgentKind.OPENCODE, 8192, legacy=True
     ),
     "opencode:openrouter/google/gemma-3-12b-it": ModelInfo(
         "Gemma 3 12B IT (Openrouter)", AgentKind.OPENCODE, 131_072
@@ -3270,7 +3323,7 @@ MODELS: dict[str, ModelInfo] = {
         "Lyria 3 Pro Preview (Openrouter)", AgentKind.OPENCODE, 1_048_576
     ),
     "opencode:openrouter/gryphe/mythomax-l2-13b": ModelInfo(
-        "MythoMax 13B (Openrouter)", AgentKind.OPENCODE, 8_192
+        "MythoMax 13B (Openrouter)", AgentKind.OPENCODE, 8192
     ),
     "opencode:openrouter/ibm-granite/granite-4.2-8b": ModelInfo(
         "Granite 4.2 8B (Openrouter)",
@@ -3278,33 +3331,17 @@ MODELS: dict[str, ModelInfo] = {
         131_072,
         effort_levels=("none", "low", "high"),
     ),
-    "opencode:openrouter/inception/mercury-2": ModelInfo(
-        "Mercury 2 (Openrouter)",
-        AgentKind.OPENCODE,
-        128_000,
-        legacy=True,
-        effort_levels=("none", "low", "medium", "high"),
-    ),
-    "opencode:openrouter/inception/mercury-2.5": ModelInfo(
-        "Mercury 2.5 (Openrouter)",
-        AgentKind.OPENCODE,
-        260_000,
-        effort_levels=("none", "low", "medium", "high"),
-    ),
-    "opencode:openrouter/inception/mercury-3": ModelInfo(
-        "Mercury 3 (Openrouter)",
-        AgentKind.OPENCODE,
-        1_000_000,
-        effort_levels=("none", "low", "medium", "high"),
-    ),
     "opencode:openrouter/inclusionai/ling-3.0-flash": ModelInfo(
         "Ling 3.0 Flash (Openrouter)", AgentKind.OPENCODE, 262_144, legacy=True
     ),
     "opencode:openrouter/inclusionai/ling-3.0-flash-vl": ModelInfo(
         "Ling 3.0 Flash VL (Openrouter)", AgentKind.OPENCODE, 131_072
     ),
+    "opencode:openrouter/inclusionai/ling-3.0-tiny": ModelInfo(
+        "Ling 3.0 Tiny (Openrouter)", AgentKind.OPENCODE, 262_144
+    ),
     "opencode:openrouter/inclusionai/ling-3.1-flash": ModelInfo(
-        "Ling 3.1 Flash (Openrouter)", AgentKind.OPENCODE, 262_144
+        "Ling 3.1 Flash (Openrouter)", AgentKind.OPENCODE, 1_000_000
     ),
     "opencode:openrouter/inference-net/schematron-v2-small": ModelInfo(
         "Schematron V2 Small (Openrouter)", AgentKind.OPENCODE, 128_000
@@ -3321,8 +3358,14 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/liquid/lfm-2.5-24b-a2b": ModelInfo(
         "LFM2.5-24B-A2B (Openrouter)", AgentKind.OPENCODE, 128_000
     ),
+    "opencode:openrouter/liquid/lfm-3-1.7b": ModelInfo(
+        "LFM3-1.7B (Openrouter)", AgentKind.OPENCODE, 262_144
+    ),
+    "opencode:openrouter/liquid/lfm-3-1.7b:free": ModelInfo(
+        "LFM3-1.7B (free) (Openrouter)", AgentKind.OPENCODE, 262_144
+    ),
     "opencode:openrouter/mancer/weaver": ModelInfo(
-        "Weaver (alpha) (Openrouter)", AgentKind.OPENCODE, 8_000
+        "Weaver (alpha) (Openrouter)", AgentKind.OPENCODE, 8000
     ),
     "opencode:openrouter/meituan/longcat-2.0": ModelInfo(
         "LongCat 2.0 (Openrouter)", AgentKind.OPENCODE, 1_048_756
@@ -3346,7 +3389,7 @@ MODELS: dict[str, ModelInfo] = {
         "Llama 4 Maverick (Openrouter)", AgentKind.OPENCODE, 524_288
     ),
     "opencode:openrouter/meta-llama/llama-4-scout": ModelInfo(
-        "Llama 4 Scout (Openrouter)", AgentKind.OPENCODE, 1_310_720
+        "Llama 4 Scout (Openrouter)", AgentKind.OPENCODE, 327_680
     ),
     "opencode:openrouter/meta-llama/llama-guard-4-12b": ModelInfo(
         "Llama Guard 4 12B (Openrouter)", AgentKind.OPENCODE, 163_840
@@ -3405,20 +3448,8 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/microsoft/phi-4": ModelInfo(
         "Phi 4 (Openrouter)", AgentKind.OPENCODE, 16_384
     ),
-    "opencode:openrouter/minimax/minimax-01": ModelInfo(
-        "MiniMax-01 (Openrouter)", AgentKind.OPENCODE, 1_000_192
-    ),
     "opencode:openrouter/minimax/minimax-m1": ModelInfo(
         "MiniMax M1 (Openrouter)", AgentKind.OPENCODE, 1_000_000, legacy=True
-    ),
-    "opencode:openrouter/minimax/minimax-m2": ModelInfo(
-        "MiniMax-M2 (Openrouter)", AgentKind.OPENCODE, 204_800, legacy=True
-    ),
-    "opencode:openrouter/minimax/minimax-m2-her": ModelInfo(
-        "MiniMax-M2 Her (Openrouter)", AgentKind.OPENCODE, 65_536
-    ),
-    "opencode:openrouter/minimax/minimax-m2.1": ModelInfo(
-        "MiniMax-M2.1 (Openrouter)", AgentKind.OPENCODE, 204_800, legacy=True
     ),
     "opencode:openrouter/minimax/minimax-m2.5": ModelInfo(
         "MiniMax-M2.5 (Openrouter)", AgentKind.OPENCODE, 204_800, legacy=True
@@ -3463,7 +3494,7 @@ MODELS: dict[str, ModelInfo] = {
         "Mistral Large 4 (Openrouter)",
         AgentKind.OPENCODE,
         1_048_576,
-        effort_levels=("none", "high"),
+        effort_levels=("low", "medium", "high"),
     ),
     "opencode:openrouter/mistralai/mistral-medium-3": ModelInfo(
         "Mistral Medium 3 (Openrouter)", AgentKind.OPENCODE, 131_072, legacy=True
@@ -3570,13 +3601,7 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/nvidia/nemotron-3-super-120b-a12b": ModelInfo(
         "Nemotron 3 Super 120B A12B (Openrouter)",
         AgentKind.OPENCODE,
-        262_144,
-        effort_levels=("none", "low", "medium"),
-    ),
-    "opencode:openrouter/nvidia/nemotron-3-super-120b-a12b:free": ModelInfo(
-        "Nemotron 3 Super (free) (Openrouter)",
-        AgentKind.OPENCODE,
-        262_144,
+        1_048_576,
         effort_levels=("none", "low", "medium"),
     ),
     "opencode:openrouter/nvidia/nemotron-3-ultra-550b-a55b": ModelInfo(
@@ -3594,9 +3619,6 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/nvidia/nemotron-3.5-content-safety": ModelInfo(
         "Nemotron 3.5 Content Safety (Openrouter)", AgentKind.OPENCODE, 131_072
     ),
-    "opencode:openrouter/nvidia/nemotron-3.5-content-safety:free": ModelInfo(
-        "Nemotron 3.5 Content Safety (free) (Openrouter)", AgentKind.OPENCODE, 128_000
-    ),
     "opencode:openrouter/nvidia/nemotron-3.5-lightning": ModelInfo(
         "Nemotron 3.5 Lightning 30B A3B (Openrouter)", AgentKind.OPENCODE, 262_144
     ),
@@ -3612,17 +3634,14 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/openai/gpt-3.5-turbo-0613": ModelInfo(
         "GPT-3.5 Turbo (older v0613) (Openrouter)",
         AgentKind.OPENCODE,
-        4_095,
+        4095,
         legacy=True,
     ),
     "opencode:openrouter/openai/gpt-3.5-turbo-16k": ModelInfo(
         "GPT-3.5 Turbo 16k (Openrouter)", AgentKind.OPENCODE, 16_385
     ),
     "opencode:openrouter/openai/gpt-4": ModelInfo(
-        "GPT-4 (Openrouter)", AgentKind.OPENCODE, 8_191, legacy=True
-    ),
-    "opencode:openrouter/openai/gpt-4-turbo": ModelInfo(
-        "GPT-4 Turbo (Openrouter)", AgentKind.OPENCODE, 128_000
+        "GPT-4 (Openrouter)", AgentKind.OPENCODE, 8191, legacy=True
     ),
     "opencode:openrouter/openai/gpt-4.1": ModelInfo(
         "GPT-4.1 (Openrouter)", AgentKind.OPENCODE, 1_047_576, legacy=True
@@ -3717,9 +3736,6 @@ MODELS: dict[str, ModelInfo] = {
         400_000,
         legacy=True,
         effort_levels=("none", "low", "medium", "high", "xhigh"),
-    ),
-    "opencode:openrouter/openai/gpt-5.2-chat": ModelInfo(
-        "GPT-5.2 Chat (Openrouter)", AgentKind.OPENCODE, 128_000
     ),
     "opencode:openrouter/openai/gpt-5.2-codex": ModelInfo(
         "GPT-5.2 Codex (Openrouter)",
@@ -3914,36 +3930,11 @@ MODELS: dict[str, ModelInfo] = {
         131_072,
         effort_levels=("low", "medium", "high"),
     ),
-    "opencode:openrouter/openai/o1": ModelInfo(
-        "o1 (Openrouter)", AgentKind.OPENCODE, 200_000, legacy=True
-    ),
-    "opencode:openrouter/openai/o1-pro": ModelInfo(
-        "o1-pro (Openrouter)", AgentKind.OPENCODE, 200_000, legacy=True
-    ),
     "opencode:openrouter/openai/o3": ModelInfo(
         "o3 (Openrouter)", AgentKind.OPENCODE, 200_000
     ),
-    "opencode:openrouter/openai/o3-mini": ModelInfo(
-        "o3-mini (Openrouter)", AgentKind.OPENCODE, 200_000, legacy=True
-    ),
-    "opencode:openrouter/openai/o3-mini-high": ModelInfo(
-        "o3 Mini High (Openrouter)",
-        AgentKind.OPENCODE,
-        200_000,
-        legacy=True,
-        effort_levels=("high",),
-    ),
     "opencode:openrouter/openai/o3-pro": ModelInfo(
         "o3-pro (Openrouter)", AgentKind.OPENCODE, 200_000
-    ),
-    "opencode:openrouter/openai/o4-mini": ModelInfo(
-        "o4-mini (Openrouter)", AgentKind.OPENCODE, 200_000
-    ),
-    "opencode:openrouter/openai/o4-mini-high": ModelInfo(
-        "o4 Mini High (Openrouter)",
-        AgentKind.OPENCODE,
-        200_000,
-        effort_levels=("high",),
     ),
     "opencode:openrouter/openrouter/auto": ModelInfo(
         "Auto Router (Openrouter)", AgentKind.OPENCODE, 2_000_000
@@ -3959,6 +3950,12 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:openrouter/openrouter/pareto-code": ModelInfo(
         "Pareto Code Router (Openrouter)", AgentKind.OPENCODE, 2_000_000
+    ),
+    "opencode:openrouter/particle-ai/particle-1": ModelInfo(
+        "Particle-1 (Openrouter)",
+        AgentKind.OPENCODE,
+        1_048_576,
+        effort_levels=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
     ),
     "opencode:openrouter/perceptron/perceptron-mk1": ModelInfo(
         "Perceptron Mk1 (Openrouter)", AgentKind.OPENCODE, 32_768, legacy=True
@@ -3989,6 +3986,9 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         262_144,
         effort_levels=("none", "medium", "xhigh"),
+    ),
+    "opencode:openrouter/prism-ml/ternary-bonsai-2-9b": ModelInfo(
+        "Ternary Bonsai 2 9B (Openrouter)", AgentKind.OPENCODE, 262_144
     ),
     "opencode:openrouter/qwen/qwen-2.5-72b-instruct": ModelInfo(
         "Qwen2.5 72B Instruct (Openrouter)", AgentKind.OPENCODE, 32_768
@@ -4037,9 +4037,6 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:openrouter/qwen/qwen3-next-80b-a3b-instruct": ModelInfo(
         "Qwen3-Next 80B-A3B Instruct (Openrouter)", AgentKind.OPENCODE, 262_144
-    ),
-    "opencode:openrouter/qwen/qwen3-next-80b-a3b-thinking": ModelInfo(
-        "Qwen3-Next 80B-A3B (Thinking) (Openrouter)", AgentKind.OPENCODE, 262_144
     ),
     "opencode:openrouter/qwen/qwen3-vl-235b-a22b-instruct": ModelInfo(
         "Qwen3 VL 235B A22B Instruct (Openrouter)", AgentKind.OPENCODE, 262_144
@@ -4110,7 +4107,7 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/qwen/qwen3.8-27b": ModelInfo(
         "Qwen3.8 27B (Openrouter)",
         AgentKind.OPENCODE,
-        1_000_000,
+        1_024_000,
         effort_levels=("none", "low", "medium", "xhigh"),
     ),
     "opencode:openrouter/qwen/qwen3.8-flash": ModelInfo(
@@ -4152,6 +4149,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/relace/relace-search": ModelInfo(
         "Relace Search (Openrouter)", AgentKind.OPENCODE, 256_000
     ),
+    "opencode:openrouter/ricursiveai/ripple-65b-preview": ModelInfo(
+        "Ripple 65B Preview (Openrouter)", AgentKind.OPENCODE, 1_048_576
+    ),
     "opencode:openrouter/sakana/fugu-max": ModelInfo(
         "Fugu Max (Openrouter)",
         AgentKind.OPENCODE,
@@ -4177,7 +4177,7 @@ MODELS: dict[str, ModelInfo] = {
         effort_levels=("none", "high"),
     ),
     "opencode:openrouter/sao10k/l3-lunaris-8b": ModelInfo(
-        "Llama 3 8B Lunaris (Openrouter)", AgentKind.OPENCODE, 8_192
+        "Llama 3 8B Lunaris (Openrouter)", AgentKind.OPENCODE, 8192
     ),
     "opencode:openrouter/sao10k/l3.1-euryale-70b": ModelInfo(
         "Llama 3.1 Euryale 70B v2.2 (Openrouter)", AgentKind.OPENCODE, 131_072
@@ -4187,6 +4187,12 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:openrouter/scaledown/summarize": ModelInfo(
         "Summarize (Openrouter)", AgentKind.OPENCODE, 1_000_000
+    ),
+    "opencode:openrouter/stealth/crouton-alpha": ModelInfo(
+        "Crouton Alpha (Openrouter)",
+        AgentKind.OPENCODE,
+        1_048_576,
+        effort_levels=("minimal", "low", "medium", "high", "xhigh", "max"),
     ),
     "opencode:openrouter/stepfun/step-3.5-flash": ModelInfo(
         "Step 3.5 Flash (Openrouter)", AgentKind.OPENCODE, 262_144, legacy=True
@@ -4207,13 +4213,13 @@ MODELS: dict[str, ModelInfo] = {
         "Hunyuan A13B Instruct (Openrouter)", AgentKind.OPENCODE, 131_072
     ),
     "opencode:openrouter/tencent/hy-mt2-1.8b": ModelInfo(
-        "Hy-MT2-1.8B (Openrouter)", AgentKind.OPENCODE, 8_192
+        "Hy-MT2-1.8B (Openrouter)", AgentKind.OPENCODE, 8192
     ),
     "opencode:openrouter/tencent/hy-mt2-30b-a3b": ModelInfo(
-        "Hy-MT2-30B-A3B (Openrouter)", AgentKind.OPENCODE, 8_192
+        "Hy-MT2-30B-A3B (Openrouter)", AgentKind.OPENCODE, 8192
     ),
     "opencode:openrouter/tencent/hy-mt2-7b": ModelInfo(
-        "Hy-MT2-7B (Openrouter)", AgentKind.OPENCODE, 8_192
+        "Hy-MT2-7B (Openrouter)", AgentKind.OPENCODE, 8192
     ),
     "opencode:openrouter/tencent/hy3": ModelInfo(
         "Hy3 (Openrouter)",
@@ -4227,6 +4233,12 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         262_144,
         legacy=True,
+        effort_levels=("none", "low", "high"),
+    ),
+    "opencode:openrouter/tencent/hy4": ModelInfo(
+        "Hy4 (Openrouter)",
+        AgentKind.OPENCODE,
+        1_048_576,
         effort_levels=("none", "low", "high"),
     ),
     "opencode:openrouter/tencent/hy4-preview": ModelInfo(
@@ -4256,18 +4268,6 @@ MODELS: dict[str, ModelInfo] = {
         524_288,
         effort_levels=("none", "minimal", "low", "medium", "high", "max"),
     ),
-    "opencode:openrouter/thinkingmachines/inkling-small:free": ModelInfo(
-        "Inkling Small (free) (Openrouter)",
-        AgentKind.OPENCODE,
-        1_048_576,
-        effort_levels=("none", "minimal", "low", "medium", "high", "max"),
-    ),
-    "opencode:openrouter/thinkingmachines/inkling:free": ModelInfo(
-        "Inkling (free) (Openrouter)",
-        AgentKind.OPENCODE,
-        1_048_576,
-        effort_levels=("none", "minimal", "low", "medium", "high", "max"),
-    ),
     "opencode:openrouter/unbiased/pareto-26.10": ModelInfo(
         "Pareto 26.10 (Openrouter)", AgentKind.OPENCODE, 1_048_576
     ),
@@ -4275,20 +4275,13 @@ MODELS: dict[str, ModelInfo] = {
         "Pareto 26.9 (Openrouter)", AgentKind.OPENCODE, 262_144, legacy=True
     ),
     "opencode:openrouter/undi95/remm-slerp-l2-13b": ModelInfo(
-        "ReMM SLERP 13B (Openrouter)", AgentKind.OPENCODE, 6_144
+        "ReMM SLERP 13B (Openrouter)", AgentKind.OPENCODE, 6144
     ),
     "opencode:openrouter/upstage/solar-mini4": ModelInfo(
         "Solar Mini 4 (Openrouter)",
         AgentKind.OPENCODE,
         524_288,
         effort_levels=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
-    ),
-    "opencode:openrouter/upstage/solar-pro-3": ModelInfo(
-        "Solar Pro 3 (Openrouter)",
-        AgentKind.OPENCODE,
-        131_072,
-        legacy=True,
-        effort_levels=("none", "minimal", "low", "medium", "high"),
     ),
     "opencode:openrouter/upstage/solar-pro4": ModelInfo(
         "Solar Pro 4 (Openrouter)",
@@ -4398,6 +4391,12 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:openrouter/z-ai/glm-5.3-flashx": ModelInfo(
         "GLM 5.3 FlashX (Openrouter)",
+        AgentKind.OPENCODE,
+        1_048_576,
+        effort_levels=("low", "high", "max"),
+    ),
+    "opencode:openrouter/z-ai/glm-5.3-flashx-legal": ModelInfo(
+        "GLM 5.3 FlashX Legal (Openrouter)",
         AgentKind.OPENCODE,
         1_048_576,
         effort_levels=("low", "high", "max"),
