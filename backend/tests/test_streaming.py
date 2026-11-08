@@ -93,6 +93,9 @@ class FakeAcpSession:
         self.handler: AcpClientHandler | None = None
         self.configs: list[AcpSessionConfig] = []
         self.acp_session_id = session_id
+        self.current_model = ""
+        self.current_mode = ""
+        self.current_fast_mode = False
         self.supports_steering = steer_outcome is not None
         self._steer_outcome = steer_outcome
         self._steered = asyncio.Event()
@@ -179,9 +182,14 @@ class FakeAcpSession:
         effort_explicit: bool = False,
     ) -> None:
         self.set_model_calls.append((model_id, reasoning_effort))
+        self.current_model = model_id
 
     async def set_mode(self, mode_id: str) -> None:
         self.set_mode_calls.append(mode_id)
+        self.current_mode = mode_id
+
+    async def set_fast_mode(self, enabled: bool) -> None:
+        self.current_fast_mode = enabled
 
     async def close(self) -> None:
         self.close_calls += 1
@@ -200,6 +208,9 @@ class FakeAcpSessionFactory:
         session = self.pending.pop(0)
         session.handler = AcpClientHandler(agent_kind=config.agent_kind)
         session.configs.append(config)
+        session.current_model = config.model
+        session.current_mode = config.permission_mode
+        session.current_fast_mode = config.fast_mode
         if config.resume_session_id:
             session.acp_session_id = config.resume_session_id
         self.created.append(session)

@@ -7,7 +7,7 @@ import aiosmtplib
 import httpx
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import delete, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import create_mcp_access_token
@@ -424,13 +424,11 @@ async def test_refresh_rotates_refresh_token(
     assert body["token_type"] == "bearer"
 
 
-async def test_refresh_allows_replay_of_rotated_token(
+async def test_refresh_rejects_replay_of_rotated_token(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
 ) -> None:
-    # A client that lost the rotation response retries with the old token —
-    # until a successor is used that must mint a working pair, not a 401.
     await create_user(email="refresh@example.com", username="refreshuser")
     tokens = await login(email="refresh@example.com")
     first = await client.post(
@@ -444,17 +442,11 @@ async def test_refresh_allows_replay_of_rotated_token(
         json={"refresh_token": tokens["refresh_token"]},
     )
 
-    assert replay.status_code == 200
-    replayed_token = replay.json()["refresh_token"]
-    assert replayed_token != tokens["refresh_token"]
-    followup = await client.post(
-        "/api/v1/auth/jwt/refresh",
-        json={"refresh_token": replayed_token},
-    )
-    assert followup.status_code == 200
+    assert replay.status_code == 401
+    assert replay.json()["detail"] == "Invalid or expired refresh token"
 
 
-async def test_refresh_replay_accepted_until_successor_used(
+async def test_refresh_replay_rejected_without_revoking_successor(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
@@ -470,7 +462,7 @@ async def test_refresh_replay_accepted_until_successor_used(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": tokens["refresh_token"]},
     )
-    assert replay.status_code == 200
+    assert replay.status_code == 401
 
     successor = await client.post(
         "/api/v1/auth/jwt/refresh",
@@ -478,7 +470,7 @@ async def test_refresh_replay_accepted_until_successor_used(
     )
 
     assert successor.status_code == 200
-    for refresh_token in (tokens["refresh_token"], replay.json()["refresh_token"]):
+    for refresh_token in (tokens["refresh_token"], rotated.json()["refresh_token"]):
         response = await client.post(
             "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}
         )
@@ -611,6 +603,7 @@ async def test_logout_revokes_chain_but_not_other_devices(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
+    db_session: AsyncSession,
 ) -> None:
     await create_user(email="logout@example.com", username="logoutuser")
     device_a = await login(email="logout@example.com")
@@ -618,11 +611,23 @@ async def test_logout_revokes_chain_but_not_other_devices(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": device_a["refresh_token"]},
     )
-    sibling = await client.post(
-        "/api/v1/auth/jwt/refresh",
-        json={"refresh_token": device_a["refresh_token"]},
+    assert rotated.status_code == 200
+    parent = await db_session.scalar(
+        select(RefreshToken).where(
+            RefreshToken.token_hash == hash_refresh_token(device_a["refresh_token"])
+        )
     )
-    assert sibling.status_code == 200
+    assert parent is not None
+    sibling = "legacy-sibling-token"
+    db_session.add(
+        RefreshToken(
+            token_hash=hash_refresh_token(sibling),
+            user_id=parent.user_id,
+            expires_at=parent.expires_at,
+            parent_id=parent.id,
+        )
+    )
+    await db_session.commit()
     device_b = await login(email="logout@example.com")
 
     response = await client.post(
@@ -634,7 +639,7 @@ async def test_logout_revokes_chain_but_not_other_devices(
     for refresh_token in (
         rotated.json()["refresh_token"],
         device_a["refresh_token"],
-        sibling.json()["refresh_token"],
+        sibling,
     ):
         refresh_response = await client.post(
             "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}

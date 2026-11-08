@@ -41,6 +41,7 @@ INACTIVE_STATUS = {
     "message_id": None,
     "stream_id": None,
     "last_seq": 0,
+    "pending_permission_ids": [],
     "pending_elicitations": [],
 }
 
@@ -1228,6 +1229,7 @@ async def test_chat_status_reports_live_turn_only_to_owner(
         "message_id": str(message.id),
         "stream_id": str(stream_id),
         "last_seq": 7,
+        "pending_permission_ids": [],
         "pending_elicitations": [],
     }
     assert other_response.status_code == 404
