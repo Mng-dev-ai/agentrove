@@ -232,12 +232,15 @@ class ChatStreamRuntime:
             # Snapshot first — it prunes the event log — then the terminal
             # event so it survives replay.
             self.snapshot.add_error(str(exc))
-            await self._save_final_snapshot(stream_result, MessageStreamStatus.FAILED)
-            await self.emit_event(
-                "error",
-                {"error": str(exc)},
-                apply_snapshot=False,
+            snapshot = await self._save_final_snapshot(
+                stream_result, MessageStreamStatus.FAILED
             )
+            if snapshot is not None:
+                status, duration_ms = snapshot
+                kind, payload = self._terminal_event_payload(
+                    status, duration_ms, str(exc)
+                )
+                await self._emit_terminal_signal(kind, payload)
             raise
 
     async def _consume_stream(
@@ -480,7 +483,8 @@ class ChatStreamRuntime:
         if not self.assistant_message_id:
             return 0
 
-        if self.member_turn is not None:
+        is_terminal_signal = kind in MessageService.TERMINAL_SIGNAL_KINDS
+        if self.member_turn is not None and not is_terminal_signal:
             await self.member_turn.event_sink(kind, payload)
 
         audit = {"payload": StreamEnvelope.sanitize_payload(payload)}
@@ -503,7 +507,11 @@ class ChatStreamRuntime:
             render_payload=payload,
             audit_payload=audit,
         )
+        if seq is None:
+            return 0
         self.last_seq = seq
+        if self.member_turn is not None and is_terminal_signal:
+            await self.member_turn.event_sink(kind, payload)
         await self._publish_to_redis([self._serialize_envelope(seq, kind, payload)])
         # Channel member turns push from ChannelService, which knows the channel route.
         if kind == "permission_request" and self.member_turn is None:
@@ -589,7 +597,7 @@ class ChatStreamRuntime:
         self,
         stream_result: StreamResult,
         stream_status: MessageStreamStatus,
-    ) -> int | None:
+    ) -> tuple[MessageStreamStatus, int | None] | None:
         # Persist duration so the terminal event can carry it without a refetch.
         if not self.assistant_message_id:
             return None
@@ -610,8 +618,15 @@ class ChatStreamRuntime:
         stream_result: StreamResult,
         status: MessageStreamStatus,
     ) -> str:
-        duration_ms = await self._save_final_snapshot(stream_result, status)
+        snapshot = await self._save_final_snapshot(stream_result, status)
         final_content = self.snapshot.content_text
+        if snapshot is None:
+            return final_content
+        saved_status, duration_ms = snapshot
+        kind, payload = self._terminal_event_payload(saved_status, duration_ms, None)
+        if saved_status != status:
+            await self._emit_terminal_signal(kind, payload)
+            return final_content
 
         if status == MessageStreamStatus.COMPLETED:
             # If there's a queued follow-up message, start it immediately in this
@@ -622,11 +637,7 @@ class ChatStreamRuntime:
             )
             if not queue_processed:
                 await self._emit_context_usage(stream_result)
-                await self.emit_event(
-                    "complete",
-                    {"status": "completed", "duration_ms": duration_ms},
-                    apply_snapshot=False,
-                )
+                await self._emit_terminal_signal(kind, payload)
                 await self._push_completion(failed=False, reply=final_content)
         elif status == MessageStreamStatus.INTERRUPTED:
             # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
@@ -637,21 +648,39 @@ class ChatStreamRuntime:
                 session_registry.consume_pending_cancel(self.chat_id)
                 return final_content
             await self._emit_context_usage(stream_result)
-            await self.emit_event(
-                "cancelled",
-                {"status": status.value, "duration_ms": duration_ms},
-                apply_snapshot=False,
-            )
+            await self._emit_terminal_signal(kind, payload)
         else:
             await self._emit_context_usage(stream_result)
-            await self.emit_event(
-                "complete",
-                {"status": status.value, "duration_ms": duration_ms},
-                apply_snapshot=False,
-            )
+            await self._emit_terminal_signal(kind, payload)
             await self._push_completion(failed=True, reply=final_content)
 
         return final_content
+
+    async def _emit_terminal_signal(self, kind: str, payload: dict[str, Any]) -> None:
+        task = asyncio.create_task(self.emit_event(kind, payload, apply_snapshot=False))
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            try:
+                await task
+            except Exception:
+                logger.exception("Failed to emit terminal signal during cancellation")
+            raise
+
+    @staticmethod
+    def _terminal_event_payload(
+        stream_status: MessageStreamStatus,
+        duration_ms: int | None,
+        error_message: str | None,
+    ) -> tuple[str, dict[str, Any]]:
+        if stream_status == MessageStreamStatus.FAILED:
+            return "error", {"error": error_message or "Stream ended unexpectedly"}
+        kind = (
+            "cancelled"
+            if stream_status == MessageStreamStatus.INTERRUPTED
+            else "complete"
+        )
+        return kind, {"status": stream_status.value, "duration_ms": duration_ms}
 
     async def _push_completion(self, *, failed: bool, reply: str) -> None:
         if self.member_turn is not None or not self.assistant_message_id:
@@ -774,7 +803,7 @@ class ChatStreamRuntime:
         assistant_message: Message,
         checkpoint_id: UUID | None,
     ) -> None:
-        await self.emit_event(
+        await self._emit_terminal_signal(
             "queue_processing",
             {
                 "queued_message_id": queued_msg["id"],
@@ -789,7 +818,6 @@ class ChatStreamRuntime:
                 # The terminal is suppressed during handoff — ship the duration here.
                 "prior_duration_ms": prior_duration_ms,
             },
-            apply_snapshot=False,
         )
 
     @staticmethod
@@ -1408,7 +1436,7 @@ class ChatStreamRuntime:
         try:
             message_service = MessageService(session_factory=session_factory)
             message = await message_service.get_message(message_uuid)
-            if not message or message.stream_status != MessageStreamStatus.IN_PROGRESS:
+            if not message:
                 return
             snapshot, last_seq = await ChatStreamRuntime._replay_past_checkpoint(
                 message_service, message
@@ -1421,7 +1449,7 @@ class ChatStreamRuntime:
                 )
                 if not content_text:
                     content_text = error_message
-            duration_ms = await message_service.update_message_snapshot(
+            winning_snapshot = await message_service.update_message_snapshot(
                 message_uuid,
                 content_text=content_text,
                 content_render=content_render,
@@ -1430,13 +1458,16 @@ class ChatStreamRuntime:
                 stream_status=stream_status,
                 record_activity=record_activity,
             )
+            if winning_snapshot is None:
+                return
+            status, duration_ms = winning_snapshot
             # After the snapshot prune, so the terminal event survives for clients.
             await ChatStreamRuntime._emit_terminal_for_dead_stream(
                 message_service=message_service,
                 chat_id=message.chat_id,
                 message_id=message_uuid,
                 stream_id=message.active_stream_id or uuid4(),
-                stream_status=stream_status,
+                stream_status=status,
                 duration_ms=duration_ms,
                 user_id=user_id,
                 error_message=error_message,
@@ -1483,15 +1514,9 @@ class ChatStreamRuntime:
         error_message: str | None = None,
         record_activity: bool = True,
     ) -> None:
-        if stream_status == MessageStreamStatus.INTERRUPTED:
-            kind = "cancelled"
-            payload: dict[str, Any] = {
-                "status": stream_status.value,
-                "duration_ms": duration_ms,
-            }
-        else:
-            kind = "error"
-            payload = {"error": error_message or "Stream ended unexpectedly"}
+        kind, payload = ChatStreamRuntime._terminal_event_payload(
+            stream_status, duration_ms, error_message
+        )
         seq = await message_service.append_event_with_next_seq(
             chat_id=chat_id,
             message_id=message_id,
@@ -1501,7 +1526,7 @@ class ChatStreamRuntime:
             audit_payload={"payload": payload},
             record_activity=record_activity,
         )
-        if not user_id:
+        if seq is None or not user_id:
             return
         try:
             async with cache_connection() as cache:

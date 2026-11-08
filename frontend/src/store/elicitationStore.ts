@@ -7,6 +7,7 @@ interface ElicitationState {
   pendingRequests: Map<string, ElicitationRequest[]>;
   enqueueElicitationRequest: (chatId: string, request: ElicitationRequest) => void;
   resolveElicitationRequest: (chatId: string, requestId: string) => void;
+  clearElicitationRequests: (chatId: string) => void;
   // Server truth from GET /chats/{id}/status — event replay can miss pending forms.
   reconcileElicitationRequests: (
     chatId: string,
@@ -46,6 +47,13 @@ export const useElicitationStore = create<ElicitationState>((set, get) => ({
       const nextQueue = queue.filter((r) => r.request_id !== requestId);
       if (nextQueue.length === queue.length) return state;
       return { pendingRequests: writeQueue(state.pendingRequests, chatId, nextQueue) };
+    });
+  },
+
+  clearElicitationRequests: (chatId: string) => {
+    set((state) => {
+      if (!state.pendingRequests.has(chatId)) return state;
+      return { pendingRequests: writeQueue(state.pendingRequests, chatId, []) };
     });
   },
 

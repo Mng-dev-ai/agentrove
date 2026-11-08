@@ -96,6 +96,8 @@ export function useChatStreaming({
   );
   const currentMessageIdRef = useRef<string | null>(null);
   currentMessageIdRef.current = currentMessageId;
+  const streamStateRef = useRef<StreamState>(streamState);
+  streamStateRef.current = streamState;
 
   const isLoading = streamState === 'loading';
   const isStreaming = streamState === 'streaming';
@@ -139,6 +141,8 @@ export function useChatStreaming({
     setStreamState,
     setCurrentMessageId,
     pendingStopRef,
+    currentMessageIdRef,
+    streamStateRef,
     onPendingUserMessageIdChange: setPendingUserMessageIdState,
   });
 

@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 
 class MessageService(BaseDbService[Message]):
+    TERMINAL_SIGNAL_KINDS = ("complete", "cancelled", "error", "queue_processing")
+
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         super().__init__(session_factory)
 
@@ -159,10 +161,9 @@ class MessageService(BaseDbService[Message]):
         total_cost_usd: float | None = None,
         session_id: str | None = None,
         record_activity: bool = True,
-    ) -> int | None:
-        # Periodic snapshot write so reconnecting clients can hydrate without
-        # replaying every event. Returns duration_ms — None until the terminal
-        # snapshot records it, or if the row was deleted mid-stream.
+    ) -> tuple[MessageStreamStatus, int | None] | None:
+        # Periodic snapshot for reconnect hydration. Returns the winning (status,
+        # duration_ms), or None for a missing row; duration is None until recorded.
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
             values: dict[str, Any] = {
@@ -197,13 +198,24 @@ class MessageService(BaseDbService[Message]):
 
             result = await db.execute(
                 update(Message)
-                .where(Message.id == message_id)
+                .where(
+                    Message.id == message_id,
+                    Message.stream_status == MessageStreamStatus.IN_PROGRESS,
+                )
                 .values(**values)
-                .returning(Message.duration_ms)
+                .returning(Message.stream_status, Message.duration_ms)
             )
             row = result.one_or_none()
             if row is None:
-                return None
+                result = await db.execute(
+                    select(Message.stream_status, Message.duration_ms).where(
+                        Message.id == message_id
+                    )
+                )
+                row = result.one_or_none()
+                if row is None:
+                    return None
+                return row.stream_status, cast(int | None, row.duration_ms)
 
             # Terminal snapshot supersedes the event log: history renders from
             # content_render and event reads are seq-gated catch-up past
@@ -218,7 +230,7 @@ class MessageService(BaseDbService[Message]):
                 )
 
             await db.commit()
-            return cast(int | None, row.duration_ms)
+            return row.stream_status, cast(int | None, row.duration_ms)
 
     async def append_event_with_next_seq(
         self,
@@ -230,7 +242,7 @@ class MessageService(BaseDbService[Message]):
         render_payload: dict[str, Any],
         audit_payload: dict[str, Any] | None,
         record_activity: bool = True,
-    ) -> int:
+    ) -> int | None:
         # Allocate a gapless chat-scoped seq atomically via UPDATE...RETURNING;
         # clients use it as the SSE id for catch-up on reconnect.
         values: dict[str, Any] = {"last_event_seq": Chat.last_event_seq + 1}
@@ -253,6 +265,16 @@ class MessageService(BaseDbService[Message]):
                     status_code=404,
                 )
             next_seq = int(next_seq)
+
+            if event_type in self.TERMINAL_SIGNAL_KINDS:
+                existing_seq = await db.scalar(
+                    select(MessageEvent.seq).where(
+                        MessageEvent.message_id == message_id,
+                        MessageEvent.event_type.in_(self.TERMINAL_SIGNAL_KINDS),
+                    )
+                )
+                if existing_seq is not None:
+                    return None
 
             now = datetime.now(timezone.utc)
             await db.execute(
