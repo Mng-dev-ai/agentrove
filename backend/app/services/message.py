@@ -287,15 +287,19 @@ class MessageService(BaseDbService[Message]):
             await db.commit()
             return next_seq
 
-    async def get_terminal_event(self, message_id: UUID) -> MessageEvent | None:
+    async def has_terminal_signal(self, message_id: UUID) -> bool:
         async with self.session_factory() as db:
             result = await db.execute(
-                select(MessageEvent).where(
+                select(MessageEvent.id)
+                .where(
                     MessageEvent.message_id == message_id,
-                    MessageEvent.event_type.in_(self.TERMINAL_EVENT_KINDS),
+                    MessageEvent.event_type.in_(
+                        (*self.TERMINAL_EVENT_KINDS, "queue_processing")
+                    ),
                 )
+                .limit(1)
             )
-            return cast(MessageEvent | None, result.scalar_one_or_none())
+            return result.scalar_one_or_none() is not None
 
     async def append_events_batch(
         self,

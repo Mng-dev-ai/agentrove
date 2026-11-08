@@ -161,7 +161,7 @@ class ChatStreamRuntime:
         self._last_emitted_tokens: int = 0
         self._last_emitted_context_window: int = 0
         self._stream: AsyncIterator[StreamEvent] | None = None
-        self._terminal_event_emitted = False
+        self._terminal_signal_emitted = False
 
     async def run(
         self,
@@ -614,13 +614,15 @@ class ChatStreamRuntime:
             return final_content
 
         if status == MessageStreamStatus.COMPLETED:
+            # If there's a queued follow-up message, start it immediately in this
+            # same background task chain — the "complete" event is deferred until
+            # the entire queue is drained so the client stays in streaming mode.
             queue_processed = await self._process_next_queued(
                 prior_duration_ms=duration_ms
             )
             if not queue_processed:
                 await self._emit_context_usage(stream_result)
-            await self._emit_persisted_terminal()
-            if not queue_processed:
+                await self._emit_persisted_terminal()
                 await self._push_completion(failed=False, reply=final_content)
         elif status == MessageStreamStatus.INTERRUPTED:
             # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
@@ -629,7 +631,6 @@ class ChatStreamRuntime:
                 send_now_only=True, prior_duration_ms=duration_ms
             ):
                 session_registry.consume_pending_cancel(self.chat_id)
-                await self._emit_persisted_terminal()
                 return final_content
             await self._emit_context_usage(stream_result)
             await self._emit_persisted_terminal()
@@ -643,7 +644,7 @@ class ChatStreamRuntime:
     async def _emit_persisted_terminal(
         self, *, error_message: str | None = None
     ) -> None:
-        if self._terminal_event_emitted or not self.assistant_message_id:
+        if self._terminal_signal_emitted or not self.assistant_message_id:
             return
         message = await self.message_service.get_message(
             UUID(self.assistant_message_id)
@@ -653,14 +654,17 @@ class ChatStreamRuntime:
         kind, payload = self._terminal_event_payload(
             message.stream_status, message.duration_ms, error_message
         )
+        await self._emit_terminal_signal(kind, payload)
+
+    async def _emit_terminal_signal(self, kind: str, payload: dict[str, Any]) -> None:
         task = asyncio.create_task(self.emit_event(kind, payload, apply_snapshot=False))
         try:
             await asyncio.shield(task)
         except asyncio.CancelledError:
             await task
-            self._terminal_event_emitted = True
+            self._terminal_signal_emitted = True
             raise
-        self._terminal_event_emitted = True
+        self._terminal_signal_emitted = True
 
     @staticmethod
     def _terminal_event_payload(
@@ -798,7 +802,7 @@ class ChatStreamRuntime:
         assistant_message: Message,
         checkpoint_id: UUID | None,
     ) -> None:
-        await self.emit_event(
+        await self._emit_terminal_signal(
             "queue_processing",
             {
                 "queued_message_id": queued_msg["id"],
@@ -810,9 +814,9 @@ class ChatStreamRuntime:
                 "attachments": MessageService.serialize_attachments(
                     queued_msg, user_message
                 ),
+                # The terminal is suppressed during handoff — ship the duration here.
                 "prior_duration_ms": prior_duration_ms,
             },
-            apply_snapshot=False,
         )
 
     @staticmethod
@@ -1457,7 +1461,7 @@ class ChatStreamRuntime:
                 message = await message_service.get_message(message_uuid)
             if not message or message.stream_status == MessageStreamStatus.IN_PROGRESS:
                 return
-            if await message_service.get_terminal_event(message_uuid) is not None:
+            if await message_service.has_terminal_signal(message_uuid):
                 return
             # After the snapshot prune, so the terminal event survives for clients.
             await ChatStreamRuntime._emit_terminal_for_dead_stream(
