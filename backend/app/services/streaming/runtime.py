@@ -661,7 +661,10 @@ class ChatStreamRuntime:
         try:
             await asyncio.shield(task)
         except asyncio.CancelledError:
-            await task
+            try:
+                await task
+            except Exception:
+                logger.exception("Failed to emit terminal signal during cancellation")
             raise
 
     @staticmethod
