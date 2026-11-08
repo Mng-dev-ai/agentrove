@@ -195,6 +195,7 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
 
       try {
         await api.sendNow(chatId, messageId);
+        clearTimeout(timeout);
         return true;
       } catch (error) {
         console.error('Failed to send now:', error);
