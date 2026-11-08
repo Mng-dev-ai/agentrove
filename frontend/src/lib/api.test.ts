@@ -32,6 +32,10 @@ beforeEach(async () => {
   fetchMock.mockReset();
   localStorage.clear();
   vi.stubGlobal('fetch', fetchMock);
+  Object.defineProperty(navigator, 'locks', {
+    configurable: true,
+    value: { request: (_name: string, callback: () => unknown) => callback() },
+  });
   await signIn('access');
 });
 

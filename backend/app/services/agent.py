@@ -202,7 +202,12 @@ class AgentService:
                 ui_mode = self._get_plan_mode_transition(event)
                 if ui_mode:
                     session_mode = adapter.map_session_mode(ui_mode)
-                    await session.set_mode(session_mode)
+                    try:
+                        await session.set_mode(session_mode)
+                    except Exception:
+                        logger.warning(
+                            "Failed to set ACP mode: %s", session_mode, exc_info=True
+                        )
 
             result.total_cost_usd = handler.total_cost_usd
             result.usage = handler.usage

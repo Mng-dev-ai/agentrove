@@ -23,6 +23,7 @@ import { useMessageCache } from '@/hooks/useMessageCache';
 import { streamService } from '@/services/streamService';
 import type { StreamOptions } from '@/services/streamService';
 import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
+import { usePermissionStore } from '@/store/permissionStore';
 import {
   findMessageInCache,
   insertMessagesInCache,
@@ -266,6 +267,16 @@ export function useStreamCallbacks({
             options,
             seq: envelope.seq,
           });
+        }
+        return;
+      }
+
+      if (envelope.kind === 'permission_dismissed') {
+        const payload = envelope.payload as Record<string, unknown>;
+        if (typeof payload.request_id === 'string') {
+          usePermissionStore
+            .getState()
+            .resolvePermissionRequest(envelope.chatId, payload.request_id);
         }
         return;
       }

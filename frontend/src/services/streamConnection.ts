@@ -1,7 +1,6 @@
 import { resolveChatClient } from '@/lib/api';
 import { AuthEventSource } from '@/services/authEventSource';
-import { chatService } from '@/services/chatService';
-import { useElicitationStore } from '@/store/elicitationStore';
+import { syncChatStatus } from '@/services/chatStatusSync';
 import { useStreamStore } from '@/store/streamStore';
 import { chatStorage } from '@/utils/storage';
 import { logger } from '@/utils/logger';
@@ -257,11 +256,7 @@ class StreamConnectionManager {
     generation: number,
     chatId: string,
   ): Promise<void> {
-    const status = await chatService.checkChatStatus(chatId);
-    if (connection.generation !== generation || !status?.pending_elicitations) return;
-    useElicitationStore
-      .getState()
-      .reconcileElicitationRequests(chatId, status.pending_elicitations);
+    await syncChatStatus(chatId, () => connection.generation === generation);
   }
 
   private startStallWatchdog(client: StreamApiClient, connection: ManagedConnection): void {

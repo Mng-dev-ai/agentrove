@@ -70,16 +70,15 @@ describe('resolveElicitationRequest', () => {
   });
 });
 
+const reconcile = (requests: ElicitationRequest[]) =>
+  useElicitationStore
+    .getState()
+    .reconcileElicitationRequests('c1', requests, new Set(['elicit-1', 'elicit-2']));
+
 describe('reconcileElicitationRequests', () => {
   it('appends server-listed forms the queue does not have, oldest first', () => {
     useElicitationStore.getState().enqueueElicitationRequest('c1', request('elicit-1'));
-    useElicitationStore
-      .getState()
-      .reconcileElicitationRequests('c1', [
-        request('elicit-1'),
-        request('elicit-2'),
-        request('elicit-3'),
-      ]);
+    reconcile([request('elicit-1'), request('elicit-2'), request('elicit-3')]);
     expect(idsOf('c1')).toEqual(['elicit-1', 'elicit-2', 'elicit-3']);
   });
 
@@ -87,37 +86,33 @@ describe('reconcileElicitationRequests', () => {
     const enqueue = useElicitationStore.getState().enqueueElicitationRequest;
     enqueue('c1', request('elicit-1'));
     enqueue('c1', request('elicit-2'));
-    useElicitationStore.getState().reconcileElicitationRequests('c1', [request('elicit-2')]);
+    reconcile([request('elicit-2')]);
     expect(idsOf('c1')).toEqual(['elicit-2']);
   });
 
   it('keeps the rendered head object identical so unsubmitted answers survive', () => {
     useElicitationStore.getState().enqueueElicitationRequest('c1', request('elicit-1'));
     const head = queueOf('c1')?.[0];
-    useElicitationStore
-      .getState()
-      .reconcileElicitationRequests('c1', [request('elicit-1', 'refetched'), request('elicit-2')]);
+    reconcile([request('elicit-1', 'refetched'), request('elicit-2')]);
     expect(queueOf('c1')?.[0]).toBe(head);
     expect(queueOf('c1')?.[0].message).toBe('msg-elicit-1');
   });
 
   it('clears the queue when the server reports no pending forms', () => {
     useElicitationStore.getState().enqueueElicitationRequest('c1', request('elicit-1'));
-    useElicitationStore.getState().reconcileElicitationRequests('c1', []);
+    reconcile([]);
     expect(useElicitationStore.getState().pendingRequests.has('c1')).toBe(false);
   });
 
   it('keeps the map reference when the queue already matches the server', () => {
     useElicitationStore.getState().enqueueElicitationRequest('c1', request('elicit-1'));
     const before = useElicitationStore.getState().pendingRequests;
-    useElicitationStore.getState().reconcileElicitationRequests('c1', [request('elicit-1')]);
+    reconcile([request('elicit-1')]);
     expect(useElicitationStore.getState().pendingRequests).toBe(before);
   });
 
   it('seeds a chat that has no local queue at all', () => {
-    useElicitationStore
-      .getState()
-      .reconcileElicitationRequests('c1', [request('elicit-7'), request('elicit-8')]);
+    reconcile([request('elicit-7'), request('elicit-8')]);
     expect(idsOf('c1')).toEqual(['elicit-7', 'elicit-8']);
   });
 });

@@ -98,22 +98,28 @@ class ChatStreamRuntime:
     # Reserved before the background task registers — closes the double-send
     # window. The event fires when the reservation is released.
     _starting_chat_ids: dict[str, asyncio.Event] = {}
+    _restoring_chat_ids: dict[str, asyncio.Event] = {}
 
     @classmethod
     @asynccontextmanager
-    async def chat_start_slot(cls, chat_id: str) -> AsyncIterator[bool]:
+    async def chat_start_slot(
+        cls, chat_id: str, *, restoring: bool = False
+    ) -> AsyncIterator[bool]:
         # One turn per chat — concurrent turns would share and corrupt the ACP
         # session. No awaits before the yield, so check-and-reserve is atomic.
-        reserved = chat_id not in cls._starting_chat_ids and not cls.has_active_chat(
-            chat_id
+        reserved = (
+            chat_id not in cls._starting_chat_ids
+            and chat_id not in cls._restoring_chat_ids
+            and not cls.has_active_chat(chat_id)
         )
+        reservations = cls._restoring_chat_ids if restoring else cls._starting_chat_ids
         if reserved:
-            cls._starting_chat_ids[chat_id] = asyncio.Event()
+            reservations[chat_id] = asyncio.Event()
         try:
             yield reserved
         finally:
             if reserved:
-                cls._starting_chat_ids.pop(chat_id).set()
+                reservations.pop(chat_id).set()
 
     def __init__(
         self,
@@ -871,6 +877,7 @@ class ChatStreamRuntime:
                 chat_uuid,
                 prompt,
                 MessageRole.USER,
+                stream_status=MessageStreamStatus.COMPLETED,
                 attachments=attachments,
                 app_notice=user_app_notice,
                 message_id=user_message_id,
@@ -1071,6 +1078,7 @@ class ChatStreamRuntime:
                 result = await db.execute(
                     select(Message.id).where(
                         Message.stream_status == MessageStreamStatus.IN_PROGRESS,
+                        Message.role == MessageRole.ASSISTANT,
                         Message.deleted_at.is_(None),
                     )
                 )
@@ -1154,6 +1162,10 @@ class ChatStreamRuntime:
     @classmethod
     def has_pending_start(cls, chat_id: str) -> bool:
         return chat_id in cls._starting_chat_ids
+
+    @classmethod
+    def has_pending_restore(cls, chat_id: str) -> bool:
+        return chat_id in cls._restoring_chat_ids
 
     @classmethod
     def _chat_tasks(cls, chat_id: str) -> set[asyncio.Task[str]]:
@@ -1584,33 +1596,31 @@ class ChatStreamRuntime:
             session.active_generation_task = asyncio.current_task()
             stream: AsyncIterator[StreamEvent] | None = None
             try:
-                session_updates: list[Any] = []
-                if config.model and config.model != session.current_model:
-                    session_updates.append(
-                        session.acp_session.set_model(
+                if config.model and config.model != session.acp_session.current_model:
+                    try:
+                        await session.acp_session.set_model(
                             config.model,
                             config.reasoning_effort,
                             config.effort_explicit,
                         )
-                    )
+                    except Exception:
+                        logger.warning(
+                            "Failed to set ACP model: %s", config.model, exc_info=True
+                        )
                 if (
                     config.permission_mode
-                    and config.permission_mode != session.current_mode
+                    and config.permission_mode != session.acp_session.current_mode
                 ):
-                    session_updates.append(
-                        session.acp_session.set_mode(config.permission_mode)
-                    )
-                if config.fast_mode != session.current_fast_mode:
-                    session_updates.append(
-                        session.acp_session.set_fast_mode(config.fast_mode)
-                    )
-                if session_updates:
-                    await asyncio.gather(*session_updates)
-                if config.model:
-                    session.current_model = config.model
-                if config.permission_mode:
-                    session.current_mode = config.permission_mode
-                session.current_fast_mode = config.fast_mode
+                    await session.acp_session.set_mode(config.permission_mode)
+                if config.fast_mode != session.acp_session.current_fast_mode:
+                    try:
+                        await session.acp_session.set_fast_mode(config.fast_mode)
+                    except Exception:
+                        logger.warning(
+                            "Failed to set Codex fast mode: %s",
+                            config.fast_mode,
+                            exc_info=True,
+                        )
                 if config.effort_explicit:
                     session.acp_session.ensure_effort_supported(config.reasoning_effort)
 

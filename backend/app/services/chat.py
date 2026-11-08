@@ -3,11 +3,12 @@ import json
 import logging
 import math
 from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import exists, func, select, update, true
+from sqlalchemy import exists, func, or_, select, update, true
 from sqlalchemy.orm import aliased, selectinload
 
 from app.constants import (
@@ -806,13 +807,36 @@ class ChatService(BaseDbService[Chat]):
         user: User,
     ) -> GitCommandResponse:
         checkpoint, chat = await self._get_checkpoint_target(message_id, user)
-        git_service = GitService(self.sandbox_for_workspace(chat.workspace))
-        return await git_service.restore_checkpoint_all(
-            chat.workspace.sandbox_id,
-            base_head=checkpoint.base_head,
-            pre_run_diff=checkpoint.pre_run_diff,
-            cwd=checkpoint.cwd,
-        )
+        async with self.session_factory() as db:
+            result = await db.execute(
+                select(Chat.id).where(
+                    or_(
+                        Chat.id == chat.id,
+                        (Chat.workspace_id == chat.workspace_id)
+                        & (Chat.worktree_cwd == (checkpoint.cwd or None)),
+                    )
+                )
+            )
+            chat_ids = list(result.scalars().all())
+        async with AsyncExitStack() as slots:
+            for chat_id in chat_ids:
+                reserved = await slots.enter_async_context(
+                    ChatStreamRuntime.chat_start_slot(str(chat_id), restoring=True)
+                )
+                if not reserved:
+                    raise ChatException(
+                        "Cannot restore a checkpoint while a response is starting "
+                        "or streaming in this worktree.",
+                        error_code=ErrorCode.VALIDATION_ERROR,
+                        status_code=409,
+                    )
+            git_service = GitService(self.sandbox_for_workspace(chat.workspace))
+            return await git_service.restore_checkpoint_all(
+                chat.workspace.sandbox_id,
+                base_head=checkpoint.base_head,
+                pre_run_diff=checkpoint.pre_run_diff,
+                cwd=checkpoint.cwd,
+            )
 
     async def _get_checkpoint_target(
         self,

@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -34,10 +34,3 @@ class RefreshToken(Base):
     user = relationship("User", back_populates="refresh_tokens")
 
     __table_args__ = (Index("idx_refresh_token_user_revoked", "user_id", "revoked_at"),)
-
-    @property
-    def is_expired(self) -> bool:
-        expires_at = self.expires_at
-        if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=timezone.utc)
-        return bool(datetime.now(timezone.utc) > expires_at)

@@ -234,7 +234,9 @@ class FakeAgent:
         log_event(
             {"event": "set_config_option", "config_id": config_id, "value": value}
         )
-        if SCENARIO == "config_error":
+        if SCENARIO == "config_error" or (
+            SCENARIO == "model_error" and config_id == "model"
+        ):
             raise RuntimeError("simulated set_config_option failure")
         return SetSessionConfigOptionResponse(config_options=EFFORT_CONFIG_OPTIONS)
 

@@ -77,6 +77,7 @@ export type AssistantStreamEvent =
         requested_schema: ElicitationSchema;
       };
     }
+  | { type: 'permission_dismissed'; request_id: string }
   | { type: 'elicitation_dismissed'; request_id: string }
   | { type: 'prompt_suggestions'; suggestions: string[] };
 
@@ -271,4 +272,5 @@ export interface ChatStatusResponse {
   // Forms still awaiting an answer, oldest first. Server truth: event replay can
   // start past the control event when parallel tool activity advanced the snapshot.
   pending_elicitations?: ElicitationRequest[];
+  pending_permission_ids?: string[];
 }

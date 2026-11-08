@@ -10,7 +10,6 @@ import type {
 } from '@/types/queue.types';
 import { channelService } from '@/services/channelService';
 import { queueService } from '@/services/queueService';
-import { NetworkError } from '@/types/errors.types';
 
 export const EMPTY_QUEUE: LocalQueuedMessage[] = [];
 
@@ -38,7 +37,7 @@ interface MessageQueueState<AddArgs extends unknown[]> {
   cleanupChat: (chatId: string) => void;
 }
 
-// Optimistic queue: temp IDs swap in-place on sync; network errors stay unsynced.
+// Optimistic queue: temp IDs swap in-place on sync; a failed add removes the item and rethrows.
 // fetchQueue merges server state with unsynced locals across refreshes.
 const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
   create<MessageQueueState<AddArgs>>((set, get) => ({
@@ -85,19 +84,8 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
 
         return result;
       } catch (error) {
-        if (!(error instanceof NetworkError)) {
-          get().removeLocalOnly(chatId, tempId);
-          throw error;
-        }
-
-        if (sendNow) {
-          set((state) => {
-            const nextQueues = new Map(state.queues);
-            nextQueues.set(chatId, [...(nextQueues.get(chatId) || []), tempMessage]);
-            return { queues: nextQueues };
-          });
-        }
-        return { id: tempId, send_now_failed: false };
+        get().removeLocalOnly(chatId, tempId);
+        throw error;
       }
     },
 
@@ -130,6 +118,7 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
           await api.updateQueuedMessage(chatId, messageId, trimmedContent);
         } catch (error) {
           console.error('Failed to sync message update:', error);
+          await get().fetchQueue(chatId);
         }
       }
     },
@@ -155,6 +144,7 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
           await api.deleteQueuedMessage(chatId, messageId);
         } catch (error) {
           console.error('Failed to sync message delete:', error);
+          await get().fetchQueue(chatId);
         }
       }
     },

@@ -1510,15 +1510,16 @@ async def test_chat_provider_switch_hands_off_context(
     assert "Send a regular message first" in slash_message["content_text"]
 
 
-async def test_chat_mid_session_model_and_mode_switch_survives_config_errors(
+@pytest.mark.parametrize("scenario", ["model_error", "config_error"])
+async def test_chat_model_errors_survive_but_permission_mode_errors_fail(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
+    scenario: str,
 ) -> None:
-    # Codex reuses session across model/mode change → hits set_model/set_mode.
-    monkeypatch.setenv("FAKE_ACP_SCENARIO", "config_error")
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", scenario)
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
 
@@ -1534,6 +1535,11 @@ async def test_chat_mid_session_model_and_mode_switch_survives_config_errors(
     first_message = await wait_for_message(
         client, headers, chat_id=chat["id"], message_id=first.json()["message_id"]
     )
+    if scenario == "config_error":
+        assert first_message["stream_status"] == "failed"
+        assert fake_agent.events_of("set_session_mode")[-1]["mode_id"] == "agent"
+        assert fake_agent.main_turn_prompts() == []
+        return
     assert first_message["stream_status"] == "completed"
     assert any(e["type"] == "plan" for e in first_message["content_render"]["events"])
 

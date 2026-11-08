@@ -1,0 +1,36 @@
+import { chatService } from '@/services/chatService';
+import { useElicitationStore } from '@/store/elicitationStore';
+import { usePermissionStore } from '@/store/permissionStore';
+import type { ChatStatusResponse } from '@/types/chat.types';
+
+export async function syncChatStatus(
+  chatId: string,
+  isCurrent: () => boolean,
+): Promise<ChatStatusResponse | null> {
+  const knownElicitationIds = new Set(
+    useElicitationStore
+      .getState()
+      .pendingRequests.get(chatId)
+      ?.map((r) => r.request_id),
+  );
+  const knownPermissionIds = new Set(
+    usePermissionStore
+      .getState()
+      .pendingRequests.get(chatId)
+      ?.map((r) => r.request_id),
+  );
+  const status = await chatService.checkChatStatus(chatId);
+  if (!isCurrent() || !status) return null;
+
+  if (status.pending_elicitations) {
+    useElicitationStore
+      .getState()
+      .reconcileElicitationRequests(chatId, status.pending_elicitations, knownElicitationIds);
+  }
+  if (status.pending_permission_ids) {
+    usePermissionStore
+      .getState()
+      .reconcilePermissionRequests(chatId, status.pending_permission_ids, knownPermissionIds);
+  }
+  return status;
+}

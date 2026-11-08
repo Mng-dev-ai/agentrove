@@ -194,9 +194,13 @@ class AcpClientHandler:
 
     def dismiss_pending_permissions(self) -> None:
         # Agent still alive: "" resolves as a proper DeniedOutcome("cancelled") RPC response.
-        for future in self._pending_permissions.values():
+        for request_id, future in self._pending_permissions.items():
             if not future.done():
                 future.set_result("")
+                if not self.channel_member:
+                    self.event_queue.put_nowait(
+                        StreamEvent(type="permission_dismissed", request_id=request_id)
+                    )
         self._pending_permissions.clear()
 
     def cancel_pending_permissions(self) -> None:

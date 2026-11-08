@@ -71,19 +71,18 @@ class RefreshTokenService:
         user_agent: str | None = None,
         ip_address: str | None = None,
     ) -> tuple[User, str, UUID | None]:
-        token_hash = hash_refresh_token(token)
-
-        result = await db.execute(
-            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        now = datetime.now(timezone.utc)
+        refresh_token = await db.scalar(
+            update(RefreshToken)
+            .where(
+                RefreshToken.token_hash == hash_refresh_token(token),
+                RefreshToken.revoked_at.is_(None),
+                RefreshToken.expires_at > now,
+            )
+            .values(revoked_at=now)
+            .returning(RefreshToken)
         )
-        refresh_token = result.scalar_one_or_none()
-
-        if not refresh_token or refresh_token.is_expired:
-            raise AuthException("Invalid or expired refresh token")
-
-        # Reject stale replays per-token only — revoking every session here would
-        # log the user out of all devices over one device's stale token.
-        if refresh_token.revoked_at is not None:
+        if refresh_token is None:
             raise AuthException("Invalid or expired refresh token")
 
         user_result = await db.execute(
@@ -104,18 +103,7 @@ class RefreshTokenService:
             )
             if device is None:
                 raise AuthException("Invalid or expired refresh token")
-            device.last_used_at = datetime.now(timezone.utc)
-
-        if refresh_token.parent_id is not None:
-            await db.execute(
-                update(RefreshToken)
-                .where(
-                    self._with_children(refresh_token.parent_id),
-                    RefreshToken.id != refresh_token.id,
-                    RefreshToken.revoked_at.is_(None),
-                )
-                .values(revoked_at=datetime.now(timezone.utc))
-            )
+            device.last_used_at = now
 
         new_token = self.generate_refresh_token()
         new_token_hash = hash_refresh_token(new_token)

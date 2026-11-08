@@ -25,9 +25,6 @@ class ChatSession:
     chat_id: str
     acp_session: AcpSession
     fingerprint: str
-    current_model: str = ""
-    current_mode: str = ""
-    current_fast_mode: bool = False
     active_generation_task: asyncio.Task[Any] | None = None
     cancel_event: asyncio.Event = field(default_factory=asyncio.Event)
     last_used_at: float = field(default_factory=time.monotonic)
@@ -72,10 +69,6 @@ class SessionRegistry:
                 chat_id=chat_id,
                 acp_session=acp_session,
                 fingerprint=fingerprint,
-                current_model=config.model,
-                # create() already applied fast_mode when True; keep in sync so
-                # the next turn doesn't re-send the same config option.
-                current_fast_mode=config.fast_mode,
             )
             self._sessions[chat_id] = session
 
@@ -132,6 +125,12 @@ class SessionRegistry:
             action=action,
             content=content,
         )
+
+    def pending_permission_ids(self, chat_id: str) -> list[str]:
+        session = self._sessions.get(chat_id)
+        if session is None or not session.acp_session.is_alive():
+            return []
+        return list(session.acp_session.handler._pending_permissions)
 
     def pending_elicitations(self, chat_id: str) -> list[dict[str, Any]]:
         session = self._sessions.get(chat_id)
