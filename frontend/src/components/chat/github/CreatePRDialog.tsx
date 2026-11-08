@@ -106,6 +106,7 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
   const [body, setBody] = useState(defaultBody);
   const [baseBranch, setBaseBranch] = useState('');
   const [selectedReviewers, setSelectedReviewers] = useState<string[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const bodyEditedRef = useRef(false);
 
   const prevDefaultBodyRef = useRef(defaultBody);
@@ -157,6 +158,7 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
   };
 
   const handleSubmit = async () => {
+    if (isSubmitting) return;
     if (!title.trim()) {
       toast.error('Please enter a title');
       return;
@@ -175,6 +177,7 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
     }
 
     try {
+      setIsSubmitting(true);
       const pushResult = await sandboxService.gitPush(sandboxId, worktreeCwd);
       if (!pushResult.success) {
         toast.error(`Push failed: ${pushResult.error || 'Could not push branch to remote'}`);
@@ -211,6 +214,8 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
       onClose();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create pull request');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -347,13 +352,7 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
       </div>
 
       <div className={styles.footer}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          disabled={createPR.isPending}
-        >
+        <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={isSubmitting}>
           Cancel
         </Button>
         <Button
@@ -361,9 +360,9 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
           variant="primary"
           size="sm"
           onClick={handleSubmit}
-          disabled={createPR.isPending || !owner || !!openPR}
+          disabled={isSubmitting || !owner || !!openPR}
         >
-          {createPR.isPending ? 'Creating...' : 'Create pull request'}
+          {isSubmitting ? 'Creating...' : 'Create pull request'}
         </Button>
       </div>
     </BaseModal>
