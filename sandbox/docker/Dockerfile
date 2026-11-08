@@ -148,8 +148,7 @@ RUN python3 -m pip install --user --upgrade pip && \
     python3 -m pip install --user \
     uv
 
-RUN echo '#!/bin/bash\nexec echo $GITHUB_TOKEN' > /home/user/.git-askpass.sh && \
-    chmod +x /home/user/.git-askpass.sh
+COPY --chown=user:user --chmod=755 sandbox/docker/git-askpass.sh /home/user/.git-askpass.sh
 
 RUN echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc && \
     echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc && \

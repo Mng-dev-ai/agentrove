@@ -457,6 +457,7 @@ async def send_message(
             base_branch=base_branch,
             fast_mode=fast_mode,
             persona=persona,
+            report_to_parent=bool(chat.get("parent_chat_id")),
         )
         steering = when_busy == "steer" and not queued["send_now_failed"]
         return {

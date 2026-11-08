@@ -355,6 +355,9 @@ class ChatStreamRuntime:
                     if any(
                         getattr(queued_message, key) != value
                         for key, value in options.items()
+                    ) or (
+                        queued_message.report_to_parent
+                        and request.report_parent_id is None
                     ):
                         return False
                     injected = await runtime._steer(
@@ -1298,8 +1301,9 @@ class ChatStreamRuntime:
         )
         context_window = model.context_window
         resolved_session_id = session_id_override or chat.session_id
+        queued_message = QueuedMessage.model_validate(queued_msg)
         return ChatStreamRequest(
-            device_ids=QueuedMessage.model_validate(queued_msg).device_ids,
+            device_ids=queued_message.device_ids,
             prompt=queued_msg["content"],
             system_prompt=system_prompt,
             custom_instructions=user_settings.custom_instructions,
@@ -1314,6 +1318,9 @@ class ChatStreamRuntime:
                 "session_id": resolved_session_id,
                 "session_agent_kind": chat.session_agent_kind,
                 "worktree_cwd": chat.worktree_cwd,
+                "parent_chat_id": str(chat.parent_chat_id)
+                if chat.parent_chat_id
+                else None,
             },
             permission_mode=queued_msg["permission_mode"],
             model_id=queued_msg["model_id"],
@@ -1327,6 +1334,9 @@ class ChatStreamRuntime:
             fast_mode=queued_msg.get("fast_mode", False),
             attachments=queued_msg["attachments"],
             selected_persona_name=selected_persona_name,
+            report_parent_id=str(chat.parent_chat_id)
+            if queued_message.report_to_parent and chat.parent_chat_id
+            else None,
         )
 
     @classmethod

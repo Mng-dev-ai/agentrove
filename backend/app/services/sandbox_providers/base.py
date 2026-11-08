@@ -22,6 +22,33 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 GIT_LS_FILES_CMD = "git ls-files --cached --others --exclude-standard -z"
+HOST_GIT_ASKPASS_SCRIPT = """\
+#!/bin/sh
+case "$1" in
+"Username for '"*"': ")
+    answer=x-access-token
+    url=${1#"Username for '"}
+    ;;
+"Password for '"*"': ")
+    answer=$GITHUB_TOKEN
+    url=${1#"Password for '"}
+    ;;
+*) exit 0 ;;
+esac
+url=${url%"': "}
+case "$url" in
+https://*) ;;
+*) exit 0 ;;
+esac
+authority=${url#https://}
+authority=${authority%%/*}
+case "$authority" in
+*@*@*) exit 0 ;;
+esac
+case "${authority#*@}" in
+github.com | www.github.com) echo "$answer" ;;
+esac
+"""
 
 
 class SandboxProvider:
@@ -46,10 +73,12 @@ class SandboxProvider:
         if SandboxProviderType(provider_type) == SandboxProviderType.DOCKER:
             return SANDBOX_GIT_ASKPASS_PATH
         script = Path(settings.get_host_sandbox_base_dir()) / "git-askpass.sh"
-        if not script.exists():
+        if not script.exists() or script.read_text() != HOST_GIT_ASKPASS_SCRIPT:
             script.parent.mkdir(parents=True, exist_ok=True)
-            script.write_text('#!/bin/sh\necho "$GITHUB_TOKEN"\n')
-            script.chmod(0o700)
+            staged = script.with_suffix(".tmp")
+            staged.write_text(HOST_GIT_ASKPASS_SCRIPT)
+            staged.chmod(0o700)
+            staged.replace(script)
         return str(script)
 
     @staticmethod

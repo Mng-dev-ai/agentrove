@@ -969,7 +969,9 @@ async def test_git_commands_receive_custom_env_and_github_askpass(
     repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
     hook = repo / ".git" / "hooks" / "pre-commit"
     hook.write_text(
-        '#!/bin/sh\necho "var=$MY_VAR askpass=$("$GIT_ASKPASS" Password)"\n'
+        "#!/bin/sh\n"
+        'echo "var=$MY_VAR askpass=$("$GIT_ASKPASS" '
+        '"Password for \'https://x-access-token@github.com\': ")"\n'
     )
     hook.chmod(0o755)
     api = await open_host_sandbox(repo)

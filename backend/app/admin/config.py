@@ -1,9 +1,11 @@
 from typing import Any
+from uuid import UUID
 
 from sqladmin import Admin
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
 from app.core.security import verify_password
+from app.core.user_manager import password_fingerprint
 from app.models.db_models.user import User
 from sqlalchemy import select
 from app.core.config import get_settings
@@ -29,10 +31,16 @@ class AdminAuth(AuthenticationBackend):
                 and isinstance(password, str)
                 and verify_password(password, user.hashed_password)
             ):
-                if not user.is_superuser:
+                if not (user.is_active and user.is_superuser):
                     return False
 
-                request.session.update({"user_id": str(user.id), "email": user.email})
+                request.session.update(
+                    {
+                        "user_id": str(user.id),
+                        "email": user.email,
+                        "pwd": password_fingerprint(user.hashed_password),
+                    }
+                )
                 return True
 
         return False
@@ -43,7 +51,16 @@ class AdminAuth(AuthenticationBackend):
 
     async def authenticate(self, request: Request) -> bool:
         user_id = request.session.get("user_id")
-        return bool(user_id)
+        if not user_id:
+            return False
+        async with self.session_maker() as db:
+            user = await db.get(User, UUID(user_id))
+        return bool(
+            user
+            and user.is_active
+            and user.is_superuser
+            and request.session.get("pwd") == password_fingerprint(user.hashed_password)
+        )
 
 
 def create_admin(app: Any, engine: Any, session_maker: Any) -> Admin:

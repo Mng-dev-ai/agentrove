@@ -378,7 +378,7 @@ async def test_mcp_access_token_authenticates_bearer_requests(
     create_user: UserFactory,
 ) -> None:
     user = await create_user(email="mcp-token@example.com", username="mcptoken")
-    token = create_mcp_access_token(str(user.id), frozenset())
+    token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
 
     response = await client.get(
         "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
@@ -1246,7 +1246,9 @@ async def test_mcp_token_bound_to_device_dies_with_device(
     paired = (await pair_device(client, tokens["access_token"])).json()
     mcp_headers = {
         "Authorization": "Bearer "
-        + create_mcp_access_token(str(user.id), frozenset({UUID(paired["device_id"])}))
+        + create_mcp_access_token(
+            str(user.id), user.hashed_password, frozenset({UUID(paired["device_id"])})
+        )
     }
     assert (await client.get("/api/v1/auth/me", headers=mcp_headers)).status_code == 200
 
@@ -1267,7 +1269,7 @@ async def test_agent_token_cannot_create_pairing_links_or_manage_devices(
     tokens = await login(email="mcp-pair@example.com")
     paired = (await pair_device(client, tokens["access_token"])).json()
     mcp_headers = {
-        "Authorization": f"Bearer {create_mcp_access_token(str(user.id), frozenset())}"
+        "Authorization": f"Bearer {create_mcp_access_token(str(user.id), user.hashed_password, frozenset())}"
     }
 
     responses = [

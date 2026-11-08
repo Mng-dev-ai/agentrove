@@ -1685,7 +1685,7 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     mints = iter(("token-one", "token-two", "token-three", "token-four"))
     monkeypatch.setattr(
         "app.services.agent.create_mcp_access_token",
-        lambda user_id, device_ids: next(mints),
+        lambda user_id, hashed_password, device_ids: next(mints),
     )
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -1954,6 +1954,7 @@ async def test_revocation_cancels_the_devices_running_turn(
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
     email_capture: EmailCapture,
+    login: LoginClient,
     revoke: str,
 ) -> None:
     headers, workspace = auth_workspace
@@ -1985,6 +1986,8 @@ async def test_revocation_cancels_the_devices_running_turn(
             "/api/v1/auth/reset-password",
             json={"token": reset["token"], "password": "newpassword123"},
         )
+        tokens = await login(password="newpassword123")
+        headers = {"Authorization": f"Bearer {tokens['access_token']}"}
 
     assert not ChatStreamRuntime.has_active_chat(chat["id"])
     message = await wait_for_message(
