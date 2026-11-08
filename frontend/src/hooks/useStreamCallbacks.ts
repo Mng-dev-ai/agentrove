@@ -66,6 +66,8 @@ interface UseStreamCallbacksParams {
   setStreamState: Dispatch<SetStateAction<StreamState>>;
   setCurrentMessageId: Dispatch<SetStateAction<string | null>>;
   pendingStopRef: React.MutableRefObject<Set<string>>;
+  currentMessageIdRef: React.MutableRefObject<string | null>;
+  streamStateRef: React.MutableRefObject<StreamState>;
   onPendingUserMessageIdChange?: (id: string | null) => void;
 }
 
@@ -104,6 +106,8 @@ export function useStreamCallbacks({
   setStreamState,
   setCurrentMessageId,
   pendingStopRef,
+  currentMessageIdRef,
+  streamStateRef,
   onPendingUserMessageIdChange,
 }: UseStreamCallbacksParams): UseStreamCallbacksResult {
   const optionsRef = useRef<{
@@ -233,6 +237,15 @@ export function useStreamCallbacks({
       onPendingUserMessageIdChange?.(id);
     },
     [onPendingUserMessageIdChange],
+  );
+
+  const isPaneTurn = useCallback(
+    (messageId?: string) => {
+      const currentMessageId = currentMessageIdRef.current;
+      if (!messageId || currentMessageId === messageId) return true;
+      return currentMessageId === null && streamStateRef.current !== 'loading';
+    },
+    [currentMessageIdRef, streamStateRef],
   );
 
   // Side-effect kinds inline; renderable content → buffer + coalesced flush.
@@ -470,9 +483,11 @@ export function useStreamCallbacks({
         void markChatViewed(queryClient, targetChatId);
       }
 
-      setPendingUserMessageId(null);
-      setStreamState('idle');
-      setCurrentMessageId(null);
+      if (isPaneTurn(messageId)) {
+        setPendingUserMessageId(null);
+        setStreamState('idle');
+        setCurrentMessageId(null);
+      }
 
       timerIdsRef.current.forEach(clearTimeout);
       timerIdsRef.current = [];
@@ -495,6 +510,7 @@ export function useStreamCallbacks({
       chatId,
       currentChat?.sandbox_id,
       currentChat?.parent_chat_id,
+      isPaneTurn,
       notifyBackground,
       pendingStopRef,
       queryClient,
@@ -549,13 +565,16 @@ export function useStreamCallbacks({
       if (!assistantMessageId) {
         toast.error(getStreamErrorMessage(streamError));
       }
-      setStreamState('idle');
-      setCurrentMessageId(null);
-      setPendingUserMessageId(null);
+      if (isPaneTurn(assistantMessageId)) {
+        setStreamState('idle');
+        setCurrentMessageId(null);
+        setPendingUserMessageId(null);
+      }
     },
     [
       flushBufferedContent,
       chatId,
+      isPaneTurn,
       pendingStopRef,
       queryClient,
       setCurrentMessageId,

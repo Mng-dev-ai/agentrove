@@ -72,15 +72,29 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
 
         if (sendNow) return result;
 
+        const pending = get()
+          .getQueue(chatId)
+          .find((msg) => msg.id === tempId);
         set((state) => {
           const nextQueues = new Map(state.queues);
           const queue = nextQueues.get(chatId) || [];
-          const updatedQueue = queue.map((msg) =>
-            msg.id === tempId ? { ...msg, id: result.id, synced: true } : msg,
-          );
+          const updatedQueue = queue
+            .filter((msg) => msg.id !== result.id)
+            .map((msg) => (msg.id === tempId ? { ...msg, id: result.id, synced: true } : msg));
           nextQueues.set(chatId, updatedQueue);
           return { queues: nextQueues };
         });
+
+        if (!pending) {
+          try {
+            await api.deleteQueuedMessage(chatId, result.id);
+          } catch (error) {
+            console.error('Failed to sync message delete:', error);
+            await get().fetchQueue(chatId);
+          }
+        } else if (pending.content !== content) {
+          await get().updateQueuedMessage(chatId, result.id, pending.content);
+        }
 
         return result;
       } catch (error) {

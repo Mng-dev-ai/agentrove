@@ -1,6 +1,7 @@
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { queryClient } from '@/lib/queryClient';
 import { useStreamStore } from '@/store/streamStore';
+import { useElicitationStore } from '@/store/elicitationStore';
 import { usePermissionStore } from '@/store/permissionStore';
 import { useChannelQueueStore, useMessageQueueStore } from '@/store/messageQueueStore';
 import { useChannelStore } from '@/store/channelStore';
@@ -244,6 +245,7 @@ class StreamService {
         typeof parsed.payload?.duration_ms === 'number' ? parsed.payload.duration_ms : null;
       useStreamStore.getState().removeStream(streamId);
       usePermissionStore.getState().clearPermissionRequests(chatId);
+      useElicitationStore.getState().clearElicitationRequests(chatId);
       // Only successful finish earns the sidebar "Done" badge.
       if (parsed.kind === 'complete') {
         useStreamStore.getState().markCompleted(chatId);
@@ -254,6 +256,7 @@ class StreamService {
 
     if (parsed.kind === 'error') {
       usePermissionStore.getState().clearPermissionRequests(chatId);
+      useElicitationStore.getState().clearElicitationRequests(chatId);
       const message =
         typeof parsed.payload?.error === 'string' ? parsed.payload.error : 'An error occurred';
       const wrappedError = new StreamProcessingError(
@@ -286,6 +289,7 @@ class StreamService {
     );
     useStreamStore.getState().abortStream(stream.id);
     usePermissionStore.getState().clearPermissionRequests(stream.chatId);
+    useElicitationStore.getState().clearElicitationRequests(stream.chatId);
   }
 
   // Register + requestReplay so pre-registration events aren't dropped on an open feed.
