@@ -232,12 +232,15 @@ class ChatStreamRuntime:
             # Snapshot first — it prunes the event log — then the terminal
             # event so it survives replay.
             self.snapshot.add_error(str(exc))
-            await self._save_final_snapshot(stream_result, MessageStreamStatus.FAILED)
-            await self.emit_event(
-                "error",
-                {"error": str(exc)},
-                apply_snapshot=False,
+            saved, _ = await self._save_final_snapshot(
+                stream_result, MessageStreamStatus.FAILED
             )
+            if saved:
+                await self.emit_event(
+                    "error",
+                    {"error": str(exc)},
+                    apply_snapshot=False,
+                )
             raise
 
     async def _consume_stream(
@@ -589,10 +592,10 @@ class ChatStreamRuntime:
         self,
         stream_result: StreamResult,
         stream_status: MessageStreamStatus,
-    ) -> int | None:
+    ) -> tuple[bool, int | None]:
         # Persist duration so the terminal event can carry it without a refetch.
         if not self.assistant_message_id:
-            return None
+            return False, None
         await self._flush_event_buffer()
         return await self.message_service.update_message_snapshot(
             UUID(self.assistant_message_id),
@@ -610,8 +613,10 @@ class ChatStreamRuntime:
         stream_result: StreamResult,
         status: MessageStreamStatus,
     ) -> str:
-        duration_ms = await self._save_final_snapshot(stream_result, status)
+        saved, duration_ms = await self._save_final_snapshot(stream_result, status)
         final_content = self.snapshot.content_text
+        if not saved:
+            return final_content
 
         if status == MessageStreamStatus.COMPLETED:
             # If there's a queued follow-up message, start it immediately in this
@@ -1421,7 +1426,7 @@ class ChatStreamRuntime:
                 )
                 if not content_text:
                     content_text = error_message
-            duration_ms = await message_service.update_message_snapshot(
+            saved, duration_ms = await message_service.update_message_snapshot(
                 message_uuid,
                 content_text=content_text,
                 content_render=content_render,
@@ -1430,6 +1435,8 @@ class ChatStreamRuntime:
                 stream_status=stream_status,
                 record_activity=record_activity,
             )
+            if not saved:
+                return
             # After the snapshot prune, so the terminal event survives for clients.
             await ChatStreamRuntime._emit_terminal_for_dead_stream(
                 message_service=message_service,

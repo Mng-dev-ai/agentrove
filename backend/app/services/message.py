@@ -159,10 +159,7 @@ class MessageService(BaseDbService[Message]):
         total_cost_usd: float | None = None,
         session_id: str | None = None,
         record_activity: bool = True,
-    ) -> int | None:
-        # Periodic snapshot write so reconnecting clients can hydrate without
-        # replaying every event. Returns duration_ms — None until the terminal
-        # snapshot records it, or if the row was deleted mid-stream.
+    ) -> tuple[bool, int | None]:
         async with self.session_factory() as db:
             now = datetime.now(timezone.utc)
             values: dict[str, Any] = {
@@ -197,13 +194,16 @@ class MessageService(BaseDbService[Message]):
 
             result = await db.execute(
                 update(Message)
-                .where(Message.id == message_id)
+                .where(
+                    Message.id == message_id,
+                    Message.stream_status == MessageStreamStatus.IN_PROGRESS,
+                )
                 .values(**values)
                 .returning(Message.duration_ms)
             )
             row = result.one_or_none()
             if row is None:
-                return None
+                return False, None
 
             # Terminal snapshot supersedes the event log: history renders from
             # content_render and event reads are seq-gated catch-up past
@@ -218,7 +218,7 @@ class MessageService(BaseDbService[Message]):
                 )
 
             await db.commit()
-            return cast(int | None, row.duration_ms)
+            return True, cast(int | None, row.duration_ms)
 
     async def append_event_with_next_seq(
         self,
