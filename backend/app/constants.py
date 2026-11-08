@@ -198,6 +198,12 @@ MODELS: dict[str, ModelInfo] = {
         500_000,
         effort_levels=("low", "medium", "high", "xhigh", "max", "ultra"),
     ),
+    "gpt-6.1-terra": ModelInfo(
+        "GPT 6.1 Terra",
+        AgentKind.CODEX,
+        500_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max", "ultra"),
+    ),
     "gpt-6-astra": ModelInfo(
         "GPT 6 Astra",
         AgentKind.CODEX,
@@ -350,6 +356,12 @@ MODELS: dict[str, ModelInfo] = {
     "copilot:claude-haiku-4.5": ModelInfo("Haiku 4.5", AgentKind.COPILOT, 160_000),
     "copilot:gpt-6.1-sol": ModelInfo(
         "GPT 6.1 Sol",
+        AgentKind.COPILOT,
+        304_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
+    "copilot:gpt-6.1-terra": ModelInfo(
+        "GPT 6.1 Terra",
         AgentKind.COPILOT,
         304_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
@@ -1613,6 +1625,12 @@ MODELS: dict[str, ModelInfo] = {
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
+    "opencode:amazon-bedrock/global.openai.gpt-6.1-terra": ModelInfo(
+        "GPT-6.1 Terra (Global) (Amazon Bedrock)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("none", "low", "medium", "high", "xhigh", "max"),
+    ),
     "opencode:amazon-bedrock/global.xai.grok-4.6": ModelInfo(
         "Grok 4.6 (Global) (Amazon Bedrock)",
         AgentKind.OPENCODE,
@@ -1824,6 +1842,12 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
+    "opencode:amazon-bedrock/openai.gpt-6.1-terra": ModelInfo(
+        "GPT-6.1 Terra (Amazon Bedrock)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("none", "low", "medium", "high", "xhigh", "max"),
     ),
     "opencode:amazon-bedrock/openai.gpt-oss-120b": ModelInfo(
         "gpt-oss-120b (Amazon Bedrock)",
@@ -2039,6 +2063,12 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
+    "opencode:amazon-bedrock/us.openai.gpt-6.1-terra": ModelInfo(
+        "GPT-6.1 Terra (US) (Amazon Bedrock)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("none", "low", "medium", "high", "xhigh", "max"),
     ),
     "opencode:amazon-bedrock/us.xai.grok-4.6": ModelInfo(
         "Grok 4.6 (US) (Amazon Bedrock)",
