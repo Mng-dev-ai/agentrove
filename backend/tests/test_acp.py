@@ -1948,6 +1948,7 @@ async def test_revocation_cancels_the_devices_running_turn(
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
     email_capture: EmailCapture,
+    login: LoginClient,
     revoke: str,
 ) -> None:
     headers, workspace = auth_workspace
@@ -1979,6 +1980,8 @@ async def test_revocation_cancels_the_devices_running_turn(
             "/api/v1/auth/reset-password",
             json={"token": reset["token"], "password": "newpassword123"},
         )
+        tokens = await login(password="newpassword123")
+        headers = {"Authorization": f"Bearer {tokens['access_token']}"}
 
     assert not ChatStreamRuntime.has_active_chat(chat["id"])
     message = await wait_for_message(
