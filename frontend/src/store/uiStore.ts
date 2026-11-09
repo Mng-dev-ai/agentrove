@@ -37,7 +37,6 @@ export interface ForeignFileTarget {
   kind: 'foreign';
   path: string;
   relPath: string;
-  workspaceId: string;
   workspaceName: string;
   sandboxId: string;
 }

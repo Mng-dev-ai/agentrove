@@ -9,20 +9,14 @@ import type {
   MouseEvent,
 } from 'react';
 import clsx from 'clsx';
-import toast from 'react-hot-toast';
 import { AttachmentViewer } from '../attachment-viewer/AttachmentViewer';
 import { Link } from '../primitives/Link/Link';
 import { FloatingTooltip } from '../FloatingTooltip/FloatingTooltip';
 import { isImageUrl } from '@/utils/fileTypes';
 import { findFileByToolPath, findOwningWorkspace, parseFileHref } from '@/utils/file';
 import type { FileStructure } from '@/types/file-system.types';
-import type { Workspace } from '@/types/workspace.types';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { queryClient } from '@/lib/queryClient';
-import { queryKeys } from '@/hooks/queries/queryKeys';
-import { workspaceService } from '@/services/workspaceService';
-import { machineChatService } from '@/services/machineChatService';
-import { chatMachineId } from '@/store/machineOrigin';
+import { fetchChatWorkspaces, getCachedChatWorkspaces } from '@/hooks/queries/useWorkspaceQueries';
 import { ChatContext } from '@/contexts/ChatContextDefinition';
 import { useUIStore } from '@/store/uiStore';
 import { createImageAttachment } from './markdownParsing';
@@ -51,61 +45,57 @@ type FileLinkChat = {
   fileStructure: FileStructure[];
 } | null;
 
-async function listChatWorkspaces(chatId: string | undefined): Promise<Workspace[]> {
-  const machineId = chatMachineId(chatId);
-  if (machineId === LOCAL_MACHINE_ID) {
-    const data = await queryClient.ensureQueryData({
-      queryKey: queryKeys.workspaces,
-      queryFn: () => workspaceService.listWorkspaces(),
-    });
-    return data.items;
-  }
-  return queryClient.ensureQueryData({
-    queryKey: queryKeys.machine.workspaces(machineId),
-    queryFn: () => machineChatService.listWorkspaces(machineId),
-  });
-}
+const latestFileLinkClick = new Map<string | undefined, number>();
 
-let fileLinkClickSeq = 0;
-
-async function openWorkspaceFile(
-  anchor: HTMLAnchorElement,
-  href: string,
-  chat: FileLinkChat,
+function openFileLink(
+  chat: NonNullable<FileLinkChat>,
+  path: string,
+  line: number | undefined,
   split: boolean,
+  owner: ReturnType<typeof findOwningWorkspace>,
 ) {
-  if (!chat) return;
-  const parsed = parseFileHref(href);
-  if (!parsed) return;
-  const seq = ++fileLinkClickSeq;
-  let workspaces: Workspace[];
-  try {
-    workspaces = await listChatWorkspaces(chat.chatId);
-  } catch {
-    toast.error('Failed to load workspaces');
-    return;
-  }
-  if (seq !== fileLinkClickSeq || !anchor.isConnected) return;
-  const owner = findOwningWorkspace(workspaces, parsed.path);
   const { openFileInEditor } = useUIStore.getState();
   if (owner && chat.sandboxId && owner.workspace.sandbox_id !== chat.sandboxId) {
     openFileInEditor(
       {
         kind: 'foreign',
-        path: parsed.path,
+        path,
         relPath: owner.relPath,
-        workspaceId: owner.workspace.id,
         workspaceName: owner.workspace.name,
         sandboxId: owner.workspace.sandbox_id,
       },
       chat.chatId,
-      parsed.line,
+      line,
       split,
     );
     return;
   }
-  const mapped = findFileByToolPath(chat.fileStructure, parsed.path);
-  openFileInEditor(mapped?.path ?? parsed.path, chat.chatId, parsed.line, split);
+  const mapped = findFileByToolPath(chat.fileStructure, path);
+  openFileInEditor(mapped?.path ?? path, chat.chatId, line, split);
+}
+
+function openWorkspaceFile(href: string, chat: FileLinkChat, split: boolean) {
+  if (!chat) return;
+  const parsed = parseFileHref(href);
+  if (!parsed) return;
+  const { path, line } = parsed;
+  const seq = (latestFileLinkClick.get(chat.chatId) ?? 0) + 1;
+  latestFileLinkClick.set(chat.chatId, seq);
+  const cached = getCachedChatWorkspaces(queryClient, chat.chatId);
+  const cachedOwner = cached && findOwningWorkspace(cached, path);
+  if (cachedOwner) {
+    openFileLink(chat, path, line, split, cachedOwner);
+    return;
+  }
+  void fetchChatWorkspaces(queryClient, chat.chatId)
+    .then(
+      (workspaces) => findOwningWorkspace(workspaces, path),
+      () => undefined,
+    )
+    .then((owner) => {
+      if (latestFileLinkClick.get(chat.chatId) !== seq) return;
+      openFileLink(chat, path, line, split, owner);
+    });
 }
 
 function handleFileLinkClick(
@@ -115,7 +105,7 @@ function handleFileLinkClick(
 ) {
   event.preventDefault();
   event.stopPropagation();
-  void openWorkspaceFile(event.currentTarget, href, chat, event.shiftKey);
+  openWorkspaceFile(href, chat, event.shiftKey);
 }
 
 function handleFileLinkKeyDown(
@@ -125,7 +115,7 @@ function handleFileLinkKeyDown(
 ) {
   if (event.key !== 'Enter' && event.key !== ' ') return;
   event.preventDefault();
-  void openWorkspaceFile(event.currentTarget, href, chat, event.shiftKey);
+  openWorkspaceFile(href, chat, event.shiftKey);
 }
 
 // Module-level so every MarkdownBlock sees the same components identity forever
