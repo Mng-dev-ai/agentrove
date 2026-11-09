@@ -1233,6 +1233,7 @@ async def test_checkpoint_restore_returns_tree_to_pre_run_state(
     result = await service.restore_checkpoint_all(
         "sandbox-1",
         base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
         pre_run_diff=checkpoint.pre_run_diff,
     )
 
@@ -1259,7 +1260,10 @@ async def test_checkpoint_restore_in_workspace_below_repo_root(
     checkpoint = await service.create_checkpoint("sandbox-1")
     assert checkpoint is not None
     await service.restore_checkpoint_all(
-        "sandbox-1", base_head=base_head, pre_run_diff=checkpoint.pre_run_diff
+        "sandbox-1",
+        base_head=base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
     )
 
     assert (repo / "outside.txt").is_file()
@@ -1282,7 +1286,10 @@ async def test_checkpoint_edge_cases(tmp_path: Path) -> None:
     assert clean is not None
     write_files(clean_repo, {"app.py": "agent\n", "agent.py": "agent\n"})
     restored = await service.restore_checkpoint_all(
-        "sandbox-1", base_head=clean.base_head, pre_run_diff=clean.pre_run_diff
+        "sandbox-1",
+        base_head=clean.base_head,
+        head_ref=clean.head_ref,
+        pre_run_diff=clean.pre_run_diff,
     )
 
     assert clean.base_head == rev(clean_repo)
@@ -1294,7 +1301,10 @@ async def test_checkpoint_edge_cases(tmp_path: Path) -> None:
     assert not_repo is None
     with pytest.raises(ValueError, match="Invalid checkpoint commit"):
         await service.restore_checkpoint_all(
-            "sandbox-1", base_head="HEAD; rm -rf /", pre_run_diff=""
+            "sandbox-1",
+            base_head="HEAD; rm -rf /",
+            head_ref="refs/heads/main",
+            pre_run_diff="",
         )
 
 

@@ -21,7 +21,6 @@ from app.models.schemas.sandbox import (
 )
 from app.services.exceptions import SandboxException
 from app.services.sandbox import SandboxService
-from app.services.sandbox_providers.types import CommandResult
 from app.utils.sandbox import BRANCH_NAME_RE, git_cd_prefix, is_valid_base_ref
 
 logger = logging.getLogger(__name__)
@@ -298,7 +297,6 @@ RESTORE_FILE_TEMPLATE = Template(
     "fi"
 )
 
-GIT_CHECKPOINT_REF_MISMATCH_EXIT = 97
 GIT_RESTORE_CHECKPOINT_ALL_TEMPLATE = Template(
     "tmp=''; "
     'if [ -n "$patch_file" ]; then '
@@ -306,8 +304,7 @@ GIT_RESTORE_CHECKPOINT_ALL_TEMPLATE = Template(
     "status=$$?; rm -f $patch_file; "
     'if [ $$status -ne 0 ]; then rm -f "$$tmp"; exit $$status; fi; '
     "fi; index=''; trap 'rm -f \"$$tmp\" \"$$index\"' EXIT; "
-    '[ "$$(git symbolic-ref -q HEAD)" = $head_ref ] '
-    f"|| exit {GIT_CHECKPOINT_REF_MISMATCH_EXIT}; "
+    '[ "$$(git symbolic-ref -q HEAD)" = $head_ref ] || { echo $msg; exit 1; }; '
     'cd "$$(git rev-parse --show-toplevel)" || exit; '
     'if [ -n "$$tmp" ]; then '
     'index=$$(mktemp) && rm -f "$$index" || exit; '
@@ -581,10 +578,6 @@ class GitService:
             sandbox_id,
             f"{git_prefix}{command} 2>&1",
         )
-        return self._command_response(result)
-
-    @staticmethod
-    def _command_response(result: CommandResult) -> GitCommandResponse:
         if result.exit_code != 0:
             return GitCommandResponse(
                 success=False,
@@ -679,18 +672,10 @@ class GitService:
         cmd = GIT_RESTORE_CHECKPOINT_ALL_TEMPLATE.substitute(
             base_head=base_head,
             head_ref=shlex.quote(head_ref),
+            msg=shlex.quote(self._checkpoint_ref_mismatch_error(head_ref)),
             patch_file=patch_file,
         )
-        result = await self.sandbox_service.execute_command(
-            sandbox_id, f"{self.git_command_prefix(cwd)}{cmd} 2>&1"
-        )
-        if result.exit_code == GIT_CHECKPOINT_REF_MISMATCH_EXIT:
-            return GitCommandResponse(
-                success=False,
-                output="",
-                error=self._checkpoint_ref_mismatch_error(head_ref),
-            )
-        return self._command_response(result)
+        return await self.run_command(sandbox_id, cmd, cwd)
 
     @staticmethod
     def _checkpoint_ref_mismatch_error(head_ref: str) -> str:
