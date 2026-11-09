@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 class Checkpoint(NamedTuple):
     base_head: str
+    head_ref: str
     pre_run_diff: str
 
 
@@ -39,6 +40,7 @@ GIT_CURRENT_BRANCH_CMD = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
 # One round-trip so a clean tree (the common case) avoids the diff capture.
 GIT_CHECKPOINT_PROBE_CMD = (
     "git rev-parse HEAD 2>/dev/null && "
+    'echo "$(git symbolic-ref -q HEAD)" && '
     '(test -z "$(git status --porcelain 2>/dev/null)" '
     "&& echo clean || echo dirty)"
 )
@@ -302,6 +304,7 @@ GIT_RESTORE_CHECKPOINT_ALL_TEMPLATE = Template(
     "status=$$?; rm -f $patch_file; "
     'if [ $$status -ne 0 ]; then rm -f "$$tmp"; exit $$status; fi; '
     "fi; index=''; trap 'rm -f \"$$tmp\" \"$$index\"' EXIT; "
+    '[ "$$(git symbolic-ref -q HEAD)" = $head_ref ] || { echo $msg; exit 1; }; '
     'cd "$$(git rev-parse --show-toplevel)" || exit; '
     'if [ -n "$$tmp" ]; then '
     'index=$$(mktemp) && rm -f "$$index" || exit; '
@@ -636,11 +639,12 @@ class GitService:
             return None
         lines = probe.stdout.splitlines()
         head = lines[0].strip() if lines else ""
-        marker = lines[1].strip() if len(lines) > 1 else ""
+        head_ref = lines[1].strip() if len(lines) > 1 else ""
+        marker = lines[2].strip() if len(lines) > 2 else ""
         if not head:
             return None
         if marker == "clean":
-            return Checkpoint(base_head=head, pre_run_diff="")
+            return Checkpoint(base_head=head, head_ref=head_ref, pre_run_diff="")
 
         cmd = GIT_CHECKPOINT_DIFF_ALL_TEMPLATE.substitute(
             untracked=GIT_CHECKPOINT_UNTRACKED_DIFF_TEMPLATE
@@ -649,13 +653,14 @@ class GitService:
             sandbox_id,
             f"{git_prefix}{GIT_CD_REPO_ROOT}{cmd}",
         )
-        return Checkpoint(base_head=head, pre_run_diff=result.stdout)
+        return Checkpoint(base_head=head, head_ref=head_ref, pre_run_diff=result.stdout)
 
     async def restore_checkpoint_all(
         self,
         sandbox_id: str,
         *,
         base_head: str,
+        head_ref: str,
         pre_run_diff: str,
         cwd: str | None = None,
     ) -> GitCommandResponse:
@@ -666,9 +671,24 @@ class GitService:
         )
         cmd = GIT_RESTORE_CHECKPOINT_ALL_TEMPLATE.substitute(
             base_head=base_head,
+            head_ref=shlex.quote(head_ref),
+            msg=shlex.quote(self._checkpoint_ref_mismatch_error(head_ref)),
             patch_file=patch_file,
         )
         return await self.run_command(sandbox_id, cmd, cwd)
+
+    @staticmethod
+    def _checkpoint_ref_mismatch_error(head_ref: str) -> str:
+        if not head_ref:
+            return (
+                "This checkpoint was taken on a detached HEAD; "
+                "detach HEAD to restore it."
+            )
+        branch = head_ref.removeprefix("refs/heads/")
+        return (
+            f"This checkpoint was taken on branch {branch}; "
+            f"switch to {branch} to restore it."
+        )
 
     async def _write_patch_file(
         self,

@@ -106,6 +106,7 @@ export interface AssistantMessageProps extends SharedContentProps {
   durationMs?: number | null;
   isLastBotMessage?: boolean;
   toolResultsOmitted: boolean;
+  isCompleted: boolean;
 }
 
 export const AssistantMessage = memo(function AssistantMessage({
@@ -120,6 +121,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   durationMs,
   isLastBotMessage,
   toolResultsOmitted,
+  isCompleted,
 }: AssistantMessageProps) {
   const { chatId, sandboxId } = useChatContext();
   const setInputMessage = useSetChatInputMessage();
@@ -160,6 +162,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           contentRender={contentRender}
           attachments={attachments}
           isStreaming={isStreaming}
+          isCompleted={isCompleted}
           chatId={chatId}
           isLastBotMessage={isLastBotMessage}
           durationMs={durationMs}

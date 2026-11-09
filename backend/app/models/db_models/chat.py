@@ -300,6 +300,7 @@ class ChatCheckpoint(Base):
     )
     cwd: Mapped[str | None] = mapped_column(String(512), nullable=True)
     base_head: Mapped[str] = mapped_column(String(64), nullable=False)
+    head_ref: Mapped[str | None] = mapped_column(String(255), nullable=True)
     pre_run_diff: Mapped[str] = mapped_column(
         Text, nullable=False, default="", server_default=""
     )

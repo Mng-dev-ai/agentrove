@@ -196,12 +196,14 @@ async def create_checkpoint_row(
     cwd: str | None = None,
     pre_run_diff: str = "",
     base_head: str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    head_ref: str | None = "refs/heads/main",
 ) -> ChatCheckpoint:
     checkpoint = ChatCheckpoint(
         chat_id=chat.id,
         assistant_message_id=assistant_message.id,
         cwd=cwd,
         base_head=base_head,
+        head_ref=head_ref,
         pre_run_diff=pre_run_diff,
     )
     db_session.add(checkpoint)

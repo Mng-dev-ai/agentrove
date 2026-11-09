@@ -14,6 +14,7 @@ interface MessageRendererProps {
   omittedToolResults?: { chatId: string; messageId: string };
   className?: string;
   isStreaming?: boolean;
+  isCompleted?: boolean;
   chatId?: string;
   isLastBotMessage?: boolean;
   durationMs?: number | null;
@@ -22,11 +23,21 @@ interface MessageRendererProps {
   highlightMentions?: boolean;
 }
 
+const isTraceSegment = (segment: MessageSegment): boolean =>
+  segment.kind === 'tool' || segment.kind === 'thinking' || segment.kind === 'plan';
+
+const isRenderUiSegment = (segment: MessageSegment): boolean =>
+  segment.kind === 'tool' && segment.tool.name === 'mcp__agentrove__render_ui';
+
+const movesToTrace = (segment: MessageSegment): boolean =>
+  isTraceSegment(segment) && !isRenderUiSegment(segment);
+
 export const MessageRenderer = memo(function MessageRenderer({
   events: initialEvents,
   omittedToolResults,
   className = '',
   isStreaming = false,
+  isCompleted = false,
   chatId,
   isLastBotMessage = false,
   durationMs = null,
@@ -92,23 +103,25 @@ export const MessageRenderer = memo(function MessageRenderer({
     [segments],
   );
 
-  // Completed turns: collapsible work trace ends at last tool/thinking/plan; streaming stays flat.
+  // Finished turns: collapsible work trace ends at last tool/thinking/plan, except that a
+  // completed turn's final text always stays in the tail; streaming stays flat.
   const { traceSegments, tailSegments } = React.useMemo(() => {
     if (isStreaming || hasSteering) return { traceSegments: [], tailSegments: segments };
     let traceEnd = -1;
-    for (let i = segments.length - 1; i >= 0; i--) {
-      const kind = segments[i].kind;
-      if (kind === 'tool' || kind === 'thinking' || kind === 'plan') {
-        traceEnd = i;
-        break;
-      }
-    }
+    let lastText = -1;
+    segments.forEach((segment, i) => {
+      if (isTraceSegment(segment)) traceEnd = i;
+      if (segment.kind === 'text') lastText = i;
+    });
     if (traceEnd < 0) return { traceSegments: [], tailSegments: segments };
+    const tailStart =
+      isCompleted && lastText >= 0 ? Math.min(lastText, traceEnd + 1) : traceEnd + 1;
+    const rest = segments.slice(tailStart);
     return {
-      traceSegments: segments.slice(0, traceEnd + 1),
-      tailSegments: segments.slice(traceEnd + 1),
+      traceSegments: [...segments.slice(0, tailStart), ...rest.filter(movesToTrace)],
+      tailSegments: rest.filter((segment) => !movesToTrace(segment)),
     };
-  }, [segments, isStreaming, hasSteering]);
+  }, [segments, isStreaming, isCompleted, hasSteering]);
   // If a turn is cut off before an answer, the trace is the only visible content —
   // unless its tool results were omitted, where showing it would mean fetching
   // the full render on chat open.
@@ -119,7 +132,7 @@ export const MessageRenderer = memo(function MessageRenderer({
     const rollupSegments: MessageSegment[] = [];
     const renderUiSegments: MessageSegment[] = [];
     for (const segment of traceSegments) {
-      if (segment.kind === 'tool' && segment.tool.name === 'mcp__agentrove__render_ui') {
+      if (isRenderUiSegment(segment)) {
         renderUiSegments.push(segment);
       } else {
         rollupSegments.push(segment);
