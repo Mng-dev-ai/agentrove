@@ -26,10 +26,9 @@ interface ManagedConnection {
   generation: number;
 }
 
-const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 15000;
-// Stay open this long before resetting retry budget (avoids open→die loops).
+// Stay open this long before resetting backoff (avoids open→die loops).
 const CONNECTION_STABLE_MS = 15000;
 // A half-open socket fires no error; silence past 3 server pings means dead.
 const STALL_CHECK_INTERVAL_MS = 15000;
@@ -276,10 +275,6 @@ class StreamConnectionManager {
     }
     if (connection.retryTimer) return;
     connection.retryAttempts += 1;
-    if (connection.retryAttempts > MAX_RECONNECT_ATTEMPTS) {
-      this.failClient(client, connection);
-      return;
-    }
     const delay = Math.min(
       RECONNECT_BASE_DELAY_MS * 2 ** (connection.retryAttempts - 1),
       RECONNECT_MAX_DELAY_MS,
@@ -293,12 +288,11 @@ class StreamConnectionManager {
   private failClient(
     client: StreamApiClient,
     connection: ManagedConnection,
-    affectedChatIds?: Set<string>,
+    chatIds: Set<string>,
   ): void {
-    const chatIds = affectedChatIds ?? this.activeChatIdsByClient().get(client);
     // Keep map entry while failing streams so reconcile doesn't reopen mid-loop.
     this.resetSocket(connection);
-    if (chatIds && chatIds.size > 0) {
+    if (chatIds.size > 0) {
       this.handlers?.onConnectionFailure([...chatIds]);
     }
     if (this.isRetained(client)) {
