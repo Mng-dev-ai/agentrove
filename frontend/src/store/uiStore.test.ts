@@ -98,7 +98,7 @@ describe('openFileInEditor', () => {
   it('records the pending open, adds the editor tab, and bumps the nonce on re-open', () => {
     state().openFileInEditor('a.ts', 'c1', 12);
     expect(state().pendingFileOpen).toMatchObject({
-      path: 'a.ts',
+      target: { kind: 'local', path: 'a.ts' },
       chatId: 'c1',
       line: 12,
       nonce: 1,

@@ -66,10 +66,18 @@ async function listChatWorkspaces(chatId: string | undefined): Promise<Workspace
   });
 }
 
-async function openWorkspaceFile(href: string, chat: FileLinkChat, split: boolean) {
+let fileLinkClickSeq = 0;
+
+async function openWorkspaceFile(
+  anchor: HTMLAnchorElement,
+  href: string,
+  chat: FileLinkChat,
+  split: boolean,
+) {
   if (!chat) return;
   const parsed = parseFileHref(href);
   if (!parsed) return;
+  const seq = ++fileLinkClickSeq;
   let workspaces: Workspace[];
   try {
     workspaces = await listChatWorkspaces(chat.chatId);
@@ -77,9 +85,10 @@ async function openWorkspaceFile(href: string, chat: FileLinkChat, split: boolea
     toast.error('Failed to load workspaces');
     return;
   }
+  if (seq !== fileLinkClickSeq || !anchor.isConnected) return;
   const owner = findOwningWorkspace(workspaces, parsed.path);
   const { openFileInEditor } = useUIStore.getState();
-  if (owner && owner.workspace.sandbox_id !== chat.sandboxId) {
+  if (owner && chat.sandboxId && owner.workspace.sandbox_id !== chat.sandboxId) {
     openFileInEditor(
       {
         kind: 'foreign',
@@ -106,7 +115,7 @@ function handleFileLinkClick(
 ) {
   event.preventDefault();
   event.stopPropagation();
-  void openWorkspaceFile(href, chat, event.shiftKey);
+  void openWorkspaceFile(event.currentTarget, href, chat, event.shiftKey);
 }
 
 function handleFileLinkKeyDown(
@@ -116,7 +125,7 @@ function handleFileLinkKeyDown(
 ) {
   if (event.key !== 'Enter' && event.key !== ' ') return;
   event.preventDefault();
-  void openWorkspaceFile(href, chat, event.shiftKey);
+  void openWorkspaceFile(event.currentTarget, href, chat, event.shiftKey);
 }
 
 // Module-level so every MarkdownBlock sees the same components identity forever

@@ -62,6 +62,7 @@ export const CodeView = memo(function CodeView({
     setForeignFileChatId(chatId);
     setForeignFile(null);
   }
+  const treeSelectedFile = foreignFile ? null : selectedFile;
 
   const handleFileSelect = useCallback(
     (file: FileStructure | null) => {
@@ -95,15 +96,15 @@ export const CodeView = memo(function CodeView({
 
   const handleFileTreeExpand = useCallback(() => {
     setIsFileTreeCollapsed(false);
-    if (!selectedFile || selectedFile.type !== 'file') return;
+    if (!treeSelectedFile || treeSelectedFile.type !== 'file') return;
     // reveal() waits for the just-expanded panel to lay out before scrolling, so
     // the selected file is brought into view even though expansion isn't instant.
-    treeRef.current?.reveal(selectedFile.path);
-  }, [selectedFile]);
+    treeRef.current?.reveal(treeSelectedFile.path);
+  }, [treeSelectedFile]);
 
   const handleMobileFileSelect = useCallback(
     (file: FileStructure | null) => {
-      const isSameFile = file?.path === selectedFile?.path;
+      const isSameFile = file?.path === treeSelectedFile?.path;
       // Pierre replays the current selection when the mobile tree mounts; keep that
       // sync from immediately closing the just-opened drawer.
       if (!isSameFile) handleFileSelect(file);
@@ -111,7 +112,7 @@ export const CodeView = memo(function CodeView({
         setShowMobileTree(false);
       }
     },
-    [handleFileSelect, selectedFile?.path],
+    [handleFileSelect, treeSelectedFile?.path],
   );
 
   // Read the latest file tree through a ref so handleOpenResult stays
@@ -168,7 +169,7 @@ export const CodeView = memo(function CodeView({
 
   const sharedSidebarProps = {
     files,
-    selectedFile,
+    selectedFile: treeSelectedFile,
     onOpenResult: handleOpenResult,
     onDownload,
     isDownloading,
