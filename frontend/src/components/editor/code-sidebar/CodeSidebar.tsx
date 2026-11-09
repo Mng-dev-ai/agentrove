@@ -32,6 +32,7 @@ export interface CodeSidebarProps {
   treeRef?: Ref<TreeHandle>;
   // Collapses the desktop panel / closes the mobile drawer — the caller decides which.
   onCollapse?: () => void;
+  readOnlyWorkspace?: { name: string; onExit: () => void };
 }
 
 type View = 'files' | 'search';
@@ -50,6 +51,7 @@ export const CodeSidebar = memo(function CodeSidebar({
   cwd,
   treeRef,
   onCollapse,
+  readOnlyWorkspace,
 }: CodeSidebarProps) {
   const [view, setView] = useState<View>('files');
 
@@ -66,17 +68,28 @@ export const CodeSidebar = memo(function CodeSidebar({
 
   // Stable element preserves Tree's memo when unrelated sidebar props change.
   const treeHeader = useMemo(
-    () => (
-      <TreeHeader
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
-        onDownload={onDownload}
-        isDownloading={isDownloading}
-        onSearchFiles={handleSearchFiles}
-        onCollapse={onCollapse}
-      />
-    ),
-    [onRefresh, isRefreshing, onDownload, isDownloading, handleSearchFiles, onCollapse],
+    () =>
+      readOnlyWorkspace ? (
+        <ReadOnlyTreeHeader workspace={readOnlyWorkspace} onCollapse={onCollapse} />
+      ) : (
+        <TreeHeader
+          onRefresh={onRefresh}
+          isRefreshing={isRefreshing}
+          onDownload={onDownload}
+          isDownloading={isDownloading}
+          onSearchFiles={handleSearchFiles}
+          onCollapse={onCollapse}
+        />
+      ),
+    [
+      readOnlyWorkspace,
+      onRefresh,
+      isRefreshing,
+      onDownload,
+      isDownloading,
+      handleSearchFiles,
+      onCollapse,
+    ],
   );
 
   return (
@@ -177,18 +190,52 @@ function TreeHeader({
             </div>
           )}
         </div>
-        {onCollapse && (
-          <Button
-            variant="unstyled"
-            onClick={onCollapse}
-            aria-label="Close file tree"
-            className={styles['icon-button']}
-          >
-            <PanelLeftClose className={styles.icon} />
-          </Button>
-        )}
+        <CollapseButton onCollapse={onCollapse} />
       </div>
     </div>
+  );
+}
+
+interface ReadOnlyTreeHeaderProps {
+  workspace: { name: string; onExit: () => void };
+  onCollapse?: () => void;
+}
+
+function ReadOnlyTreeHeader({ workspace, onCollapse }: ReadOnlyTreeHeaderProps) {
+  return (
+    <div className={styles['tree-header']}>
+      <div className={styles['tree-header__workspace']}>
+        <Button
+          variant="unstyled"
+          onClick={workspace.onExit}
+          aria-label="Back to chat files"
+          className={styles['icon-button']}
+        >
+          <ArrowLeft className={styles.icon} />
+        </Button>
+        <span
+          title={`${workspace.name} · Read-only`}
+          className={clsx(styles['section-label'], styles['tree-header__workspace-label'])}
+        >
+          {workspace.name} · Read-only
+        </span>
+      </div>
+      <CollapseButton onCollapse={onCollapse} />
+    </div>
+  );
+}
+
+function CollapseButton({ onCollapse }: { onCollapse?: () => void }) {
+  if (!onCollapse) return null;
+  return (
+    <Button
+      variant="unstyled"
+      onClick={onCollapse}
+      aria-label="Close file tree"
+      className={styles['icon-button']}
+    >
+      <PanelLeftClose className={styles.icon} />
+    </Button>
   );
 }
 
