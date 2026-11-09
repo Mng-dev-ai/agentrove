@@ -848,6 +848,7 @@ class ChatStreamRuntime:
                     assistant_message_id=assistant_message_id,
                     cwd=cwd,
                     base_head=checkpoint.base_head,
+                    head_ref=checkpoint.head_ref,
                     pre_run_diff=checkpoint.pre_run_diff,
                 )
                 db.add(checkpoint_row)

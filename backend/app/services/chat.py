@@ -807,6 +807,13 @@ class ChatService(BaseDbService[Chat]):
         user: User,
     ) -> GitCommandResponse:
         checkpoint, chat = await self._get_checkpoint_target(message_id, user)
+        if checkpoint.head_ref is None:
+            raise ChatException(
+                "This checkpoint predates branch tracking and can't be restored "
+                "safely.",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=409,
+            )
         async with self.session_factory() as db:
             result = await db.execute(
                 select(Chat.id).where(
@@ -834,6 +841,7 @@ class ChatService(BaseDbService[Chat]):
             return await git_service.restore_checkpoint_all(
                 chat.workspace.sandbox_id,
                 base_head=checkpoint.base_head,
+                head_ref=checkpoint.head_ref,
                 pre_run_diff=checkpoint.pre_run_diff,
                 cwd=checkpoint.cwd,
             )
