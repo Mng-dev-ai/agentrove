@@ -18,7 +18,7 @@ export interface ViewContentAreaProps {
   monacoRef: RefObject<typeof import('monaco-editor') | null>;
   onCloseInlineChat: () => void;
   selectedFile: FileStructure;
-  sandboxId?: string;
+  modelPath: string;
   diffOriginal: string | undefined;
   isGitRepo: boolean;
   isLoadingBaseline: boolean;
@@ -52,7 +52,7 @@ export function ViewContentArea({
   monacoRef,
   onCloseInlineChat,
   selectedFile,
-  sandboxId,
+  modelPath,
   diffOriginal,
   isGitRepo,
   isLoadingBaseline,
@@ -121,7 +121,7 @@ export function ViewContentArea({
           language={language}
           // The sandbox rides in the URI authority so uri.path stays the clean
           // workspace path — peek widgets label results straight from uri.path.
-          modelPath={`sandbox://${sandboxId ?? 'workspace'}/${selectedFile.path}`}
+          modelPath={modelPath}
           // Lock edits while a save is in flight so the in-flight buffer can't
           // diverge from what was submitted — the success handler then clears the
           // draft unconditionally without risking newer keystrokes.
