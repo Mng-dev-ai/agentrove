@@ -120,11 +120,11 @@ describe('streamConnection', () => {
     expect(sources()).toHaveLength(2);
   });
 
-  it('backs off exponentially on errors and fails the affected chats after the retry budget', async () => {
+  it('backs off exponentially on errors, capped at 15s, and keeps retrying without failing chats', async () => {
     startStream('c1');
     await settle();
 
-    const delays = [1000, 2000, 4000, 8000, 15000];
+    const delays = [1000, 2000, 4000, 8000, 15000, 15000, 15000];
     for (const delay of delays) {
       chatStorage.setEventId('c1', '5');
       latest().onerror?.();
@@ -135,10 +135,7 @@ describe('streamConnection', () => {
       expect(latest().cursors).toEqual({ c1: 5 });
     }
 
-    latest().onerror?.();
-    expect(handlers.onConnectionFailure).toHaveBeenCalledWith(['c1']);
-    await vi.advanceTimersByTimeAsync(60000);
-    expect(sources()).toHaveLength(delays.length + 1);
+    expect(handlers.onConnectionFailure).not.toHaveBeenCalled();
   });
 
   it('resets the retry budget once a connection has stayed open', async () => {
