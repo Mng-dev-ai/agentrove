@@ -1,4 +1,4 @@
-import { memo, useState, useRef, useCallback, useEffect } from 'react';
+import { memo, useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import type * as monaco from 'monaco-editor';
 import { Header } from './Header';
 import { EmptyState } from './EmptyState';
@@ -9,7 +9,7 @@ import { useEditorTheme } from '@/hooks/useEditorTheme';
 import { attachEditorNavigationContext, setupEditorNavigation } from '@/lib/editorNavigation';
 import type { EditorNavigationContext } from '@/lib/editorNavigation';
 import { attachAddSelectionToChat, attachAskAboutSelection } from '@/lib/editorChatActions';
-import type { EditorCodeSelection } from '@/store/uiStore';
+import type { EditorCodeSelection, ForeignFileTarget } from '@/store/uiStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useEditorDrafts } from '@/hooks/useEditorDrafts';
 import type { FileStructure } from '@/types/file-system.types';
@@ -34,6 +34,7 @@ function defaultViewMode(file: FileStructure | null): ViewMode {
 
 export interface ViewProps {
   selectedFile: FileStructure | null;
+  foreignFile?: ForeignFileTarget | null;
   fileStructure?: FileStructure[];
   sandboxId?: string;
   chatId: string | undefined;
@@ -48,7 +49,8 @@ export interface ViewProps {
 }
 
 export const View = memo(function View({
-  selectedFile,
+  selectedFile: treeSelectedFile,
+  foreignFile = null,
   fileStructure = [],
   sandboxId,
   chatId,
@@ -62,6 +64,13 @@ export const View = memo(function View({
   onCloseFile,
 }: ViewProps) {
   const theme = useResolvedTheme();
+  const selectedFile = useMemo<FileStructure | null>(
+    () => (foreignFile ? { path: foreignFile.path, type: 'file', content: '' } : treeSelectedFile),
+    [foreignFile, treeSelectedFile],
+  );
+  const source = foreignFile
+    ? { sandboxId: foreignFile.sandboxId, path: foreignFile.relPath, isReadOnly: true }
+    : { sandboxId, path: selectedFile?.path, isReadOnly: false };
   const [viewMode, setViewMode] = useState<ViewMode>(() => defaultViewMode(selectedFile));
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
@@ -100,15 +109,13 @@ export const View = memo(function View({
     data: fileContentData,
     isLoading: isLoadingContent,
     error: fileContentError,
-  } = useFileContentQuery(sandboxId, selectedFile?.path, {
-    enabled: !!sandboxId && !!selectedFile?.path,
+  } = useFileContentQuery(source.sandboxId, source.path, {
+    enabled: !!source.sandboxId && !!source.path,
     retry: 1,
   });
 
   const selectedFileContent =
-    selectedFile && fileContentData?.path === selectedFile.path
-      ? fileContentData.content
-      : undefined;
+    source.path && fileContentData?.path === source.path ? fileContentData.content : undefined;
 
   const {
     currentContent,
@@ -196,15 +203,16 @@ export const View = memo(function View({
       editorRef.current = editor;
       monacoRef.current = monaco;
       setupEditorTheme(monaco);
+      setMountedEditorPath(selectedFilePath);
+      if (source.isReadOnly) return;
       setupEditorNavigation(monaco);
       // A sandbox-less context is inert (contextForResource rejects it), so
       // attaching unconditionally is safe and picks up a late-arriving sandbox.
       attachEditorNavigationContext(editor, navigationContext.current);
       attachAddSelectionToChat(monaco, editor, navigationContext.current);
       attachAskAboutSelection(monaco, editor, openInlineChat);
-      setMountedEditorPath(selectedFilePath);
     },
-    [selectedFilePath, setupEditorTheme, openInlineChat],
+    [selectedFilePath, source.isReadOnly, setupEditorTheme, openInlineChat],
   );
 
   const lastAppliedTargetRef = useRef<string>('');
@@ -348,7 +356,9 @@ export const View = memo(function View({
   const isTreePending = fileStructure.length === 0 && (!sandboxId || isSandboxSyncing);
   const isValidFile =
     selectedFile &&
-    (isTreePending || findFileInStructure(fileStructure, selectedFile.path) !== undefined);
+    (foreignFile !== null ||
+      isTreePending ||
+      findFileInStructure(fileStructure, selectedFile.path) !== undefined);
 
   const isPreviewable = selectedFile ? isPreviewableFile(selectedFile) : false;
   const isPreviewActive = isPreviewable && viewMode === 'preview';
@@ -393,13 +403,14 @@ export const View = memo(function View({
       ) : (
         <>
           <Header
-            filePath={selectedFile.path}
-            error={error}
+            filePath={source.path}
+            workspaceName={foreignFile?.workspaceName}
+            error={source.isReadOnly ? null : error}
             selectedFile={selectedFile}
             showPreview={isPreviewActive}
             onTogglePreview={handlePreviewToggle}
             showDiff={viewMode === 'diff'}
-            onToggleDiff={handleToggleDiff}
+            onToggleDiff={source.isReadOnly ? undefined : handleToggleDiff}
             hasChanges={fileHasChanges}
             hasUnsavedChanges={displayHasUnsavedChanges}
             isSaving={updateFileMutation.isPending}
@@ -411,6 +422,7 @@ export const View = memo(function View({
 
           <ViewContentArea
             isLoadingContent={isLoadingContent}
+            loadError={source.isReadOnly ? error : null}
             viewMode={viewMode}
             inlineChat={inlineChat}
             chatId={chatId}
@@ -418,7 +430,7 @@ export const View = memo(function View({
             monacoRef={monacoRef}
             onCloseInlineChat={handleCloseInlineChat}
             selectedFile={selectedFile}
-            sandboxId={sandboxId}
+            modelPath={`sandbox://${source.sandboxId ?? 'workspace'}/${source.path}`}
             diffOriginal={baselineData?.content}
             isGitRepo={baselineData?.is_git_repo ?? true}
             isLoadingBaseline={isLoadingBaseline}
@@ -429,7 +441,7 @@ export const View = memo(function View({
             language={language}
             currentTheme={currentTheme}
             setupEditorTheme={setupEditorTheme}
-            isReadOnly={updateFileMutation.isPending}
+            isReadOnly={source.isReadOnly || updateFileMutation.isPending}
             onEditorChange={handleEditorChange}
             onEditorMount={handleEditorMount}
             isPreviewActive={isPreviewActive}

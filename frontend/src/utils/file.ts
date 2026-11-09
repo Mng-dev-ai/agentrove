@@ -1,5 +1,6 @@
 import type { FileStructure } from '@/types/file-system.types';
 import type { FileMetadata } from '@/types/sandbox.types';
+import type { Workspace } from '@/types/workspace.types';
 import toast from 'react-hot-toast';
 import { isSupportedUploadedFile } from '@/utils/fileTypes';
 import { MAX_UPLOAD_SIZE_BYTES } from '@/config/constants';
@@ -125,6 +126,19 @@ export function findFileByToolPath(
     if (candidate) return candidate;
   }
   return undefined;
+}
+
+export function findOwningWorkspace(
+  workspaces: Workspace[],
+  path: string,
+): { workspace: Workspace; relPath: string } | undefined {
+  let owner: { workspace: Workspace; root: string } | undefined;
+  for (const workspace of workspaces) {
+    const root = workspace.workspace_path.replace(/\/+$/, '');
+    if (!root || !path.startsWith(`${root}/`)) continue;
+    if (!owner || root.length > owner.root.length) owner = { workspace, root };
+  }
+  return owner && { workspace: owner.workspace, relPath: path.slice(owner.root.length + 1) };
 }
 
 const FILE_HREF_LINE_RE = /^#L(\d+)(?:-L?\d+)?$/i;

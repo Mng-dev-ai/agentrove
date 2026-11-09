@@ -157,7 +157,12 @@ describe('editor opener context resolution', () => {
     expect(get().opener.openCodeEditor({}, uri('sandbox', 'sbx', '/src/foo.ts'), selection)).toBe(
       true,
     );
-    expect(pendingFileOpen()).toEqual({ path: 'src/foo.ts', chatId: 'c1', nonce: 1, line });
+    expect(pendingFileOpen()).toEqual({
+      target: { kind: 'local', path: 'src/foo.ts' },
+      chatId: 'c1',
+      nonce: 1,
+      line,
+    });
   });
 });
 

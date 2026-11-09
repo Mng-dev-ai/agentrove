@@ -13,8 +13,9 @@ import { AttachmentViewer } from '../attachment-viewer/AttachmentViewer';
 import { Link } from '../primitives/Link/Link';
 import { FloatingTooltip } from '../FloatingTooltip/FloatingTooltip';
 import { isImageUrl } from '@/utils/fileTypes';
-import { findFileByToolPath, parseFileHref } from '@/utils/file';
+import { findFileByToolPath, findOwningWorkspace, parseFileHref } from '@/utils/file';
 import type { FileStructure } from '@/types/file-system.types';
+import type { Workspace } from '@/types/workspace.types';
 import { ChatContext } from '@/contexts/ChatContextDefinition';
 import { useUIStore } from '@/store/uiStore';
 import { createImageAttachment } from './markdownParsing';
@@ -37,16 +38,36 @@ type LinkProps = AnchorHTMLAttributes<HTMLAnchorElement>;
 
 type ImageProps = ImgHTMLAttributes<HTMLImageElement>;
 
-type FileLinkChat = { chatId: string | undefined; fileStructure: FileStructure[] } | null;
+type FileLinkChat = {
+  chatId: string | undefined;
+  sandboxId: string | undefined;
+  fileStructure: FileStructure[];
+  workspaces: Workspace[];
+} | null;
 
 function openWorkspaceFile(href: string, chat: FileLinkChat, split: boolean) {
   if (!chat) return;
   const parsed = parseFileHref(href);
   if (!parsed) return;
+  const owner = findOwningWorkspace(chat.workspaces, parsed.path);
+  const { openFileInEditor } = useUIStore.getState();
+  if (owner && chat.sandboxId && owner.workspace.sandbox_id !== chat.sandboxId) {
+    openFileInEditor(
+      {
+        kind: 'foreign',
+        path: parsed.path,
+        relPath: owner.relPath,
+        workspaceName: owner.workspace.name,
+        sandboxId: owner.workspace.sandbox_id,
+      },
+      chat.chatId,
+      parsed.line,
+      split,
+    );
+    return;
+  }
   const mapped = findFileByToolPath(chat.fileStructure, parsed.path);
-  useUIStore
-    .getState()
-    .openFileInEditor(mapped?.path ?? parsed.path, chat.chatId, parsed.line, split);
+  openFileInEditor(mapped?.path ?? parsed.path, chat.chatId, parsed.line, split);
 }
 
 function handleFileLinkClick(

@@ -3,6 +3,7 @@ import type { FileStructure } from '@/types/file-system.types';
 import type { Persona } from '@/types/user.types';
 import type { SlashCommand } from '@/types/ui.types';
 import type { AgentKind } from '@/types/chat.types';
+import type { Workspace } from '@/types/workspace.types';
 
 interface ChatContextValue {
   chatId: string | undefined;
@@ -10,6 +11,7 @@ interface ChatContextValue {
   worktreeCwd: string | undefined;
   parentChatId: string | undefined;
   fileStructure: FileStructure[];
+  workspaces: Workspace[];
   builtinSlashCommands: Record<AgentKind, SlashCommand[]>;
   personas: Persona[];
 }

@@ -10,6 +10,7 @@ import styles from './ViewContentArea.module.scss';
 
 export interface ViewContentAreaProps {
   isLoadingContent: boolean;
+  loadError: string | null;
   viewMode: 'code' | 'preview' | 'diff';
   inlineChat: { selection: EditorCodeSelection; nonce: number } | null;
   chatId: string | undefined;
@@ -17,7 +18,7 @@ export interface ViewContentAreaProps {
   monacoRef: RefObject<typeof import('monaco-editor') | null>;
   onCloseInlineChat: () => void;
   selectedFile: FileStructure;
-  sandboxId?: string;
+  modelPath: string;
   diffOriginal: string | undefined;
   isGitRepo: boolean;
   isLoadingBaseline: boolean;
@@ -43,6 +44,7 @@ export interface ViewContentAreaProps {
 // Presentation of View modes (diff/code/preview/inline chat); View owns file/draft state.
 export function ViewContentArea({
   isLoadingContent,
+  loadError,
   viewMode,
   inlineChat,
   chatId,
@@ -50,7 +52,7 @@ export function ViewContentArea({
   monacoRef,
   onCloseInlineChat,
   selectedFile,
-  sandboxId,
+  modelPath,
   diffOriginal,
   isGitRepo,
   isLoadingBaseline,
@@ -74,6 +76,12 @@ export function ViewContentArea({
       {isLoadingContent && (
         <div className={styles['loading-overlay']}>
           <div className={styles['loading-text']}>Loading file content...</div>
+        </div>
+      )}
+
+      {loadError && (
+        <div className={styles['loading-overlay']}>
+          <div className={styles['loading-text']}>{loadError}</div>
         </div>
       )}
 
@@ -113,7 +121,7 @@ export function ViewContentArea({
           language={language}
           // The sandbox rides in the URI authority so uri.path stays the clean
           // workspace path — peek widgets label results straight from uri.path.
-          modelPath={`sandbox://${sandboxId ?? 'workspace'}/${selectedFile.path}`}
+          modelPath={modelPath}
           // Lock edits while a save is in flight so the in-flight buffer can't
           // diverge from what was submitted — the success handler then clears the
           // draft unconditionally without risking newer keystrokes.

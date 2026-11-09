@@ -9,7 +9,7 @@ import type { FileStructure } from '@/types/file-system.types';
 import { findFileByToolPath, findFileInStructure } from '@/utils/file';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useMountEffect } from '@/hooks/useMountEffect';
-import { useUIStore } from '@/store/uiStore';
+import { useUIStore, type ForeignFileTarget } from '@/store/uiStore';
 import styles from './CodeView.module.scss';
 
 export interface CodeViewProps {
@@ -56,6 +56,24 @@ export const CodeView = memo(function CodeView({
     line: number;
     nonce: number;
   } | null>(null);
+  const [foreignFile, setForeignFile] = useState<ForeignFileTarget | null>(null);
+  const [foreignFileScope, setForeignFileScope] = useState({
+    chatId,
+    selectedPath: selectedFile?.path,
+  });
+  if (foreignFileScope.chatId !== chatId || foreignFileScope.selectedPath !== selectedFile?.path) {
+    setForeignFileScope({ chatId, selectedPath: selectedFile?.path });
+    setForeignFile(null);
+  }
+  const treeSelectedFile = foreignFile ? null : selectedFile;
+
+  const handleFileSelect = useCallback(
+    (file: FileStructure | null) => {
+      setForeignFile(null);
+      onFileSelect(file);
+    },
+    [onFileSelect],
+  );
 
   useMountEffect(() => {
     // Sync the flag with the panel's actual restored state: autoSaveId can override defaultSize,
@@ -81,23 +99,23 @@ export const CodeView = memo(function CodeView({
 
   const handleFileTreeExpand = useCallback(() => {
     setIsFileTreeCollapsed(false);
-    if (!selectedFile || selectedFile.type !== 'file') return;
+    if (!treeSelectedFile || treeSelectedFile.type !== 'file') return;
     // reveal() waits for the just-expanded panel to lay out before scrolling, so
     // the selected file is brought into view even though expansion isn't instant.
-    treeRef.current?.reveal(selectedFile.path);
-  }, [selectedFile]);
+    treeRef.current?.reveal(treeSelectedFile.path);
+  }, [treeSelectedFile]);
 
   const handleMobileFileSelect = useCallback(
     (file: FileStructure | null) => {
-      const isSameFile = file?.path === selectedFile?.path;
+      const isSameFile = file?.path === treeSelectedFile?.path;
       // Pierre replays the current selection when the mobile tree mounts; keep that
       // sync from immediately closing the just-opened drawer.
-      if (!isSameFile) onFileSelect(file);
+      if (!isSameFile) handleFileSelect(file);
       if (file && file.type === 'file' && !isSameFile) {
         setShowMobileTree(false);
       }
     },
-    [onFileSelect, selectedFile?.path],
+    [handleFileSelect, treeSelectedFile?.path],
   );
 
   // Read the latest file tree through a ref so handleOpenResult stays
@@ -110,7 +128,7 @@ export const CodeView = memo(function CodeView({
     (path: string, lineNumber: number) => {
       const file = findFileInStructure(filesRef.current, path);
       if (!file) return;
-      onFileSelect(file);
+      handleFileSelect(file);
       // Each click re-navigates even when path+line match the last one,
       // so re-clicking a result re-reveals it after the user scrolls away.
       setTargetLine((prev) => ({
@@ -120,7 +138,7 @@ export const CodeView = memo(function CodeView({
       }));
       if (isMobile) setShowMobileTree(false);
     },
-    [onFileSelect, isMobile],
+    [handleFileSelect, isMobile],
   );
 
   // `openFileInEditor` (tool buttons, command menu, changed-files) activates the
@@ -128,25 +146,33 @@ export const CodeView = memo(function CodeView({
   const pendingFileOpen = useUIStore((s) => s.pendingFileOpen);
   useEffect(() => {
     if (!pendingFileOpen || pendingFileOpen.chatId !== chatId) return;
+    const { target, line } = pendingFileOpen;
+    if (target.kind === 'foreign') {
+      setForeignFile(target);
+      if (line != null) {
+        setTargetLine((prev) => ({ path: target.path, line, nonce: (prev?.nonce ?? 0) + 1 }));
+      }
+      useUIStore.setState({ pendingFileOpen: null });
+      return;
+    }
     if (files.length === 0) return;
-    const file = findFileByToolPath(filesRef.current, pendingFileOpen.path);
-    const path = file?.path ?? pendingFileOpen.path;
-    onFileSelect(file ?? { path, type: 'file', content: '' });
+    const file = findFileByToolPath(filesRef.current, target.path);
+    const path = file?.path ?? target.path;
+    handleFileSelect(file ?? { path, type: 'file', content: '' });
     // Respect a collapsed file tree — opening a file shouldn't reopen it;
     // handleFileTreeExpand re-reveals the selection if the user expands later.
     if (!fileTreePanelRef.current?.isCollapsed()) treeRef.current?.reveal(path);
-    const line = pendingFileOpen.line;
     if (line != null) {
       // Share handleOpenResult's counter — a second nonce sequence could
       // collide in View's path:line:nonce dedupe and skip the jump.
       setTargetLine((prev) => ({ path, line, nonce: (prev?.nonce ?? 0) + 1 }));
     }
     useUIStore.setState({ pendingFileOpen: null });
-  }, [pendingFileOpen, chatId, onFileSelect, files.length]);
+  }, [pendingFileOpen, chatId, handleFileSelect, files.length]);
 
   const sharedSidebarProps = {
     files,
-    selectedFile,
+    selectedFile: treeSelectedFile,
     onOpenResult: handleOpenResult,
     onDownload,
     isDownloading,
@@ -184,6 +210,7 @@ export const CodeView = memo(function CodeView({
         <div className={styles['code-view__mobile-content']}>
           <View
             selectedFile={selectedFile}
+            foreignFile={foreignFile}
             fileStructure={files}
             sandboxId={sandboxId}
             chatId={chatId}
@@ -193,7 +220,7 @@ export const CodeView = memo(function CodeView({
             isSandboxSyncing={isSandboxSyncing}
             targetLine={targetLine}
             openFiles={openFiles}
-            onFileSelect={onFileSelect}
+            onFileSelect={handleFileSelect}
             onCloseFile={onCloseFile}
           />
         </div>
@@ -217,7 +244,7 @@ export const CodeView = memo(function CodeView({
           <div data-code-sidebar className={styles['code-view__tree-panel']}>
             <CodeSidebar
               {...sharedSidebarProps}
-              onFileSelect={onFileSelect}
+              onFileSelect={handleFileSelect}
               onCollapse={handleToggleFileTree}
             />
           </div>
@@ -231,6 +258,7 @@ export const CodeView = memo(function CodeView({
           <div className={styles['code-view__content-panel']}>
             <View
               selectedFile={selectedFile}
+              foreignFile={foreignFile}
               fileStructure={files}
               sandboxId={sandboxId}
               chatId={chatId}
@@ -240,7 +268,7 @@ export const CodeView = memo(function CodeView({
               isSandboxSyncing={isSandboxSyncing}
               targetLine={targetLine}
               openFiles={openFiles}
-              onFileSelect={onFileSelect}
+              onFileSelect={handleFileSelect}
               onCloseFile={onCloseFile}
             />
           </div>
