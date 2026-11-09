@@ -14,6 +14,7 @@ interface MessageRendererProps {
   omittedToolResults?: { chatId: string; messageId: string };
   className?: string;
   isStreaming?: boolean;
+  isCompleted?: boolean;
   chatId?: string;
   isLastBotMessage?: boolean;
   durationMs?: number | null;
@@ -30,6 +31,7 @@ export const MessageRenderer = memo(function MessageRenderer({
   omittedToolResults,
   className = '',
   isStreaming = false,
+  isCompleted = false,
   chatId,
   isLastBotMessage = false,
   durationMs = null,
@@ -95,8 +97,8 @@ export const MessageRenderer = memo(function MessageRenderer({
     [segments],
   );
 
-  // Completed turns: collapsible work trace ends at last tool/thinking/plan, except that the
-  // final text always stays in the tail; streaming stays flat.
+  // Finished turns: collapsible work trace ends at last tool/thinking/plan, except that a
+  // completed turn's final text always stays in the tail; streaming stays flat.
   const { traceSegments, tailSegments } = React.useMemo(() => {
     if (isStreaming || hasSteering) return { traceSegments: [], tailSegments: segments };
     let traceEnd = -1;
@@ -106,13 +108,14 @@ export const MessageRenderer = memo(function MessageRenderer({
       if (segment.kind === 'text') lastText = i;
     });
     if (traceEnd < 0) return { traceSegments: [], tailSegments: segments };
-    const tailStart = lastText >= 0 ? Math.min(lastText, traceEnd + 1) : traceEnd + 1;
+    const tailStart =
+      isCompleted && lastText >= 0 ? Math.min(lastText, traceEnd + 1) : traceEnd + 1;
     const rest = segments.slice(tailStart);
     return {
       traceSegments: [...segments.slice(0, tailStart), ...rest.filter(isTraceSegment)],
       tailSegments: rest.filter((segment) => !isTraceSegment(segment)),
     };
-  }, [segments, isStreaming, hasSteering]);
+  }, [segments, isStreaming, isCompleted, hasSteering]);
   // If a turn is cut off before an answer, the trace is the only visible content —
   // unless its tool results were omitted, where showing it would mean fetching
   // the full render on chat open.
