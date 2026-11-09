@@ -6,6 +6,7 @@ import {
   getAncestorFolderPaths,
   findFileInStructure,
   findFileByToolPath,
+  findOwningWorkspace,
   detectLanguage,
   filterChatAttachmentFiles,
   buildFileStructureFromSandboxFiles,
@@ -17,6 +18,7 @@ import {
 } from './file';
 import type { FileStructure } from '@/types/file-system.types';
 import type { FileMetadata } from '@/types/sandbox.types';
+import type { Workspace } from '@/types/workspace.types';
 
 vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() } }));
 
@@ -26,6 +28,19 @@ const folderNode = (path: string, children: FileStructure[]): FileStructure => (
   type: 'folder',
   content: '',
   children,
+});
+
+const workspace = (name: string, workspacePath: string): Workspace => ({
+  id: name,
+  name,
+  user_id: 'u1',
+  sandbox_id: `sbx-${name}`,
+  sandbox_provider: 'host',
+  workspace_path: workspacePath,
+  created_at: '2026-01-01T00:00:00Z',
+  updated_at: '2026-01-01T00:00:00Z',
+  chat_count: 0,
+  last_chat_at: null,
 });
 
 const upload = (name: string, type: string, size: number): File =>
@@ -79,6 +94,39 @@ describe('findFileByToolPath', () => {
 
   it('returns undefined for a relative path with no match', () => {
     expect(findFileByToolPath(tree, 'other/foo.ts')).toBeUndefined();
+  });
+});
+
+describe('findOwningWorkspace', () => {
+  it('does not let a root claim a sibling that shares its name prefix', () => {
+    const owner = findOwningWorkspace(
+      [workspace('aux', '/x/aux'), workspace('aux-dotcom', '/x/aux-dotcom/')],
+      '/x/aux-dotcom/src/foo.ts',
+    );
+    expect(owner?.workspace.name).toBe('aux-dotcom');
+    expect(owner?.relPath).toBe('src/foo.ts');
+  });
+
+  it('picks the longest matching root for nested workspaces', () => {
+    const owner = findOwningWorkspace(
+      [workspace('outer', '/x/outer'), workspace('inner', '/x/outer/packages/inner')],
+      '/x/outer/packages/inner/src/foo.ts',
+    );
+    expect(owner?.workspace.name).toBe('inner');
+    expect(owner?.relPath).toBe('src/foo.ts');
+  });
+
+  it('keeps worktree paths with their workspace', () => {
+    const owner = findOwningWorkspace(
+      [workspace('aux-nexus', '/x/aux-nexus')],
+      '/x/aux-nexus/.worktrees/869231f5/src/foo.ts',
+    );
+    expect(owner?.workspace.name).toBe('aux-nexus');
+    expect(owner?.relPath).toBe('.worktrees/869231f5/src/foo.ts');
+  });
+
+  it('returns undefined for a path under no workspace', () => {
+    expect(findOwningWorkspace([workspace('aux', '/x/aux')], '/y/other/foo.ts')).toBeUndefined();
   });
 });
 
