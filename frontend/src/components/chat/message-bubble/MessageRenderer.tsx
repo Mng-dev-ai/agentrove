@@ -26,6 +26,12 @@ interface MessageRendererProps {
 const isTraceSegment = (segment: MessageSegment): boolean =>
   segment.kind === 'tool' || segment.kind === 'thinking' || segment.kind === 'plan';
 
+const isRenderUiSegment = (segment: MessageSegment): boolean =>
+  segment.kind === 'tool' && segment.tool.name === 'mcp__agentrove__render_ui';
+
+const movesToTrace = (segment: MessageSegment): boolean =>
+  isTraceSegment(segment) && !isRenderUiSegment(segment);
+
 export const MessageRenderer = memo(function MessageRenderer({
   events: initialEvents,
   omittedToolResults,
@@ -112,8 +118,8 @@ export const MessageRenderer = memo(function MessageRenderer({
       isCompleted && lastText >= 0 ? Math.min(lastText, traceEnd + 1) : traceEnd + 1;
     const rest = segments.slice(tailStart);
     return {
-      traceSegments: [...segments.slice(0, tailStart), ...rest.filter(isTraceSegment)],
-      tailSegments: rest.filter((segment) => !isTraceSegment(segment)),
+      traceSegments: [...segments.slice(0, tailStart), ...rest.filter(movesToTrace)],
+      tailSegments: rest.filter((segment) => !movesToTrace(segment)),
     };
   }, [segments, isStreaming, isCompleted, hasSteering]);
   // If a turn is cut off before an answer, the trace is the only visible content —
@@ -126,7 +132,7 @@ export const MessageRenderer = memo(function MessageRenderer({
     const rollupSegments: MessageSegment[] = [];
     const renderUiSegments: MessageSegment[] = [];
     for (const segment of traceSegments) {
-      if (segment.kind === 'tool' && segment.tool.name === 'mcp__agentrove__render_ui') {
+      if (isRenderUiSegment(segment)) {
         renderUiSegments.push(segment);
       } else {
         rollupSegments.push(segment);
