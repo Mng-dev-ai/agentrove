@@ -9,12 +9,20 @@ import type {
   MouseEvent,
 } from 'react';
 import clsx from 'clsx';
+import toast from 'react-hot-toast';
 import { AttachmentViewer } from '../attachment-viewer/AttachmentViewer';
 import { Link } from '../primitives/Link/Link';
 import { FloatingTooltip } from '../FloatingTooltip/FloatingTooltip';
 import { isImageUrl } from '@/utils/fileTypes';
-import { findFileByToolPath, parseFileHref } from '@/utils/file';
+import { findFileByToolPath, findOwningWorkspace, parseFileHref } from '@/utils/file';
 import type { FileStructure } from '@/types/file-system.types';
+import type { Workspace } from '@/types/workspace.types';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { queryClient } from '@/lib/queryClient';
+import { queryKeys } from '@/hooks/queries/queryKeys';
+import { workspaceService } from '@/services/workspaceService';
+import { machineChatService } from '@/services/machineChatService';
+import { chatMachineId } from '@/store/machineOrigin';
 import { ChatContext } from '@/contexts/ChatContextDefinition';
 import { useUIStore } from '@/store/uiStore';
 import { createImageAttachment } from './markdownParsing';
@@ -37,16 +45,58 @@ type LinkProps = AnchorHTMLAttributes<HTMLAnchorElement>;
 
 type ImageProps = ImgHTMLAttributes<HTMLImageElement>;
 
-type FileLinkChat = { chatId: string | undefined; fileStructure: FileStructure[] } | null;
+type FileLinkChat = {
+  chatId: string | undefined;
+  sandboxId: string | undefined;
+  fileStructure: FileStructure[];
+} | null;
 
-function openWorkspaceFile(href: string, chat: FileLinkChat, split: boolean) {
+async function listChatWorkspaces(chatId: string | undefined): Promise<Workspace[]> {
+  const machineId = chatMachineId(chatId);
+  if (machineId === LOCAL_MACHINE_ID) {
+    const data = await queryClient.ensureQueryData({
+      queryKey: queryKeys.workspaces,
+      queryFn: () => workspaceService.listWorkspaces(),
+    });
+    return data.items;
+  }
+  return queryClient.ensureQueryData({
+    queryKey: queryKeys.machine.workspaces(machineId),
+    queryFn: () => machineChatService.listWorkspaces(machineId),
+  });
+}
+
+async function openWorkspaceFile(href: string, chat: FileLinkChat, split: boolean) {
   if (!chat) return;
   const parsed = parseFileHref(href);
   if (!parsed) return;
+  let workspaces: Workspace[];
+  try {
+    workspaces = await listChatWorkspaces(chat.chatId);
+  } catch {
+    toast.error('Failed to load workspaces');
+    return;
+  }
+  const owner = findOwningWorkspace(workspaces, parsed.path);
+  const { openFileInEditor } = useUIStore.getState();
+  if (owner && owner.workspace.sandbox_id !== chat.sandboxId) {
+    openFileInEditor(
+      {
+        kind: 'foreign',
+        path: parsed.path,
+        relPath: owner.relPath,
+        workspaceId: owner.workspace.id,
+        workspaceName: owner.workspace.name,
+        sandboxId: owner.workspace.sandbox_id,
+      },
+      chat.chatId,
+      parsed.line,
+      split,
+    );
+    return;
+  }
   const mapped = findFileByToolPath(chat.fileStructure, parsed.path);
-  useUIStore
-    .getState()
-    .openFileInEditor(mapped?.path ?? parsed.path, chat.chatId, parsed.line, split);
+  openFileInEditor(mapped?.path ?? parsed.path, chat.chatId, parsed.line, split);
 }
 
 function handleFileLinkClick(
@@ -56,7 +106,7 @@ function handleFileLinkClick(
 ) {
   event.preventDefault();
   event.stopPropagation();
-  openWorkspaceFile(href, chat, event.shiftKey);
+  void openWorkspaceFile(href, chat, event.shiftKey);
 }
 
 function handleFileLinkKeyDown(
@@ -66,7 +116,7 @@ function handleFileLinkKeyDown(
 ) {
   if (event.key !== 'Enter' && event.key !== ' ') return;
   event.preventDefault();
-  openWorkspaceFile(href, chat, event.shiftKey);
+  void openWorkspaceFile(href, chat, event.shiftKey);
 }
 
 // Module-level so every MarkdownBlock sees the same components identity forever

@@ -10,6 +10,7 @@ import styles from './ViewContentArea.module.scss';
 
 export interface ViewContentAreaProps {
   isLoadingContent: boolean;
+  loadError: string | null;
   viewMode: 'code' | 'preview' | 'diff';
   inlineChat: { selection: EditorCodeSelection; nonce: number } | null;
   chatId: string | undefined;
@@ -43,6 +44,7 @@ export interface ViewContentAreaProps {
 // Presentation of View modes (diff/code/preview/inline chat); View owns file/draft state.
 export function ViewContentArea({
   isLoadingContent,
+  loadError,
   viewMode,
   inlineChat,
   chatId,
@@ -74,6 +76,12 @@ export function ViewContentArea({
       {isLoadingContent && (
         <div className={styles['loading-overlay']}>
           <div className={styles['loading-text']}>Loading file content...</div>
+        </div>
+      )}
+
+      {loadError && (
+        <div className={styles['loading-overlay']}>
+          <div className={styles['loading-text']}>{loadError}</div>
         </div>
       )}
 

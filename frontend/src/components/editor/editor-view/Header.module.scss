@@ -51,6 +51,12 @@
   color: var(--theme-text-tertiary);
 }
 
+.header-workspace {
+  @include type.type-meta;
+  flex-shrink: 0;
+  color: var(--theme-text-secondary);
+}
+
 .header-error {
   display: flex;
   align-items: center;

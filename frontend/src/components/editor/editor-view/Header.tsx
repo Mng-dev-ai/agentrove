@@ -19,6 +19,7 @@ import styles from './Header.module.scss';
 
 export interface HeaderProps {
   filePath?: string;
+  workspaceName?: string;
   error: string | null;
   selectedFile?: FileStructure | null;
   showPreview?: boolean;
@@ -37,6 +38,7 @@ export interface HeaderProps {
 
 export const Header = memo(function Header({
   filePath,
+  workspaceName,
   error,
   selectedFile,
   showPreview = false,
@@ -70,6 +72,9 @@ export const Header = memo(function Header({
           </Button>
         )}
         <FileIcon name={getFileName(filePath)} className={styles['header-file-icon']} />
+        {workspaceName && (
+          <span className={styles['header-workspace']}>{workspaceName} · read-only</span>
+        )}
         <span className={styles['header-path']}>{filePath}</span>
       </div>
 

@@ -33,8 +33,19 @@ export const DEFAULT_SIDEBAR_WIDTH = 300;
 export const clampSidebarWidth = (width: number): number =>
   Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, Math.round(width)));
 
-interface PendingFileOpen {
+export interface ForeignFileTarget {
+  kind: 'foreign';
   path: string;
+  relPath: string;
+  workspaceId: string;
+  workspaceName: string;
+  sandboxId: string;
+}
+
+export type FileOpenTarget = { kind: 'local'; path: string } | ForeignFileTarget;
+
+interface PendingFileOpen {
+  target: FileOpenTarget;
   chatId: string | undefined;
   line?: number;
   // Bumps so re-opening the same path/line still focuses after scroll-away.
@@ -91,7 +102,7 @@ type UIStoreState = ThemeState &
     // Monotonic — consumers null pendingFileOpen, so its nonce can't seed the next.
     fileOpenNonce: number;
     openFileInEditor: (
-      path: string,
+      target: string | ForeignFileTarget,
       chatId: string | undefined,
       line?: number,
       split?: boolean,
@@ -340,7 +351,7 @@ export const useUIStore = create<UIStoreState>()(
       pendingDiffMode: null,
       diffStyle: 'unified',
       setDiffStyle: (diffStyle) => set({ diffStyle }),
-      openFileInEditor: (path, chatId, line, split = false) => {
+      openFileInEditor: (target, chatId, line, split = false) => {
         const state = get();
         const splitIndex = chatId ? state.splitChatIds.indexOf(chatId) : -1;
         const slot = splitIndex >= 0 ? splitSlotAt(splitIndex) : null;
@@ -349,7 +360,7 @@ export const useUIStore = create<UIStoreState>()(
         set({
           fileOpenNonce: nonce,
           pendingFileOpen: {
-            path,
+            target: typeof target === 'string' ? { kind: 'local', path: target } : target,
             chatId,
             nonce,
             ...(line != null ? { line } : {}),
