@@ -161,10 +161,17 @@ MODELS: dict[str, ModelInfo] = {
         1_000_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
+    "claude-fable-5-2": ModelInfo(
+        "Fable 5.2",
+        AgentKind.CLAUDE,
+        1_000_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
     "claude-fable-5-1": ModelInfo(
         "Fable 5.1",
         AgentKind.CLAUDE,
         1_000_000,
+        legacy=True,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
     "claude-fable-5": ModelInfo(
