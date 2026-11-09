@@ -68,6 +68,9 @@ export const View = memo(function View({
     () => (foreignFile ? { path: foreignFile.path, type: 'file', content: '' } : treeSelectedFile),
     [foreignFile, treeSelectedFile],
   );
+  const source = foreignFile
+    ? { sandboxId: foreignFile.sandboxId, path: foreignFile.relPath, isReadOnly: true }
+    : { sandboxId, path: selectedFile?.path, isReadOnly: false };
   const [viewMode, setViewMode] = useState<ViewMode>(() => defaultViewMode(selectedFile));
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
@@ -102,19 +105,17 @@ export const View = memo(function View({
   const { currentTheme, setupEditorTheme } = useEditorTheme();
   const updateFileMutation = useUpdateFileMutation();
 
-  const contentSandboxId = foreignFile?.sandboxId ?? sandboxId;
-  const contentPath = foreignFile?.relPath ?? selectedFile?.path;
   const {
     data: fileContentData,
     isLoading: isLoadingContent,
     error: fileContentError,
-  } = useFileContentQuery(contentSandboxId, contentPath, {
-    enabled: !!contentSandboxId && !!contentPath,
+  } = useFileContentQuery(source.sandboxId, source.path, {
+    enabled: !!source.sandboxId && !!source.path,
     retry: 1,
   });
 
   const selectedFileContent =
-    contentPath && fileContentData?.path === contentPath ? fileContentData.content : undefined;
+    source.path && fileContentData?.path === source.path ? fileContentData.content : undefined;
 
   const {
     currentContent,
@@ -195,7 +196,6 @@ export const View = memo(function View({
     commitSave,
   ]);
 
-  const isForeign = foreignFile !== null;
   const handleEditorMount = useCallback(
     (editor: monaco.editor.IStandaloneCodeEditor, monaco: typeof import('monaco-editor')) => {
       if (!selectedFilePath) return;
@@ -203,17 +203,16 @@ export const View = memo(function View({
       editorRef.current = editor;
       monacoRef.current = monaco;
       setupEditorTheme(monaco);
-      if (!isForeign) {
-        setupEditorNavigation(monaco);
-        // A sandbox-less context is inert (contextForResource rejects it), so
-        // attaching unconditionally is safe and picks up a late-arriving sandbox.
-        attachEditorNavigationContext(editor, navigationContext.current);
-        attachAddSelectionToChat(monaco, editor, navigationContext.current);
-        attachAskAboutSelection(monaco, editor, openInlineChat);
-      }
       setMountedEditorPath(selectedFilePath);
+      if (source.isReadOnly) return;
+      setupEditorNavigation(monaco);
+      // A sandbox-less context is inert (contextForResource rejects it), so
+      // attaching unconditionally is safe and picks up a late-arriving sandbox.
+      attachEditorNavigationContext(editor, navigationContext.current);
+      attachAddSelectionToChat(monaco, editor, navigationContext.current);
+      attachAskAboutSelection(monaco, editor, openInlineChat);
     },
-    [selectedFilePath, isForeign, setupEditorTheme, openInlineChat],
+    [selectedFilePath, source.isReadOnly, setupEditorTheme, openInlineChat],
   );
 
   const lastAppliedTargetRef = useRef<string>('');
@@ -357,7 +356,7 @@ export const View = memo(function View({
   const isTreePending = fileStructure.length === 0 && (!sandboxId || isSandboxSyncing);
   const isValidFile =
     selectedFile &&
-    (isForeign ||
+    (foreignFile !== null ||
       isTreePending ||
       findFileInStructure(fileStructure, selectedFile.path) !== undefined);
 
@@ -404,18 +403,18 @@ export const View = memo(function View({
       ) : (
         <>
           <Header
-            filePath={foreignFile?.relPath ?? selectedFile.path}
+            filePath={source.path}
             workspaceName={foreignFile?.workspaceName}
-            error={isForeign ? null : error}
+            error={source.isReadOnly ? null : error}
             selectedFile={selectedFile}
             showPreview={isPreviewActive}
             onTogglePreview={handlePreviewToggle}
             showDiff={viewMode === 'diff'}
-            onToggleDiff={isForeign ? undefined : handleToggleDiff}
+            onToggleDiff={source.isReadOnly ? undefined : handleToggleDiff}
             hasChanges={fileHasChanges}
             hasUnsavedChanges={displayHasUnsavedChanges}
             isSaving={updateFileMutation.isPending}
-            onSave={isForeign ? undefined : handleUpdateFile}
+            onSave={handleUpdateFile}
             onToggleFileTree={onToggleFileTree}
             isFileTreeCollapsed={isFileTreeCollapsed}
             onToggleFullscreen={isPreviewActive ? handleTogglePreviewFullscreen : undefined}
@@ -423,7 +422,7 @@ export const View = memo(function View({
 
           <ViewContentArea
             isLoadingContent={isLoadingContent}
-            loadError={isForeign ? error : null}
+            loadError={source.isReadOnly ? error : null}
             viewMode={viewMode}
             inlineChat={inlineChat}
             chatId={chatId}
@@ -442,7 +441,7 @@ export const View = memo(function View({
             language={language}
             currentTheme={currentTheme}
             setupEditorTheme={setupEditorTheme}
-            isReadOnly={isForeign || updateFileMutation.isPending}
+            isReadOnly={source.isReadOnly || updateFileMutation.isPending}
             onEditorChange={handleEditorChange}
             onEditorMount={handleEditorMount}
             isPreviewActive={isPreviewActive}

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useQuery, queryOptions } from '@tanstack/react-query';
-import type { QueryClient, UseQueryOptions } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
+import type { UseQueryOptions } from '@tanstack/react-query';
 import { workspaceService } from '@/services/workspaceService';
 import type {
   Workspace,
@@ -12,9 +12,6 @@ import type { PaginatedResponse } from '@/types/api.types';
 import type { Chat } from '@/types/chat.types';
 import type { Channel } from '@/types/channel.types';
 import { useChannelStore } from '@/store/channelStore';
-import { chatMachineId } from '@/store/machineOrigin';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
-import { machineWorkspacesQueryOptions } from './useMachineQueries';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
@@ -32,48 +29,14 @@ export const useWorkspaceResourcesQuery = (
   });
 };
 
-const workspacesQueryOptions = queryOptions<PaginatedResponse<Workspace>>({
-  queryKey: queryKeys.workspaces,
-  queryFn: () => workspaceService.listWorkspaces(),
-});
-
 export const useWorkspacesQuery = (
   options?: Partial<UseQueryOptions<PaginatedResponse<Workspace>>>,
 ) => {
   return useQuery({
-    ...workspacesQueryOptions,
+    queryKey: queryKeys.workspaces,
+    queryFn: () => workspaceService.listWorkspaces(),
     ...options,
   });
-};
-
-export const getCachedChatWorkspaces = (
-  queryClient: QueryClient,
-  chatId: string | undefined,
-): Workspace[] | undefined => {
-  const machineId = chatMachineId(chatId);
-  return machineId === LOCAL_MACHINE_ID
-    ? queryClient.getQueryData(workspacesQueryOptions.queryKey)?.items
-    : queryClient.getQueryData(machineWorkspacesQueryOptions(machineId).queryKey);
-};
-
-export const fetchChatWorkspaces = async (
-  queryClient: QueryClient,
-  chatId: string | undefined,
-): Promise<Workspace[]> => {
-  const machineId = chatMachineId(chatId);
-  if (machineId !== LOCAL_MACHINE_ID) {
-    return queryClient.fetchQuery({
-      ...machineWorkspacesQueryOptions(machineId),
-      staleTime: 0,
-      retry: false,
-    });
-  }
-  const data = await queryClient.fetchQuery({
-    ...workspacesQueryOptions,
-    staleTime: 0,
-    retry: false,
-  });
-  return data.items;
 };
 
 // Stable [] when data is missing — avoids new-ref churn for downstream deps.

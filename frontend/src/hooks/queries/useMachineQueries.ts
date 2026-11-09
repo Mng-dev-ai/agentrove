@@ -1,11 +1,5 @@
 import { useCallback } from 'react';
-import {
-  useQuery,
-  useQueries,
-  keepPreviousData,
-  queryOptions,
-  type UseQueryResult,
-} from '@tanstack/react-query';
+import { useQuery, useQueries, keepPreviousData, type UseQueryResult } from '@tanstack/react-query';
 import { machineChatService } from '@/services/machineChatService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
@@ -21,18 +15,13 @@ import type { ChatSearchResponse } from '@/types/chat.types';
 
 export const useMachineOnline = (machineId: string) => useMachineStatus(machineId) === 'online';
 
-export const machineWorkspacesQueryOptions = (machineId: string) =>
-  queryOptions<Workspace[]>({
-    queryKey: queryKeys.machine.workspaces(machineId),
-    queryFn: () => machineChatService.listWorkspaces(machineId),
-    staleTime: 30_000,
-  });
-
 export const useMachineWorkspacesQuery = (machineId: string, enabled: boolean) => {
   const online = useMachineOnline(machineId);
-  return useQuery({
-    ...machineWorkspacesQueryOptions(machineId),
+  return useQuery<Workspace[]>({
+    queryKey: queryKeys.machine.workspaces(machineId),
+    queryFn: () => machineChatService.listWorkspaces(machineId),
     enabled: enabled && online,
+    staleTime: 30_000,
   });
 };
 
@@ -47,8 +36,10 @@ export const useMachinesWorkspaces = (machineIds: string[], enabled: boolean) =>
   );
   return useQueries({
     queries: machineIds.map((machineId) => ({
-      ...machineWorkspacesQueryOptions(machineId),
+      queryKey: queryKeys.machine.workspaces(machineId),
+      queryFn: () => machineChatService.listWorkspaces(machineId),
       enabled: enabled && connections[machineId]?.status === 'online',
+      staleTime: 30_000,
     })),
     combine,
   });

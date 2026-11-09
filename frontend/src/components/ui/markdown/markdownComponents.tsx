@@ -15,8 +15,7 @@ import { FloatingTooltip } from '../FloatingTooltip/FloatingTooltip';
 import { isImageUrl } from '@/utils/fileTypes';
 import { findFileByToolPath, findOwningWorkspace, parseFileHref } from '@/utils/file';
 import type { FileStructure } from '@/types/file-system.types';
-import { queryClient } from '@/lib/queryClient';
-import { fetchChatWorkspaces, getCachedChatWorkspaces } from '@/hooks/queries/useWorkspaceQueries';
+import type { Workspace } from '@/types/workspace.types';
 import { ChatContext } from '@/contexts/ChatContextDefinition';
 import { useUIStore } from '@/store/uiStore';
 import { createImageAttachment } from './markdownParsing';
@@ -43,59 +42,32 @@ type FileLinkChat = {
   chatId: string | undefined;
   sandboxId: string | undefined;
   fileStructure: FileStructure[];
+  workspaces: Workspace[];
 } | null;
-
-const latestFileLinkClick = new Map<string | undefined, number>();
-
-function openFileLink(
-  chat: NonNullable<FileLinkChat>,
-  path: string,
-  line: number | undefined,
-  split: boolean,
-  owner: ReturnType<typeof findOwningWorkspace>,
-) {
-  const { openFileInEditor } = useUIStore.getState();
-  if (owner && chat.sandboxId && owner.workspace.sandbox_id !== chat.sandboxId) {
-    openFileInEditor(
-      {
-        kind: 'foreign',
-        path,
-        relPath: owner.relPath,
-        workspaceName: owner.workspace.name,
-        sandboxId: owner.workspace.sandbox_id,
-      },
-      chat.chatId,
-      line,
-      split,
-    );
-    return;
-  }
-  const mapped = findFileByToolPath(chat.fileStructure, path);
-  openFileInEditor(mapped?.path ?? path, chat.chatId, line, split);
-}
 
 function openWorkspaceFile(href: string, chat: FileLinkChat, split: boolean) {
   if (!chat) return;
   const parsed = parseFileHref(href);
   if (!parsed) return;
-  const { path, line } = parsed;
-  const seq = (latestFileLinkClick.get(chat.chatId) ?? 0) + 1;
-  latestFileLinkClick.set(chat.chatId, seq);
-  const cached = getCachedChatWorkspaces(queryClient, chat.chatId);
-  const cachedOwner = cached && findOwningWorkspace(cached, path);
-  if (cachedOwner) {
-    openFileLink(chat, path, line, split, cachedOwner);
+  const owner = findOwningWorkspace(chat.workspaces, parsed.path);
+  const { openFileInEditor } = useUIStore.getState();
+  if (owner && chat.sandboxId && owner.workspace.sandbox_id !== chat.sandboxId) {
+    openFileInEditor(
+      {
+        kind: 'foreign',
+        path: parsed.path,
+        relPath: owner.relPath,
+        workspaceName: owner.workspace.name,
+        sandboxId: owner.workspace.sandbox_id,
+      },
+      chat.chatId,
+      parsed.line,
+      split,
+    );
     return;
   }
-  void fetchChatWorkspaces(queryClient, chat.chatId)
-    .then(
-      (workspaces) => findOwningWorkspace(workspaces, path),
-      () => undefined,
-    )
-    .then((owner) => {
-      if (latestFileLinkClick.get(chat.chatId) !== seq) return;
-      openFileLink(chat, path, line, split, owner);
-    });
+  const mapped = findFileByToolPath(chat.fileStructure, parsed.path);
+  openFileInEditor(mapped?.path ?? parsed.path, chat.chatId, parsed.line, split);
 }
 
 function handleFileLinkClick(

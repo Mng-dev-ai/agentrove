@@ -57,9 +57,12 @@ export const CodeView = memo(function CodeView({
     nonce: number;
   } | null>(null);
   const [foreignFile, setForeignFile] = useState<ForeignFileTarget | null>(null);
-  const [foreignFileChatId, setForeignFileChatId] = useState(chatId);
-  if (foreignFileChatId !== chatId) {
-    setForeignFileChatId(chatId);
+  const [foreignFileScope, setForeignFileScope] = useState({
+    chatId,
+    selectedPath: selectedFile?.path,
+  });
+  if (foreignFileScope.chatId !== chatId || foreignFileScope.selectedPath !== selectedFile?.path) {
+    setForeignFileScope({ chatId, selectedPath: selectedFile?.path });
     setForeignFile(null);
   }
   const treeSelectedFile = foreignFile ? null : selectedFile;
