@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useEffect, useRef } from 'react';
+import { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import clsx from 'clsx';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import type { ImperativePanelHandle } from 'react-resizable-panels';
@@ -6,7 +6,12 @@ import { CodeSidebar } from '../code-sidebar/CodeSidebar';
 import type { TreeHandle } from '../file-tree/Tree';
 import { View } from '../editor-view/View';
 import type { FileStructure } from '@/types/file-system.types';
-import { findFileByToolPath, findFileInStructure } from '@/utils/file';
+import {
+  buildFileStructureFromSandboxFiles,
+  findFileByToolPath,
+  findFileInStructure,
+} from '@/utils/file';
+import { useFilesMetadataQuery } from '@/hooks/queries/useSandboxQueries';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useUIStore, type ForeignFileTarget } from '@/store/uiStore';
@@ -65,7 +70,19 @@ export const CodeView = memo(function CodeView({
     setForeignFileScope({ chatId, selectedPath: selectedFile?.path });
     setForeignFile(null);
   }
-  const treeSelectedFile = foreignFile ? null : selectedFile;
+  const { data: foreignFilesMetadata, isLoading: isForeignFilesLoading } = useFilesMetadataQuery(
+    foreignFile?.sandboxId,
+  );
+  const foreignFiles = useMemo(
+    () => buildFileStructureFromSandboxFiles(foreignFilesMetadata ?? []),
+    [foreignFilesMetadata],
+  );
+  const foreignRelPath = foreignFile?.relPath;
+  const foreignTreeFile = useMemo<FileStructure | null>(
+    () => (foreignRelPath ? { path: foreignRelPath, type: 'file', content: '' } : null),
+    [foreignRelPath],
+  );
+  const treeSelectedFile = foreignFile ? foreignTreeFile : selectedFile;
 
   const handleFileSelect = useCallback(
     (file: FileStructure | null) => {
@@ -73,6 +90,29 @@ export const CodeView = memo(function CodeView({
       onFileSelect(file);
     },
     [onFileSelect],
+  );
+
+  const handleForeignFileSelect = useCallback(
+    (file: FileStructure | null) => {
+      if (!file || !foreignFile || file.path === foreignFile.relPath) return;
+      setForeignFile({
+        ...foreignFile,
+        relPath: file.path,
+        path: `${foreignFile.workspaceRoot}/${file.path}`,
+      });
+    },
+    [foreignFile],
+  );
+  const handleTreeFileSelect = foreignFile ? handleForeignFileSelect : handleFileSelect;
+
+  const handleExitForeignFile = useCallback(() => setForeignFile(null), []);
+  const foreignWorkspaceName = foreignFile?.workspaceName;
+  const readOnlyWorkspace = useMemo(
+    () =>
+      foreignWorkspaceName
+        ? { name: foreignWorkspaceName, onExit: handleExitForeignFile }
+        : undefined,
+    [foreignWorkspaceName, handleExitForeignFile],
   );
 
   useMountEffect(() => {
@@ -110,12 +150,12 @@ export const CodeView = memo(function CodeView({
       const isSameFile = file?.path === treeSelectedFile?.path;
       // Pierre replays the current selection when the mobile tree mounts; keep that
       // sync from immediately closing the just-opened drawer.
-      if (!isSameFile) handleFileSelect(file);
+      if (!isSameFile) handleTreeFileSelect(file);
       if (file && file.type === 'file' && !isSameFile) {
         setShowMobileTree(false);
       }
     },
-    [handleFileSelect, treeSelectedFile?.path],
+    [handleTreeFileSelect, treeSelectedFile?.path],
   );
 
   // Read the latest file tree through a ref so handleOpenResult stays
@@ -170,19 +210,30 @@ export const CodeView = memo(function CodeView({
     useUIStore.setState({ pendingFileOpen: null });
   }, [pendingFileOpen, chatId, handleFileSelect, files.length]);
 
-  const sharedSidebarProps = {
-    files,
-    selectedFile: treeSelectedFile,
-    onOpenResult: handleOpenResult,
-    onDownload,
-    isDownloading,
-    isSandboxSyncing,
-    onRefresh,
-    isRefreshing,
-    sandboxId,
-    cwd,
-    treeRef,
-  };
+  const sidebarKey = foreignFile?.sandboxId ?? 'local';
+  const sharedSidebarProps = foreignFile
+    ? {
+        files: foreignFiles,
+        selectedFile: treeSelectedFile,
+        onOpenResult: handleOpenResult,
+        isSandboxSyncing: isForeignFilesLoading,
+        sandboxId: foreignFile.sandboxId,
+        treeRef,
+        readOnlyWorkspace,
+      }
+    : {
+        files,
+        selectedFile: treeSelectedFile,
+        onOpenResult: handleOpenResult,
+        onDownload,
+        isDownloading,
+        isSandboxSyncing,
+        onRefresh,
+        isRefreshing,
+        sandboxId,
+        cwd,
+        treeRef,
+      };
 
   if (isMobile) {
     return (
@@ -199,6 +250,7 @@ export const CodeView = memo(function CodeView({
             />
             <div data-code-sidebar className={styles['code-view__mobile-drawer']}>
               <CodeSidebar
+                key={sidebarKey}
                 {...sharedSidebarProps}
                 onFileSelect={handleMobileFileSelect}
                 onCollapse={handleCloseMobileTree}
@@ -243,8 +295,9 @@ export const CodeView = memo(function CodeView({
         >
           <div data-code-sidebar className={styles['code-view__tree-panel']}>
             <CodeSidebar
+              key={sidebarKey}
               {...sharedSidebarProps}
-              onFileSelect={handleFileSelect}
+              onFileSelect={handleTreeFileSelect}
               onCollapse={handleToggleFileTree}
             />
           </div>

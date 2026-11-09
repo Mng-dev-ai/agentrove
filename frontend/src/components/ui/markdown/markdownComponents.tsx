@@ -58,6 +58,7 @@ function openWorkspaceFile(href: string, chat: FileLinkChat, split: boolean) {
         path: parsed.path,
         relPath: owner.relPath,
         workspaceName: owner.workspace.name,
+        workspaceRoot: owner.root,
         sandboxId: owner.workspace.sandbox_id,
       },
       chat.chatId,

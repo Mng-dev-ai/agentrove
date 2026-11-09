@@ -74,6 +74,17 @@
   gap: var(--space-0-5);
 }
 
+.tree-header__workspace {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+.tree-header__workspace-label {
+  @include type.type-overflow;
+}
+
 .tree-header__menu {
   position: relative;
 }
