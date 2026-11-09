@@ -406,7 +406,7 @@ export const View = memo(function View({
           <Header
             filePath={foreignFile?.relPath ?? selectedFile.path}
             workspaceName={foreignFile?.workspaceName}
-            error={error}
+            error={isForeign ? null : error}
             selectedFile={selectedFile}
             showPreview={isPreviewActive}
             onTogglePreview={handlePreviewToggle}
