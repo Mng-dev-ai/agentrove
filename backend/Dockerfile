@@ -53,13 +53,12 @@ RUN npm install -g playwright@1.64.1 && \
 RUN set -eux; \
     v=2026.11.05-86047df; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
-    dir=/root/.local/share/cursor-agent/versions/$v; \
+    dir=/opt/cursor-agent/versions/$v; \
     mkdir -p "$dir" /root/.local/bin; \
     curl -fsSL "https://downloads.cursor.com/lab/$v/linux/$arch/agent-cli-package.tar.gz" \
       | tar --strip-components=1 -xz -C "$dir"; \
     ln -sf "$dir/cursor-agent" /root/.local/bin/cursor-agent; \
-    cp "$dir/cursor-agent" /usr/local/bin/cursor-agent; \
-    chmod +x /usr/local/bin/cursor-agent
+    ln -sf "$dir/cursor-agent" /usr/local/bin/cursor-agent
 
 # OpenCode CLI — used for the OpenCode ACP server (`opencode acp`); installs to
 # /root/.opencode/bin. Pinned for reproducible builds.
