@@ -456,32 +456,57 @@ async def test_refresh_rotates_refresh_token(
     assert body["token_type"] == "bearer"
 
 
-async def test_refresh_rejects_replay_of_rotated_token(
+async def test_refresh_replay_after_lost_response_replaces_unused_successor(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
+    db_session: AsyncSession,
 ) -> None:
-    await create_user(email="refresh@example.com", username="refreshuser")
+    user = await create_user(email="refresh@example.com", username="refreshuser")
     tokens = await login(email="refresh@example.com")
-    first = await client.post(
+    lost = await client.post(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": tokens["refresh_token"]},
     )
-    assert first.status_code == 200
+    assert lost.status_code == 200
+    replayed_at = datetime.now(timezone.utc)
 
     replay = await client.post(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": tokens["refresh_token"]},
     )
 
-    assert replay.status_code == 401
-    assert replay.json()["detail"] == "Invalid or expired refresh token"
+    assert replay.status_code == 200
+    presented_revoked_at = await db_session.scalar(
+        select(RefreshToken.revoked_at).where(
+            RefreshToken.token_hash == hash_refresh_token(tokens["refresh_token"])
+        )
+    )
+    assert presented_revoked_at is not None
+    assert presented_revoked_at >= replayed_at
+    assert replay.json()["refresh_token"] not in (
+        tokens["refresh_token"],
+        lost.json()["refresh_token"],
+    )
+    discarded = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": lost.json()["refresh_token"]},
+    )
+    assert discarded.status_code == 401
+    assert discarded.json()["detail"] == "Invalid or expired refresh token"
+    live = await db_session.scalars(
+        select(RefreshToken.token_hash).where(
+            RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None)
+        )
+    )
+    assert live.all() == [hash_refresh_token(replay.json()["refresh_token"])]
 
 
-async def test_refresh_replay_rejected_without_revoking_successor(
+async def test_refresh_rejects_replay_of_expired_consumed_token(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
+    db_session: AsyncSession,
 ) -> None:
     await create_user(email="refresh@example.com", username="refreshuser")
     tokens = await login(email="refresh@example.com")
@@ -490,23 +515,55 @@ async def test_refresh_replay_rejected_without_revoking_successor(
         json={"refresh_token": tokens["refresh_token"]},
     )
     assert rotated.status_code == 200
-    replay = await client.post(
+    await db_session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.token_hash == hash_refresh_token(tokens["refresh_token"]))
+        .values(expires_at=datetime.now(timezone.utc) - timedelta(minutes=1))
+    )
+    await db_session.commit()
+
+    response = await client.post(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": tokens["refresh_token"]},
     )
-    assert replay.status_code == 401
 
-    successor = await client.post(
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Invalid or expired refresh token"
+
+
+async def test_refresh_rejects_replay_consumed_after_request_began(
+    client: AsyncClient,
+    create_user: UserFactory,
+    login: LoginClient,
+    db_session: AsyncSession,
+) -> None:
+    await create_user(email="refresh@example.com", username="refreshuser")
+    tokens = await login(email="refresh@example.com")
+    rotated = await client.post(
         "/api/v1/auth/jwt/refresh",
-        json={"refresh_token": rotated.json()["refresh_token"]},
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    assert rotated.status_code == 200
+    await db_session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.token_hash == hash_refresh_token(tokens["refresh_token"]))
+        .values(revoked_at=datetime.now(timezone.utc) + timedelta(minutes=1))
+    )
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
     )
 
-    assert successor.status_code == 200
-    for refresh_token in (tokens["refresh_token"], rotated.json()["refresh_token"]):
-        response = await client.post(
-            "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}
+    assert response.status_code == 401
+    successor_revoked_at = await db_session.scalar(
+        select(RefreshToken.revoked_at).where(
+            RefreshToken.token_hash
+            == hash_refresh_token(rotated.json()["refresh_token"])
         )
-        assert response.status_code == 401
+    )
+    assert successor_revoked_at is None
 
 
 async def test_refresh_rejects_rotated_token_after_successor_used(
@@ -756,17 +813,28 @@ async def test_refresh_rejects_token_for_deactivated_user(
         email="deactivated@example.com", username="deactivateduser"
     )
     tokens = await login(email="deactivated@example.com")
+    rotated = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    assert rotated.status_code == 200
     user.is_active = False
     db_session.add(user)
     await db_session.commit()
 
-    response = await client.post(
-        "/api/v1/auth/jwt/refresh",
-        json={"refresh_token": tokens["refresh_token"]},
-    )
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired refresh token"
+    for refresh_token in (tokens["refresh_token"], rotated.json()["refresh_token"]):
+        response = await client.post(
+            "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid or expired refresh token"
+        successor_revoked_at = await db_session.scalar(
+            select(RefreshToken.revoked_at).where(
+                RefreshToken.token_hash
+                == hash_refresh_token(rotated.json()["refresh_token"])
+            )
+        )
+        assert successor_revoked_at is None
 
 
 async def test_refresh_token_cleanup_prunes_dead_tokens_and_keeps_live_sessions(
