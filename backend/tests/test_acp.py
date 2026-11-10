@@ -1556,6 +1556,51 @@ async def test_chat_model_and_permission_mode_errors_fail(
     assert fake_agent.main_turn_prompts() == []
 
 
+async def test_chat_recovers_on_next_turn_after_rejected_model(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", "model_error")
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
+
+    failed = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="gpt-5.4",
+        prompt="first turn",
+        permission_mode="auto",
+    )
+    failed_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=failed.json()["message_id"]
+    )
+    assert failed_message["stream_status"] == "failed"
+
+    monkeypatch.delenv("FAKE_ACP_SCENARIO")
+    recovered = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="gpt-5.6-luna",
+        prompt="second turn",
+        permission_mode="auto",
+    )
+    recovered_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=recovered.json()["message_id"]
+    )
+    assert recovered_message["stream_status"] == "completed"
+    set_models = [
+        event["value"]
+        for event in fake_agent.events_of("set_config_option")
+        if event["config_id"] == "model"
+    ]
+    assert "gpt-5.6-luna" in set_models
+
+
 async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
