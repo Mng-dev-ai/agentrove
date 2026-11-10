@@ -10,6 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.main as main_module
 from app.core.security import create_mcp_access_token
 from app.core.user_manager import AccessTokenStrategy
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
@@ -386,6 +387,37 @@ async def test_mcp_access_token_authenticates_bearer_requests(
 
     assert response.status_code == 200, response.text
     assert response.json()["email"] == "mcp-token@example.com"
+
+
+async def test_mcp_endpoint_requires_a_valid_token_and_lists_tools(
+    client: AsyncClient,
+    create_user: UserFactory,
+) -> None:
+    user = await create_user(email="mcp-http@example.com", username="mcphttp")
+    token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    stale = create_mcp_access_token(str(user.id), "old-password-hash", frozenset())
+    list_tools = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
+    headers = {"Host": "api:8080", "Accept": "application/json, text/event-stream"}
+
+    for authorization in (
+        {},
+        {"Authorization": "Bearer junk"},
+        {"Authorization": f"Bearer {stale}"},
+    ):
+        response = await client.post(
+            "/api/v1/mcp", json=list_tools, headers=headers | authorization
+        )
+        assert response.status_code == 401
+
+    async with main_module.mcp_endpoint.run():
+        response = await client.post(
+            "/api/v1/mcp",
+            json=list_tools,
+            headers=headers | {"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 200, response.text
+    tools = {tool["name"] for tool in response.json()["result"]["tools"]}
+    assert {"get_current_chat", "list_workspaces", "attach_file"} <= tools
 
 
 async def test_query_token_is_not_accepted(

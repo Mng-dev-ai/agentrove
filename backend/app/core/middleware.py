@@ -5,12 +5,15 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security.utils import get_authorization_scheme_param
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import get_settings
+from app.core.security import get_user_from_token
+from app.db.session import SessionLocal
 from app.services.exceptions import ServiceException
 
 settings = get_settings()
@@ -94,6 +97,30 @@ class SecurityHeadersMiddleware:
             await self.app(scope, receive, send)
             return
         await self.app(scope, receive, _SecurityHeadersSend(send))
+
+
+class McpAuthMiddleware:
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        # Reject before the MCP handshake: the token is the one the backend
+        # minted for the session, validated like any REST bearer token.
+        scheme, token = get_authorization_scheme_param(
+            Headers(scope=scope).get("Authorization")
+        )
+        if scheme.lower() == "bearer" and token:
+            async with SessionLocal() as db:
+                user = await get_user_from_token(token, db)
+            if user is not None:
+                await self.app(scope, receive, send)
+                return
+        response = JSONResponse(
+            {"detail": "Could not validate credentials"},
+            status_code=401,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        await response(scope, receive, send)
 
 
 async def _service_exception_handler(

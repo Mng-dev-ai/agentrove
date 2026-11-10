@@ -8,12 +8,13 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 import jwt
 import pytest
 import pytest_asyncio
+from acp.schema import McpServerHttp
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,8 +33,11 @@ from app.services.chat import ChatService
 from app.services import subthread_wake as wake_module
 from app.services import session_registry as session_registry_module
 from app.services.session_registry import session_registry
+from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.agent import AgentService
 from app.services.exceptions import AgentException
+from app.services.sandbox_providers import SandboxProviderType
+from app.services.session_registry import SessionRegistry
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_wake import SubThreadWake
@@ -1767,6 +1771,55 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     assert mcp_env["AGENTROVE_CURRENT_CHAT_ID"] == chat["id"]
     assert "AGENTROVE_EMAIL" not in mcp_env
     assert "AGENTROVE_PASSWORD" not in mcp_env
+
+
+def docker_session_config(user_id: str, hashed_password: str) -> AcpSessionConfig:
+    return AcpSessionConfig(
+        sandbox_id="sandbox",
+        sandbox_provider=SandboxProviderType.DOCKER,
+        cwd="",
+        user_id=user_id,
+        device_ids=frozenset(),
+        mcp_servers=AgentService._build_mcp_server_configs(
+            user_id,
+            hashed_password,
+            frozenset(),
+            SandboxProviderType.DOCKER,
+            agentrove_mcp=True,
+            current_chat_id="chat-1",
+        ),
+    )
+
+
+async def test_docker_sandbox_gets_http_mcp_without_respawning_per_turn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Sandbox agents reach the backend's HTTP MCP endpoint; the per-turn bearer
+    # must not change the fingerprint, while a password change still must.
+    mints = iter(("token-one", "token-two", "token-three"))
+    monkeypatch.setattr(
+        "app.services.agent.create_mcp_access_token",
+        lambda user_id, hashed_password, device_ids: next(mints),
+    )
+    user_id = str(uuid4())
+
+    first = docker_session_config(user_id, "hash-one")
+    second = docker_session_config(user_id, "hash-one")
+    [server] = first.mcp_servers
+    assert server["type"] == "http"
+    assert server["url"] == f"{get_settings().SANDBOX_API_URL}/api/v1/mcp"
+    assert server["headers"]["Authorization"] == "Bearer token-one"
+    assert server["headers"]["X-Agentrove-Chat-Id"] == "chat-1"
+    [http_server] = AcpSession._build_mcp_servers(first.mcp_servers)
+    assert isinstance(http_server, McpServerHttp)
+    assert {h.name: h.value for h in http_server.headers} == server["headers"]
+
+    fingerprint = SessionRegistry._compute_fingerprint(first)
+    assert SessionRegistry._compute_fingerprint(second) == fingerprint
+    assert (
+        SessionRegistry._compute_fingerprint(docker_session_config(user_id, "hash-two"))
+        != fingerprint
+    )
 
 
 def minted_mcp_tokens(fake_agent: FakeAgentHandle) -> list[str]:
