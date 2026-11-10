@@ -1511,7 +1511,7 @@ async def test_chat_provider_switch_hands_off_context(
 
 
 @pytest.mark.parametrize("scenario", ["model_error", "config_error"])
-async def test_chat_model_errors_survive_but_permission_mode_errors_fail(
+async def test_chat_model_and_permission_mode_errors_fail(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
@@ -1535,39 +1535,12 @@ async def test_chat_model_errors_survive_but_permission_mode_errors_fail(
     first_message = await wait_for_message(
         client, headers, chat_id=chat["id"], message_id=first.json()["message_id"]
     )
-    if scenario == "config_error":
-        assert first_message["stream_status"] == "failed"
+    assert first_message["stream_status"] == "failed"
+    if scenario == "model_error":
+        assert "rejected model `gpt-5.4`" in first_message["content_text"]
+    else:
         assert fake_agent.events_of("set_session_mode")[-1]["mode_id"] == "agent"
-        assert fake_agent.main_turn_prompts() == []
-        return
-    assert first_message["stream_status"] == "completed"
-    assert any(e["type"] == "plan" for e in first_message["content_render"]["events"])
-
-    second = await send_message(
-        client,
-        headers,
-        chat_id=chat["id"],
-        model_id="gpt-5.6-luna",
-        prompt="second turn",
-        permission_mode="read-only",
-    )
-    assert second.status_code == 200, second.text
-    second_message = await wait_for_message(
-        client, headers, chat_id=chat["id"], message_id=second.json()["message_id"]
-    )
-    assert second_message["stream_status"] == "completed"
-
-    set_models = [
-        event
-        for event in fake_agent.events_of("set_config_option")
-        if event["config_id"] == "model"
-    ]
-    assert len(set_models) >= 2
-    assert set_models[-1]["value"] == "gpt-5.6-luna"
-
-    set_modes = fake_agent.events_of("set_session_mode")
-    assert set_modes
-    assert set_modes[-1]["mode_id"] == "read-only"
+    assert fake_agent.main_turn_prompts() == []
 
 
 async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
