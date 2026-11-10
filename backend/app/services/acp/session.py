@@ -109,6 +109,8 @@ class AcpSessionConfig:
     instructions_file_path: str | None = None
     # Codex-only: 1.5x speed service tier via set_config_option("fast-mode").
     fast_mode: bool = False
+    # False: a rejected model is logged and the agent's default runs (one-shot tasks).
+    strict_model: bool = True
 
 
 class AcpSession:
@@ -312,13 +314,20 @@ class AcpSession:
         reasoning_effort: str | None = None,
         effort_explicit: bool = False,
     ) -> None:
-        config_options = await self._set_model_on_conn(
-            self._conn,
-            self._agent_kind,
-            self.acp_session_id,
-            model_id,
-            reasoning_effort,
-        )
+        # Unknown until the whole switch succeeds, so a partial failure re-applies next turn.
+        self.current_model = ""
+        try:
+            config_options = await self._set_model_on_conn(
+                self._conn,
+                self._agent_kind,
+                self.acp_session_id,
+                model_id,
+                reasoning_effort,
+            )
+        except Exception as exc:
+            raise AgentException(
+                f"{self._agent_kind.value} rejected model `{model_id}`: {exc}"
+            ) from exc
         self.effort_levels = self._advertised_effort(self._agent_kind, config_options)
         await self._set_effort_on_conn(
             self._conn,
@@ -518,6 +527,8 @@ class AcpSession:
                         config.model, config.reasoning_effort, config.effort_explicit
                     )
                 except Exception:
+                    if config.strict_model:
+                        raise
                     logger.warning(
                         "Failed to set initial model: %s", config.model, exc_info=True
                     )

@@ -1633,16 +1633,11 @@ class ChatStreamRuntime:
             stream: AsyncIterator[StreamEvent] | None = None
             try:
                 if config.model and config.model != session.acp_session.current_model:
-                    try:
-                        await session.acp_session.set_model(
-                            config.model,
-                            config.reasoning_effort,
-                            config.effort_explicit,
-                        )
-                    except Exception:
-                        logger.warning(
-                            "Failed to set ACP model: %s", config.model, exc_info=True
-                        )
+                    await session.acp_session.set_model(
+                        config.model,
+                        config.reasoning_effort,
+                        config.effort_explicit,
+                    )
                 if (
                     config.permission_mode
                     and config.permission_mode != session.acp_session.current_mode

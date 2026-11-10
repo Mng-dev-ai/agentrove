@@ -359,12 +359,13 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
 
 
 @pytest.mark.parametrize(
-    "model_id,thinking_mode,expected_status,expected_effort",
+    "model_id,thinking_mode,expected_status,expected_effort,expected_model",
     [
-        ("copilot:gpt-5.4", "xhigh", "completed", "xhigh"),
-        ("copilot:claude-haiku-4.5", "high", "completed", None),
+        ("copilot:gpt-5.4", "xhigh", "completed", "xhigh", None),
+        ("copilot:claude-haiku-4.5", "high", "completed", None, None),
         # An explicit tier the model lacks fails the turn instead of clamping.
-        ("copilot:kimi-k3", "medium", "failed", None),
+        ("copilot:kimi-k3", "medium", "failed", None, None),
+        ("gpt-6-luna", "low", "completed", "low", "gpt-6-luna"),
     ],
 )
 async def test_session_setup_gates_reasoning_effort_by_model(
@@ -376,6 +377,7 @@ async def test_session_setup_gates_reasoning_effort_by_model(
     thinking_mode: str,
     expected_status: str,
     expected_effort: str | None,
+    expected_model: str | None,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id=model_id)
@@ -386,7 +388,7 @@ async def test_session_setup_gates_reasoning_effort_by_model(
         chat_id=chat["id"],
         model_id=model_id,
         prompt="reason carefully",
-        permission_mode="agent",
+        permission_mode="agent" if ":" in model_id else "auto",
         thinking_mode=thinking_mode,
     )
     assert response.status_code == 200, response.text
@@ -407,6 +409,14 @@ async def test_session_setup_gates_reasoning_effort_by_model(
         assert effort_calls == []
     else:
         assert effort_calls[-1]["value"] == expected_effort
+
+    if expected_model is not None:
+        model_calls = [
+            event
+            for event in fake_agent.events_of("set_config_option")
+            if event["config_id"] == "model"
+        ]
+        assert model_calls[0]["value"] == expected_model
 
 
 async def test_enhance_prompt_surfaces_session_creation_failure(
@@ -447,6 +457,7 @@ async def test_enhance_prompt_surfaces_mid_prompt_crash(
     assert "ACP call failed" in response.json()["detail"]
 
 
+@pytest.mark.parametrize("scenario", ["config_error", "model_error"])
 async def test_enhance_prompt_survives_config_option_failures(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
@@ -454,13 +465,15 @@ async def test_enhance_prompt_survives_config_option_failures(
     login: LoginClient,
     fake_agent: FakeAgentHandle,
     monkeypatch: pytest.MonkeyPatch,
+    scenario: str,
 ) -> None:
-    # Claude sets its reasoning effort via set_config_option right after the
-    # handshake; session.py must swallow a failure there and still run the turn.
+    # Claude sets its model and reasoning effort via set_config_option right
+    # after the handshake; one-shot tasks must swallow a failure there and
+    # still run the turn.
     headers, _user, _workspace = await create_authenticated_workspace(
         db_session, create_user, login, email="config-error@example.com"
     )
-    monkeypatch.setenv("FAKE_ACP_SCENARIO", "config_error")
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", scenario)
 
     response = await enhance_prompt(
         client, headers, prompt="hi", model_id="claude-opus-5"
@@ -1526,7 +1539,7 @@ async def test_chat_provider_switch_hands_off_context(
 
 
 @pytest.mark.parametrize("scenario", ["model_error", "config_error"])
-async def test_chat_model_errors_survive_but_permission_mode_errors_fail(
+async def test_chat_model_and_permission_mode_errors_fail(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
@@ -1550,39 +1563,57 @@ async def test_chat_model_errors_survive_but_permission_mode_errors_fail(
     first_message = await wait_for_message(
         client, headers, chat_id=chat["id"], message_id=first.json()["message_id"]
     )
-    if scenario == "config_error":
-        assert first_message["stream_status"] == "failed"
+    assert first_message["stream_status"] == "failed"
+    if scenario == "model_error":
+        assert "rejected model `gpt-5.4`" in first_message["content_text"]
+    else:
         assert fake_agent.events_of("set_session_mode")[-1]["mode_id"] == "agent"
-        assert fake_agent.main_turn_prompts() == []
-        return
-    assert first_message["stream_status"] == "completed"
-    assert any(e["type"] == "plan" for e in first_message["content_render"]["events"])
+    assert fake_agent.main_turn_prompts() == []
 
-    second = await send_message(
+
+async def test_chat_recovers_on_next_turn_after_rejected_model(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", "model_error")
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
+
+    failed = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="gpt-5.4",
+        prompt="first turn",
+        permission_mode="auto",
+    )
+    failed_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=failed.json()["message_id"]
+    )
+    assert failed_message["stream_status"] == "failed"
+
+    monkeypatch.delenv("FAKE_ACP_SCENARIO")
+    recovered = await send_message(
         client,
         headers,
         chat_id=chat["id"],
         model_id="gpt-5.6-luna",
         prompt="second turn",
-        permission_mode="read-only",
+        permission_mode="auto",
     )
-    assert second.status_code == 200, second.text
-    second_message = await wait_for_message(
-        client, headers, chat_id=chat["id"], message_id=second.json()["message_id"]
+    recovered_message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=recovered.json()["message_id"]
     )
-    assert second_message["stream_status"] == "completed"
-
+    assert recovered_message["stream_status"] == "completed"
     set_models = [
-        event
+        event["value"]
         for event in fake_agent.events_of("set_config_option")
         if event["config_id"] == "model"
     ]
-    assert len(set_models) >= 2
-    assert set_models[-1]["value"] == "gpt-5.6-luna"
-
-    set_modes = fake_agent.events_of("set_session_mode")
-    assert set_modes
-    assert set_modes[-1]["mode_id"] == "read-only"
+    assert "gpt-5.6-luna" in set_models
 
 
 async def test_copilot_mid_session_model_switch_reapplies_supported_effort(

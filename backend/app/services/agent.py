@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlparse
 from typing import Any, cast
@@ -423,7 +424,7 @@ class AgentService:
         )
 
         try:
-            session = await AcpSession.create(config)
+            session = await AcpSession.create(replace(config, strict_model=False))
         except AgentException:
             raise
         except asyncio.CancelledError:
