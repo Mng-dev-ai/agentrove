@@ -469,6 +469,7 @@ async def test_refresh_replay_after_lost_response_replaces_unused_successor(
         json={"refresh_token": tokens["refresh_token"]},
     )
     assert lost.status_code == 200
+    replayed_at = datetime.now(timezone.utc)
 
     replay = await client.post(
         "/api/v1/auth/jwt/refresh",
@@ -476,6 +477,13 @@ async def test_refresh_replay_after_lost_response_replaces_unused_successor(
     )
 
     assert replay.status_code == 200
+    presented_revoked_at = await db_session.scalar(
+        select(RefreshToken.revoked_at).where(
+            RefreshToken.token_hash == hash_refresh_token(tokens["refresh_token"])
+        )
+    )
+    assert presented_revoked_at is not None
+    assert presented_revoked_at >= replayed_at
     assert replay.json()["refresh_token"] not in (
         tokens["refresh_token"],
         lost.json()["refresh_token"],
@@ -805,17 +813,28 @@ async def test_refresh_rejects_token_for_deactivated_user(
         email="deactivated@example.com", username="deactivateduser"
     )
     tokens = await login(email="deactivated@example.com")
+    rotated = await client.post(
+        "/api/v1/auth/jwt/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    assert rotated.status_code == 200
     user.is_active = False
     db_session.add(user)
     await db_session.commit()
 
-    response = await client.post(
-        "/api/v1/auth/jwt/refresh",
-        json={"refresh_token": tokens["refresh_token"]},
-    )
-
-    assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid or expired refresh token"
+    for refresh_token in (tokens["refresh_token"], rotated.json()["refresh_token"]):
+        response = await client.post(
+            "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}
+        )
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Invalid or expired refresh token"
+        successor_revoked_at = await db_session.scalar(
+            select(RefreshToken.revoked_at).where(
+                RefreshToken.token_hash
+                == hash_refresh_token(rotated.json()["refresh_token"])
+            )
+        )
+        assert successor_revoked_at is None
 
 
 async def test_refresh_token_cleanup_prunes_dead_tokens_and_keeps_live_sessions(

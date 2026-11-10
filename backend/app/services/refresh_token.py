@@ -87,8 +87,7 @@ class RefreshTokenService:
         if refresh_token is not None:
             parent_id: UUID | None = refresh_token.id
         else:
-            # Lost-response replay: consume the presented token's never-used successor.
-            # revoked_at < now: only a request that began after the consume is a retry.
+            # Lost-response replay: allowed only if begun after the token's last use.
             presented = aliased(RefreshToken)
             refresh_token = await db.scalar(
                 update(RefreshToken)
@@ -110,6 +109,11 @@ class RefreshTokenService:
             if refresh_token is None:
                 raise AuthException("Invalid or expired refresh token")
             parent_id = refresh_token.parent_id
+            await db.execute(
+                update(RefreshToken)
+                .where(RefreshToken.id == parent_id)
+                .values(revoked_at=now)
+            )
 
         user_result = await db.execute(
             select(User).where(User.id == refresh_token.user_id)
