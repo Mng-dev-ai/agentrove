@@ -474,6 +474,16 @@ class AcpSession:
             )
 
             mcp_servers = cls._build_mcp_servers(config.mcp_servers)
+            capabilities = initialize_response.agent_capabilities
+            mcp_capabilities = capabilities and capabilities.mcp_capabilities
+            if not (mcp_capabilities and mcp_capabilities.http) and any(
+                isinstance(server, McpServerHttp) for server in mcp_servers
+            ):
+                logger.warning(
+                    "%s does not advertise HTTP MCP support; its HTTP MCP servers "
+                    "may be unavailable",
+                    config.agent_kind.value,
+                )
             session_meta = config.session_meta
 
             if config.resume_session_id:

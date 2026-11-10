@@ -194,7 +194,12 @@ class SessionRegistry:
                 for k, v in server.get("env", {}).items()
                 if k != "AGENTROVE_ACCESS_TOKEN"
             }
-            redacted.append({**server, "env": env})
+            headers = {
+                k: v
+                for k, v in server.get("headers", {}).items()
+                if k != "Authorization"
+            }
+            redacted.append({**server, "env": env, "headers": headers})
         return redacted
 
     @staticmethod
