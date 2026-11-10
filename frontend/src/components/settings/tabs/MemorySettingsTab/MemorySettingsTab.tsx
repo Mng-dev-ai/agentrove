@@ -64,7 +64,14 @@ export function MemorySettingsTab() {
     [remoteWorkspaces, localWorkspaces],
   );
   const [workspaceFilter, setWorkspaceFilter] = useState<MemoryWorkspaceFilter | null>(null);
-  const items = useMemoriesAcrossMachines(workspaceFilter);
+  const activeFilter =
+    workspaceFilter &&
+    workspacesByMachine[workspaceFilter.machineId]?.some(
+      (w) => w.id === workspaceFilter.workspaceId,
+    )
+      ? workspaceFilter
+      : null;
+  const items = useMemoriesAcrossMachines(activeFilter);
 
   const createMutation = useCreateMemoryMutation();
   const updateMutation = useUpdateMemoryMutation();
@@ -97,7 +104,7 @@ export function MemorySettingsTab() {
 
   const handleAdd = () => {
     setEditingItem(null);
-    setForm(createDefaultForm(workspaceFilter));
+    setForm(createDefaultForm(activeFilter));
     setFormError(null);
     setIsDialogOpen(true);
   };
@@ -180,7 +187,7 @@ export function MemorySettingsTab() {
         headerContent={
           <div className={styles.filter}>
             <Select
-              value={workspaceFilter?.workspaceId ?? ''}
+              value={activeFilter?.workspaceId ?? ''}
               onChange={(e) => handleFilterChange(e.target.value)}
               aria-label="Filter by workspace"
               className={styles['filter-select']}

@@ -35,12 +35,16 @@ export function MemoryEditDialog({
   onSubmit,
   onMemoryChange,
 }: MemoryEditDialogProps) {
+  const machineOffline = !machineOptions.some((machine) => machine.id === memory.machineId);
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="4xl" className={styles.dialog}>
       <div className={styles.body}>
         <h3 className={styles.title}>{isEditing ? 'Edit Memory' : 'Add Memory'}</h3>
 
-        <DialogError error={error} className={styles.error} />
+        <DialogError
+          error={error ?? (machineOffline ? "This memory's machine is offline" : null)}
+          className={styles.error}
+        />
 
         <div className={styles.fields}>
           <div>
@@ -125,7 +129,7 @@ export function MemoryEditDialog({
           onSave={onSubmit}
           saveLabel={isEditing ? 'Update' : 'Add Memory'}
           saving={isSaving}
-          disabled={!memory.title.trim() || !memory.content.trim()}
+          disabled={!memory.title.trim() || !memory.content.trim() || machineOffline}
         />
       </div>
     </BaseModal>
