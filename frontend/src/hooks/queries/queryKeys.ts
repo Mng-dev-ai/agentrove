@@ -86,9 +86,7 @@ export const queryKeys = {
     memories: (machineId: string, workspaceId: string | null) =>
       ['machine', machineId, 'memories', workspaceId] as const,
     memoriesAll: (machineId: string) => ['machine', machineId, 'memories'] as const,
-    inbox: (machineId: string, pageCount: number) =>
-      ['machine', machineId, 'inbox', pageCount] as const,
-    inboxAll: (machineId: string) => ['machine', machineId, 'inbox'] as const,
+    inbox: (machineId: string) => ['machine', machineId, 'inbox'] as const,
   },
   inbox: ['inbox'] as const,
   memories: (workspaceId: string | null) => ['memories', workspaceId] as const,

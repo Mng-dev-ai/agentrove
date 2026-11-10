@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import {
-  keepPreviousData,
   useInfiniteQuery,
+  useMutation,
   useQueries,
+  useQueryClient,
   type QueryClient,
 } from '@tanstack/react-query';
 import { inboxService } from '@/services/inboxService';
@@ -32,10 +32,18 @@ async function listInboxPages(machineId: string, pageCount: number): Promise<Inb
   return pages;
 }
 
+async function appendNextInboxPage(queryClient: QueryClient, machineId: string, cursor: string) {
+  const page = await inboxService.listInbox(cursor, machineId);
+  const queryKey = queryKeys.machine.inbox(machineId);
+  await queryClient.cancelQueries({ queryKey });
+  queryClient.setQueryData<InboxList[]>(queryKey, (pages) =>
+    pages && pages[pages.length - 1]?.next_cursor === cursor ? [...pages, page] : pages,
+  );
+}
+
 function invalidateInbox(queryClient: QueryClient, machineId: string) {
   return queryClient.invalidateQueries({
-    queryKey:
-      machineId === LOCAL_MACHINE_ID ? queryKeys.inbox : queryKeys.machine.inboxAll(machineId),
+    queryKey: machineId === LOCAL_MACHINE_ID ? queryKeys.inbox : queryKeys.machine.inbox(machineId),
   });
 }
 
@@ -49,9 +57,9 @@ async function failedMachines(
 
 // Polled because push can be disabled.
 export const useInboxAcrossMachines = () => {
+  const queryClient = useQueryClient();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const remoteIds = useOnlineRemoteMachineIds();
-  const [pageCounts, setPageCounts] = useState<Record<string, number>>({});
 
   const local = useInfiniteQuery({
     queryKey: queryKeys.inbox,
@@ -62,16 +70,22 @@ export const useInboxAcrossMachines = () => {
     refetchInterval: POLL_INTERVAL_MS,
   });
   const remote = useQueries({
-    queries: remoteIds.map((machineId) => {
-      const pageCount = pageCounts[machineId] ?? 1;
-      return {
-        queryKey: queryKeys.machine.inbox(machineId, pageCount),
-        queryFn: () => listInboxPages(machineId, pageCount),
-        enabled: isAuthenticated,
-        refetchInterval: POLL_INTERVAL_MS,
-        placeholderData: keepPreviousData,
-      };
-    }),
+    queries: remoteIds.map((machineId) => ({
+      queryKey: queryKeys.machine.inbox(machineId),
+      queryFn: () =>
+        listInboxPages(
+          machineId,
+          queryClient.getQueryData<InboxList[]>(queryKeys.machine.inbox(machineId))?.length ?? 1,
+        ),
+      enabled: isAuthenticated,
+      refetchInterval: POLL_INTERVAL_MS,
+    })),
+  });
+  const loadMoreRemote = useMutation({
+    mutationFn: (targets: { machineId: string; cursor: string }[]) =>
+      Promise.allSettled(
+        targets.map(({ machineId, cursor }) => appendNextInboxPage(queryClient, machineId, cursor)),
+      ),
   });
 
   const sources = [
@@ -89,15 +103,12 @@ export const useInboxAcrossMachines = () => {
 
   const loadMore = () => {
     if (local.hasNextPage) void local.fetchNextPage();
-    setPageCounts((counts) => {
-      const next = { ...counts };
-      for (const source of sources) {
-        if (source.machineId !== LOCAL_MACHINE_ID && source.hasMore) {
-          next[source.machineId] = (counts[source.machineId] ?? 1) + 1;
-        }
-      }
-      return next;
+    const targets = remoteIds.flatMap((machineId, index) => {
+      const pages = remote[index]?.data ?? [];
+      const cursor = pages[pages.length - 1]?.next_cursor;
+      return cursor ? [{ machineId, cursor }] : [];
     });
+    if (targets.length > 0) loadMoreRemote.mutate(targets);
   };
 
   return {
@@ -109,7 +120,7 @@ export const useInboxAcrossMachines = () => {
     ),
     isLoading: local.isLoading,
     hasMore: sources.some((source) => source.hasMore),
-    isFetchingMore: local.isFetchingNextPage || remote.some((result) => result.isPlaceholderData),
+    isFetchingMore: local.isFetchingNextPage || loadMoreRemote.isPending,
     loadMore,
   };
 };

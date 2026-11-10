@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
+import { machineName } from '@/store/machineStore';
 import styles from './MemoryEditDialog.module.scss';
 
 interface MemoryEditDialogProps {
@@ -36,6 +37,12 @@ export function MemoryEditDialog({
   onMemoryChange,
 }: MemoryEditDialogProps) {
   const machineOffline = !machineOptions.some((machine) => machine.id === memory.machineId);
+  const machines = machineOffline
+    ? [
+        ...machineOptions,
+        { id: memory.machineId, name: `${machineName(memory.machineId)} (offline)` },
+      ]
+    : machineOptions;
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="4xl" className={styles.dialog}>
       <div className={styles.body}>
@@ -74,7 +81,7 @@ export function MemoryEditDialog({
           <div>
             <Label className={styles.label}>Scope</Label>
             <div className={styles.row}>
-              {machineOptions.length > 1 && (
+              {machines.length > 1 && (
                 <Select
                   value={memory.machineId}
                   onChange={(e) => {
@@ -85,8 +92,12 @@ export function MemoryEditDialog({
                   aria-label="Machine"
                   disabled={isEditing}
                 >
-                  {machineOptions.map((machine) => (
-                    <option key={machine.id} value={machine.id}>
+                  {machines.map((machine) => (
+                    <option
+                      key={machine.id}
+                      value={machine.id}
+                      disabled={machineOffline && machine.id === memory.machineId}
+                    >
                       {machine.name}
                     </option>
                   ))}

@@ -1,5 +1,6 @@
 import { getMachineClient } from '@/lib/api';
 import { buildQueryString, ensureResponse, serviceCall } from '@/services/base/BaseService';
+import { assignChatsToMachine } from '@/store/machineOrigin';
 import type { InboxItem, InboxList } from '@/types/inbox.types';
 
 async function listInbox(cursor: string | undefined, machineId: string): Promise<InboxList> {
@@ -7,7 +8,12 @@ async function listInbox(cursor: string | undefined, machineId: string): Promise
     const response = await getMachineClient(machineId).get<InboxList>(
       `/inbox${buildQueryString(cursor ? { cursor } : {})}`,
     );
-    return ensureResponse(response, 'Failed to load inbox');
+    const inbox = ensureResponse(response, 'Failed to load inbox');
+    assignChatsToMachine(
+      machineId,
+      inbox.items.map((item) => item.chat_id),
+    );
+    return inbox;
   });
 }
 

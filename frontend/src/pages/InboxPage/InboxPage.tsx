@@ -19,7 +19,6 @@ import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { formatRelativeTime } from '@/utils/date';
 import { logger } from '@/utils/logger';
-import { assignChatsToMachine } from '@/store/machineOrigin';
 import { machineName } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import styles from './InboxPage.module.scss';
@@ -145,7 +144,6 @@ export function InboxPage() {
 
   const openItem = ({ item, machineId }: MachineInboxItem) => {
     if (!item.read_at) markRead.mutate({ itemId: item.id, machineId });
-    assignChatsToMachine(machineId, [item.chat_id]);
     navigate(`/chat/${item.chat_id}`);
   };
 

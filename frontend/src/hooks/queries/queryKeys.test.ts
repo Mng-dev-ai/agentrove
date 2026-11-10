@@ -40,7 +40,6 @@ const CONTRACT: ReadonlyArray<readonly [string, readonly unknown[], readonly unk
   ['channelsAll', queryKeys.channelsAll, queryKeys.channels('ws1')],
   ['memoriesAll', queryKeys.memoriesAll, queryKeys.memories('ws1')],
   ['memoriesAll', queryKeys.machine.memoriesAll('m1'), queryKeys.machine.memories('m1', 'ws1')],
-  ['inboxAll', queryKeys.machine.inboxAll('m1'), queryKeys.machine.inbox('m1', 1)],
 ];
 
 function collectAllKeyNames(obj: Record<string, unknown>): string[] {
