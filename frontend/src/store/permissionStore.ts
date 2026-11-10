@@ -67,9 +67,12 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
       const serverIds = new Set(requests.map((r) => r.request_id));
       const kept = queue.filter((r) => serverIds.has(r.request_id) || !knownIds.has(r.request_id));
       const keptIds = new Set(kept.map((r) => r.request_id));
-      // A prompt answered while the status request was in flight is still listed.
+      // Prompts dropped or answered while the status request was in flight are still listed.
       const added = requests.filter(
-        (r) => !keptIds.has(r.request_id) && !isPermissionResolved(chatId, r.seq),
+        (r) =>
+          !keptIds.has(r.request_id) &&
+          !knownIds.has(r.request_id) &&
+          !isPermissionResolved(chatId, r.seq),
       );
       const nextQueue = [...kept, ...added];
       if (nextQueue.length === queue.length && nextQueue.every((r, i) => r === queue[i])) {

@@ -274,4 +274,5 @@ export interface ChatStatusResponse {
   // start past the control event when parallel tool activity advanced the snapshot.
   pending_elicitations?: ElicitationRequest[];
   pending_permissions?: PermissionRequest[];
+  pending_permission_ids?: string[];
 }
