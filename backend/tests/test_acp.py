@@ -14,7 +14,7 @@ import httpx
 import jwt
 import pytest
 import pytest_asyncio
-from acp.schema import McpServerHttp
+from acp.schema import HttpMcpServer
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1811,7 +1811,8 @@ async def test_docker_sandbox_gets_http_mcp_without_respawning_per_turn(
     assert server["headers"]["Authorization"] == "Bearer token-one"
     assert server["headers"]["X-Agentrove-Chat-Id"] == "chat-1"
     [http_server] = AcpSession._build_mcp_servers(first.mcp_servers)
-    assert isinstance(http_server, McpServerHttp)
+    assert isinstance(http_server, HttpMcpServer)
+    assert http_server.model_dump(by_alias=True)["type"] == "http"
     assert {h.name: h.value for h in http_server.headers} == server["headers"]
 
     fingerprint = SessionRegistry._compute_fingerprint(first)
