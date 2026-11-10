@@ -39,6 +39,7 @@ const CONTRACT: ReadonlyArray<readonly [string, readonly unknown[], readonly unk
   ['pullsAll', queryKeys.github.pullsAll('o', 'r', 'c'), queryKeys.github.pulls('o', 'r', 'c')],
   ['channelsAll', queryKeys.channelsAll, queryKeys.channels('ws1')],
   ['memoriesAll', queryKeys.memoriesAll, queryKeys.memories('ws1')],
+  ['memoriesAll', queryKeys.machine.memoriesAll('m1'), queryKeys.machine.memories('m1', 'ws1')],
 ];
 
 function collectAllKeyNames(obj: Record<string, unknown>): string[] {

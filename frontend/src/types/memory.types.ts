@@ -18,3 +18,7 @@ export interface MemoryCreateRequest {
 }
 
 export type MemoryUpdateRequest = Partial<MemoryCreateRequest>;
+
+export interface MemoryForm extends MemoryCreateRequest {
+  machineId: string;
+}

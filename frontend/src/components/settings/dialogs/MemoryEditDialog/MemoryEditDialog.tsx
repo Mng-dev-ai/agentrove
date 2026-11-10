@@ -1,4 +1,4 @@
-import type { MemoryCreateRequest } from '@/types/memory.types';
+import type { MemoryForm } from '@/types/memory.types';
 import type { Workspace } from '@/types/workspace.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
@@ -13,16 +13,14 @@ import styles from './MemoryEditDialog.module.scss';
 interface MemoryEditDialogProps {
   isOpen: boolean;
   isEditing: boolean;
-  memory: MemoryCreateRequest;
+  memory: MemoryForm;
   workspaces: Workspace[];
+  machineOptions: { id: string; name: string }[];
   error: string | null;
   isSaving: boolean;
   onClose: () => void;
   onSubmit: () => void;
-  onMemoryChange: <K extends keyof MemoryCreateRequest>(
-    field: K,
-    value: MemoryCreateRequest[K],
-  ) => void;
+  onMemoryChange: <K extends keyof MemoryForm>(field: K, value: MemoryForm[K]) => void;
 }
 
 export function MemoryEditDialog({
@@ -30,6 +28,7 @@ export function MemoryEditDialog({
   isEditing,
   memory,
   workspaces,
+  machineOptions,
   error,
   isSaving,
   onClose,
@@ -70,18 +69,39 @@ export function MemoryEditDialog({
 
           <div>
             <Label className={styles.label}>Scope</Label>
-            <Select
-              value={memory.workspace_id ?? ''}
-              onChange={(e) => onMemoryChange('workspace_id', e.target.value || null)}
-              className={styles.input}
-            >
-              <option value="">Global</option>
-              {workspaces.map((w) => (
-                <option key={w.id} value={w.id}>
-                  {w.name}
-                </option>
-              ))}
-            </Select>
+            <div className={styles.row}>
+              {machineOptions.length > 1 && (
+                <Select
+                  value={memory.machineId}
+                  onChange={(e) => {
+                    onMemoryChange('machineId', e.target.value);
+                    onMemoryChange('workspace_id', null);
+                  }}
+                  className={styles.input}
+                  aria-label="Machine"
+                  disabled={isEditing}
+                >
+                  {machineOptions.map((machine) => (
+                    <option key={machine.id} value={machine.id}>
+                      {machine.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
+              <Select
+                value={memory.workspace_id ?? ''}
+                onChange={(e) => onMemoryChange('workspace_id', e.target.value || null)}
+                className={styles.input}
+                aria-label="Scope"
+              >
+                <option value="">Global</option>
+                {workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
             <p className={styles.hint}>
               Global memories reach every chat; workspace memories only chats in that workspace
             </p>
