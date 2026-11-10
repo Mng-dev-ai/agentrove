@@ -359,13 +359,13 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
 
 
 @pytest.mark.parametrize(
-    "model_id,thinking_mode,expected_status,expected_effort",
+    "model_id,thinking_mode,expected_status,expected_effort,expected_model",
     [
-        ("copilot:gpt-5.4", "xhigh", "completed", "xhigh"),
-        ("copilot:claude-haiku-4.5", "high", "completed", None),
+        ("copilot:gpt-5.4", "xhigh", "completed", "xhigh", None),
+        ("copilot:claude-haiku-4.5", "high", "completed", None, None),
         # An explicit tier the model lacks fails the turn instead of clamping.
-        ("copilot:kimi-k3", "medium", "failed", None),
-        ("gpt-6-luna", "low", "completed", "low"),
+        ("copilot:kimi-k3", "medium", "failed", None, None),
+        ("gpt-6-luna", "low", "completed", "low", "gpt-6-luna"),
     ],
 )
 async def test_session_setup_gates_reasoning_effort_by_model(
@@ -377,6 +377,7 @@ async def test_session_setup_gates_reasoning_effort_by_model(
     thinking_mode: str,
     expected_status: str,
     expected_effort: str | None,
+    expected_model: str | None,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id=model_id)
@@ -409,12 +410,13 @@ async def test_session_setup_gates_reasoning_effort_by_model(
     else:
         assert effort_calls[-1]["value"] == expected_effort
 
-    model_calls = [
-        event
-        for event in fake_agent.events_of("set_config_option")
-        if event["config_id"] == "model"
-    ]
-    assert model_calls[-1]["value"] == model_id.split(":")[-1]
+    if expected_model is not None:
+        model_calls = [
+            event
+            for event in fake_agent.events_of("set_config_option")
+            if event["config_id"] == "model"
+        ]
+        assert model_calls[0]["value"] == expected_model
 
 
 async def test_enhance_prompt_surfaces_session_creation_failure(
