@@ -706,7 +706,7 @@ async def test_mark_chat_viewed_and_update_preserve_read_state_across_bumps(
     assert updated["unread"] is False
 
 
-async def test_delete_chat_cascades_sub_threads_and_last_chat_deletes_workspace(
+async def test_delete_chat_cascades_sub_threads_and_keeps_workspace_after_last_chat(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
@@ -764,7 +764,7 @@ async def test_delete_chat_cascades_sub_threads_and_last_chat_deletes_workspace(
     )
 
     assert last_delete.status_code == 204
-    assert workspace_after_last.status_code == 404
+    assert workspace_after_last.status_code == 200
 
 
 async def test_delete_all_chats_only_deletes_current_user_chats(
