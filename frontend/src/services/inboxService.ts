@@ -1,32 +1,32 @@
-import { apiClient } from '@/lib/api';
+import { getMachineClient } from '@/lib/api';
 import { buildQueryString, ensureResponse, serviceCall } from '@/services/base/BaseService';
 import type { InboxItem, InboxList } from '@/types/inbox.types';
 
-async function listInbox(cursor?: string): Promise<InboxList> {
+async function listInbox(cursor: string | undefined, machineId: string): Promise<InboxList> {
   return serviceCall(async () => {
-    const response = await apiClient.get<InboxList>(
+    const response = await getMachineClient(machineId).get<InboxList>(
       `/inbox${buildQueryString(cursor ? { cursor } : {})}`,
     );
     return ensureResponse(response, 'Failed to load inbox');
   });
 }
 
-async function markRead(itemId: string): Promise<InboxItem> {
+async function markRead(itemId: string, machineId: string): Promise<InboxItem> {
   return serviceCall(async () => {
-    const response = await apiClient.post<InboxItem>(`/inbox/${itemId}/read`);
+    const response = await getMachineClient(machineId).post<InboxItem>(`/inbox/${itemId}/read`);
     return ensureResponse(response, 'Failed to mark message as read');
   });
 }
 
-async function markAllRead(): Promise<void> {
+async function markAllRead(machineId: string): Promise<void> {
   await serviceCall(async () => {
-    await apiClient.post('/inbox/read-all');
+    await getMachineClient(machineId).post('/inbox/read-all');
   });
 }
 
-async function clearRead(): Promise<void> {
+async function clearRead(machineId: string): Promise<void> {
   await serviceCall(async () => {
-    await apiClient.delete('/inbox/read');
+    await getMachineClient(machineId).delete('/inbox/read');
   });
 }
 

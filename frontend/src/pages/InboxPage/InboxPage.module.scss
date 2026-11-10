@@ -206,6 +206,28 @@
   }
 }
 
+.machine-badge {
+  @include type.type-meta;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.media('mobile') {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+.machine-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+}
+
 .time {
   @include type.type-meta;
   color: var(--theme-text-quaternary);
