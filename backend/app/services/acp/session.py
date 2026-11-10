@@ -636,7 +636,7 @@ class AcpSession:
     ) -> None:
         # Only for agents whose effort is a session config option; it must be
         # applied after new_session/load_session. Others carry effort in the
-        # model ID (Codex, Antigravity) or launch flags (Grok). An unadvertised
+        # model ID (Antigravity) or launch flags (Grok). An unadvertised
         # level is left for ensure_effort_supported to reject before the prompt.
         adapter = AGENT_ADAPTERS[agent_kind]
         value = reasoning_effort or adapter.unset_effort_value

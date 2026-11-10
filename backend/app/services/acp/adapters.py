@@ -251,6 +251,7 @@ class ClaudeAgentAdapter(AgentAdapter):
 
 class CodexAgentAdapter(AgentAdapter):
     binary = "codex-acp"
+    effort_config_id = "reasoning_effort"
     # UI permission mode → codex-acp session mode (each bundles approval + sandbox policy).
     SESSION_MODE_IDS = {
         "auto": "agent",
@@ -268,7 +269,7 @@ class CodexAgentAdapter(AgentAdapter):
         reasoning_effort: str | None = None,
         permission_mode: str | None = None,
     ) -> LaunchConfig:
-        # codex-acp uses CODEX_CONFIG only; modes bundle approval/sandbox, effort is on the model ID.
+        # codex-acp uses CODEX_CONFIG only; modes bundle approval/sandbox.
         config: dict[str, Any] = {}
         if system_prompt:
             if system_prompt_is_full_replace and instructions_file_path:
@@ -295,13 +296,6 @@ class CodexAgentAdapter(AgentAdapter):
         if permission_mode not in self.SESSION_MODE_IDS:
             raise ValueError("Invalid Codex session mode: " + permission_mode)
         return self.SESSION_MODE_IDS[permission_mode]
-
-    def map_model_id(self, model_id: str, reasoning_effort: str | None = None) -> str:
-        # codex-acp encodes reasoning effort inside the model ID and rejects
-        # bare IDs ("modelId[effort]" is the required format).
-        if reasoning_effort:
-            return f"{model_id}[{reasoning_effort}]"
-        return model_id
 
 
 class CopilotCliAdapter(AgentAdapter):
