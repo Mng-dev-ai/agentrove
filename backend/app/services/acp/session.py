@@ -315,7 +315,7 @@ class AcpSession:
         effort_explicit: bool = False,
     ) -> None:
         # Unknown until the whole switch succeeds, so a partial failure re-applies next turn.
-        self.current_model = None
+        self.current_model = ""
         try:
             config_options = await self._set_model_on_conn(
                 self._conn,
