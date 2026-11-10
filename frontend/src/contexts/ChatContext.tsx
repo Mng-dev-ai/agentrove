@@ -6,6 +6,7 @@ import type { AgentKind } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { useChatMachineId } from '@/store/machineOrigin';
+import { useAuthStore } from '@/store/authStore';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { ChatContext } from './ChatContextDefinition';
@@ -41,7 +42,8 @@ export function ChatProvider({
   const resolvedPersonas = personas ?? EMPTY_PERSONAS;
   const machineId = useChatMachineId(chatId);
   const isRemote = machineId !== LOCAL_MACHINE_ID;
-  const localWorkspaces = useWorkspacesList();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const localWorkspaces = useWorkspacesList({ enabled: isAuthenticated });
   const { data: machineWorkspaces } = useMachineWorkspacesQuery(machineId, isRemote);
   const workspaces = isRemote ? (machineWorkspaces ?? EMPTY_WORKSPACES) : localWorkspaces;
 
