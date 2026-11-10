@@ -573,33 +573,6 @@ MODELS: dict[str, ModelInfo] = {
         1_000_000,
         effort_levels=("low", "medium", "high"),
     ),
-    "antigravity:gemini-3.7-flash": ModelInfo(
-        "Gemini 3.7 Flash",
-        AgentKind.ANTIGRAVITY,
-        1_000_000,
-        legacy=True,
-        effort_levels=("low", "medium", "high"),
-    ),
-    "antigravity:gemini-3.6-flash": ModelInfo(
-        "Gemini 3.6 Flash",
-        AgentKind.ANTIGRAVITY,
-        1_000_000,
-        legacy=True,
-        effort_levels=("low", "medium", "high"),
-    ),
-    "antigravity:gemini-3.5-flash": ModelInfo(
-        "Gemini 3.5 Flash",
-        AgentKind.ANTIGRAVITY,
-        1_000_000,
-        legacy=True,
-        effort_levels=("low", "medium", "high"),
-    ),
-    "antigravity:gemini-3.1-pro": ModelInfo(
-        "Gemini 3.1 Pro",
-        AgentKind.ANTIGRAVITY,
-        1_000_000,
-        effort_levels=("low", "high"),
-    ),
     "opencode:opencode/beam-free": ModelInfo(
         "Beam Free (OpenCode)",
         AgentKind.OPENCODE,
