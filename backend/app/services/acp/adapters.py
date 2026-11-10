@@ -376,14 +376,6 @@ class AntigravityAgentAdapter(AgentAdapter):
     session_modes = frozenset({"default", "auto_edit", "yolo"})
     fallback_session_mode = "yolo"
     default_thinking_mode = "high"
-    # OAuth-path server IDs; API-key auth advertises different unsupported IDs.
-    OAUTH_MODEL_IDS = {
-        ("gemini-3.5-flash", "high"): "gemini-3-flash-agent",
-        ("gemini-3.5-flash", "medium"): "gemini-3.5-flash-low",
-        ("gemini-3.5-flash", "low"): "gemini-3.5-flash-extra-low",
-        ("gemini-3.1-pro", "high"): "gemini-pro-agent",
-        ("gemini-3.1-pro", "low"): "gemini-3.1-pro-low",
-    }
 
     def reasoning_effort(self, model_id: str, thinking_mode: str | None) -> str:
         # Every Antigravity model has tiers, and its model IDs encode one.
@@ -396,9 +388,7 @@ class AntigravityAgentAdapter(AgentAdapter):
     def map_model_id(self, model_id: str, reasoning_effort: str | None = None) -> str:
         effort = self.reasoning_effort(model_id, reasoning_effort)
         server_model_id = model_id.removeprefix(self.model_id_namespace)
-        return self.OAUTH_MODEL_IDS.get(
-            (server_model_id, effort), f"{server_model_id}-{effort}"
-        )
+        return f"{server_model_id}-{effort}"
 
     def build_session_meta(
         self, system_prompt: str | None, system_prompt_is_full_replace: bool

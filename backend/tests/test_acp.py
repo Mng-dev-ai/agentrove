@@ -320,7 +320,7 @@ def last_tool(message: dict[str, Any], tool_id: str) -> dict[str, Any]:
         ("sonnet", "sonnet"),
         ("gpt-5.4", "gpt-5.4"),
         # Antigravity encodes the (default) effort tier in the model id.
-        ("antigravity:gemini-3.1-pro", "gemini-pro-agent"),
+        ("antigravity:gemini-4-argon", "gemini-4-argon-high"),
         ("copilot:gpt-5.4", "gpt-5.4"),
         ("cursor:auto", "auto"),
         ("grok:grok-4.5", "grok-4.5"),
