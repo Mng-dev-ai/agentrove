@@ -7,6 +7,7 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
@@ -72,18 +73,41 @@ class RefreshTokenService:
         ip_address: str | None = None,
     ) -> tuple[User, str, UUID | None]:
         now = datetime.now(timezone.utc)
+        token_hash = hash_refresh_token(token)
         refresh_token = await db.scalar(
             update(RefreshToken)
             .where(
-                RefreshToken.token_hash == hash_refresh_token(token),
+                RefreshToken.token_hash == token_hash,
                 RefreshToken.revoked_at.is_(None),
                 RefreshToken.expires_at > now,
             )
             .values(revoked_at=now)
             .returning(RefreshToken)
         )
-        if refresh_token is None:
-            raise AuthException("Invalid or expired refresh token")
+        if refresh_token is not None:
+            parent_id: UUID | None = refresh_token.id
+        else:
+            # Lost-response replay: consume the presented token's never-used successor.
+            presented = aliased(RefreshToken)
+            refresh_token = await db.scalar(
+                update(RefreshToken)
+                .where(
+                    RefreshToken.parent_id
+                    == select(presented.id)
+                    .where(
+                        presented.token_hash == token_hash,
+                        presented.expires_at > now,
+                    )
+                    .scalar_subquery(),
+                    RefreshToken.revoked_at.is_(None),
+                    RefreshToken.expires_at > now,
+                )
+                .values(revoked_at=now)
+                .returning(RefreshToken)
+            )
+            if refresh_token is None:
+                raise AuthException("Invalid or expired refresh token")
+            parent_id = refresh_token.parent_id
 
         user_result = await db.execute(
             select(User).where(User.id == refresh_token.user_id)
@@ -115,7 +139,7 @@ class RefreshTokenService:
             expires_at=new_expires_at,
             user_agent=user_agent,
             ip_address=ip_address,
-            parent_id=refresh_token.id,
+            parent_id=parent_id,
             device_id=refresh_token.device_id,
         )
 

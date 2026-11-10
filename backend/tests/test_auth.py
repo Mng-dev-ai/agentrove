@@ -456,57 +456,42 @@ async def test_refresh_rotates_refresh_token(
     assert body["token_type"] == "bearer"
 
 
-async def test_refresh_rejects_replay_of_rotated_token(
+async def test_refresh_replay_after_lost_response_replaces_unused_successor(
     client: AsyncClient,
     create_user: UserFactory,
     login: LoginClient,
+    db_session: AsyncSession,
 ) -> None:
-    await create_user(email="refresh@example.com", username="refreshuser")
+    user = await create_user(email="refresh@example.com", username="refreshuser")
     tokens = await login(email="refresh@example.com")
-    first = await client.post(
+    lost = await client.post(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": tokens["refresh_token"]},
     )
-    assert first.status_code == 200
+    assert lost.status_code == 200
 
     replay = await client.post(
         "/api/v1/auth/jwt/refresh",
         json={"refresh_token": tokens["refresh_token"]},
     )
 
-    assert replay.status_code == 401
-    assert replay.json()["detail"] == "Invalid or expired refresh token"
-
-
-async def test_refresh_replay_rejected_without_revoking_successor(
-    client: AsyncClient,
-    create_user: UserFactory,
-    login: LoginClient,
-) -> None:
-    await create_user(email="refresh@example.com", username="refreshuser")
-    tokens = await login(email="refresh@example.com")
-    rotated = await client.post(
-        "/api/v1/auth/jwt/refresh",
-        json={"refresh_token": tokens["refresh_token"]},
+    assert replay.status_code == 200
+    assert replay.json()["refresh_token"] not in (
+        tokens["refresh_token"],
+        lost.json()["refresh_token"],
     )
-    assert rotated.status_code == 200
-    replay = await client.post(
+    discarded = await client.post(
         "/api/v1/auth/jwt/refresh",
-        json={"refresh_token": tokens["refresh_token"]},
+        json={"refresh_token": lost.json()["refresh_token"]},
     )
-    assert replay.status_code == 401
-
-    successor = await client.post(
-        "/api/v1/auth/jwt/refresh",
-        json={"refresh_token": rotated.json()["refresh_token"]},
-    )
-
-    assert successor.status_code == 200
-    for refresh_token in (tokens["refresh_token"], rotated.json()["refresh_token"]):
-        response = await client.post(
-            "/api/v1/auth/jwt/refresh", json={"refresh_token": refresh_token}
+    assert discarded.status_code == 401
+    assert discarded.json()["detail"] == "Invalid or expired refresh token"
+    live = await db_session.scalars(
+        select(RefreshToken.token_hash).where(
+            RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None)
         )
-        assert response.status_code == 401
+    )
+    assert live.all() == [hash_refresh_token(replay.json()["refresh_token"])]
 
 
 async def test_refresh_rejects_rotated_token_after_successor_used(
