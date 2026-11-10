@@ -426,6 +426,30 @@ class LocalDockerProvider(SandboxProvider):
                 is_binary=is_binary,
             )
 
+    async def read_file_bytes(
+        self, sandbox_id: str, path: str, max_bytes: int
+    ) -> bytes:
+        # Exec runs as the container's sandbox user, so permissions match what
+        # the agent sees; get_archive would read as root.
+        async with self._docker_operation("read file from Docker sandbox"):
+            container = await self._get_container(sandbox_id)
+            exec_obj = await container.exec(
+                cmd=["head", "-c", str(max_bytes), "--", path]
+            )
+            stdout: list[bytes] = []
+            stderr: list[bytes] = []
+            stream = exec_obj.start()
+            try:
+                while (msg := await stream.read_out()) is not None:
+                    (stdout if msg.stream == 1 else stderr).append(msg.data)
+            finally:
+                await stream.close()
+            exit_code = (await exec_obj.inspect()).get("ExitCode", -1)
+        if exit_code != 0:
+            error = b"".join(stderr).decode("utf-8", errors="replace").strip()
+            raise SandboxException(f"Cannot read {path}: {error}")
+        return b"".join(stdout)
+
     async def create_pty(
         self,
         sandbox_id: str,

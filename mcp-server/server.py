@@ -1,8 +1,14 @@
+import functools
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from pydantic import BaseModel, Field
+from starlette.datastructures import Headers
+from starlette.types import Receive, Scope, Send
 
 from client import DEFAULT_API_URL, AgentroveClient, AgentroveError, ChatBusyError
 
@@ -69,7 +75,8 @@ def _automation_summary(a: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _build_client() -> AgentroveClient:
+@functools.cache
+def _env_client() -> AgentroveClient:
     # The backend mints a per-user token for the chat's owner at session spawn.
     access_token = os.environ.get("AGENTROVE_ACCESS_TOKEN")
     if not access_token:
@@ -78,7 +85,63 @@ def _build_client() -> AgentroveClient:
     return AgentroveClient(base_url, access_token)
 
 
-client = _build_client()
+def _session() -> tuple[AgentroveClient, str | None]:
+    """The API client and current chat id for this tool call.
+
+    Over HTTP they come from the request (see HttpEndpoint); over stdio, from the
+    env vars the backend sets when it spawns this process.
+    """
+    request = mcp.get_context().request_context.request
+    if request is None:
+        return _env_client(), os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
+    return request.state.agentrove_client, request.headers.get("X-Agentrove-Chat-Id")
+
+
+class _SandboxClient(AgentroveClient):
+    async def attach_file(self, chat_id: str, path: str) -> dict[str, Any]:
+        # HTTP callers are Docker sandbox agents: the file lives in their sandbox,
+        # not on the backend's filesystem.
+        resp = await self.request(
+            "POST",
+            f"/chat/chats/{chat_id}/attachments/sandbox",
+            json={"path": path},
+            expected=(201,),
+        )
+        return resp.json()
+
+
+class HttpEndpoint:
+    """ASGI app serving these tools over stateless streamable HTTP in the backend.
+
+    The backend authenticates the bearer token first; tool calls then reach the
+    REST API at api_url with that same token.
+    """
+
+    def __init__(self, api_url: str) -> None:
+        self._api_url = api_url
+        self._session_manager: StreamableHTTPSessionManager | None = None
+
+    @asynccontextmanager
+    async def run(self) -> AsyncIterator[None]:
+        # A session manager runs only once and FastMCP memoizes its own, so each
+        # app lifespan gets a fresh one.
+        self._session_manager = StreamableHTTPSessionManager(
+            app=mcp._mcp_server, json_response=True, stateless=True
+        )
+        async with self._session_manager.run():
+            yield
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if self._session_manager is None:
+            raise RuntimeError("HttpEndpoint.run() must be active to serve requests")
+        _, _, token = Headers(scope=scope).get("Authorization", "").partition(" ")
+        client = _SandboxClient(self._api_url, token)
+        # Request.state is scope["state"], which the transport hands to tools.
+        scope.setdefault("state", {})["agentrove_client"] = client
+        try:
+            await self._session_manager.handle_request(scope, receive, send)
+        finally:
+            await client.aclose()
 
 
 @mcp.tool()
@@ -89,6 +152,7 @@ async def list_workspaces() -> dict[str, Any]:
     send_message to create a new chat in that workspace; otherwise the most recently
     active workspace is used.
     """
+    client, _ = _session()
     workspaces = await client.list_workspaces()
     return {"workspaces": [{"id": w["id"], "name": w["name"]} for w in workspaces]}
 
@@ -108,6 +172,7 @@ async def list_models(
     Pass a model_id as `model_id` to send_message to use it; otherwise a Claude model is
     used. An instance can expose many models, so filter by agent_kind to narrow the list.
     """
+    client, _ = _session()
     models = await client.list_models(agent_kind)
     return {
         "models": [
@@ -130,7 +195,8 @@ async def get_current_chat() -> dict[str, Any]:
     current chat. Returns {"chat_id": null} if unknown (e.g. the server was launched
     standalone rather than for an AgentRove chat session).
     """
-    return {"chat_id": os.environ.get("AGENTROVE_CURRENT_CHAT_ID")}
+    _, chat_id = _session()
+    return {"chat_id": chat_id}
 
 
 @mcp.tool()
@@ -138,11 +204,11 @@ async def attach_file(path: str) -> dict[str, Any]:
     """Attach a local file to the current assistant message for the user to view or download.
 
     Use this for screenshots and other output files the user should see. Supported
-    types: PNG, JPEG, GIF, WebP, PDF and XLSX, up to 5 MB. Accepts an absolute path (including /tmp) or a path relative to the server's
+    types: PNG, JPEG, GIF, WebP, PDF and XLSX, up to 5 MB. Accepts an absolute path (including /tmp) or a path relative to the session's
     working directory. The file is copied into chat storage and remains available
     after the sandbox is deleted. Requires an active turn in an AgentRove chat.
     """
-    chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
+    client, chat_id = _session()
     if not chat_id:
         raise AgentroveError("attach_file requires an AgentRove chat session")
     return await client.attach_file(chat_id, path)
@@ -159,7 +225,7 @@ async def notify_user(title: str, body: str) -> dict[str, Any]:
     completion push. Title is 1-80 characters, body 1-500.
     Returns the created item.
     """
-    chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
+    client, chat_id = _session()
     if not chat_id:
         raise AgentroveError("notify_user requires an AgentRove chat session")
     return await client.notify_user(chat_id, title, body)
@@ -175,7 +241,7 @@ def _memory_summary(memory: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _current_workspace_id() -> str | None:
-    chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
+    client, chat_id = _session()
     return (await client.get_chat(chat_id))["workspace_id"] if chat_id else None
 
 
@@ -195,10 +261,10 @@ async def remember(
     existing scope unless scope is given. Title is 1-80 characters on one line,
     content 1-500. Returns the memory id.
     """
+    client, chat_id = _session()
     if scope is None and memory_id is None:
         scope = "workspace"
     body: dict[str, Any] = {"title": title, "content": content}
-    chat_id = os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
     if chat_id:
         body["chat_id"] = chat_id
     if scope == "workspace":
@@ -224,6 +290,7 @@ async def search_memory(query: str) -> list[dict[str, Any]]:
     Covers this chat's workspace plus global memories. Pass an empty query to list
     them all. Returns id, scope, title and content, pinned first, newest first.
     """
+    client, _ = _session()
     workspace_id = await _current_workspace_id()
     return [_memory_summary(m) for m in await client.search_memories(query, workspace_id)]
 
@@ -231,6 +298,7 @@ async def search_memory(query: str) -> list[dict[str, Any]]:
 @mcp.tool()
 async def forget(memory_id: str) -> dict[str, Any]:
     """Delete a memory from the shared AgentRove memory, e.g. one that turned out wrong."""
+    client, _ = _session()
     await client.delete_memory(memory_id)
     return {"deleted": True}
 
@@ -248,6 +316,7 @@ async def list_chats(
     Filter by workspace_id to scope to one workspace. Returns id, title, workspace_id,
     parent_chat_id, sub_thread_count and updated_at, plus pagination.
     """
+    client, _ = _session()
     data = await client.list_chats(workspace_id, page=page, per_page=per_page)
     chats = [
         {
@@ -280,6 +349,7 @@ async def search_chats(
     each with up to 5 matching message snippets. Read a hit in full with get_messages.
     truncated means more matches exist; narrow the query.
     """
+    client, _ = _session()
     workspace_id = await _current_workspace_id() if scope == "workspace" else None
     data = await client.search_chats(query, workspace_id, limit)
     results = [
@@ -312,6 +382,7 @@ async def list_personas() -> dict[str, Any]:
     send_message; if none are defined or `persona` is omitted, the standard "Default"
     persona is used.
     """
+    client, _ = _session()
     personas = await client.list_personas()
     return {
         "personas": [{"name": p["name"], "content": p["content"]} for p in personas]
@@ -325,6 +396,7 @@ async def get_persona(name: str) -> dict[str, Any]:
     `name` must match an existing persona (see list_personas). Returns name and content
     so you can inspect or copy a persona before updating it or using it with send_message.
     """
+    client, _ = _session()
     persona = await client.get_persona(name)
     return {"persona": {"name": persona["name"], "content": persona["content"]}}
 
@@ -337,6 +409,7 @@ async def create_persona(name: str, content: str) -> dict[str, Any]:
     persona); `content` is the system prompt that shapes the agent's behavior for turns
     using this persona. Returns the created persona's name.
     """
+    client, _ = _session()
     persona = await client.create_persona(name, content)
     return {"persona": {"name": persona["name"]}}
 
@@ -349,6 +422,7 @@ async def update_persona(name: str, content: str) -> dict[str, Any]:
     its current system prompt. Chats already streaming keep the prompt they started with;
     new turns pick up the updated one. Returns the updated persona's name.
     """
+    client, _ = _session()
     persona = await client.update_persona(name, content)
     return {"persona": {"name": persona["name"]}}
 
@@ -360,6 +434,7 @@ async def delete_persona(name: str) -> dict[str, Any]:
     `name` must match an existing persona (see list_personas). Chats that used it keep
     their history, but new turns can no longer select it. Returns {"deleted": true}.
     """
+    client, _ = _session()
     await client.delete_persona(name)
     return {"deleted": True}
 
@@ -415,6 +490,7 @@ async def send_message(
     "in_progress" to "completed". The turn runs unattended — it uses the model's full-execution permission
     mode (e.g. bypassPermissions for Claude, full-access for Codex).
     """
+    client, _ = _session()
     if chat_id is not None:
         # Inherit last turn's model/persona/effort when omitted (not globals).
         chat = await client.get_chat(chat_id)
@@ -503,7 +579,8 @@ async def stop_chat(chat_id: str) -> dict[str, Any]:
     chat this server runs inside (get_current_chat) can't be stopped — that would cancel
     the turn making this call. Returns {"stopped": true}.
     """
-    if chat_id == os.environ.get("AGENTROVE_CURRENT_CHAT_ID"):
+    client, current_chat_id = _session()
+    if chat_id == current_chat_id:
         raise AgentroveError("Cannot stop the current chat from within its own turn.")
     await client.stop_chat(chat_id)
     return {"stopped": True}
@@ -528,6 +605,7 @@ async def get_messages(
     means follow-ups in this chat run with little headroom; prefer a fresh chat or
     sub-thread with a distilled handoff instead of continuing a nearly-full one.
     """
+    client, _ = _session()
     page = await client.get_messages(chat_id, limit=limit, cursor=cursor)
     context_usage = await client.get_context_usage(chat_id)
     # Backend is newest-first; reverse for chronological readability.
@@ -558,6 +636,7 @@ async def list_channels(workspace_id: str | None = None) -> dict[str, Any]:
     get_channel_messages to read replies. Omit workspace_id to list channels across
     all workspaces.
     """
+    client, _ = _session()
     channels = await client.list_channels(workspace_id)
     return {"channels": [_channel_summary(channel) for channel in channels]}
 
@@ -583,6 +662,7 @@ async def create_channel(
     the channel does not start the discussion: call post_channel_message with its id.
     Members reply asynchronously; read the discussion with get_channel_messages.
     """
+    client, _ = _session()
     resolved_workspace = await client.resolve_workspace_id(workspace_id)
     resolved_members = []
     for member in members:
@@ -613,6 +693,7 @@ async def post_channel_message(channel_id: str, content: str) -> dict[str, Any]:
     read the discussion and members' replies.
     Returns the posted message_id, channel_id, seq and status, not the members' replies.
     """
+    client, _ = _session()
     message = await client.post_channel_message(channel_id, content)
     return {
         "message_id": message["id"],
@@ -633,6 +714,7 @@ async def get_channel_messages(channel_id: str, after_seq: int = 0) -> dict[str,
 
     Use this to follow a debate in one call instead of reading each member's chat.
     """
+    client, _ = _session()
     channel = await client.get_channel(channel_id)
     messages = await client.get_channel_messages(channel_id, after_seq)
     authors = {member["id"]: member["display_name"] for member in channel["members"]}
@@ -666,9 +748,10 @@ async def stop_channel(channel_id: str) -> dict[str, Any]:
     it belongs to from within its own turn, since that would cancel the calling turn.
     Returns {"stopped": true}.
     """
+    client, chat_id = _session()
     channel = await client.get_channel(channel_id)
     if any(
-        member["chat_id"] == os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
+        member["chat_id"] == chat_id
         for member in channel["members"]
     ):
         raise AgentroveError(
@@ -687,6 +770,7 @@ async def list_automations() -> dict[str, Any]:
     workspace_id and the next_run_at / last_run_at timestamps. Use an id with
     update_automation, delete_automation or run_automation.
     """
+    client, _ = _session()
     automations = await client.list_automations()
     return {"automations": [_automation_summary(a) for a in automations]}
 
@@ -716,6 +800,7 @@ async def create_automation(
 
     Returns the created automation, including its id and next_run_at.
     """
+    client, _ = _session()
     resolved_model, agent_kind = await client.resolve_model(model_id)
     resolved_workspace = await client.resolve_workspace_id(workspace_id)
     body: dict[str, Any] = {
@@ -757,6 +842,7 @@ async def update_automation(
     pause/resume, or cron_expression/timezone to reschedule (next_run_at is recomputed).
     Returns the updated automation.
     """
+    client, _ = _session()
     body: dict[str, Any] = {}
     if name is not None:
         body["name"] = name
@@ -787,6 +873,7 @@ async def update_automation(
 @mcp.tool()
 async def delete_automation(automation_id: str) -> dict[str, Any]:
     """Delete a scheduled automation permanently. Returns {"deleted": true}."""
+    client, _ = _session()
     await client.delete_automation(automation_id)
     return {"deleted": True}
 
@@ -799,6 +886,7 @@ async def run_automation(automation_id: str) -> dict[str, Any]:
     schedule (next_run_at) is unaffected. Returns the chat_id of the new chat — poll
     get_messages on it to read the reply.
     """
+    client, _ = _session()
     result = await client.run_automation(automation_id)
     return {"chat_id": result["chat_id"]}
 
