@@ -27,10 +27,10 @@ export async function syncChatStatus(
       .getState()
       .reconcileElicitationRequests(chatId, status.pending_elicitations, knownElicitationIds);
   }
-  if (status.pending_permission_ids) {
+  if (status.pending_permissions) {
     usePermissionStore
       .getState()
-      .reconcilePermissionRequests(chatId, status.pending_permission_ids, knownPermissionIds);
+      .reconcilePermissionRequests(chatId, status.pending_permissions, knownPermissionIds);
   }
   return status;
 }

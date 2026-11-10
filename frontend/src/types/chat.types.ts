@@ -273,5 +273,5 @@ export interface ChatStatusResponse {
   // Forms still awaiting an answer, oldest first. Server truth: event replay can
   // start past the control event when parallel tool activity advanced the snapshot.
   pending_elicitations?: ElicitationRequest[];
-  pending_permission_ids?: string[];
+  pending_permissions?: PermissionRequest[];
 }
