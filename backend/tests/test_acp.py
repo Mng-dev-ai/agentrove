@@ -365,6 +365,7 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
         ("copilot:claude-haiku-4.5", "high", "completed", None),
         # An explicit tier the model lacks fails the turn instead of clamping.
         ("copilot:kimi-k3", "medium", "failed", None),
+        ("gpt-6-luna", "low", "completed", "low"),
     ],
 )
 async def test_session_setup_gates_reasoning_effort_by_model(
@@ -386,7 +387,7 @@ async def test_session_setup_gates_reasoning_effort_by_model(
         chat_id=chat["id"],
         model_id=model_id,
         prompt="reason carefully",
-        permission_mode="agent",
+        permission_mode="agent" if ":" in model_id else "auto",
         thinking_mode=thinking_mode,
     )
     assert response.status_code == 200, response.text
@@ -407,6 +408,13 @@ async def test_session_setup_gates_reasoning_effort_by_model(
         assert effort_calls == []
     else:
         assert effort_calls[-1]["value"] == expected_effort
+
+    model_calls = [
+        event
+        for event in fake_agent.events_of("set_config_option")
+        if event["config_id"] == "model"
+    ]
+    assert model_calls[-1]["value"] == model_id.split(":")[-1]
 
 
 async def test_enhance_prompt_surfaces_session_creation_failure(
@@ -447,6 +455,7 @@ async def test_enhance_prompt_surfaces_mid_prompt_crash(
     assert "ACP call failed" in response.json()["detail"]
 
 
+@pytest.mark.parametrize("scenario", ["config_error", "model_error"])
 async def test_enhance_prompt_survives_config_option_failures(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
@@ -454,13 +463,15 @@ async def test_enhance_prompt_survives_config_option_failures(
     login: LoginClient,
     fake_agent: FakeAgentHandle,
     monkeypatch: pytest.MonkeyPatch,
+    scenario: str,
 ) -> None:
-    # Claude sets its reasoning effort via set_config_option right after the
-    # handshake; session.py must swallow a failure there and still run the turn.
+    # Claude sets its model and reasoning effort via set_config_option right
+    # after the handshake; one-shot tasks must swallow a failure there and
+    # still run the turn.
     headers, _user, _workspace = await create_authenticated_workspace(
         db_session, create_user, login, email="config-error@example.com"
     )
-    monkeypatch.setenv("FAKE_ACP_SCENARIO", "config_error")
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", scenario)
 
     response = await enhance_prompt(
         client, headers, prompt="hi", model_id="claude-opus-5"
