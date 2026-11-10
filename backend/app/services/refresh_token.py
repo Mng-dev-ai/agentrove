@@ -88,6 +88,7 @@ class RefreshTokenService:
             parent_id: UUID | None = refresh_token.id
         else:
             # Lost-response replay: consume the presented token's never-used successor.
+            # revoked_at < now: only a request that began after the consume is a retry.
             presented = aliased(RefreshToken)
             refresh_token = await db.scalar(
                 update(RefreshToken)
@@ -96,6 +97,7 @@ class RefreshTokenService:
                     == select(presented.id)
                     .where(
                         presented.token_hash == token_hash,
+                        presented.revoked_at < now,
                         presented.expires_at > now,
                     )
                     .scalar_subquery(),
