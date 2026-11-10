@@ -1,15 +1,17 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { Inbox } from 'lucide-react';
+import { Inbox, Server } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import {
+  type MachineInboxItem,
   useClearReadInboxMutation,
-  useInboxQuery,
+  useInboxAcrossMachines,
   useMarkAllInboxReadMutation,
   useMarkInboxReadMutation,
 } from '@/hooks/queries/useInboxQueries';
@@ -17,15 +19,17 @@ import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { formatRelativeTime } from '@/utils/date';
 import { logger } from '@/utils/logger';
-import type { InboxItem } from '@/types/inbox.types';
+import { machineName } from '@/store/machineStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import styles from './InboxPage.module.scss';
 
 interface InboxRowProps {
-  item: InboxItem;
-  onOpen: (item: InboxItem) => void;
+  entry: MachineInboxItem;
+  onOpen: (entry: MachineInboxItem) => void;
 }
 
-function InboxRow({ item, onOpen }: InboxRowProps) {
+function InboxRow({ entry, onOpen }: InboxRowProps) {
+  const { item, machineId } = entry;
   const bodyRef = useRef<HTMLSpanElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
@@ -61,7 +65,7 @@ function InboxRow({ item, onOpen }: InboxRowProps) {
       <Button
         type="button"
         variant="unstyled"
-        onClick={() => onOpen(item)}
+        onClick={() => onOpen(entry)}
         className={styles['open-btn']}
       >
         <span className={styles['status-slot']}>
@@ -73,6 +77,12 @@ function InboxRow({ item, onOpen }: InboxRowProps) {
             {item.body}
           </span>
         </span>
+        {machineId !== LOCAL_MACHINE_ID && (
+          <span className={styles['machine-badge']}>
+            <Server className={styles['machine-icon']} />
+            {machineName(machineId)}
+          </span>
+        )}
         <span className={styles.time}>{formatRelativeTime(item.created_at)}</span>
       </Button>
       <div className={styles.footer}>
@@ -104,7 +114,16 @@ export function InboxPage() {
   const navigate = useNavigate();
   useCommandMenu();
   const workspaces = useWorkspacesList();
-  const { data, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } = useInboxQuery();
+  const {
+    machineIds,
+    items,
+    unreadCount,
+    hasReadItems,
+    isLoading,
+    hasMore,
+    isFetchingMore,
+    loadMore,
+  } = useInboxAcrossMachines();
   const markRead = useMarkInboxReadMutation();
   const markAllRead = useMarkAllInboxReadMutation();
   const clearRead = useClearReadInboxMutation();
@@ -123,14 +142,14 @@ export function InboxPage() {
 
   useLayoutSidebar(sidebarContent);
 
-  const items = data?.pages.flatMap((page) => page.items) ?? [];
-  const unreadCount = data?.pages[0]?.unread_count ?? 0;
-  // Unloaded pages may still hold read items.
-  const hasReadItems = hasNextPage || items.some((item) => item.read_at);
-
-  const openItem = (item: InboxItem) => {
-    if (!item.read_at) markRead.mutate(item.id);
+  const openItem = ({ item, machineId }: MachineInboxItem) => {
+    if (!item.read_at) markRead.mutate({ itemId: item.id, machineId });
     navigate(`/chat/${item.chat_id}`);
+  };
+
+  const reportFailures = (action: string) => (failed: string[]) => {
+    if (failed.length > 0)
+      toast.error(`Couldn't ${action} on ${failed.map(machineName).join(', ')}`);
   };
 
   return (
@@ -148,7 +167,9 @@ export function InboxPage() {
               size="sm"
               className={styles['mark-all-btn']}
               disabled={unreadCount === 0 || markAllRead.isPending}
-              onClick={() => markAllRead.mutate()}
+              onClick={() =>
+                markAllRead.mutate(machineIds, { onSuccess: reportFailures('mark all read') })
+              }
             >
               Mark all read
             </Button>
@@ -158,7 +179,9 @@ export function InboxPage() {
               size="sm"
               className={styles['mark-all-btn']}
               disabled={!hasReadItems || clearRead.isPending}
-              onClick={() => clearRead.mutate()}
+              onClick={() =>
+                clearRead.mutate(machineIds, { onSuccess: reportFailures('clear read') })
+              }
             >
               Clear read
             </Button>
@@ -176,19 +199,19 @@ export function InboxPage() {
           </div>
         ) : (
           <div className={styles.list}>
-            {items.map((item) => (
-              <InboxRow key={item.id} item={item} onOpen={openItem} />
+            {items.map((entry) => (
+              <InboxRow key={entry.item.id} entry={entry} onOpen={openItem} />
             ))}
-            {hasNextPage && (
+            {hasMore && (
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
                 className={styles['load-more-btn']}
-                disabled={isFetchingNextPage}
-                onClick={() => fetchNextPage()}
+                disabled={isFetchingMore}
+                onClick={loadMore}
               >
-                {isFetchingNextPage ? 'Loading…' : 'Load more'}
+                {isFetchingMore ? 'Loading…' : 'Load more'}
               </Button>
             )}
           </div>

@@ -1,6 +1,6 @@
 import { Inbox, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { useInboxQuery } from '@/hooks/queries/useInboxQueries';
+import { useInboxAcrossMachines } from '@/hooks/queries/useInboxQueries';
 import styles from './SidebarActions.module.scss';
 
 interface SidebarActionsProps {
@@ -10,8 +10,7 @@ interface SidebarActionsProps {
 }
 
 export function SidebarActions({ onNewChat, onOpenSearch, onOpenInbox }: SidebarActionsProps) {
-  const { data } = useInboxQuery();
-  const unreadCount = data?.pages[0]?.unread_count ?? 0;
+  const { unreadCount } = useInboxAcrossMachines();
 
   return (
     <div className={styles.actions}>

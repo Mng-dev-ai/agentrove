@@ -6,9 +6,10 @@ import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { machineChatService } from '@/services/machineChatService';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
-import { mergeRecentChatSources, type RecentChatSource } from '@/utils/mergeChatSources';
+import { mergeRecentSources } from '@/utils/mergeRecentSources';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { PaginatedChats } from '@/types/api.types';
+import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
 
 export interface WorkspaceBadge {
@@ -16,7 +17,9 @@ export interface WorkspaceBadge {
   machineId: string;
 }
 
-interface RemoteChatSource extends RecentChatSource {
+interface RemoteChatSource {
+  chats: Chat[];
+  hasMore: boolean;
   isLoading: boolean;
   isFetchingMore: boolean;
 }
@@ -130,13 +133,16 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
 
   const recentChats = useMemo(() => {
     const local = localChatsData?.pages.flatMap((page) => page.items) ?? [];
-    return mergeRecentChatSources([
-      { chats: local, hasMore: !!hasMoreLocal },
-      ...remoteSourceList.map((source) => ({
-        chats: source.chats.filter((chat) => !chat.pinned_at),
-        hasMore: source.hasMore,
-      })),
-    ]);
+    return mergeRecentSources(
+      [
+        { items: local, hasMore: !!hasMoreLocal },
+        ...remoteSourceList.map((source) => ({
+          items: source.chats.filter((chat) => !chat.pinned_at),
+          hasMore: source.hasMore,
+        })),
+      ],
+      (chat) => chat.updated_at,
+    );
   }, [localChatsData?.pages, hasMoreLocal, remoteSourceList]);
 
   const machineWorkspaces = useMachinesWorkspaces(remoteMachineIds, enabled);

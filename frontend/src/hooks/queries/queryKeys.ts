@@ -83,6 +83,10 @@ export const queryKeys = {
       ['machine', machineId, 'chats', 'page', page] as const,
     activeStreams: (machineId: string) => ['machine', machineId, 'active-streams'] as const,
     automations: (machineId: string) => ['machine', machineId, 'automations'] as const,
+    memories: (machineId: string, workspaceId: string | null) =>
+      ['machine', machineId, 'memories', workspaceId] as const,
+    memoriesAll: (machineId: string) => ['machine', machineId, 'memories'] as const,
+    inbox: (machineId: string) => ['machine', machineId, 'inbox'] as const,
   },
   inbox: ['inbox'] as const,
   memories: (workspaceId: string | null) => ['memories', workspaceId] as const,
