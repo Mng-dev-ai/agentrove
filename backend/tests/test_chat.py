@@ -791,10 +791,14 @@ async def test_delete_all_chats_only_deletes_current_user_chats(
         f"/api/v1/chat/chats/{owner_chat.id}", headers=owner_headers
     )
     other_list = await client.get("/api/v1/chat/chats", headers=other_headers)
+    owner_workspace_after = await client.get(
+        f"/api/v1/workspaces/{owner_workspace.id}", headers=owner_headers
+    )
 
     assert response.status_code == 204
     assert owner_list.status_code == 200
     assert owner_list.json()["items"] == []
+    assert owner_workspace_after.status_code == 200
     assert owner_detail.status_code == 404
     assert other_list.status_code == 200
     assert [item["id"] for item in other_list.json()["items"]] == [str(other_chat.id)]
