@@ -318,8 +318,8 @@ def last_tool(message: dict[str, Any], tool_id: str) -> dict[str, Any]:
     "model_id,agent_model_id",
     [
         ("sonnet", "sonnet"),
-        # Codex and Antigravity encode the (default) effort tier in the model id.
-        ("gpt-5.4", "gpt-5.4[medium]"),
+        ("gpt-5.4", "gpt-5.4"),
+        # Antigravity encodes the (default) effort tier in the model id.
         ("antigravity:gemini-3.1-pro", "gemini-pro-agent"),
         ("copilot:gpt-5.4", "gpt-5.4"),
         ("cursor:auto", "auto"),
@@ -1563,7 +1563,7 @@ async def test_chat_model_errors_survive_but_permission_mode_errors_fail(
         if event["config_id"] == "model"
     ]
     assert len(set_models) >= 2
-    assert set_models[-1]["value"] == "gpt-5.6-luna[medium]"
+    assert set_models[-1]["value"] == "gpt-5.6-luna"
 
     set_modes = fake_agent.events_of("set_session_mode")
     assert set_modes
