@@ -515,6 +515,35 @@ class MessageService(BaseDbService[Message]):
             result = await db.execute(query)
             return list(result.scalars().all())
 
+    async def get_permission_requests(
+        self, message_id: UUID, request_ids: list[str]
+    ) -> list[dict[str, Any]]:
+        if not request_ids:
+            return []
+        async with self.session_factory() as db:
+            result = await db.execute(
+                select(MessageEvent)
+                .where(
+                    MessageEvent.message_id == message_id,
+                    MessageEvent.event_type == "permission_request",
+                )
+                .order_by(MessageEvent.seq.asc())
+            )
+            events = result.scalars().all()
+        # Providers may reuse a tool-call id within a turn; the latest ask wins.
+        requests = {
+            event.render_payload["request_id"]: {
+                "request_id": event.render_payload["request_id"],
+                "tool_name": event.render_payload["tool_name"],
+                "tool_input": event.render_payload["tool_input"],
+                "options": event.render_payload["data"]["options"],
+                "seq": event.seq,
+            }
+            for event in events
+            if event.render_payload["request_id"] in request_ids
+        }
+        return list(requests.values())
+
     async def get_attachment(
         self, attachment_id: UUID, db: AsyncSession
     ) -> MessageAttachment | None:

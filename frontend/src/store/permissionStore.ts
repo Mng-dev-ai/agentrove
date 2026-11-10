@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { PermissionRequest } from '@/types/chat.types';
+import { isPermissionResolved } from '@/utils/permissionStorage';
 
 interface PermissionState {
   // FIFO per chat — agents may batch tool calls; a single slot would drop earlier ones.
@@ -8,9 +9,10 @@ interface PermissionState {
   enqueuePermissionRequest: (chatId: string, request: PermissionRequest) => boolean;
   resolvePermissionRequest: (chatId: string, requestId: string) => void;
   clearPermissionRequests: (chatId: string) => void;
+  // Server truth from GET /chats/{id}/status — event replay can miss pending prompts.
   reconcilePermissionRequests: (
     chatId: string,
-    requestIds: string[],
+    requests: PermissionRequest[],
     knownIds: Set<string>,
   ) => void;
 }
@@ -55,15 +57,27 @@ export const usePermissionStore = create<PermissionState>((set, get) => ({
     });
   },
 
-  reconcilePermissionRequests: (chatId: string, requestIds: string[], knownIds: Set<string>) => {
+  reconcilePermissionRequests: (
+    chatId: string,
+    requests: PermissionRequest[],
+    knownIds: Set<string>,
+  ) => {
     set((state) => {
-      const queue = state.pendingRequests.get(chatId);
-      if (!queue) return state;
-      const serverIds = new Set(requestIds);
-      const nextQueue = queue.filter(
-        (r) => serverIds.has(r.request_id) || !knownIds.has(r.request_id),
+      const queue = state.pendingRequests.get(chatId) ?? [];
+      const serverIds = new Set(requests.map((r) => r.request_id));
+      const kept = queue.filter((r) => serverIds.has(r.request_id) || !knownIds.has(r.request_id));
+      const keptIds = new Set(kept.map((r) => r.request_id));
+      // Prompts dropped or answered while the status request was in flight are still listed.
+      const added = requests.filter(
+        (r) =>
+          !keptIds.has(r.request_id) &&
+          !knownIds.has(r.request_id) &&
+          !isPermissionResolved(chatId, r.seq),
       );
-      if (nextQueue.length === queue.length) return state;
+      const nextQueue = [...kept, ...added];
+      if (nextQueue.length === queue.length && nextQueue.every((r, i) => r === queue[i])) {
+        return state;
+      }
       const nextRequests = new Map(state.pendingRequests);
       if (nextQueue.length === 0) {
         nextRequests.delete(chatId);

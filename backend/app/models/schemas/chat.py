@@ -149,13 +149,21 @@ class PendingElicitation(BaseModel):
     requested_schema: dict[str, Any]
 
 
+class PendingPermission(BaseModel):
+    request_id: str
+    tool_name: str
+    tool_input: dict[str, Any]
+    options: list[dict[str, Any]]
+    seq: int
+
+
 class ChatStatusResponse(BaseModel):
     has_active_task: bool
     message_id: UUID | None = None
     stream_id: UUID | None = None
     last_seq: int = 0
     pending_elicitations: list[PendingElicitation] = Field(default_factory=list)
-    pending_permission_ids: list[str] = Field(default_factory=list)
+    pending_permissions: list[PendingPermission] = Field(default_factory=list)
 
 
 class ActiveStreamStatus(BaseModel):

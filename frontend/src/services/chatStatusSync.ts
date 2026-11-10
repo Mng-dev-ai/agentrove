@@ -27,10 +27,17 @@ export async function syncChatStatus(
       .getState()
       .reconcileElicitationRequests(chatId, status.pending_elicitations, knownElicitationIds);
   }
-  if (status.pending_permission_ids) {
+  if (status.pending_permissions) {
     usePermissionStore
       .getState()
-      .reconcilePermissionRequests(chatId, status.pending_permission_ids, knownPermissionIds);
+      .reconcilePermissionRequests(chatId, status.pending_permissions, knownPermissionIds);
+  } else if (status.pending_permission_ids) {
+    // Older paired-machine backends send ids only: keep the queued prompts they still list.
+    const serverIds = new Set(status.pending_permission_ids);
+    const listed = (usePermissionStore.getState().pendingRequests.get(chatId) ?? []).filter((r) =>
+      serverIds.has(r.request_id),
+    );
+    usePermissionStore.getState().reconcilePermissionRequests(chatId, listed, knownPermissionIds);
   }
   return status;
 }
