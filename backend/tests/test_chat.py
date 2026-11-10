@@ -706,7 +706,7 @@ async def test_mark_chat_viewed_and_update_preserve_read_state_across_bumps(
     assert updated["unread"] is False
 
 
-async def test_delete_chat_cascades_sub_threads_and_last_chat_deletes_workspace(
+async def test_delete_chat_cascades_sub_threads_and_keeps_workspace_after_last_chat(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
@@ -764,7 +764,7 @@ async def test_delete_chat_cascades_sub_threads_and_last_chat_deletes_workspace(
     )
 
     assert last_delete.status_code == 204
-    assert workspace_after_last.status_code == 404
+    assert workspace_after_last.status_code == 200
 
 
 async def test_delete_all_chats_only_deletes_current_user_chats(
@@ -791,10 +791,14 @@ async def test_delete_all_chats_only_deletes_current_user_chats(
         f"/api/v1/chat/chats/{owner_chat.id}", headers=owner_headers
     )
     other_list = await client.get("/api/v1/chat/chats", headers=other_headers)
+    owner_workspace_after = await client.get(
+        f"/api/v1/workspaces/{owner_workspace.id}", headers=owner_headers
+    )
 
     assert response.status_code == 204
     assert owner_list.status_code == 200
     assert owner_list.json()["items"] == []
+    assert owner_workspace_after.status_code == 200
     assert owner_detail.status_code == 404
     assert other_list.status_code == 200
     assert [item["id"] for item in other_list.json()["items"]] == [str(other_chat.id)]

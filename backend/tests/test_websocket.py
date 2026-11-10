@@ -25,7 +25,6 @@ from app.constants import (
     WS_MSG_REFRESH,
     WS_MSG_RESIZE,
 )
-from app.models.db_models.chat import Chat
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.types import (
@@ -825,65 +824,6 @@ async def test_delete_workspace_terminates_terminal_sessions(
     response = await client.delete(
         f"/api/v1/workspaces/{workspace.id}", headers=headers
     )
-    assert response.status_code == 204
-
-    await assert_terminal_terminated(pty_provider, workspace.sandbox_id, pty_id)
-
-
-async def test_delete_last_chat_terminates_workspace_terminal_sessions(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    pty_provider: FakePtySandboxProvider,
-) -> None:
-    # Deleting the last chat auto-deletes the workspace — that path must run
-    # the same terminal teardown as an explicit workspace delete.
-    headers, user, workspace = await create_authenticated_workspace(
-        db_session,
-        create_user,
-        login,
-        email="pty-chatdel@example.com",
-        username="ptychatdel",
-    )
-    chat = Chat(title="Only Chat", user_id=user.id, workspace_id=workspace.id)
-    db_session.add(chat)
-    await db_session.commit()
-    await db_session.refresh(chat)
-
-    token = headers["Authorization"].removeprefix("Bearer ")
-    pty_id = await attach_then_detach_terminal(
-        workspace.sandbox_id, token, "term-chatdel"
-    )
-
-    response = await client.delete(f"/api/v1/chat/chats/{chat.id}", headers=headers)
-    assert response.status_code == 204
-
-    await assert_terminal_terminated(pty_provider, workspace.sandbox_id, pty_id)
-
-
-async def test_delete_all_chats_terminates_terminal_sessions(
-    client: AsyncClient,
-    db_session: AsyncSession,
-    create_user: UserFactory,
-    login: LoginClient,
-    pty_provider: FakePtySandboxProvider,
-) -> None:
-    # The bulk delete-all path tears down every workspace's sandbox — it must
-    # kill terminal sessions too, same as the single-delete paths.
-    headers, _user, workspace = await create_authenticated_workspace(
-        db_session,
-        create_user,
-        login,
-        email="pty-delall@example.com",
-        username="ptydelall",
-    )
-    token = headers["Authorization"].removeprefix("Bearer ")
-    pty_id = await attach_then_detach_terminal(
-        workspace.sandbox_id, token, "term-delall"
-    )
-
-    response = await client.delete("/api/v1/chat/chats/all", headers=headers)
     assert response.status_code == 204
 
     await assert_terminal_terminated(pty_provider, workspace.sandbox_id, pty_id)
