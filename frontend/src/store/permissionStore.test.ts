@@ -1,6 +1,13 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+// @vitest-environment jsdom
+
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { usePermissionStore } from './permissionStore';
+import { syncChatStatus } from '@/services/chatStatusSync';
+import { addResolvedPermission } from '@/utils/permissionStorage';
 import type { PermissionRequest } from '@/types/chat.types';
+
+const { checkChatStatus } = vi.hoisted(() => ({ checkChatStatus: vi.fn() }));
+vi.mock('@/services/chatService', () => ({ chatService: { checkChatStatus } }));
 
 const request = (id: string, seq = 0): PermissionRequest => ({
   request_id: id,
@@ -15,6 +22,7 @@ const idsOf = (chatId: string) => queueOf(chatId)?.map((r) => r.request_id);
 
 beforeEach(() => {
   usePermissionStore.setState({ pendingRequests: new Map() });
+  localStorage.clear();
 });
 
 describe('enqueuePermissionRequest', () => {
@@ -56,5 +64,38 @@ describe('resolvePermissionRequest', () => {
     usePermissionStore.getState().resolvePermissionRequest('c1', 'missing');
     usePermissionStore.getState().resolvePermissionRequest('missing', 'r1');
     expect(usePermissionStore.getState().pendingRequests).toBe(before);
+  });
+});
+
+describe('reconcilePermissionRequests', () => {
+  const reconcile = (requests: PermissionRequest[], knownIds: string[] = []) =>
+    usePermissionStore.getState().reconcilePermissionRequests('c1', requests, new Set(knownIds));
+
+  it('adds a server-pending request missing locally', () => {
+    reconcile([request('r1', 11)]);
+    expect(queueOf('c1')).toEqual([request('r1', 11)]);
+  });
+
+  it('does not re-add a request already answered locally', () => {
+    addResolvedPermission('c1', 11);
+    reconcile([request('r1', 11)]);
+    expect(usePermissionStore.getState().pendingRequests.has('c1')).toBe(false);
+  });
+
+  it('does not re-add a known request removed locally during the poll', () => {
+    reconcile([request('r1', 11)], ['r1']);
+    expect(usePermissionStore.getState().pendingRequests.has('c1')).toBe(false);
+  });
+
+  it('falls back to remove-only for ids-only status responses', async () => {
+    const enqueue = usePermissionStore.getState().enqueuePermissionRequest;
+    enqueue('c1', request('r1'));
+    enqueue('c1', request('r2'));
+    checkChatStatus.mockResolvedValue({
+      has_active_task: true,
+      pending_permission_ids: ['r2', 'r3'],
+    });
+    await syncChatStatus('c1', () => true);
+    expect(idsOf('c1')).toEqual(['r2']);
   });
 });

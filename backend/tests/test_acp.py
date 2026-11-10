@@ -954,6 +954,19 @@ async def test_chat_permission_response_flow(
     option_ids = {opt["option_id"] for opt in payload["data"]["options"]}
     assert option_ids == {"acceptEdits", "reject-once", "plan"}
 
+    status_path = f"/api/v1/chat/chats/{chat['id']}/status"
+    pending_status = await client.get(status_path, headers=headers)
+    assert pending_status.status_code == 200, pending_status.text
+    assert pending_status.json()["pending_permissions"] == [
+        {
+            "request_id": request_id,
+            "tool_name": payload["tool_name"],
+            "tool_input": payload["tool_input"],
+            "options": payload["data"]["options"],
+            "seq": permission_event["seq"],
+        }
+    ]
+
     respond = await client.post(
         f"/api/v1/chat/chats/{chat['id']}/permissions/{request_id}/respond",
         data={"option_id": option_id},
@@ -974,6 +987,8 @@ async def test_chat_permission_response_flow(
         client, headers, chat_id=chat["id"], message_id=message_id
     )
     assert message["stream_status"] == "completed"
+    resolved_status = await client.get(status_path, headers=headers)
+    assert resolved_status.json()["pending_permissions"] == []
 
     tool = last_tool(message, "tool-permission")
     assert tool["status"] == expect_status.removeprefix("tool_")
