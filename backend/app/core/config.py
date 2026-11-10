@@ -1,4 +1,5 @@
 import logging
+import os
 import platform
 import sys
 from datetime import datetime, timezone
@@ -6,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-from pydantic import ValidationInfo, field_validator, model_validator
+from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings
 from pythonjsonlogger import jsonlogger
 
@@ -152,12 +153,17 @@ class Settings(BaseSettings):
     GIT_AUTHOR_NAME: str = ""
     GIT_AUTHOR_EMAIL: str = ""
 
-    # Lifetime of the per-user token minted at session spawn for the stdio MCP
-    # server (mcp-server/server.py), which calls this backend at BASE_URL.
+    # Lifetime of the per-user token minted at session spawn for the agentrove
+    # MCP server (mcp-server/server.py).
     AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS: int = 604800
 
     DOCKER_IMAGE: str = "ghcr.io/mng-dev-ai/agentrove-sandbox:latest"
     DOCKER_NETWORK: str = "agentrove-sandbox-net"
+    # How Docker sandboxes reach this API on DOCKER_NETWORK (the compose `api`
+    # alias) for the agentrove MCP endpoint; the public BASE_URL may not hairpin.
+    SANDBOX_API_URL: str = Field(
+        default_factory=lambda: f"http://api:{os.environ.get('PORT') or 8080}"
+    )
     DOCKER_HOST: str | None = None
     DOCKER_MEM_LIMIT: str = "4g"
     DOCKER_CPU_PERIOD: int = 100000

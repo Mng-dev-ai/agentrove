@@ -103,6 +103,8 @@ exclude = [
 DEP001 = [
     "pytest",
     "pytest_asyncio",
+    # mcp-server/server.py, put on sys.path by app/main.py.
+    "server",
 ]
 DEP002 = [
     "aiosqlite",
@@ -110,6 +112,6 @@ DEP002 = [
     "bcrypt",
     "email-validator",
     # Imported by the bundled mcp-server/ (outside backend/), which the backend
-    # spawns at runtime — not imported by backend source, so deptry can't see it.
+    # spawns and serves — not imported by backend source, so deptry can't see it.
     "mcp",
 ]

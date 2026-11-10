@@ -55,6 +55,15 @@ logger = logging.getLogger(__name__)
 MCP_SERVER_PATH = Path(__file__).resolve().parents[2] / "mcp-server" / "server.py"
 
 
+def loopback_api_url() -> str:
+    # The public BASE_URL is often unreachable from inside the deployment
+    # (hairpin NAT), so in-process callers use the local uvicorn instead.
+    # Web mode listens on ${PORT:-8080}; desktop derives its port from a
+    # loopback BASE_URL (desktop/entry.py).
+    port = os.environ.get("PORT") or urlparse(settings.BASE_URL).port or 8080
+    return f"http://127.0.0.1:{port}{settings.API_V1_STR}"
+
+
 class StreamResult:
     __slots__ = ("total_cost_usd", "usage")
 
@@ -489,25 +498,16 @@ class AgentService:
         current_chat_id: str | None,
     ) -> list[dict[str, Any]]:
         servers: list[dict[str, Any]] = []
-        if agentrove_mcp:
-            if sandbox_provider is SandboxProviderType.HOST:
-                # Host-provider agents share this process's network namespace, but the
-                # public BASE_URL is often unreachable from inside the deployment
-                # (hairpin NAT), so point the MCP server at the local uvicorn instead.
-                # Web mode listens on ${PORT:-8080}; desktop derives its port from a
-                # loopback BASE_URL (desktop/entry.py).
-                port = (
-                    os.environ.get("PORT") or urlparse(settings.BASE_URL).port or 8080
-                )
-                api_base = f"http://127.0.0.1:{port}"
-            else:
-                api_base = settings.BASE_URL
+        if not agentrove_mcp:
+            return servers
+        access_token = create_mcp_access_token(user_id, hashed_password, device_ids)
+        credential_epoch = password_fingerprint(hashed_password)
+        if sandbox_provider is SandboxProviderType.HOST:
+            # Host-provider agents share this process's network namespace.
             env = {
-                "AGENTROVE_API_URL": f"{api_base}{settings.API_V1_STR}",
-                "AGENTROVE_ACCESS_TOKEN": create_mcp_access_token(
-                    user_id, hashed_password, device_ids
-                ),
-                "AGENTROVE_CREDENTIAL_EPOCH": password_fingerprint(hashed_password),
+                "AGENTROVE_API_URL": loopback_api_url(),
+                "AGENTROVE_ACCESS_TOKEN": access_token,
+                "AGENTROVE_CREDENTIAL_EPOCH": credential_epoch,
             }
             # The chat this session runs in — lets the agent create sub-threads under it
             if current_chat_id:
@@ -520,6 +520,23 @@ class AgentService:
                     "command": sys.executable,
                     "args": [str(MCP_SERVER_PATH)],
                     "env": env,
+                }
+            )
+        else:
+            # Docker agents run inside the sandbox image, which ships neither this
+            # interpreter nor server.py, so they call the backend's HTTP endpoint.
+            headers = {
+                "Authorization": f"Bearer {access_token}",
+                "X-Agentrove-Credential-Epoch": credential_epoch,
+            }
+            if current_chat_id:
+                headers["X-Agentrove-Chat-Id"] = current_chat_id
+            servers.append(
+                {
+                    "name": "agentrove",
+                    "type": "http",
+                    "url": f"{settings.SANDBOX_API_URL}{settings.API_V1_STR}/mcp",
+                    "headers": headers,
                 }
             )
         return servers

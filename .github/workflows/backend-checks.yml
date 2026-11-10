@@ -77,11 +77,13 @@ jobs:
         with:
           python-version: '3.12'
           enable-cache: true
-          cache-dependency-glob: backend/requirements.txt
+          cache-dependency-glob: backend/requirements.lock
           activate-environment: true
 
+      # The lockfile matches the API image; mcp==1.19.0 doesn't import under the
+      # newest pydantic that requirements.txt would resolve.
       - name: Install test dependencies
-        run: uv pip install -r backend/requirements.txt pytest pytest-asyncio pytest-cov pytest-xdist
+        run: uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist
 
       - name: Run backend tests
         # sysmon core: the default C tracer drops lines executed through

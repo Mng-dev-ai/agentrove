@@ -20,8 +20,8 @@ from acp.schema import (
     ElicitationFormCapabilities,
     EnvVariable,
     HttpHeader,
+    HttpMcpServer,
     ImageContentBlock,
-    McpServerHttp,
     McpServerStdio,
     SessionConfigOptionBoolean,
     SessionConfigOptionSelect,
@@ -474,6 +474,16 @@ class AcpSession:
             )
 
             mcp_servers = cls._build_mcp_servers(config.mcp_servers)
+            capabilities = initialize_response.agent_capabilities
+            mcp_capabilities = capabilities and capabilities.mcp_capabilities
+            if not (mcp_capabilities and mcp_capabilities.http) and any(
+                isinstance(server, HttpMcpServer) for server in mcp_servers
+            ):
+                logger.warning(
+                    "%s does not advertise HTTP MCP support; its HTTP MCP servers "
+                    "may be unavailable",
+                    config.agent_kind.value,
+                )
             session_meta = config.session_meta
 
             if config.resume_session_id:
@@ -797,11 +807,11 @@ class AcpSession:
     @staticmethod
     def _build_mcp_servers(
         mcp_configs: list[dict[str, Any]],
-    ) -> list[McpServerStdio | McpServerHttp]:
-        servers: list[McpServerStdio | McpServerHttp] = []
+    ) -> list[McpServerStdio | HttpMcpServer]:
+        servers: list[McpServerStdio | HttpMcpServer] = []
         for cfg in mcp_configs:
             mcp_type = cfg.get("type")
-            if mcp_type in ("http", "sse"):
+            if mcp_type == "http":
                 url = cfg.get("url")
                 if not url:
                     continue
@@ -810,7 +820,8 @@ class AcpSession:
                     for k, v in cfg.get("headers", {}).items()
                 ]
                 servers.append(
-                    McpServerHttp(
+                    HttpMcpServer(
+                        type="http",
                         name=cfg.get("name") or url,
                         url=url,
                         headers=headers,

@@ -43,6 +43,7 @@ services:
       - "${BACKEND_PORT}:8080"
     volumes:
       - ./backend:/app
+      - ./mcp-server:/app/mcp-server
       - ./storage:/data/agentrove/storage
       - /app/__pycache__
       - /var/run/docker.sock:/var/run/docker.sock

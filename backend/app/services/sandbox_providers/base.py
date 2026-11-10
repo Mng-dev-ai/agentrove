@@ -149,6 +149,12 @@ class SandboxProvider:
     ) -> FileContent:
         raise NotImplementedError
 
+    async def read_file_bytes(
+        self, sandbox_id: str, path: str, max_bytes: int
+    ) -> bytes:
+        # path is runtime-absolute; reads at most max_bytes, as the sandbox user.
+        raise NotImplementedError
+
     async def list_files(
         self,
         sandbox_id: str,

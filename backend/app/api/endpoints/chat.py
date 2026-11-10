@@ -1,6 +1,9 @@
 import asyncio
+import io
 import json
 import logging
+import mimetypes
+import posixpath
 from typing import Any, cast
 from uuid import UUID
 
@@ -19,6 +22,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
+from starlette.datastructures import Headers
 
 from app.constants import (
     MODELS,
@@ -57,6 +61,7 @@ from app.models.schemas.chat import (
     MessageAttachment as MessageAttachmentSchema,
     MessageEvent,
     PermissionRespondResponse,
+    SandboxAttachmentRequest,
 )
 from app.models.schemas.sandbox import (
     GitCommandResponse,
@@ -75,6 +80,7 @@ from app.models.schemas.queue import (
     QueueMessageContent,
 )
 from app.services.chat import ChatService
+from app.services.sandbox_providers import SandboxProviderType
 from app.services.device_session import DeviceSession
 from app.services.agent import AgentService
 from app.services.exceptions import (
@@ -636,6 +642,25 @@ async def cancel_stream(
     )
 
 
+async def _attach_to_current_message(
+    chat: Chat, file: UploadFile, user: User, chat_service: ChatService
+) -> MessageAttachment:
+    message_service = chat_service.message_service
+    message = await message_service.get_in_progress_assistant_message(chat.id)
+    if message is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No assistant turn is in progress for this chat",
+        )
+    try:
+        attachment_data = await StorageService(
+            ChatService.sandbox_for_workspace(chat.workspace)
+        ).save_file(file, agent_kind=None, user_id=str(user.id))
+    except StorageException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return await message_service.create_attachment(message.id, attachment_data)
+
+
 @router.post(
     "/chats/{chat_id}/attachments",
     response_model=MessageAttachmentSchema,
@@ -648,20 +673,41 @@ async def attach_file_to_current_message(
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> MessageAttachment:
-    message_service = chat_service.message_service
-    message = await message_service.get_in_progress_assistant_message(chat_id)
-    if message is None:
+    return await _attach_to_current_message(chat, file, current_user, chat_service)
+
+
+@router.post(
+    "/chats/{chat_id}/attachments/sandbox",
+    response_model=MessageAttachmentSchema,
+    status_code=status.HTTP_201_CREATED,
+)
+async def attach_sandbox_file_to_current_message(
+    chat_id: UUID,
+    request: SandboxAttachmentRequest,
+    chat: Chat = Depends(ensure_chat_access),
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> MessageAttachment:
+    # A host sandbox is the API's own filesystem, so only Docker chats read by path.
+    if chat.sandbox_provider != SandboxProviderType.DOCKER or not chat.sandbox_id:
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="No assistant turn is in progress for this chat",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only Docker sandbox chats can attach files by sandbox path",
         )
-    try:
-        attachment_data = await StorageService(
-            ChatService.sandbox_for_workspace(chat.workspace)
-        ).save_file(file, agent_kind=None, user_id=str(current_user.id))
-    except StorageException as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
-    return await message_service.create_attachment(message.id, attachment_data)
+    provider = ChatService.sandbox_for_workspace(chat.workspace).provider
+    path = posixpath.join(
+        provider.resolve_workspace_path(chat.worktree_cwd), request.path
+    )
+    content = await provider.read_file_bytes(
+        chat.sandbox_id, path, settings.MAX_UPLOAD_SIZE + 1
+    )
+    content_type = mimetypes.guess_type(path)[0] or "application/octet-stream"
+    file = UploadFile(
+        io.BytesIO(content),
+        filename=posixpath.basename(path),
+        headers=Headers({"content-type": content_type}),
+    )
+    return await _attach_to_current_message(chat, file, current_user, chat_service)
 
 
 @router.post(

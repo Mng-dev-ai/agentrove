@@ -197,6 +197,10 @@ class ElicitationRespondRequest(BaseModel):
     content: dict[str, Any] | None = None
 
 
+class SandboxAttachmentRequest(BaseModel):
+    path: str = Field(min_length=1)
+
+
 class ChatSearchMatch(BaseModel):
     message_id: UUID
     role: MessageRole

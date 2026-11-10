@@ -1,4 +1,5 @@
 import logging
+import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import partial
@@ -7,6 +8,7 @@ from typing import Any
 
 from fastapi import FastAPI, Response, status
 from fastapi.staticfiles import StaticFiles
+from starlette.routing import Route
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from sqlalchemy import text
 
@@ -29,14 +31,20 @@ from app.api.endpoints import (
 from app.api.endpoints import settings as settings_router
 from app.api.endpoints import websocket
 from app.core.config import get_settings
-from app.core.middleware import setup_middleware
+from app.core.middleware import McpAuthMiddleware, setup_middleware
 from app.db.session import SessionLocal, engine
+from app.services.agent import MCP_SERVER_PATH, loopback_api_url
 from app.services.channel import channel_service
 from app.services.maintenance import MaintenanceService
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.terminal import terminal_session_registry
 from app.utils.cache import cache_connection
+
+# mcp-server/ ships beside app/ in the API image and desktop bundle as plain
+# modules (server.py imports `client`), not as an installed package.
+sys.path.append(str(MCP_SERVER_PATH.parent))
+from server import HttpEndpoint  # noqa: E402
 
 try:
     from prometheus_fastapi_instrumentator import Instrumentator
@@ -47,6 +55,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
+mcp_endpoint = HttpEndpoint(loopback_api_url())
 
 
 @asynccontextmanager
@@ -56,7 +65,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     maintenance_service = MaintenanceService()
     await maintenance_service.start()
     try:
-        yield
+        async with mcp_endpoint.run():
+            yield
     finally:
         await channel_service.shutdown()
         await maintenance_service.stop()
@@ -187,6 +197,9 @@ def create_application() -> FastAPI:
         instance.router,
         prefix=settings.API_V1_STR,
         tags=["Instance"],
+    )
+    application.router.routes.append(
+        Route(f"{settings.API_V1_STR}/mcp", McpAuthMiddleware(mcp_endpoint))
     )
     application.openapi = partial(custom_openapi, application)
 
