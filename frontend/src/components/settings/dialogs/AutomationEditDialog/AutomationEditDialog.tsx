@@ -27,6 +27,7 @@ import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { machineName } from '@/store/machineStore';
 import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
 import {
   buildCronExpression,
@@ -73,6 +74,10 @@ export function AutomationEditDialog({
   const { data: machineWorkspaces = [] } = useMachineWorkspacesQuery(form.machineId, !isLocal);
 
   const workspaces = isLocal ? localWorkspaces : machineWorkspaces;
+  const machineOffline = !machineOptions.some((machine) => machine.id === form.machineId);
+  const machines = machineOffline
+    ? [...machineOptions, { id: form.machineId, name: `${machineName(form.machineId)} (offline)` }]
+    : machineOptions;
 
   // Seed model when missing/left registry. Effect (onChange writes parent state).
   // Never reseed remote edits — registry lag would silently swap the model on save.
@@ -113,7 +118,8 @@ export function AutomationEditDialog({
     !!form.prompt.trim() &&
     !!form.model_id &&
     !!form.workspace_id &&
-    (schedule.frequency !== 'custom' || !!schedule.cron.trim());
+    (schedule.frequency !== 'custom' || !!schedule.cron.trim()) &&
+    !machineOffline;
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="sm" className={styles.dialog}>
@@ -125,7 +131,10 @@ export function AutomationEditDialog({
           <h3 className={styles.title}>{isEditing ? 'Edit automation' : 'Add automation'}</h3>
         </div>
 
-        <DialogError error={error} className={styles.error} />
+        <DialogError
+          error={error ?? (machineOffline ? "This automation's machine is offline" : null)}
+          className={styles.error}
+        />
 
         <div className={styles.fields}>
           <div>
@@ -141,18 +150,25 @@ export function AutomationEditDialog({
           <div>
             <Label className={styles.label}>Workspace</Label>
             <div className={styles.row}>
-              {machineOptions.length > 1 && (
+              {machines.length > 1 && (
                 <Select
                   value={form.machineId}
-                  onChange={(e) => onChange('machineId', e.target.value)}
+                  onChange={(e) => {
+                    onChange('machineId', e.target.value);
+                    onChange('workspace_id', '');
+                  }}
                   className={styles.select}
                   aria-label="Machine"
                   // An automation is stored on the machine that runs it, so the
                   // location can't move after creation.
                   disabled={isEditing}
                 >
-                  {machineOptions.map((machine) => (
-                    <option key={machine.id} value={machine.id}>
+                  {machines.map((machine) => (
+                    <option
+                      key={machine.id}
+                      value={machine.id}
+                      disabled={machineOffline && machine.id === form.machineId}
+                    >
                       {machine.name}
                     </option>
                   ))}

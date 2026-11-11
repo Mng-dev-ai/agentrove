@@ -1,5 +1,5 @@
-import { useCallback } from 'react';
-import { useQuery, useQueries, keepPreviousData, type UseQueryResult } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef } from 'react';
+import { useQuery, useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { machineChatService } from '@/services/machineChatService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
@@ -118,14 +118,23 @@ export const useMachineChatsTotalQuery = (machineId: string, enabled: boolean) =
 
 export const useSearchMachineChatsQueries = (machineIds: string[], query: string) => {
   const trimmed = query.trim();
-  return useQueries({
+  const lastData = useRef<Record<string, ChatSearchResponse>>({});
+  const results = useQueries({
     queries: machineIds.map((machineId) => ({
       queryKey: [...queryKeys.machine.chats(machineId), 'search', trimmed] as const,
       queryFn: (): Promise<ChatSearchResponse> =>
         machineChatService.searchChats(machineId, trimmed),
       enabled: trimmed.length >= 2,
-      placeholderData: keepPreviousData,
+      placeholderData: () => lastData.current[machineId],
       staleTime: 15_000,
     })),
   });
+  useEffect(() => {
+    results.forEach((result, index) => {
+      if (result.data && !result.isPlaceholderData) {
+        lastData.current[machineIds[index]] = result.data;
+      }
+    });
+  });
+  return results;
 };
