@@ -33,12 +33,12 @@ async function listInboxPages(machineId: string, pageCount: number): Promise<Inb
 }
 
 async function appendNextInboxPage(queryClient: QueryClient, machineId: string, cursor: string) {
-  const page = await inboxService.listInbox(cursor, machineId);
   const queryKey = queryKeys.machine.inbox(machineId);
-  await queryClient.cancelQueries({ queryKey });
-  queryClient.setQueryData<InboxList[]>(queryKey, (pages) =>
-    pages && pages[pages.length - 1]?.next_cursor === cursor ? [...pages, page] : pages,
-  );
+  const fetchedAt = queryClient.getQueryState(queryKey)?.dataUpdatedAt;
+  const page = await inboxService.listInbox(cursor, machineId);
+  const state = queryClient.getQueryState(queryKey);
+  if (state?.dataUpdatedAt !== fetchedAt || state?.fetchStatus !== 'idle') return;
+  queryClient.setQueryData<InboxList[]>(queryKey, (pages) => pages && [...pages, page]);
 }
 
 function invalidateInbox(queryClient: QueryClient, machineId: string) {
