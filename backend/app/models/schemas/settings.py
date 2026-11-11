@@ -40,13 +40,6 @@ class UserSettingsBase(BaseModel):
         default=DEFAULT_TITLE_MODEL_ID, min_length=1, max_length=128
     )
 
-    @field_validator("title_model_id")
-    @classmethod
-    def _validate_title_model(cls, value: str) -> str:
-        if value not in MODELS:
-            raise ValueError(f"Unknown model: {value}")
-        return value
-
     @field_validator(
         "custom_env_vars",
         "personas",
@@ -62,6 +55,17 @@ class UserSettingsBase(BaseModel):
         if isinstance(value, str):
             return []
         raise ValueError(f"Expected list or None, got {type(value).__name__}")
+
+
+# Validated on write only: a stored id may leave MODELS in a later release and
+# must still read back so the user can pick a new one.
+class UserSettingsUpdate(UserSettingsBase):
+    @field_validator("title_model_id")
+    @classmethod
+    def _validate_title_model(cls, value: str) -> str:
+        if value not in MODELS:
+            raise ValueError(f"Unknown model: {value}")
+        return value
 
 
 class UserSettingsResponse(UserSettingsBase):
