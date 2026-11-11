@@ -39,7 +39,7 @@ from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.pairing import PairingService
 from app.services.exceptions import AgentException, ErrorCode
-from app.constants import MODELS
+from app.constants import DEFAULT_TITLE_MODEL_ID, MODELS
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType
@@ -304,15 +304,19 @@ class AgentService:
         self, prompt: str, user: User, chat: Chat | None = None
     ) -> str | None:
         # Titles always run on the user's configured title model (settings),
-        # never the chat's model — no fallback chain.
+        # never the chat's model — no fallback chain. A setting whose model a
+        # release removed falls back to the default title model.
         try:
             user_settings = await self._get_user_settings(user.id)
+            title_model_id = user_settings.title_model_id
+            if title_model_id not in MODELS:
+                title_model_id = DEFAULT_TITLE_MODEL_ID
             title = await self._generate_text(
                 GENERATE_TITLE_SYSTEM_PROMPT,
                 "Generate a title for this message:\n<message>\n"
                 + prompt
                 + "\n</message>",
-                user_settings.title_model_id,
+                title_model_id,
                 user,
                 chat=chat,
             )
