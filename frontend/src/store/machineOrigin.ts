@@ -4,6 +4,7 @@ import { getMachine } from '@/store/machineStore';
 
 const CHATS_KEY = 'machine-chat-origins';
 const SANDBOXES_KEY = 'machine-sandbox-origins';
+const CHANNELS_KEY = 'machine-channel-origins';
 const REMOVED_MACHINES_KEY = 'machine-removed-identities';
 
 function load(key: string): Map<string, string> {
@@ -29,11 +30,16 @@ function persist(key: string, origins: Map<string, string>): void {
   }
 }
 
-type OriginKey = typeof CHATS_KEY | typeof SANDBOXES_KEY | typeof REMOVED_MACHINES_KEY;
+type OriginKey =
+  | typeof CHATS_KEY
+  | typeof SANDBOXES_KEY
+  | typeof CHANNELS_KEY
+  | typeof REMOVED_MACHINES_KEY;
 
 const maps: Record<OriginKey, Map<string, string>> = {
   [CHATS_KEY]: load(CHATS_KEY),
   [SANDBOXES_KEY]: load(SANDBOXES_KEY),
+  [CHANNELS_KEY]: load(CHANNELS_KEY),
   [REMOVED_MACHINES_KEY]: load(REMOVED_MACHINES_KEY),
 };
 let chatOriginsSnapshot: ReadonlyMap<string, string> = new Map(maps[CHATS_KEY]);
@@ -122,6 +128,25 @@ export function assignChatRecordsToMachine(
   );
 }
 
+export function assignChannelsToMachine(
+  machineId: string,
+  channels: { id: string; members: { chat_id: string }[] }[],
+): void {
+  assign(
+    CHANNELS_KEY,
+    machineId,
+    channels.map((channel) => channel.id),
+  );
+  assignChatsToMachine(
+    machineId,
+    channels.flatMap((channel) => channel.members.map((member) => member.chat_id)),
+  );
+}
+
+export function channelMachineId(channelId: string | undefined): string {
+  return (channelId && maps[CHANNELS_KEY].get(channelId)) || LOCAL_MACHINE_ID;
+}
+
 export function chatMachineId(chatId: string | undefined): string {
   return (chatId && maps[CHATS_KEY].get(chatId)) || LOCAL_MACHINE_ID;
 }
@@ -159,7 +184,7 @@ export function claimRemovedMachineOrigins(machineId: string, identities: Machin
       .map(([removedId]) => removedId),
   );
   if (removedIds.size === 0) return;
-  for (const key of [CHATS_KEY, SANDBOXES_KEY] as const) {
+  for (const key of [CHATS_KEY, SANDBOXES_KEY, CHANNELS_KEY] as const) {
     update(key, (origins) => {
       let changed = false;
       for (const [id, owner] of origins) {

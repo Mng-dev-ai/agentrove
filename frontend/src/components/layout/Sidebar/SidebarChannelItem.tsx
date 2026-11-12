@@ -8,10 +8,12 @@ import { getRelativeTime } from '@/utils/date';
 import { chatStatusTone, CHAT_STATUS_LABEL } from '@/utils/message';
 import type { Channel } from '@/types/channel.types';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
+import { SidebarRowBadges, type MachineBadge } from './SidebarChatItem';
 import styles from './SidebarChannelItem.module.scss';
 
 interface SidebarChannelItemProps {
   channel: Channel;
+  machineBadge: MachineBadge | undefined;
   isActive: boolean;
   isDropdownOpen: boolean;
   onSelect: (channelId: string) => void;
@@ -20,6 +22,7 @@ interface SidebarChannelItemProps {
 
 export function SidebarChannelItem({
   channel,
+  machineBadge,
   isActive,
   isDropdownOpen,
   onSelect,
@@ -76,6 +79,13 @@ export function SidebarChannelItem({
             onClick={() => onSelect(channel.id)}
           />
         </FloatingTooltip>
+      }
+      subtitle={
+        <SidebarRowBadges
+          machineName={machineBadge?.name}
+          machineOffline={machineBadge?.offline}
+          isIndented
+        />
       }
       timestamp={getRelativeTime(channel.updated_at)}
       dropdownLabel="Channel options"

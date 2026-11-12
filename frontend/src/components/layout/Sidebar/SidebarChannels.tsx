@@ -6,21 +6,25 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
 import { CreateChannelDialog } from '@/components/channels/CreateChannelDialog';
 import {
-  useChannelsQuery,
   useDeleteChannelMutation,
+  useMachinesChannels,
   useRenameChannelMutation,
 } from '@/hooks/queries/useChannelQueries';
 import { useMountEffect } from '@/hooks/useMountEffect';
-import { apiClient } from '@/lib/api';
+import { getMachineClient } from '@/lib/api';
 import '@/services/streamService';
 import { streamConnection } from '@/services/streamConnection';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuthStore } from '@/store/authStore';
+import { useMachineStore } from '@/store/machineStore';
+import type { SidebarSourceFilter } from '@/store/sidebarFilters';
 import { useUIStore } from '@/store/uiStore';
 import type { Workspace } from '@/types/workspace.types';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Channel } from '@/types/channel.types';
 import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
 import { SidebarChannelItem } from './SidebarChannelItem';
+import type { MachineBadge } from './SidebarChatItem';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import styles from './SidebarChannels.module.scss';
@@ -29,6 +33,8 @@ interface SidebarChannelsProps {
   workspaces: Workspace[];
   workspaceId: string | undefined;
   filterWorkspaceId: string | null;
+  filterSource: SidebarSourceFilter;
+  machineBadge: (machineId: string) => MachineBadge | undefined;
   selectedChannelId: string | null;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
@@ -37,6 +43,8 @@ export function SidebarChannels({
   workspaces,
   workspaceId: selectedWorkspaceId,
   filterWorkspaceId,
+  filterSource,
+  machineBadge,
   selectedChannelId,
   scrollContainerRef,
 }: SidebarChannelsProps) {
@@ -46,15 +54,26 @@ export function SidebarChannels({
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const { data: channels = [] } = useChannelsQuery(filterWorkspaceId ?? undefined, isAuthenticated);
+  const machineChannels = useMachinesChannels(filterWorkspaceId ?? undefined, isAuthenticated);
+  const channels =
+    filterSource === 'all'
+      ? machineChannels
+      : machineChannels.filter(({ machineId }) => machineId === filterSource);
   const deleteChannel = useDeleteChannelMutation();
   const renameChannel = useRenameChannelMutation();
-  const hasChannels = channels.length > 0;
   const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes('channels'));
+  const connections = useMachineStore((state) => state.connections);
+  const liveMachineIdsKey = [...new Set(machineChannels.map(({ machineId }) => machineId))]
+    .filter((id) => id === LOCAL_MACHINE_ID || connections[id]?.status === 'online')
+    .join('\n');
 
   useEffect(() => {
-    if (hasChannels) return streamConnection.retain(apiClient);
-  }, [hasChannels]);
+    if (!liveMachineIdsKey) return;
+    const releases = liveMachineIdsKey
+      .split('\n')
+      .map((machineId) => streamConnection.retain(getMachineClient(machineId)));
+    return () => releases.forEach((release) => release());
+  }, [liveMachineIdsKey]);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [dropdown, setDropdown] = useState<{
@@ -139,12 +158,13 @@ export function SidebarChannels({
         </Button>
       </SidebarSectionHeader>
       {(isCollapsed
-        ? channels.filter((channel) => channel.id === selectedChannelId)
+        ? channels.filter(({ channel }) => channel.id === selectedChannelId)
         : channels
-      ).map((channel) => (
+      ).map(({ channel, machineId }) => (
         <SidebarChannelItem
           key={channel.id}
           channel={channel}
+          machineBadge={machineBadge(machineId)}
           isActive={channel.id === selectedChannelId}
           isDropdownOpen={dropdown?.channel.id === channel.id}
           onSelect={navigateToChannel}

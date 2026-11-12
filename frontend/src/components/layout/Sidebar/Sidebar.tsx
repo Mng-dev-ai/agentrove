@@ -128,9 +128,8 @@ export function Sidebar({
     [storedFilters, machineOptions],
   );
   const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
-  const machineBadgeForChat = useCallback(
-    (chatId: string): MachineBadge | undefined => {
-      const machineId = chatOrigins.get(chatId) ?? LOCAL_MACHINE_ID;
+  const machineBadge = useCallback(
+    (machineId: string): MachineBadge | undefined => {
       if (machineId === LOCAL_MACHINE_ID) {
         return machines.length === 0 ? undefined : { name: LOCAL_MACHINE_NAME, offline: false };
       }
@@ -139,7 +138,11 @@ export function Sidebar({
         offline: connections[machineId]?.status !== 'online',
       };
     },
-    [machines, connections, chatOrigins],
+    [machines, connections],
+  );
+  const machineBadgeForChat = useCallback(
+    (chatId: string) => machineBadge(chatOrigins.get(chatId) ?? LOCAL_MACHINE_ID),
+    [machineBadge, chatOrigins],
   );
   const chatMatchesFilters = useCallback(
     (chat: Chat) => {
@@ -273,6 +276,8 @@ export function Sidebar({
               workspaces={workspaces}
               workspaceId={selectedChatWorkspaceId ?? undefined}
               filterWorkspaceId={filters.workspaceId}
+              filterSource={filters.source}
+              machineBadge={machineBadge}
               selectedChannelId={selectedChannelId}
               scrollContainerRef={scrollContainerRef}
             />

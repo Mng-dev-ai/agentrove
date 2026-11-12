@@ -1,5 +1,6 @@
-import { apiClient } from '@/lib/api';
+import { getMachineClient, resolveChannelClient } from '@/lib/api';
 import { ensureResponse, serviceCall } from '@/services/base/BaseService';
+import { assignChannelsToMachine, channelMachineId } from '@/store/machineOrigin';
 import type {
   Channel,
   ChannelCreateRequest,
@@ -10,44 +11,54 @@ import type {
 import type { Message } from '@/types/chat.types';
 import type { QueueAddResponse, QueuedItem } from '@/types/queue.types';
 
-async function listChannels(workspaceId?: string): Promise<Channel[]> {
+async function listChannels(machineId: string, workspaceId?: string): Promise<Channel[]> {
   return serviceCall(async () => {
     const query = workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : '';
-    const response = await apiClient.get<Channel[]>(`/channels${query}`);
-    return ensureResponse(response, 'Failed to load channels');
+    const response = await getMachineClient(machineId).get<Channel[]>(`/channels${query}`);
+    const channels = ensureResponse(response, 'Failed to load channels');
+    assignChannelsToMachine(machineId, channels);
+    return channels;
   });
 }
 
 async function getChannel(channelId: string): Promise<Channel> {
   return serviceCall(async () => {
-    const response = await apiClient.get<Channel>(`/channels/${channelId}`);
-    return ensureResponse(response, 'Failed to load channel');
+    const machineId = channelMachineId(channelId);
+    const response = await resolveChannelClient(channelId).get<Channel>(`/channels/${channelId}`);
+    const channel = ensureResponse(response, 'Failed to load channel');
+    assignChannelsToMachine(machineId, [channel]);
+    return channel;
   });
 }
 
-async function createChannel(data: ChannelCreateRequest): Promise<Channel> {
+async function createChannel(machineId: string, data: ChannelCreateRequest): Promise<Channel> {
   return serviceCall(async () => {
-    const response = await apiClient.post<Channel>('/channels', data);
-    return ensureResponse(response, 'Failed to create channel');
+    const response = await getMachineClient(machineId).post<Channel>('/channels', data);
+    const channel = ensureResponse(response, 'Failed to create channel');
+    assignChannelsToMachine(machineId, [channel]);
+    return channel;
   });
 }
 
 async function renameChannel(channelId: string, name: string): Promise<Channel> {
   return serviceCall(async () => {
-    const response = await apiClient.patch<Channel>(`/channels/${channelId}`, { name });
+    const response = await resolveChannelClient(channelId).patch<Channel>(
+      `/channels/${channelId}`,
+      { name },
+    );
     return ensureResponse(response, 'Failed to rename channel');
   });
 }
 
 async function deleteChannel(channelId: string): Promise<void> {
   await serviceCall(async () => {
-    await apiClient.delete(`/channels/${channelId}`);
+    await resolveChannelClient(channelId).delete(`/channels/${channelId}`);
   });
 }
 
 async function listMessages(channelId: string, afterSeq: number): Promise<ChannelMessage[]> {
   return serviceCall(async () => {
-    const response = await apiClient.get<ChannelMessage[]>(
+    const response = await resolveChannelClient(channelId).get<ChannelMessage[]>(
       `/channels/${channelId}/messages?after_seq=${afterSeq}`,
     );
     return ensureResponse(response, 'Failed to load channel messages');
@@ -56,7 +67,7 @@ async function listMessages(channelId: string, afterSeq: number): Promise<Channe
 
 async function getMessageActivity(channelId: string, messageId: string): Promise<Message> {
   return serviceCall(async () => {
-    const response = await apiClient.get<Message>(
+    const response = await resolveChannelClient(channelId).get<Message>(
       `/channels/${channelId}/messages/${messageId}/activity`,
     );
     return ensureResponse(response, 'Failed to load message activity');
@@ -76,7 +87,7 @@ async function postMessage(
   files: File[],
 ): Promise<ChannelMessage> {
   return serviceCall(async () => {
-    const response = await apiClient.postForm<ChannelMessage>(
+    const response = await resolveChannelClient(channelId).postForm<ChannelMessage>(
       `/channels/${channelId}/messages`,
       messageForm(content, files),
     );
@@ -93,7 +104,7 @@ async function queueMessage(
   return serviceCall(async () => {
     const formData = messageForm(content, files);
     if (sendNow) formData.append('send_now', 'true');
-    const response = await apiClient.postForm<QueueAddResponse>(
+    const response = await resolveChannelClient(channelId).postForm<QueueAddResponse>(
       `/channels/${channelId}/queue`,
       formData,
     );
@@ -103,7 +114,9 @@ async function queueMessage(
 
 async function getQueue(channelId: string): Promise<QueuedItem[]> {
   return serviceCall(async () => {
-    const response = await apiClient.get<QueuedItem[]>(`/channels/${channelId}/queue`);
+    const response = await resolveChannelClient(channelId).get<QueuedItem[]>(
+      `/channels/${channelId}/queue`,
+    );
     return ensureResponse(response, 'Failed to fetch queue');
   });
 }
@@ -114,7 +127,7 @@ async function updateQueuedMessage(
   content: string,
 ): Promise<QueuedItem> {
   return serviceCall(async () => {
-    const response = await apiClient.patch<QueuedItem>(
+    const response = await resolveChannelClient(channelId).patch<QueuedItem>(
       `/channels/${channelId}/queue/${messageId}`,
       { content },
     );
@@ -124,19 +137,21 @@ async function updateQueuedMessage(
 
 async function deleteQueuedMessage(channelId: string, messageId: string): Promise<void> {
   await serviceCall(async () => {
-    await apiClient.delete(`/channels/${channelId}/queue/${messageId}`);
+    await resolveChannelClient(channelId).delete(`/channels/${channelId}/queue/${messageId}`);
   });
 }
 
 async function sendQueuedNow(channelId: string, messageId: string): Promise<void> {
   await serviceCall(async () => {
-    await apiClient.post(`/channels/${channelId}/queue/${messageId}/send-now`);
+    await resolveChannelClient(channelId).post(
+      `/channels/${channelId}/queue/${messageId}/send-now`,
+    );
   });
 }
 
 async function listPermissions(channelId: string): Promise<ChannelPermissionRequest[]> {
   return serviceCall(async () => {
-    const response = await apiClient.get<ChannelPermissionRequest[]>(
+    const response = await resolveChannelClient(channelId).get<ChannelPermissionRequest[]>(
       `/channels/${channelId}/permissions`,
     );
     return ensureResponse(response, 'Failed to load channel approvals');
@@ -145,7 +160,7 @@ async function listPermissions(channelId: string): Promise<ChannelPermissionRequ
 
 async function getMemberActivity(channelId: string): Promise<ChannelMemberActivity> {
   return serviceCall(async () => {
-    const response = await apiClient.get<ChannelMemberActivity>(
+    const response = await resolveChannelClient(channelId).get<ChannelMemberActivity>(
       `/channels/${channelId}/member-activity`,
     );
     return ensureResponse(response, 'Failed to load channel activity');
@@ -154,7 +169,7 @@ async function getMemberActivity(channelId: string): Promise<ChannelMemberActivi
 
 async function stopChannel(channelId: string): Promise<void> {
   await serviceCall(async () => {
-    await apiClient.post(`/channels/${channelId}/stop`);
+    await resolveChannelClient(channelId).post(`/channels/${channelId}/stop`);
   });
 }
 
