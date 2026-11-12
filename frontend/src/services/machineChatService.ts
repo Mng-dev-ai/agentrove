@@ -7,7 +7,7 @@ import {
   assignChatsToMachine,
   assignSandboxesToMachine,
 } from '@/store/machineOrigin';
-import type { UserSettings } from '@/types/user.types';
+import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type {
   Workspace,
   WorkspaceResources,
@@ -114,6 +114,13 @@ async function getSettings(machineId: string): Promise<UserSettings> {
   });
 }
 
+async function updateSettings(machineId: string, data: UserSettingsUpdate): Promise<UserSettings> {
+  return serviceCall(async () => {
+    const response = await getMachineClient(machineId).patch<UserSettings>('/settings/', data);
+    return ensureResponse(response, 'Failed to update settings');
+  });
+}
+
 async function startCompletion(machineId: string, request: ChatRequest): Promise<void> {
   await serviceCall(async () => {
     await getMachineClient(machineId).postForm('/chat/chat', buildChatFormData(request));
@@ -148,6 +155,7 @@ export const machineChatService = {
   deleteAllChats,
   getWorkspaceResources,
   getSettings,
+  updateSettings,
   startCompletion,
   getActiveStreams,
   createChatEventsSource,

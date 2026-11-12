@@ -1,11 +1,22 @@
-import { Suspense } from 'react';
-import { UserCircle } from 'lucide-react';
+import { Suspense, useCallback, useMemo, useState } from 'react';
+import { Server, UserCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
-import { useCrudForm } from '@/hooks/useCrudForm';
+import {
+  useMachinesPersonas,
+  useUpdateMachinePersonasMutation,
+} from '@/hooks/queries/useMachineQueries';
+import {
+  LOCAL_MACHINE_NAME,
+  useMachineStore,
+  useOnlineRemoteMachineIds,
+} from '@/store/machineStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createDefaultPersonaForm, validatePersonaForm } from '@/utils/settings';
 import { lazyNamed } from '@/utils/lazyNamed';
-import type { Persona } from '@/types/user.types';
+import { logger } from '@/utils/logger';
+import type { Persona, PersonaForm } from '@/types/user.types';
 import styles from './PersonasSettingsTab.module.scss';
 
 const PersonaEditDialog = lazyNamed(
@@ -13,53 +24,179 @@ const PersonaEditDialog = lazyNamed(
   'PersonaEditDialog',
 );
 
+interface MachinePersona {
+  persona: Persona;
+  machineId: string;
+}
+
+function createDefaultForm(): PersonaForm {
+  return { ...createDefaultPersonaForm(), machineId: LOCAL_MACHINE_ID };
+}
+
+function savePersona(personas: Persona[], editingName: string | null, persona: Persona) {
+  const index = editingName === null ? null : personas.findIndex((p) => p.name === editingName);
+  if (index === -1) throw new Error('This persona no longer exists');
+  const error = validatePersonaForm(persona, index, personas);
+  if (error) throw new Error(error);
+  return index === null
+    ? [...personas, persona]
+    : personas.map((p, i) => (i === index ? persona : p));
+}
+
+function deletePersona(personas: Persona[], name: string) {
+  const remaining = personas.filter((p) => p.name !== name);
+  return remaining.length > 0 ? remaining : null;
+}
+
 export function PersonasSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
+  const remoteIds = useOnlineRemoteMachineIds();
+  const remotePersonas = useMachinesPersonas(remoteIds);
+  const machines = useMachineStore((state) => state.machines);
+  const machineNames = useMemo(
+    () => new Map(machines.map((machine) => [machine.id, machine.name])),
+    [machines],
+  );
+  const machineOptions = useMemo(
+    () => [
+      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
+      ...remoteIds.map((id) => ({ id, name: machineNames.get(id) ?? 'Machine' })),
+    ],
+    [remoteIds, machineNames],
+  );
+  const items = useMemo((): MachinePersona[] | null => {
+    if (!remotePersonas) return null;
+    return [
+      ...(localSettings.personas ?? []).map((persona) => ({
+        persona,
+        machineId: LOCAL_MACHINE_ID,
+      })),
+      ...remoteIds.flatMap((machineId) =>
+        (remotePersonas[machineId] ?? []).map((persona) => ({ persona, machineId })),
+      ),
+    ];
+  }, [localSettings.personas, remoteIds, remotePersonas]);
 
-  const personaCrud = useCrudForm(localSettings, persistSettings, {
-    createDefault: createDefaultPersonaForm,
-    validateForm: (form, editingIndex) =>
-      validatePersonaForm(form, editingIndex, localSettings.personas ?? []),
-    getArrayKey: 'personas',
-    itemName: 'persona',
-  });
+  const remoteMutation = useUpdateMachinePersonasMutation();
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<MachinePersona | null>(null);
+  const [form, setForm] = useState<PersonaForm>(createDefaultForm);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const handleFormChange = useCallback(
+    <K extends keyof PersonaForm>(field: K, value: PersonaForm[K]) => {
+      setForm((prev) => ({ ...prev, [field]: value }));
+    },
+    [],
+  );
+
+  const handleAdd = () => {
+    setEditingItem(null);
+    setForm(createDefaultForm());
+    setFormError(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleEdit = (index: number) => {
+    const item = items?.[index];
+    if (!item) return;
+    setEditingItem(item);
+    setForm({ ...item.persona, machineId: item.machineId });
+    setFormError(null);
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = async (index: number) => {
+    const item = items?.[index];
+    if (!item) return;
+    const update = (personas: Persona[]) => deletePersona(personas, item.persona.name);
+    try {
+      if (item.machineId === LOCAL_MACHINE_ID) {
+        await persistSettings((prev) => ({ ...prev, personas: update(prev.personas ?? []) }), {
+          errorMessage: 'Failed to delete persona',
+        });
+      } else {
+        await remoteMutation.mutateAsync(
+          { machineId: item.machineId, update },
+          { onError: () => toast.error('Failed to delete persona') },
+        );
+      }
+    } catch (error) {
+      logger.error('Failed to delete persona', 'PersonasSettingsTab', error);
+    }
+  };
+
+  const handleSave = async () => {
+    const persona: Persona = { name: form.name, content: form.content };
+    const editingName = editingItem?.persona.name ?? null;
+    const update = (personas: Persona[]) => savePersona(personas, editingName, persona);
+    try {
+      if (form.machineId === LOCAL_MACHINE_ID) {
+        update(localSettings.personas ?? []);
+        await persistSettings((prev) => ({ ...prev, personas: update(prev.personas ?? []) }), {
+          errorMessage: 'Failed to save persona',
+        });
+      } else {
+        update(remotePersonas?.[form.machineId] ?? []);
+        await remoteMutation.mutateAsync(
+          { machineId: form.machineId, update },
+          { onError: () => toast.error('Failed to save persona') },
+        );
+        toast.success('Saved', { id: 'settings-saved' });
+      }
+      setIsDialogOpen(false);
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'An unexpected error occurred');
+    }
+  };
 
   return (
     <>
-      <ListManagementTab<Persona>
+      <ListManagementTab<MachinePersona>
         title="Personas"
         description="Create personas with custom system prompts. Select from the persona dropdown in the input bar. Claude, Codex, Grok, and OpenCode support replacing the system prompt; the persona selector is hidden for Cursor and Copilot."
-        items={localSettings.personas ?? []}
+        items={items}
         emptyIcon={UserCircle}
         emptyText="No personas configured yet"
         emptyButtonText="Create Your First Persona"
         addButtonText="Add Persona"
         deleteConfirmTitle="Delete Persona"
-        deleteConfirmMessage={(persona) =>
-          `Are you sure you want to delete "${persona.name}"? This action cannot be undone.`
+        deleteConfirmMessage={(item) =>
+          `Are you sure you want to delete "${item.persona.name}"? This action cannot be undone.`
         }
-        getItemKey={(persona) => persona.name}
-        onAdd={personaCrud.handleAdd}
-        onEdit={personaCrud.handleEdit}
-        onDelete={personaCrud.handleDelete}
-        renderItem={(persona) => (
+        getItemKey={(item) => `${item.machineId}:${item.persona.name}`}
+        onAdd={handleAdd}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
+        renderItem={(item) => (
           <>
-            <h3 className={styles['item-title']}>{persona.name}</h3>
-            <p className={styles['item-content']}>{persona.content}</p>
+            <div className={styles['item-header']}>
+              <h3 className={styles['item-title']}>{item.persona.name}</h3>
+              {item.machineId !== LOCAL_MACHINE_ID && (
+                <span className={styles.chip}>
+                  <Server className={styles['chip-icon']} />
+                  {machineNames.get(item.machineId) ?? 'Machine'}
+                </span>
+              )}
+            </div>
+            <p className={styles['item-content']}>{item.persona.content}</p>
           </>
         )}
         logContext="PersonasSettingsTab"
       />
-      {personaCrud.isDialogOpen && (
+      {isDialogOpen && (
         <Suspense fallback={null}>
           <PersonaEditDialog
-            isOpen={personaCrud.isDialogOpen}
-            isEditing={personaCrud.editingIndex !== null}
-            persona={personaCrud.form}
-            error={personaCrud.formError}
-            onClose={personaCrud.handleDialogClose}
-            onSubmit={personaCrud.handleSave}
-            onPersonaChange={personaCrud.handleFormChange}
+            isOpen={isDialogOpen}
+            isEditing={editingItem !== null}
+            persona={form}
+            machineOptions={machineOptions}
+            error={formError}
+            isSaving={remoteMutation.isPending}
+            onClose={() => setIsDialogOpen(false)}
+            onSubmit={() => void handleSave()}
+            onPersonaChange={handleFormChange}
           />
         </Suspense>
       )}

@@ -1,10 +1,34 @@
+@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
+
+.item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
 
 .item-title {
   @include type.type-default(500);
   @include type.type-overflow;
-  margin-bottom: var(--space-2);
   color: var(--theme-text-primary);
+}
+
+.chip {
+  @include type.type-meta;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-tertiary);
+}
+
+.chip-icon {
+  height: var(--space-3);
+  width: var(--space-3);
 }
 
 .item-content {
