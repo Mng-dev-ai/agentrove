@@ -18,18 +18,25 @@ from app.core.config import get_settings
 from app.core.security import (
     authenticate_websocket_user,
     create_mcp_access_token,
+    create_scoped_mcp_token,
 )
 from app.core.user_manager import (
     AGENT_ROUTES,
     AccessTokenStrategy,
+    password_fingerprint,
 )
+from app.models.db_models.chat import Message
+from app.models.db_models.enums import MessageRole
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
+from app.models.db_models.workspace import Workspace
 from app.services.email import EmailService, email_service
 from app.services.refresh_token import RefreshTokenService, hash_refresh_token
 
 from tests.conftest import EmailCapture, LoginClient, SettingsOverride, UserFactory
 from tests.helpers import (
+    create_authenticated_workspace,
+    create_chat_row,
     count_refresh_tokens,
     get_user_by_email,
     get_user_settings,
@@ -439,6 +446,112 @@ async def test_host_agent_token_is_limited_to_the_mcp_client_routes(
 
     assert await authenticate_websocket_user(token) is None
     assert await authenticate_websocket_user(tokens["access_token"]) is not None
+
+
+async def test_scoped_agent_token_is_confined_to_its_workspace(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    _headers, user, host_workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    docker_workspace = Workspace(
+        name="Docker Workspace",
+        user_id=user.id,
+        sandbox_id="sandbox-docker",
+        sandbox_provider="docker",
+        workspace_path="/tmp/agentrove-test-docker",
+        source_type="empty",
+    )
+    db_session.add(docker_workspace)
+    await db_session.commit()
+    own_chat = await create_chat_row(db_session, user, docker_workspace, title="own")
+    other_chat = await create_chat_row(db_session, user, host_workspace, title="other")
+    db_session.add_all(
+        Message(chat_id=chat.id, role=MessageRole.USER, content_text="needle")
+        for chat in (own_chat, other_chat)
+    )
+    await db_session.commit()
+    own, other = str(own_chat.id), str(other_chat.id)
+    bound, foreign = str(docker_workspace.id), str(host_workspace.id)
+    token = create_scoped_mcp_token(
+        {
+            "sub": str(user.id),
+            "wid": bound,
+            "cid": own,
+            "did": [],
+            "pwd": password_fingerprint(user.hashed_password),
+        }
+    )
+    headers = {"Authorization": f"Bearer {token}"}
+
+    workspaces = await client.get("/api/v1/workspaces", headers=headers)
+    assert [w["id"] for w in workspaces.json()["items"]] == [bound]
+    chats = await client.get(
+        "/api/v1/chat/chats", params={"workspace_id": foreign}, headers=headers
+    )
+    assert [c["id"] for c in chats.json()["items"]] == [own]
+    search = await client.get(
+        "/api/v1/chat/chats/search", params={"q": "needle"}, headers=headers
+    )
+    assert [r["chat_id"] for r in search.json()["results"]] == [own]
+    for suffix in ("", "/messages"):
+        path = "/api/v1/chat/chats/{}" + suffix
+        assert (await client.get(path.format(own), headers=headers)).status_code == 200
+        assert (
+            await client.get(path.format(other), headers=headers)
+        ).status_code == 404
+
+    chat = {"title": "Escape", "model_id": "sonnet"}
+    automation = {
+        "name": "Escape",
+        "prompt": "run",
+        "model_id": "sonnet",
+        "cron_expression": "0 0 * * *",
+    }
+    for path, body in (
+        ("/api/v1/chat/chats", chat | {"workspace_id": foreign}),
+        ("/api/v1/chat/chats", chat | {"workspace_id": bound, "parent_chat_id": other}),
+        ("/api/v1/automations", automation | {"workspace_id": foreign}),
+        (
+            "/api/v1/channels",
+            {
+                "name": "Escape",
+                "workspace_id": foreign,
+                "members": [{"model_id": "sonnet"}],
+            },
+        ),
+        ("/api/v1/memories", {"title": "T", "content": "C", "workspace_id": foreign}),
+        ("/api/v1/inbox/messages", {"chat_id": other, "title": "T", "body": "B"}),
+    ):
+        response = await client.post(path, json=body, headers=headers)
+        assert response.status_code == 404, (path, response.text)
+
+    global_memory = await client.post(
+        "/api/v1/memories", json={"title": "T", "content": "C"}, headers=headers
+    )
+    assert global_memory.status_code == 403
+    assert "global memories" in global_memory.json()["detail"]
+    own_memory = await client.post(
+        "/api/v1/memories",
+        json={"title": "T", "content": "C", "workspace_id": bound},
+        headers=headers,
+    )
+    assert own_memory.status_code == 201, own_memory.text
+    moved = await client.patch(
+        f"/api/v1/memories/{own_memory.json()['id']}",
+        json={"workspace_id": None},
+        headers=headers,
+    )
+    assert moved.status_code == 403
+    settings_patch = await client.patch(
+        "/api/v1/settings/", json={"personas": []}, headers=headers
+    )
+    assert settings_patch.status_code == 403
+
+    assert await authenticate_websocket_user(token) is None
 
 
 async def test_query_token_is_not_accepted(

@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import exists, func, or_, select, update, true
+from sqlalchemy import func, or_, select, update, true
 from sqlalchemy.orm import aliased, selectinload
 
 from app.constants import (
@@ -97,6 +97,7 @@ class ChatService(BaseDbService[Chat]):
         # e.g. for composer @chat mentions); pinned first, then recency.
         if pagination is None:
             pagination = PaginationParams()
+        workspace_id = self.agent_workspace_filter(user, workspace_id)
 
         async with self.session_factory() as db:
             base_filters = [
@@ -169,6 +170,7 @@ class ChatService(BaseDbService[Chat]):
     ) -> ChatSearchResponse:
         # content_text search across the user's chats; group/cap in Python. +1 lookahead for truncation
         chat_cap = limit + 1
+        workspace_id = self.agent_workspace_filter(user, workspace_id)
 
         async with self.session_factory() as db:
             stmt = (
@@ -314,6 +316,7 @@ class ChatService(BaseDbService[Chat]):
                 if was_read:
                     parent.last_viewed_at = now
 
+            self.require_agent_workspace(user, workspace_id)
             ws_result = await db.execute(
                 select(Workspace).filter(
                     Workspace.id == workspace_id,
@@ -508,6 +511,7 @@ class ChatService(BaseDbService[Chat]):
                     details={"chat_id": str(chat_id)},
                     status_code=404,
                 )
+            self.require_agent_workspace(user, chat.workspace_id)
 
             return chat
 
@@ -526,16 +530,17 @@ class ChatService(BaseDbService[Chat]):
             await db.commit()
 
     async def count_sub_threads(self, chat_id: UUID, user: User) -> int:
+        query = select(func.count(Chat.id)).filter(
+            Chat.parent_chat_id == chat_id,
+            Chat.user_id == user.id,
+            Chat.deleted_at.is_(None),
+            Chat.is_visible(),
+        )
+        workspace_id = self.agent_workspace_filter(user, None)
+        if workspace_id is not None:
+            query = query.filter(Chat.workspace_id == workspace_id)
         async with self.session_factory() as db:
-            result = await db.execute(
-                select(func.count(Chat.id)).filter(
-                    Chat.parent_chat_id == chat_id,
-                    Chat.user_id == user.id,
-                    Chat.deleted_at.is_(None),
-                    Chat.is_visible(),
-                )
-            )
-            return result.scalar() or 0
+            return (await db.execute(query)).scalar() or 0
 
     async def get_title_source(self, chat_id: UUID) -> str | None:
         # First non-empty user message — avoids loading full history for titles.
@@ -721,23 +726,22 @@ class ChatService(BaseDbService[Chat]):
         omit_tool_results: bool = False,
     ) -> CursorPaginatedResponse[MessageSchema]:
         async with self.session_factory() as db:
-            result = await db.execute(
-                select(
-                    exists().where(
-                        Chat.id == chat_id,
-                        Chat.user_id == user.id,
-                        Chat.deleted_at.is_(None),
-                        Chat.is_visible(),
-                    )
+            workspace_id = await db.scalar(
+                select(Chat.workspace_id).where(
+                    Chat.id == chat_id,
+                    Chat.user_id == user.id,
+                    Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
-            if not result.scalar():
+            if workspace_id is None:
                 raise ChatException(
                     "Chat not found or you don't have permission to access messages",
                     error_code=ErrorCode.CHAT_ACCESS_DENIED,
                     details={"chat_id": str(chat_id)},
                     status_code=403,
                 )
+            self.require_agent_workspace(user, workspace_id)
 
         return await self.message_service.get_chat_messages(
             chat_id, cursor, limit, omit_tool_results=omit_tool_results

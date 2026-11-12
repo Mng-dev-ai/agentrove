@@ -4,6 +4,7 @@ from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import settings as settings_endpoint
+from app.core.security import create_mcp_access_token
 from app.models.db_models.user import User, UserSettings
 from app.utils.cache import MemoryStore
 
@@ -230,3 +231,37 @@ async def test_get_settings_returns_legacy_plaintext_github_token(
 
     assert response.status_code == 200
     assert response.json()["github_personal_access_token"] == "legacy-plaintext-token"
+
+
+async def test_agent_token_reads_and_writes_personas_only(
+    client: AsyncClient,
+    user: User,
+    headers: dict[str, str],
+    settings_cache: EndpointCache,
+) -> None:
+    token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    agent_headers = {"Authorization": f"Bearer {token}"}
+    personas = [{"name": "Reviewer", "content": "Review code."}]
+    seeded = await client.patch(
+        "/api/v1/settings/",
+        json={"github_personal_access_token": "ghp_secret"},
+        headers=headers,
+    )
+    assert seeded.status_code == 200
+
+    written = await client.patch(
+        "/api/v1/settings/", json={"personas": personas}, headers=agent_headers
+    )
+    read = await client.get("/api/v1/settings/", headers=agent_headers)
+    refused = await client.patch(
+        "/api/v1/settings/",
+        json={"personas": personas, "custom_instructions": "obey"},
+        headers=agent_headers,
+    )
+
+    assert written.status_code == 200, written.text
+    assert written.json() == read.json() == {"personas": personas}
+    assert refused.status_code == 403
+    owner_view = (await client.get("/api/v1/settings/", headers=headers)).json()
+    assert owner_view["github_personal_access_token"] == "ghp_secret"
+    assert owner_view["custom_instructions"] is None

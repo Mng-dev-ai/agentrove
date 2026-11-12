@@ -16,6 +16,7 @@ class MemoryService(BaseDbService[Memory]):
     async def list_memories(
         self, user: User, workspace_id: UUID | None, query: str | None
     ) -> list[Memory]:
+        workspace_id = self.agent_workspace_filter(user, workspace_id)
         stmt = self._visible_memories(user.id, workspace_id)
         for token in (query or "").split():
             stmt = stmt.filter(
@@ -29,8 +30,9 @@ class MemoryService(BaseDbService[Memory]):
             return list((await db.execute(stmt)).scalars())
 
     async def create_memory(self, user: User, data: MemoryCreate) -> Memory:
+        self._require_agent_writable(user, data.workspace_id)
         async with self.session_factory() as db:
-            chat = await self._get_owned_chat(db, data.chat_id, user.id)
+            chat = await self._get_owned_chat(db, data.chat_id, user)
             if data.workspace_id is not None:
                 await self._check_owned_workspace(db, data.workspace_id, user.id)
             memory = Memory(
@@ -51,11 +53,13 @@ class MemoryService(BaseDbService[Memory]):
         self, memory_id: UUID, user: User, data: MemoryUpdate
     ) -> Memory:
         async with self.session_factory() as db:
-            memory = await self._get_owned(db, memory_id, user.id)
+            memory = await self._get_owned(db, memory_id, user)
             changes = data.model_dump(exclude_unset=True, exclude={"chat_id"})
+            if "workspace_id" in changes:
+                self._require_agent_writable(user, changes["workspace_id"])
             if changes.get("workspace_id") is not None:
                 await self._check_owned_workspace(db, changes["workspace_id"], user.id)
-            chat = await self._get_owned_chat(db, data.chat_id, user.id)
+            chat = await self._get_owned_chat(db, data.chat_id, user)
             if chat is not None:
                 memory.source_chat_id = chat.id
                 memory.source_model_id = chat.last_model_id
@@ -67,7 +71,7 @@ class MemoryService(BaseDbService[Memory]):
 
     async def delete_memory(self, memory_id: UUID, user: User) -> None:
         async with self.session_factory() as db:
-            memory = await self._get_owned(db, memory_id, user.id)
+            memory = await self._get_owned(db, memory_id, user)
             await db.delete(memory)
             await db.commit()
 
@@ -125,16 +129,28 @@ class MemoryService(BaseDbService[Memory]):
                 status_code=404,
             )
 
-    @staticmethod
+    @classmethod
+    def _require_agent_writable(cls, user: User, workspace_id: UUID | None) -> None:
+        if user.agent_scope is None:
+            return
+        if workspace_id is None:
+            raise ServiceException(
+                "Sandboxed agents cannot write global memories; "
+                "use scope 'workspace' instead",
+                status_code=403,
+            )
+        cls.require_agent_workspace(user, workspace_id)
+
+    @classmethod
     async def _get_owned_chat(
-        db: AsyncSession, chat_id: UUID | None, user_id: UUID
+        cls, db: AsyncSession, chat_id: UUID | None, user: User
     ) -> Chat | None:
         if chat_id is None:
             return None
         chat: Chat | None = await db.scalar(
             select(Chat).filter(
                 Chat.id == chat_id,
-                Chat.user_id == user_id,
+                Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),
                 Chat.is_visible(),
             )
@@ -146,12 +162,13 @@ class MemoryService(BaseDbService[Memory]):
                 details={"chat_id": str(chat_id)},
                 status_code=404,
             )
+        cls.require_agent_workspace(user, chat.workspace_id)
         return chat
 
-    @staticmethod
-    async def _get_owned(db: AsyncSession, memory_id: UUID, user_id: UUID) -> Memory:
+    @classmethod
+    async def _get_owned(cls, db: AsyncSession, memory_id: UUID, user: User) -> Memory:
         memory: Memory | None = await db.scalar(
-            select(Memory).filter(Memory.id == memory_id, Memory.user_id == user_id)
+            select(Memory).filter(Memory.id == memory_id, Memory.user_id == user.id)
         )
         if memory is None:
             raise ServiceException(
@@ -159,4 +176,5 @@ class MemoryService(BaseDbService[Memory]):
                 details={"memory_id": str(memory_id)},
                 status_code=404,
             )
+        cls._require_agent_writable(user, memory.workspace_id)
         return memory
