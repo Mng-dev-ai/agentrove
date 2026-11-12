@@ -9,7 +9,7 @@ import type {
   WorkspaceResources,
   UpdateWorkspaceRequest,
 } from '@/types/workspace.types';
-import type { UserSettings } from '@/types/user.types';
+import type { Persona, UserSettings } from '@/types/user.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
 import type { ChatSearchResponse } from '@/types/chat.types';
 
@@ -93,6 +93,40 @@ export const useMachineSettingsQuery = (machineId: string, enabled: boolean) => 
     staleTime: 30_000,
   });
 };
+
+export const useMachinesPersonas = (machineIds: string[]) => {
+  const combine = useCallback(
+    (results: UseQueryResult<UserSettings>[]): Record<string, Persona[]> =>
+      Object.fromEntries(
+        machineIds.map((machineId, index) => [machineId, results[index]?.data?.personas ?? []]),
+      ),
+    [machineIds],
+  );
+  return useQueries({
+    queries: machineIds.map((machineId) => ({
+      queryKey: queryKeys.machine.settings(machineId),
+      queryFn: () => machineChatService.getSettings(machineId),
+      staleTime: 30_000,
+    })),
+    combine,
+  });
+};
+
+export const useUpdateMachinePersonasMutation = createMutation<
+  UserSettings,
+  Error,
+  { machineId: string; update: (personas: Persona[]) => Persona[] | null }
+>(
+  async ({ machineId, update }) => {
+    const settings = await machineChatService.getSettings(machineId);
+    return machineChatService.updateSettings(machineId, {
+      personas: update(settings.personas ?? []),
+    });
+  },
+  (queryClient, data, { machineId }) => {
+    queryClient.setQueryData(queryKeys.machine.settings(machineId), data);
+  },
+);
 
 export const useMachineActiveStreamsQuery = (machineId: string, enabled: boolean) => {
   const online = useMachineOnline(machineId);
