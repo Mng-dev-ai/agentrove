@@ -116,7 +116,7 @@ export function assignSandboxesToMachine(machineId: string, sandboxIds: Iterable
 
 export function assignChatRecordsToMachine(
   machineId: string,
-  chats: { id: string; sandbox_id: string }[],
+  chats: { id: string; sandbox_id: string; channel_id: string | null }[],
 ): void {
   assignChatsToMachine(
     machineId,
@@ -125,6 +125,11 @@ export function assignChatRecordsToMachine(
   assignSandboxesToMachine(
     machineId,
     chats.map((chat) => chat.sandbox_id),
+  );
+  assign(
+    CHANNELS_KEY,
+    machineId,
+    chats.flatMap((chat) => (chat.channel_id ? [chat.channel_id] : [])),
   );
 }
 

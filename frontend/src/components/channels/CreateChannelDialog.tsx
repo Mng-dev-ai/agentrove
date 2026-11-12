@@ -41,6 +41,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { machineName, machineStatus, useTargetMachineId } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { resolvePersona } from '@/utils/settings';
 import { stateClasses } from '@/config/stateClasses';
 import type { Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
@@ -337,7 +338,7 @@ export function CreateChannelDialog({
   });
   const workspaceId = workspaceIdByMachine[targetMachineId] ?? null;
   const [worktree, setWorktree] = useState(DEFAULT_WORKTREE);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [branchPick, setBranchPick] = useState<{ workspaceId: string; name: string } | null>(null);
   const [members, setMembers] = useState<MemberDraft[]>(() => [newMemberDraft()]);
   const createChannel = useCreateChannelMutation();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -347,12 +348,12 @@ export function CreateChannelDialog({
   const sandboxId = workspaces.find((workspace) => workspace.id === workspaceId)?.sandbox_id;
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId);
   const hasBranches = !!branchesData?.is_git_repo && branchesData.branches.length > 0;
+  const selectedBranch = branchPick?.workspaceId === workspaceId ? branchPick.name : null;
   const branch = hasBranches ? (selectedBranch ?? branchesData.current_branch) : null;
 
   const handleWorkspaceChange = useCallback(
     (nextWorkspaceId: string | null) => {
       setWorkspaceIdByMachine((prev) => ({ ...prev, [targetMachineId]: nextWorkspaceId }));
-      setSelectedBranch(null);
     },
     [targetMachineId],
   );
@@ -389,7 +390,10 @@ export function CreateChannelDialog({
       );
       return {
         model_id: modelId,
-        persona: supportsPersona && member.persona !== DEFAULT_PERSONA ? member.persona : null,
+        persona:
+          supportsPersona && resolvePersona(member.persona, personas) !== DEFAULT_PERSONA
+            ? member.persona
+            : null,
         thinking_mode: hasThinking
           ? coerceThinkingModeForAgent(member.thinkingMode, agentKind, model)
           : null,
@@ -482,7 +486,7 @@ export function CreateChannelDialog({
                   worktree={worktree}
                   onWorktreeChange={setWorktree}
                   branch={branch ?? ''}
-                  onBranchChange={setSelectedBranch}
+                  onBranchChange={(name) => workspaceId && setBranchPick({ workspaceId, name })}
                   dropdownPosition="auto"
                 />
               </div>

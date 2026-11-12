@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, type ReactNode } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
 import {
@@ -18,7 +19,9 @@ import { useChatStore } from '@/store/chatStore';
 import { useUIStore } from '@/store/uiStore';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
+import { queryKeys } from '@/hooks/queries/queryKeys';
 import { channelMachineId } from '@/store/machineOrigin';
+import { useOnlineRemoteMachineIds } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Channel } from '@/types/channel.types';
 import type { TileId } from '@/types/ui.types';
@@ -92,14 +95,24 @@ export function ChannelPage() {
   }, [channelId]);
 
   const workspaces = useWorkspacesList();
-  const { data: channel, isError } = useChannelQuery(channelId);
+  const { data: channel, error } = useChannelQuery(channelId);
   const channelMachine = channelMachineId(channelId);
   const isRemote = channelMachine !== LOCAL_MACHINE_ID;
   const { data: machineWorkspaces } = useMachineWorkspacesQuery(channelMachine, isRemote);
+  const onlineMachineIds = useOnlineRemoteMachineIds();
+  const queryClient = useQueryClient();
+  const isChannelGone = (error as (Error & { status?: number }) | null)?.status === 404;
 
   useEffect(() => {
-    if (isError) navigate('/', { replace: true });
-  }, [isError, navigate]);
+    if (isChannelGone) navigate('/', { replace: true });
+  }, [isChannelGone, navigate]);
+
+  useEffect(() => {
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.channel(channelId),
+      predicate: (query) => query.state.status === 'error',
+    });
+  }, [channelId, channelMachine, onlineMachineIds, queryClient]);
 
   const sidebarContent = useMemo(
     () => (
