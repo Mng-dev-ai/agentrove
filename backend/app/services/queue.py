@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel
 
 from app.constants import (
-    QUEUE_MESSAGE_TTL_SECONDS,
+    QUEUE_SEND_NOW_TTL_SECONDS,
     REDIS_KEY_CHANNEL_QUEUE,
     REDIS_KEY_CHAT_QUEUE,
     REDIS_KEY_CHAT_QUEUE_SEND_NOW,
@@ -53,7 +53,7 @@ class BaseQueueService(Generic[ItemT]):
         if not queue:
             await self.cache.delete(key)
         else:
-            await self.cache.set(key, json.dumps(queue), ex=QUEUE_MESSAGE_TTL_SECONDS)
+            await self.cache.set(key, json.dumps(queue))
 
     @staticmethod
     def add_devices(item: dict[str, Any], device_ids: frozenset[UUID]) -> None:
@@ -131,6 +131,10 @@ class BaseQueueService(Generic[ItemT]):
             key = self._queue_key(queue_id)
             await self.cache.delete(key)
 
+    async def clear_queues(self, queue_ids: list[str]) -> None:
+        if queue_ids:
+            await self.cache.delete(*map(self._queue_key, queue_ids))
+
     async def pop_next_message(self, queue_id: str) -> dict[str, Any] | None:
         async with self._lock(queue_id):
             key = self._queue_key(queue_id)
@@ -173,7 +177,9 @@ class QueueService(BaseQueueService[QueuedMessage]):
                 await self._write_queue(key, queue)
 
             send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)
-            await self.cache.set(send_now_key, message_id, ex=QUEUE_MESSAGE_TTL_SECONDS)
+            await self.cache.set(
+                send_now_key, message_id, ex=QUEUE_SEND_NOW_TTL_SECONDS
+            )
             return True
 
     async def pop_send_now_message(self, chat_id: str) -> dict[str, Any] | None:

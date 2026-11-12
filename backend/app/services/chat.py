@@ -45,6 +45,7 @@ from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException, ErrorCode
 from app.services.git import GitService
 from app.services.message import MessageService
+from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
@@ -630,6 +631,11 @@ class ChatService(BaseDbService[Chat]):
             )
             await db.execute(messages_update)
 
+            async with cache_connection() as cache:
+                await QueueService(cache).clear_queues(
+                    [str(cid) for cid in (chat_id, *sub_thread_ids)]
+                )
+
             await db.commit()
 
             asyncio.create_task(session_registry.terminate(str(chat_id)))
@@ -695,6 +701,9 @@ class ChatService(BaseDbService[Chat]):
                 )
                 .values(deleted_at=now)
             )
+
+            async with cache_connection() as cache:
+                await QueueService(cache).clear_queues(chat_ids)
 
             await db.commit()
 

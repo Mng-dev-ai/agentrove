@@ -17,10 +17,14 @@ from app.db.base_class import Base
 from app.db.session import SessionLocal, engine
 from app.main import create_application
 from app.models.db_models.user import User, UserSettings
+from app.services import channel as channel_module
+from app.services import chat as chat_service_module
+from app.services import workspace as workspace_module
 from app.services.email import email_service
 from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
+from tests.helpers import EndpointCache
 
 TEST_DIR = tests.bootstrap.TEST_DIR
 
@@ -168,6 +172,14 @@ def clear_sandbox_provider_cache() -> Iterator[None]:
     deps.sandbox_provider_cache.clear()
     yield
     deps.sandbox_provider_cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def deletion_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Chat, workspace and channel deletion clear their queues in the cache.
+    cache = EndpointCache()
+    for module in (chat_service_module, workspace_module, channel_module):
+        monkeypatch.setattr(module, "cache_connection", cache.connect)
 
 
 @pytest.fixture

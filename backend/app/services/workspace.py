@@ -31,11 +31,13 @@ from app.services.channel import channel_service
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ErrorCode, WorkspaceException
 from app.services.git import GitService
+from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
 from app.services.terminal import teardown_workspace_sandbox
 from app.services.user import UserService
+from app.utils.cache import cache_connection
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -315,6 +317,9 @@ class WorkspaceService(BaseDbService[Workspace]):
             await db.execute(
                 delete(Automation).where(Automation.workspace_id == workspace_id)
             )
+
+            async with cache_connection() as cache:
+                await QueueService(cache).clear_queues([str(cid) for cid in chat_ids])
 
             await db.commit()
 
