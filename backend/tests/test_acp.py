@@ -1970,6 +1970,21 @@ async def test_sandbox_token_only_opens_the_mcp_endpoint_while_its_session_lives
         ):
             assert (await mcp_list_tools(client, rejected)).status_code == 401
 
+        # Soft deletes reject on their own: the session id stays registered.
+        chatless = sandbox_authorization(chat_id=None)
+        chat_row = await db_session.get_one(Chat, UUID(chat["id"]))
+        chat_row.deleted_at = datetime.now(timezone.utc)
+        await db_session.commit()
+        assert (await mcp_list_tools(client, authorization)).status_code == 401
+        assert (await mcp_list_tools(client, chatless)).status_code == 200
+        workspace.deleted_at = datetime.now(timezone.utc)
+        await db_session.commit()
+        assert (await mcp_list_tools(client, chatless)).status_code == 401
+        chat_row.deleted_at = workspace.deleted_at = None
+        await db_session.commit()
+        assert session_registry.is_mcp_session_live(live_session_id)
+        assert (await mcp_list_tools(client, authorization)).status_code == 200
+
         await session_registry.close_idle_sessions(ttl_seconds=0)
         assert (await mcp_list_tools(client, authorization)).status_code == 401
 
