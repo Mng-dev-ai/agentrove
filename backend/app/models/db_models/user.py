@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
@@ -17,11 +18,20 @@ from app.db.base_class import Base
 from app.db.types import GUID, EncryptedString, UTCDateTime
 
 
+@dataclass(frozen=True)
+class AgentScope:
+    workspace_id: UUID
+    chat_id: UUID | None
+
+
 class User(SQLAlchemyBaseUserTableUUID, Base):
     __tablename__ = "users"
     __allow_unmapped__ = True
     device_ids: frozenset[UUID]
     agent_token: bool
+    # Set when the request's token is bound to one Docker workspace; users
+    # loaded outside a request (automations, wakes, channel turns) have none.
+    agent_scope: AgentScope | None = None
 
     id: Mapped[UUID] = mapped_column(
         GUID(),

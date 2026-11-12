@@ -3,7 +3,7 @@ import hmac
 import logging
 import uuid
 from collections.abc import AsyncIterator
-from typing import cast
+from typing import Literal, cast
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.models.db_models.user import User, UserSettings
+from app.models.db_models.user import AgentScope, User, UserSettings
 from app.models.schemas.auth import UserCreate
 from app.services.pairing import PairingService
 from app.services.email import email_service
@@ -167,20 +167,40 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
                 token, self.decode_key, self.token_audience, algorithms=[self.algorithm]
             )
             device_ids = DEVICE_IDS.validate_python(claims.get("did", []))
+            agent_scope = (
+                AgentScope(
+                    workspace_id=uuid.UUID(claims["wid"]),
+                    chat_id=(
+                        uuid.UUID(claims["cid"])
+                        if claims.get("cid") is not None
+                        else None
+                    ),
+                )
+                if "wid" in claims
+                else None
+            )
             user: User = await user_manager.get(user_manager.parse_id(claims["sub"]))
         except (
             jwt.PyJWTError,
             ValidationError,
+            TypeError,
+            ValueError,
             exceptions.InvalidID,
             exceptions.UserNotExists,
         ):
+            return None
+        agent_token = claims.get("mcp") is True
+        # An agent token is bound to a Docker workspace or marked as minted for
+        # a host session; `mcp` alone was once also what sandboxes were given.
+        if agent_token != (agent_scope is not None or claims.get("host") is True):
             return None
         if claims.get("pwd") != password_fingerprint(user.hashed_password):
             return None
         if not await PairingService.all_active(self.db, user.id, device_ids):
             return None
         user.device_ids = device_ids
-        user.agent_token = claims.get("mcp") is True
+        user.agent_token = agent_token
+        user.agent_scope = agent_scope
         return user
 
     async def write_session_token(
@@ -216,13 +236,69 @@ fastapi_users = FastAPIUsers[User, uuid.UUID](
     [auth_backend],
 )
 
-current_active_user = fastapi_users.current_user(active=True)
-optional_current_active_user = fastapi_users.current_user(active=True, optional=True)
+_token_user = fastapi_users.current_user(active=True)
+_optional_token_user = fastapi_users.current_user(active=True, optional=True)
+
+# Every route an agent token (`mcp: true`) may call, relative to API_V1_STR: the
+# requests mcp-server/client.py makes. "host" tokens belong to stdio MCP servers
+# of host workspaces, "scoped" ones to a Docker sandbox's MCP requests.
+AGENT_ROUTES: dict[tuple[str, str], Literal["any", "host", "scoped"]] = {
+    ("GET", "/workspaces"): "any",
+    ("GET", "/models/"): "any",
+    ("GET", "/chat/chats"): "any",
+    ("GET", "/chat/chats/search"): "any",
+    ("GET", "/chat/chats/{chat_id}"): "any",
+    ("GET", "/chat/chats/{chat_id}/messages"): "any",
+    ("GET", "/chat/chats/{chat_id}/context-usage"): "any",
+    ("POST", "/chat/chats"): "any",
+    ("POST", "/chat/chat"): "any",
+    ("POST", "/chat/chats/{chat_id}/queue"): "any",
+    ("DELETE", "/chat/chats/{chat_id}/stream"): "any",
+    ("POST", "/chat/chats/{chat_id}/attachments"): "host",
+    ("POST", "/chat/chats/{chat_id}/attachments/sandbox"): "scoped",
+    ("GET", "/settings/"): "any",
+    ("PATCH", "/settings/"): "host",
+    ("GET", "/channels"): "any",
+    ("POST", "/channels"): "any",
+    ("GET", "/channels/{channel_id}"): "any",
+    ("GET", "/channels/{channel_id}/messages"): "any",
+    ("POST", "/channels/{channel_id}/messages"): "any",
+    ("POST", "/channels/{channel_id}/stop"): "any",
+    ("GET", "/automations"): "any",
+    ("POST", "/automations"): "any",
+    ("PATCH", "/automations/{automation_id}"): "any",
+    ("DELETE", "/automations/{automation_id}"): "any",
+    ("POST", "/automations/{automation_id}/run"): "any",
+    ("POST", "/inbox/messages"): "any",
+    ("GET", "/memories"): "any",
+    ("POST", "/memories"): "any",
+    ("PATCH", "/memories/{memory_id}"): "any",
+    ("DELETE", "/memories/{memory_id}"): "any",
+}
 
 
-async def reject_agent_token(user: User = Depends(current_active_user)) -> None:
-    if user.agent_token:
+def _enforce_agent_routes(request: Request, user: User | None) -> None:
+    if user is None or not user.agent_token:
+        return
+    path = request.scope["route"].path.removeprefix(settings.API_V1_STR)
+    allowed = AGENT_ROUTES.get((request.method, path))
+    kind = "scoped" if user.agent_scope is not None else "host"
+    if allowed not in ("any", kind):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Agent tokens cannot manage pairing or devices",
+            detail="Agent tokens cannot access this route",
         )
+
+
+async def current_active_user(
+    request: Request, user: User = Depends(_token_user)
+) -> User:
+    _enforce_agent_routes(request, user)
+    return user
+
+
+async def optional_current_active_user(
+    request: Request, user: User | None = Depends(_optional_token_user)
+) -> User | None:
+    _enforce_agent_routes(request, user)
+    return user

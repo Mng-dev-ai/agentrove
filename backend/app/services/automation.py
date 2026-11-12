@@ -106,12 +106,12 @@ class AutomationService(BaseDbService[Automation]):
             )
 
     async def _get_owned(
-        self, db: AsyncSession, automation_id: UUID, user_id: UUID
+        self, db: AsyncSession, automation_id: UUID, user: User
     ) -> Automation:
         result = await db.execute(
             select(Automation).filter(
                 Automation.id == automation_id,
-                Automation.user_id == user_id,
+                Automation.user_id == user.id,
             )
         )
         automation: Automation | None = result.scalar_one_or_none()
@@ -121,21 +121,23 @@ class AutomationService(BaseDbService[Automation]):
                 details={"automation_id": str(automation_id)},
                 status_code=404,
             )
+        self.require_agent_workspace(user, automation.workspace_id)
         return automation
 
     async def list_automations(self, user: User) -> list[Automation]:
+        query = select(Automation).filter(Automation.user_id == user.id)
+        workspace_id = self.agent_workspace_filter(user, None)
+        if workspace_id is not None:
+            query = query.filter(Automation.workspace_id == workspace_id)
         async with self.session_factory() as db:
-            result = await db.execute(
-                select(Automation)
-                .filter(Automation.user_id == user.id)
-                .order_by(Automation.created_at.desc())
-            )
+            result = await db.execute(query.order_by(Automation.created_at.desc()))
             return list(result.scalars().all())
 
     async def create_automation(
         self, user: User, device_ids: frozenset[UUID], data: AutomationCreate
     ) -> Automation:
         self._validate_model(data.model_id)
+        self.require_agent_workspace(user, data.workspace_id)
         async with self.session_factory() as db:
             await self._validate_workspace(db, data.workspace_id, user.id)
             automation = Automation(
@@ -162,8 +164,9 @@ class AutomationService(BaseDbService[Automation]):
         if "model_id" in changes:
             self._validate_model(changes["model_id"])
         async with self.session_factory() as db:
-            automation = await self._get_owned(db, automation_id, user.id)
+            automation = await self._get_owned(db, automation_id, user)
             if "workspace_id" in changes:
+                self.require_agent_workspace(user, changes["workspace_id"])
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
             automation.device_ids = PairingService.edited_device_ids(
                 automation.device_ids,
@@ -182,7 +185,7 @@ class AutomationService(BaseDbService[Automation]):
 
     async def delete_automation(self, automation_id: UUID, user: User) -> None:
         async with self.session_factory() as db:
-            automation = await self._get_owned(db, automation_id, user.id)
+            automation = await self._get_owned(db, automation_id, user)
             await db.delete(automation)
             await db.commit()
 
@@ -192,7 +195,7 @@ class AutomationService(BaseDbService[Automation]):
         # Manual "run now" — records last_run_at but leaves next_run_at alone so
         # the scheduled slot still fires.
         async with self.session_factory() as db:
-            automation = await self._get_owned(db, automation_id, user.id)
+            automation = await self._get_owned(db, automation_id, user)
             automation.last_run_at = datetime.now(timezone.utc)
             await db.commit()
         return await self._fire(automation, user, automation.device_ids | device_ids)

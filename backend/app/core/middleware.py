@@ -12,8 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import get_settings
-from app.core.security import get_user_from_token
-from app.db.session import SessionLocal
+from app.core.security import exchange_sandbox_mcp_token
 from app.services.exceptions import ServiceException
 
 settings = get_settings()
@@ -104,15 +103,16 @@ class McpAuthMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        # Reject before the MCP handshake: the token is the one the backend
-        # minted for the session, validated like any REST bearer token.
+        # Reject before the MCP handshake. The endpoint never sees the caller's
+        # token: it gets a short-lived one scoped to the sandbox's workspace.
         scheme, token = get_authorization_scheme_param(
             Headers(scope=scope).get("Authorization")
         )
         if scheme.lower() == "bearer" and token:
-            async with SessionLocal() as db:
-                user = await get_user_from_token(token, db)
-            if user is not None:
+            exchanged = await exchange_sandbox_mcp_token(token)
+            if exchanged is not None:
+                state = scope.setdefault("state", {})
+                state["agentrove_token"], state["agentrove_chat_id"] = exchanged
                 await self.app(scope, receive, send)
                 return
         response = JSONResponse(

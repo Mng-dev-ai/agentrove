@@ -3,11 +3,13 @@ import base64
 import hashlib
 import json
 import logging
+from typing import Any
 from uuid import UUID
 
+import jwt
 from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException, WebSocket, status
-from fastapi_users.jwt import generate_jwt
+from fastapi_users.jwt import decode_jwt, generate_jwt
 from fastapi_users.password import PasswordHelper
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -15,9 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..constants import WS_CLOSE_SANDBOX_NOT_FOUND, WS_MSG_AUTH
 from ..db.session import SessionLocal
+from ..models.db_models.chat import Chat
 from ..models.db_models.user import User
 from ..models.db_models.workspace import Workspace
 from ..services.sandbox_providers import SandboxProviderType
+from ..services.session_registry import session_registry
 from .config import get_settings
 from .user_manager import (
     DEVICE_IDS,
@@ -31,6 +35,9 @@ from .user_manager import (
 settings = get_settings()
 password_helper = PasswordHelper()
 logger = logging.getLogger(__name__)
+
+SANDBOX_MCP_AUDIENCE = "agentrove:sandbox-mcp"
+SCOPED_MCP_TOKEN_LIFETIME_SECONDS = 120
 
 
 def _get_fernet_key() -> bytes:
@@ -87,15 +94,17 @@ async def get_current_user(
 def create_mcp_access_token(
     user_id: str, hashed_password: str, device_ids: frozenset[UUID]
 ) -> str:
-    # Minted for the MCP server spawned into a chat session — audience must match
-    # the JWTStrategy in user_manager.py (fastapi-users default) so the normal
-    # bearer path accepts it. `mcp` bars it from pairing and device management.
+    # Minted for the stdio MCP server of a host-workspace session — audience must
+    # match the JWTStrategy in user_manager.py (fastapi-users default) so the
+    # normal bearer path accepts it. `mcp` limits it to AGENT_ROUTES; `host`
+    # tells it apart from a token handed to a sandbox.
     return str(
         generate_jwt(
             {
                 "sub": str(user_id),
                 "aud": ["fastapi-users:auth"],
                 "mcp": True,
+                "host": True,
                 "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
                 "pwd": password_fingerprint(hashed_password),
             },
@@ -106,10 +115,103 @@ def create_mcp_access_token(
     )
 
 
+def create_sandbox_mcp_token(
+    user_id: str,
+    hashed_password: str,
+    device_ids: frozenset[UUID],
+    *,
+    workspace_id: str | None,
+    chat_id: str | None,
+    session_id: str,
+) -> str:
+    # Everything in a Docker sandbox can read this token, so its audience is one
+    # only McpAuthMiddleware accepts: no REST route or WebSocket takes it.
+    return str(
+        generate_jwt(
+            {
+                "sub": str(user_id),
+                "aud": [SANDBOX_MCP_AUDIENCE],
+                "wid": workspace_id,
+                "cid": chat_id,
+                "sid": session_id,
+                "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
+                "pwd": password_fingerprint(hashed_password),
+            },
+            settings.SECRET_KEY,
+            lifetime_seconds=settings.AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS,
+            algorithm=settings.ALGORITHM,
+        )
+    )
+
+
+def create_scoped_mcp_token(sandbox_claims: dict[str, Any]) -> str:
+    # Never leaves the API process: McpAuthMiddleware mints it per MCP request
+    # for the loopback REST calls that request makes.
+    return str(
+        generate_jwt(
+            {
+                "aud": ["fastapi-users:auth"],
+                "mcp": True,
+                **{k: sandbox_claims[k] for k in ("sub", "wid", "cid", "did", "pwd")},
+            },
+            settings.SECRET_KEY,
+            lifetime_seconds=SCOPED_MCP_TOKEN_LIFETIME_SECONDS,
+            algorithm=settings.ALGORITHM,
+        )
+    )
+
+
+async def exchange_sandbox_mcp_token(token: str) -> tuple[str, str | None] | None:
+    # The scoped token and bound chat id for a sandbox token whose session is
+    # live. read_token owns the user checks; the workspace and chat ones are
+    # only made here.
+    try:
+        claims = decode_jwt(
+            token,
+            settings.SECRET_KEY,
+            [SANDBOX_MCP_AUDIENCE],
+            algorithms=[settings.ALGORITHM],
+        )
+        if not session_registry.is_mcp_session_live(claims["sid"]):
+            return None
+        scoped_token = create_scoped_mcp_token(claims)
+    except (jwt.PyJWTError, KeyError, TypeError):
+        return None
+    async with SessionLocal() as db:
+        user = await get_user_from_token(scoped_token, db)
+        if user is None or user.agent_scope is None:
+            return None
+        scope = user.agent_scope
+        workspace = await db.scalar(
+            select(Workspace.id).where(
+                Workspace.id == scope.workspace_id,
+                Workspace.user_id == user.id,
+                Workspace.deleted_at.is_(None),
+                Workspace.sandbox_provider == SandboxProviderType.DOCKER.value,
+            )
+        )
+        if workspace is None:
+            return None
+        if scope.chat_id is not None and (
+            await db.scalar(
+                select(Chat.id).where(
+                    Chat.id == scope.chat_id,
+                    Chat.user_id == user.id,
+                    Chat.workspace_id == scope.workspace_id,
+                    Chat.deleted_at.is_(None),
+                )
+            )
+            is None
+        ):
+            return None
+    return scoped_token, claims["cid"]
+
+
 async def authenticate_websocket_user(token: str) -> User | None:
     try:
         async with SessionLocal() as db:
-            return await get_user_from_token(token, db)
+            user = await get_user_from_token(token, db)
+        return None if user is None or user.agent_token else user
     except (ValueError, OSError, SQLAlchemyError) as e:
         logger.warning("WebSocket authentication failed: %s", e)
         return None

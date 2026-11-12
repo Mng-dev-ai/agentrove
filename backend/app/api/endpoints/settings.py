@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_db, get_user_service
@@ -12,15 +13,27 @@ from app.utils.cache import cache_connection
 router = APIRouter()
 
 
+def _visible_settings(
+    user: User, response: UserSettingsResponse
+) -> UserSettingsResponse | JSONResponse:
+    # Agents only pick personas; the rest holds credentials and user preferences.
+    if user.agent_token:
+        return JSONResponse(response.model_dump(mode="json", include={"personas"}))
+    return response
+
+
 @router.get("/", response_model=UserSettingsResponse)
 async def get_user_settings(
     current_user: User = Depends(get_current_user),
     user_service: UserService = Depends(get_user_service),
-) -> UserSettingsResponse:
+) -> UserSettingsResponse | JSONResponse:
     try:
         async with cache_connection() as cache:
-            return await user_service.get_user_settings_response(
-                current_user.id, cache=cache
+            return _visible_settings(
+                current_user,
+                await user_service.get_user_settings_response(
+                    current_user.id, cache=cache
+                ),
             )
     except UserException as e:
         raise HTTPException(
@@ -35,8 +48,13 @@ async def update_user_settings(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
-) -> UserSettingsResponse:
+) -> UserSettingsResponse | JSONResponse:
     update_data = settings_update.model_dump(exclude_unset=True)
+    if current_user.agent_token and update_data.keys() - {"personas"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Agent tokens can only change personas",
+        )
     try:
         await user_service.update_user_settings(
             user_id=current_user.id, settings_update=update_data, db=db
@@ -48,6 +66,9 @@ async def update_user_settings(
         )
     async with cache_connection() as cache:
         await user_service.invalidate_settings_cache(cache, current_user.id)
-        return await user_service.get_user_settings_response(
-            current_user.id, db=db, cache=cache
+        return _visible_settings(
+            current_user,
+            await user_service.get_user_settings_response(
+                current_user.id, db=db, cache=cache
+            ),
         )

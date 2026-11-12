@@ -7,7 +7,6 @@ from typing import Annotated, Any, Literal
 from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from pydantic import BaseModel, Field
-from starlette.datastructures import Headers
 from starlette.types import Receive, Scope, Send
 
 from client import DEFAULT_API_URL, AgentroveClient, AgentroveError, ChatBusyError
@@ -94,7 +93,7 @@ def _session() -> tuple[AgentroveClient, str | None]:
     request = mcp.get_context().request_context.request
     if request is None:
         return _env_client(), os.environ.get("AGENTROVE_CURRENT_CHAT_ID")
-    return request.state.agentrove_client, request.headers.get("X-Agentrove-Chat-Id")
+    return request.state.agentrove_client, request.state.agentrove_chat_id
 
 
 class _SandboxClient(AgentroveClient):
@@ -113,8 +112,10 @@ class _SandboxClient(AgentroveClient):
 class HttpEndpoint:
     """ASGI app serving these tools over stateless streamable HTTP in the backend.
 
-    The backend authenticates the bearer token first; tool calls then reach the
-    REST API at api_url with that same token.
+    The backend's McpAuthMiddleware authenticates the sandbox first and puts a
+    short-lived token scoped to the sandbox's workspace, plus the current chat id,
+    in the ASGI scope state; tool calls reach the REST API at api_url with that
+    token. Request headers are never trusted for either.
     """
 
     def __init__(self, api_url: str) -> None:
@@ -134,10 +135,10 @@ class HttpEndpoint:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if self._session_manager is None:
             raise RuntimeError("HttpEndpoint.run() must be active to serve requests")
-        _, _, token = Headers(scope=scope).get("Authorization", "").partition(" ")
-        client = _SandboxClient(self._api_url, token)
         # Request.state is scope["state"], which the transport hands to tools.
-        scope.setdefault("state", {})["agentrove_client"] = client
+        state = scope["state"]
+        client = _SandboxClient(self._api_url, state["agentrove_token"])
+        state["agentrove_client"] = client
         try:
             await self._session_manager.handle_request(scope, receive, send)
         finally:

@@ -154,6 +154,10 @@ class WorkspaceService(BaseDbService[Workspace]):
         async with self._session_factory() as db:
             chat_count_col = func.count(Chat.id).label("chat_count")
             last_chat_at_col = func.max(Chat.updated_at).label("last_chat_at")
+            owned = [Workspace.user_id == user.id, Workspace.deleted_at.is_(None)]
+            workspace_id = self.agent_workspace_filter(user, None)
+            if workspace_id is not None:
+                owned.append(Workspace.id == workspace_id)
 
             query = (
                 select(Workspace, chat_count_col, last_chat_at_col)
@@ -164,7 +168,7 @@ class WorkspaceService(BaseDbService[Workspace]):
                     & (Chat.is_visible())
                     & (Chat.parent_chat_id.is_(None)),
                 )
-                .filter(Workspace.user_id == user.id, Workspace.deleted_at.is_(None))
+                .filter(*owned)
                 .group_by(Workspace.id)
                 .order_by(
                     func.max(Chat.updated_at).desc().nulls_last(),
@@ -173,9 +177,7 @@ class WorkspaceService(BaseDbService[Workspace]):
             )
 
             if pagination:
-                count_query = select(func.count(Workspace.id)).filter(
-                    Workspace.user_id == user.id, Workspace.deleted_at.is_(None)
-                )
+                count_query = select(func.count(Workspace.id)).filter(*owned)
                 total = (await db.execute(count_query)).scalar() or 0
                 offset = (pagination.page - 1) * pagination.per_page
                 query = query.offset(offset).limit(pagination.per_page)

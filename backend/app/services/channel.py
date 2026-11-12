@@ -158,11 +158,13 @@ class ChannelService(BaseDbService[Channel]):
             )
         if channel is None:
             raise HTTPException(404, "Channel not found")
+        self.require_agent_workspace(user, channel.workspace_id)
         return channel
 
     async def list_channels(
         self, user: User, workspace_id: UUID | None
     ) -> list[Channel]:
+        workspace_id = self.agent_workspace_filter(user, workspace_id)
         async with self.session_factory() as db:
             query = (
                 select(Channel)
@@ -175,6 +177,7 @@ class ChannelService(BaseDbService[Channel]):
             return list((await db.scalars(query)).all())
 
     async def create(self, user: User, data: ChannelCreate) -> Channel:
+        self.require_agent_workspace(user, data.workspace_id)
         display_names: list[str] = []
         used_names = set(BROADCAST_MENTIONS)
         for item in data.members:

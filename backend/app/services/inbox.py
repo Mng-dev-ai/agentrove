@@ -70,6 +70,8 @@ class InboxService(BaseDbService[InboxItem]):
                     Chat.deleted_at.is_(None),
                 )
             )
+            if user.agent_scope is not None and chat_id != user.agent_scope.chat_id:
+                chat_id = None
             if chat_id is None:
                 raise ServiceException(
                     "Chat not found",

@@ -1,25 +1,47 @@
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from email.mime.multipart import MIMEMultipart
-from uuid import UUID
+from pathlib import Path
+from uuid import UUID, uuid4
 
 import aiosmtplib
 import httpx
 import pytest
+from fastapi import FastAPI
+from fastapi.routing import APIRoute
+from fastapi_users.jwt import generate_jwt
 from httpx import AsyncClient
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import app.main as main_module
-from app.core.security import create_mcp_access_token
-from app.core.user_manager import AccessTokenStrategy
+from app.core.config import get_settings
+from app.core.security import (
+    authenticate_websocket_user,
+    create_mcp_access_token,
+    create_scoped_mcp_token,
+)
+from app.core.user_manager import (
+    AGENT_ROUTES,
+    AccessTokenStrategy,
+    password_fingerprint,
+)
+from app.models.db_models.chat import Message
+from app.models.db_models.enums import MessageRole
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
+from app.models.db_models.workspace import Workspace
 from app.services.email import EmailService, email_service
 from app.services.refresh_token import RefreshTokenService, hash_refresh_token
 
 from tests.conftest import EmailCapture, LoginClient, SettingsOverride, UserFactory
-from tests.helpers import count_refresh_tokens, get_user_by_email, get_user_settings
+from tests.helpers import (
+    create_authenticated_workspace,
+    create_chat_row,
+    count_refresh_tokens,
+    get_user_by_email,
+    get_user_settings,
+)
 
 
 pytestmark = pytest.mark.anyio
@@ -374,50 +396,197 @@ async def test_me_returns_current_user(
     assert body["is_verified"] is True
 
 
-async def test_mcp_access_token_authenticates_bearer_requests(
+def test_agent_route_allowlist_is_exactly_what_the_mcp_client_calls(
+    app: FastAPI,
+) -> None:
+    mcp_server = Path(__file__).resolve().parents[2] / "mcp-server"
+    source = (mcp_server / "client.py").read_text() + (
+        mcp_server / "server.py"
+    ).read_text()
+    called = set(re.findall(r'self\.request\(\s*"([A-Z]+)",\s*f?"([^"]+)"', source))
+    registered = {
+        (method, route.path)
+        for route in app.routes
+        if isinstance(route, APIRoute)
+        for method in route.methods
+    }
+
+    assert called == set(AGENT_ROUTES)
+    assert {
+        (method, get_settings().API_V1_STR + path) for method, path in AGENT_ROUTES
+    } <= registered
+
+
+async def test_host_agent_token_is_limited_to_the_mcp_client_routes(
     client: AsyncClient,
     create_user: UserFactory,
+    login: LoginClient,
 ) -> None:
     user = await create_user(email="mcp-token@example.com", username="mcptoken")
+    tokens = await login(email="mcp-token@example.com")
+    paired = (await pair_device(client, tokens["access_token"])).json()
     token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    headers = {"Authorization": f"Bearer {token}"}
 
-    response = await client.get(
-        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
-    )
+    allowed = await client.get("/api/v1/workspaces", headers=headers)
+    assert allowed.status_code == 200, allowed.text
 
-    assert response.status_code == 200, response.text
-    assert response.json()["email"] == "mcp-token@example.com"
+    for method, path in (
+        ("GET", "/api/v1/auth/me"),
+        ("POST", "/api/v1/workspaces"),
+        ("GET", "/api/v1/sandbox/sandbox-1/files/metadata"),
+        ("GET", "/api/v1/github/repositories"),
+        ("POST", f"/api/v1/chat/chats/{uuid4()}/attachments/sandbox"),
+        ("POST", "/api/v1/auth/pairing"),
+        ("GET", "/api/v1/auth/devices"),
+        ("DELETE", f"/api/v1/auth/devices/{paired['device_id']}"),
+    ):
+        response = await client.request(method, path, headers=headers)
+        assert response.status_code == 403, (method, path, response.text)
+        assert response.json()["detail"] == "Agent tokens cannot access this route"
+
+    assert await authenticate_websocket_user(token) is None
+    assert await authenticate_websocket_user(tokens["access_token"]) is not None
 
 
-async def test_mcp_endpoint_requires_a_valid_token_and_lists_tools(
+async def test_agent_token_without_host_marker_or_workspace_is_rejected(
     client: AsyncClient,
     create_user: UserFactory,
 ) -> None:
-    user = await create_user(email="mcp-http@example.com", username="mcphttp")
-    token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
-    stale = create_mcp_access_token(str(user.id), "old-password-hash", frozenset())
-    list_tools = {"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
-    headers = {"Host": "api:8080", "Accept": "application/json, text/event-stream"}
+    # Docker sandboxes were once handed this claim set, so it can no longer be
+    # told apart from a token that leaked out of one.
+    user = await create_user(email="old-agent@example.com", username="oldagent")
+    old_shape = generate_jwt(
+        {
+            "sub": str(user.id),
+            "aud": ["fastapi-users:auth"],
+            "mcp": True,
+            "did": [],
+            "pwd": password_fingerprint(user.hashed_password),
+        },
+        get_settings().SECRET_KEY,
+        lifetime_seconds=60,
+        algorithm=get_settings().ALGORITHM,
+    )
+    host_token = create_mcp_access_token(
+        str(user.id), user.hashed_password, frozenset()
+    )
 
-    for authorization in (
-        {},
-        {"Authorization": "Bearer junk"},
-        {"Authorization": f"Bearer {stale}"},
+    rejected = await client.get(
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {old_shape}"}
+    )
+    accepted = await client.get(
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {host_token}"}
+    )
+
+    assert rejected.status_code == 401, rejected.text
+    assert accepted.status_code == 200, accepted.text
+
+
+async def test_scoped_agent_token_is_confined_to_its_workspace(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    _headers, user, host_workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    docker_workspace = Workspace(
+        name="Docker Workspace",
+        user_id=user.id,
+        sandbox_id="sandbox-docker",
+        sandbox_provider="docker",
+        workspace_path="/tmp/agentrove-test-docker",
+        source_type="empty",
+    )
+    db_session.add(docker_workspace)
+    await db_session.commit()
+    own_chat = await create_chat_row(db_session, user, docker_workspace, title="own")
+    other_chat = await create_chat_row(db_session, user, host_workspace, title="other")
+    db_session.add_all(
+        Message(chat_id=chat.id, role=MessageRole.USER, content_text="needle")
+        for chat in (own_chat, other_chat)
+    )
+    await db_session.commit()
+    own, other = str(own_chat.id), str(other_chat.id)
+    bound, foreign = str(docker_workspace.id), str(host_workspace.id)
+    token = create_scoped_mcp_token(
+        {
+            "sub": str(user.id),
+            "wid": bound,
+            "cid": own,
+            "did": [],
+            "pwd": password_fingerprint(user.hashed_password),
+        }
+    )
+    headers = {"Authorization": f"Bearer {token}"}
+
+    workspaces = await client.get("/api/v1/workspaces", headers=headers)
+    assert [w["id"] for w in workspaces.json()["items"]] == [bound]
+    chats = await client.get(
+        "/api/v1/chat/chats", params={"workspace_id": foreign}, headers=headers
+    )
+    assert [c["id"] for c in chats.json()["items"]] == [own]
+    search = await client.get(
+        "/api/v1/chat/chats/search", params={"q": "needle"}, headers=headers
+    )
+    assert [r["chat_id"] for r in search.json()["results"]] == [own]
+    for suffix in ("", "/messages"):
+        path = "/api/v1/chat/chats/{}" + suffix
+        assert (await client.get(path.format(own), headers=headers)).status_code == 200
+        assert (
+            await client.get(path.format(other), headers=headers)
+        ).status_code == 404
+
+    chat = {"title": "Escape", "model_id": "sonnet"}
+    automation = {
+        "name": "Escape",
+        "prompt": "run",
+        "model_id": "sonnet",
+        "cron_expression": "0 0 * * *",
+    }
+    for path, body in (
+        ("/api/v1/chat/chats", chat | {"workspace_id": foreign}),
+        ("/api/v1/chat/chats", chat | {"workspace_id": bound, "parent_chat_id": other}),
+        ("/api/v1/automations", automation | {"workspace_id": foreign}),
+        (
+            "/api/v1/channels",
+            {
+                "name": "Escape",
+                "workspace_id": foreign,
+                "members": [{"model_id": "sonnet"}],
+            },
+        ),
+        ("/api/v1/memories", {"title": "T", "content": "C", "workspace_id": foreign}),
+        ("/api/v1/inbox/messages", {"chat_id": other, "title": "T", "body": "B"}),
     ):
-        response = await client.post(
-            "/api/v1/mcp", json=list_tools, headers=headers | authorization
-        )
-        assert response.status_code == 401
+        response = await client.post(path, json=body, headers=headers)
+        assert response.status_code == 404, (path, response.text)
 
-    async with main_module.mcp_endpoint.run():
-        response = await client.post(
-            "/api/v1/mcp",
-            json=list_tools,
-            headers=headers | {"Authorization": f"Bearer {token}"},
-        )
-    assert response.status_code == 200, response.text
-    tools = {tool["name"] for tool in response.json()["result"]["tools"]}
-    assert {"get_current_chat", "list_workspaces", "attach_file"} <= tools
+    global_memory = await client.post(
+        "/api/v1/memories", json={"title": "T", "content": "C"}, headers=headers
+    )
+    assert global_memory.status_code == 403
+    assert "global memories" in global_memory.json()["detail"]
+    own_memory = await client.post(
+        "/api/v1/memories",
+        json={"title": "T", "content": "C", "workspace_id": bound},
+        headers=headers,
+    )
+    assert own_memory.status_code == 201, own_memory.text
+    moved = await client.patch(
+        f"/api/v1/memories/{own_memory.json()['id']}",
+        json={"workspace_id": None},
+        headers=headers,
+    )
+    assert moved.status_code == 403
+    settings_patch = await client.patch(
+        "/api/v1/settings/", json={"personas": []}, headers=headers
+    )
+    assert settings_patch.status_code == 403
+
+    assert await authenticate_websocket_user(token) is None
 
 
 async def test_query_token_is_not_accepted(
@@ -1350,38 +1519,12 @@ async def test_mcp_token_bound_to_device_dies_with_device(
             str(user.id), user.hashed_password, frozenset({UUID(paired["device_id"])})
         )
     }
-    assert (await client.get("/api/v1/auth/me", headers=mcp_headers)).status_code == 200
+    workspaces = "/api/v1/workspaces"
+    assert (await client.get(workspaces, headers=mcp_headers)).status_code == 200
 
     await client.delete(
         f"/api/v1/auth/devices/{paired['device_id']}",
         headers={"Authorization": f"Bearer {tokens['access_token']}"},
     )
 
-    assert (await client.get("/api/v1/auth/me", headers=mcp_headers)).status_code == 401
-
-
-async def test_agent_token_cannot_create_pairing_links_or_manage_devices(
-    client: AsyncClient,
-    create_user: UserFactory,
-    login: LoginClient,
-) -> None:
-    user = await create_user(email="mcp-pair@example.com", username="mcppair")
-    tokens = await login(email="mcp-pair@example.com")
-    paired = (await pair_device(client, tokens["access_token"])).json()
-    mcp_headers = {
-        "Authorization": f"Bearer {create_mcp_access_token(str(user.id), user.hashed_password, frozenset())}"
-    }
-
-    responses = [
-        await client.post("/api/v1/auth/pairing", headers=mcp_headers),
-        await client.get("/api/v1/auth/devices", headers=mcp_headers),
-        await client.delete(
-            f"/api/v1/auth/devices/{paired['device_id']}", headers=mcp_headers
-        ),
-    ]
-
-    for response in responses:
-        assert response.status_code == 403
-        assert (
-            response.json()["detail"] == "Agent tokens cannot manage pairing or devices"
-        )
+    assert (await client.get(workspaces, headers=mcp_headers)).status_code == 401

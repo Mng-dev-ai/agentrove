@@ -25,6 +25,7 @@ class ChatSession:
     chat_id: str
     acp_session: AcpSession
     fingerprint: str
+    mcp_session_id: str
     active_generation_task: asyncio.Task[Any] | None = None
     cancel_event: asyncio.Event = field(default_factory=asyncio.Event)
     last_used_at: float = field(default_factory=time.monotonic)
@@ -38,6 +39,18 @@ class SessionRegistry:
         # arrives between generations (no active task to cancel) is still
         # honoured when the next generation starts.
         self._pending_cancels: dict[str, float | None] = {}
+        # Sessions by the `sid` of the sandbox MCP token they were spawned with;
+        # None while the session is being created, when the agent already
+        # connects to its MCP servers. In-process state is authoritative because
+        # the API runs one uvicorn worker; a restart drops every session and
+        # with it every sandbox token.
+        self._mcp_sessions: dict[str, ChatSession | None] = {}
+
+    def is_mcp_session_live(self, mcp_session_id: str) -> bool:
+        if mcp_session_id not in self._mcp_sessions:
+            return False
+        session = self._mcp_sessions[mcp_session_id]
+        return session is None or session.acp_session.is_alive()
 
     async def get_or_create(
         self,
@@ -64,13 +77,20 @@ class SessionRegistry:
 
         created = session is None
         if created:
-            acp_session = await AcpSession.create(config)
+            self._mcp_sessions[config.mcp_session_id] = None
+            try:
+                acp_session = await AcpSession.create(config)
+            except BaseException:
+                del self._mcp_sessions[config.mcp_session_id]
+                raise
             session = ChatSession(
                 chat_id=chat_id,
                 acp_session=acp_session,
                 fingerprint=fingerprint,
+                mcp_session_id=config.mcp_session_id,
             )
             self._sessions[chat_id] = session
+            self._mcp_sessions[config.mcp_session_id] = session
 
         assert session is not None
         session.last_used_at = time.monotonic()
@@ -228,8 +248,8 @@ class SessionRegistry:
         data = json.dumps(fingerprint_dict, sort_keys=True, default=str)
         return hashlib.sha256(data.encode()).hexdigest()
 
-    @staticmethod
-    async def _close_session(session: ChatSession) -> None:
+    async def _close_session(self, session: ChatSession) -> None:
+        self._mcp_sessions.pop(session.mcp_session_id, None)
         task = session.active_generation_task
         if task is not None and not task.done():
             task.cancel()
