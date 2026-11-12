@@ -145,6 +145,8 @@ interface ChannelTypingRowProps {
   typing: ChannelMember[];
   waiting: ChannelMember[];
   retrying: ChannelMember[];
+  unavailable: ChannelMember[];
+  reasons: Record<string, string>;
 }
 
 const ChannelTypingRow = memo(function ChannelTypingRow({
@@ -152,6 +154,8 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
   typing,
   waiting,
   retrying,
+  unavailable,
+  reasons,
 }: ChannelTypingRowProps) {
   const text = [
     typing.length > 0 && memberStatus(typing, 'is typing', 'are typing'),
@@ -160,6 +164,7 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
       memberStatus(waiting, 'is waiting for approval', 'are waiting for approval'),
     retrying.length > 0 &&
       memberStatus(retrying, 'hit an error, retrying soon', 'hit errors, retrying soon'),
+    unavailable.length > 0 && memberStatus(unavailable, 'is unavailable', 'are unavailable'),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -168,7 +173,7 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
       <StatusIndicator
         leading={
           <span className={styles['typing-icons']}>
-            {[...typing, ...thinking, ...waiting, ...retrying].map((member) => (
+            {[...typing, ...thinking, ...waiting, ...retrying, ...unavailable].map((member) => (
               <ProviderIcon
                 key={member.id}
                 agentKind={getAgentKindForModelId(member.model_id)}
@@ -180,6 +185,14 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
         text={text}
         caretBlinking={thinking.length > 0 || typing.length > 0}
       />
+      {[...retrying, ...unavailable].map(
+        (member) =>
+          reasons[member.id] && (
+            <p key={member.id} className={styles['member-reason']}>
+              {member.display_name}: {reasons[member.id]}
+            </p>
+          ),
+      )}
     </div>
   );
 });
@@ -295,13 +308,21 @@ export function ChannelView({ channel }: { channel: Channel }) {
     () => new Map(channel.members.map((member) => [member.id, member])),
     [channel.members],
   );
-  const { thinkingMembers, typingMembers, waitingMembers, retryingMembers } = useMemo(() => {
+  const {
+    thinkingMembers,
+    typingMembers,
+    waitingMembers,
+    retryingMembers,
+    unavailableMembers,
+    memberReasons,
+  } = useMemo(() => {
     const waitingIds = new Set(permissions.map((p) => p.member_id));
     const typingIds = new Set(
       messages.flatMap((m) => (m.status === 'streaming' && m.member_id ? [m.member_id] : [])),
     );
     const activeIds = new Set(activity.member_ids);
     const retryingIds = new Set(activity.retrying_member_ids);
+    const memberReasons = { ...activity.member_errors, ...activity.unavailable_members };
     return {
       thinkingMembers: channel.members.filter(
         (member) =>
@@ -312,6 +333,10 @@ export function ChannelView({ channel }: { channel: Channel }) {
       ),
       waitingMembers: channel.members.filter((member) => waitingIds.has(member.id)),
       retryingMembers: channel.members.filter((member) => retryingIds.has(member.id)),
+      unavailableMembers: channel.members.filter(
+        (member) => activity.unavailable_members?.[member.id] !== undefined,
+      ),
+      memberReasons,
     };
   }, [messages, permissions, activity, channel.members]);
   const isBusy =
@@ -417,13 +442,15 @@ export function ChannelView({ channel }: { channel: Channel }) {
                     />
                   </ConversationColumn>
                 ))}
-                {isBusy && (
+                {(isBusy || unavailableMembers.length > 0) && (
                   <ConversationColumn>
                     <ChannelTypingRow
                       thinking={thinkingMembers}
                       typing={typingMembers}
                       waiting={waitingMembers}
                       retrying={retryingMembers}
+                      unavailable={unavailableMembers}
+                      reasons={memberReasons}
                     />
                   </ConversationColumn>
                 )}

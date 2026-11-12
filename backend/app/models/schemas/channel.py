@@ -82,6 +82,8 @@ class ChannelMemberActivity(BaseModel):
     member_ids: list[str]
     waiting_member_ids: list[str]
     retrying_member_ids: list[str]
+    member_errors: dict[str, str]
+    unavailable_members: dict[str, str]
 
 
 class ChannelRead(BaseModel):

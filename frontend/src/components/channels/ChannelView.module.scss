@@ -1,4 +1,5 @@
 @use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
 
 .author {
   display: flex;
@@ -41,6 +42,17 @@
 .activity-unavailable {
   @include type.type-meta;
   color: var(--theme-text-tertiary);
+}
+
+.member-reason {
+  @include type.type-default;
+  overflow-wrap: anywhere;
+  padding: 0 var(--space-4) var(--space-1);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.media('sm-up') {
+    padding: 0 var(--space-6) var(--space-1);
+  }
 }
 
 .typing-icons {

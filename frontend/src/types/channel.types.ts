@@ -72,6 +72,8 @@ export interface ChannelMemberActivity {
   member_ids: string[];
   waiting_member_ids: string[];
   retrying_member_ids: string[];
+  member_errors?: Record<string, string>;
+  unavailable_members?: Record<string, string>;
 }
 
 interface ChannelEnvelopeBase<K extends string, P> {
