@@ -11,10 +11,9 @@ import type {
 import type { Message } from '@/types/chat.types';
 import type { QueueAddResponse, QueuedItem } from '@/types/queue.types';
 
-async function listChannels(machineId: string, workspaceId?: string): Promise<Channel[]> {
+async function listChannels(machineId: string): Promise<Channel[]> {
   return serviceCall(async () => {
-    const query = workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : '';
-    const response = await getMachineClient(machineId).get<Channel[]>(`/channels${query}`);
+    const response = await getMachineClient(machineId).get<Channel[]>('/channels');
     const channels = ensureResponse(response, 'Failed to load channels');
     assignChannelsToMachine(machineId, channels);
     return channels;

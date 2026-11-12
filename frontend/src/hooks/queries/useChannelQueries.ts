@@ -22,7 +22,7 @@ export interface MachineChannel {
   machineId: string;
 }
 
-export const useMachinesChannels = (workspaceId: string | undefined, enabled: boolean) => {
+export const useMachinesChannels = (enabled: boolean) => {
   const remoteIds = useRemoteMachineIds();
   const connections = useMachineStore((state) => state.connections);
   const machineIds = useMemo(() => [LOCAL_MACHINE_ID, ...remoteIds], [remoteIds]);
@@ -37,8 +37,8 @@ export const useMachinesChannels = (workspaceId: string | undefined, enabled: bo
   );
   return useQueries({
     queries: machineIds.map((machineId) => ({
-      queryKey: queryKeys.channels(machineId, workspaceId),
-      queryFn: () => channelService.listChannels(machineId, workspaceId),
+      queryKey: queryKeys.channels(machineId),
+      queryFn: () => channelService.listChannels(machineId),
       enabled:
         enabled && (machineId === LOCAL_MACHINE_ID || connections[machineId]?.status === 'online'),
       staleTime: 30_000,

@@ -54,11 +54,12 @@ export function SidebarChannels({
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const machineChannels = useMachinesChannels(filterWorkspaceId ?? undefined, isAuthenticated);
-  const channels =
-    filterSource === 'all'
-      ? machineChannels
-      : machineChannels.filter(({ machineId }) => machineId === filterSource);
+  const machineChannels = useMachinesChannels(isAuthenticated);
+  const channels = machineChannels.filter(
+    ({ channel, machineId }) =>
+      (!filterWorkspaceId || channel.workspace_id === filterWorkspaceId) &&
+      (filterSource === 'all' || machineId === filterSource),
+  );
   const deleteChannel = useDeleteChannelMutation();
   const renameChannel = useRenameChannelMutation();
   const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes('channels'));
