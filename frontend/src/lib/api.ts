@@ -1,6 +1,6 @@
 import { authStorage } from '@/utils/storage';
 import { invalidateSessionAndRedirect } from '@/utils/authSession';
-import { chatMachineId, sandboxMachineId } from '@/store/machineOrigin';
+import { channelMachineId, chatMachineId, sandboxMachineId } from '@/store/machineOrigin';
 import { jwtExpiryMs } from '@/utils/jwt';
 import { NetworkError } from '@/types/errors.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
@@ -420,6 +420,10 @@ function getMachineWsBaseUrl(machineId: string): string {
 
 export function resolveChatClient(chatId: string | undefined): APIClient {
   return getMachineClient(chatMachineId(chatId));
+}
+
+export function resolveChannelClient(channelId: string): APIClient {
+  return getMachineClient(channelMachineId(channelId));
 }
 
 export function resolveSandboxClient(sandboxId: string | undefined): APIClient {

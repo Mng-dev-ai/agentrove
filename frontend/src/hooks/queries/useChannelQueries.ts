@@ -1,20 +1,51 @@
-import { useMutation, useQuery, type Query } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  type Query,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import { channelService } from '@/services/channelService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
 import { useChannelStore } from '@/store/channelStore';
 import { useChannelQueueStore } from '@/store/messageQueueStore';
+import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
 import { useUIStore } from '@/store/uiStore';
 import type { Channel, ChannelCreateRequest, ChannelMessage } from '@/types/channel.types';
 import type { Message } from '@/types/chat.types';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
-export const useChannelsQuery = (workspaceId: string | undefined, enabled: boolean) =>
-  useQuery<Channel[]>({
-    queryKey: queryKeys.channels(workspaceId),
-    queryFn: () => channelService.listChannels(workspaceId),
-    enabled,
-    staleTime: 30_000,
+export interface MachineChannel {
+  channel: Channel;
+  machineId: string;
+}
+
+export const useMachinesChannels = (enabled: boolean) => {
+  const remoteIds = useRemoteMachineIds();
+  const connections = useMachineStore((state) => state.connections);
+  const machineIds = useMemo(() => [LOCAL_MACHINE_ID, ...remoteIds], [remoteIds]);
+  const combine = useCallback(
+    (results: UseQueryResult<Channel[]>[]): MachineChannel[] =>
+      machineIds
+        .flatMap((machineId, index) =>
+          (results[index]?.data ?? []).map((channel) => ({ channel, machineId })),
+        )
+        .sort((a, b) => Date.parse(b.channel.updated_at) - Date.parse(a.channel.updated_at)),
+    [machineIds],
+  );
+  return useQueries({
+    queries: machineIds.map((machineId) => ({
+      queryKey: queryKeys.channels(machineId),
+      queryFn: () => channelService.listChannels(machineId),
+      enabled:
+        enabled && (machineId === LOCAL_MACHINE_ID || connections[machineId]?.status === 'online'),
+      staleTime: 30_000,
+    })),
+    combine,
   });
+};
 
 export const useChannelQuery = (channelId: string | undefined) =>
   useQuery<Channel>({
@@ -35,8 +66,12 @@ export const useChannelMessageActivityQuery = (channelId: string, messageId: str
     retry: false,
   });
 
-export const useCreateChannelMutation = createMutation<Channel, Error, ChannelCreateRequest>(
-  (data) => channelService.createChannel(data),
+export const useCreateChannelMutation = createMutation<
+  Channel,
+  Error,
+  { machineId: string; data: ChannelCreateRequest }
+>(
+  ({ machineId, data }) => channelService.createChannel(machineId, data),
   (queryClient) => queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll }),
 );
 

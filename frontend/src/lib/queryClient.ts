@@ -3,6 +3,7 @@ import type { Query } from '@tanstack/react-query';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import type { PersistQueryClientOptions } from '@tanstack/react-query-persist-client';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -15,13 +16,14 @@ export const queryClient = new QueryClient({
   },
 });
 
-// First-paint only (chats, workspaces, user). Skip messages/diffs (quota) and settings (secrets).
+// First-paint only (chats, remote channels, workspaces, user). Skip messages/diffs (quota) and settings (secrets).
 function shouldPersistQuery(query: Query): boolean {
   if (!defaultShouldDehydrateQuery(query)) return false;
   const key = query.queryKey;
   if (key[0] === queryKeys.chats && key[1] === 'infinite') return true;
   if (key[0] === queryKeys.auth.user) return true;
   if (key.length === 1 && key[0] === queryKeys.workspaces[0]) return true;
+  if (key[0] === queryKeys.channelsAll[0] && key[1] !== LOCAL_MACHINE_ID) return true;
   return key[0] === 'machine' && key[2] === 'chats' && key[3] === 'page';
 }
 

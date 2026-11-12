@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { apiClient } from '@/lib/api';
+import { resolveChannelClient } from '@/lib/api';
 import { channelService } from '@/services/channelService';
 import '@/services/streamService';
 import { streamConnection } from '@/services/streamConnection';
@@ -25,7 +25,7 @@ export function useChannelLive(channelId: string) {
 
   useEffect(() => {
     useChannelStore.getState().holdChannel(channelId);
-    const release = streamConnection.retain(apiClient);
+    const release = streamConnection.retain(resolveChannelClient(channelId));
     return () => {
       release();
       useChannelStore.getState().releaseChannel(channelId);

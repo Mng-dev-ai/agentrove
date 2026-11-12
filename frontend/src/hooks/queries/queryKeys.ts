@@ -92,7 +92,7 @@ export const queryKeys = {
   memories: (workspaceId: string | null) => ['memories', workspaceId] as const,
   memoriesAll: ['memories'] as const,
   automations: ['automations'] as const,
-  channels: (workspaceId?: string) => ['channels', workspaceId ?? null] as const,
+  channels: (machineId: string) => ['channels', machineId] as const,
   channelsAll: ['channels'] as const,
   channel: (channelId?: string) => ['channel', channelId] as const,
   channelMessageActivity: (channelId: string, messageId: string) =>

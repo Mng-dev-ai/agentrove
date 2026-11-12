@@ -381,6 +381,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                           <UserBubble>
                             <MessageAttachments
                               attachments={message.attachments}
+                              chatId={channel.anchor_chat_id}
                               className={styles.attachments}
                             />
                             <MarkDown content={message.content} highlightMentions />

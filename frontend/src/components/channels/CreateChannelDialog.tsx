@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import clsx from 'clsx';
 import { ChevronDown, Hash, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -16,6 +16,8 @@ import { PermissionModeDropdown } from '@/components/chat/permission-mode-select
 import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
 import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
+import { MachineWorkspaceSelector } from '@/components/chat/workspace-selector/MachineWorkspaceSelector';
+import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
 import { BranchWorktreeDropdown } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
 import {
   coerceThinkingModeForAgent,
@@ -24,7 +26,8 @@ import {
 import { useDropdown } from '@/hooks/useDropdown';
 import { usePanelFit } from '@/hooks/usePanelFit';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
-import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
+import { useSettingsForMachineQuery } from '@/hooks/queries/useSettingsQueries';
+import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useCreateChannelMutation } from '@/hooks/queries/useChannelQueries';
@@ -36,6 +39,9 @@ import {
   type PermissionMode,
 } from '@/store/chatSettingsStore';
 import { useAuthStore } from '@/store/authStore';
+import { machineName, machineStatus, useTargetMachineId } from '@/store/machineStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { resolvePersona } from '@/utils/settings';
 import { stateClasses } from '@/config/stateClasses';
 import type { Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
@@ -318,14 +324,21 @@ export function CreateChannelDialog({
 }: CreateChannelDialogProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: models = [] } = useModelsQuery({ enabled: isAuthenticated });
-  const { data: settings } = useSettingsQuery({ enabled: isAuthenticated });
+  const targetMachineId = useTargetMachineId();
+  const isRemote = targetMachineId !== LOCAL_MACHINE_ID;
+  const { data: settings } = useSettingsForMachineQuery(targetMachineId, isAuthenticated);
   const personas = settings?.personas ?? [];
-  const workspaces = useWorkspacesList({ enabled: isAuthenticated });
+  const localWorkspaces = useWorkspacesList({ enabled: isAuthenticated });
+  const { data: machineWorkspaces = [] } = useMachineWorkspacesQuery(targetMachineId, isRemote);
+  const workspaces = isRemote ? machineWorkspaces : localWorkspaces;
 
   const [name, setName] = useState('');
-  const [workspaceId, setWorkspaceId] = useState(defaultWorkspaceId);
+  const [workspaceIdByMachine, setWorkspaceIdByMachine] = useState<Record<string, string | null>>({
+    [LOCAL_MACHINE_ID]: defaultWorkspaceId,
+  });
+  const workspaceId = workspaceIdByMachine[targetMachineId] ?? null;
   const [worktree, setWorktree] = useState(DEFAULT_WORKTREE);
-  const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
+  const [branchPick, setBranchPick] = useState<{ workspaceId: string; name: string } | null>(null);
   const [members, setMembers] = useState<MemberDraft[]>(() => [newMemberDraft()]);
   const createChannel = useCreateChannelMutation();
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -335,12 +348,15 @@ export function CreateChannelDialog({
   const sandboxId = workspaces.find((workspace) => workspace.id === workspaceId)?.sandbox_id;
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId);
   const hasBranches = !!branchesData?.is_git_repo && branchesData.branches.length > 0;
+  const selectedBranch = branchPick?.workspaceId === workspaceId ? branchPick.name : null;
   const branch = hasBranches ? (selectedBranch ?? branchesData.current_branch) : null;
 
-  const handleWorkspaceChange = (nextWorkspaceId: string | null) => {
-    setWorkspaceId(nextWorkspaceId);
-    setSelectedBranch(null);
-  };
+  const handleWorkspaceChange = useCallback(
+    (nextWorkspaceId: string | null) => {
+      setWorkspaceIdByMachine((prev) => ({ ...prev, [targetMachineId]: nextWorkspaceId }));
+    },
+    [targetMachineId],
+  );
 
   const memberNames = resolveMemberNames(members, models);
   const hasInvalidMemberName = memberNames.some((memberName) => memberName.error);
@@ -352,6 +368,10 @@ export function CreateChannelDialog({
     const trimmedName = name.trim();
     if (!trimmedName) {
       toast.error('Please enter a channel name');
+      return;
+    }
+    if (isRemote && machineStatus(targetMachineId) !== 'online') {
+      toast.error(`${machineName(targetMachineId)} is not connected`);
       return;
     }
     if (!workspaceId) {
@@ -370,7 +390,10 @@ export function CreateChannelDialog({
       );
       return {
         model_id: modelId,
-        persona: supportsPersona && member.persona !== DEFAULT_PERSONA ? member.persona : null,
+        persona:
+          supportsPersona && resolvePersona(member.persona, personas) !== DEFAULT_PERSONA
+            ? member.persona
+            : null,
         thinking_mode: hasThinking
           ? coerceThinkingModeForAgent(member.thinkingMode, agentKind, model)
           : null,
@@ -381,11 +404,14 @@ export function CreateChannelDialog({
 
     try {
       const channel = await createChannel.mutateAsync({
-        workspace_id: workspaceId,
-        name: trimmedName,
-        worktree,
-        branch,
-        members: requestMembers,
+        machineId: targetMachineId,
+        data: {
+          workspace_id: workspaceId,
+          name: trimmedName,
+          worktree,
+          branch,
+          members: requestMembers,
+        },
       });
       onClose();
       onCreated(channel.id);
@@ -434,11 +460,21 @@ export function CreateChannelDialog({
             <div>
               <span className={styles['field-label']}>Workspace</span>
               <div className={styles['workspace-field']}>
-                <WorkspaceSelector
-                  selectedWorkspaceId={workspaceId}
-                  onWorkspaceChange={handleWorkspaceChange}
-                  enabled={isAuthenticated}
-                />
+                {isRemote ? (
+                  <MachineWorkspaceSelector
+                    machineId={targetMachineId}
+                    selectedWorkspaceId={workspaceId}
+                    onWorkspaceChange={handleWorkspaceChange}
+                    disabled={createChannel.isPending}
+                  />
+                ) : (
+                  <WorkspaceSelector
+                    selectedWorkspaceId={workspaceId}
+                    onWorkspaceChange={handleWorkspaceChange}
+                    enabled={isAuthenticated}
+                  />
+                )}
+                <RunLocationSelector disabled={createChannel.isPending} />
               </div>
             </div>
 
@@ -450,7 +486,7 @@ export function CreateChannelDialog({
                   worktree={worktree}
                   onWorktreeChange={setWorktree}
                   branch={branch ?? ''}
-                  onBranchChange={setSelectedBranch}
+                  onBranchChange={(name) => workspaceId && setBranchPick({ workspaceId, name })}
                   dropdownPosition="auto"
                 />
               </div>

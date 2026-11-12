@@ -42,6 +42,43 @@ interface SidebarChatItemProps {
   isSubThreadsExpanded?: boolean;
 }
 
+interface SidebarRowBadgesProps {
+  machineName?: string;
+  machineOffline?: boolean;
+  workspaceName?: string;
+  isIndented: boolean;
+}
+
+export function SidebarRowBadges({
+  machineName,
+  machineOffline = false,
+  workspaceName,
+  isIndented,
+}: SidebarRowBadgesProps) {
+  if (!workspaceName && !machineName) return null;
+  return (
+    <span
+      className={clsx(styles['workspace-badge'], isIndented && styles['workspace-badge--indented'])}
+    >
+      {machineName && (
+        <span
+          className={clsx(
+            styles['machine-badge'],
+            machineOffline && styles['machine-badge--offline'],
+          )}
+        >
+          <Server className={styles['machine-icon']} />
+          <span className={styles['workspace-name']}>
+            {machineOffline ? `${machineName} · Machine offline` : machineName}
+          </span>
+        </span>
+      )}
+      {machineName && workspaceName && <span aria-hidden>·</span>}
+      {workspaceName && <span className={styles['workspace-name']}>{workspaceName}</span>}
+    </span>
+  );
+}
+
 export const SidebarChatItem = memo(function SidebarChatItem({
   chat,
   isSelected,
@@ -188,32 +225,12 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         </FloatingTooltip>
       }
       subtitle={
-        (workspaceBadge || machineName) && (
-          <span
-            className={clsx(
-              styles['workspace-badge'],
-              hasLeadingSlot && styles['workspace-badge--indented'],
-            )}
-          >
-            {machineName && (
-              <span
-                className={clsx(
-                  styles['machine-badge'],
-                  machineOffline && styles['machine-badge--offline'],
-                )}
-              >
-                <Server className={styles['machine-icon']} />
-                <span className={styles['workspace-name']}>
-                  {machineOffline ? `${machineName} · Machine offline` : machineName}
-                </span>
-              </span>
-            )}
-            {machineName && workspaceBadge && <span aria-hidden>·</span>}
-            {workspaceBadge && (
-              <span className={styles['workspace-name']}>{workspaceBadge.name}</span>
-            )}
-          </span>
-        )
+        <SidebarRowBadges
+          machineName={machineName}
+          machineOffline={machineOffline}
+          workspaceName={workspaceBadge?.name}
+          isIndented={hasLeadingSlot}
+        />
       }
       timestamp={getRelativeTime(chat.updated_at)}
       dropdownLabel="Chat options"

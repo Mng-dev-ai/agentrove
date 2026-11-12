@@ -77,6 +77,7 @@
 
 // Offsets the picker trigger's inner padding so its label lines up with the inputs.
 .workspace-field {
+  display: flex;
   margin-left: calc(var(--space-1-5) * -1);
 }
 
