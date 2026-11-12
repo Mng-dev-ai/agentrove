@@ -110,12 +110,12 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | b
     nvm alias default $NODE_VERSION
 
 RUN . "$NVM_DIR/nvm.sh" && \
-    npm install -g @anthropic-ai/claude-code@2.1.322 @agentclientprotocol/claude-agent-acp@0.106.0 @agentclientprotocol/codex-acp@2.6.0 @openai/codex@0.167.1 @github/copilot@1.0.109
+    npm install -g @anthropic-ai/claude-code@2.1.322 @agentclientprotocol/claude-agent-acp@0.106.0 @agentclientprotocol/codex-acp@2.6.0 @openai/codex@0.167.2 @github/copilot@1.0.109
 
 # Cursor CLI — pinned download replicating cursor.com/install (which always
 # fetches its own latest); cursor-agent lands in ~/.local/bin, already on PATH.
 RUN set -eux; \
-    v=2026.11.10-731fb78; \
+    v=2026.11.11-b912975; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
     dir=/home/user/.local/share/cursor-agent/versions/$v; \
     mkdir -p "$dir" /home/user/.local/bin; \
