@@ -93,7 +93,8 @@ def create_mcp_access_token(
 ) -> str:
     # Minted for the stdio MCP server of a host-workspace session — audience must
     # match the JWTStrategy in user_manager.py (fastapi-users default) so the
-    # normal bearer path accepts it. `mcp` limits it to AGENT_ROUTES.
+    # normal bearer path accepts it. `mcp` limits it to AGENT_ROUTES; `host`
+    # tells it apart from a token handed to a sandbox.
     return str(
         generate_jwt(
             {
@@ -103,6 +104,7 @@ def create_mcp_access_token(
                 "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
                 "pwd": password_fingerprint(hashed_password),
             },
+                "host": True,
             settings.SECRET_KEY,
             lifetime_seconds=settings.AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS,
             algorithm=settings.ALGORITHM,

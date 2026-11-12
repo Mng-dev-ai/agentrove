@@ -10,6 +10,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
+from fastapi_users.jwt import generate_jwt
 from httpx import AsyncClient
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -446,6 +447,40 @@ async def test_host_agent_token_is_limited_to_the_mcp_client_routes(
 
     assert await authenticate_websocket_user(token) is None
     assert await authenticate_websocket_user(tokens["access_token"]) is not None
+
+
+async def test_agent_token_without_host_marker_or_workspace_is_rejected(
+    client: AsyncClient,
+    create_user: UserFactory,
+) -> None:
+    # Docker sandboxes were once handed this claim set, so it can no longer be
+    # told apart from a token that leaked out of one.
+    user = await create_user(email="old-agent@example.com", username="oldagent")
+    old_shape = generate_jwt(
+        {
+            "sub": str(user.id),
+            "aud": ["fastapi-users:auth"],
+            "mcp": True,
+            "did": [],
+            "pwd": password_fingerprint(user.hashed_password),
+        },
+        get_settings().SECRET_KEY,
+        lifetime_seconds=60,
+        algorithm=get_settings().ALGORITHM,
+    )
+    host_token = create_mcp_access_token(
+        str(user.id), user.hashed_password, frozenset()
+    )
+
+    rejected = await client.get(
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {old_shape}"}
+    )
+    accepted = await client.get(
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {host_token}"}
+    )
+
+    assert rejected.status_code == 401, rejected.text
+    assert accepted.status_code == 200, accepted.text
 
 
 async def test_scoped_agent_token_is_confined_to_its_workspace(

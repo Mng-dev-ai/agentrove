@@ -185,14 +185,17 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
             exceptions.UserNotExists,
         ):
             return None
-        if agent_scope is not None and claims.get("mcp") is not True:
+        agent_token = claims.get("mcp") is True
+        # An agent token is bound to a Docker workspace or marked as minted for
+        # a host session; `mcp` alone was once also what sandboxes were given.
+        if agent_token != (agent_scope is not None or claims.get("host") is True):
             return None
         if claims.get("pwd") != password_fingerprint(user.hashed_password):
             return None
         if not await PairingService.all_active(self.db, user.id, device_ids):
             return None
         user.device_ids = device_ids
-        user.agent_token = claims.get("mcp") is True
+        user.agent_token = agent_token
         user.agent_scope = agent_scope
         return user
 
