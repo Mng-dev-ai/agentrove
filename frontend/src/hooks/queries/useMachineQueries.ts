@@ -96,12 +96,10 @@ export const useMachineSettingsQuery = (machineId: string, enabled: boolean) => 
 
 export const useMachinesPersonas = (machineIds: string[]) => {
   const combine = useCallback(
-    (results: UseQueryResult<UserSettings>[]): Record<string, Persona[]> | null => {
-      if (results.some((result) => result.isLoading)) return null;
-      return Object.fromEntries(
+    (results: UseQueryResult<UserSettings>[]): Record<string, Persona[]> =>
+      Object.fromEntries(
         machineIds.map((machineId, index) => [machineId, results[index]?.data?.personas ?? []]),
-      );
-    },
+      ),
     [machineIds],
   );
   return useQueries({

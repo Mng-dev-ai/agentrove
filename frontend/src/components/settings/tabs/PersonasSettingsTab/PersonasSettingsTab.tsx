@@ -1,8 +1,10 @@
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { Server, UserCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
+import { queryKeys } from '@/hooks/queries/queryKeys';
 import {
   useMachinesPersonas,
   useUpdateMachinePersonasMutation,
@@ -12,6 +14,7 @@ import {
   useMachineStore,
   useOnlineRemoteMachineIds,
 } from '@/store/machineStore';
+import { ValidationError } from '@/services/base/ServiceError';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createDefaultPersonaForm, validatePersonaForm } from '@/utils/settings';
 import { lazyNamed } from '@/utils/lazyNamed';
@@ -35,9 +38,9 @@ function createDefaultForm(): PersonaForm {
 
 function savePersona(personas: Persona[], editingName: string | null, persona: Persona) {
   const index = editingName === null ? null : personas.findIndex((p) => p.name === editingName);
-  if (index === -1) throw new Error('This persona no longer exists');
+  if (index === -1) throw new ValidationError('This persona no longer exists');
   const error = validatePersonaForm(persona, index, personas);
-  if (error) throw new Error(error);
+  if (error) throw new ValidationError(error);
   return index === null
     ? [...personas, persona]
     : personas.map((p, i) => (i === index ? persona : p));
@@ -64,20 +67,30 @@ export function PersonasSettingsTab() {
     ],
     [remoteIds, machineNames],
   );
-  const items = useMemo((): MachinePersona[] | null => {
-    if (!remotePersonas) return null;
-    return [
-      ...(localSettings.personas ?? []).map((persona) => ({
-        persona,
-        machineId: LOCAL_MACHINE_ID,
-      })),
-      ...remoteIds.flatMap((machineId) =>
-        (remotePersonas[machineId] ?? []).map((persona) => ({ persona, machineId })),
+  const personasByMachine = useMemo(
+    (): Record<string, Persona[]> => ({
+      ...remotePersonas,
+      [LOCAL_MACHINE_ID]: localSettings.personas ?? [],
+    }),
+    [remotePersonas, localSettings.personas],
+  );
+  const items = useMemo(
+    (): MachinePersona[] =>
+      machineOptions.flatMap((machine) =>
+        (personasByMachine[machine.id] ?? []).map((persona) => ({
+          persona,
+          machineId: machine.id,
+        })),
       ),
-    ];
-  }, [localSettings.personas, remoteIds, remotePersonas]);
+    [machineOptions, personasByMachine],
+  );
 
-  const remoteMutation = useUpdateMachinePersonasMutation();
+  const queryClient = useQueryClient();
+  const remoteMutation = useUpdateMachinePersonasMutation({
+    scope: { id: 'machine-personas' },
+    onError: (_error, { machineId }) =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.machine.settings(machineId) }),
+  });
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MachinePersona | null>(null);
@@ -98,8 +111,28 @@ export function PersonasSettingsTab() {
     setIsDialogOpen(true);
   };
 
+  const writePersonas = async (
+    machineId: string,
+    update: (personas: Persona[]) => Persona[] | null,
+    errorMessage: string,
+  ) => {
+    if (machineId === LOCAL_MACHINE_ID) {
+      await persistSettings((prev) => ({ ...prev, personas: update(prev.personas ?? []) }), {
+        errorMessage,
+      });
+      return;
+    }
+    try {
+      await remoteMutation.mutateAsync({ machineId, update });
+    } catch (error) {
+      if (!(error instanceof ValidationError)) toast.error(errorMessage);
+      throw error;
+    }
+    toast.success('Saved', { id: 'settings-saved' });
+  };
+
   const handleEdit = (index: number) => {
-    const item = items?.[index];
+    const item = items[index];
     if (!item) return;
     setEditingItem(item);
     setForm({ ...item.persona, machineId: item.machineId });
@@ -108,20 +141,14 @@ export function PersonasSettingsTab() {
   };
 
   const handleDelete = async (index: number) => {
-    const item = items?.[index];
+    const item = items[index];
     if (!item) return;
-    const update = (personas: Persona[]) => deletePersona(personas, item.persona.name);
     try {
-      if (item.machineId === LOCAL_MACHINE_ID) {
-        await persistSettings((prev) => ({ ...prev, personas: update(prev.personas ?? []) }), {
-          errorMessage: 'Failed to delete persona',
-        });
-      } else {
-        await remoteMutation.mutateAsync(
-          { machineId: item.machineId, update },
-          { onError: () => toast.error('Failed to delete persona') },
-        );
-      }
+      await writePersonas(
+        item.machineId,
+        (personas) => deletePersona(personas, item.persona.name),
+        'Failed to delete persona',
+      );
     } catch (error) {
       logger.error('Failed to delete persona', 'PersonasSettingsTab', error);
     }
@@ -130,21 +157,12 @@ export function PersonasSettingsTab() {
   const handleSave = async () => {
     const persona: Persona = { name: form.name, content: form.content };
     const editingName = editingItem?.persona.name ?? null;
-    const update = (personas: Persona[]) => savePersona(personas, editingName, persona);
     try {
-      if (form.machineId === LOCAL_MACHINE_ID) {
-        update(localSettings.personas ?? []);
-        await persistSettings((prev) => ({ ...prev, personas: update(prev.personas ?? []) }), {
-          errorMessage: 'Failed to save persona',
-        });
-      } else {
-        update(remotePersonas?.[form.machineId] ?? []);
-        await remoteMutation.mutateAsync(
-          { machineId: form.machineId, update },
-          { onError: () => toast.error('Failed to save persona') },
-        );
-        toast.success('Saved', { id: 'settings-saved' });
-      }
+      await writePersonas(
+        form.machineId,
+        (personas) => savePersona(personas, editingName, persona),
+        'Failed to save persona',
+      );
       setIsDialogOpen(false);
     } catch (error) {
       setFormError(error instanceof Error ? error.message : 'An unexpected error occurred');
