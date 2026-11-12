@@ -539,6 +539,31 @@ async def test_due_automation_is_disabled_when_its_workspace_was_deleted(
     assert (await db_session.scalars(select(Chat))).all() == []
 
 
+async def test_due_automation_on_a_retired_model_is_disabled_after_one_slot(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    _headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    automation = await add_due_automation(
+        db_session, user, workspace, model_id="antigravity:gemini-3.1-pro"
+    )
+    chat_runtime = FakeChatService()
+    service = AutomationService(chat_runtime)
+
+    await service.run_due_automations()
+    await db_session.refresh(automation)
+    automation.next_run_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+    await db_session.commit()
+    await service.run_due_automations()
+
+    await db_session.refresh(automation)
+    assert automation.enabled is False
+    assert chat_runtime.created_chats == []
+
+
 async def test_due_automation_start_failure_deletes_orphan_chat_but_stays_enabled(
     db_session: AsyncSession,
     create_user: UserFactory,

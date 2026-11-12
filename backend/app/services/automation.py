@@ -267,6 +267,11 @@ class AutomationService(BaseDbService[Automation]):
             await db.commit()
 
         for automation in to_fire:
+            if automation.model_id not in MODELS:
+                await self._disable_unrunnable(
+                    automation, f"model {automation.model_id} retired"
+                )
+                continue
             try:
                 await self._fire(
                     automation, users[automation.user_id], automation.device_ids
@@ -274,7 +279,9 @@ class AutomationService(BaseDbService[Automation]):
             except ServiceException as exc:
                 if exc.error_code == ErrorCode.WORKSPACE_NOT_FOUND:
                     # Soft-deleted workspace: the run can never succeed again.
-                    await self._disable_for_missing_workspace(automation)
+                    await self._disable_unrunnable(
+                        automation, f"workspace {automation.workspace_id} deleted"
+                    )
                 logger.exception(
                     "Automation %s (%s) failed to start",
                     automation.id,
@@ -286,24 +293,21 @@ class AutomationService(BaseDbService[Automation]):
                 )
         return {}
 
-    async def _disable_for_missing_workspace(self, automation: Automation) -> None:
+    async def _disable_unrunnable(self, automation: Automation, reason: str) -> None:
         async with self.session_factory() as db:
             await db.execute(
                 update(Automation)
                 .where(
                     Automation.id == automation.id,
                     # Guard against a concurrent repair: only disable if the
-                    # row still points at the workspace that just failed.
+                    # row still points at the workspace and model that failed.
                     Automation.workspace_id == automation.workspace_id,
+                    Automation.model_id == automation.model_id,
                 )
                 .values(enabled=False)
             )
             await db.commit()
-        logger.warning(
-            "Automation %s disabled: workspace %s deleted",
-            automation.id,
-            automation.workspace_id,
-        )
+        logger.warning("Automation %s disabled: %s", automation.id, reason)
 
     async def _fire(
         self, automation: Automation, user: User, device_ids: frozenset[UUID]
