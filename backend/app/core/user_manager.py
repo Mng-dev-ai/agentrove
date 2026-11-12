@@ -282,8 +282,8 @@ def _enforce_agent_routes(request: Request, user: User | None) -> None:
         return
     path = request.scope["route"].path.removeprefix(settings.API_V1_STR)
     allowed = AGENT_ROUTES.get((request.method, path))
-    excluded = "host" if user.agent_scope is not None else "scoped"
-    if allowed is None or allowed == excluded:
+    kind = "scoped" if user.agent_scope is not None else "host"
+    if allowed not in ("any", kind):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Agent tokens cannot access this route",
