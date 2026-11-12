@@ -149,6 +149,7 @@ def clear_runtime_state() -> None:
     ChatStreamRuntime._active_runtimes.clear()
     QueueService._locks.clear()
     session_registry._sessions.clear()
+    session_registry._mcp_sessions.clear()
     session_registry._pending_cancels.clear()
 
 

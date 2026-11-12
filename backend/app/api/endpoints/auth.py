@@ -20,7 +20,6 @@ from app.core.user_manager import (
     get_jwt_strategy,
     get_user_db,
     get_user_manager,
-    reject_agent_token,
 )
 from app.db.session import get_db
 from app.models.db_models.user import User
@@ -206,7 +205,6 @@ async def logout(
 @router.post(
     "/pairing",
     response_model=PairingSecretOut,
-    dependencies=[Depends(reject_agent_token)],
 )
 async def create_pairing_secret(
     current_user: User = Depends(current_active_user),
@@ -257,7 +255,6 @@ async def pair(
 @router.get(
     "/devices",
     response_model=list[PairedDeviceOut],
-    dependencies=[Depends(reject_agent_token)],
 )
 async def list_devices(
     current_user: User = Depends(current_active_user),
@@ -279,7 +276,6 @@ async def list_devices(
 @router.delete(
     "/devices/{device_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    dependencies=[Depends(reject_agent_token)],
 )
 async def revoke_device(
     device_id: UUID,

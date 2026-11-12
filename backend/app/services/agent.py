@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import secrets
 import sys
 from collections.abc import AsyncIterator
 from dataclasses import replace
@@ -13,7 +14,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import get_settings
-from app.core.security import create_mcp_access_token
+from app.core.security import create_mcp_access_token, create_sandbox_mcp_token
 from app.core.user_manager import password_fingerprint
 from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat
@@ -170,6 +171,7 @@ class AgentService:
             permission_mode=permission_mode,
             model_id=model_id,
             session_id=session_id,
+            workspace_id=str(chat.workspace_id),
             chat_id=str(chat.id),
             thinking_mode=thinking_mode,
             cwd=cwd,
@@ -499,14 +501,16 @@ class AgentService:
         sandbox_provider: SandboxProviderType,
         *,
         agentrove_mcp: bool,
+        workspace_id: str | None,
         current_chat_id: str | None,
+        session_id: str,
     ) -> list[dict[str, Any]]:
         servers: list[dict[str, Any]] = []
         if not agentrove_mcp:
             return servers
-        access_token = create_mcp_access_token(user_id, hashed_password, device_ids)
         credential_epoch = password_fingerprint(hashed_password)
         if sandbox_provider is SandboxProviderType.HOST:
+            access_token = create_mcp_access_token(user_id, hashed_password, device_ids)
             # Host-provider agents share this process's network namespace.
             env = {
                 "AGENTROVE_API_URL": loopback_api_url(),
@@ -529,18 +533,23 @@ class AgentService:
         else:
             # Docker agents run inside the sandbox image, which ships neither this
             # interpreter nor server.py, so they call the backend's HTTP endpoint.
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "X-Agentrove-Credential-Epoch": credential_epoch,
-            }
-            if current_chat_id:
-                headers["X-Agentrove-Chat-Id"] = current_chat_id
+            access_token = create_sandbox_mcp_token(
+                user_id,
+                hashed_password,
+                device_ids,
+                workspace_id=workspace_id,
+                chat_id=current_chat_id,
+                session_id=session_id,
+            )
             servers.append(
                 {
                     "name": "agentrove",
                     "type": "http",
                     "url": f"{settings.SANDBOX_API_URL}{settings.API_V1_STR}/mcp",
-                    "headers": headers,
+                    "headers": {
+                        "Authorization": f"Bearer {access_token}",
+                        "X-Agentrove-Credential-Epoch": credential_epoch,
+                    },
                 }
             )
         return servers
@@ -571,6 +580,7 @@ class AgentService:
         permission_mode: PermissionMode,
         model_id: str,
         session_id: str | None,
+        workspace_id: str | None = None,
         chat_id: str | None = None,
         thinking_mode: str | None = None,
         cwd: str = "",
@@ -618,6 +628,7 @@ class AgentService:
             permission_mode=permission_mode,
         )
         env.update(session_config.env_overrides)
+        mcp_session_id = secrets.token_urlsafe(16)
 
         return AcpSessionConfig(
             sandbox_id=sandbox_id,
@@ -633,8 +644,11 @@ class AgentService:
                 device_ids,
                 sandbox_provider,
                 agentrove_mcp=agentrove_mcp,
+                workspace_id=workspace_id,
                 current_chat_id=None if channel_member else chat_id,
+                session_id=mcp_session_id,
             ),
+            mcp_session_id=mcp_session_id,
             model=model_id,
             channel_member=channel_member,
             permission_mode=session_config.session_mode,

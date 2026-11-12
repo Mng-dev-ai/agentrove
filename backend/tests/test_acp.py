@@ -19,13 +19,16 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
+import app.main as main_module
 from app.core import deps
 from app.core.config import get_settings
+from app.core.security import authenticate_websocket_user, create_mcp_access_token
 from app.db.session import SessionLocal
 from app.models.db_models.automation import Automation
 from app.models.db_models.channel import ChannelDelivery
 from app.models.db_models.chat import Chat
 from app.models.db_models.paired_device import PairedDevice
+from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.services import channel as channel_module
 from app.services.automation import AutomationService
@@ -68,7 +71,11 @@ from tests.fake_acp_agent import (
     MARKER_UNTRACKED_TOOL_UPDATES,
     TITLE_PROMPT_PREFIX,
 )
-from tests.helpers import EndpointCache, create_authenticated_workspace
+from tests.helpers import (
+    EndpointCache,
+    create_authenticated_workspace,
+    create_chat_row,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -1773,54 +1780,181 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     assert "AGENTROVE_PASSWORD" not in mcp_env
 
 
-def docker_session_config(user_id: str, hashed_password: str) -> AcpSessionConfig:
+def docker_mcp_server(
+    user_id: str,
+    hashed_password: str,
+    *,
+    workspace_id: str,
+    chat_id: str | None,
+    session_id: str,
+) -> dict[str, Any]:
+    [server] = AgentService._build_mcp_server_configs(
+        user_id,
+        hashed_password,
+        frozenset(),
+        SandboxProviderType.DOCKER,
+        agentrove_mcp=True,
+        workspace_id=workspace_id,
+        current_chat_id=chat_id,
+        session_id=session_id,
+    )
+    return server
+
+
+def docker_session_config(
+    user_id: str, hashed_password: str, session_id: str
+) -> AcpSessionConfig:
     return AcpSessionConfig(
         sandbox_id="sandbox",
         sandbox_provider=SandboxProviderType.DOCKER,
         cwd="",
         user_id=user_id,
         device_ids=frozenset(),
-        mcp_servers=AgentService._build_mcp_server_configs(
-            user_id,
-            hashed_password,
-            frozenset(),
-            SandboxProviderType.DOCKER,
-            agentrove_mcp=True,
-            current_chat_id="chat-1",
-        ),
+        mcp_servers=[
+            docker_mcp_server(
+                user_id,
+                hashed_password,
+                workspace_id="workspace-1",
+                chat_id="chat-1",
+                session_id=session_id,
+            )
+        ],
+        mcp_session_id=session_id,
     )
 
 
-async def test_docker_sandbox_gets_http_mcp_without_respawning_per_turn(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    # Sandbox agents reach the backend's HTTP MCP endpoint; the per-turn bearer
-    # must not change the fingerprint, while a password change still must.
-    mints = iter(("token-one", "token-two", "token-three"))
-    monkeypatch.setattr(
-        "app.services.agent.create_mcp_access_token",
-        lambda user_id, hashed_password, device_ids: next(mints),
-    )
+async def test_docker_sandbox_gets_http_mcp_without_respawning_per_turn() -> None:
+    # Sandbox agents reach the backend's HTTP MCP endpoint with a token no REST
+    # route accepts; the per-spawn bearer must not change the fingerprint, while
+    # a password change still must.
     user_id = str(uuid4())
 
-    first = docker_session_config(user_id, "hash-one")
-    second = docker_session_config(user_id, "hash-one")
+    first = docker_session_config(user_id, "hash-one", "session-1")
+    second = docker_session_config(user_id, "hash-one", "session-2")
     [server] = first.mcp_servers
     assert server["type"] == "http"
     assert server["url"] == f"{get_settings().SANDBOX_API_URL}/api/v1/mcp"
-    assert server["headers"]["Authorization"] == "Bearer token-one"
-    assert server["headers"]["X-Agentrove-Chat-Id"] == "chat-1"
+    assert set(server["headers"]) == {"Authorization", "X-Agentrove-Credential-Epoch"}
+    claims = jwt.decode(
+        server["headers"]["Authorization"].removeprefix("Bearer "),
+        options={"verify_signature": False},
+    )
+    assert claims["aud"] == ["agentrove:sandbox-mcp"]
+    assert "mcp" not in claims
+    assert (claims["sub"], claims["wid"], claims["cid"], claims["sid"]) == (
+        user_id,
+        "workspace-1",
+        "chat-1",
+        "session-1",
+    )
+    assert claims["did"] == [] and claims["pwd"] and claims["exp"]
     [http_server] = AcpSession._build_mcp_servers(first.mcp_servers)
     assert isinstance(http_server, HttpMcpServer)
     assert http_server.model_dump(by_alias=True)["type"] == "http"
     assert {h.name: h.value for h in http_server.headers} == server["headers"]
 
+    assert second.mcp_servers != first.mcp_servers
     fingerprint = SessionRegistry._compute_fingerprint(first)
     assert SessionRegistry._compute_fingerprint(second) == fingerprint
     assert (
-        SessionRegistry._compute_fingerprint(docker_session_config(user_id, "hash-two"))
+        SessionRegistry._compute_fingerprint(
+            docker_session_config(user_id, "hash-two", "session-1")
+        )
         != fingerprint
     )
+
+
+async def mcp_list_tools(
+    client: httpx.AsyncClient, authorization: dict[str, str]
+) -> httpx.Response:
+    return await client.post(
+        "/api/v1/mcp",
+        json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        headers={
+            "Host": "api:8080",
+            "Accept": "application/json, text/event-stream",
+            **authorization,
+        },
+    )
+
+
+async def test_sandbox_token_only_opens_the_mcp_endpoint_while_its_session_lives(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    fake_agent: FakeAgentHandle,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    user = await db_session.get_one(User, workspace.user_id)
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    response = await send_message(
+        client, headers, chat_id=chat["id"], model_id="sonnet", prompt="spawn"
+    )
+    assert response.status_code == 200, response.text
+    await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+    live_session_id = session_registry._sessions[chat["id"]].mcp_session_id
+    assert live_session_id is not None
+    other_workspace = Workspace(
+        name="Other",
+        user_id=user.id,
+        sandbox_id="sandbox-other",
+        sandbox_provider="docker",
+        workspace_path=workspace.workspace_path,
+        source_type="empty",
+    )
+    db_session.add(other_workspace)
+    await db_session.commit()
+    other_chat = await create_chat_row(db_session, user, other_workspace)
+
+    def sandbox_authorization(
+        chat_id: str | None = chat["id"], session_id: str = live_session_id
+    ) -> dict[str, str]:
+        server = docker_mcp_server(
+            str(user.id),
+            user.hashed_password,
+            workspace_id=str(workspace.id),
+            chat_id=chat_id,
+            session_id=session_id,
+        )
+        return {"Authorization": server["headers"]["Authorization"]}
+
+    authorization = sandbox_authorization()
+    token = authorization["Authorization"].removeprefix("Bearer ")
+    for path in ("/api/v1/workspaces", "/api/v1/settings/", "/api/v1/auth/me"):
+        assert (await client.get(path, headers=authorization)).status_code == 401
+    assert await authenticate_websocket_user(token) is None
+
+    async with main_module.mcp_endpoint.run():
+        # The bound workspace is still a host workspace: no sandbox boundary.
+        assert (await mcp_list_tools(client, authorization)).status_code == 401
+        workspace.sandbox_provider = "docker"
+        await db_session.commit()
+
+        accepted = await mcp_list_tools(client, authorization)
+        assert accepted.status_code == 200, accepted.text
+        tools = {tool["name"] for tool in accepted.json()["result"]["tools"]}
+        assert {"get_current_chat", "list_workspaces", "attach_file"} <= tools
+        assert (
+            await mcp_list_tools(client, sandbox_authorization(chat_id=None))
+        ).status_code == 200
+
+        host_token = create_mcp_access_token(
+            str(user.id), user.hashed_password, frozenset()
+        )
+        for rejected in (
+            {},
+            headers,
+            {"Authorization": f"Bearer {host_token}"},
+            sandbox_authorization(chat_id=str(other_chat.id)),
+            sandbox_authorization(session_id="never-spawned"),
+        ):
+            assert (await mcp_list_tools(client, rejected)).status_code == 401
+
+        await session_registry.close_idle_sessions(ttl_seconds=0)
+        assert (await mcp_list_tools(client, authorization)).status_code == 401
 
 
 def minted_mcp_tokens(fake_agent: FakeAgentHandle) -> list[str]:

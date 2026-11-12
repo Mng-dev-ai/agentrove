@@ -1,20 +1,31 @@
 import logging
 import time
 import uuid
+from typing import Any
 
+import jwt
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.security.utils import get_authorization_scheme_param
+from fastapi_users.jwt import decode_jwt
+from sqlalchemy import select
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.config import get_settings
-from app.core.security import get_user_from_token
+from app.core.security import SANDBOX_MCP_AUDIENCE, create_scoped_mcp_token
+from app.core.user_manager import DEVICE_IDS, password_fingerprint
 from app.db.session import SessionLocal
+from app.models.db_models.chat import Chat
+from app.models.db_models.user import User
+from app.models.db_models.workspace import Workspace
 from app.services.exceptions import ServiceException
+from app.services.pairing import PairingService
+from app.services.sandbox_providers import SandboxProviderType
+from app.services.session_registry import session_registry
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -104,15 +115,17 @@ class McpAuthMiddleware:
         self.app = app
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        # Reject before the MCP handshake: the token is the one the backend
-        # minted for the session, validated like any REST bearer token.
+        # Reject before the MCP handshake. The endpoint never sees the caller's
+        # token: it gets a short-lived one scoped to the sandbox's workspace.
         scheme, token = get_authorization_scheme_param(
             Headers(scope=scope).get("Authorization")
         )
         if scheme.lower() == "bearer" and token:
-            async with SessionLocal() as db:
-                user = await get_user_from_token(token, db)
-            if user is not None:
+            claims = await self._verified_claims(token)
+            if claims is not None:
+                state = scope.setdefault("state", {})
+                state["agentrove_token"] = create_scoped_mcp_token(claims)
+                state["agentrove_chat_id"] = claims["cid"]
                 await self.app(scope, receive, send)
                 return
         response = JSONResponse(
@@ -121,6 +134,56 @@ class McpAuthMiddleware:
             headers={"WWW-Authenticate": "Bearer"},
         )
         await response(scope, receive, send)
+
+    @staticmethod
+    async def _verified_claims(token: str) -> dict[str, Any] | None:
+        try:
+            claims: dict[str, Any] = decode_jwt(
+                token,
+                settings.SECRET_KEY,
+                [SANDBOX_MCP_AUDIENCE],
+                algorithms=[settings.ALGORITHM],
+            )
+            user_id = uuid.UUID(claims["sub"])
+            workspace_id = uuid.UUID(claims["wid"])
+            chat_id = None if claims["cid"] is None else uuid.UUID(claims["cid"])
+            device_ids = DEVICE_IDS.validate_python(claims["did"])
+        except (jwt.PyJWTError, KeyError, TypeError, ValueError):
+            return None
+        if not session_registry.is_mcp_session_live(claims.get("sid", "")):
+            return None
+        async with SessionLocal() as db:
+            user = await db.get(User, user_id)
+            if (
+                user is None
+                or not user.is_active
+                or claims.get("pwd") != password_fingerprint(user.hashed_password)
+                or not await PairingService.all_active(db, user_id, device_ids)
+            ):
+                return None
+            workspace = await db.scalar(
+                select(Workspace.id).where(
+                    Workspace.id == workspace_id,
+                    Workspace.user_id == user_id,
+                    Workspace.deleted_at.is_(None),
+                    Workspace.sandbox_provider == SandboxProviderType.DOCKER.value,
+                )
+            )
+            if workspace is None:
+                return None
+            if chat_id is not None and (
+                await db.scalar(
+                    select(Chat.id).where(
+                        Chat.id == chat_id,
+                        Chat.user_id == user_id,
+                        Chat.workspace_id == workspace_id,
+                        Chat.deleted_at.is_(None),
+                    )
+                )
+                is None
+            ):
+                return None
+        return claims
 
 
 async def _service_exception_handler(

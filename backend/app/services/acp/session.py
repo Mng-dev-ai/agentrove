@@ -96,6 +96,9 @@ class AcpSessionConfig:
     agent_kind: AgentKind = AgentKind.CLAUDE
     env: dict[str, str] = field(default_factory=dict)
     mcp_servers: list[dict[str, Any]] = field(default_factory=list)
+    # The `sid` of the sandbox MCP token in mcp_servers; live while the session
+    # spawned with it is.
+    mcp_session_id: str | None = None
     model: str = ""
     channel_member: bool = False
     permission_mode: str = "default"
