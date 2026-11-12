@@ -1878,16 +1878,32 @@ async def mcp_list_tools(
     )
 
 
+class SpawnLiveness:
+    def __init__(self) -> None:
+        self.create = AcpSession.create
+        self.live_while_spawning: dict[str, bool] = {}
+
+    async def __call__(self, config: AcpSessionConfig) -> AcpSession:
+        if config.mcp_servers:
+            self.live_while_spawning[config.mcp_session_id] = (
+                session_registry.is_mcp_session_live(config.mcp_session_id)
+            )
+        return await self.create(config)
+
+
 async def test_sandbox_token_only_opens_the_mcp_endpoint_while_its_session_lives(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
     fake_agent: FakeAgentHandle,
     auth_workspace: tuple[dict[str, str], Workspace],
     acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, workspace = auth_workspace
     user = await db_session.get_one(User, workspace.user_id)
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    spawn = SpawnLiveness()
+    monkeypatch.setattr(AcpSession, "create", spawn)
     response = await send_message(
         client, headers, chat_id=chat["id"], model_id="sonnet", prompt="spawn"
     )
@@ -1896,7 +1912,8 @@ async def test_sandbox_token_only_opens_the_mcp_endpoint_while_its_session_lives
         client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
     )
     live_session_id = session_registry._sessions[chat["id"]].mcp_session_id
-    assert live_session_id is not None
+    # Agents connect to their MCP servers while the session is being created.
+    assert spawn.live_while_spawning == {live_session_id: True}
     other_workspace = Workspace(
         name="Other",
         user_id=user.id,

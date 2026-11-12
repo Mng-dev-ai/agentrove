@@ -4,9 +4,11 @@ import asyncio
 import base64
 import logging
 import os
+import secrets
 import shlex
 import signal
 from dataclasses import dataclass, field, replace
+from functools import partial
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
@@ -98,7 +100,7 @@ class AcpSessionConfig:
     mcp_servers: list[dict[str, Any]] = field(default_factory=list)
     # The `sid` of the sandbox MCP token in mcp_servers; live while the session
     # spawned with it is.
-    mcp_session_id: str | None = None
+    mcp_session_id: str = field(default_factory=partial(secrets.token_urlsafe, 16))
     model: str = ""
     channel_member: bool = False
     permission_mode: str = "default"
