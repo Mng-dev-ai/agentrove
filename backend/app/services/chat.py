@@ -530,17 +530,16 @@ class ChatService(BaseDbService[Chat]):
             await db.commit()
 
     async def count_sub_threads(self, chat_id: UUID, user: User) -> int:
-        query = select(func.count(Chat.id)).filter(
-            Chat.parent_chat_id == chat_id,
-            Chat.user_id == user.id,
-            Chat.deleted_at.is_(None),
-            Chat.is_visible(),
-        )
-        workspace_id = self.agent_workspace_filter(user, None)
-        if workspace_id is not None:
-            query = query.filter(Chat.workspace_id == workspace_id)
         async with self.session_factory() as db:
-            return (await db.execute(query)).scalar() or 0
+            result = await db.execute(
+                select(func.count(Chat.id)).filter(
+                    Chat.parent_chat_id == chat_id,
+                    Chat.user_id == user.id,
+                    Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
+                )
+            )
+            return result.scalar() or 0
 
     async def get_title_source(self, chat_id: UUID) -> str | None:
         # First non-empty user message — avoids loading full history for titles.
