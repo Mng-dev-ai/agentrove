@@ -24,7 +24,7 @@ REDIS_KEY_CHAT_QUEUE: Final[str] = "chat:{queue_id}:queue"
 REDIS_KEY_CHANNEL_QUEUE: Final[str] = "channel:{queue_id}:queue"
 REDIS_KEY_CHAT_QUEUE_SEND_NOW: Final[str] = "chat:{chat_id}:queue:send_now"
 
-QUEUE_MESSAGE_TTL_SECONDS: Final[int] = 3600
+QUEUE_SEND_NOW_TTL_SECONDS: Final[int] = 3600
 
 # JSON-RPC code ACP agents return from load_session for an unknown session.
 ACP_RESOURCE_NOT_FOUND: Final[int] = -32002

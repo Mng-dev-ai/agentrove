@@ -1498,6 +1498,49 @@ async def test_queue_message_lifecycle(
     assert cleared_list_response.json() == []
 
 
+async def test_queued_message_never_expires(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    queue_override = QueueServiceOverride()
+    app.dependency_overrides[get_queue_service] = queue_override
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    queue_url = f"/api/v1/chat/chats/{chat.id}/queue"
+    store = queue_override.store
+    queue = QueueService(store)
+    key = queue._queue_key(str(chat.id))
+
+    response = await client.post(
+        queue_url,
+        data={"content": "Queued prompt", "model_id": TEST_MODEL_ID},
+        headers=headers,
+    )
+    assert response.status_code == 201
+    assert key not in store._expiry
+
+    response = await client.patch(
+        f"{queue_url}/{response.json()['id']}",
+        json={"content": "Edited prompt"},
+        headers=headers,
+    )
+    assert response.status_code == 200
+    assert key not in store._expiry
+
+    popped = await queue.pop_next_message(str(chat.id))
+    assert popped is not None
+    await queue.requeue_message(str(chat.id), popped)
+    assert key not in store._expiry
+    assert [item.content for item in await queue.get_queue(str(chat.id))] == [
+        "Edited prompt"
+    ]
+
+
 async def test_queue_message_endpoint_validates_base_branch_before_queueing(
     app: FastAPI,
     client: AsyncClient,

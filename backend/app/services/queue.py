@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from datetime import datetime, timezone
 from typing import Any, ClassVar, Generic, TypeVar, cast
 from uuid import UUID, uuid4
@@ -7,7 +8,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel
 
 from app.constants import (
-    QUEUE_MESSAGE_TTL_SECONDS,
+    QUEUE_SEND_NOW_TTL_SECONDS,
     REDIS_KEY_CHANNEL_QUEUE,
     REDIS_KEY_CHAT_QUEUE,
     REDIS_KEY_CHAT_QUEUE_SEND_NOW,
@@ -19,7 +20,9 @@ from app.models.schemas.queue import (
     QueuedMessageEdit,
 )
 from app.services.pairing import PairingService
-from app.utils.cache import CacheStore
+from app.utils.cache import CacheError, CacheStore, cache_connection
+
+logger = logging.getLogger(__name__)
 
 ItemT = TypeVar("ItemT", bound=BaseModel)
 
@@ -53,7 +56,7 @@ class BaseQueueService(Generic[ItemT]):
         if not queue:
             await self.cache.delete(key)
         else:
-            await self.cache.set(key, json.dumps(queue), ex=QUEUE_MESSAGE_TTL_SECONDS)
+            await self.cache.set(key, json.dumps(queue))
 
     @staticmethod
     def add_devices(item: dict[str, Any], device_ids: frozenset[UUID]) -> None:
@@ -131,6 +134,17 @@ class BaseQueueService(Generic[ItemT]):
             key = self._queue_key(queue_id)
             await self.cache.delete(key)
 
+    @classmethod
+    async def clear_queues(cls, queue_ids: list[str]) -> None:
+        # Runs after the owner's delete commits; a stale key beats failing it.
+        try:
+            async with cache_connection() as cache:
+                service = cls(cache)
+                for queue_id in queue_ids:
+                    await service.clear_queue(queue_id)
+        except CacheError as exc:
+            logger.error("Failed to clear queues %s: %s", queue_ids, exc)
+
     async def pop_next_message(self, queue_id: str) -> dict[str, Any] | None:
         async with self._lock(queue_id):
             key = self._queue_key(queue_id)
@@ -158,6 +172,13 @@ class QueueService(BaseQueueService[QueuedMessage]):
     key_template = REDIS_KEY_CHAT_QUEUE
     item_type = QueuedMessage
 
+    async def clear_queue(self, queue_id: str) -> None:
+        async with self._lock(queue_id):
+            await self.cache.delete(
+                self._queue_key(queue_id),
+                REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=queue_id),
+            )
+
     async def mark_send_now(
         self, chat_id: str, message_id: str, device_ids: frozenset[UUID]
     ) -> bool:
@@ -173,7 +194,9 @@ class QueueService(BaseQueueService[QueuedMessage]):
                 await self._write_queue(key, queue)
 
             send_now_key = REDIS_KEY_CHAT_QUEUE_SEND_NOW.format(chat_id=chat_id)
-            await self.cache.set(send_now_key, message_id, ex=QUEUE_MESSAGE_TTL_SECONDS)
+            await self.cache.set(
+                send_now_key, message_id, ex=QUEUE_SEND_NOW_TTL_SECONDS
+            )
             return True
 
     async def pop_send_now_message(self, chat_id: str) -> dict[str, Any] | None:

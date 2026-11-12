@@ -1144,6 +1144,7 @@ class ChannelService(BaseDbService[Channel]):
                 await db.execute(delete(Chat).where(Chat.channel_id == channel.id))
                 await db.execute(delete(Channel).where(Channel.id == channel.id))
                 await db.commit()
+            await ChannelQueueService.clear_queues([str(channel.id)])
             self.states.pop(channel.id, None)
 
     async def recover(self) -> None:

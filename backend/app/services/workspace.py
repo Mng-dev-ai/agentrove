@@ -31,6 +31,7 @@ from app.services.channel import channel_service
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ErrorCode, WorkspaceException
 from app.services.git import GitService
+from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
@@ -317,6 +318,7 @@ class WorkspaceService(BaseDbService[Workspace]):
             )
 
             await db.commit()
+            await QueueService.clear_queues([str(cid) for cid in chat_ids])
 
             for cid in chat_ids:
                 asyncio.create_task(session_registry.terminate(str(cid)))
