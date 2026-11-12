@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      validate_only:
+        description: Build and notarize without publishing a release
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -34,6 +39,7 @@ jobs:
           npm ci --legacy-peer-deps
 
       - name: Set version from tag
+        if: ${{ !inputs.validate_only }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           cd frontend/src-tauri
@@ -45,7 +51,7 @@ jobs:
         with:
           projectPath: frontend
           tauriScript: npx tauri
-          tagName: ${{ github.ref_name }}
+          tagName: ${{ !inputs.validate_only && github.ref_name || '' }}
           releaseName: Agentrove Desktop ${{ github.ref_name }}
           releaseBody: Desktop release for ${{ github.ref_name }}.
           releaseDraft: false
@@ -61,3 +67,15 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+
+      - name: Verify notarized app
+        if: ${{ inputs.validate_only }}
+        run: |
+          APP="$GITHUB_WORKSPACE/frontend/src-tauri/target/release/bundle/macos/Agentrove.app"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          xcrun stapler validate "$APP"
+          spctl --assess --type execute --verbose=2 "$APP"
+          SIDECAR="$APP/Contents/Resources/_up_/backend-sidecar"
+          "$SIDECAR/python/bin/python3" -c 'import ssl, pydantic_core, uvloop, watchfiles, sqlalchemy'
+          "$SIDECAR/node/bin/node" -e 'if (new Function("return 42")() !== 42) process.exit(1)'
