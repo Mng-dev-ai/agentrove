@@ -558,9 +558,8 @@ class ChatService(BaseDbService[Chat]):
 
     async def get_model_context_window(self, chat_id: UUID) -> int | None:
         last_msg = await self.message_service.get_latest_assistant_message(chat_id)
-        if not last_msg or not last_msg.model_id:
-            return None
-        return MODELS[last_msg.model_id].context_window
+        model = MODELS.get(last_msg.model_id or "") if last_msg else None
+        return model.context_window if model else None
 
     async def delete_chat(self, chat_id: UUID, user: User) -> None:
         async with self.session_factory() as db:
