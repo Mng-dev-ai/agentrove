@@ -2055,7 +2055,7 @@ async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
     [token, *_] = minted_mcp_tokens(fake_agent)
     agent_headers = {"Authorization": f"Bearer {token}"}
     assert (
-        await client.get("/api/v1/auth/me", headers=agent_headers)
+        await client.get("/api/v1/workspaces", headers=agent_headers)
     ).status_code == 200
     minted_before_revoke = len(minted_mcp_tokens(fake_agent))
 
@@ -2077,7 +2077,7 @@ async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
     )
 
     assert (
-        await client.get("/api/v1/auth/me", headers=agent_headers)
+        await client.get("/api/v1/workspaces", headers=agent_headers)
     ).status_code == 401
     assert manual_run.status_code == 403
     assert "paired device behind this run has been revoked" in manual_run.text
@@ -2189,7 +2189,7 @@ async def test_channel_turn_acts_for_the_devices_behind_its_prompt(
         token = tokens[prompt["pid"]]
         claims = jwt.decode(token, options={"verify_signature": False})
         me = await client.get(
-            "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+            "/api/v1/workspaces", headers={"Authorization": f"Bearer {token}"}
         )
         actual[member] = (sorted(claims["did"]), me.status_code)
     assert actual == {
@@ -2447,7 +2447,7 @@ async def test_wake_acts_for_the_reporting_childs_devices(
     assert claims["did"] == [paired["device_id"]]
     await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
     me = await client.get(
-        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {token}"}
     )
     assert me.status_code == 401
 
@@ -2601,7 +2601,7 @@ async def test_automation_turn_acts_for_the_devices_behind_its_saved_prompt(
     assert sorted(claims["did"]) == sorted([*expected, other["device_id"]])
     await client.delete(f"/api/v1/auth/devices/{saver['device_id']}", headers=headers)
     me = await client.get(
-        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {token}"}
     )
     assert me.status_code == (401 if saver_kept else 200)
 
@@ -2654,7 +2654,7 @@ async def test_edited_chat_queue_item_acts_for_the_devices_behind_what_survives(
     assert did_of(token) == ([paired["device_id"]] if queuer_kept else [])
     await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
     me = await client.get(
-        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {token}"}
     )
     assert me.status_code == (401 if queuer_kept else 200)
 
@@ -2713,7 +2713,7 @@ async def test_edited_channel_queue_item_keeps_acting_for_the_device_that_queued
     assert did_of(token) == [paired["device_id"]]
     await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
     me = await client.get(
-        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {token}"}
     )
     assert me.status_code == 401
 
@@ -2759,7 +2759,7 @@ async def test_chat_send_now_acts_for_the_clicking_device(
     )
     assert message["stream_status"] == "interrupted"
     me = await client.get(
-        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {token}"}
     )
     assert me.status_code == 401
 
@@ -2814,7 +2814,7 @@ async def test_channel_send_now_acts_for_the_clicking_device(
     assert did_of(token) == [paired["device_id"]]
     await client.delete(f"/api/v1/auth/devices/{paired['device_id']}", headers=headers)
     me = await client.get(
-        "/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}
+        "/api/v1/workspaces", headers={"Authorization": f"Bearer {token}"}
     )
     assert me.status_code == 401
 
