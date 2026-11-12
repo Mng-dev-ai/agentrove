@@ -325,7 +325,7 @@ def last_tool(message: dict[str, Any], tool_id: str) -> dict[str, Any]:
         ("gpt-5.4", "gpt-5.4"),
         # Antigravity encodes the (default) effort tier in the model id.
         ("antigravity:gemini-4-argon", "gemini-4-argon-high"),
-        ("copilot:gpt-5.4", "gpt-5.4"),
+        ("copilot:gpt-6-luna", "gpt-6-luna"),
         ("cursor:auto", "auto"),
         ("grok:grok-4.5", "grok-4.5"),
         ("opencode:opencode/gpt-5-nano", "opencode/gpt-5-nano"),
@@ -365,7 +365,7 @@ async def test_enhance_prompt_round_trips_through_real_acp_session(
 @pytest.mark.parametrize(
     "model_id,thinking_mode,expected_status,expected_effort,expected_model",
     [
-        ("copilot:gpt-5.4", "xhigh", "completed", "xhigh", None),
+        ("copilot:gpt-6-luna", "xhigh", "completed", "xhigh", None),
         ("copilot:claude-haiku-4.5", "high", "completed", None, None),
         # An explicit tier the model lacks fails the turn instead of clamping.
         ("copilot:kimi-k3", "medium", "failed", None, None),
@@ -761,7 +761,7 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
     [
         ("gpt-5.4", "bypassPermissions", True, None),
         (
-            "copilot:gpt-5.4",
+            "copilot:gpt-6-luna",
             "bypassPermissions",
             False,
             ["https://agentclientprotocol.com/protocol/session-modes#agent"],
@@ -1648,7 +1648,7 @@ async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
         client,
         headers,
         chat_id=chat["id"],
-        model_id="copilot:claude-opus-4.6",
+        model_id="copilot:claude-opus-5",
         prompt="second turn",
         permission_mode="agent",
         thinking_mode="high",
@@ -1666,7 +1666,7 @@ async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
         event for event in switch_events if event["event"] == "set_config_option"
     ]
     assert [(event["config_id"], event["value"]) for event in switch_calls] == [
-        ("model", "claude-opus-4.6"),
+        ("model", "claude-opus-5"),
         ("reasoning_effort", "high"),
     ]
 
@@ -1695,7 +1695,7 @@ async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
         client,
         headers,
         chat_id=no_dial_chat["id"],
-        model_id="copilot:kimi-k2.7-code",
+        model_id="copilot:claude-haiku-4.5",
         prompt="second no-dial turn",
         permission_mode="agent",
         thinking_mode="high",
@@ -1719,7 +1719,7 @@ async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
         if event["event"] == "set_config_option"
     ]
     assert [(event["config_id"], event["value"]) for event in no_dial_switch_calls] == [
-        ("model", "kimi-k2.7-code")
+        ("model", "claude-haiku-4.5")
     ]
 
 
