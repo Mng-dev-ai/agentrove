@@ -631,12 +631,10 @@ class ChatService(BaseDbService[Chat]):
             )
             await db.execute(messages_update)
 
-            async with cache_connection() as cache:
-                await QueueService(cache).clear_queues(
-                    [str(cid) for cid in (chat_id, *sub_thread_ids)]
-                )
-
             await db.commit()
+            await QueueService.clear_queues(
+                [str(cid) for cid in (chat_id, *sub_thread_ids)]
+            )
 
             asyncio.create_task(session_registry.terminate(str(chat_id)))
             for sub_id in sub_thread_ids:
@@ -702,10 +700,8 @@ class ChatService(BaseDbService[Chat]):
                 .values(deleted_at=now)
             )
 
-            async with cache_connection() as cache:
-                await QueueService(cache).clear_queues(chat_ids)
-
             await db.commit()
+            await QueueService.clear_queues(chat_ids)
 
             for cid in chat_ids:
                 asyncio.create_task(session_registry.terminate(cid))

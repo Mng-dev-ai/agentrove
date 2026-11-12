@@ -1140,12 +1140,11 @@ class ChannelService(BaseDbService[Channel]):
                     await GitService(
                         self.chats.sandbox_for_workspace(chat.workspace)
                     ).remove_worktree(chat.sandbox_id, chat.worktree_cwd)
-            async with cache_connection() as cache:
-                await ChannelQueueService(cache).clear_queues([str(channel.id)])
             async with self.session_factory() as db:
                 await db.execute(delete(Chat).where(Chat.channel_id == channel.id))
                 await db.execute(delete(Channel).where(Channel.id == channel.id))
                 await db.commit()
+            await ChannelQueueService.clear_queues([str(channel.id)])
             self.states.pop(channel.id, None)
 
     async def recover(self) -> None:
