@@ -22,12 +22,12 @@ export const useInputFileOperations = ({
       if (onAttach) {
         const validFiles = filterValidFiles(files);
         if (validFiles.length > 0) {
-          onAttach(validFiles);
+          onAttach([...(attachedFiles || []), ...validFiles]);
         }
       }
       setShowFileUpload(false);
     },
-    [filterValidFiles, onAttach],
+    [filterValidFiles, onAttach, attachedFiles],
   );
 
   const handleRemoveFile = useCallback(
