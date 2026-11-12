@@ -294,6 +294,9 @@ function signSidecar() {
   const identity = process.env.APPLE_SIGNING_IDENTITY;
   if (!identity) return;
 
+  const keychains = execFileSync('security', ['list-keychains', '-d', 'user'], {
+    encoding: 'utf8',
+  }).split('\n').map((line) => line.trim().replace(/^"|"$/g, '')).filter(Boolean);
   const tempDir = mkdtempSync(join(tmpdir(), 'agentrove-signing-'));
   const keychain = join(tempDir, 'signing.keychain-db');
   const certificate = join(tempDir, 'certificate.p12');
@@ -311,6 +314,7 @@ function signSidecar() {
       'set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:',
       '-k', password, keychain,
     ]);
+    execFileSync('security', ['list-keychains', '-d', 'user', '-s', ...keychains, keychain]);
     for (const relativePath of readdirSync(sidecarDir, { recursive: true })) {
       const path = join(sidecarDir, relativePath);
       if (!lstatSync(path).isFile()) continue;
@@ -335,8 +339,12 @@ function signSidecar() {
       execFileSync('codesign', ['--verify', '--strict', path], { stdio: 'inherit' });
     }
   } finally {
-    if (existsSync(keychain)) execFileSync('security', ['delete-keychain', keychain]);
-    rmSync(tempDir, { recursive: true, force: true });
+    try {
+      execFileSync('security', ['list-keychains', '-d', 'user', '-s', ...keychains]);
+    } finally {
+      if (existsSync(keychain)) execFileSync('security', ['delete-keychain', keychain]);
+      rmSync(tempDir, { recursive: true, force: true });
+    }
   }
 }
 
