@@ -1,10 +1,16 @@
 import {
   chmodSync,
+  closeSync,
   copyFileSync,
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
+  mkdtempSync,
+  openSync,
+  readdirSync,
   readFileSync,
+  readSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -12,6 +18,8 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { randomBytes } from 'node:crypto';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const rootDir = resolve(dir, '..');
@@ -282,6 +290,56 @@ function writeLauncher() {
   chmodSync(launcher, 0o755);
 }
 
+function signSidecar() {
+  const identity = process.env.APPLE_SIGNING_IDENTITY;
+  if (!identity) return;
+
+  const tempDir = mkdtempSync(join(tmpdir(), 'agentrove-signing-'));
+  const keychain = join(tempDir, 'signing.keychain-db');
+  const certificate = join(tempDir, 'certificate.p12');
+  const password = randomBytes(32).toString('hex');
+  try {
+    writeFileSync(certificate, Buffer.from(process.env.APPLE_CERTIFICATE, 'base64'), { mode: 0o600 });
+    execFileSync('security', ['create-keychain', '-p', password, keychain]);
+    execFileSync('security', ['unlock-keychain', '-p', password, keychain]);
+    execFileSync('security', [
+      'import', certificate, '-k', keychain,
+      '-P', process.env.APPLE_CERTIFICATE_PASSWORD,
+      '-T', '/usr/bin/codesign',
+    ]);
+    execFileSync('security', [
+      'set-key-partition-list', '-S', 'apple-tool:,apple:,codesign:',
+      '-k', password, keychain,
+    ]);
+    for (const relativePath of readdirSync(sidecarDir, { recursive: true })) {
+      const path = join(sidecarDir, relativePath);
+      if (!lstatSync(path).isFile()) continue;
+
+      const header = Buffer.alloc(4);
+      const fd = openSync(path, 'r');
+      try {
+        readSync(fd, header, 0, 4, 0);
+      } finally {
+        closeSync(fd);
+      }
+      if (![
+        'feedface', 'cefaedfe', 'feedfacf', 'cffaedfe',
+        'cafebabe', 'bebafeca', 'cafebabf', 'bfbafeca',
+      ].includes(header.toString('hex'))) continue;
+      if (!execFileSync('file', ['--brief', path], { encoding: 'utf8' }).includes('Mach-O')) continue;
+
+      execFileSync('codesign', [
+        '--force', '--sign', identity, '--keychain', keychain,
+        '--timestamp', '--options', 'runtime', '--preserve-metadata=entitlements', path,
+      ], { stdio: 'inherit' });
+      execFileSync('codesign', ['--verify', '--strict', path], { stdio: 'inherit' });
+    }
+  } finally {
+    if (existsSync(keychain)) execFileSync('security', ['delete-keychain', keychain]);
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 function run() {
   if (forceClean && existsSync(sidecarDir)) {
     rmSync(sidecarDir, { recursive: true, force: true });
@@ -319,6 +377,7 @@ function run() {
 
   copySource();
   writeLauncher();
+  signSidecar();
   console.log('Done');
 }
 
