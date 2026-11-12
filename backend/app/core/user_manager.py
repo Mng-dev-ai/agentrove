@@ -170,7 +170,11 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
             agent_scope = (
                 AgentScope(
                     workspace_id=uuid.UUID(claims["wid"]),
-                    chat_id=uuid.UUID(claims["cid"]) if claims.get("cid") else None,
+                    chat_id=(
+                        uuid.UUID(claims["cid"])
+                        if claims.get("cid") is not None
+                        else None
+                    ),
                 )
                 if "wid" in claims
                 else None

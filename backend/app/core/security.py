@@ -6,9 +6,10 @@ import logging
 from typing import Any
 from uuid import UUID
 
+import jwt
 from cryptography.fernet import Fernet
 from fastapi import Depends, HTTPException, WebSocket, status
-from fastapi_users.jwt import generate_jwt
+from fastapi_users.jwt import decode_jwt, generate_jwt
 from fastapi_users.password import PasswordHelper
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
@@ -16,9 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..constants import WS_CLOSE_SANDBOX_NOT_FOUND, WS_MSG_AUTH
 from ..db.session import SessionLocal
+from ..models.db_models.chat import Chat
 from ..models.db_models.user import User
 from ..models.db_models.workspace import Workspace
 from ..services.sandbox_providers import SandboxProviderType
+from ..services.session_registry import session_registry
 from .config import get_settings
 from .user_manager import (
     DEVICE_IDS,
@@ -101,10 +104,10 @@ def create_mcp_access_token(
                 "sub": str(user_id),
                 "aud": ["fastapi-users:auth"],
                 "mcp": True,
+                "host": True,
                 "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
                 "pwd": password_fingerprint(hashed_password),
             },
-                "host": True,
             settings.SECRET_KEY,
             lifetime_seconds=settings.AGENTROVE_MCP_TOKEN_LIFETIME_SECONDS,
             algorithm=settings.ALGORITHM,
@@ -156,6 +159,52 @@ def create_scoped_mcp_token(sandbox_claims: dict[str, Any]) -> str:
             algorithm=settings.ALGORITHM,
         )
     )
+
+
+async def exchange_sandbox_mcp_token(token: str) -> tuple[str, str | None] | None:
+    # The scoped token and bound chat id for a sandbox token whose session is
+    # live. read_token owns the user checks; the workspace and chat ones are
+    # only made here.
+    try:
+        claims = decode_jwt(
+            token,
+            settings.SECRET_KEY,
+            [SANDBOX_MCP_AUDIENCE],
+            algorithms=[settings.ALGORITHM],
+        )
+        if not session_registry.is_mcp_session_live(claims["sid"]):
+            return None
+        scoped_token = create_scoped_mcp_token(claims)
+    except (jwt.PyJWTError, KeyError, TypeError):
+        return None
+    async with SessionLocal() as db:
+        user = await get_user_from_token(scoped_token, db)
+        if user is None or user.agent_scope is None:
+            return None
+        scope = user.agent_scope
+        workspace = await db.scalar(
+            select(Workspace.id).where(
+                Workspace.id == scope.workspace_id,
+                Workspace.user_id == user.id,
+                Workspace.deleted_at.is_(None),
+                Workspace.sandbox_provider == SandboxProviderType.DOCKER.value,
+            )
+        )
+        if workspace is None:
+            return None
+        if scope.chat_id is not None and (
+            await db.scalar(
+                select(Chat.id).where(
+                    Chat.id == scope.chat_id,
+                    Chat.user_id == user.id,
+                    Chat.workspace_id == scope.workspace_id,
+                    Chat.deleted_at.is_(None),
+                )
+            )
+            is None
+        ):
+            return None
+    return scoped_token, claims["cid"]
 
 
 async def authenticate_websocket_user(token: str) -> User | None:
