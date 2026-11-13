@@ -37,6 +37,8 @@ import {
   sendChannelQueuedMessageNow,
   useChannelQueueStore,
 } from '@/store/messageQueueStore';
+import { useChatMachineId } from '@/store/machineOrigin';
+import { useMachineName, useMachineStatus } from '@/store/machineStore';
 import { getAgentKindForModelId, type AgentKind } from '@/types/chat.types';
 import { formatFullTimestamp, formatRelativeTime } from '@/utils/date';
 import { executePermissionResponse } from '@/utils/permissionResponse';
@@ -264,6 +266,9 @@ function ChannelEmptyState({ channel }: { channel: Channel }) {
 
 export function ChannelView({ channel }: { channel: Channel }) {
   useChannelLive(channel.id);
+  const machineId = useChatMachineId(channel.anchor_chat_id);
+  const machineOnline = useMachineStatus(machineId) === 'online';
+  const machineLabel = useMachineName(machineId);
   const [draft, setDraft] = useState('');
   const { copiedMessageId, handleCopy } = useClipboard({ chatId: channel.id });
 
@@ -386,6 +391,8 @@ export function ChannelView({ channel }: { channel: Channel }) {
               onSend={scrollToBottom}
               draft={draft}
               setDraft={setDraft}
+              disabled={!machineOnline}
+              placeholder={machineOnline ? undefined : `${machineLabel} is offline — read-only`}
             />
           }
         >
@@ -393,7 +400,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
             isSynced ? (
               <ChannelEmptyState channel={channel} />
             ) : (
-              <ChatSkeleton messageCount={3} />
+              machineOnline && <ChatSkeleton messageCount={3} />
             )
           ) : (
             <>

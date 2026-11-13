@@ -3,6 +3,7 @@ import {
   useMutation,
   useQueries,
   useQuery,
+  useQueryClient,
   type Query,
   type UseQueryResult,
 } from '@tanstack/react-query';
@@ -12,6 +13,7 @@ import { createMutation } from '@/hooks/queries/createMutation';
 import { useChannelStore } from '@/store/channelStore';
 import { useChannelQueueStore } from '@/store/messageQueueStore';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
+import { channelMachineId } from '@/store/machineOrigin';
 import { useUIStore } from '@/store/uiStore';
 import type { Channel, ChannelCreateRequest, ChannelMessage } from '@/types/channel.types';
 import type { Message } from '@/types/chat.types';
@@ -47,12 +49,19 @@ export const useMachinesChannels = (enabled: boolean) => {
   });
 };
 
-export const useChannelQuery = (channelId: string | undefined) =>
-  useQuery<Channel>({
+export const useChannelQuery = (channelId: string | undefined) => {
+  const queryClient = useQueryClient();
+  return useQuery<Channel>({
     queryKey: queryKeys.channel(channelId),
     queryFn: () => channelService.getChannel(channelId!),
     enabled: !!channelId,
+    initialData: () =>
+      queryClient
+        .getQueryData<Channel[]>(queryKeys.channels(channelMachineId(channelId)))
+        ?.find((channel) => channel.id === channelId),
+    initialDataUpdatedAt: 0,
   });
+};
 
 const isActivityInProgress = (query: Query<Message>) =>
   query.state.data?.stream_status === 'in_progress';

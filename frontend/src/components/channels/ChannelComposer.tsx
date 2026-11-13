@@ -36,6 +36,8 @@ interface ChannelComposerProps {
   onSend: () => void;
   draft: string;
   setDraft: Dispatch<SetStateAction<string>>;
+  disabled: boolean;
+  placeholder?: string;
 }
 
 export function ChannelComposer({
@@ -44,6 +46,8 @@ export function ChannelComposer({
   onSend,
   draft,
   setDraft,
+  disabled,
+  placeholder,
 }: ChannelComposerProps) {
   const [files, setFiles] = useState<File[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -88,7 +92,7 @@ export function ChannelComposer({
 
   const handleSend = async () => {
     const text = draft.trim();
-    if (!canSend || postMessage.isPending || isEnhancing) return;
+    if (disabled || !canSend || postMessage.isPending || isEnhancing) return;
     const content = formatComposerSelections(selections, text);
     const sentFiles = files;
     const sentSelections = selections;
@@ -171,8 +175,11 @@ export function ChannelComposer({
             ref={textareaRef}
             message={draft}
             setMessage={setDraft}
-            placeholder={isBusy ? 'Type to queue message...' : `Message #${channel.name}`}
+            placeholder={
+              placeholder ?? (isBusy ? 'Type to queue message...' : `Message #${channel.name}`)
+            }
             isLoading={postMessage.isPending}
+            disabled={disabled}
             onPaste={attachments.handlePaste}
             onCursorPositionChange={setCursorPosition}
             onKeyDown={(e) => {
@@ -199,9 +206,10 @@ export function ChannelComposer({
           <EnhanceButton
             onEnhance={handleEnhancePrompt}
             isEnhancing={isEnhancing}
-            disabled={postMessage.isPending || !hasDraft}
+            disabled={disabled || postMessage.isPending || !hasDraft}
           />
           <AttachButton
+            disabled={disabled}
             onAttach={() => {
               attachments.resetDragState();
               attachments.setShowFileUpload(true);
@@ -210,6 +218,7 @@ export function ChannelComposer({
           <SendButton
             status={sendStatus}
             disabled={
+              disabled ||
               sendStatus === 'idle' ||
               sendStatus === 'loading' ||
               isEnhancing ||
