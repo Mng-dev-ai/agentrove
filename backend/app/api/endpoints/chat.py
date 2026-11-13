@@ -341,7 +341,7 @@ async def stream_user_chat_events(
     # auth-chain DB session — FastAPI keeps yield deps open for the SSE lifetime.
     await db.close()
     return EventSourceResponse(
-        DeviceSession(current_user.id, current_user.device_ids).guard(
+        DeviceSession(current_user).guard(
             chat_service.create_chat_events_stream(current_user.id)
         ),
         headers={
@@ -373,7 +373,7 @@ async def stream_user_streams(
     # Same as /chats/events: release DB session before long-lived SSE.
     await db.close()
     return EventSourceResponse(
-        DeviceSession(current_user.id, current_user.device_ids).guard(
+        DeviceSession(current_user).guard(
             chat_service.create_user_streams_feed(current_user.id, replay_cursors)
         ),
         headers={

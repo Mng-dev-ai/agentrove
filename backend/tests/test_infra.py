@@ -169,6 +169,52 @@ async def test_admin_login_rejects_non_superuser_and_bad_password(
     assert dashboard_response.headers["location"].endswith("/admin/login")
 
 
+@pytest.mark.usefixtures("rate_limiter")
+async def test_admin_login_is_rate_limited_per_address(
+    client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    await create_superuser(db_session, "limited-admin@example.com")
+
+    failures = [
+        await client.post(
+            "/admin/login",
+            data={"username": "limited-admin@example.com", "password": "wrong"},
+        )
+        for _ in range(5)
+    ]
+    limited = await admin_login(client, "limited-admin@example.com")
+
+    assert [r.status_code for r in failures] == [400] * 5
+    assert limited.status_code == 429
+
+
+@pytest.mark.usefixtures("rate_limiter")
+async def test_admin_login_locks_account_after_failures_from_any_address(
+    proxied_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    await create_superuser(db_session, "locked-admin@example.com")
+
+    failures = [
+        await proxied_client.post(
+            "/admin/login",
+            data={"username": "locked-admin@example.com", "password": "wrong"},
+            headers={"X-Forwarded-For": f"203.0.113.{attempt}"},
+        )
+        for attempt in range(10)
+    ]
+    locked = await proxied_client.post(
+        "/admin/login",
+        data={"username": "locked-admin@example.com", "password": "adminpass123"},
+        headers={"X-Forwarded-For": "203.0.113.10"},
+        follow_redirects=False,
+    )
+
+    assert [r.status_code for r in failures] == [400] * 10
+    assert locked.status_code == 429
+
+
 async def test_admin_login_authenticates_superuser_and_lists_users(
     client: AsyncClient,
     db_session: AsyncSession,

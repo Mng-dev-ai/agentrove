@@ -47,7 +47,7 @@ async def terminal_websocket(
     if not user:
         await websocket.close(code=WS_CLOSE_AUTH_FAILED, reason="Authentication failed")
         return
-    device_session = DeviceSession(user.id, user.device_ids)
+    device_session = DeviceSession(user)
 
     access = await resolve_websocket_sandbox_access(websocket, sandbox_id, user)
     if access is None:

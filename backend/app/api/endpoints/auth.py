@@ -3,6 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi_users import exceptions as fastapi_users_exceptions
+from limits import parse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.exc import IntegrityError
@@ -45,10 +46,32 @@ from app.services.refresh_token import RefreshTokenService
 settings = get_settings()
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
+LOGIN_RATE = "5/minute"
+LOGIN_FAILURE_LIMIT = parse("10/15 minutes")
+
+
+def check_login_failures(email: str) -> None:
+    if limiter.enabled and not limiter.limiter.test(
+        LOGIN_FAILURE_LIMIT, "login-failures", email.lower()
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many failed login attempts, try again later",
+        )
+
+
+def record_login_failure(email: str) -> None:
+    if limiter.enabled:
+        limiter.limiter.hit(LOGIN_FAILURE_LIMIT, "login-failures", email.lower())
+
+
+@limiter.limit("3/minute")
+async def limit_account_recovery(request: Request) -> None:
+    pass
 
 
 @router.post("/jwt/login", response_model=Token)
-@limiter.limit("5/minute")
+@limiter.limit(LOGIN_RATE)
 async def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -56,9 +79,11 @@ async def login(
     db: AsyncSession = Depends(get_db),
     refresh_token_service: RefreshTokenService = Depends(get_refresh_token_service),
 ) -> Token:
+    check_login_failures(form_data.username)
     user = await user_db.get_by_email(form_data.username)
 
     if not user or not verify_password(form_data.password, user.hashed_password):
+        record_login_failure(form_data.username)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid email or password",
@@ -142,9 +167,11 @@ async def register(
 
 router.include_router(
     fastapi_users.get_reset_password_router(),
+    dependencies=[Depends(limit_account_recovery)],
 )
 router.include_router(
     fastapi_users.get_verify_router(UserRead),
+    dependencies=[Depends(limit_account_recovery)],
 )
 
 

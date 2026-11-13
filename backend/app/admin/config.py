@@ -1,14 +1,25 @@
 from typing import Any
 from uuid import UUID
 
+from fastapi import HTTPException, status
+from limits import parse
+from slowapi.util import get_remote_address
 from sqladmin import Admin
 from sqladmin.authentication import AuthenticationBackend
 from starlette.requests import Request
+from app.api.endpoints.auth import (
+    LOGIN_RATE,
+    check_login_failures,
+    limiter,
+    record_login_failure,
+)
 from app.core.security import verify_password
 from app.core.user_manager import password_fingerprint
 from app.models.db_models.user import User
 from sqlalchemy import select
 from app.core.config import get_settings
+
+ADMIN_LOGIN_LIMIT = parse(LOGIN_RATE)
 
 
 class AdminAuth(AuthenticationBackend):
@@ -17,20 +28,25 @@ class AdminAuth(AuthenticationBackend):
         self.session_maker = session_maker
 
     async def login(self, request: Request) -> bool:
+        if limiter.enabled and not limiter.limiter.hit(
+            ADMIN_LOGIN_LIMIT, "admin-login", get_remote_address(request)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many login attempts, try again later",
+            )
         form = await request.form()
         email = form.get("username")
         password = form.get("password")
+        if not isinstance(email, str) or not isinstance(password, str):
+            return False
+        check_login_failures(email)
 
         async with self.session_maker() as db:
             result = await db.execute(select(User).where(User.email == email))
             user = result.scalar_one_or_none()
 
-            if (
-                user
-                and password
-                and isinstance(password, str)
-                and verify_password(password, user.hashed_password)
-            ):
+            if user and password and verify_password(password, user.hashed_password):
                 if not (user.is_active and user.is_superuser):
                     return False
 
@@ -43,6 +59,7 @@ class AdminAuth(AuthenticationBackend):
                 )
                 return True
 
+        record_login_failure(email)
         return False
 
     async def logout(self, request: Request) -> bool:

@@ -20,6 +20,7 @@ from app.core.security import (
     authenticate_websocket_user,
     create_mcp_access_token,
     create_scoped_mcp_token,
+    get_password_hash,
 )
 from app.core.user_manager import (
     AGENT_ROUTES,
@@ -31,6 +32,7 @@ from app.models.db_models.enums import MessageRole
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
 from app.models.db_models.workspace import Workspace
+from app.services.device_session import DeviceSession
 from app.services.email import EmailService, email_service
 from app.services.refresh_token import RefreshTokenService, hash_refresh_token
 
@@ -339,6 +341,63 @@ async def test_login_rejects_inactive_user(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Account is inactive"
+
+
+async def attempt_logins(
+    client: AsyncClient, email: str, password: str, attempts: range
+) -> list[tuple[int, str | None]]:
+    responses = [
+        await client.post(
+            "/api/v1/auth/jwt/login",
+            data={"username": email, "password": password},
+            headers={"X-Forwarded-For": f"203.0.113.{attempt}"},
+        )
+        for attempt in attempts
+    ]
+    return [(r.status_code, r.json().get("detail")) for r in responses]
+
+
+@pytest.mark.usefixtures("rate_limiter")
+async def test_login_locks_account_after_failures_from_any_address(
+    proxied_client: AsyncClient,
+    create_user: UserFactory,
+) -> None:
+    await create_user(email="lockout@example.com", username="lockout")
+
+    known = await attempt_logins(
+        proxied_client, "Lockout@example.com", "wrongpassword", range(11)
+    )
+    unknown = await attempt_logins(
+        proxied_client, "nobody@example.com", "wrongpassword", range(11)
+    )
+    correct = await attempt_logins(
+        proxied_client, "lockout@example.com", "password123", range(11, 12)
+    )
+
+    locked = (429, "Too many failed login attempts, try again later")
+    assert known == unknown == [(400, "Invalid email or password")] * 10 + [locked]
+    assert correct == [locked]
+
+
+@pytest.mark.usefixtures("rate_limiter")
+async def test_login_lockout_counts_only_failures(
+    proxied_client: AsyncClient,
+    create_user: UserFactory,
+) -> None:
+    await create_user(email="steady@example.com", username="steady")
+
+    failures = await attempt_logins(
+        proxied_client, "steady@example.com", "wrongpassword", range(9)
+    )
+    successes = await attempt_logins(
+        proxied_client, "steady@example.com", "password123", range(9, 21)
+    )
+    last_failure = await attempt_logins(
+        proxied_client, "steady@example.com", "wrongpassword", range(21, 22)
+    )
+
+    assert {status for status, _ in failures + last_failure} == {400}
+    assert {status for status, _ in successes} == {200}
 
 
 async def test_registration_with_required_verification_gates_login_until_verified(
@@ -945,6 +1004,34 @@ async def test_reset_password_replaces_password_and_revokes_sessions(
     await login(email="reset@example.com", password="newpassword123")
 
 
+@pytest.mark.usefixtures("rate_limiter", "email_capture")
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("forgot-password", {"email": "limited@example.com"}),
+        ("reset-password", {"token": "bogus", "password": "newpassword123"}),
+        ("request-verify-token", {"email": "limited@example.com"}),
+    ],
+)
+async def test_account_email_endpoints_are_rate_limited(
+    client: AsyncClient,
+    create_user: UserFactory,
+    path: str,
+    body: dict[str, str],
+) -> None:
+    await create_user(
+        email="limited@example.com", username="limited", is_verified=False
+    )
+
+    statuses = [
+        (await client.post(f"/api/v1/auth/{path}", json=body)).status_code
+        for _ in range(4)
+    ]
+
+    assert 429 not in statuses[:3]
+    assert statuses[3] == 429
+
+
 async def test_refresh_rejects_expired_token(
     client: AsyncClient,
     create_user: UserFactory,
@@ -1528,3 +1615,23 @@ async def test_mcp_token_bound_to_device_dies_with_device(
     )
 
     assert (await client.get(workspaces, headers=mcp_headers)).status_code == 401
+
+
+@pytest.mark.parametrize("change", ["password", "deactivate"])
+async def test_password_session_ends_after_password_change_or_deactivation(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    change: str,
+) -> None:
+    user = await create_user(email="live@example.com", username="liveuser")
+    user.device_ids = frozenset()
+    session = DeviceSession(user)
+    assert await session.check()
+
+    if change == "password":
+        user.hashed_password = get_password_hash("newpassword123")
+    else:
+        user.is_active = False
+    await db_session.commit()
+
+    assert not await session.check()

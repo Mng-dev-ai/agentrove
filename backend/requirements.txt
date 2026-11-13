@@ -24,6 +24,7 @@ mcp==1.19.0
 aiosmtplib
 prometheus-fastapi-instrumentator
 slowapi
+limits
 sse-starlette
 # <3.2: sqladmin's admin-form widgets break on wtforms 3.2 (no validation_attrs)
 wtforms<3.2

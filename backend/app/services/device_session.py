@@ -5,7 +5,9 @@ from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from typing import ClassVar, TypeVar
 
+from app.core.user_manager import password_fingerprint
 from app.db.session import SessionLocal
+from app.models.db_models.user import User
 from app.services.pairing import PairingService
 
 
@@ -16,9 +18,10 @@ StreamItem = TypeVar("StreamItem")
 class DeviceSession:
     live: ClassVar[set["DeviceSession"]] = set()
 
-    def __init__(self, user_id: uuid.UUID, device_ids: frozenset[uuid.UUID]) -> None:
-        self.user_id = user_id
-        self.device_ids = device_ids
+    def __init__(self, user: User) -> None:
+        self.user_id = user.id
+        self.device_ids = user.device_ids
+        self.fingerprint = password_fingerprint(user.hashed_password)
         self.checked_at = time.monotonic()
         self.revoked = False
         self.interrupt: asyncio.Timeout | None = None
@@ -52,10 +55,14 @@ class DeviceSession:
             self.interrupt = None
 
     async def check(self) -> bool:
-        if not self.device_ids:
-            return True
         async with SessionLocal() as db:
-            active = await PairingService.all_active(db, self.user_id, self.device_ids)
+            user = await db.get(User, self.user_id)
+            active = (
+                user is not None
+                and user.is_active
+                and password_fingerprint(user.hashed_password) == self.fingerprint
+                and await PairingService.all_active(db, self.user_id, self.device_ids)
+            )
         self.checked_at = time.monotonic()
         return active and not self.revoked
 

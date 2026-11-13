@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 import tests.bootstrap
 from app.api.endpoints import auth as auth_endpoint
@@ -195,6 +196,28 @@ async def client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
         transport=transport, base_url="http://testserver"
     ) as test_client:
         yield test_client
+
+
+@pytest_asyncio.fixture
+async def proxied_client(app: FastAPI) -> AsyncIterator[httpx.AsyncClient]:
+    # Production trusts X-Forwarded-For from any peer (TRUSTED_PROXY_HOSTS="*").
+    transport = httpx.ASGITransport(
+        app=ProxyHeadersMiddleware(app, trusted_hosts="*"),
+        client=("testclient", 50000),
+    )
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def rate_limiter(app: FastAPI) -> Iterator[None]:
+    auth_endpoint.limiter.reset()
+    auth_endpoint.limiter.enabled = True
+    yield
+    auth_endpoint.limiter.enabled = False
+    auth_endpoint.limiter.reset()
 
 
 @pytest_asyncio.fixture
