@@ -28,6 +28,7 @@ from app.models.schemas.chat import ChatRequest
 from app.models.types import AgentKind
 from app.services import channel as channel_module
 from app.services.channel import (
+    MAX_ATTEMPTS,
     ChannelService,
     ChannelState,
     MemberTurn,
@@ -631,7 +632,7 @@ async def test_stop_marks_all_messages_seen_for_every_member(
     assert channel_runtime.requests == []
 
 
-async def test_backoff_doubles_caps_skips_wakes_and_clears_on_success(
+async def test_backoff_doubles_skips_wakes_and_clears_on_success(
     channel_state: ChannelState,
     channel_runtime: ScriptedTurns,
     db_session: AsyncSession,
@@ -642,7 +643,7 @@ async def test_backoff_doubles_caps_skips_wakes_and_clears_on_success(
     member = channel_state.channel.members[0]
     channel_runtime.events = [("error", {"error": "Provider unavailable"})]
     loop = asyncio.get_running_loop()
-    for expected_delay in (5, 10, 20, 40, 80, 160, 300, 300):
+    for expected_delay in (5, 10, 20, 40):
         if member.id in channel_state.retries:
             channel_state.retries[member.id].until = loop.time()
         started = loop.time()
@@ -700,6 +701,118 @@ async def test_failed_turn_reason_is_in_the_activity_snapshot_until_success(
     activity = (await client.get(url, headers=owner[0])).json()
     assert activity["retrying_member_ids"] == []
     assert activity["member_errors"] == {}
+
+
+async def give_up(state: ChannelState, runtime: ScriptedTurns) -> None:
+    member_id = state.channel.members[0].id
+    runtime.events = [("error", {"error": "Authentication required"})]
+    for _ in range(MAX_ATTEMPTS):
+        if member_id in state.retries:
+            state.retries[member_id].until = asyncio.get_running_loop().time()
+        await runtime.wake(state)
+
+
+async def test_member_gives_up_after_max_attempts(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+) -> None:
+    await channel_service.new_message(
+        channel_state, "Please retry", device_ids=frozenset()
+    )
+    member = channel_state.channel.members[0]
+    await give_up(channel_state, channel_runtime)
+    activity = (
+        await client.get(
+            f"/api/v1/channels/{channel_state.channel.id}/member-activity",
+            headers=owner[0],
+        )
+    ).json()
+
+    assert len(channel_runtime.requests) == MAX_ATTEMPTS
+    assert activity["retrying_member_ids"] == []
+    assert activity["member_errors"] == {}
+    assert activity["unavailable_members"] == {
+        str(member.id): "Gave up after 5 attempts: Authentication required"
+    }
+    assert channel_state.retries == {}
+    assert channel_state.turns == {}
+    await channel_runtime.wake(channel_state)
+    assert len(channel_runtime.requests) == MAX_ATTEMPTS
+
+
+async def test_member_that_gave_up_does_not_keep_a_failed_turn(
+    monkeypatch: pytest.MonkeyPatch,
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+) -> None:
+    await channel_service.new_message(
+        channel_state, "Please retry", device_ids=frozenset()
+    )
+    member = channel_state.channel.members[0]
+    finish = channel_service.finish
+
+    async def failing_finish(state: ChannelState, turn: MemberTurn) -> None:
+        if turn.member.id in state.gave_up:
+            raise RuntimeError("Database unavailable")
+        await finish(state, turn)
+
+    monkeypatch.setattr(channel_service, "finish", failing_finish)
+    await give_up(channel_state, channel_runtime)
+    assert member.id in channel_state.turns
+    await channel_runtime.wake(channel_state)
+    activity = (
+        await client.get(
+            f"/api/v1/channels/{channel_state.channel.id}/member-activity",
+            headers=owner[0],
+        )
+    ).json()
+
+    assert len(channel_runtime.requests) == MAX_ATTEMPTS
+    assert channel_state.turns == {}
+    assert channel_state.retries == {}
+    channel_state.paused = False
+    assert ChannelService.idle(channel_state)
+    assert activity["retrying_member_ids"] == []
+    assert activity["unavailable_members"] == {
+        str(member.id): "Gave up after 5 attempts: Authentication required"
+    }
+
+
+async def test_user_post_gives_a_member_that_gave_up_fresh_attempts(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+) -> None:
+    await channel_service.new_message(
+        channel_state, "Please retry", device_ids=frozenset()
+    )
+    member = channel_state.channel.members[0]
+    await give_up(channel_state, channel_runtime)
+
+    response = await client.post(
+        f"/api/v1/channels/{channel_state.channel.id}/messages",
+        headers=owner[0],
+        data={"content": "Try again"},
+    )
+    assert response.status_code == 201
+    channel_state.paused = True
+    if channel_state.timer is not None:
+        channel_state.timer.cancel()
+        await asyncio.gather(channel_state.timer, return_exceptions=True)
+        channel_state.timer = None
+    assert activity_publications(channel_runtime)[-1]["unavailable_members"] == {}
+
+    await channel_runtime.wake(channel_state)
+    assert len(channel_runtime.requests) == MAX_ATTEMPTS + 1
+    assert channel_state.retries[member.id].attempts == 1
+    assert activity_publications(channel_runtime)[-1]["retrying_member_ids"] == [
+        str(member.id)
+    ]
 
 
 async def test_unknown_model_member_is_reported_unavailable(

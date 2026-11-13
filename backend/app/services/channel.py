@@ -64,6 +64,7 @@ QUEUE_RETRY_SECONDS = 5
 MENTION = re.compile(r"(?:^|(?<=\s))@(\S+)")
 ACTIVITY_EPOCH = uuid4().hex
 REASON_LIMIT = 300
+MAX_ATTEMPTS = 5
 
 INTRODUCTION = (
     "You are {name}, a member of a group chat channel with the user and {others}. "
@@ -99,6 +100,7 @@ class MemberRetry:
     delay: float
     until: float
     reason: str
+    attempts: int
 
 
 @dataclass
@@ -132,12 +134,14 @@ class ChannelState:
     turns: dict[UUID, MemberTurn] = field(default_factory=dict)
     timer: asyncio.Task[None] | None = None
     retries: dict[UUID, MemberRetry] = field(default_factory=dict)
+    gave_up: dict[UUID, str] = field(default_factory=dict)
     permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
     waiting_member_ids: list[str] = field(default_factory=list)
     retrying_member_ids: list[str] = field(default_factory=list)
     member_errors: dict[str, str] = field(default_factory=dict)
+    gave_up_members: dict[str, str] = field(default_factory=dict)
     activity_version: int = 0
     quiet_until: float = 0
     paused: bool = False
@@ -389,7 +393,8 @@ class ChannelService(BaseDbService[Channel]):
                 str(member.id): f"Model {member.model_id} is unknown on this instance"
                 for member in state.channel.members
                 if member.model_id not in MODELS
-            },
+            }
+            | state.gave_up_members,
         }
 
     async def publish_activity(self, state: ChannelState) -> None:
@@ -410,17 +415,22 @@ class ChannelService(BaseDbService[Channel]):
             member_id: state.retries[UUID(member_id)].reason
             for member_id in retrying_member_ids
         }
+        gave_up_members = {
+            str(member_id): reason for member_id, reason in state.gave_up.items()
+        }
         if (
             member_ids == state.active_member_ids
             and waiting_member_ids == state.waiting_member_ids
             and retrying_member_ids == state.retrying_member_ids
             and member_errors == state.member_errors
+            and gave_up_members == state.gave_up_members
         ):
             return
         state.active_member_ids = member_ids
         state.waiting_member_ids = waiting_member_ids
         state.retrying_member_ids = retrying_member_ids
         state.member_errors = member_errors
+        state.gave_up_members = gave_up_members
         state.activity_version += 1
         await self.publish(
             state.channel, "channel_member_activity", self.member_activity(state)
@@ -667,8 +677,10 @@ class ChannelService(BaseDbService[Channel]):
                     ]
                     if audience is None:
                         state.retries.clear()
+                        state.gave_up.clear()
                     for member_id in audience or []:
                         state.retries.pop(UUID(member_id), None)
+                        state.gave_up.pop(UUID(member_id), None)
                     await self.cancel_active(state, turns)
                     message = await self.send(state, content, attachments, device_ids)
             finally:
@@ -743,6 +755,8 @@ class ChannelService(BaseDbService[Channel]):
                     if previous is not None:
                         await self.finish(state, previous)
                         state.turns.pop(member.id)
+                    if member.id in state.gave_up:
+                        continue
                     async with self.session_factory() as db:
                         batch = await self.unseen_batch(db, state.channel, member)
                         if not any(
@@ -750,8 +764,12 @@ class ChannelService(BaseDbService[Channel]):
                         ):
                             continue
                 except Exception as exc:
-                    self.backoff(state, member, exc)
-                    retry_times.append(state.retries[member.id].until)
+                    if member.id not in state.gave_up:
+                        self.backoff(state, member, exc)
+                    if member.id in state.gave_up:
+                        state.turns.pop(member.id, None)
+                    else:
+                        retry_times.append(state.retries[member.id].until)
                     continue
                 turn = MemberTurn(member, batch)
                 state.turns[member.id] = turn
@@ -843,10 +861,25 @@ class ChannelService(BaseDbService[Channel]):
     def backoff(
         self, state: ChannelState, member: ChannelMember, error: object
     ) -> None:
-        previous = state.retries.get(member.id)
+        previous = state.retries.pop(member.id, None)
+        attempts = previous.attempts + 1 if previous else 1
+        if attempts >= MAX_ATTEMPTS:
+            state.gave_up[member.id] = (
+                f"Gave up after {attempts} attempts: {self.reason(error)}"
+            )
+            logger.warning(
+                "Channel member %s failed; gave up after %s attempts: %s",
+                member.id,
+                attempts,
+                error,
+            )
+            return
         delay = min(previous.delay * 2, 300) if previous else 5
         state.retries[member.id] = MemberRetry(
-            delay, asyncio.get_running_loop().time() + delay, self.reason(error)
+            delay,
+            asyncio.get_running_loop().time() + delay,
+            self.reason(error),
+            attempts,
         )
         logger.warning(
             "Channel member %s failed; retrying in %ss: %s", member.id, delay, error
