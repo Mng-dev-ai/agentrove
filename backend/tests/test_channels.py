@@ -912,6 +912,13 @@ async def test_unknown_model_member_is_reported_unavailable(
     assert response.json()["activity"]["unavailable_members"] == {
         str(member.id): "Model retired:model is unknown on this instance"
     }
+    permission_only = await client.patch(
+        f"/api/v1/channels/{channel_state.channel.id}/members/{member.id}",
+        json={"permission_mode": "build"},
+        headers=owner[0],
+    )
+    assert permission_only.status_code == 400, permission_only.text
+    assert "known model" in permission_only.json()["detail"]
 
 
 async def test_activity_reports_members_waiting_for_approval(
@@ -1864,6 +1871,8 @@ async def test_members_are_added_edited_and_removed_keeping_their_history(
     assert [m["display_name"] for m in body["former_members"]] == ["alpha"]
     assert body["anchor_chat_id"] == anchor_chat_id
     assert await db_session.get(Chat, alpha.chat_id) is not None
+    removed_row = await db_session.get(ChannelMember, alpha.id)
+    assert removed_row is not None and removed_row.removed_at is not None
     messages = (await client.get(f"{base}/messages", headers=owner[0])).json()
     assert [m["content"] for m in messages if m["member_id"] == str(alpha.id)] == [
         "Alpha answer",
@@ -1906,6 +1915,13 @@ async def test_members_are_added_edited_and_removed_keeping_their_history(
     recovered = channel_service.states[state.channel.id]
     recovered.paused = True
     assert [m.display_name for m in recovered.channel.members] == ["gamma"]
+    reread = (await client.get(base, headers=owner[0])).json()
+    assert [m["display_name"] for m in reread["former_members"]] == ["alpha"]
+    messages = (await client.get(f"{base}/messages", headers=owner[0])).json()
+    assert [m["content"] for m in messages if m["member_id"] == str(alpha.id)] == [
+        "Alpha answer",
+        "Alpha final",
+    ]
     assert channel_service.anchor_chat_id(recovered.channel) == UUID(anchor_chat_id)
     await channel_service.new_message(
         recovered, "After restart", device_ids=frozenset()
@@ -1942,6 +1958,47 @@ async def test_member_changes_are_refused_while_its_turn_runs(
     await wake
     response = await client.patch(path, json={"persona": None}, headers=owner[0])
     assert response.status_code == 200, response.text
+
+
+async def test_member_changes_on_a_deleted_channel_are_not_found(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    channel_state.deleted = True
+    base = f"/api/v1/channels/{channel_state.channel.id}/members"
+    member_path = f"{base}/{channel_state.channel.members[0].id}"
+    for method, path, kwargs in (
+        ("POST", base, {"json": {"model_id": TEST_MODEL_ID}}),
+        ("PATCH", member_path, {"json": {"persona": None}}),
+        ("DELETE", member_path, {}),
+    ):
+        response = await client.request(method, path, headers=owner[0], **kwargs)
+        assert response.status_code == 404, (method, response.text)
+    assert len(channel_state.channel.all_members) == 1
+
+
+async def test_turn_in_flight_does_not_mark_its_member_introduced_after_a_change(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    member = channel_state.channel.members[0]
+    turn = MemberTurn(member, [], introducing=True)
+    channel_state.turns[member.id] = turn
+    added = await client.post(
+        f"/api/v1/channels/{channel_state.channel.id}/members",
+        json={"model_id": TEST_MODEL_ID},
+        headers=owner[0],
+    )
+    assert added.status_code == 201, added.text
+    await channel_service.handle_event(
+        channel_state, turn, "assistant_thinking", {"text": "Hmm"}
+    )
+    assert not member.introduced
+    row = await db_session.get(ChannelMember, member.id)
+    assert row is not None and not row.introduced
 
 
 async def test_agent_tokens_cannot_change_members(

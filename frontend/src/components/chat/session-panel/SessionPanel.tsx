@@ -18,6 +18,7 @@ import {
   memberDraftFrom,
   memberRequest,
   newMemberDraft,
+  resolveMember,
   resolveMemberNames,
 } from '@/components/channels/memberDraft';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
@@ -52,7 +53,7 @@ import { useChannelActivity } from '@/store/channelStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import { getAgentKindForModelId, type Chat } from '@/types/chat.types';
-import type { Channel, ChannelMember } from '@/types/channel.types';
+import type { Channel, ChannelMember, ChannelMemberCreateRequest } from '@/types/channel.types';
 import type { DiffMode, GitDiffTotals } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
 import { useChatMachineId } from '@/store/machineOrigin';
@@ -266,7 +267,17 @@ function MemberEditor({
   const [memberName] = resolveMemberNames([draft], models, taken);
 
   const save = async (close: () => void) => {
-    const data = { ...memberRequest(draft, models, personas), display_name: memberName.name };
+    const data: ChannelMemberCreateRequest = {
+      ...memberRequest(draft, models, personas),
+      display_name: memberName.name,
+    };
+    if (
+      member &&
+      resolveMember(draft, models).supportsPersona &&
+      draft.persona === memberDraftFrom(member).persona
+    ) {
+      delete data.persona;
+    }
     try {
       if (member) {
         await updateMember.mutateAsync({ channelId: channel.id, memberId: member.id, data });
@@ -312,7 +323,13 @@ function MemberEditor({
               type="button"
               variant="primary"
               size="sm"
-              disabled={addMember.isPending || updateMember.isPending || !!memberName.error}
+              disabled={
+                addMember.isPending ||
+                updateMember.isPending ||
+                !!memberName.error ||
+                models.length === 0 ||
+                !settings
+              }
               onClick={() => void save(close)}
             >
               {member ? 'Save' : 'Add member'}

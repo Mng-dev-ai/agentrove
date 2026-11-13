@@ -174,7 +174,7 @@ class ChannelService(BaseDbService[Channel]):
             channel: Channel | None = await db.scalar(
                 select(Channel)
                 .where(Channel.id == channel_id, Channel.user_id == user.id)
-                .options(selectinload(Channel.members))
+                .options(selectinload(Channel.all_members))
             )
         if channel is None:
             raise HTTPException(404, "Channel not found")
@@ -189,7 +189,7 @@ class ChannelService(BaseDbService[Channel]):
             query = (
                 select(Channel)
                 .where(Channel.user_id == user.id)
-                .options(selectinload(Channel.members))
+                .options(selectinload(Channel.all_members))
                 .order_by(Channel.updated_at.desc())
             )
             if workspace_id is not None:
@@ -301,7 +301,6 @@ class ChannelService(BaseDbService[Channel]):
                 name=data.name,
                 worktree=data.worktree,
                 branch=data.branch,
-                members=[],
                 all_members=[],
             )
             db.add(channel)
@@ -310,7 +309,6 @@ class ChannelService(BaseDbService[Channel]):
                 member = await self.new_member(
                     db, channel, workspace, item, permission_mode, display_name
                 )
-                channel.members.append(member)
                 channel.all_members.append(member)
             await db.commit()
         self.states[channel.id] = ChannelState(channel)
@@ -323,7 +321,12 @@ class ChannelService(BaseDbService[Channel]):
 
     @staticmethod
     def permission_mode(model_id: str, mode: PermissionMode | None) -> PermissionMode:
-        kind = MODELS[model_id].agent_kind
+        model = MODELS.get(model_id)
+        if model is None:
+            raise HTTPException(
+                400, f"Unknown model {model_id}, choose a known model first"
+            )
+        kind = model.agent_kind
         if mode is None:
             return NORMAL_SESSION_MODE[kind]
         if mode not in AGENT_ADAPTERS[kind].session_modes:
@@ -773,10 +776,14 @@ class ChannelService(BaseDbService[Channel]):
         )
         for member in state.channel.members:
             member.introduced = False
+        for turn in state.turns.values():
+            turn.introducing = False
 
     async def add_member(self, channel: Channel, data: ChannelMemberCreate) -> Channel:
         state = self.state(channel)
         async with state.control, state.lock:
+            if state.deleted:
+                raise HTTPException(404, "Channel not found")
             used_names = BROADCAST_MENTIONS | {
                 member.display_name.lower() for member in state.channel.all_members
             }
@@ -818,7 +825,6 @@ class ChannelService(BaseDbService[Channel]):
                 )
                 await self.reintroduce(db, state)
                 await db.commit()
-            state.channel.members.append(member)
             state.channel.all_members.append(member)
         return await self.get(channel.id, User(id=channel.user_id))
 
@@ -827,6 +833,8 @@ class ChannelService(BaseDbService[Channel]):
     ) -> Channel:
         state = self.state(channel)
         async with state.control, state.lock:
+            if state.deleted:
+                raise HTTPException(404, "Channel not found")
             member = self.idle_member(state, member_id)
             values: dict[str, Any] = data.model_dump(
                 include={"persona", "thinking_mode"}, exclude_unset=True
@@ -877,6 +885,8 @@ class ChannelService(BaseDbService[Channel]):
         state = self.state(channel)
         async with state.control:
             async with state.lock:
+                if state.deleted:
+                    raise HTTPException(404, "Channel not found")
                 member = self.idle_member(state, member_id)
                 if len(state.channel.members) == 1:
                     raise HTTPException(400, "A channel needs at least one member")
@@ -889,7 +899,6 @@ class ChannelService(BaseDbService[Channel]):
                     )
                     await self.reintroduce(db, state)
                     await db.commit()
-                state.channel.members.remove(member)
                 member.removed_at = now
                 state.turns.pop(member.id, None)
                 state.retries.pop(member.id, None)
@@ -960,7 +969,7 @@ class ChannelService(BaseDbService[Channel]):
                         raise HTTPException(404, "Channel not found")
                     state.paused = True
                     state.last_reply = None
-                    audience = self.mentions(channel, content) or None
+                    audience = self.mentions(state.channel, content) or None
                     turns = [
                         turn
                         for turn in state.turns.values()
@@ -1535,7 +1544,7 @@ class ChannelService(BaseDbService[Channel]):
                 task.cancel()
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
-            for member in channel.members:
+            for member in state.channel.members:
                 await session_registry.terminate(str(member.chat_id))
             if channel.worktree:
                 chat = await self.anchor_chat(channel)
@@ -1573,7 +1582,7 @@ class ChannelService(BaseDbService[Channel]):
             channels = list(
                 (
                     await db.scalars(
-                        select(Channel).options(selectinload(Channel.members))
+                        select(Channel).options(selectinload(Channel.all_members))
                     )
                 ).all()
             )

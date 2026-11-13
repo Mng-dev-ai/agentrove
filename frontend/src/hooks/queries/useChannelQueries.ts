@@ -118,34 +118,22 @@ export const useCreateChannelMutation = createMutation<
   (queryClient) => queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll }),
 );
 
+const replaceChannel = (queryClient: QueryClient, channel: Channel) => {
+  queryClient.setQueryData(queryKeys.channel(channel.id), channel);
+  return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
+};
+
 export const useRenameChannelMutation = createMutation<
   Channel,
   Error,
   { channelId: string; name: string }
->(
-  ({ channelId, name }) => channelService.renameChannel(channelId, name),
-  (queryClient, channel) => {
-    queryClient.setQueryData(queryKeys.channel(channel.id), channel);
-    return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
-  },
-);
+>(({ channelId, name }) => channelService.renameChannel(channelId, name), replaceChannel);
 
 export const usePinChannelMutation = createMutation<
   Channel,
   Error,
   { channelId: string; pinned: boolean }
->(
-  ({ channelId, pinned }) => channelService.pinChannel(channelId, pinned),
-  (queryClient, channel) => {
-    queryClient.setQueryData(queryKeys.channel(channel.id), channel);
-    return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
-  },
-);
-
-const replaceChannel = (queryClient: QueryClient, channel: Channel) => {
-  queryClient.setQueryData(queryKeys.channel(channel.id), channel);
-  return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
-};
+>(({ channelId, pinned }) => channelService.pinChannel(channelId, pinned), replaceChannel);
 
 export const useAddChannelMemberMutation = createMutation<
   Channel,

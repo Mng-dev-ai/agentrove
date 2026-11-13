@@ -36,15 +36,13 @@ class Channel(Base):
     branch: Mapped[str | None] = mapped_column(String(255))
     last_viewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     pinned_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
-    members: Mapped[list["ChannelMember"]] = relationship(
-        primaryjoin="and_(Channel.id == ChannelMember.channel_id, "
-        "ChannelMember.removed_at.is_(None))",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
-    )
     all_members: Mapped[list["ChannelMember"]] = relationship(
-        viewonly=True, lazy="selectin"
+        cascade="all, delete-orphan", passive_deletes=True, lazy="selectin"
     )
+
+    @property
+    def members(self) -> list["ChannelMember"]:
+        return [member for member in self.all_members if member.removed_at is None]
 
     @property
     def unread(self) -> bool:
