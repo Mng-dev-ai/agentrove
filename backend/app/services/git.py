@@ -25,13 +25,6 @@ from app.utils.sandbox import BRANCH_NAME_RE, git_cd_prefix, is_valid_base_ref
 
 logger = logging.getLogger(__name__)
 
-
-class Checkpoint(NamedTuple):
-    base_head: str
-    head_ref: str
-    pre_run_diff: str
-
-
 GITHUB_REMOTE_RE = re.compile(
     r"(?:https?://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?$"
 )
@@ -132,7 +125,6 @@ GIT_WORKTREE_ADD_FROM_BASE_TEMPLATE = Template(
 GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE = Template(
     _WORKTREE_ADD_PREAMBLE + "start_point='origin/$base_ref'; " + _WORKTREE_ADD_COMMAND
 )
-
 
 # Chat deletion is best-effort cleanup: `remove` without --force refuses when
 # the worktree has uncommitted changes and `-d` refuses when the branch is
@@ -309,6 +301,12 @@ GIT_RESTORE_CHECKPOINT_ALL_TEMPLATE = Template(
     "git clean -fd >/dev/null 2>&1 || exit; "
     'if [ -n "$$tmp" ]; then git apply --whitespace=nowarn "$$tmp" 2>&1; fi'
 )
+
+
+class Checkpoint(NamedTuple):
+    base_head: str
+    head_ref: str
+    pre_run_diff: str
 
 
 class GitService:

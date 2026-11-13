@@ -30,6 +30,45 @@ from app.services.email import email_service
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
+DEVICE_IDS = TypeAdapter(frozenset[uuid.UUID])
+
+# Every route an agent token (`mcp: true`) may call, relative to API_V1_STR: the
+# requests mcp-server/client.py makes. "host" tokens belong to stdio MCP servers
+# of host workspaces, "scoped" ones to a Docker sandbox's MCP requests.
+AGENT_ROUTES: dict[tuple[str, str], Literal["any", "host", "scoped"]] = {
+    ("GET", "/workspaces"): "any",
+    ("GET", "/models/"): "any",
+    ("GET", "/chat/chats"): "any",
+    ("GET", "/chat/chats/search"): "any",
+    ("GET", "/chat/chats/{chat_id}"): "any",
+    ("GET", "/chat/chats/{chat_id}/messages"): "any",
+    ("GET", "/chat/chats/{chat_id}/context-usage"): "any",
+    ("POST", "/chat/chats"): "any",
+    ("POST", "/chat/chat"): "any",
+    ("POST", "/chat/chats/{chat_id}/queue"): "any",
+    ("DELETE", "/chat/chats/{chat_id}/stream"): "any",
+    ("POST", "/chat/chats/{chat_id}/attachments"): "host",
+    ("POST", "/chat/chats/{chat_id}/attachments/sandbox"): "scoped",
+    ("GET", "/settings/"): "any",
+    ("PATCH", "/settings/"): "host",
+    ("GET", "/channels"): "any",
+    ("POST", "/channels"): "any",
+    ("GET", "/channels/{channel_id}"): "any",
+    ("GET", "/channels/{channel_id}/messages"): "any",
+    ("POST", "/channels/{channel_id}/messages"): "any",
+    ("POST", "/channels/{channel_id}/stop"): "any",
+    ("GET", "/automations"): "any",
+    ("POST", "/automations"): "any",
+    ("PATCH", "/automations/{automation_id}"): "any",
+    ("DELETE", "/automations/{automation_id}"): "any",
+    ("POST", "/automations/{automation_id}/run"): "any",
+    ("POST", "/inbox/messages"): "any",
+    ("GET", "/memories"): "any",
+    ("POST", "/memories"): "any",
+    ("PATCH", "/memories/{memory_id}"): "any",
+    ("DELETE", "/memories/{memory_id}"): "any",
+}
+
 
 # Named subclass required: exported as a stable public type and imported by auth.py for Depends injection.
 class UserDatabase(SQLAlchemyUserDatabase[User, uuid.UUID]):
@@ -139,9 +178,6 @@ async def get_user_manager(
 bearer_transport = BearerTransport(tokenUrl="api/v1/auth/login")
 
 
-DEVICE_IDS = TypeAdapter(frozenset[uuid.UUID])
-
-
 def password_fingerprint(hashed_password: str) -> str:
     return hmac.new(
         settings.SECRET_KEY.encode(), hashed_password.encode(), hashlib.sha256
@@ -238,43 +274,6 @@ fastapi_users = FastAPIUsers[User, uuid.UUID](
 
 _token_user = fastapi_users.current_user(active=True)
 _optional_token_user = fastapi_users.current_user(active=True, optional=True)
-
-# Every route an agent token (`mcp: true`) may call, relative to API_V1_STR: the
-# requests mcp-server/client.py makes. "host" tokens belong to stdio MCP servers
-# of host workspaces, "scoped" ones to a Docker sandbox's MCP requests.
-AGENT_ROUTES: dict[tuple[str, str], Literal["any", "host", "scoped"]] = {
-    ("GET", "/workspaces"): "any",
-    ("GET", "/models/"): "any",
-    ("GET", "/chat/chats"): "any",
-    ("GET", "/chat/chats/search"): "any",
-    ("GET", "/chat/chats/{chat_id}"): "any",
-    ("GET", "/chat/chats/{chat_id}/messages"): "any",
-    ("GET", "/chat/chats/{chat_id}/context-usage"): "any",
-    ("POST", "/chat/chats"): "any",
-    ("POST", "/chat/chat"): "any",
-    ("POST", "/chat/chats/{chat_id}/queue"): "any",
-    ("DELETE", "/chat/chats/{chat_id}/stream"): "any",
-    ("POST", "/chat/chats/{chat_id}/attachments"): "host",
-    ("POST", "/chat/chats/{chat_id}/attachments/sandbox"): "scoped",
-    ("GET", "/settings/"): "any",
-    ("PATCH", "/settings/"): "host",
-    ("GET", "/channels"): "any",
-    ("POST", "/channels"): "any",
-    ("GET", "/channels/{channel_id}"): "any",
-    ("GET", "/channels/{channel_id}/messages"): "any",
-    ("POST", "/channels/{channel_id}/messages"): "any",
-    ("POST", "/channels/{channel_id}/stop"): "any",
-    ("GET", "/automations"): "any",
-    ("POST", "/automations"): "any",
-    ("PATCH", "/automations/{automation_id}"): "any",
-    ("DELETE", "/automations/{automation_id}"): "any",
-    ("POST", "/automations/{automation_id}/run"): "any",
-    ("POST", "/inbox/messages"): "any",
-    ("GET", "/memories"): "any",
-    ("POST", "/memories"): "any",
-    ("PATCH", "/memories/{memory_id}"): "any",
-    ("DELETE", "/memories/{memory_id}"): "any",
-}
 
 
 def _enforce_agent_routes(request: Request, user: User | None) -> None:
