@@ -28,7 +28,6 @@ export function useChannelLive(channelId: string) {
   useEffect(() => {
     useChannelStore.getState().holdChannel(channelId);
     const release = streamConnection.retain(resolveChannelClient(channelId));
-    void markChannelViewed(queryClient, channelId);
     return () => {
       release();
       useChannelStore.getState().releaseChannel(channelId);
@@ -52,6 +51,7 @@ export function useChannelLive(channelId: string) {
           useChannelStore.getState().syncMessages(channelId, messages);
           useChannelStore.getState().syncPermissions(channelId, token, permissions);
           useChannelStore.getState().syncActivity(channelId, activity);
+          void markChannelViewed(queryClient, channelId);
         })
         .catch((error) => {
           if (cancelled) return;

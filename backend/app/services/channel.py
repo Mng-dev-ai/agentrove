@@ -583,9 +583,9 @@ class ChannelService(BaseDbService[Channel]):
 
     async def rename(self, channel: Channel, name: str) -> Channel:
         state = self.state(channel)
-        now = datetime.now(timezone.utc)
-        async with state.control:
+        async with state.control, state.lock:
             async with self.session_factory() as db:
+                now = datetime.now(timezone.utc)
                 await db.execute(
                     update(Channel)
                     .where(Channel.id == channel.id)
