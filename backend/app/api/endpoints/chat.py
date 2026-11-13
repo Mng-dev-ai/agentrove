@@ -306,7 +306,8 @@ async def search_chats(
         return ChatSearchResponse(
             results=chats.results,
             channel_results=channels,
-            truncated=chats.truncated or channels_truncated,
+            truncated=chats.truncated,
+            channel_truncated=channels_truncated,
         )
     except SQLAlchemyError as e:
         logger.error("Database error searching chats: %s", e, exc_info=True)

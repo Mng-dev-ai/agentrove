@@ -64,7 +64,9 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
   const isFetching = sources.some((source) => source.isFetching);
   const hasLoaded = sources.some((source) => !!source.data);
   const error = sources.find((source) => source.error)?.error ?? null;
-  const truncated = sources.some((source) => !!source.data?.truncated);
+  const truncated = sources.some(
+    (source) => !!source.data?.truncated || !!source.data?.channel_truncated,
+  );
   const failedSources = [
     local.error ? 'local' : null,
     ...remote.map((source, index) => (source.error ? machineName(remoteIds[index]) : null)),

@@ -179,6 +179,7 @@ export interface ChatSearchResponse {
   results: ChatSearchResult[];
   channel_results?: ChannelSearchResult[];
   truncated: boolean;
+  channel_truncated?: boolean;
 }
 
 export interface CreateChatRequest {

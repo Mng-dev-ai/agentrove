@@ -1345,6 +1345,7 @@ async def test_message_search_returns_own_live_channel_messages(
     assert body["results"][0]["match_count"] == 1
     assert body["results"][0]["matches"][0]["snippet_match"] == "100%_needle"
     assert body["truncated"] is False
+    assert body["channel_truncated"] is False
     [result] = body["channel_results"]
     assert result["channel_id"] == str(channel_state.channel.id)
     assert result["channel_name"] == "Review"
@@ -1359,6 +1360,15 @@ async def test_message_search_returns_own_live_channel_messages(
     ]
     body = await search_messages(client, headers, "needle")
     assert body["channel_results"][0]["match_count"] == 3
+    response = await client.get(
+        "/api/v1/chat/chats/search",
+        headers=headers,
+        params={"q": "100%_needle", "per_chat_limit": 1},
+    )
+    assert (response.json()["truncated"], response.json()["channel_truncated"]) == (
+        False,
+        True,
+    )
     body = await search_messages(client, other_owner[0], "needle")
     assert body["channel_results"] == []
 

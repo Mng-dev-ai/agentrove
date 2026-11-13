@@ -242,3 +242,4 @@ class ChatSearchResponse(BaseModel):
     results: list[ChatSearchResult]
     channel_results: list[ChannelSearchResult] = []
     truncated: bool
+    channel_truncated: bool = False
