@@ -22,7 +22,13 @@ from app.models.db_models.channel import (
     ChannelMessage,
     ChannelMessageAttachment,
 )
-from app.models.db_models.chat import Chat, ChatCheckpoint, Message
+from app.models.db_models.chat import (
+    Chat,
+    ChatCheckpoint,
+    Message,
+    MessageAttachment,
+)
+from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.channel import (
@@ -1145,7 +1151,7 @@ class ChannelService(BaseDbService[Channel]):
         author, message = state.last_reply
         state.last_reply = None
         title = f"#{state.channel.name}"
-        body = f"{author}: {message.content.strip()}"
+        body = f"{author}: {message.content.strip() or 'Open the channel to see the result.'}"
         state.activity_version += 1
         await self.publish(
             state.channel,
@@ -1420,18 +1426,112 @@ class ChannelService(BaseDbService[Channel]):
                 duration_ms=message.duration_ms,
                 audience=message.audience,
             )
+            .execution_options(synchronize_session=False)
         )
 
     async def begin_speaking(self, state: ChannelState, turn: MemberTurn) -> None:
         turn.message = await self.new_message(
             state,
-            turn.text,
+            "" if self.is_silent(turn.text) else turn.text,
             turn.member.id,
             source_message_id=turn.source_message_id,
             tool_call_count=len(turn.tool_call_ids),
             device_ids=turn.device_ids,
         )
+        async with self.session_factory() as db:
+            await self.promote_attachments(db, turn.message)
+            await db.commit()
         await self.publish_message(state.channel, turn.message)
+
+    async def attachment_saved(self, chat: Chat, source_message_id: UUID) -> None:
+        state = self.states.get(chat.channel_id) if chat.channel_id else None
+        if state is None:
+            return
+        async with state.lock:
+            if state.deleted:
+                return
+            member = next(m for m in state.channel.all_members if m.chat_id == chat.id)
+            turn = state.turns.get(member.id)
+            if (
+                turn is None
+                or turn.status is TurnStatus.FINISHED
+                or turn.source_message_id != source_message_id
+            ):
+                await self.show_late_attachments(state, member.id, source_message_id)
+            elif turn.message is None:
+                await self.begin_speaking(state, turn)
+            else:
+                async with self.session_factory() as db:
+                    promoted = await self.promote_attachments(db, turn.message)
+                    await db.commit()
+                if promoted and turn.status is TurnStatus.RUNNING:
+                    await self.flush(state, turn)
+
+    async def show_late_attachments(
+        self, state: ChannelState, member_id: UUID, source_message_id: UUID
+    ) -> None:
+        async with self.session_factory() as db:
+            reply = await db.scalar(
+                select(ChannelMessage).where(
+                    ChannelMessage.source_message_id == source_message_id
+                )
+            )
+            stream_status = await db.scalar(
+                select(Message.stream_status).where(Message.id == source_message_id)
+            )
+        if reply is None:
+            reply = await self.new_message(
+                state,
+                "",
+                member_id,
+                source_message_id=source_message_id,
+                device_ids=frozenset(),
+            )
+        async with self.session_factory() as db:
+            await self.promote_attachments(db, reply)
+            await self.write_message(
+                db,
+                reply,
+                reply.content,
+                "completed"
+                if stream_status is MessageStreamStatus.COMPLETED
+                else "cancelled",
+            )
+            await db.commit()
+        await self.publish_message(state.channel, reply)
+
+    @staticmethod
+    async def promote_attachments(db: AsyncSession, message: ChannelMessage) -> bool:
+        promoted = set(
+            await db.scalars(
+                select(ChannelMessageAttachment.file_path).where(
+                    ChannelMessageAttachment.message_id == message.id
+                )
+            )
+        )
+        added = [
+            ChannelMessageAttachment(
+                message_id=message.id,
+                file_url="",
+                file_path=attachment.file_path,
+                file_type=attachment.file_type.value,
+                filename=attachment.filename,
+            )
+            for attachment in await db.scalars(
+                select(MessageAttachment)
+                .where(MessageAttachment.message_id == message.source_message_id)
+                .order_by(MessageAttachment.created_at, MessageAttachment.id)
+            )
+            if attachment.file_path not in promoted
+        ]
+        if not added:
+            return False
+        db.add_all(added)
+        await db.flush()
+        for attachment in added:
+            attachment.file_url = AttachmentURL.build_preview_url(attachment.id)
+        message.attachments = [*message.attachments, *added]
+        return True
 
     async def publish_message(self, channel: Channel, message: ChannelMessage) -> None:
         await self.publish(
@@ -1456,6 +1556,9 @@ class ChannelService(BaseDbService[Channel]):
                 )
             if message is not None:
                 message.tool_call_count = len(turn.tool_call_ids)
+                await self.promote_attachments(db, message)
+                # A PASS that attached files stays visible: the user should see them.
+                silent = silent and not message.attachments
                 if silent:
                     await self.write_message(db, message, "", "deleted")
                 else:
@@ -1482,7 +1585,7 @@ class ChannelService(BaseDbService[Channel]):
                     await self.write_message(
                         db,
                         message,
-                        turn.text,
+                        "" if self.is_silent(turn.text) else turn.text,
                         "completed" if successful else "cancelled",
                     )
                 if not silent and successful:
@@ -1571,7 +1674,8 @@ class ChannelService(BaseDbService[Channel]):
                 ).all()
             )
             for message in messages:
-                silent = self.is_silent(message.content)
+                await self.promote_attachments(db, message)
+                silent = self.is_silent(message.content) and not message.attachments
                 await self.write_message(
                     db,
                     message,
@@ -1579,6 +1683,29 @@ class ChannelService(BaseDbService[Channel]):
                     "deleted" if silent else "cancelled",
                 )
             await db.commit()
+            orphans = (
+                await db.execute(
+                    select(ChannelMember.channel_id, ChannelMember.id, Message.id)
+                    .join(Message, Message.chat_id == ChannelMember.chat_id)
+                    .join(MessageAttachment, MessageAttachment.message_id == Message.id)
+                    .outerjoin(
+                        ChannelMessage, ChannelMessage.source_message_id == Message.id
+                    )
+                    .outerjoin(
+                        ChannelMessageAttachment,
+                        (ChannelMessageAttachment.message_id == ChannelMessage.id)
+                        & (
+                            ChannelMessageAttachment.file_path
+                            == MessageAttachment.file_path
+                        ),
+                    )
+                    .where(
+                        Message.role == MessageRole.ASSISTANT,
+                        ChannelMessageAttachment.id.is_(None),
+                    )
+                    .distinct()
+                )
+            ).all()
             channels = list(
                 (
                     await db.scalars(
@@ -1593,6 +1720,11 @@ class ChannelService(BaseDbService[Channel]):
             for message in messages:
                 if message.channel_id == channel.id:
                     await self.publish_message(channel, message)
+            for channel_id, member_id, source_message_id in orphans:
+                if channel_id == channel.id:
+                    await self.show_late_attachments(
+                        state, member_id, source_message_id
+                    )
             self.fan_out(state)
 
     async def shutdown(self) -> None:

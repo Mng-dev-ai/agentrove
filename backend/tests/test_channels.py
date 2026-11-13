@@ -21,8 +21,10 @@ from app.models.db_models.channel import (
     ChannelMember,
     ChannelMessage,
 )
-from app.models.db_models.chat import Chat, Message
-from app.models.db_models.enums import MessageRole, MessageStreamStatus
+from app.core.security import create_scoped_mcp_token
+from app.core.user_manager import password_fingerprint
+from app.models.db_models.chat import Chat, Message, MessageAttachment
+from app.models.db_models.enums import AttachmentType, MessageRole, MessageStreamStatus
 from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.push import PushDelivery
 from app.models.db_models.user import User
@@ -48,6 +50,7 @@ from tests.helpers import (
     EndpointCache,
     FakeProviderFactory,
     create_authenticated_workspace,
+    create_chat_row,
 )
 
 
@@ -74,6 +77,35 @@ async def create_source_message(
     await db_session.commit()
     await db_session.refresh(message)
     return message
+
+
+async def attach_file(message_id: UUID, filename: str) -> None:
+    async with channel_service.session_factory() as db:
+        db.add(
+            MessageAttachment(
+                message_id=message_id,
+                file_url="/api/v1/attachments/pending/preview",
+                file_path=f"attachments/{filename}",
+                file_type=AttachmentType.PDF
+                if filename.endswith(".pdf")
+                else AttachmentType.IMAGE,
+                filename=filename,
+            )
+        )
+        await db.commit()
+
+
+async def hand_off(source: Message) -> None:
+    async with channel_service.session_factory() as db:
+        chat = await db.get_one(Chat, source.chat_id)
+    await channel_service.attachment_saved(chat, source.id)
+
+
+ATTACH = [
+    ("tool_started", {"tool": {"id": "attach"}}),
+    ("attach", {"filename": "chart.png"}),
+    ("tool_completed", {"tool": {"id": "attach"}}),
+]
 
 
 class ScriptedTurns:
@@ -120,7 +152,11 @@ class ScriptedTurns:
     ) -> str:
         await event_sink("stream_started", {"message_id": str(source.id)})
         for kind, payload in events:
-            await event_sink(kind, payload)
+            if kind == "attach":
+                await attach_file(source.id, payload["filename"])
+                await hand_off(source)
+            else:
+                await event_sink(kind, payload)
         self.emitted.set()
         if self.gate is not None:
             await self.gate.wait()
@@ -460,6 +496,366 @@ async def test_sequence_increases_across_user_agent_and_deleted_messages(
     assert seqs == sorted(set(seqs))
     subsequent = await channel_service.messages(channel_state.channel, messages[1].seq)
     assert [row.id for row in subsequent] == [second.id, messages[3].id]
+
+
+@pytest.mark.parametrize(
+    ("events", "status", "content"),
+    [
+        (
+            [*ATTACH, ("assistant_text", {"text": "Here is the chart."})],
+            "completed",
+            "Here is the chart.",
+        ),
+        (
+            [
+                ("assistant_text", {"text": "Drawing it."}),
+                *ATTACH,
+                ("attach", {"filename": "report.pdf"}),
+                ("tool_completed", {"tool": {"id": "attach-pdf"}}),
+                ("assistant_text", {"text": "Done."}),
+            ],
+            "completed",
+            "Done.",
+        ),
+        ([*ATTACH, ("assistant_text", {"text": "PASS"})], "completed", ""),
+        (
+            [
+                ("assistant_text", {"text": "Drawing it."}),
+                *ATTACH,
+                ("error", {"error": "Provider failed"}),
+            ],
+            "cancelled",
+            "Drawing it.",
+        ),
+        ([*ATTACH[:2], ("cancelled", {})], "cancelled", ""),
+    ],
+    ids=["before-text", "while-streaming", "pass", "failed", "stopped"],
+)
+async def test_member_attachments_are_promoted_onto_its_reply(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    events: list[tuple[str, dict[str, Any]]],
+    status: str,
+    content: str,
+) -> None:
+    base = f"/api/v1/channels/{channel_state.channel.id}"
+    await channel_service.new_message(channel_state, "Draw it", device_ids=frozenset())
+    await client.post(f"{base}/viewed", headers=owner[0])
+    channel_runtime.events = events
+    await channel_runtime.wake(channel_state)
+
+    reply = (await client.get(f"{base}/messages", headers=owner[0])).json()[-1]
+    assert (reply["author_type"], reply["status"], reply["content"]) == (
+        "agent",
+        status,
+        content,
+    )
+    filenames = [event[1]["filename"] for event in events if event[0] == "attach"]
+    assert [a["filename"] for a in reply["attachments"]] == filenames
+    assert [a["file_url"] for a in reply["attachments"]] == [
+        f"/api/v1/attachments/{a['id']}/preview" for a in reply["attachments"]
+    ]
+    published = [
+        payload["message"]
+        for _, kind, payload in channel_runtime.publications
+        if kind == "channel_message" and payload["message"]["id"] == reply["id"]
+    ]
+    assert published[-1] == reply
+    assert any(
+        message["status"] == "streaming" and message["attachments"]
+        for message in published
+    )
+    assert (await client.get(base, headers=owner[0])).json()["unread"] is True
+    if status == "completed":
+        channel_state.paused = False
+        assert await channel_service.settle(channel_state) == (
+            UUID(reply["id"]),
+            "#Review",
+            f"{channel_state.channel.members[0].display_name}: "
+            + (content or "Open the channel to see the result."),
+        )
+        channel_state.paused = True
+
+
+async def test_attachment_saved_after_the_turn_finished_lands_on_a_reply(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    await channel_service.new_message(channel_state, "Draw it", device_ids=frozenset())
+    channel_runtime.events = [("cancelled", {})]
+    await channel_runtime.wake(channel_state)
+    url = f"/api/v1/channels/{channel_state.channel.id}/messages"
+    assert len((await client.get(url, headers=owner[0])).json()) == 1
+
+    [source] = channel_runtime.sources
+    await db_session.execute(
+        update(Message)
+        .where(Message.id == source.id)
+        .values(stream_status=MessageStreamStatus.INTERRUPTED)
+    )
+    await db_session.commit()
+    await attach_file(source.id, "chart.png")
+    for _ in range(2):
+        await hand_off(source)
+
+    _, reply = (await client.get(url, headers=owner[0])).json()
+    assert (reply["status"], reply["content"]) == ("cancelled", "")
+    assert [a["filename"] for a in reply["attachments"]] == ["chart.png"]
+    published = [
+        payload["message"]
+        for _, kind, payload in channel_runtime.publications
+        if kind == "channel_message"
+    ]
+    assert published[-1] == reply
+
+
+async def test_attachment_of_a_removed_member_lands_on_its_reply(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    channel_data["members"] = [
+        {"model_id": TEST_MODEL_ID, "display_name": name} for name in ("alpha", "beta")
+    ]
+    created = await client.post("/api/v1/channels", json=channel_data, headers=owner[0])
+    assert created.status_code == 201, created.text
+    channel_id = UUID(created.json()["id"])
+    channel_service.states[channel_id].paused = True
+    beta = channel_service.states[channel_id].channel.members[1]
+    handed, recovered = [
+        await create_source_message(db_session, beta.chat_id) for _ in range(2)
+    ]
+    base = f"/api/v1/channels/{channel_id}"
+    removed = await client.delete(f"{base}/members/{beta.id}", headers=owner[0])
+    assert removed.status_code == 200, removed.text
+    assert [m["id"] for m in removed.json()["former_members"]] == [str(beta.id)]
+
+    await attach_file(handed.id, "handed.png")
+    await hand_off(handed)
+    await attach_file(recovered.id, "recovered.png")
+    await channel_service.recover()
+    for state in channel_service.states.values():
+        state.paused = True
+        channel_service.schedule(state)
+
+    replies = (await client.get(f"{base}/messages", headers=owner[0])).json()
+    assert sorted(
+        (r["member_id"], r["status"], [a["filename"] for a in r["attachments"]])
+        for r in replies
+    ) == [
+        (str(beta.id), "completed", ["handed.png"]),
+        (str(beta.id), "completed", ["recovered.png"]),
+    ]
+
+
+async def test_attachment_saved_for_a_deleted_channel_is_ignored(
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    source = await create_source_message(
+        db_session, channel_state.channel.members[0].chat_id
+    )
+    await attach_file(source.id, "chart.png")
+    channel_state.deleted = True
+    await hand_off(source)
+
+    assert await channel_service.messages(channel_state.channel, 0) == []
+    assert channel_runtime.publications == []
+
+
+async def test_recover_cancels_and_republishes_streaming_replies(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+) -> None:
+    reply = await channel_service.new_message(
+        channel_state,
+        "Partial reply",
+        channel_state.channel.members[0].id,
+        device_ids=frozenset(),
+    )
+
+    await channel_service.recover()
+    for state in channel_service.states.values():
+        state.paused = True
+        channel_service.schedule(state)
+
+    [published] = [
+        payload["message"]
+        for _, kind, payload in channel_runtime.publications
+        if kind == "channel_message"
+    ]
+    assert (published["id"], published["status"], published["content"]) == (
+        str(reply.id),
+        "cancelled",
+        "Partial reply",
+    )
+
+
+async def test_recover_promotes_attachments_of_interrupted_replies(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    member = channel_state.channel.members[0]
+    replies = {}
+    for text in ("Here is the chart.", "", "PASS"):
+        source = await create_source_message(db_session, member.chat_id)
+        if text != "PASS":
+            await attach_file(source.id, "chart.png")
+        replies[text] = await channel_service.new_message(
+            channel_state,
+            text,
+            member.id,
+            source_message_id=source.id,
+            device_ids=frozenset(),
+        )
+    orphan = await create_source_message(db_session, member.chat_id)
+    orphan.stream_status = MessageStreamStatus.IN_PROGRESS
+    await db_session.commit()
+    await attach_file(orphan.id, "orphan.png")
+    missed = await create_source_message(db_session, member.chat_id)
+    replies["Done."] = await channel_service.new_message(
+        channel_state,
+        "Done.",
+        member.id,
+        source_message_id=missed.id,
+        device_ids=frozenset(),
+    )
+    await db_session.execute(
+        update(ChannelMessage)
+        .where(ChannelMessage.id == replies["Done."].id)
+        .values(status="completed")
+    )
+    await db_session.commit()
+    await attach_file(missed.id, "missed.png")
+
+    for _ in range(2):
+        await channel_service.recover()
+    for state in channel_service.states.values():
+        state.paused = True
+        channel_service.schedule(state)
+
+    messages = {
+        message["id"]: message
+        for message in (
+            await client.get(
+                f"/api/v1/channels/{channel_state.channel.id}/messages",
+                headers=owner[0],
+            )
+        ).json()
+    }
+    for text, expected in (
+        ("Here is the chart.", ("cancelled", "Here is the chart.", ["chart.png"])),
+        ("", ("cancelled", "", ["chart.png"])),
+        ("PASS", ("deleted", "", [])),
+        ("Done.", ("completed", "Done.", ["missed.png"])),
+    ):
+        message = messages[str(replies[text].id)]
+        assert (
+            message["status"],
+            message["content"],
+            [a["filename"] for a in message["attachments"]],
+        ) == expected
+    [orphan_reply] = [
+        message
+        for message in messages.values()
+        if message["id"] not in {str(reply.id) for reply in replies.values()}
+    ]
+    assert (
+        orphan_reply["status"],
+        orphan_reply["content"],
+        [a["filename"] for a in orphan_reply["attachments"]],
+    ) == ("cancelled", "", ["orphan.png"])
+    published = [
+        payload["message"]
+        for _, kind, payload in channel_runtime.publications
+        if kind == "channel_message"
+    ]
+    assert [m["attachments"] for m in published if m["status"] == "cancelled"][:2] == [
+        messages[str(replies[text].id)]["attachments"]
+        for text in ("Here is the chart.", "")
+    ]
+
+
+async def test_member_chat_attachment_routes_allow_only_the_owner(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    other_owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    headers, user, _workspace = owner
+    member = channel_state.channel.members[0]
+    source = Message(
+        chat_id=member.chat_id,
+        content_text="",
+        content_render={"events": []},
+        role=MessageRole.ASSISTANT,
+        stream_status=MessageStreamStatus.IN_PROGRESS,
+    )
+    db_session.add(source)
+    docker_workspace = Workspace(
+        name="Docker Workspace",
+        user_id=user.id,
+        sandbox_id="sandbox-docker",
+        sandbox_provider="docker",
+        workspace_path="/tmp/agentrove-test-docker",
+        source_type="empty",
+    )
+    db_session.add(docker_workspace)
+    await db_session.commit()
+    docker_chat = await create_chat_row(db_session, user, docker_workspace)
+    scoped_token = create_scoped_mcp_token(
+        {
+            "sub": str(user.id),
+            "wid": str(docker_workspace.id),
+            "cid": str(docker_chat.id),
+            "did": [],
+            "pwd": password_fingerprint(user.hashed_password),
+        }
+    )
+    scoped = {"Authorization": f"Bearer {scoped_token}"}
+    url = f"/api/v1/chat/chats/{member.chat_id}/attachments"
+    upload = {"file": ("chart.png", b"\x89PNG member", "image/png")}
+
+    for path, request_headers, kwargs, expected_status in [
+        (url, other_owner[0], {"files": upload}, 404),
+        (f"{url}/sandbox", other_owner[0], {"json": {"path": "chart.png"}}, 404),
+        (f"{url}/sandbox", scoped, {"json": {"path": "chart.png"}}, 404),
+        (url, scoped, {"files": upload}, 403),
+    ]:
+        response = await client.post(path, headers=request_headers, **kwargs)
+        assert response.status_code == expected_status, (path, response.text)
+
+    response = await client.post(url, files=upload, headers=headers)
+    assert response.status_code == 201, response.text
+    assert response.json()["message_id"] == str(source.id)
+    reply = await db_session.scalar(
+        select(ChannelMessage).where(ChannelMessage.source_message_id == source.id)
+    )
+    assert reply is not None
+    assert reply.status == "cancelled"
+    for action in ("preview", "download"):
+        hidden = f"/api/v1/attachments/{response.json()['id']}/{action}"
+        assert (await client.get(hidden, headers=headers)).status_code == 404
+        path = f"/api/v1/attachments/{reply.attachments[0].id}/{action}"
+        owner_response = await client.get(path, headers=headers)
+        assert owner_response.status_code == 200, path
+        assert owner_response.content == b"\x89PNG member"
+        other_response = await client.get(path, headers=other_owner[0])
+        assert other_response.status_code == 403, path
 
 
 @pytest.mark.parametrize("outcome", ["error", "cancelled"])
