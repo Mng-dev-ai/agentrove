@@ -82,7 +82,9 @@ export function useChannelLive(channelId: string) {
     setIsFetchingNextPage(true);
     channelService
       .listMessages(channelId, { before_seq: olderBeforeSeq, limit: MESSAGE_PAGE_SIZE })
-      .then((messages) => useChannelStore.getState().syncOlderMessages(channelId, messages))
+      .then((messages) =>
+        useChannelStore.getState().syncOlderMessages(channelId, olderBeforeSeq, messages),
+      )
       .catch((error) =>
         logger.error('Loading older channel messages failed', 'useChannelLive', error),
       )

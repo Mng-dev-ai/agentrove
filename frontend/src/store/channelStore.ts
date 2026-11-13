@@ -35,7 +35,7 @@ interface ChannelState {
   bumpStreamEpoch: () => void;
   mergeMessages: (channelId: string, messages: ChannelMessage[]) => void;
   syncMessages: (channelId: string, messages: ChannelMessage[]) => void;
-  syncOlderMessages: (channelId: string, messages: ChannelMessage[]) => void;
+  syncOlderMessages: (channelId: string, beforeSeq: number, messages: ChannelMessage[]) => void;
   beginPermissionSync: (channelId: string) => number;
   syncPermissions: (
     channelId: string,
@@ -211,12 +211,13 @@ export const useChannelStore = create<ChannelState>((set) => ({
       })),
     ),
 
-  syncOlderMessages: (channelId, messages) =>
+  syncOlderMessages: (channelId, beforeSeq, messages) =>
     set((state) =>
-      withSlice(state, channelId, (slice) => ({
-        ...upsert(slice, messages),
-        olderBeforeSeq: olderBeforeSeq(messages),
-      })),
+      withSlice(state, channelId, (slice) =>
+        slice.olderBeforeSeq === beforeSeq
+          ? { ...upsert(slice, messages), olderBeforeSeq: olderBeforeSeq(messages) }
+          : slice,
+      ),
     ),
 
   beginPermissionSync: (channelId) => {
