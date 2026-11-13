@@ -8,40 +8,41 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearchChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useSearchMachineChatsQueries } from '@/hooks/queries/useMachineQueries';
 import { machineName, useOnlineRemoteMachineIds } from '@/store/machineStore';
-import type { ChatSearchResult } from '@/types/chat.types';
-import { ChatSearchResultGroup } from './ChatSearchResultGroup';
+import { ChatSearchResultGroup, type SearchHit } from './ChatSearchResultGroup';
 import styles from './ChatSearchPanel.module.scss';
 
 export interface ChatSearchPanelProps {
   onOpenChat: (chatId: string) => void;
+  onOpenChannel: (channelId: string) => void;
   inputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 interface WorkspaceGroup {
   workspaceId: string;
   workspaceName: string;
-  results: ChatSearchResult[];
+  hits: SearchHit[];
 }
 
-function groupByWorkspace(results: ChatSearchResult[]): WorkspaceGroup[] {
+function groupByWorkspace(hits: SearchHit[]): WorkspaceGroup[] {
   const groups = new Map<string, WorkspaceGroup>();
-  for (const result of results) {
-    let group = groups.get(result.workspace_id);
+  for (const hit of hits) {
+    let group = groups.get(hit.result.workspace_id);
     if (!group) {
       group = {
-        workspaceId: result.workspace_id,
-        workspaceName: result.workspace_name,
-        results: [],
+        workspaceId: hit.result.workspace_id,
+        workspaceName: hit.result.workspace_name,
+        hits: [],
       };
-      groups.set(result.workspace_id, group);
+      groups.set(hit.result.workspace_id, group);
     }
-    group.results.push(result);
+    group.hits.push(hit);
   }
   return Array.from(groups.values());
 }
 
 export const ChatSearchPanel = memo(function ChatSearchPanel({
   onOpenChat,
+  onOpenChannel,
   inputRef,
 }: ChatSearchPanelProps) {
   const [query, setQuery] = useState('');
@@ -63,7 +64,9 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
   const isFetching = sources.some((source) => source.isFetching);
   const hasLoaded = sources.some((source) => !!source.data);
   const error = sources.find((source) => source.error)?.error ?? null;
-  const truncated = sources.some((source) => !!source.data?.truncated);
+  const truncated = sources.some(
+    (source) => !!source.data?.truncated || !!source.data?.channel_truncated,
+  );
   const failedSources = [
     local.error ? 'local' : null,
     ...remote.map((source, index) => (source.error ? machineName(remoteIds[index]) : null)),
@@ -85,12 +88,25 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
   );
 
   const results = sources.flatMap((source) => source.data?.results ?? []);
-  const grouped = groupByWorkspace(results);
-  const totalMatches = results.reduce((acc, r) => acc + r.match_count, 0);
+  const channelResults = sources.flatMap((source) => source.data?.channel_results ?? []);
+  const grouped = groupByWorkspace([
+    ...results.map((result): SearchHit => ({ kind: 'chat', result })),
+    ...channelResults.map((result): SearchHit => ({ kind: 'channel', result })),
+  ]);
+  const totalMatches = [...results, ...channelResults].reduce((acc, r) => acc + r.match_count, 0);
   const resultCount = results.length;
+  const channelCount = channelResults.length;
+  const scopeLabel = [
+    resultCount > 0 || channelCount === 0
+      ? `${resultCount} ${resultCount === 1 ? 'chat' : 'chats'}`
+      : null,
+    channelCount > 0 ? `${channelCount} ${channelCount === 1 ? 'channel' : 'channels'}` : null,
+  ]
+    .filter(Boolean)
+    .join(' and ');
 
   const hasQuery = debouncedQuery.trim().length >= 2;
-  const hasResults = resultCount > 0;
+  const hasResults = resultCount + channelCount > 0;
 
   return (
     <div className={styles['chat-search-panel']}>
@@ -163,9 +179,8 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
             <p className={styles.summary}>
               {isFetching && <Loader2 className={styles['spin-icon']} />}
               <span>
-                {totalMatches} {totalMatches === 1 ? 'result' : 'results'} in {resultCount}{' '}
-                {resultCount === 1 ? 'chat' : 'chats'} · {grouped.length}{' '}
-                {grouped.length === 1 ? 'workspace' : 'workspaces'}
+                {totalMatches} {totalMatches === 1 ? 'result' : 'results'} in {scopeLabel} ·{' '}
+                {grouped.length} {grouped.length === 1 ? 'workspace' : 'workspaces'}
                 {truncated && ' (truncated)'}
               </span>
             </p>
@@ -173,11 +188,12 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
               {grouped.map((group) => (
                 <div key={group.workspaceId} className={styles['workspace-group']}>
                   <p className={styles['workspace-name']}>{group.workspaceName}</p>
-                  {group.results.map((result) => (
+                  {group.hits.map((hit) => (
                     <ChatSearchResultGroup
-                      key={result.chat_id}
-                      result={result}
-                      onOpen={onOpenChat}
+                      key={hit.kind === 'chat' ? hit.result.chat_id : hit.result.channel_id}
+                      hit={hit}
+                      onOpenChat={onOpenChat}
+                      onOpenChannel={onOpenChannel}
                     />
                   ))}
                 </div>

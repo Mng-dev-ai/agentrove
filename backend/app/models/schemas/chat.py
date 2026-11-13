@@ -220,6 +220,26 @@ class ChatSearchResult(BaseModel):
     match_count: int
 
 
+class ChannelSearchMatch(BaseModel):
+    message_id: UUID
+    author: str | None
+    snippet_before: str
+    snippet_match: str
+    snippet_after: str
+    created_at: datetime
+
+
+class ChannelSearchResult(BaseModel):
+    channel_id: UUID
+    channel_name: str
+    workspace_id: UUID
+    workspace_name: str
+    matches: list[ChannelSearchMatch]
+    match_count: int
+
+
 class ChatSearchResponse(BaseModel):
     results: list[ChatSearchResult]
+    channel_results: list[ChannelSearchResult] = []
     truncated: bool
+    channel_truncated: bool = False

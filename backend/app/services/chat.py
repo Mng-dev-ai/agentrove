@@ -2,13 +2,13 @@ import asyncio
 import json
 import logging
 import math
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import AsyncExitStack
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_, select, update, true
+from sqlalchemy import Row, func, or_, select, update, true
 from sqlalchemy.orm import aliased, selectinload
 
 from app.constants import (
@@ -169,8 +169,7 @@ class ChatService(BaseDbService[Chat]):
         limit: int = 50,
         per_chat_limit: int = 5,
     ) -> ChatSearchResponse:
-        # content_text search across the user's chats; group/cap in Python. +1 lookahead for truncation
-        chat_cap = limit + 1
+        # content_text search across the user's chats; group/cap in Python.
         workspace_id = self.agent_workspace_filter(user, workspace_id)
 
         async with self.session_factory() as db:
@@ -202,59 +201,74 @@ class ChatService(BaseDbService[Chat]):
             result = await db.execute(stmt)
             rows = result.all()
 
-        grouped: dict[UUID, ChatSearchResult] = {}
-        # Hitting the SQL cap means there may be older matches we never saw —
-        # report truncation even if the per-chat / chat-cap loop never trips.
-        truncated = len(rows) == SEARCH_MAX_ROWS
-        query_lower = query.lower()
-
-        for row in rows:
-            chat_id = row.chat_id
-            existing = grouped.get(chat_id)
-            if existing is None:
-                if len(grouped) >= chat_cap:
-                    truncated = True
-                    break
-                existing = ChatSearchResult(
-                    chat_id=chat_id,
-                    chat_title=row.title,
-                    workspace_id=row.workspace_id,
-                    workspace_name=row.workspace_name,
-                    matches=[],
-                    match_count=0,
-                )
-                grouped[chat_id] = existing
-
-            existing.match_count += 1
-            if len(existing.matches) >= per_chat_limit:
-                truncated = True
-                continue
-
-            before, match_text, after = self._build_snippet(
-                row.content_text, query_lower
-            )
-            existing.matches.append(
-                ChatSearchMatch(
-                    message_id=row.id,
-                    role=row.role,
-                    snippet_before=before,
-                    snippet_match=match_text,
-                    snippet_after=after,
-                    created_at=row.created_at,
-                )
-            )
-
-        # The loop only sets truncated when a NEW chat would push us past the
-        # lookahead cap; if we land at exactly limit+1 and the rows end there,
-        # we still drop a chat in the slice below — flag it.
-        if len(grouped) > limit:
-            truncated = True
-        return ChatSearchResponse(
-            results=list(grouped.values())[:limit], truncated=truncated
+        groups, truncated = self.group_search_rows(
+            rows, "chat_id", limit, per_chat_limit
         )
+        query_lower = query.lower()
+        results = []
+        for matches, match_count in groups:
+            first = matches[0]
+            chat_result = ChatSearchResult(
+                chat_id=first.chat_id,
+                chat_title=first.title,
+                workspace_id=first.workspace_id,
+                workspace_name=first.workspace_name,
+                matches=[],
+                match_count=match_count,
+            )
+            for row in matches:
+                before, match_text, after = self.build_snippet(
+                    row.content_text, query_lower
+                )
+                chat_result.matches.append(
+                    ChatSearchMatch(
+                        message_id=row.id,
+                        role=row.role,
+                        snippet_before=before,
+                        snippet_match=match_text,
+                        snippet_after=after,
+                        created_at=row.created_at,
+                    )
+                )
+            results.append(chat_result)
+        return ChatSearchResponse(results=results, truncated=truncated)
 
     @staticmethod
-    def _build_snippet(content: str, query_lower: str) -> tuple[str, str, str]:
+    def group_search_rows(
+        rows: Sequence[Row[Any]], key: str, limit: int, per_group_limit: int
+    ) -> tuple[list[tuple[list[Row[Any]], int]], bool]:
+        kept: dict[UUID, list[Row[Any]]] = {}
+        counts: dict[UUID, int] = {}
+        # Hitting the SQL cap means there may be older matches we never saw —
+        # report truncation even if the per-group / group-cap loop never trips.
+        truncated = len(rows) == SEARCH_MAX_ROWS
+
+        for row in rows:
+            group_id = getattr(row, key)
+            if group_id not in kept:
+                if len(kept) > limit:
+                    truncated = True
+                    break
+                kept[group_id] = []
+                counts[group_id] = 0
+
+            counts[group_id] += 1
+            if len(kept[group_id]) >= per_group_limit:
+                truncated = True
+                continue
+            kept[group_id].append(row)
+
+        # The loop only sets truncated when a NEW group would push us past the
+        # lookahead cap; if we land at exactly limit+1 and the rows end there,
+        # we still drop a group in the slice below — flag it.
+        if len(kept) > limit:
+            truncated = True
+        return [
+            (kept[group_id], counts[group_id]) for group_id in list(kept)[:limit]
+        ], truncated
+
+    @staticmethod
+    def build_snippet(content: str, query_lower: str) -> tuple[str, str, str]:
         # Window around first match; pre-split so consumers ignore codepoint vs UTF-16.
         idx = content.lower().find(query_lower)
         if idx < 0:

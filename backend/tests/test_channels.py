@@ -1294,6 +1294,93 @@ async def test_member_chats_are_hidden_from_list_search_and_delete_all(
     assert source_message.content_text == "channel-search-needle"
 
 
+async def search_messages(
+    client: AsyncClient, headers: dict[str, str], q: str
+) -> dict[str, Any]:
+    response = await client.get(
+        "/api/v1/chat/chats/search", headers=headers, params={"q": q}
+    )
+    assert response.status_code == 200, response.text
+    body: dict[str, Any] = response.json()
+    return body
+
+
+async def test_message_search_returns_own_live_channel_messages(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    other_owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    headers, user, workspace = owner
+    member = channel_state.channel.members[0]
+    chat = Chat(title="Plain", user_id=user.id, workspace_id=workspace.id)
+    db_session.add(chat)
+    await db_session.commit()
+    for content in ("chat 100%_needle", "chat 100xxneedle"):
+        message = await create_source_message(db_session, chat.id)
+        message.content_text = content
+    await db_session.commit()
+    post = await channel_service.new_message(
+        channel_state, "owner 100%_needle", device_ids=frozenset()
+    )
+    reply = await channel_service.new_message(
+        channel_state, "member 100%_needle", member.id, device_ids=frozenset()
+    )
+    await channel_service.new_message(
+        channel_state, "wildcard 100xxneedle", member.id, device_ids=frozenset()
+    )
+    silent = await channel_service.new_message(
+        channel_state, "silent 100%_needle", member.id, device_ids=frozenset()
+    )
+    await db_session.execute(
+        update(ChannelMessage)
+        .where(ChannelMessage.id == silent.id)
+        .values(status="deleted")
+    )
+    await db_session.commit()
+
+    body = await search_messages(client, headers, "100%_needle")
+    assert [item["chat_id"] for item in body["results"]] == [str(chat.id)]
+    assert body["results"][0]["match_count"] == 1
+    assert body["results"][0]["matches"][0]["snippet_match"] == "100%_needle"
+    assert body["truncated"] is False
+    assert body["channel_truncated"] is False
+    [result] = body["channel_results"]
+    assert result["channel_id"] == str(channel_state.channel.id)
+    assert result["channel_name"] == "Review"
+    assert result["workspace_name"] == workspace.name
+    assert result["match_count"] == 2
+    assert [
+        (match["message_id"], match["author"], match["snippet_match"])
+        for match in result["matches"]
+    ] == [
+        (str(reply.id), member.display_name, "100%_needle"),
+        (str(post.id), None, "100%_needle"),
+    ]
+    body = await search_messages(client, headers, "needle")
+    assert body["channel_results"][0]["match_count"] == 3
+    response = await client.get(
+        "/api/v1/chat/chats/search",
+        headers=headers,
+        params={"q": "100%_needle", "per_chat_limit": 1},
+    )
+    assert (response.json()["truncated"], response.json()["channel_truncated"]) == (
+        False,
+        True,
+    )
+    body = await search_messages(client, other_owner[0], "needle")
+    assert body["channel_results"] == []
+
+    response = await client.delete(
+        f"/api/v1/channels/{channel_state.channel.id}", headers=headers
+    )
+    assert response.status_code == 204
+    body = await search_messages(client, headers, "needle")
+    assert body["channel_results"] == []
+    assert [item["chat_id"] for item in body["results"]] == [str(chat.id)]
+
+
 @pytest.mark.parametrize(
     ("display_name", "expected_names"),
     [

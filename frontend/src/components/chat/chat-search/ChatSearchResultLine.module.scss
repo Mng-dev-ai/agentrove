@@ -21,7 +21,9 @@
 }
 
 .role {
+  @include type.type-overflow;
   min-width: var(--space-7);
+  max-width: 40%;
   flex-shrink: 0;
   text-align: right;
   text-transform: uppercase;
