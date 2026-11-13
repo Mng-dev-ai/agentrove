@@ -495,10 +495,15 @@ async def send_message(
     it; otherwise a new turn starts in this chat afterwards. So you don't need to
     poll, and can end your turn.
 
+    AgentRove also notifies this chat, once per blocking request, when a sub-thread
+    blocks mid-turn on a permission request or a question; read the request with
+    get_pending_requests and answer it with respond_to_request.
+
     Returns immediately with chat_id and the streaming message_id. To read the reply
     yourself, poll get_messages and watch that message's stream_status flip from
-    "in_progress" to "completed". The turn runs unattended — it uses the model's full-execution permission
-    mode (e.g. bypassPermissions for Claude, full-access for Codex).
+    "in_progress" to "completed". The turn uses the model's full-execution permission
+    mode (e.g. bypassPermissions for Claude, full-access for Codex), but the agent can
+    still stop to ask a question or request a permission.
     """
     client, _ = _session()
     if chat_id is not None:
@@ -594,6 +599,74 @@ async def stop_chat(chat_id: str) -> dict[str, Any]:
         raise AgentroveError("Cannot stop the current chat from within its own turn.")
     await client.stop_chat(chat_id)
     return {"stopped": True}
+
+
+@mcp.tool()
+async def get_pending_requests(chat_id: str) -> dict[str, Any]:
+    """List the permission requests and questions a chat's running turn is blocked on.
+
+    Returns {"permissions": [{request_id, tool_name, tool_input, options: [{option_id,
+    name, kind}]}], "questions": [{request_id, message, requested_schema}]}. Both lists
+    are empty when nothing is pending or the chat has no running turn. Answer each one
+    with respond_to_request.
+    """
+    client, _ = _session()
+    status = await client.get_chat_status(chat_id)
+    return {
+        "permissions": [
+            {
+                "request_id": p["request_id"],
+                "tool_name": p["tool_name"],
+                "tool_input": p["tool_input"],
+                "options": [
+                    {"option_id": o["option_id"], "name": o["name"], "kind": o["kind"]}
+                    for o in p["options"]
+                ],
+            }
+            for p in status["pending_permissions"]
+        ],
+        "questions": [
+            {
+                "request_id": q["request_id"],
+                "message": q["message"],
+                "requested_schema": q["requested_schema"],
+            }
+            for q in status["pending_elicitations"]
+        ],
+    }
+
+
+@mcp.tool()
+async def respond_to_request(
+    chat_id: str,
+    request_id: str,
+    option_id: str | None = None,
+    action: Literal["accept", "decline", "cancel"] | None = None,
+    content: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Answer a permission request or question listed by get_pending_requests.
+
+    Pass exactly one of option_id or action. A permission is answered with option_id,
+    which must be one of the option_ids get_pending_requests listed for that request;
+    an empty string denies it. A question is answered with action ("accept", "decline"
+    or "cancel") and, when accepting, content: an object matching the question's
+    requested_schema. The chat's turn resumes as soon as the request is answered.
+
+    Returns {"answered": true}, or {"answered": false, "detail": ...} when the request
+    was already answered or is no longer pending, or the chat was not found.
+    """
+    client, _ = _session()
+    if option_id is not None and action is None:
+        detail = await client.respond_to_permission(chat_id, request_id, option_id)
+    elif action is not None and option_id is None:
+        detail = await client.respond_to_elicitation(chat_id, request_id, action, content)
+    else:
+        raise AgentroveError(
+            "Pass option_id to answer a permission request or action to answer a question."
+        )
+    if detail is None:
+        return {"answered": True}
+    return {"answered": False, "detail": detail}
 
 
 @mcp.tool()
