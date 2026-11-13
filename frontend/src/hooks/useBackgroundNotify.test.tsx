@@ -219,7 +219,7 @@ describe('useBackgroundNotify', () => {
     unmount();
 
     setRoute('/chat/chat-2');
-    staleNotifyBackground('chat-1', notify);
+    staleNotifyBackground('/chat/chat-1', notify);
     await flush();
     expect(notify).toHaveBeenCalledTimes(1);
   });
@@ -232,7 +232,7 @@ describe('useBackgroundNotify', () => {
     unmount();
 
     setRoute('/chat/chat-2');
-    staleNotifyBackground('chat-2', notify);
+    staleNotifyBackground('/chat/chat-2', notify);
     await flush();
     expect(notify).not.toHaveBeenCalled();
   });
