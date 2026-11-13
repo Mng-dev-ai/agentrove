@@ -614,6 +614,63 @@ async def test_attachment_saved_after_the_turn_finished_lands_on_a_reply(
     assert published[-1] == reply
 
 
+async def test_attachment_of_a_removed_member_lands_on_its_reply(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    channel_data["members"] = [
+        {"model_id": TEST_MODEL_ID, "display_name": name} for name in ("alpha", "beta")
+    ]
+    created = await client.post("/api/v1/channels", json=channel_data, headers=owner[0])
+    assert created.status_code == 201, created.text
+    channel_id = UUID(created.json()["id"])
+    channel_service.states[channel_id].paused = True
+    beta = channel_service.states[channel_id].channel.members[1]
+    handed, recovered = [
+        await create_source_message(db_session, beta.chat_id) for _ in range(2)
+    ]
+    base = f"/api/v1/channels/{channel_id}"
+    removed = await client.delete(f"{base}/members/{beta.id}", headers=owner[0])
+    assert removed.status_code == 200, removed.text
+    assert [m["id"] for m in removed.json()["former_members"]] == [str(beta.id)]
+
+    await attach_file(handed.id, "handed.png")
+    await hand_off(handed)
+    await attach_file(recovered.id, "recovered.png")
+    await channel_service.recover()
+    for state in channel_service.states.values():
+        state.paused = True
+        channel_service.schedule(state)
+
+    replies = (await client.get(f"{base}/messages", headers=owner[0])).json()
+    assert sorted(
+        (r["member_id"], r["status"], [a["filename"] for a in r["attachments"]])
+        for r in replies
+    ) == [
+        (str(beta.id), "completed", ["handed.png"]),
+        (str(beta.id), "completed", ["recovered.png"]),
+    ]
+
+
+async def test_attachment_saved_for_a_deleted_channel_is_ignored(
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    source = await create_source_message(
+        db_session, channel_state.channel.members[0].chat_id
+    )
+    await attach_file(source.id, "chart.png")
+    channel_state.deleted = True
+    await hand_off(source)
+
+    assert await channel_service.messages(channel_state.channel, 0) == []
+    assert channel_runtime.publications == []
+
+
 async def test_recover_cancels_and_republishes_streaming_replies(
     client: AsyncClient,
     owner: tuple[dict[str, str], User, Workspace],

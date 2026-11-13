@@ -1447,8 +1447,10 @@ class ChannelService(BaseDbService[Channel]):
         state = self.states.get(chat.channel_id) if chat.channel_id else None
         if state is None:
             return
-        member = next(m for m in state.channel.members if m.chat_id == chat.id)
         async with state.lock:
+            if state.deleted:
+                return
+            member = next(m for m in state.channel.all_members if m.chat_id == chat.id)
             turn = state.turns.get(member.id)
             if (
                 turn is None
