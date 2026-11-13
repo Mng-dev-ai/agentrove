@@ -35,7 +35,6 @@ const CONTRACT: ReadonlyArray<readonly [string, readonly unknown[], readonly unk
     queryKeys.sandbox.gitBranchesAll(SB),
     queryKeys.sandbox.gitBranches(SB, '/cwd'),
   ],
-  ['searchAll', queryKeys.sandbox.searchAll(SB), queryKeys.sandbox.search(SB, 'q', '/cwd')],
   ['pullsAll', queryKeys.github.pullsAll('o', 'r', 'c'), queryKeys.github.pulls('o', 'r', 'c')],
   ['channelsAll', queryKeys.channelsAll, queryKeys.channels('m1')],
   ['memoriesAll', queryKeys.memoriesAll, queryKeys.memories('ws1')],

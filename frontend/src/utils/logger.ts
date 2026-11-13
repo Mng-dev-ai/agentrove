@@ -17,10 +17,6 @@ export const logger = {
     }
   },
 
-  info: (message: string, context?: string, data?: unknown) => {
-    console.info(formatLogMessage('INFO', message, context), data);
-  },
-
   warn: (message: string, context?: string, data?: unknown) => {
     console.warn(formatLogMessage('WARN', message, context), data);
   },
