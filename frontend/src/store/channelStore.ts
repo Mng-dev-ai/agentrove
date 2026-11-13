@@ -12,6 +12,7 @@ interface ChannelSlice {
   // Highest seq below which REST history is known contiguous; only REST syncs advance it.
   syncedSeq: number;
   synced: boolean;
+  olderBeforeSeq: number | null;
   permissions: ChannelPermissionRequest[];
   permissionSync: PermissionSync | null;
 }
@@ -34,6 +35,7 @@ interface ChannelState {
   bumpStreamEpoch: () => void;
   mergeMessages: (channelId: string, messages: ChannelMessage[]) => void;
   syncMessages: (channelId: string, messages: ChannelMessage[]) => void;
+  syncOlderMessages: (channelId: string, beforeSeq: number, messages: ChannelMessage[]) => void;
   beginPermissionSync: (channelId: string) => number;
   syncPermissions: (
     channelId: string,
@@ -53,6 +55,7 @@ const EMPTY_SLICE: ChannelSlice = {
   messages: EMPTY_MESSAGES,
   syncedSeq: 0,
   synced: false,
+  olderBeforeSeq: null,
   permissions: EMPTY_PERMISSIONS,
   permissionSync: null,
 };
@@ -65,6 +68,11 @@ function upsert(slice: ChannelSlice, incoming: ChannelMessage[]): ChannelSlice {
     if (message.version > (messages[message.id]?.version ?? 0)) messages[message.id] = message;
   }
   return { ...slice, messages };
+}
+
+function olderBeforeSeq(page: ChannelMessage[]): number | null {
+  const oldest = page[0]?.seq ?? 1;
+  return oldest > 1 ? oldest : null;
 }
 
 function permissionKey(memberId: string, requestId: string): string {
@@ -201,7 +209,17 @@ export const useChannelStore = create<ChannelState>((set) => ({
         ...upsert(slice, messages),
         syncedSeq: Math.max(slice.syncedSeq, ...messages.map((message) => message.seq)),
         synced: true,
+        olderBeforeSeq: slice.synced ? slice.olderBeforeSeq : olderBeforeSeq(messages),
       })),
+    ),
+
+  syncOlderMessages: (channelId, beforeSeq, messages) =>
+    set((state) =>
+      withSlice(state, channelId, (slice) =>
+        slice.olderBeforeSeq === beforeSeq
+          ? { ...upsert(slice, messages), olderBeforeSeq: olderBeforeSeq(messages) }
+          : slice,
+      ),
     ),
 
   beginPermissionSync: (channelId) => {

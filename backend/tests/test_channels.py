@@ -1066,6 +1066,32 @@ async def test_member_reply_marks_channel_unread_until_viewed(
     assert (await client.get(base, headers=owner[0])).json()["unread"] is False
 
 
+async def test_messages_page_latest_and_before_seq_and_keep_after_seq(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    for index in range(5):
+        await channel_service.new_message(
+            channel_state, f"Message {index}", device_ids=frozenset()
+        )
+    url = f"/api/v1/channels/{channel_state.channel.id}/messages"
+    cases: list[tuple[dict[str, int], list[int]]] = [
+        ({"limit": 2}, [4, 5]),
+        ({"limit": 2, "before_seq": 4}, [2, 3]),
+        ({"limit": 2, "before_seq": 2}, [1]),
+        ({"limit": 2, "before_seq": 1}, []),
+        ({"after_seq": 2}, [3, 4, 5]),
+        ({}, [1, 2, 3, 4, 5]),
+    ]
+    for params, expected in cases:
+        response = await client.get(url, headers=owner[0], params=params)
+        assert [message["seq"] for message in response.json()] == expected, params
+    for params in ({"limit": 0}, {"limit": 101}, {"before_seq": 0}):
+        response = await client.get(url, headers=owner[0], params=params)
+        assert response.status_code == 422
+
+
 async def test_own_post_and_rename_keep_a_read_channel_read(
     client: AsyncClient,
     owner: tuple[dict[str, str], User, Workspace],

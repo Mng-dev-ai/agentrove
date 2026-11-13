@@ -298,20 +298,23 @@ class ChannelService(BaseDbService[Channel]):
             )
             await db.commit()
 
-    async def messages(self, channel: Channel, after_seq: int) -> list[ChannelMessage]:
+    async def messages(
+        self,
+        channel: Channel,
+        after_seq: int,
+        before_seq: int | None = None,
+        limit: int | None = None,
+    ) -> list[ChannelMessage]:
+        query = select(ChannelMessage).where(
+            ChannelMessage.channel_id == channel.id, ChannelMessage.seq > after_seq
+        )
+        if before_seq is not None:
+            query = query.where(ChannelMessage.seq < before_seq)
+        if limit is not None:
+            query = query.order_by(ChannelMessage.seq.desc()).limit(limit)
         async with self.session_factory() as db:
-            return list(
-                (
-                    await db.scalars(
-                        select(ChannelMessage)
-                        .where(
-                            ChannelMessage.channel_id == channel.id,
-                            ChannelMessage.seq > after_seq,
-                        )
-                        .order_by(ChannelMessage.seq)
-                    )
-                ).all()
-            )
+            rows = list((await db.scalars(query)).all())
+        return sorted(rows, key=lambda message: message.seq)
 
     async def activity(self, channel: Channel, message_id: UUID) -> MessageSchema:
         async with self.session_factory() as db:

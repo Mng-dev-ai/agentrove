@@ -1,5 +1,6 @@
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/zlayer' as z;
+@use '@/styles/globals/typography' as type;
 
 .conversation {
   position: relative;
@@ -65,4 +66,20 @@
 .input-slot {
   @include z.z('raised');
   position: relative;
+}
+
+.list-header-row {
+  display: flex;
+  height: var(--space-4);
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.loading-more {
+  @include type.type-body;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--theme-text-secondary);
 }

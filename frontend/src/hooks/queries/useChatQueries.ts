@@ -112,7 +112,12 @@ export const useSearchChatsQuery = (
   });
 };
 
-export const useInfiniteMessagesQuery = (chatId: string | undefined, limit: number = 20) => {
+export const MESSAGE_PAGE_SIZE = 20;
+
+export const useInfiniteMessagesQuery = (
+  chatId: string | undefined,
+  limit: number = MESSAGE_PAGE_SIZE,
+) => {
   return useInfiniteQuery({
     queryKey: queryKeys.messages(chatId),
     queryFn: async ({ pageParam }) => {

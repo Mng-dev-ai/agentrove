@@ -77,12 +77,16 @@ async def mark_channel_viewed(
 async def list_messages(
     channel_id: UUID,
     after_seq: int = Query(0, ge=0),
+    before_seq: int | None = Query(None, ge=1),
+    limit: int | None = Query(None, ge=1, le=100),
     user: User = Depends(get_current_user),
 ) -> list[ChannelMessageRead]:
     channel = await channel_service.get(channel_id, user)
     return [
         ChannelMessageRead.model_validate(message)
-        for message in await channel_service.messages(channel, after_seq)
+        for message in await channel_service.messages(
+            channel, after_seq, before_seq, limit
+        )
     ]
 
 
