@@ -76,6 +76,7 @@ export interface ChatRowItem {
 // One list for keyboard nav and sectioned rendering so order can't diverge.
 export type MenuListItem =
   | { kind: 'chat'; chat: ChatRowItem }
+  | { kind: 'channel'; channel: ChatRowItem }
   | { kind: 'file'; file: FlatFileItem }
   | { kind: 'command'; command: CommandItem };
 

@@ -9,6 +9,7 @@ import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useGitBranchesQuery, useCheckoutBranchMutation } from '@/hooks/queries/useSandboxQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
+import { useMachinesChannels } from '@/hooks/queries/useChannelQueries';
 import { fuzzySearch } from '@/utils/fuzzySearch';
 import { THEMES } from '@/utils/theme';
 import {
@@ -78,6 +79,12 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
     );
   }, [isOpen, pinnedChats, recentChats]);
 
+  const machineChannels = useMachinesChannels(chatQueriesEnabled);
+  const menuChannels = useMemo(
+    () => machineChannels.map(({ channel }) => channel),
+    [machineChannels],
+  );
+
   const flatFiles = useMemo(() => flattenFiles(fileStructure), [fileStructure]);
 
   const filteredChats = useMemo(
@@ -98,6 +105,21 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
         workspaceName: workspaceBadgeById.get(chat.workspace_id)?.name,
       })),
     [filteredChats, workspaceBadgeById],
+  );
+
+  const channelRows = useMemo<ChatRowItem[]>(
+    () =>
+      mode !== 'all' && mode !== 'chats'
+        ? []
+        : fuzzySearch(query, menuChannels, {
+            keys: ['name'],
+            limit: mode === 'chats' ? 30 : 5,
+          }).map((channel) => ({
+            id: channel.id,
+            title: channel.name,
+            workspaceName: workspaceBadgeById.get(channel.workspace_id)?.name,
+          })),
+    [query, menuChannels, mode, workspaceBadgeById],
   );
 
   const filteredFiles = useMemo(
@@ -135,9 +157,10 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
     () => [
       ...filteredCommands.map((command) => ({ kind: 'command' as const, command })),
       ...chatRows.map((chat) => ({ kind: 'chat' as const, chat })),
+      ...channelRows.map((channel) => ({ kind: 'channel' as const, channel })),
       ...filteredFiles.map((file) => ({ kind: 'file' as const, file })),
     ],
-    [chatRows, filteredFiles, filteredCommands],
+    [chatRows, channelRows, filteredFiles, filteredCommands],
   );
 
   const orderedBranches = useMemo(() => {

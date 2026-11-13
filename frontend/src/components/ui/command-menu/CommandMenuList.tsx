@@ -1,5 +1,5 @@
 import { Fragment, type Ref, type MouseEvent as ReactMouseEvent } from 'react';
-import { GitBranch, File, MessageSquare, PanelRight, PanelBottom } from 'lucide-react';
+import { GitBranch, File, Hash, MessageSquare, PanelRight, PanelBottom } from 'lucide-react';
 import { Button } from '../primitives/Button/Button';
 import { FloatingTooltip } from '../FloatingTooltip/FloatingTooltip';
 import { HighlightMatch } from '../shared/HighlightMatch/HighlightMatch';
@@ -30,6 +30,7 @@ interface CommandMenuListProps {
   leafTileIds: Set<string>;
   activeSlot: SplitSlot | null;
   onOpenChat: (id: string) => void;
+  onOpenChannel: (id: string) => void;
   onSelectFile: (file: FlatFileItem) => void;
   onRunCommand: (cmd: CommandItem) => void;
   onSplit: (viewId: ViewType, direction: SplitDirection) => void;
@@ -56,6 +57,7 @@ export function CommandMenuList({
   leafTileIds,
   activeSlot,
   onOpenChat,
+  onOpenChannel,
   onSelectFile,
   onRunCommand,
   onSplit,
@@ -95,6 +97,28 @@ export function CommandMenuList({
               className={styles['chat-title']}
             />
             {chat.workspaceName && <span className={styles.meta}>{chat.workspaceName}</span>}
+          </MenuRow>
+        </Fragment>
+      );
+    }
+
+    if (item.kind === 'channel') {
+      const { channel } = item;
+      return (
+        <Fragment key={`channel-${channel.id}`}>
+          {showHeader && (
+            <p className={styles['section-header']}>
+              {trimmedQuery ? 'Channels' : 'Recent channels'}
+            </p>
+          )}
+          <MenuRow {...rowProps} onSelect={() => onOpenChannel(channel.id)}>
+            <Hash className={styles['row-icon']} />
+            <HighlightMatch
+              text={channel.title}
+              searchQuery={query}
+              className={styles['chat-title']}
+            />
+            {channel.workspaceName && <span className={styles.meta}>{channel.workspaceName}</span>}
           </MenuRow>
         </Fragment>
       );
