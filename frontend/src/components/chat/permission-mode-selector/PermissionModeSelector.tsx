@@ -64,6 +64,7 @@ export const PermissionModeDropdown = memo(function PermissionModeDropdown({
       getItemLabel={(mode) => mode.label}
       onSelect={(mode) => onChange(mode.value)}
       leftIcon={Shield}
+      ariaLabel="Permission mode"
       width="13rem"
       itemClassName={styles['item-column']}
       dropdownPosition={dropdownPosition}

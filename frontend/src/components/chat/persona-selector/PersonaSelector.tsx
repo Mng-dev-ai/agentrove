@@ -59,6 +59,7 @@ export const PersonaDropdown = memo(function PersonaDropdown({
       getItemLabel={(item) => item.label}
       onSelect={(item) => onChange(item.value)}
       leftIcon={UserCircle}
+      ariaLabel="Persona"
       width="10rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}

@@ -4,7 +4,7 @@ import { settingsService } from '@/services/settingsService';
 import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
-import { useMachineSettingsQuery } from './useMachineQueries';
+import { machineSettingsQuery, useMachineSettingsQuery } from './useMachineQueries';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
@@ -46,9 +46,15 @@ export async function fetchNotificationsEnabled(queryClient: QueryClient): Promi
   }
 }
 
-export async function fetchAutoSteerQueuedMessages(queryClient: QueryClient): Promise<boolean> {
+export async function fetchAutoSteerQueuedMessages(
+  queryClient: QueryClient,
+  machineId: string,
+): Promise<boolean> {
   try {
-    const settings = await queryClient.ensureQueryData(settingsQuery());
+    const settings =
+      machineId === LOCAL_MACHINE_ID
+        ? await queryClient.ensureQueryData(settingsQuery())
+        : await queryClient.ensureQueryData(machineSettingsQuery(machineId));
     return settings.auto_steer_queued_messages;
   } catch {
     return false;

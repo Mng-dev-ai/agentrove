@@ -121,6 +121,7 @@ export const BranchWorktreeDropdown = memo(function BranchWorktreeDropdown({
       }
       onSelect={onBranchChange}
       leftIcon={GitBranch}
+      ariaLabel="Branch"
       triggerVariant="toolbar"
       width="17rem"
       dropdownPosition={dropdownPosition}

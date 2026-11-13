@@ -5,6 +5,7 @@ import { queryClient } from '@/lib/queryClient';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { useStreamStore } from '@/store/streamStore';
 import { fetchAutoSteerQueuedMessages } from '@/hooks/queries/useSettingsQueries';
+import { chatMachineId } from '@/store/machineOrigin';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
@@ -109,7 +110,7 @@ export function useInputSubmit({
       const validPersona = resolvePersona(persona, personas);
       const text = messageRef.current;
       const fullMessage = formatComposerSelections(attachedSelections, text.trim());
-      void fetchAutoSteerQueuedMessages(queryClient)
+      void fetchAutoSteerQueuedMessages(queryClient, chatMachineId(chatId))
         .then(async (sendNow) => {
           const result = await useMessageQueueStore
             .getState()
