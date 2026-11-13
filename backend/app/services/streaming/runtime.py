@@ -521,6 +521,18 @@ class ChatStreamRuntime:
                 request_id=payload["request_id"],
                 tool_name=payload["tool_name"],
             )
+        if (
+            kind in ("permission_request", "elicitation_request")
+            and self._request.report_parent_id is not None
+            and self.member_turn is None
+        ):
+            subthread_wake.on_input_request(
+                self.chat_id,
+                self._request.report_parent_id,
+                payload["request_id"],
+                payload["tool_name"] if kind == "permission_request" else None,
+                self._request.device_ids,
+            )
         return seq
 
     async def _flush_event_buffer(self) -> None:

@@ -276,6 +276,30 @@ class AgentroveClient:
     async def stop_chat(self, chat_id: str) -> None:
         await self.request("DELETE", f"/chat/chats/{chat_id}/stream", expected=(204,))
 
+    async def get_chat_status(self, chat_id: str) -> dict[str, Any]:
+        resp = await self.request("GET", f"/chat/chats/{chat_id}/status")
+        return resp.json()
+
+    async def respond_to_permission(self, chat_id: str, request_id: str, option_id: str) -> bool:
+        resp = await self.request(
+            "POST",
+            f"/chat/chats/{chat_id}/permissions/{request_id}/respond",
+            data={"option_id": option_id},
+            expected=(200, 404),
+        )
+        return resp.status_code == 200
+
+    async def respond_to_elicitation(
+        self, chat_id: str, request_id: str, action: str, content: dict[str, Any] | None
+    ) -> bool:
+        resp = await self.request(
+            "POST",
+            f"/chat/chats/{chat_id}/elicitation/{request_id}/respond",
+            json={"request_id": request_id, "action": action, "content": content},
+            expected=(200, 404),
+        )
+        return resp.status_code == 200
+
     async def get_messages(
         self, chat_id: str, limit: int, cursor: str | None
     ) -> dict[str, Any]:
