@@ -5,6 +5,7 @@ import {
   useQuery,
   useQueryClient,
   type Query,
+  type QueryClient,
   type UseQueryResult,
 } from '@tanstack/react-query';
 import { channelService } from '@/services/channelService';
@@ -15,6 +16,7 @@ import { useChannelQueueStore } from '@/store/messageQueueStore';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
 import { channelMachineId } from '@/store/machineOrigin';
 import { useUIStore } from '@/store/uiStore';
+import { logger } from '@/utils/logger';
 import type { Channel, ChannelCreateRequest, ChannelMessage } from '@/types/channel.types';
 import type { Message } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
@@ -62,6 +64,32 @@ export const useChannelQuery = (channelId: string | undefined) => {
     initialDataUpdatedAt: 0,
   });
 };
+
+export async function markChannelViewed(
+  queryClient: QueryClient,
+  channelId: string,
+): Promise<void> {
+  const listKey = queryKeys.channels(channelMachineId(channelId));
+  const cached =
+    queryClient.getQueryData<Channel>(queryKeys.channel(channelId)) ??
+    queryClient.getQueryData<Channel[]>(listKey)?.find((channel) => channel.id === channelId);
+  if (cached?.unread === undefined) return;
+  const markRead = (channel: Channel) =>
+    channel.id === channelId && channel.unread ? { ...channel, unread: false } : channel;
+  queryClient.setQueryData<Channel>(
+    queryKeys.channel(channelId),
+    (channel) => channel && markRead(channel),
+  );
+  queryClient.setQueryData<Channel[]>(listKey, (channels) => channels?.map(markRead));
+
+  try {
+    await channelService.markChannelViewed(channelId);
+  } catch (error) {
+    logger.error('Failed to mark channel viewed', 'markChannelViewed', error);
+    return;
+  }
+  void queryClient.invalidateQueries({ queryKey: listKey });
+}
 
 const isActivityInProgress = (query: Query<Message>) =>
   query.state.data?.stream_status === 'in_progress';

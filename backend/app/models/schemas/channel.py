@@ -94,6 +94,7 @@ class ChannelRead(BaseModel):
     branch: str | None
     created_at: datetime
     updated_at: datetime
+    unread: bool
     members: list[ChannelMemberRead]
     anchor_chat_id: UUID
     activity: ChannelMemberActivity

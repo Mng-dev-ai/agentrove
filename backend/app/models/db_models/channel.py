@@ -1,4 +1,6 @@
 import uuid
+from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
@@ -10,11 +12,12 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    case,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
-from app.db.types import GUID, UUIDSet
+from app.db.types import GUID, UTCDateTime, UUIDSet
 from app.models.types import PermissionMode
 
 
@@ -31,9 +34,24 @@ class Channel(Base):
     name: Mapped[str] = mapped_column(String(255))
     worktree: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     branch: Mapped[str | None] = mapped_column(String(255))
+    last_viewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     members: Mapped[list["ChannelMember"]] = relationship(
         cascade="all, delete-orphan", passive_deletes=True
     )
+
+    @property
+    def unread(self) -> bool:
+        return self.last_viewed_at is None or self.updated_at > self.last_viewed_at
+
+    @classmethod
+    def touched_by_user(cls, now: datetime) -> dict[str, Any]:
+        return {
+            "updated_at": now,
+            "last_viewed_at": case(
+                (cls.last_viewed_at >= cls.updated_at, now),
+                else_=cls.last_viewed_at,
+            ),
+        }
 
 
 class ChannelMember(Base):

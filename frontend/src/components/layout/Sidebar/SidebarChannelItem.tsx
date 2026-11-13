@@ -15,6 +15,7 @@ interface SidebarChannelItemProps {
   channel: Channel;
   machineBadge: MachineBadge | undefined;
   isActive: boolean;
+  isCompleted: boolean;
   isDropdownOpen: boolean;
   onSelect: (channelId: string) => void;
   onDropdownClick: (e: MouseEvent<HTMLButtonElement>, channel: Channel) => void;
@@ -24,16 +25,19 @@ export function SidebarChannelItem({
   channel,
   machineBadge,
   isActive,
+  isCompleted,
   isDropdownOpen,
   onSelect,
   onDropdownClick,
 }: SidebarChannelItemProps) {
   const [isHovered, setIsHovered] = useState(false);
   const activity = useChannelActivity(channel);
+  const isUnread = !isActive && !!channel.unread;
   const status = chatStatusTone({
     blocked: activity.waiting_member_ids.length > 0,
     streaming: activity.member_ids.length > 0,
-    completed: false,
+    completed: isCompleted,
+    unread: isUnread,
   });
   const icon = (
     <span className={styles['status-slot']}>
@@ -42,9 +46,9 @@ export function SidebarChannelItem({
       ) : (
         <Hash className={styles.icon} />
       )}
-      {status === 'blocked' && (
+      {status && status !== 'running' && (
         <ChatStatusDot
-          tone="blocked"
+          tone={status}
           className={styles['status-corner']}
           ringClassName={styles['status-ring']}
         />
@@ -74,7 +78,7 @@ export function SidebarChannelItem({
         >
           <SidebarRowTitle
             label={channel.name}
-            isEmphasized={isActive}
+            isEmphasized={isActive || isUnread}
             isCurrent={isActive}
             onClick={() => onSelect(channel.id)}
           />

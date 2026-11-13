@@ -1,5 +1,6 @@
 import { getMachineClient, resolveChannelClient } from '@/lib/api';
 import { ensureResponse, serviceCall } from '@/services/base/BaseService';
+import { useChannelStore } from '@/store/channelStore';
 import { assignChannelsToMachine, channelMachineId } from '@/store/machineOrigin';
 import type {
   Channel,
@@ -11,11 +12,17 @@ import type {
 import type { Message } from '@/types/chat.types';
 import type { QueueAddResponse, QueuedItem } from '@/types/queue.types';
 
+function syncActivities(channels: Channel[]): void {
+  const store = useChannelStore.getState();
+  for (const channel of channels) store.syncActivity(channel.id, channel.activity);
+}
+
 async function listChannels(machineId: string): Promise<Channel[]> {
   return serviceCall(async () => {
     const response = await getMachineClient(machineId).get<Channel[]>('/channels');
     const channels = ensureResponse(response, 'Failed to load channels');
     assignChannelsToMachine(machineId, channels);
+    syncActivities(channels);
     return channels;
   });
 }
@@ -26,6 +33,7 @@ async function getChannel(channelId: string): Promise<Channel> {
     const response = await resolveChannelClient(channelId).get<Channel>(`/channels/${channelId}`);
     const channel = ensureResponse(response, 'Failed to load channel');
     assignChannelsToMachine(machineId, [channel]);
+    syncActivities([channel]);
     return channel;
   });
 }
@@ -46,6 +54,12 @@ async function renameChannel(channelId: string, name: string): Promise<Channel> 
       { name },
     );
     return ensureResponse(response, 'Failed to rename channel');
+  });
+}
+
+async function markChannelViewed(channelId: string): Promise<void> {
+  await serviceCall(async () => {
+    await resolveChannelClient(channelId).post(`/channels/${channelId}/viewed`);
   });
 }
 
@@ -178,6 +192,7 @@ export const channelService = {
   createChannel,
   renameChannel,
   deleteChannel,
+  markChannelViewed,
   listMessages,
   getMessageActivity,
   postMessage,

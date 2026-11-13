@@ -275,8 +275,7 @@ export function Sidebar({
             <SidebarChannels
               workspaces={workspaces}
               workspaceId={selectedChatWorkspaceId ?? undefined}
-              filterWorkspaceId={filters.workspaceId}
-              filterSource={filters.source}
+              filters={filters}
               machineBadge={machineBadge}
               selectedChannelId={selectedChannelId}
               scrollContainerRef={scrollContainerRef}

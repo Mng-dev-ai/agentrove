@@ -26,6 +26,7 @@ interface ChannelState {
   channels: Record<string, ChannelSlice>;
   // Tracked for every channel (not just held ones) so the sidebar can show status.
   activity: Record<string, ChannelMemberActivity>;
+  completedChannelIds: ReadonlySet<string>;
   // Bumped on every SSE (re)open so the open channel refetches what it missed.
   streamEpoch: number;
   holdChannel: (channelId: string) => void;
@@ -41,6 +42,7 @@ interface ChannelState {
   ) => void;
   dropPermission: (channelId: string, memberId: string, requestId: string) => void;
   syncActivity: (channelId: string, activity: ChannelMemberActivity) => void;
+  clearCompleted: (channelId: string) => void;
   applyEnvelope: (envelope: Exclude<ChannelEnvelope, { kind: 'channel_queue_sent' }>) => void;
 }
 
@@ -130,7 +132,15 @@ function withActivity(
   if (current && activity.epoch === current.epoch && activity.version <= current.version) {
     return state;
   }
-  return { activity: { ...state.activity, [channelId]: activity } };
+  const isBusy = activity.member_ids.length > 0;
+  const wasBusy = (current?.member_ids.length ?? 0) > 0;
+  const completedChannelIds =
+    wasBusy && !isBusy
+      ? new Set(state.completedChannelIds).add(channelId)
+      : isBusy && state.completedChannelIds.has(channelId)
+        ? withoutKey(state.completedChannelIds, channelId)
+        : state.completedChannelIds;
+  return { activity: { ...state.activity, [channelId]: activity }, completedChannelIds };
 }
 
 function applyToSlice(
@@ -160,6 +170,7 @@ function withSlice(
 export const useChannelStore = create<ChannelState>((set) => ({
   channels: {},
   activity: {},
+  completedChannelIds: new Set<string>(),
   streamEpoch: 0,
 
   holdChannel: (channelId) =>
@@ -218,6 +229,13 @@ export const useChannelStore = create<ChannelState>((set) => ({
 
   syncActivity: (channelId, activity) => set((state) => withActivity(state, channelId, activity)),
 
+  clearCompleted: (channelId) =>
+    set((state) =>
+      state.completedChannelIds.has(channelId)
+        ? { completedChannelIds: withoutKey(state.completedChannelIds, channelId) }
+        : state,
+    ),
+
   applyEnvelope: (envelope) =>
     set((state) =>
       envelope.kind === 'channel_member_activity'
@@ -227,8 +245,14 @@ export const useChannelStore = create<ChannelState>((set) => ({
 }));
 
 // Live activity is cleared on every reconnect, so when epochs differ it is the current one.
+export function channelActivity(
+  live: ChannelMemberActivity | undefined,
+  fetched: ChannelMemberActivity,
+): ChannelMemberActivity {
+  return live && (live.epoch !== fetched.epoch || live.version >= fetched.version) ? live : fetched;
+}
+
 export function useChannelActivity(channel: Channel): ChannelMemberActivity {
   const live = useChannelStore((state) => state.activity[channel.id]);
-  const fetched = channel.activity;
-  return live && (live.epoch !== fetched.epoch || live.version >= fetched.version) ? live : fetched;
+  return channelActivity(live, channel.activity);
 }

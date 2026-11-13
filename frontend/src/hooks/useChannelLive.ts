@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
+import { markChannelViewed } from '@/hooks/queries/useChannelQueries';
 import { resolveChannelClient } from '@/lib/api';
+import { queryClient } from '@/lib/queryClient';
 import { channelService } from '@/services/channelService';
 import '@/services/streamService';
 import { streamConnection } from '@/services/streamConnection';
@@ -26,6 +28,7 @@ export function useChannelLive(channelId: string) {
   useEffect(() => {
     useChannelStore.getState().holdChannel(channelId);
     const release = streamConnection.retain(resolveChannelClient(channelId));
+    void markChannelViewed(queryClient, channelId);
     return () => {
       release();
       useChannelStore.getState().releaseChannel(channelId);
