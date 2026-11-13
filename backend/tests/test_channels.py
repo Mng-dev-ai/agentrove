@@ -1290,6 +1290,40 @@ async def test_user_post_gives_a_member_that_gave_up_fresh_attempts(
     ]
 
 
+async def test_queued_post_gives_a_member_that_gave_up_fresh_attempts(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    channel_queue: EndpointCache,
+) -> None:
+    await channel_service.new_message(
+        channel_state, "Please retry", device_ids=frozenset()
+    )
+    member = channel_state.channel.members[0]
+    await give_up(channel_state, channel_runtime)
+    queued = await client.post(
+        f"/api/v1/channels/{channel_state.channel.id}/queue",
+        headers=owner[0],
+        data={"content": "Try again"},
+    )
+    assert queued.status_code == 201
+
+    channel_state.paused = False
+    await channel_service.send_next_queued(channel_state)
+    channel_state.paused = True
+    if channel_state.timer is not None:
+        channel_state.timer.cancel()
+        await asyncio.gather(channel_state.timer, return_exceptions=True)
+        channel_state.timer = None
+    assert await user_messages(channel_state) == ["Please retry", "Try again"]
+    assert activity_publications(channel_runtime)[-1]["unavailable_members"] == {}
+
+    await channel_runtime.wake(channel_state)
+    assert len(channel_runtime.requests) == MAX_ATTEMPTS + 1
+    assert channel_state.retries[member.id].attempts == 1
+
+
 async def test_unknown_model_member_is_reported_unavailable(
     client: AsyncClient,
     db_session: AsyncSession,

@@ -981,12 +981,7 @@ class ChannelService(BaseDbService[Channel]):
                         for turn in state.turns.values()
                         if audience is None or str(turn.member.id) in audience
                     ]
-                    if audience is None:
-                        state.retries.clear()
-                        state.gave_up.clear()
-                    for member_id in audience or []:
-                        state.retries.pop(UUID(member_id), None)
-                        state.gave_up.pop(UUID(member_id), None)
+                    self.give_fresh_attempts(state, audience)
                     await self.cancel_active(state, turns)
                     message = await self.send(state, content, attachments, device_ids)
             finally:
@@ -997,6 +992,15 @@ class ChannelService(BaseDbService[Channel]):
                         state.paused = False
                         self.schedule(state)
             return message
+
+    @staticmethod
+    def give_fresh_attempts(state: ChannelState, audience: list[str] | None) -> None:
+        if audience is None:
+            state.retries.clear()
+            state.gave_up.clear()
+        for member_id in audience or []:
+            state.retries.pop(UUID(member_id), None)
+            state.gave_up.pop(UUID(member_id), None)
 
     async def cancel_active(self, state: ChannelState, turns: list[MemberTurn]) -> None:
         for turn in turns:
@@ -1141,6 +1145,8 @@ class ChannelService(BaseDbService[Channel]):
         except CacheError:
             logger.warning("Failed to read queued messages for channel %s", channel_id)
             return
+        self.give_fresh_attempts(state, message.audience)
+        await self.publish_activity(state)
         await self.publish_message(state.channel, message)
         self.fan_out(state)
         await self.publish(state.channel, "channel_queue_sent", {"id": item["id"]})
