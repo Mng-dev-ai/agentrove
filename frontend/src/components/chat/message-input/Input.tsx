@@ -35,6 +35,7 @@ export interface InputProps {
   showBranch?: boolean;
   compact?: boolean;
   chatId?: string;
+  machineId?: string;
   showLoadingSpinner?: boolean;
   disabled?: boolean;
 }

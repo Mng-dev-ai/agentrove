@@ -30,6 +30,7 @@ export interface InputState {
   editingImageIndex: number | null;
   contextUsage?: ContextUsageInfo;
   chatId?: string;
+  machineId: string;
   isMentionActive: boolean;
   slashCommandSuggestions: SlashCommand[];
   highlightedSlashCommandIndex: number;

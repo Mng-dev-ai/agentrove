@@ -16,6 +16,7 @@ import { formatRelativeTime, formatFullTimestamp } from '@/utils/date';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useSetChatInputMessage } from '@/hooks/useChatInputMessageContext';
 import { useCheckpointRestore } from '@/hooks/useCheckpointRestore';
+import { useChatMachineId } from '@/store/machineOrigin';
 import styles from './Message.module.scss';
 
 export function MessageRow({ children }: { children: ReactNode }) {
@@ -126,7 +127,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   const { chatId, sandboxId } = useChatContext();
   const setInputMessage = useSetChatInputMessage();
   const onSuggestionSelect = isLastBotMessage ? setInputMessage : undefined;
-  const modelMap = useModelMap();
+  const modelMap = useModelMap({ machineId: useChatMachineId(chatId) });
   const [restoreOpen, setRestoreOpen] = useState(false);
   const { restore, isRestoring } = useCheckpointRestore(chatId, id, sandboxId);
 

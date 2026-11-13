@@ -7,6 +7,7 @@ import { useChatSettings } from '@/hooks/useChatSettings';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
+import { useChatMachineId } from '@/store/machineOrigin';
 import type { ChatRequest, Message } from '@/types/chat.types';
 import type { StreamState } from '@/types/stream.types';
 
@@ -58,7 +59,7 @@ export function useMessageActions({
   isStreaming,
 }: UseMessageActionsParams) {
   const { personas } = useChatContext();
-  const modelMap = useModelMap();
+  const modelMap = useModelMap({ machineId: useChatMachineId(chatId) });
   const { permissionMode, thinkingMode, persona } = useChatSettings(chatId);
   const pendingStartControllerRef = useRef<AbortController | null>(null);
 

@@ -13,7 +13,13 @@ import type {
   WorkspaceResources,
   UpdateWorkspaceRequest,
 } from '@/types/workspace.types';
-import type { Chat, ChatRequest, ChatSearchResponse, CreateChatRequest } from '@/types/chat.types';
+import type {
+  Chat,
+  ChatRequest,
+  ChatSearchResponse,
+  CreateChatRequest,
+  Model,
+} from '@/types/chat.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
 import type { PaginatedChats, PaginatedResponse } from '@/types/api.types';
 
@@ -114,6 +120,13 @@ async function getSettings(machineId: string): Promise<UserSettings> {
   });
 }
 
+async function getModels(machineId: string): Promise<Model[]> {
+  return serviceCall(async () => {
+    const response = await getMachineClient(machineId).get<Model[]>('/models/');
+    return ensureResponse(response, 'Failed to fetch models');
+  });
+}
+
 async function updateSettings(machineId: string, data: UserSettingsUpdate): Promise<UserSettings> {
   return serviceCall(async () => {
     const response = await getMachineClient(machineId).patch<UserSettings>('/settings/', data);
@@ -155,6 +168,7 @@ export const machineChatService = {
   deleteAllChats,
   getWorkspaceResources,
   getSettings,
+  getModels,
   updateSettings,
   startCompletion,
   getActiveStreams,

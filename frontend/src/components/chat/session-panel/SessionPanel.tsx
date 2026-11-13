@@ -103,7 +103,7 @@ function Row({
 
 function ModelRow({ chat }: { chat: Chat }) {
   const { selectedModelId } = useChatSessionState();
-  const modelMap = useModelMap();
+  const modelMap = useModelMap({ machineId: useChatMachineId(chat.id) });
   const agentKind = useChatAgentKind(chat.id, chat.session_agent_kind, chat.last_model_id);
   const model = modelMap.get(selectedModelId);
   if (!selectedModelId) return null;
@@ -179,7 +179,7 @@ function MembersCard({ channel }: { channel: Channel }) {
 }
 
 function MemberRow({ member, active }: { member: ChannelMember; active: boolean }) {
-  const modelMap = useModelMap();
+  const modelMap = useModelMap({ machineId: useChatMachineId(member.chat_id) });
   const model = modelMap.get(member.model_id);
   const { data, refetch } = useContextUsageQuery(member.chat_id);
   useEffect(() => {
@@ -244,7 +244,7 @@ function ContextTrack({ usage, label }: { usage: ContextUsageDisplay; label: str
 
 function ContextCard({ chat }: { chat: Chat }) {
   const { contextUsage, selectedModelId } = useChatSessionState();
-  const modelMap = useModelMap();
+  const modelMap = useModelMap({ machineId: useChatMachineId(chat.id) });
   const agentKind =
     modelMap.get(selectedModelId)?.agent_kind ?? getAgentKindForModelId(selectedModelId);
   if (!contextUsage || AGENTS_WITHOUT_USAGE_UPDATE.has(agentKind)) return null;
