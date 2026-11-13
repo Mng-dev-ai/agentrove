@@ -143,12 +143,13 @@ export const MARKDOWN_COMPONENTS: Components = {
     </h3>
   ),
 
-  p: ({ children, ...props }: CommonProps) => {
+  p: function MarkdownParagraph({ children, ...props }: CommonProps) {
+    const chat = use(ChatContext);
     if (typeof children === 'string' && isImageUrl(children.trim())) {
       const url = children.trim();
       return (
         <div className={styles['image-paragraph']}>
-          <AttachmentViewer attachments={[createImageAttachment(url)]} />
+          <AttachmentViewer attachments={[createImageAttachment(url)]} chatId={chat?.chatId} />
         </div>
       );
     }
@@ -269,7 +270,7 @@ export const MARKDOWN_COMPONENTS: Components = {
     }
 
     if (href && isImageUrl(href)) {
-      return <AttachmentViewer attachments={[createImageAttachment(href)]} />;
+      return <AttachmentViewer attachments={[createImageAttachment(href)]} chatId={chat?.chatId} />;
     }
 
     return (
@@ -286,9 +287,12 @@ export const MARKDOWN_COMPONENTS: Components = {
     );
   },
 
-  img: ({ src, alt, ...props }: ImageProps) => {
+  img: function MarkdownImage({ src, alt, ...props }: ImageProps) {
+    const chat = use(ChatContext);
     if (src) {
-      return <AttachmentViewer attachments={[createImageAttachment(src, alt)]} />;
+      return (
+        <AttachmentViewer attachments={[createImageAttachment(src, alt)]} chatId={chat?.chatId} />
+      );
     }
 
     return <img className={styles.img} alt={alt || ''} loading="lazy" {...props} />;
