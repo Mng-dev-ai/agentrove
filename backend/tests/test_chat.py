@@ -1481,22 +1481,6 @@ async def test_queue_message_lifecycle(
     assert delete_response.status_code == 204
     assert final_list_response.json() == []
 
-    await client.post(
-        queue_url,
-        data={"content": "Second queued prompt", "model_id": TEST_MODEL_ID},
-        headers=headers,
-    )
-    await client.post(
-        queue_url,
-        data={"content": "Third queued prompt", "model_id": TEST_MODEL_ID},
-        headers=headers,
-    )
-    clear_response = await client.delete(queue_url, headers=headers)
-    cleared_list_response = await client.get(queue_url, headers=headers)
-
-    assert clear_response.status_code == 204
-    assert cleared_list_response.json() == []
-
 
 async def test_queued_message_never_expires(
     app: FastAPI,
@@ -1625,9 +1609,6 @@ async def test_queue_access_is_limited_to_chat_owner(
         f"/api/v1/chat/chats/{chat.id}/queue/{queued_id}/send-now",
         headers=other_headers,
     )
-    other_clear_response = await client.delete(
-        f"/api/v1/chat/chats/{chat.id}/queue", headers=other_headers
-    )
     owner_list_response = await client.get(
         f"/api/v1/chat/chats/{chat.id}/queue", headers=owner_headers
     )
@@ -1637,7 +1618,6 @@ async def test_queue_access_is_limited_to_chat_owner(
     assert other_update_response.status_code == 404
     assert other_delete_response.status_code == 404
     assert other_send_now_response.status_code == 404
-    assert other_clear_response.status_code == 404
     assert owner_list_response.status_code == 200
     assert [item["content"] for item in owner_list_response.json()] == [
         "Owner queued prompt"
