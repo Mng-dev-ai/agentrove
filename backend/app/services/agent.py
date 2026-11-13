@@ -33,8 +33,8 @@ from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.prompts.generate_title import GENERATE_TITLE_SYSTEM_PROMPT
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
-    FULL_ACCESS_SESSION_MODES,
     NORMAL_SESSION_MODE,
+    loads_agentrove_mcp,
 )
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -165,8 +165,9 @@ class AgentService:
             user_settings=user_settings,
             user_id=str(user.id),
             device_ids=device_ids,
-            agentrove_mcp=not channel_member
-            or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind],
+            agentrove_mcp=loads_agentrove_mcp(
+                agent_kind, permission_mode, channel_member=channel_member
+            ),
             agent_kind=agent_kind,
             permission_mode=permission_mode,
             model_id=model_id,
@@ -645,7 +646,7 @@ class AgentService:
                 sandbox_provider,
                 agentrove_mcp=agentrove_mcp,
                 workspace_id=workspace_id,
-                current_chat_id=None if channel_member else chat_id,
+                current_chat_id=chat_id,
                 session_id=mcp_session_id,
             ),
             mcp_session_id=mcp_session_id,

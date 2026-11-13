@@ -1419,6 +1419,7 @@ async def test_normal_chat_routes_hide_member_chats(
         ("PATCH", base, {"json": {"title": "Renamed"}}, 404),
         ("DELETE", base, {}, 404),
         ("DELETE", f"{base}/stream", {}, 404),
+        ("POST", f"{base}/queue", {"data": {"content": "hi"}}, 404),
     ]:
         response = await client.request(method, path, headers=owner[0], **kwargs)
         assert response.status_code == expected_status, (method, path, response.text)

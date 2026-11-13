@@ -46,6 +46,7 @@ from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_wake import SubThreadWake
 from app.services.user import UserService
+from server import _SandboxClient
 from tests.conftest import EmailCapture, LoginClient, UserFactory
 from tests.fake_acp_agent import (
     ELICITATION_REQUESTED_SCHEMA,
@@ -2023,9 +2024,31 @@ async def test_docker_sandbox_gets_http_mcp_without_respawning_per_turn() -> Non
 async def mcp_list_tools(
     client: httpx.AsyncClient, authorization: dict[str, str]
 ) -> httpx.Response:
+    return await mcp_post(client, authorization, "tools/list", {})
+
+
+async def mcp_call_tool(
+    client: httpx.AsyncClient,
+    authorization: dict[str, str],
+    name: str,
+    **arguments: Any,
+) -> dict[str, Any]:
+    response = await mcp_post(
+        client, authorization, "tools/call", {"name": name, "arguments": arguments}
+    )
+    assert response.status_code == 200, response.text
+    return dict(response.json()["result"])
+
+
+async def mcp_post(
+    client: httpx.AsyncClient,
+    authorization: dict[str, str],
+    method: str,
+    params: dict[str, Any],
+) -> httpx.Response:
     return await client.post(
         "/api/v1/mcp",
-        json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+        json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params},
         headers={
             "Host": "api:8080",
             "Accept": "application/json, text/event-stream",
@@ -2367,6 +2390,137 @@ async def test_channel_turn_acts_for_the_devices_behind_its_prompt(
         member: (sorted(devices[name]["device_id"] for name in names), status)
         for member, (names, status) in expected.items()
     }
+
+
+async def test_channel_member_gets_its_chat_and_memory_only_with_agentrove_tools(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.1)
+    spawned: list[AcpSessionConfig] = []
+    create = AcpSession.create
+
+    async def record_spawn(config: AcpSessionConfig) -> AcpSession:
+        spawned.append(config)
+        return await create(config)
+
+    monkeypatch.setattr(AcpSession, "create", record_spawn)
+
+    async def send_via_app(
+        agent: _SandboxClient, method: str, path: str, **kwargs: Any
+    ) -> httpx.Response:
+        headers = {"Authorization": f"Bearer {agent._access_token}"}
+        return await client.request(method, f"/api/v1{path}", headers=headers, **kwargs)
+
+    monkeypatch.setattr(_SandboxClient, "_send", send_via_app)
+    headers, workspace = auth_workspace
+    pinned = await client.post(
+        "/api/v1/memories",
+        json={
+            "title": "Pinned fact",
+            "content": "pinned-memory-needle",
+            "pinned": True,
+            "workspace_id": str(workspace.id),
+        },
+        headers=headers,
+    )
+    assert pinned.status_code == 201, pinned.text
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [
+                {
+                    "model_id": "sonnet",
+                    "permission_mode": mode,
+                    "display_name": name,
+                }
+                for name, mode in (("alice", "bypassPermissions"), ("bob", "default"))
+            ],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+    member_chats = {m["display_name"]: m["chat_id"] for m in channel.json()["members"]}
+    posted = await client.post(
+        f"/api/v1/channels/{channel_id}/messages",
+        data={"content": "hello"},
+        headers=headers,
+    )
+    assert posted.status_code == 201, posted.text
+    deadline = time.monotonic() + 10
+    while len(fake_agent.main_turn_prompts()) < 2:
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+
+    prompts = {
+        "alice" if "You are alice" in p["text"] else "bob": p
+        for p in fake_agent.main_turn_prompts()
+    }
+    sessions = {e["pid"]: e for e in fake_agent.events_of("new_session")}
+    [alice_server] = sessions[prompts["alice"]["pid"]]["mcp_servers"]
+    alice_env = {v["name"]: v["value"] for v in alice_server["env"]}
+    assert alice_env["AGENTROVE_CURRENT_CHAT_ID"] == member_chats["alice"]
+    assert sessions[prompts["bob"]["pid"]]["mcp_servers"] == []
+    assert "pinned-memory-needle" in prompts["alice"]["text"]
+    assert "<memory" not in prompts["bob"]["text"]
+    [alice_config] = [c for c in spawned if c.mcp_servers]
+    [bob_config] = [c for c in spawned if not c.mcp_servers]
+    assert "<memory_instructions>" in (alice_config.system_prompt or "")
+    assert "memory" not in (bob_config.system_prompt or "")
+
+    user = await db_session.get_one(User, workspace.user_id)
+    workspace.sandbox_provider = "docker"
+    await db_session.commit()
+    server = docker_mcp_server(
+        str(user.id),
+        user.hashed_password,
+        workspace_id=str(workspace.id),
+        chat_id=member_chats["alice"],
+        session_id=session_registry._sessions[member_chats["alice"]].mcp_session_id,
+    )
+    authorization = {"Authorization": server["headers"]["Authorization"]}
+    async with main_module.mcp_endpoint.run():
+        current = await mcp_call_tool(client, authorization, "get_current_chat")
+        assert current["structuredContent"] == {"chat_id": member_chats["alice"]}
+        remembered = await mcp_call_tool(
+            client, authorization, "remember", title="Fact", content="member-needle"
+        )
+        assert not remembered.get("isError"), remembered
+        found = await mcp_call_tool(
+            client, authorization, "search_memory", query="member-needle"
+        )
+        assert [m["title"] for m in found["structuredContent"]["result"]] == ["Fact"]
+        for name, arguments, reason in (
+            ("notify_user", {"title": "Hi", "body": "Body"}, "-> 404"),
+            ("stop_channel", {"channel_id": channel_id}, "Cannot stop a channel"),
+            ("stop_chat", {"chat_id": member_chats["alice"]}, "Cannot stop the"),
+        ):
+            refused = await mcp_call_tool(client, authorization, name, **arguments)
+            assert refused["isError"], (name, refused)
+            assert reason in refused["content"][0]["text"], (name, refused)
+    workspace.sandbox_provider = "host"
+    await db_session.commit()
+
+    memories = await client.get(
+        "/api/v1/memories",
+        params={"workspace_id": str(workspace.id), "query": "member-needle"},
+        headers=headers,
+    )
+    [memory] = memories.json()
+    assert memory["workspace_id"] == str(workspace.id)
+    assert memory["source_chat_id"] is None
+    assert memory["source_model_id"] == "sonnet"
+    assert (await client.get("/api/v1/inbox", headers=headers)).json()["items"] == []
+    await client.post(f"/api/v1/channels/{channel_id}/stop", headers=headers)
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
 
 
 @pytest.mark.parametrize("revoke", ["device", "password_reset"])

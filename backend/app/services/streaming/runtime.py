@@ -703,10 +703,10 @@ class ChatStreamRuntime:
     def is_slash_command(self) -> bool:
         return self.prompt.startswith("/")
 
-    async def _memory_block(self, resume_session_id: str | None) -> str | None:
+    async def _memory_block(self, config: AcpSessionConfig) -> str | None:
         if (
-            resume_session_id is not None
-            or self.member_turn is not None
+            config.resume_session_id is not None
+            or not config.mcp_servers
             or self.is_slash_command
         ):
             return None
@@ -1664,7 +1664,7 @@ class ChatStreamRuntime:
                     agent_kind=config.agent_kind,
                     attachments=request.attachments,
                     handoff_transcript=handoff.transcript,
-                    memory_block=await runtime._memory_block(config.resume_session_id),
+                    memory_block=await runtime._memory_block(config),
                 )
                 return await runtime.run(stream_result, stream)
             except (
