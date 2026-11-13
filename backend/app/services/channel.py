@@ -366,6 +366,7 @@ class ChannelService(BaseDbService[Channel]):
             branch=channel.branch,
             created_at=channel.created_at,
             updated_at=channel.updated_at,
+            unread=channel.unread,
             members=[
                 ChannelMemberRead.model_validate(member) for member in channel.members
             ],
@@ -448,7 +449,11 @@ class ChannelService(BaseDbService[Channel]):
             await db.execute(
                 update(Channel)
                 .where(Channel.id == state.channel.id)
-                .values(updated_at=now)
+                .values(
+                    Channel.touched_by_user(now)
+                    if member_id is None
+                    else {"updated_at": now}
+                )
             )
             result = await db.execute(
                 select(func.coalesce(func.max(ChannelMessage.seq), 0) + 1).where(
@@ -578,10 +583,13 @@ class ChannelService(BaseDbService[Channel]):
 
     async def rename(self, channel: Channel, name: str) -> Channel:
         state = self.state(channel)
-        async with state.control:
+        async with state.control, state.lock:
             async with self.session_factory() as db:
+                now = datetime.now(timezone.utc)
                 await db.execute(
-                    update(Channel).where(Channel.id == channel.id).values(name=name)
+                    update(Channel)
+                    .where(Channel.id == channel.id)
+                    .values(name=name, **Channel.touched_by_user(now))
                 )
                 await db.execute(
                     update(Chat).where(Chat.channel_id == channel.id).values(title=name)
@@ -589,6 +597,18 @@ class ChannelService(BaseDbService[Channel]):
                 await db.commit()
             state.channel.name = name
         return await self.get(channel.id, User(id=channel.user_id))
+
+    async def mark_viewed(self, channel: Channel) -> None:
+        async with self.session_factory() as db:
+            await db.execute(
+                update(Channel)
+                .where(Channel.id == channel.id)
+                .values(
+                    last_viewed_at=datetime.now(timezone.utc),
+                    updated_at=Channel.updated_at,
+                )
+            )
+            await db.commit()
 
     async def save_attachments(
         self, channel: Channel, files: list[UploadFile] | None

@@ -19,6 +19,7 @@ export interface Channel {
   branch: string | null;
   created_at: string;
   updated_at: string;
+  unread?: boolean;
   members: ChannelMember[];
   // Member chat that owns the shared sandbox/worktree; backs the channel's workspace views.
   anchor_chat_id: string;

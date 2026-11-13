@@ -1,10 +1,12 @@
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { markChannelViewed } from '@/hooks/queries/useChannelQueries';
 import { queryClient } from '@/lib/queryClient';
 import { useStreamStore } from '@/store/streamStore';
 import { useElicitationStore } from '@/store/elicitationStore';
 import { usePermissionStore } from '@/store/permissionStore';
 import { useChannelQueueStore, useMessageQueueStore } from '@/store/messageQueueStore';
 import { useChannelStore } from '@/store/channelStore';
+import { channelMachineId } from '@/store/machineOrigin';
 import { isChannelEnvelope, type ChannelEnvelope } from '@/types/channel.types';
 import type { ChatRequest } from '@/types/chat.types';
 import type { ToolEventPayload } from '@/types/tools.types';
@@ -175,6 +177,16 @@ class StreamService {
     }
   }
 
+  private handleChannelReply(channelId: string): void {
+    if (channelId in useChannelStore.getState().channels) {
+      void markChannelViewed(queryClient, channelId);
+    } else {
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.channels(channelMachineId(channelId)),
+      });
+    }
+  }
+
   private handleEnvelopeData(raw: string): void {
     const parsed = this.parseStreamEvent<StreamEnvelope | ChannelEnvelope>(raw);
     if (isChannelEnvelope(parsed)) {
@@ -182,6 +194,13 @@ class StreamService {
         useChannelQueueStore.getState().removeLocalOnly(parsed.channelId, parsed.payload.id);
       } else {
         useChannelStore.getState().applyEnvelope(parsed);
+        if (
+          parsed.kind === 'channel_message' &&
+          parsed.payload.message.author_type === 'agent' &&
+          parsed.payload.message.status !== 'streaming'
+        ) {
+          this.handleChannelReply(parsed.channelId);
+        }
       }
       return;
     }

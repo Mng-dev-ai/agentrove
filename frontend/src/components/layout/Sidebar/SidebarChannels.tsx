@@ -17,9 +17,11 @@ import { streamConnection } from '@/services/streamConnection';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuthStore } from '@/store/authStore';
 import { useMachineStore } from '@/store/machineStore';
-import type { SidebarSourceFilter } from '@/store/sidebarFilters';
+import { channelActivity, useChannelStore } from '@/store/channelStore';
+import type { SidebarFilters } from '@/store/sidebarFilters';
 import { useUIStore } from '@/store/uiStore';
 import type { Workspace } from '@/types/workspace.types';
+import { getAgentKindForModelId } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Channel } from '@/types/channel.types';
 import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
@@ -32,8 +34,7 @@ import styles from './SidebarChannels.module.scss';
 interface SidebarChannelsProps {
   workspaces: Workspace[];
   workspaceId: string | undefined;
-  filterWorkspaceId: string | null;
-  filterSource: SidebarSourceFilter;
+  filters: SidebarFilters;
   machineBadge: (machineId: string) => MachineBadge | undefined;
   selectedChannelId: string | null;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -42,8 +43,7 @@ interface SidebarChannelsProps {
 export function SidebarChannels({
   workspaces,
   workspaceId: selectedWorkspaceId,
-  filterWorkspaceId,
-  filterSource,
+  filters,
   machineBadge,
   selectedChannelId,
   scrollContainerRef,
@@ -55,11 +55,28 @@ export function SidebarChannels({
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const machineChannels = useMachinesChannels(isAuthenticated);
-  const channels = machineChannels.filter(
-    ({ channel, machineId }) =>
-      (!filterWorkspaceId || channel.workspace_id === filterWorkspaceId) &&
-      (filterSource === 'all' || machineId === filterSource),
-  );
+  const liveActivity = useChannelStore((state) => state.activity);
+  const completedChannelIds = useChannelStore((state) => state.completedChannelIds);
+  const channels = machineChannels.filter(({ channel, machineId }) => {
+    if (filters.workspaceId && channel.workspace_id !== filters.workspaceId) return false;
+    if (
+      filters.agentKind &&
+      !channel.members.some(
+        (member) => getAgentKindForModelId(member.model_id) === filters.agentKind,
+      )
+    ) {
+      return false;
+    }
+    if (filters.source !== 'all' && machineId !== filters.source) return false;
+    if (filters.statuses.length === 0) return true;
+    const activity = channelActivity(liveActivity[channel.id], channel.activity);
+    return (
+      (filters.statuses.includes('unread') && !!channel.unread) ||
+      (filters.statuses.includes('running') && activity.member_ids.length > 0) ||
+      (filters.statuses.includes('done') && completedChannelIds.has(channel.id)) ||
+      (filters.statuses.includes('needs-you') && activity.waiting_member_ids.length > 0)
+    );
+  });
   const deleteChannel = useDeleteChannelMutation();
   const renameChannel = useRenameChannelMutation();
   const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes('channels'));
@@ -67,6 +84,12 @@ export function SidebarChannels({
   const liveMachineIdsKey = [...new Set(machineChannels.map(({ machineId }) => machineId))]
     .filter((id) => id === LOCAL_MACHINE_ID || connections[id]?.status === 'online')
     .join('\n');
+
+  useEffect(() => {
+    if (selectedChannelId && completedChannelIds.has(selectedChannelId)) {
+      useChannelStore.getState().clearCompleted(selectedChannelId);
+    }
+  }, [selectedChannelId, completedChannelIds]);
 
   useEffect(() => {
     if (!liveMachineIdsKey) return;
@@ -167,6 +190,7 @@ export function SidebarChannels({
           channel={channel}
           machineBadge={machineBadge(machineId)}
           isActive={channel.id === selectedChannelId}
+          isCompleted={completedChannelIds.has(channel.id)}
           isDropdownOpen={dropdown?.channel.id === channel.id}
           onSelect={navigateToChannel}
           onDropdownClick={handleDropdownClick}

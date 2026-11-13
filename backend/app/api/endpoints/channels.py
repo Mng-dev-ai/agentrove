@@ -65,6 +65,14 @@ async def get_channel(
     return channel_service.read(await channel_service.get(channel_id, user))
 
 
+@router.post("/{channel_id}/viewed", status_code=204)
+async def mark_channel_viewed(
+    channel_id: UUID, user: User = Depends(get_current_user)
+) -> Response:
+    await channel_service.mark_viewed(await channel_service.get(channel_id, user))
+    return Response(status_code=204)
+
+
 @router.get("/{channel_id}/messages", response_model=list[ChannelMessageRead])
 async def list_messages(
     channel_id: UUID,

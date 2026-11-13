@@ -1,5 +1,7 @@
 import { useEffect } from 'react';
+import { markChannelViewed } from '@/hooks/queries/useChannelQueries';
 import { resolveChannelClient } from '@/lib/api';
+import { queryClient } from '@/lib/queryClient';
 import { channelService } from '@/services/channelService';
 import '@/services/streamService';
 import { streamConnection } from '@/services/streamConnection';
@@ -49,6 +51,7 @@ export function useChannelLive(channelId: string) {
           useChannelStore.getState().syncMessages(channelId, messages);
           useChannelStore.getState().syncPermissions(channelId, token, permissions);
           useChannelStore.getState().syncActivity(channelId, activity);
+          void markChannelViewed(queryClient, channelId);
         })
         .catch((error) => {
           if (cancelled) return;

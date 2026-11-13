@@ -796,6 +796,7 @@ async def test_channel_routes_require_the_owner(
         ("GET", f"{base}/messages/{message.id}/activity", {}),
         ("GET", f"{base}/permissions", {}),
         ("GET", f"{base}/member-activity", {}),
+        ("POST", f"{base}/viewed", {}),
         ("POST", f"{base}/stop", {}),
         ("GET", f"{base}/queue", {}),
         ("POST", f"{base}/queue", {"data": {"content": "Hello"}}),
@@ -854,6 +855,49 @@ async def test_owner_can_read_rename_and_delete_channel(
         await db_session.scalars(select(Chat).where(Chat.id.in_(chat_ids)))
     ).all() == []
     assert channel_id not in channel_service.states
+
+
+async def test_member_reply_marks_channel_unread_until_viewed(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    base = f"/api/v1/channels/{channel_state.channel.id}"
+    assert (await client.get(base, headers=owner[0])).json()["unread"] is True
+    for _ in range(2):
+        response = await client.post(f"{base}/viewed", headers=owner[0])
+        assert response.status_code == 204, response.text
+        assert (await client.get(base, headers=owner[0])).json()["unread"] is False
+
+    await channel_service.new_message(
+        channel_state,
+        "Agent reply",
+        channel_state.channel.members[0].id,
+        device_ids=frozenset(),
+    )
+    listed = await client.get("/api/v1/channels", headers=owner[0])
+    assert [channel["unread"] for channel in listed.json()] == [True]
+
+    await client.post(f"{base}/viewed", headers=owner[0])
+    assert (await client.get(base, headers=owner[0])).json()["unread"] is False
+
+
+async def test_own_post_and_rename_keep_a_read_channel_read(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    base = f"/api/v1/channels/{channel_state.channel.id}"
+    await client.post(f"{base}/viewed", headers=owner[0])
+
+    response = await client.post(
+        f"{base}/messages", headers=owner[0], data={"content": "Hello"}
+    )
+    assert response.status_code == 201, response.text
+    assert (await client.get(base, headers=owner[0])).json()["unread"] is False
+
+    response = await client.patch(base, headers=owner[0], json={"name": "Renamed"})
+    assert response.json()["unread"] is False
 
 
 async def test_channel_list_is_scoped_to_user_and_workspace(
