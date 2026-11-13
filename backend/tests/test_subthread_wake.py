@@ -204,16 +204,13 @@ async def test_finished_child_drops_its_waiting_entry(
     child_id = str(child.id)
     parent_id = str(parent.id)
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 3600)
-    monkeypatch.setattr(
-        session_registry, "pending_permission_ids", lambda chat_id: ["perm-1"]
-    )
+    monkeypatch.setattr(session_registry, "pending_permission_ids", lambda chat_id: [])
     monkeypatch.setattr(session_registry, "pending_elicitations", lambda chat_id: [])
     initiate = AsyncMock()
     monkeypatch.setattr(ChatService, "initiate_chat_completion", initiate)
 
     wake.on_input_request(child_id, parent_id, "perm-1", "Bash", frozenset())
     wake.on_chain_end(child_id, parent_id, frozenset())
-    assert wake._waiting == {}
     await wake._flush(parent_id)
 
     initiate.assert_awaited_once()

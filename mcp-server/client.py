@@ -280,25 +280,27 @@ class AgentroveClient:
         resp = await self.request("GET", f"/chat/chats/{chat_id}/status")
         return resp.json()
 
-    async def respond_to_permission(self, chat_id: str, request_id: str, option_id: str) -> bool:
+    async def respond_to_permission(
+        self, chat_id: str, request_id: str, option_id: str
+    ) -> str | None:
         resp = await self.request(
             "POST",
             f"/chat/chats/{chat_id}/permissions/{request_id}/respond",
             data={"option_id": option_id},
             expected=(200, 404),
         )
-        return resp.status_code == 200
+        return resp.json()["detail"] if resp.status_code == 404 else None
 
     async def respond_to_elicitation(
         self, chat_id: str, request_id: str, action: str, content: dict[str, Any] | None
-    ) -> bool:
+    ) -> str | None:
         resp = await self.request(
             "POST",
             f"/chat/chats/{chat_id}/elicitation/{request_id}/respond",
             json={"request_id": request_id, "action": action, "content": content},
             expected=(200, 404),
         )
-        return resp.status_code == 200
+        return resp.json()["detail"] if resp.status_code == 404 else None
 
     async def get_messages(
         self, chat_id: str, limit: int, cursor: str | None

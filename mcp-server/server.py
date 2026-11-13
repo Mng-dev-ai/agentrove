@@ -653,23 +653,20 @@ async def respond_to_request(
     requested_schema. The chat's turn resumes as soon as the request is answered.
 
     Returns {"answered": true}, or {"answered": false, "detail": ...} when the request
-    was already answered or is no longer pending.
+    was already answered or is no longer pending, or the chat was not found.
     """
     client, _ = _session()
     if option_id is not None and action is None:
-        answered = await client.respond_to_permission(chat_id, request_id, option_id)
+        detail = await client.respond_to_permission(chat_id, request_id, option_id)
     elif action is not None and option_id is None:
-        answered = await client.respond_to_elicitation(chat_id, request_id, action, content)
+        detail = await client.respond_to_elicitation(chat_id, request_id, action, content)
     else:
         raise AgentroveError(
             "Pass option_id to answer a permission request or action to answer a question."
         )
-    if answered:
+    if detail is None:
         return {"answered": True}
-    return {
-        "answered": False,
-        "detail": f"Request {request_id} was already answered or is no longer pending.",
-    }
+    return {"answered": False, "detail": detail}
 
 
 @mcp.tool()

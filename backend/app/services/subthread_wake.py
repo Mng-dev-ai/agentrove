@@ -75,10 +75,6 @@ class SubThreadWake:
     ) -> None:
         if report_parent_id is not None:
             self._add_reports(report_parent_id, {chat_id: device_ids})
-        for parent_id, waits in list(self._waiting.items()):
-            waits.pop(chat_id, None)
-            if not waits:
-                del self._waiting[parent_id]
         for parent_id in self._pending.keys() | self._waiting.keys():
             if parent_id == chat_id or chat_id in self._pending.get(parent_id, {}):
                 self._schedule(parent_id)
@@ -167,17 +163,20 @@ class SubThreadWake:
         if schedule:
             self._schedule(parent_id)
 
-    def _requeue_waiting(
-        self, parent_id: str, waiting: list[WaitingChild], *, schedule: bool
+    def _requeue_undelivered(
+        self,
+        parent_id: str,
+        children: list[ChildResult],
+        waiting: list[WaitingChild],
+        *,
+        schedule: bool,
     ) -> None:
-        waits = {
-            child.chat_id: wait
-            for child in waiting
-            if (wait := self._still_pending(child.chat_id, child.wait)) is not None
-        }
-        if not waits:
-            return
-        self._add_waits(parent_id, waits)
+        if children:
+            self._add_reports(
+                parent_id, {child.chat_id: child.device_ids for child in children}
+            )
+        if waiting:
+            self._add_waits(parent_id, {child.chat_id: child.wait for child in waiting})
         if schedule:
             self._schedule(parent_id)
 
@@ -247,12 +246,9 @@ class SubThreadWake:
     async def _take_waiting(self, db: AsyncSession, parent: Chat) -> list[WaitingChild]:
         loaded = []
         for child_id, wait in self._waiting.pop(str(parent.id), {}).items():
-            pending = self._still_pending(child_id, wait)
-            if pending is None:
-                continue
             title = await db.scalar(select(Chat.title).where(Chat.id == UUID(child_id)))
             if title is not None:
-                loaded.append(WaitingChild(child_id, title, pending))
+                loaded.append(WaitingChild(child_id, title, wait))
         active = await PairingService.active_device_ids(
             db,
             parent.user_id,
@@ -260,8 +256,11 @@ class SubThreadWake:
         )
         reported = []
         for child in loaded:
+            pending = self._still_pending(child.chat_id, child.wait)
+            if pending is None:
+                continue
             if child.wait.device_ids <= active:
-                reported.append(child)
+                reported.append(WaitingChild(child.chat_id, child.title, pending))
             else:
                 logger.warning(
                     "Sub-thread %s waits for input but its device was revoked; "
@@ -287,13 +286,12 @@ class SubThreadWake:
             self._build_notice(children, waiting),
             device_ids,
         ):
-            schedule = not ChatStreamRuntime.has_active_chat(parent_id)
-            self._requeue(
+            self._requeue_undelivered(
                 parent_id,
-                {child.chat_id: child.device_ids for child in children},
-                schedule=schedule,
+                children,
+                waiting,
+                schedule=not ChatStreamRuntime.has_active_chat(parent_id),
             )
-            self._requeue_waiting(parent_id, waiting, schedule=schedule)
 
     async def _start_wake_turn(
         self,
@@ -324,12 +322,7 @@ class SubThreadWake:
             )
         except Exception as exc:
             busy = isinstance(exc, ChatException) and exc.status_code == 409
-            self._requeue(
-                str(parent.id),
-                {child.chat_id: child.device_ids for child in children},
-                schedule=busy,
-            )
-            self._requeue_waiting(str(parent.id), waiting, schedule=busy)
+            self._requeue_undelivered(str(parent.id), children, waiting, schedule=busy)
             if not busy:
                 raise
 
