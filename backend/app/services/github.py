@@ -92,7 +92,6 @@ class GitHubService:
                 clone_url=r["clone_url"],
                 private=r.get("private", False),
                 pushed_at=r.get("pushed_at"),
-                stargazers_count=r.get("stargazers_count", 0),
             )
             for r in raw_repos
         ]
@@ -146,7 +145,6 @@ class GitHubService:
                     "avatar_url": pr["user"].get("avatar_url", ""),
                 },
                 draft=pr.get("draft", False),
-                review_comments=pr.get("review_comments", 0),
                 merged=pr.get("merged_at") is not None,
             )
             for pr in raw_prs
@@ -236,7 +234,4 @@ class GitHubService:
             )
             raise GitHubException("Failed to load collaborators")
 
-        return [
-            GitHubCollaborator(login=c["login"], avatar_url=c.get("avatar_url", ""))
-            for c in response.json()
-        ]
+        return [GitHubCollaborator(login=c["login"]) for c in response.json()]

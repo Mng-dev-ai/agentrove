@@ -7,7 +7,6 @@ export interface GitHubRepo {
   clone_url: string;
   private: boolean;
   pushed_at: string | null;
-  stargazers_count: number;
 }
 
 export interface GitHubReposResponse {
@@ -32,7 +31,6 @@ interface GitHubPullRequest {
   base: { ref: string };
   user: { login: string; avatar_url: string };
   draft: boolean;
-  review_comments: number;
   merged: boolean;
 }
 
@@ -42,7 +40,6 @@ export interface GitHubPRListResponse {
 
 export interface GitHubCollaborator {
   login: string;
-  avatar_url: string;
 }
 
 export interface CreatePRRequest {
