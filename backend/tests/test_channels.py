@@ -13,7 +13,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.endpoints import chat as chat_endpoint
 from app.constants import MODELS
 from app.core import deps
-from app.models.db_models.channel import Channel, ChannelDelivery, ChannelMessage
+from app.models.db_models.channel import (
+    Channel,
+    ChannelDelivery,
+    ChannelMember,
+    ChannelMessage,
+)
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.paired_device import PairedDevice
@@ -665,6 +670,63 @@ async def test_backoff_doubles_caps_skips_wakes_and_clears_on_success(
     assert [(row.member_id, row.message_id) for row in deliveries] == [
         (member.id, message.id)
     ]
+
+
+async def test_failed_turn_reason_is_in_the_activity_snapshot_until_success(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+) -> None:
+    await channel_service.new_message(
+        channel_state, "Please retry", device_ids=frozenset()
+    )
+    member = channel_state.channel.members[0]
+    long_reason = "Provider unavailable: " + "x" * 400
+    channel_runtime.events = [
+        ("error", {"error": f"{long_reason}\nTraceback (most recent call last):"})
+    ]
+    await channel_runtime.wake(channel_state)
+    url = f"/api/v1/channels/{channel_state.channel.id}/member-activity"
+
+    activity = (await client.get(url, headers=owner[0])).json()
+    reason = activity["member_errors"][str(member.id)]
+    assert activity["retrying_member_ids"] == [str(member.id)]
+    assert reason == f"{long_reason[:299]}…"
+
+    channel_state.retries[member.id].until = asyncio.get_running_loop().time()
+    channel_runtime.events = [("assistant_text", {"text": "PASS"})]
+    await channel_runtime.wake(channel_state)
+    activity = (await client.get(url, headers=owner[0])).json()
+    assert activity["retrying_member_ids"] == []
+    assert activity["member_errors"] == {}
+
+
+async def test_unknown_model_member_is_reported_unavailable(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+) -> None:
+    member = channel_state.channel.members[0]
+    await db_session.execute(
+        update(ChannelMember)
+        .where(ChannelMember.id == member.id)
+        .values(model_id="retired:model")
+    )
+    await db_session.commit()
+    member.model_id = "retired:model"
+    await channel_service.new_message(channel_state, "Hello", device_ids=frozenset())
+    await channel_runtime.wake(channel_state)
+
+    response = await client.get(
+        f"/api/v1/channels/{channel_state.channel.id}", headers=owner[0]
+    )
+    assert channel_runtime.requests == []
+    assert response.json()["activity"]["unavailable_members"] == {
+        str(member.id): "Model retired:model is unknown on this instance"
+    }
 
 
 async def test_activity_reports_members_waiting_for_approval(
