@@ -173,27 +173,15 @@ export function Sidebar({
   // Chats blocked on the user lift into a "Needs you" group above Pinned, so an
   // approval or question isn't buried in Recents. They leave their usual section
   // while blocked and drop back once answered.
-  const needsYouChats = useMemo(() => {
-    const seen = new Set<string>();
-    return [...visiblePinnedChats, ...visibleRecentChats].filter((chat) => {
-      if (!blockedChatIdSet.has(chat.id) || seen.has(chat.id)) return false;
-      seen.add(chat.id);
-      return true;
-    });
-  }, [visiblePinnedChats, visibleRecentChats, blockedChatIdSet]);
-  const listedPinnedChats = useMemo(
-    () =>
-      needsYouChats.length > 0
-        ? visiblePinnedChats.filter((chat) => !blockedChatIdSet.has(chat.id))
-        : visiblePinnedChats,
-    [needsYouChats.length, visiblePinnedChats, blockedChatIdSet],
-  );
-  const listedRecentChats = useMemo(
-    () =>
-      needsYouChats.length > 0
-        ? visibleRecentChats.filter((chat) => !blockedChatIdSet.has(chat.id))
-        : visibleRecentChats,
-    [needsYouChats.length, visibleRecentChats, blockedChatIdSet],
+  const { needsYouChats, listedPinnedChats, listedRecentChats } = useMemo(
+    () => ({
+      needsYouChats: [...visiblePinnedChats, ...visibleRecentChats].filter((chat) =>
+        blockedChatIdSet.has(chat.id),
+      ),
+      listedPinnedChats: visiblePinnedChats.filter((chat) => !blockedChatIdSet.has(chat.id)),
+      listedRecentChats: visibleRecentChats.filter((chat) => !blockedChatIdSet.has(chat.id)),
+    }),
+    [visiblePinnedChats, visibleRecentChats, blockedChatIdSet],
   );
 
   const groupBy = filters.groupBy;
@@ -209,18 +197,10 @@ export function Sidebar({
         groupBy,
         visibleRecentChats: listedRecentChats,
         workspaceBadgeById,
-        blockedChatIdSet,
         streamingChatIdSet,
         completedChatIds,
       }),
-    [
-      groupBy,
-      listedRecentChats,
-      workspaceBadgeById,
-      blockedChatIdSet,
-      streamingChatIdSet,
-      completedChatIds,
-    ],
+    [groupBy, listedRecentChats, workspaceBadgeById, streamingChatIdSet, completedChatIds],
   );
 
   // Opening a chat (or watching it finish while open) counts as seeing the
@@ -306,8 +286,8 @@ export function Sidebar({
           isLoadingChats={isLoadingChats}
           hasAnyContent={hasAnyContent}
           needsYouChats={needsYouChats}
-          visiblePinnedChats={listedPinnedChats}
-          visibleRecentChats={listedRecentChats}
+          pinnedChats={listedPinnedChats}
+          recentChats={listedRecentChats}
           hasVisibleContent={hasVisibleContent}
           recentChatSections={recentChatSections}
           rowProps={rowProps}

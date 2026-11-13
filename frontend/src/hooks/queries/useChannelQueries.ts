@@ -27,22 +27,19 @@ import type {
 import type { Message } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
-export interface MachineChannel {
-  channel: Channel;
-  machineId: string;
-}
-
 export const useMachinesChannels = (enabled: boolean) => {
   const remoteIds = useRemoteMachineIds();
   const connections = useMachineStore((state) => state.connections);
   const machineIds = useMemo(() => [LOCAL_MACHINE_ID, ...remoteIds], [remoteIds]);
   const combine = useCallback(
-    (results: UseQueryResult<Channel[]>[]): MachineChannel[] =>
-      machineIds
+    (results: UseQueryResult<Channel[]>[]) => ({
+      machineChannels: machineIds
         .flatMap((machineId, index) =>
           (results[index]?.data ?? []).map((channel) => ({ channel, machineId })),
         )
         .sort((a, b) => Date.parse(b.channel.updated_at) - Date.parse(a.channel.updated_at)),
+      isLoading: results.some((result) => result.isLoading),
+    }),
     [machineIds],
   );
   return useQueries({

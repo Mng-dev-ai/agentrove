@@ -18,7 +18,7 @@ export function SidebarSectionHeader({ title, section, children }: SidebarSectio
       {section ? (
         <CollapseToggle title={title} section={section} />
       ) : (
-        <span className={clsx(styles.toggle, styles.title)}>{title}</span>
+        <span className={clsx(styles.label, styles.title)}>{title}</span>
       )}
       {children}
     </div>
@@ -33,7 +33,7 @@ function CollapseToggle({ title, section }: { title: string; section: SidebarSec
       type="button"
       onClick={() => useUIStore.getState().toggleSidebarSection(section)}
       aria-expanded={!isCollapsed}
-      className={styles.toggle}
+      className={clsx(styles.label, styles.toggle)}
     >
       <span className={styles.title}>{title}</span>
       <ChevronRight className={clsx(styles.chevron, !isCollapsed && styles['chevron--expanded'])} />

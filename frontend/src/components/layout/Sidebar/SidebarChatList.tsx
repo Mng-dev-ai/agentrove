@@ -17,8 +17,8 @@ interface SidebarChatListProps {
   isLoadingChats: boolean;
   hasAnyContent: boolean;
   needsYouChats: Chat[];
-  visiblePinnedChats: Chat[];
-  visibleRecentChats: Chat[];
+  pinnedChats: Chat[];
+  recentChats: Chat[];
   hasVisibleContent: boolean;
   recentChatSections: SidebarChatSection[];
   rowProps: ChatRowProps;
@@ -37,8 +37,8 @@ export function SidebarChatList({
   isLoadingChats,
   hasAnyContent,
   needsYouChats,
-  visiblePinnedChats,
-  visibleRecentChats,
+  pinnedChats,
+  recentChats,
   hasVisibleContent,
   recentChatSections,
   rowProps,
@@ -81,14 +81,12 @@ export function SidebarChatList({
             </div>
           )}
 
-          {visiblePinnedChats.length > 0 && (
+          {pinnedChats.length > 0 && (
             <div className={styles.section}>
               <SidebarSectionHeader title="Pinned" section="pinned" />
-              {(isPinnedCollapsed ? visiblePinnedChats.filter(isOpenChat) : visiblePinnedChats).map(
-                (chat) => (
-                  <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
-                ),
-              )}
+              {(isPinnedCollapsed ? pinnedChats.filter(isOpenChat) : pinnedChats).map((chat) => (
+                <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
+              ))}
             </div>
           )}
 
@@ -103,12 +101,12 @@ export function SidebarChatList({
               />
             </SidebarSectionHeader>
             {isRecentsCollapsed ? (
-              visibleRecentChats
+              recentChats
                 .filter(isOpenChat)
                 .map((chat) => (
                   <SidebarChatRow key={chat.id} chat={chat} rowProps={recentRowProps} />
                 ))
-            ) : visibleRecentChats.length > 0 ? (
+            ) : recentChats.length > 0 ? (
               <div>
                 {recentChatSections.map((section) => (
                   <div key={section.key} className={section.label ? styles.section : undefined}>

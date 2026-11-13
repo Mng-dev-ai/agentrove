@@ -79,7 +79,7 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
     );
   }, [isOpen, pinnedChats, recentChats]);
 
-  const machineChannels = useMachinesChannels(chatQueriesEnabled);
+  const { machineChannels } = useMachinesChannels(chatQueriesEnabled);
   const menuChannels = useMemo(
     () => machineChannels.map(({ channel }) => channel),
     [machineChannels],

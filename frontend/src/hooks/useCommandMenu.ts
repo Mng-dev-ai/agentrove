@@ -10,6 +10,7 @@ import {
   resolveActiveGitTarget,
 } from '@/components/ui/command-menu/commandRegistry';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
+import { IS_MAC_PLATFORM } from '@/utils/platform';
 
 function isEmbeddedEditor(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -26,7 +27,12 @@ export function useCommandMenu() {
 
       // ⌘K / Ctrl+K: the conventional palette chord, aliasing ⌘⇧P. Monaco/xterm keep
       // their own ⌘K (chords, clear terminal).
-      if (e.code === 'KeyK' && !e.shiftKey && !e.altKey) {
+      if (
+        e.code === 'KeyK' &&
+        (IS_MAC_PLATFORM ? e.metaKey : e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey
+      ) {
         if (isEmbeddedEditor(e.target)) return;
         e.preventDefault();
         const { commandMenuOpen, setCommandMenuOpen } = useUIStore.getState();
