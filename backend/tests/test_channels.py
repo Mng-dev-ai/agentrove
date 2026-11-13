@@ -326,7 +326,9 @@ async def test_pass_turn_never_creates_or_publishes_a_message(
     ]
 
 
-@pytest.mark.parametrize("reply", ["Shipped it.", "PASS"])
+@pytest.mark.parametrize(
+    "replies", [["Shipped it."], ["PASS"], ["Shipped it.", "PASS"]]
+)
 async def test_settled_run_pushes_its_last_visible_reply_once(
     client: AsyncClient,
     owner: tuple[dict[str, str], User, Workspace],
@@ -335,7 +337,7 @@ async def test_settled_run_pushes_its_last_visible_reply_once(
     channel_queue: EndpointCache,
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
-    reply: str,
+    replies: list[str],
 ) -> None:
     for name in ("APNS_KEY", "APNS_KEY_ID", "APNS_TEAM_ID"):
         monkeypatch.setattr(push_module.settings, name, "configured")
@@ -346,19 +348,26 @@ async def test_settled_run_pushes_its_last_visible_reply_once(
     )
     assert response.status_code == 204
     await channel_service.new_message(channel_state, "Ship it?", device_ids=frozenset())
-    channel_runtime.events = [("assistant_text", {"text": reply})]
 
-    await channel_runtime.wake(channel_state)
+    for index, reply in enumerate(replies):
+        if index:
+            await channel_service.post(channel_state.channel, "Again?", [], frozenset())
+            assert channel_state.timer is not None
+            channel_state.timer.cancel()
+            await asyncio.gather(channel_state.timer, return_exceptions=True)
+            channel_state.timer = None
+        channel_runtime.events = [("assistant_text", {"text": reply})]
+        await channel_runtime.wake(channel_state)
     await channel_runtime.wake(channel_state)
     await channel_runtime.wake(channel_state)
 
     deliveries = (await db_session.scalars(select(PushDelivery))).all()
     completions = [
         payload
-        for _, kind, payload in channel_runtime.publications
-        if kind == "channel_completed"
+        for payload in activity_publications(channel_runtime)
+        if "completed" in payload
     ]
-    if reply == "PASS":
+    if replies != ["Shipped it."]:
         assert deliveries == []
         assert completions == []
         return
@@ -378,7 +387,12 @@ async def test_settled_run_pushes_its_last_visible_reply_once(
         "#Review",
         f"{member.display_name}: Shipped it.",
     )
-    assert completions == [{"title": delivery.title, "body": delivery.body}]
+    [completion] = completions
+    assert completion.pop("completed") == {
+        "title": delivery.title,
+        "body": delivery.body,
+    }
+    assert completion == channel_service.member_activity(channel_state)
 
 
 async def test_tool_segments_counts_and_source_duration_are_persisted(

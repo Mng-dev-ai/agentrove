@@ -7,7 +7,11 @@ import { usePermissionStore } from '@/store/permissionStore';
 import { useChannelQueueStore, useMessageQueueStore } from '@/store/messageQueueStore';
 import { useChannelStore } from '@/store/channelStore';
 import { channelMachineId } from '@/store/machineOrigin';
-import { isChannelEnvelope, type ChannelEnvelope } from '@/types/channel.types';
+import {
+  isChannelEnvelope,
+  type ChannelCompletion,
+  type ChannelEnvelope,
+} from '@/types/channel.types';
 import type { ChatRequest } from '@/types/chat.types';
 import type { ToolEventPayload } from '@/types/tools.types';
 import type {
@@ -52,10 +56,9 @@ interface StreamReconnectOptions {
   onQueueProcess?: (data: QueueProcessingData) => void;
 }
 
-export type ChannelNotice = Extract<
-  ChannelEnvelope,
-  { kind: 'channel_completed' | 'channel_permission_request' }
->;
+export type ChannelNotice =
+  | Extract<ChannelEnvelope, { kind: 'channel_permission_request' }>
+  | { kind: 'channel_completed'; channelId: string; payload: ChannelCompletion };
 
 class StreamService {
   private readonly maxRecentSeqPerChat = 4096;
@@ -205,11 +208,20 @@ class StreamService {
     if (isChannelEnvelope(parsed)) {
       if (parsed.kind === 'channel_queue_sent') {
         useChannelQueueStore.getState().removeLocalOnly(parsed.channelId, parsed.payload.id);
-      } else if (parsed.kind === 'channel_completed') {
-        this.channelNoticeListener?.(parsed);
       } else {
         useChannelStore.getState().applyEnvelope(parsed);
         if (parsed.kind === 'channel_permission_request') this.channelNoticeListener?.(parsed);
+        if (
+          parsed.kind === 'channel_member_activity' &&
+          parsed.payload.completed &&
+          useChannelStore.getState().activity[parsed.channelId] === parsed.payload
+        ) {
+          this.channelNoticeListener?.({
+            kind: 'channel_completed',
+            channelId: parsed.channelId,
+            payload: parsed.payload.completed,
+          });
+        }
         if (
           parsed.kind === 'channel_message' &&
           parsed.payload.message.author_type === 'agent' &&
