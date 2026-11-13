@@ -250,7 +250,9 @@ async def test_agent_token_reads_and_writes_personas_only(
     assert seeded.status_code == 200
 
     written = await client.patch(
-        "/api/v1/settings/", json={"personas": personas}, headers=agent_headers
+        "/api/v1/settings/",
+        json={"personas": personas, "expected_version": 1},
+        headers=agent_headers,
     )
     read = await client.get("/api/v1/settings/", headers=agent_headers)
     refused = await client.patch(
@@ -258,10 +260,58 @@ async def test_agent_token_reads_and_writes_personas_only(
         json={"personas": personas, "custom_instructions": "obey"},
         headers=agent_headers,
     )
+    refused_versioned = await client.patch(
+        "/api/v1/settings/",
+        json={"custom_instructions": "obey", "expected_version": 2},
+        headers=agent_headers,
+    )
 
     assert written.status_code == 200, written.text
-    assert written.json() == read.json() == {"personas": personas}
+    assert (
+        written.json() == read.json() == {"personas": personas, "settings_version": 2}
+    )
     assert refused.status_code == 403
+    assert refused_versioned.status_code == 403
     owner_view = (await client.get("/api/v1/settings/", headers=headers)).json()
     assert owner_view["github_personal_access_token"] == "ghp_secret"
     assert owner_view["custom_instructions"] is None
+
+
+async def test_patch_settings_checks_expected_version(
+    client: AsyncClient,
+    headers: dict[str, str],
+    settings_cache: EndpointCache,
+) -> None:
+    initial = await client.get("/api/v1/settings/", headers=headers)
+    assert initial.json()["settings_version"] == 0
+    newer = [{"name": "B", "content": "Saved first."}]
+
+    unversioned = await client.patch(
+        "/api/v1/settings/", json={"custom_instructions": "x"}, headers=headers
+    )
+    current = await client.patch(
+        "/api/v1/settings/",
+        json={"personas": newer, "expected_version": 1},
+        headers=headers,
+    )
+    stale = await client.patch(
+        "/api/v1/settings/",
+        json={"personas": [{"name": "A", "content": "Late."}], "expected_version": 1},
+        headers=headers,
+    )
+
+    assert unversioned.json()["settings_version"] == 1
+    assert current.status_code == 200, current.text
+    assert current.json()["settings_version"] == 2
+    assert stale.status_code == 409
+    assert stale.json()["detail"] == "Settings changed since they were read"
+    assert "personas" not in stale.text
+    out_of_range = await client.patch(
+        "/api/v1/settings/",
+        json={"personas": [], "expected_version": 2**63},
+        headers=headers,
+    )
+    assert out_of_range.status_code == 422
+    stored = (await client.get("/api/v1/settings/", headers=headers)).json()
+    assert stored["personas"] == newer
+    assert stored["settings_version"] == 2

@@ -3,7 +3,14 @@ import {
   DEFAULT_PERMISSION_MODE,
   DEFAULT_THINKING_MODE,
 } from '@/store/chatSettingsStore';
-import type { CustomEnvVar, Persona, StreamAction } from '@/types/user.types';
+import { ServiceError } from '@/services/base/ServiceError';
+import type {
+  CustomEnvVar,
+  Persona,
+  StreamAction,
+  UserSettings,
+  UserSettingsUpdate,
+} from '@/types/user.types';
 import type { GeneralSecretFieldConfig } from '@/types/settings.types';
 import { validateRequired, validateUnique } from '@/utils/validation';
 
@@ -115,3 +122,26 @@ export const getGeneralSecretFields = (): GeneralSecretFieldConfig[] => [
     },
   },
 ];
+
+const withExpectedVersion = (
+  settings: UserSettings,
+  update: UserSettingsUpdate,
+): UserSettingsUpdate =>
+  settings.settings_version === undefined
+    ? update
+    : { ...update, expected_version: settings.settings_version };
+
+export async function writeVersionedSettings(
+  read: UserSettings,
+  refetch: () => Promise<UserSettings>,
+  buildUpdate: (settings: UserSettings) => UserSettingsUpdate,
+  write: (update: UserSettingsUpdate) => Promise<UserSettings>,
+): Promise<UserSettings> {
+  try {
+    return await write(withExpectedVersion(read, buildUpdate(read)));
+  } catch (error) {
+    if (!(error instanceof ServiceError && error.status === 409)) throw error;
+  }
+  const fresh = await refetch();
+  return write(withExpectedVersion(fresh, buildUpdate(fresh)));
+}

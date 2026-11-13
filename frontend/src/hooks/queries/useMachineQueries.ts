@@ -11,6 +11,7 @@ import type {
 } from '@/types/workspace.types';
 import type { Persona, UserSettings } from '@/types/user.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
+import { writeVersionedSettings } from '@/utils/settings';
 import type { ChatSearchResponse } from '@/types/chat.types';
 
 export const useMachineOnline = (machineId: string) => useMachineStatus(machineId) === 'online';
@@ -117,12 +118,13 @@ export const useUpdateMachinePersonasMutation = createMutation<
   Error,
   { machineId: string; update: (personas: Persona[]) => Persona[] | null }
 >(
-  async ({ machineId, update }) => {
-    const settings = await machineChatService.getSettings(machineId);
-    return machineChatService.updateSettings(machineId, {
-      personas: update(settings.personas ?? []),
-    });
-  },
+  async ({ machineId, update }) =>
+    writeVersionedSettings(
+      await machineChatService.getSettings(machineId),
+      () => machineChatService.getSettings(machineId),
+      (settings) => ({ personas: update(settings.personas ?? []) }),
+      (data) => machineChatService.updateSettings(machineId, data),
+    ),
   (queryClient, data, { machineId }) => {
     queryClient.setQueryData(queryKeys.machine.settings(machineId), data);
   },

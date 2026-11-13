@@ -320,6 +320,8 @@ class UserSettingsAdmin(ModelView, model=UserSettings):
         "updated_at": _format_datetime,
     }
 
+    form_excluded_columns = ["settings_version"]
+
     form_args = {
         "github_personal_access_token": {"label": "GitHub Token"},
     }

@@ -1,4 +1,6 @@
 import mimetypes
+from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -98,32 +100,54 @@ class AgentroveClient:
         return persona
 
     async def create_persona(self, name: str, content: str) -> dict[str, Any]:
-        # No per-persona API — personas are a settings list; read-modify-PATCH.
-        resp = await self.request("GET", "/settings/")
-        personas = resp.json().get("personas") or []
-        if any(p["name"] == name for p in personas):
-            raise AgentroveError(f"A persona named {name!r} already exists.")
         persona = {"name": name, "content": content}
-        await self.request("PATCH", "/settings/", json={"personas": [*personas, persona]})
+        await self._write_personas(partial(self._add_persona, persona))
         return persona
 
     async def update_persona(self, name: str, content: str) -> dict[str, Any]:
-        resp = await self.request("GET", "/settings/")
-        personas = resp.json().get("personas") or []
-        persona = next((p for p in personas if p["name"] == name), None)
-        if persona is None:
-            raise AgentroveError(f"No persona named {name!r} exists.")
-        persona["content"] = content
-        await self.request("PATCH", "/settings/", json={"personas": personas})
+        persona = {"name": name, "content": content}
+        await self._write_personas(partial(self._replace_persona, persona))
         return persona
 
     async def delete_persona(self, name: str) -> None:
-        resp = await self.request("GET", "/settings/")
-        personas = resp.json().get("personas") or []
+        await self._write_personas(partial(self._remove_persona, name))
+
+    async def _write_personas(
+        self, change: Callable[[list[dict[str, Any]]], list[dict[str, Any]]]
+    ) -> None:
+        # No per-persona API — personas are a settings list; read-modify-PATCH.
+        for _ in range(2):
+            settings = (await self.request("GET", "/settings/")).json()
+            body: dict[str, Any] = {"personas": change(settings.get("personas") or [])}
+            if "settings_version" in settings:
+                body["expected_version"] = settings["settings_version"]
+            resp = await self.request("PATCH", "/settings/", json=body, expected=(200, 409))
+            if resp.status_code == 200:
+                return
+        raise AgentroveError("Personas were changed concurrently; try again.")
+
+    @staticmethod
+    def _add_persona(
+        persona: dict[str, Any], personas: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        if any(p["name"] == persona["name"] for p in personas):
+            raise AgentroveError(f"A persona named {persona['name']!r} already exists.")
+        return [*personas, persona]
+
+    @staticmethod
+    def _replace_persona(
+        persona: dict[str, Any], personas: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        if not any(p["name"] == persona["name"] for p in personas):
+            raise AgentroveError(f"No persona named {persona['name']!r} exists.")
+        return [persona if p["name"] == persona["name"] else p for p in personas]
+
+    @staticmethod
+    def _remove_persona(name: str, personas: list[dict[str, Any]]) -> list[dict[str, Any]]:
         remaining = [p for p in personas if p["name"] != name]
         if len(remaining) == len(personas):
             raise AgentroveError(f"No persona named {name!r} exists.")
-        await self.request("PATCH", "/settings/", json={"personas": remaining})
+        return remaining
 
     async def list_models(self, agent_kind: str | None) -> list[dict[str, Any]]:
         params = {"agent_kind": agent_kind} if agent_kind else None

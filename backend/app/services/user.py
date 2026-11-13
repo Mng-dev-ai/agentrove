@@ -3,9 +3,8 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm.attributes import flag_modified
 
 from app.constants import REDIS_KEY_USER_SETTINGS
 from app.core.config import get_settings
@@ -78,26 +77,27 @@ class UserService(BaseDbService[UserSettings]):
         return response
 
     async def update_user_settings(
-        self, user_id: UUID, settings_update: dict[str, Any], db: AsyncSession
-    ) -> UserSettings:
-        user_settings: UserSettings | None = await db.scalar(
-            select(UserSettings).where(UserSettings.user_id == user_id)
-        )
-        if not user_settings:
+        self,
+        user_id: UUID,
+        settings_update: dict[str, Any],
+        db: AsyncSession,
+        expected_version: int | None = None,
+    ) -> bool:
+        if not await db.scalar(
+            select(UserSettings.id).where(UserSettings.user_id == user_id)
+        ):
             raise UserException("User settings not found")
 
-        json_fields = {
-            "custom_env_vars",
-            "personas",
-            "stream_actions",
-        }
-
-        for field, value in settings_update.items():
-            setattr(user_settings, field, value)
-            if field in json_fields:
-                flag_modified(user_settings, field)
-
+        stmt = (
+            update(UserSettings)
+            .where(UserSettings.user_id == user_id)
+            .values(
+                **settings_update,
+                settings_version=UserSettings.settings_version + 1,
+            )
+        )
+        if expected_version is not None:
+            stmt = stmt.where(UserSettings.settings_version == expected_version)
+        result = await db.execute(stmt)
         await db.commit()
-        await db.refresh(user_settings)
-
-        return user_settings
+        return bool(result.rowcount)

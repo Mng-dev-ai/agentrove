@@ -119,6 +119,7 @@ export function PersonasSettingsTab() {
     if (machineId === LOCAL_MACHINE_ID) {
       await persistSettings((prev) => ({ ...prev, personas: update(prev.personas ?? []) }), {
         errorMessage,
+        versioned: true,
       });
       return;
     }
