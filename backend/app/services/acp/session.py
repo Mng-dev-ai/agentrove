@@ -548,10 +548,8 @@ class AcpSession:
                         "Failed to set initial model: %s", config.model, exc_info=True
                     )
 
-            if config.permission_mode and config.permission_mode != "default":
+            if config.permission_mode:
                 await session.set_mode(config.permission_mode)
-            elif config.permission_mode == "default":
-                session.current_mode = "default"
 
             if not session.current_model:
                 await cls._set_effort_on_conn(

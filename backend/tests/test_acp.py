@@ -470,7 +470,7 @@ async def test_enhance_prompt_surfaces_mid_prompt_crash(
     assert "ACP call failed" in response.json()["detail"]
 
 
-@pytest.mark.parametrize("scenario", ["config_error", "model_error"])
+@pytest.mark.parametrize("scenario", ["effort_error", "model_error"])
 async def test_enhance_prompt_survives_config_option_failures(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
@@ -760,9 +760,9 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
         client, headers, chat_id=chat["id"], message_id=message_id
     )
     assert message["stream_status"] == "completed"
+    # Title generation runs a concurrent session that also sends set_session_mode.
     set_modes = fake_agent.events_of("set_session_mode")
-    assert set_modes
-    assert set_modes[-1]["mode_id"] == "plan"
+    assert "plan" in [e["mode_id"] for e in set_modes]
 
 
 @pytest.mark.parametrize(
@@ -820,6 +820,31 @@ async def test_chat_permission_mode_unsupported_by_adapter(
     # Leading mode-sets are the chat session; title-gen opens another later.
     leading = [m["mode_id"] for m in set_modes[: len(expect_mapped_modes)]]
     assert leading == expect_mapped_modes
+
+
+async def test_chat_default_permission_mode_is_sent_to_agent(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="sonnet",
+        prompt="hello",
+        permission_mode="default",
+    )
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+
+    assert message["stream_status"] == "completed"
+    assert fake_agent.events_of("set_session_mode")[0]["mode_id"] == "default"
 
 
 @pytest.mark.parametrize(
