@@ -21,6 +21,7 @@ import {
 import { SelectionAttachments } from '@/components/chat/message-input/SelectionAttachments';
 import { fetchAutoSteerQueuedMessages } from '@/hooks/queries/useSettingsQueries';
 import { useChannelQueueStore } from '@/store/messageQueueStore';
+import { channelMachineId } from '@/store/machineOrigin';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
@@ -102,7 +103,10 @@ export function ChannelComposer({
     onSend();
     try {
       if (isBusy) {
-        const sendNow = await fetchAutoSteerQueuedMessages(queryClient);
+        const sendNow = await fetchAutoSteerQueuedMessages(
+          queryClient,
+          channelMachineId(channel.id),
+        );
         const result = await useChannelQueueStore
           .getState()
           .queueMessage(channel.id, content, sentFiles, sendNow);

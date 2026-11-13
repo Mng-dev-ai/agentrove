@@ -84,13 +84,17 @@ export const useMachineWorkspaceResourcesQuery = (
   });
 };
 
+export const machineSettingsQuery = (machineId: string) => ({
+  queryKey: queryKeys.machine.settings(machineId),
+  queryFn: () => machineChatService.getSettings(machineId),
+  staleTime: 30_000,
+});
+
 export const useMachineSettingsQuery = (machineId: string, enabled: boolean) => {
   const online = useMachineOnline(machineId);
   return useQuery<UserSettings>({
-    queryKey: queryKeys.machine.settings(machineId),
-    queryFn: () => machineChatService.getSettings(machineId),
+    ...machineSettingsQuery(machineId),
     enabled: enabled && online,
-    staleTime: 30_000,
   });
 };
 
@@ -103,11 +107,7 @@ export const useMachinesPersonas = (machineIds: string[]) => {
     [machineIds],
   );
   return useQueries({
-    queries: machineIds.map((machineId) => ({
-      queryKey: queryKeys.machine.settings(machineId),
-      queryFn: () => machineChatService.getSettings(machineId),
-      staleTime: 30_000,
-    })),
+    queries: machineIds.map(machineSettingsQuery),
     combine,
   });
 };
