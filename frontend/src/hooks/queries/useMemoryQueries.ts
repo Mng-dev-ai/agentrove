@@ -26,14 +26,12 @@ export interface MachineMemory {
   machineId: string;
 }
 
-export interface MemoryWorkspaceFilter {
+export interface MemoryFilter {
   machineId: string;
-  workspaceId: string;
+  workspaceId: string | null;
 }
 
-export const useMemoriesAcrossMachines = (
-  filter: MemoryWorkspaceFilter | null,
-): MachineMemory[] | null => {
+export const useMemoriesAcrossMachines = (filter: MemoryFilter | null): MachineMemory[] | null => {
   const remoteIds = useOnlineRemoteMachineIds();
   const filterMachineId = filter?.machineId;
   const workspaceId = filter?.workspaceId ?? null;

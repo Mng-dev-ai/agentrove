@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
+import { useMachineFilter } from '@/hooks/useMachineFilter';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import {
   useMachinesPersonas,
@@ -74,17 +75,24 @@ export function PersonasSettingsTab() {
     }),
     [remotePersonas, localSettings.personas],
   );
+  const { machineId: machineFilter, filter } = useMachineFilter(
+    machineOptions,
+    'No personas match these filters',
+  );
   const items = useMemo(
     (): MachinePersona[] =>
-      machineOptions.flatMap((machine) =>
-        (personasByMachine[machine.id] ?? []).map((persona) => ({
-          persona,
-          machineId: machine.id,
-        })),
-      ),
-    [machineOptions, personasByMachine],
+      machineOptions
+        .filter((machine) => !machineFilter || machine.id === machineFilter)
+        .flatMap((machine) =>
+          (personasByMachine[machine.id] ?? []).map((persona) => ({
+            persona,
+            machineId: machine.id,
+          })),
+        ),
+    [machineOptions, personasByMachine, machineFilter],
   );
 
+  const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
   const queryClient = useQueryClient();
   const remoteMutation = useUpdateMachinePersonasMutation({
     scope: { id: 'machine-personas' },
@@ -188,14 +196,15 @@ export function PersonasSettingsTab() {
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        filter={filter}
         renderItem={(item) => (
           <>
             <div className={styles['item-header']}>
               <h3 className={styles['item-title']}>{item.persona.name}</h3>
               {item.machineId !== LOCAL_MACHINE_ID && (
-                <span className={styles.chip}>
+                <span className={styles.chip} title={machineName(item.machineId)}>
                   <Server className={styles['chip-icon']} />
-                  {machineNames.get(item.machineId) ?? 'Machine'}
+                  <span className={styles['chip-label']}>{machineName(item.machineId)}</span>
                 </span>
               )}
             </div>

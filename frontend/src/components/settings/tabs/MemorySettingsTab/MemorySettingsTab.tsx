@@ -3,12 +3,13 @@ import { Brain, Pin, PinOff, Server } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { Select } from '@/components/ui/primitives/Select/Select';
+import type { ListFilterCategory } from '@/components/ui/ListManagementTab/ListFilterMenu';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
+import { machineFilterCategories } from '@/hooks/useMachineFilter';
 import {
   type MachineMemory,
-  type MemoryWorkspaceFilter,
+  type MemoryFilter,
   useCreateMemoryMutation,
   useDeleteMemoryMutation,
   useMemoriesAcrossMachines,
@@ -30,7 +31,7 @@ const MemoryEditDialog = lazyNamed(
   'MemoryEditDialog',
 );
 
-function createDefaultForm(filter: MemoryWorkspaceFilter | null): MemoryForm {
+function createDefaultForm(filter: MemoryFilter | null): MemoryForm {
   return {
     title: '',
     content: '',
@@ -38,6 +39,21 @@ function createDefaultForm(filter: MemoryWorkspaceFilter | null): MemoryForm {
     workspace_id: filter?.workspaceId ?? null,
     machineId: filter?.machineId ?? LOCAL_MACHINE_ID,
   };
+}
+
+function resolveFilter(
+  filter: MemoryFilter | null,
+  machineIds: string[],
+  workspacesByMachine: Record<string, Workspace[]>,
+): MemoryFilter | null {
+  if (!filter || !machineIds.includes(filter.machineId)) return null;
+  if (
+    filter.workspaceId === null ||
+    workspacesByMachine[filter.machineId]?.some((w) => w.id === filter.workspaceId)
+  ) {
+    return filter;
+  }
+  return { machineId: filter.machineId, workspaceId: null };
 }
 
 export function MemorySettingsTab() {
@@ -63,14 +79,12 @@ export function MemorySettingsTab() {
     }),
     [remoteWorkspaces, localWorkspaces],
   );
-  const [workspaceFilter, setWorkspaceFilter] = useState<MemoryWorkspaceFilter | null>(null);
-  const activeFilter =
-    workspaceFilter &&
-    workspacesByMachine[workspaceFilter.machineId]?.some(
-      (w) => w.id === workspaceFilter.workspaceId,
-    )
-      ? workspaceFilter
-      : null;
+  const [filter, setFilter] = useState<MemoryFilter | null>(null);
+  const activeFilter = resolveFilter(
+    filter,
+    machineOptions.map((machine) => machine.id),
+    workspacesByMachine,
+  );
   const items = useMemoriesAcrossMachines(activeFilter);
 
   const createMutation = useCreateMemoryMutation();
@@ -89,12 +103,39 @@ export function MemorySettingsTab() {
     [],
   );
 
-  const handleFilterChange = (workspaceId: string) => {
-    const machineId = machineOptions.find((machine) =>
-      workspacesByMachine[machine.id]?.some((w) => w.id === workspaceId),
-    )?.id;
-    setWorkspaceFilter(machineId ? { machineId, workspaceId } : null);
-  };
+  const workspaceGroups = activeFilter
+    ? [{ heading: null, options: workspacesByMachine[activeFilter.machineId] ?? [] }]
+    : machineOptions.length > 1
+      ? machineOptions
+          .map((machine) => ({
+            heading: machine.name,
+            options: workspacesByMachine[machine.id] ?? [],
+          }))
+          .filter((group) => group.options.length > 0)
+      : [{ heading: null, options: localWorkspaces }];
+
+  const filterCategories: ListFilterCategory[] = [
+    ...machineFilterCategories(machineOptions, activeFilter?.machineId ?? null, (machineId) =>
+      setFilter(machineId ? { machineId, workspaceId: null } : null),
+    ),
+    {
+      key: 'workspace',
+      label: 'Workspace',
+      allLabel: 'All workspaces',
+      value: activeFilter?.workspaceId ?? null,
+      groups: workspaceGroups,
+      onChange: (workspaceId) => {
+        const machineId = workspaceId
+          ? machineOptions.find((machine) =>
+              workspacesByMachine[machine.id]?.some((w) => w.id === workspaceId),
+            )?.id
+          : activeFilter?.machineId;
+        setFilter(machineId ? { machineId, workspaceId } : null);
+      },
+    },
+  ];
+
+  const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
 
   const workspaceName = (item: MachineMemory) =>
     item.memory.workspace_id
@@ -184,44 +225,24 @@ export function MemorySettingsTab() {
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
-        headerContent={
-          <div className={styles.filter}>
-            <Select
-              value={activeFilter?.workspaceId ?? ''}
-              onChange={(e) => handleFilterChange(e.target.value)}
-              aria-label="Filter by workspace"
-              className={styles['filter-select']}
-            >
-              <option value="">All workspaces</option>
-              {machineOptions.length > 1
-                ? machineOptions.map((machine) => (
-                    <optgroup key={machine.id} label={machine.name}>
-                      {workspacesByMachine[machine.id]?.map((w) => (
-                        <option key={w.id} value={w.id}>
-                          {w.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ))
-                : localWorkspaces.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name}
-                    </option>
-                  ))}
-            </Select>
-          </div>
-        }
+        filter={{
+          categories: filterCategories,
+          onClear: () => setFilter(null),
+          emptyText: 'No memories match these filters',
+        }}
         renderItem={(item) => (
           <>
             <div className={styles['item-header']}>
               <h3 className={styles['item-title']}>{item.memory.title}</h3>
               {item.machineId !== LOCAL_MACHINE_ID && (
-                <span className={styles.chip}>
+                <span className={styles.chip} title={machineName(item.machineId)}>
                   <Server className={styles['chip-icon']} />
-                  {machineNames.get(item.machineId) ?? 'Machine'}
+                  <span className={styles['chip-label']}>{machineName(item.machineId)}</span>
                 </span>
               )}
-              <span className={styles.chip}>{workspaceName(item)}</span>
+              <span className={styles.chip} title={workspaceName(item)}>
+                <span className={styles['chip-label']}>{workspaceName(item)}</span>
+              </span>
               {item.memory.pinned && (
                 <span className={styles.chip}>
                   <Pin className={styles['chip-icon']} />

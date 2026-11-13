@@ -2,20 +2,9 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/responsive' as responsive;
 
-.filter {
-  margin-bottom: var(--space-3);
-
-  @include responsive.media('sm-up') {
-    max-width: 16rem;
-  }
-}
-
-.filter-select {
-  @include type.type-default;
-}
-
 .item-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-2);
@@ -24,13 +13,14 @@
 .item-title {
   @include type.type-default(500);
   @include type.type-overflow;
+  max-width: 100%;
   color: var(--theme-text-primary);
 }
 
 .chip {
   @include type.type-meta;
   display: flex;
-  flex-shrink: 0;
+  max-width: 100%;
   align-items: center;
   gap: var(--space-1);
   border: 1px solid colors.theme-color('border', 0.5);
@@ -42,6 +32,11 @@
 .chip-icon {
   height: var(--space-3);
   width: var(--space-3);
+  flex-shrink: 0;
+}
+
+.chip-label {
+  @include type.type-overflow;
 }
 
 .item-content {
