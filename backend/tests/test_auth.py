@@ -32,7 +32,7 @@ from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
 from app.models.db_models.workspace import Workspace
 from app.services.email import EmailService, email_service
-from app.services.refresh_token import RefreshTokenService, hash_refresh_token
+from app.services.refresh_token import RefreshTokenService
 
 from tests.conftest import EmailCapture, LoginClient, SettingsOverride, UserFactory
 from tests.helpers import (
@@ -648,7 +648,8 @@ async def test_refresh_replay_after_lost_response_replaces_unused_successor(
     assert replay.status_code == 200
     presented_revoked_at = await db_session.scalar(
         select(RefreshToken.revoked_at).where(
-            RefreshToken.token_hash == hash_refresh_token(tokens["refresh_token"])
+            RefreshToken.token_hash
+            == RefreshTokenService.hash_refresh_token(tokens["refresh_token"])
         )
     )
     assert presented_revoked_at is not None
@@ -668,7 +669,9 @@ async def test_refresh_replay_after_lost_response_replaces_unused_successor(
             RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None)
         )
     )
-    assert live.all() == [hash_refresh_token(replay.json()["refresh_token"])]
+    assert live.all() == [
+        RefreshTokenService.hash_refresh_token(replay.json()["refresh_token"])
+    ]
 
 
 async def test_refresh_rejects_replay_of_expired_consumed_token(
@@ -686,7 +689,10 @@ async def test_refresh_rejects_replay_of_expired_consumed_token(
     assert rotated.status_code == 200
     await db_session.execute(
         update(RefreshToken)
-        .where(RefreshToken.token_hash == hash_refresh_token(tokens["refresh_token"]))
+        .where(
+            RefreshToken.token_hash
+            == RefreshTokenService.hash_refresh_token(tokens["refresh_token"])
+        )
         .values(expires_at=datetime.now(timezone.utc) - timedelta(minutes=1))
     )
     await db_session.commit()
@@ -715,7 +721,10 @@ async def test_refresh_rejects_replay_consumed_after_request_began(
     assert rotated.status_code == 200
     await db_session.execute(
         update(RefreshToken)
-        .where(RefreshToken.token_hash == hash_refresh_token(tokens["refresh_token"]))
+        .where(
+            RefreshToken.token_hash
+            == RefreshTokenService.hash_refresh_token(tokens["refresh_token"])
+        )
         .values(revoked_at=datetime.now(timezone.utc) + timedelta(minutes=1))
     )
     await db_session.commit()
@@ -729,7 +738,7 @@ async def test_refresh_rejects_replay_consumed_after_request_began(
     successor_revoked_at = await db_session.scalar(
         select(RefreshToken.revoked_at).where(
             RefreshToken.token_hash
-            == hash_refresh_token(rotated.json()["refresh_token"])
+            == RefreshTokenService.hash_refresh_token(rotated.json()["refresh_token"])
         )
     )
     assert successor_revoked_at is None
@@ -872,14 +881,15 @@ async def test_logout_revokes_chain_but_not_other_devices(
     assert rotated.status_code == 200
     parent = await db_session.scalar(
         select(RefreshToken).where(
-            RefreshToken.token_hash == hash_refresh_token(device_a["refresh_token"])
+            RefreshToken.token_hash
+            == RefreshTokenService.hash_refresh_token(device_a["refresh_token"])
         )
     )
     assert parent is not None
     sibling = "legacy-sibling-token"
     db_session.add(
         RefreshToken(
-            token_hash=hash_refresh_token(sibling),
+            token_hash=RefreshTokenService.hash_refresh_token(sibling),
             user_id=parent.user_id,
             expires_at=parent.expires_at,
             parent_id=parent.id,
@@ -956,7 +966,7 @@ async def test_refresh_rejects_expired_token(
     # in addition to the service's expiry check.
     db_session.add(
         RefreshToken(
-            token_hash=hash_refresh_token(raw_token),
+            token_hash=RefreshTokenService.hash_refresh_token(raw_token),
             user_id=user.id,
             expires_at=datetime(2000, 1, 1),
         )
@@ -1000,7 +1010,9 @@ async def test_refresh_rejects_token_for_deactivated_user(
         successor_revoked_at = await db_session.scalar(
             select(RefreshToken.revoked_at).where(
                 RefreshToken.token_hash
-                == hash_refresh_token(rotated.json()["refresh_token"])
+                == RefreshTokenService.hash_refresh_token(
+                    rotated.json()["refresh_token"]
+                )
             )
         )
         assert successor_revoked_at is None
@@ -1024,12 +1036,12 @@ async def test_refresh_token_cleanup_prunes_dead_tokens_and_keeps_live_sessions(
     db_session.add_all(
         [
             RefreshToken(
-                token_hash=hash_refresh_token("expired"),
+                token_hash=RefreshTokenService.hash_refresh_token("expired"),
                 user_id=user.id,
                 expires_at=now - timedelta(days=1),
             ),
             RefreshToken(
-                token_hash=hash_refresh_token("revoked-long-ago"),
+                token_hash=RefreshTokenService.hash_refresh_token("revoked-long-ago"),
                 user_id=user.id,
                 expires_at=now + timedelta(days=1),
                 revoked_at=now - timedelta(days=8),
