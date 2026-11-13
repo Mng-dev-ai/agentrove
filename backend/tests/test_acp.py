@@ -760,9 +760,9 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
         client, headers, chat_id=chat["id"], message_id=message_id
     )
     assert message["stream_status"] == "completed"
+    # Title generation runs a concurrent session that also sends set_session_mode.
     set_modes = fake_agent.events_of("set_session_mode")
-    assert set_modes
-    assert set_modes[-1]["mode_id"] == "plan"
+    assert "plan" in [e["mode_id"] for e in set_modes]
 
 
 @pytest.mark.parametrize(
