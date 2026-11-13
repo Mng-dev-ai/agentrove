@@ -6,13 +6,12 @@ type SwitchSize = 'sm' | 'md';
 
 export interface SwitchProps extends Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
-  'onChange' | 'role'
+  'onChange' | 'role' | 'name'
 > {
   ref?: Ref<HTMLButtonElement>;
   checked: boolean;
   onCheckedChange?: (checked: boolean) => void;
   size?: SwitchSize;
-  name?: string;
 }
 
 export function Switch({
@@ -23,7 +22,6 @@ export function Switch({
   className,
   disabled,
   onClick,
-  name,
   ...props
 }: SwitchProps) {
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -49,7 +47,6 @@ export function Switch({
       onClick={handleClick}
       {...props}
     >
-      {name ? <input type="hidden" name={name} value={String(checked)} /> : null}
       <span className="sr-only">Toggle</span>
       <span className={styles['switch-track']}>
         <span

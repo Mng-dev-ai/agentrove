@@ -7,22 +7,15 @@ import styles from './SaveButton.module.scss';
 export interface SaveButtonProps {
   isSaving: boolean;
   onClick: () => void;
-  disabled?: boolean;
-  className?: string;
 }
 
-export const SaveButton = memo(function SaveButton({
-  isSaving,
-  onClick,
-  disabled,
-  className,
-}: SaveButtonProps) {
+export const SaveButton = memo(function SaveButton({ isSaving, onClick }: SaveButtonProps) {
   return (
     <Button
       onClick={onClick}
-      disabled={disabled || isSaving}
+      disabled={isSaving}
       variant="unstyled"
-      className={clsx(styles['save-button'], isSaving && styles['save-button--saving'], className)}
+      className={clsx(styles['save-button'], isSaving && styles['save-button--saving'])}
     >
       {isSaving ? (
         <Loader2 className={clsx(styles.icon, styles['icon--spin'])} />

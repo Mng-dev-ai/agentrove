@@ -10,7 +10,6 @@ export interface SendButtonProps {
   disabled: boolean;
   onClick: (e: React.MouseEvent) => void;
   type?: 'button' | 'submit';
-  className?: string;
   showLoadingSpinner?: boolean;
 }
 
@@ -19,7 +18,6 @@ export function SendButton({
   disabled,
   onClick,
   type = 'button',
-  className,
   showLoadingSpinner = false,
 }: SendButtonProps) {
   const isActive = status === 'loading' || status === 'streaming';
@@ -55,7 +53,6 @@ export function SendButton({
         styles['send-button'],
         isPrimary ? styles['send-button--primary'] : styles['send-button--idle'],
         hasMessage && !disabled && styles['send-button--ready'],
-        className,
       )}
       aria-label={ariaLabel}
     >

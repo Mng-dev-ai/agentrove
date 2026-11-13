@@ -1,12 +1,10 @@
 import { Image, FileText, FileSpreadsheet, Upload } from 'lucide-react';
-import clsx from 'clsx';
 import styles from './DropIndicator.module.scss';
 
 export interface DropIndicatorProps {
   visible: boolean;
   fileType?: 'image' | 'pdf' | 'xlsx' | 'any';
   message?: string;
-  className?: string;
 }
 
 interface IconWrapperProps {
@@ -26,12 +24,11 @@ export function DropIndicator({
   visible,
   fileType = 'image',
   message = 'Drop image here',
-  className = '',
 }: DropIndicatorProps) {
   if (!visible) return null;
 
   return (
-    <div className={clsx(styles['drop-indicator'], className)}>
+    <div className={styles['drop-indicator']}>
       <div className={styles.content}>
         <IconWrapper>
           {fileType === 'image' ? (

@@ -16,7 +16,6 @@ export interface SecretInputProps {
   helperText?: HelperTextLink | HelperTextCode;
   containerClassName?: string;
   inputClassName?: string;
-  buttonClassName?: string;
 }
 
 const renderHelperText = (helperText?: HelperTextLink | HelperTextCode) => {
@@ -57,7 +56,6 @@ export function SecretInput({
   helperText,
   containerClassName = styles['secret-input'],
   inputClassName,
-  buttonClassName,
 }: SecretInputProps) {
   return (
     <div className={containerClassName}>
@@ -75,7 +73,7 @@ export function SecretInput({
           onClick={onToggleVisibility}
           variant="ghost"
           size="icon"
-          className={clsx(styles['toggle-button'], buttonClassName)}
+          className={styles['toggle-button']}
           aria-label={isVisible ? 'Hide value' : 'Show value'}
         >
           {isVisible ? (

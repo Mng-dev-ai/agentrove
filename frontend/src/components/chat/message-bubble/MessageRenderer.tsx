@@ -12,7 +12,6 @@ interface MessageRendererProps {
   // Set when `events` lack tool results; the full render is fetched before the
   // trace mounts.
   omittedToolResults?: { chatId: string; messageId: string };
-  className?: string;
   isStreaming?: boolean;
   isCompleted?: boolean;
   chatId?: string;
@@ -35,7 +34,6 @@ const movesToTrace = (segment: MessageSegment): boolean =>
 export const MessageRenderer = memo(function MessageRenderer({
   events: initialEvents,
   omittedToolResults,
-  className = '',
   isStreaming = false,
   isCompleted = false,
   chatId,
@@ -174,7 +172,7 @@ export const MessageRenderer = memo(function MessageRenderer({
 
   return (
     <AgentToolsContext value={agentTools}>
-      <div className={className}>
+      <div>
         {hasSteering && awaitingFullRender && (
           <TraceLoadState failed={fullRender.isError} onRetry={() => void fullRender.refetch()} />
         )}

@@ -5,7 +5,6 @@ import styles from './PreviewContainer.module.scss';
 
 interface PreviewContainerProps extends PreviewHeaderProps {
   children: ReactNode;
-  className?: string;
   contentClassName?: string;
   disableContentWrapper?: boolean;
 }
@@ -15,12 +14,11 @@ export const PreviewContainer = memo(function PreviewContainer({
   isFullscreen,
   onToggleFullscreen,
   children,
-  className = '',
   contentClassName = '',
   disableContentWrapper = false,
 }: PreviewContainerProps) {
   return (
-    <div className={clsx(styles['preview-container'], className)}>
+    <div className={styles['preview-container']}>
       {isFullscreen && (
         <PreviewHeader
           fileName={fileName}

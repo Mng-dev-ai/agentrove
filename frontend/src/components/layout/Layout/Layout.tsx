@@ -62,18 +62,9 @@ function ServerUnreachableBanner() {
 
 export interface LayoutProps extends HeaderProps {
   children: ReactNode;
-  className?: string;
-  contentClassName?: string;
-  showHeader?: boolean;
 }
 
-export function Layout({
-  children,
-  isAuthPage = false,
-  className,
-  contentClassName,
-  showHeader = true,
-}: LayoutProps) {
+export function Layout({ children, isAuthPage = false }: LayoutProps) {
   const [sidebarContent, setSidebarContent] = useState<ReactNode | null>(null);
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
   const isMobile = useIsMobile();
@@ -103,7 +94,7 @@ export function Layout({
 
   return (
     <LayoutContext.Provider value={contextValue}>
-      <div className={clsx(styles.layout, className)}>
+      <div className={styles.layout}>
         <Link
           href="#main-content"
           variant="unstyled"
@@ -112,7 +103,7 @@ export function Layout({
           Skip to main content
         </Link>
         <TitleBar />
-        {showHeader && <Header isAuthPage={isAuthPage} />}
+        <Header isAuthPage={isAuthPage} />
         <ServerUnreachableBanner />
 
         <div className={styles.body}>
@@ -122,11 +113,7 @@ export function Layout({
 
           <main
             id="main-content"
-            className={clsx(
-              styles.main,
-              shouldPushContent && styles['main--pushed'],
-              contentClassName,
-            )}
+            className={clsx(styles.main, shouldPushContent && styles['main--pushed'])}
           >
             {children}
           </main>
