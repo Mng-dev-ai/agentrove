@@ -58,7 +58,7 @@ interface StreamReconnectOptions {
 
 export type ChannelNotice =
   | Extract<ChannelEnvelope, { kind: 'channel_permission_request' }>
-  | { kind: 'channel_completed'; channelId: string; payload: ChannelCompletion };
+  | { kind: 'channel_completed' | 'channel_asked'; channelId: string; payload: ChannelCompletion };
 
 class StreamService {
   private readonly maxRecentSeqPerChat = 4096;
@@ -213,14 +213,22 @@ class StreamService {
         if (parsed.kind === 'channel_permission_request') this.channelNoticeListener?.(parsed);
         if (
           parsed.kind === 'channel_member_activity' &&
-          parsed.payload.completed &&
           useChannelStore.getState().activity[parsed.channelId] === parsed.payload
         ) {
-          this.channelNoticeListener?.({
-            kind: 'channel_completed',
-            channelId: parsed.channelId,
-            payload: parsed.payload.completed,
-          });
+          if (parsed.payload.asked) {
+            this.channelNoticeListener?.({
+              kind: 'channel_asked',
+              channelId: parsed.channelId,
+              payload: parsed.payload.asked,
+            });
+          }
+          if (parsed.payload.completed) {
+            this.channelNoticeListener?.({
+              kind: 'channel_completed',
+              channelId: parsed.channelId,
+              payload: parsed.payload.completed,
+            });
+          }
         }
         if (
           parsed.kind === 'channel_message' &&

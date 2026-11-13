@@ -1,5 +1,9 @@
 import type { PermissionMode } from '@/store/chatSettingsStore';
-import type { MessageAttachment, ToolPermissionRequest } from '@/types/chat.types';
+import type {
+  ElicitationRequest,
+  MessageAttachment,
+  ToolPermissionRequest,
+} from '@/types/chat.types';
 
 export interface ChannelMember {
   id: string;
@@ -67,11 +71,18 @@ export interface ChannelPermissionRequest {
   request: ToolPermissionRequest;
 }
 
+export interface ChannelElicitationRequest {
+  member_id: string;
+  chat_id: string;
+  request: ElicitationRequest;
+}
+
 export interface ChannelMemberActivity {
   epoch: string;
   version: number;
   member_ids: string[];
   waiting_member_ids: string[];
+  elicitations?: ChannelElicitationRequest[];
   retrying_member_ids: string[];
   member_errors?: Record<string, string>;
   unavailable_members?: Record<string, string>;
@@ -94,7 +105,7 @@ export type ChannelEnvelope =
   | ChannelEnvelopeBase<'channel_permission_resolved', { member_id: string; request_id: string }>
   | ChannelEnvelopeBase<
       'channel_member_activity',
-      ChannelMemberActivity & { completed?: ChannelCompletion }
+      ChannelMemberActivity & { completed?: ChannelCompletion; asked?: ChannelCompletion }
     >
   | ChannelEnvelopeBase<'channel_queue_sent', { id: string }>;
 

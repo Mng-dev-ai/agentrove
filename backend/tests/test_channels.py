@@ -945,6 +945,93 @@ async def test_activity_reports_members_waiting_for_approval(
     ]
 
 
+@pytest.mark.parametrize("resolved", [True, False], ids=["resolved", "turn-ended"])
+async def test_activity_reports_member_questions_until_resolved(
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    monkeypatch: pytest.MonkeyPatch,
+    resolved: bool,
+) -> None:
+    pushes: list[dict[str, Any]] = []
+
+    async def notify_question(self: Any, **kwargs: Any) -> None:
+        pushes.append(kwargs)
+
+    monkeypatch.setattr(push_module.PushService, "notify_question", notify_question)
+    await channel_service.new_message(
+        channel_state, "Pick a color", device_ids=frozenset()
+    )
+    data = {"message": "Choose a color", "tool_call_id": None, "requested_schema": {}}
+    channel_runtime.events = [
+        ("elicitation_request", {"request_id": "elicit-1", "data": data}),
+        *([("elicitation_resolved", {"request_id": "elicit-1"})] if resolved else []),
+        ("assistant_text", {"text": "PASS"}),
+    ]
+    await channel_runtime.wake(channel_state)
+
+    member = channel_state.channel.members[0]
+    member_id = str(member.id)
+    pending = {
+        "member_id": member_id,
+        "chat_id": str(member.chat_id),
+        "request": {"request_id": "elicit-1", **data},
+    }
+    activities = activity_publications(channel_runtime)
+    assert [
+        (
+            activity["member_ids"],
+            activity["waiting_member_ids"],
+            activity["elicitations"],
+        )
+        for activity in activities
+    ] == [
+        ([member_id], [], []),
+        ([member_id], [member_id], [pending]),
+        ([member_id], [], []),
+        ([], [], []),
+    ]
+    assert activities[1]["asked"] == {
+        "title": f"#{channel_state.channel.name}",
+        "body": f"{member.display_name} asks: Choose a color",
+    }
+    assert [activity.get("asked") for activity in activities[2:]] == [None, None]
+    assert pushes == [
+        {
+            "user_id": channel_state.channel.user_id,
+            "path": f"/channels/{channel_state.channel.id}",
+            "request_id": f"{member.chat_id}:elicit-1",
+            "title": f"#{channel_state.channel.name}",
+            "body": f"{member.display_name} asks: Choose a color",
+        }
+    ]
+    assert channel_state.elicitations == {}
+
+
+async def test_question_from_a_finished_turn_is_declined(
+    channel_state: ChannelState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    declined: list[tuple[str, str, str]] = []
+
+    def resolve_elicitation(chat_id: str, request_id: str, *, action: str) -> bool:
+        declined.append((chat_id, request_id, action))
+        return True
+
+    monkeypatch.setattr(
+        channel_module.session_registry, "resolve_elicitation", resolve_elicitation
+    )
+    member = channel_state.channel.members[0]
+    turn = MemberTurn(member, [], status=TurnStatus.CANCELLED)
+    await channel_service.handle_event(
+        channel_state,
+        turn,
+        "elicitation_request",
+        {"request_id": "elicit-1", "data": {"message": "Choose"}},
+    )
+    assert declined == [(str(member.chat_id), "elicit-1", "decline")]
+    assert channel_state.elicitations == {}
+
+
 @pytest.mark.parametrize(
     "authenticated", [True, False], ids=["other-user", "anonymous"]
 )
@@ -1210,6 +1297,35 @@ async def test_member_permission_response_allows_only_the_owner(
     )
     assert response.status_code == 404
     assert resolver.calls == [(str(chat_id), "request-1", "allow")]
+
+
+async def test_member_elicitation_response_allows_only_the_owner(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    owner: tuple[dict[str, str], User, Workspace],
+    other_owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    calls: list[tuple[str, str, str]] = []
+
+    def resolve_elicitation(
+        chat_id: str, request_id: str, *, action: str, content: Any
+    ) -> bool:
+        calls.append((chat_id, request_id, action))
+        return request_id == "elicit-1"
+
+    monkeypatch.setattr(
+        chat_endpoint.session_registry, "resolve_elicitation", resolve_elicitation
+    )
+    chat_id = channel_state.channel.members[0].chat_id
+    path = f"/api/v1/chat/chats/{chat_id}/elicitation/elicit-1/respond"
+    body = {"request_id": "elicit-1", "action": "decline", "content": None}
+    response = await client.post(path, headers=owner[0], json=body)
+    assert response.status_code == 200
+    assert response.json() == {"success": True}
+    response = await client.post(path, headers=other_owner[0], json=body)
+    assert response.status_code == 404
+    assert calls == [(str(chat_id), "elicit-1", "decline")]
 
 
 async def test_member_context_usage_is_readable_only_by_the_owner(

@@ -95,6 +95,9 @@ GROK_ASK_USER_QUESTION_METHOD = "x.ai/ask_user_question"
 # OpenCode v2 renamed these tools; older sessions replay the v1 names.
 _OPENCODE_TOOL_ALIASES = {"bash": "shell", "task": "subagent", "apply_patch": "patch"}
 
+CHANNEL_PERMISSION_TIMEOUT_SECONDS = 300
+CHANNEL_ELICITATION_TIMEOUT_SECONDS = 15 * 60
+
 
 class AcpClientHandler:
     # ACP client handler: SDK events → StreamEvent on event_queue for SSE.
@@ -308,7 +311,9 @@ class AcpClientHandler:
         try:
             if self.channel_member:
                 try:
-                    return await asyncio.wait_for(future, timeout=300)
+                    return await asyncio.wait_for(
+                        future, timeout=CHANNEL_PERMISSION_TIMEOUT_SECONDS
+                    )
                 except TimeoutError:
                     return ""
             return await future
@@ -346,8 +351,6 @@ class AcpClientHandler:
         mode: ElicitationMode,
         **kwargs: Any,
     ) -> CreateElicitationResponse:
-        if self.channel_member:
-            return DeclineElicitationResponse(action="decline")
         if not isinstance(
             mode, (ElicitationFormSessionMode, ElicitationFormRequestMode)
         ):
@@ -379,10 +382,22 @@ class AcpClientHandler:
         )
 
         try:
-            action, content = await future
+            if self.channel_member:
+                try:
+                    action, content = await asyncio.wait_for(
+                        future, timeout=CHANNEL_ELICITATION_TIMEOUT_SECONDS
+                    )
+                except TimeoutError:
+                    action, content = "decline", None
+            else:
+                action, content = await future
         finally:
             self._pending_elicitations.pop(request_id, None)
             self._pending_elicitation_payloads.pop(request_id, None)
+            if self.channel_member:
+                self.event_queue.put_nowait(
+                    StreamEvent(type="elicitation_resolved", request_id=request_id)
+                )
 
         if action == "accept":
             return AcceptElicitationResponse(action="accept", content=content or {})

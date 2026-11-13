@@ -14,6 +14,8 @@ import { ChatSkeleton } from '@/components/chat/chat-window/ChatSkeleton';
 import { FindInChat } from '@/components/chat/chat-window/FindInChat';
 import { MessageTrail, type TrailMessage } from '@/components/chat/chat-window/MessageTrail';
 import { InlinePermission } from '@/components/chat/chat-window/ChatInlinePermission';
+import elicitationStyles from '@/components/chat/chat-window/ChatInlineElicitation.module.scss';
+import { ElicitationInline } from '@/components/chat/tools/ElicitationInline';
 import { StatusIndicator } from '@/components/chat/chat-window/StatusTypewriter';
 import { useChatScroll } from '@/components/chat/chat-window/useChatScroll';
 import { MessageRow, MessageText, UserBubble } from '@/components/chat/message-bubble/Message';
@@ -26,6 +28,7 @@ import { useChannelMessageActivityQuery } from '@/hooks/queries/useChannelQuerie
 import { useChannelLive } from '@/hooks/useChannelLive';
 import { useClipboard } from '@/hooks/useClipboard';
 import { useSmoothText } from '@/hooks/useSmoothText';
+import { elicitationService } from '@/services/elicitationService';
 import { permissionService } from '@/services/permissionService';
 import {
   EMPTY_MESSAGES,
@@ -40,11 +43,17 @@ import {
 } from '@/store/messageQueueStore';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineName, useMachineStatus } from '@/store/machineStore';
-import { getAgentKindForModelId, type AgentKind } from '@/types/chat.types';
+import {
+  getAgentKindForModelId,
+  type AgentKind,
+  type ElicitationAction,
+  type ElicitationContent,
+} from '@/types/chat.types';
 import { formatFullTimestamp, formatRelativeTime } from '@/utils/date';
 import { executePermissionResponse } from '@/utils/permissionResponse';
 import type {
   Channel,
+  ChannelElicitationRequest,
   ChannelMember,
   ChannelMessage,
   ChannelPermissionRequest,
@@ -53,6 +62,8 @@ import { ChatCopiedMessageProvider } from '@/contexts/ChatCopiedMessageContext';
 import { SetChatInputMessageContext } from '@/contexts/ChatInputMessageContextDefinition';
 import { ChannelComposer } from './ChannelComposer';
 import styles from './ChannelView.module.scss';
+
+const EMPTY_ELICITATIONS: ChannelElicitationRequest[] = [];
 
 const ACTIVITY_EVENT_TYPES = new Set([
   'assistant_thinking',
@@ -229,17 +240,59 @@ function ChannelApproval({ channelId, permission, member }: ChannelApprovalProps
       onReject={respond}
       isLoading={isLoading}
       error={error}
-      header={
-        <div className={styles.author}>
-          <ProviderIcon
-            agentKind={getAgentKindForModelId(member?.model_id)}
-            className={styles['author-icon']}
-          />
-          <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
-          <span className={styles['author-meta']}>needs approval</span>
-        </div>
-      }
+      header={<MemberHeader member={member} meta="needs approval" />}
     />
+  );
+}
+
+function MemberHeader({ member, meta }: { member: ChannelMember | undefined; meta: string }) {
+  return (
+    <div className={styles.author}>
+      <ProviderIcon
+        agentKind={getAgentKindForModelId(member?.model_id)}
+        className={styles['author-icon']}
+      />
+      <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
+      <span className={styles['author-meta']}>{meta}</span>
+    </div>
+  );
+}
+
+interface ChannelQuestionProps {
+  elicitation: ChannelElicitationRequest;
+  member: ChannelMember | undefined;
+}
+
+function ChannelQuestion({ elicitation, member }: ChannelQuestionProps) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [answered, setAnswered] = useState(false);
+  const { chat_id: chatId, request } = elicitation;
+
+  const respond = (action: ElicitationAction, content: ElicitationContent | null) =>
+    void executePermissionResponse(
+      () => elicitationService.respondToElicitation(chatId, request.request_id, action, content),
+      {
+        setIsLoading,
+        setError,
+        errorMessage: 'Failed to send your answer',
+        clearRequest: () => setAnswered(true),
+      },
+    );
+
+  if (answered) return null;
+  return (
+    <div className={elicitationStyles['inline-elicitation']}>
+      <MemberHeader member={member} meta="has a question" />
+      <ElicitationInline
+        request={request}
+        onSubmit={(content) => respond('accept', content)}
+        onSkip={() => respond('decline', null)}
+        onCancel={() => respond('cancel', null)}
+        isLoading={isLoading}
+        error={error}
+      />
+    </div>
   );
 }
 
@@ -280,6 +333,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
     (state) => state.channels[channel.id]?.permissions ?? EMPTY_PERMISSIONS,
   );
   const activity = useChannelActivity(channel);
+  const elicitations = activity.elicitations ?? EMPTY_ELICITATIONS;
   const queuedMessages = useChannelQueueStore(
     (state) => state.queues.get(channel.id) ?? EMPTY_QUEUE,
   );
@@ -321,7 +375,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
     unavailableMembers,
     memberReasons,
   } = useMemo(() => {
-    const waitingIds = new Set(permissions.map((p) => p.member_id));
+    const waitingIds = new Set([...permissions, ...elicitations].map((p) => p.member_id));
     const typingIds = new Set(
       messages.flatMap((m) => (m.status === 'streaming' && m.member_id ? [m.member_id] : [])),
     );
@@ -343,7 +397,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
       ),
       memberReasons,
     };
-  }, [messages, permissions, activity, channel.members]);
+  }, [messages, permissions, elicitations, activity, channel.members]);
   const isBusy =
     thinkingMembers.length > 0 ||
     typingMembers.length > 0 ||
@@ -450,6 +504,16 @@ export function ChannelView({ channel }: { channel: Channel }) {
                       channelId={channel.id}
                       permission={permission}
                       member={membersById.get(permission.member_id)}
+                    />
+                  </ConversationColumn>
+                ))}
+                {elicitations.map((elicitation) => (
+                  <ConversationColumn
+                    key={`${elicitation.member_id}:${elicitation.request.request_id}`}
+                  >
+                    <ChannelQuestion
+                      elicitation={elicitation}
+                      member={membersById.get(elicitation.member_id)}
                     />
                   </ConversationColumn>
                 ))}

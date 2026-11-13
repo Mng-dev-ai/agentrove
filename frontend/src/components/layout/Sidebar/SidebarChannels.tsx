@@ -98,13 +98,13 @@ export function SidebarChannels({
     () =>
       streamService.onChannelNotice((notice) =>
         notifyBackground(`/channels/${notice.channelId}`, (options) =>
-          notice.kind === 'channel_completed'
-            ? notifyStreamComplete({
+          notice.kind === 'channel_permission_request'
+            ? notifyPermissionRequest(notice.payload.request, options)
+            : notifyStreamComplete({
                 ...options,
                 title: notice.payload.title,
                 message: notice.payload.body,
-              })
-            : notifyPermissionRequest(notice.payload.request, options),
+              }),
         ),
       ),
     [notifyBackground],
