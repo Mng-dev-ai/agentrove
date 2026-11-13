@@ -81,7 +81,7 @@ RUN useradd -m -s /bin/bash -u 1000 user && \
 COPY --chmod=755 sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN set -eux; \
-    version=1.4.5; \
+    version=1.5.0; \
     case "$(uname -m)" in \
       x86_64|amd64) arch=x86_64 ;; \
       aarch64|arm64) arch=arm64 ;; \
@@ -110,7 +110,7 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | b
     nvm alias default $NODE_VERSION
 
 RUN . "$NVM_DIR/nvm.sh" && \
-    npm install -g @anthropic-ai/claude-code@2.1.322 @agentclientprotocol/claude-agent-acp@0.106.0 @agentclientprotocol/codex-acp@2.6.0 @openai/codex@0.167.2 @github/copilot@1.0.109
+    npm install -g @anthropic-ai/claude-code@2.1.323 @agentclientprotocol/claude-agent-acp@0.106.0 @agentclientprotocol/codex-acp@2.6.0 @openai/codex@0.168.0 @github/copilot@1.0.110
 
 # Cursor CLI — pinned download replicating cursor.com/install (which always
 # fetches its own latest); cursor-agent lands in ~/.local/bin, already on PATH.
