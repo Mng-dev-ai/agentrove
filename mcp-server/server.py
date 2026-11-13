@@ -718,7 +718,10 @@ async def get_channel_messages(channel_id: str, after_seq: int = 0) -> dict[str,
     client, _ = _session()
     channel = await client.get_channel(channel_id)
     messages = await client.get_channel_messages(channel_id, after_seq)
-    authors = {member["id"]: member["display_name"] for member in channel["members"]}
+    authors = {
+        member["id"]: member["display_name"]
+        for member in channel["members"] + channel.get("former_members", [])
+    }
     return {
         "messages": [
             {

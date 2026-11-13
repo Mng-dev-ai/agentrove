@@ -1655,15 +1655,17 @@ class ChannelService(BaseDbService[Channel]):
             "tool_completed",
             "tool_failed",
         ):
-            async with self.session_factory() as db:
-                await db.execute(
-                    update(ChannelMember)
-                    .where(ChannelMember.id == turn.member.id)
-                    .values(introduced=True)
-                )
-                await db.commit()
-            turn.member.introduced = True
-            turn.introducing = False
+            async with state.lock:
+                if turn.introducing:
+                    async with self.session_factory() as db:
+                        await db.execute(
+                            update(ChannelMember)
+                            .where(ChannelMember.id == turn.member.id)
+                            .values(introduced=True)
+                        )
+                        await db.commit()
+                    turn.member.introduced = True
+                    turn.introducing = False
         if kind == "stream_started":
             turn.source_message_id = UUID(payload["message_id"])
         elif kind == "permission_request":

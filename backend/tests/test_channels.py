@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -1996,6 +1997,55 @@ async def test_turn_in_flight_does_not_mark_its_member_introduced_after_a_change
     await channel_service.handle_event(
         channel_state, turn, "assistant_thinking", {"text": "Hmm"}
     )
+    assert not member.introduced
+    row = await db_session.get(ChannelMember, member.id)
+    assert row is not None and not row.introduced
+
+
+async def test_introduction_acknowledged_during_a_change_stays_reset(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    member = channel_state.channel.members[0]
+    turn = MemberTurn(member, [], introducing=True)
+    channel_state.turns[member.id] = turn
+    gate = asyncio.Event()
+    factory = channel_service.session_factory
+    calls: list[None] = []
+
+    @asynccontextmanager
+    async def gated() -> AsyncIterator[AsyncSession]:
+        await gate.wait()
+        async with factory() as db:
+            yield db
+
+    def session_factory() -> Any:
+        if calls:
+            return factory()
+        calls.append(None)
+        return gated()
+
+    monkeypatch.setattr(channel_service, "session_factory", session_factory)
+    acknowledged = asyncio.create_task(
+        channel_service.handle_event(
+            channel_state, turn, "assistant_thinking", {"text": "Hmm"}
+        )
+    )
+    await asyncio.sleep(0)
+    added = asyncio.create_task(
+        client.post(
+            f"/api/v1/channels/{channel_state.channel.id}/members",
+            json={"model_id": TEST_MODEL_ID},
+            headers=owner[0],
+        )
+    )
+    await asyncio.wait({added}, timeout=0.5)
+    gate.set()
+    await acknowledged
+    assert (await added).status_code == 201
     assert not member.introduced
     row = await db_session.get(ChannelMember, member.id)
     assert row is not None and not row.introduced
