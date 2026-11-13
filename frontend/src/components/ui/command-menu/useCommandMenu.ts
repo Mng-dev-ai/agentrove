@@ -160,6 +160,14 @@ export function useCommandMenu() {
     [close, navigate],
   );
 
+  const handleOpenChannel = useCallback(
+    (channelId: string) => {
+      navigate(`/channels/${channelId}`);
+      close();
+    },
+    [close, navigate],
+  );
+
   const handleSelectBranch = useCallback(
     (branch: string) => {
       if (!sandboxId) {
@@ -288,6 +296,8 @@ export function useCommandMenu() {
             if (!item) break;
             if (item.kind === 'chat') {
               handleOpenChatResult(item.chat.id);
+            } else if (item.kind === 'channel') {
+              handleOpenChannel(item.channel.id);
             } else if (item.kind === 'file') {
               handleSelectFile(item.file);
             } else {
@@ -305,6 +315,7 @@ export function useCommandMenu() {
     runCommand,
     handleSelectFile,
     handleOpenChatResult,
+    handleOpenChannel,
     handleSelectBranch,
     handleSelectTheme,
     switchFilter,
@@ -349,6 +360,7 @@ export function useCommandMenu() {
     leafTileIds,
     activeSlot,
     handleOpenChatResult,
+    handleOpenChannel,
     handleSelectFile,
     runCommand,
     handleSplit,

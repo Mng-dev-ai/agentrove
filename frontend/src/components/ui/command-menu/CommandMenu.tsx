@@ -34,6 +34,7 @@ export function CommandMenu() {
     leafTileIds,
     activeSlot,
     handleOpenChatResult,
+    handleOpenChannel,
     handleSelectFile,
     runCommand,
     handleSplit,
@@ -126,6 +127,7 @@ export function CommandMenu() {
             leafTileIds={leafTileIds}
             activeSlot={activeSlot}
             onOpenChat={handleOpenChatResult}
+            onOpenChannel={handleOpenChannel}
             onSelectFile={handleSelectFile}
             onRunCommand={runCommand}
             onSplit={handleSplit}
