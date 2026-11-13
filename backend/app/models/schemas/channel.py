@@ -62,7 +62,8 @@ class ChannelCreate(BaseModel):
 
 
 class ChannelUpdate(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
+    name: str | None = Field(None, min_length=1, max_length=255)
+    pinned: bool | None = None
 
 
 class ChannelMemberRead(BaseModel):
@@ -95,6 +96,7 @@ class ChannelRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     unread: bool
+    pinned_at: datetime | None
     members: list[ChannelMemberRead]
     anchor_chat_id: UUID
     activity: ChannelMemberActivity

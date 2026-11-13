@@ -124,6 +124,18 @@ export const useRenameChannelMutation = createMutation<
   },
 );
 
+export const usePinChannelMutation = createMutation<
+  Channel,
+  Error,
+  { channelId: string; pinned: boolean }
+>(
+  ({ channelId, pinned }) => channelService.pinChannel(channelId, pinned),
+  (queryClient, channel) => {
+    queryClient.setQueryData(queryKeys.channel(channel.id), channel);
+    return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
+  },
+);
+
 export const useDeleteChannelMutation = createMutation<void, Error, string>(
   (channelId) => channelService.deleteChannel(channelId),
   (queryClient, _data, channelId) => {

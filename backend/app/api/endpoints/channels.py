@@ -234,7 +234,7 @@ async def rename_channel(
     channel_id: UUID, data: ChannelUpdate, user: User = Depends(get_current_user)
 ) -> ChannelRead:
     channel = await channel_service.get(channel_id, user)
-    return channel_service.read(await channel_service.rename(channel, data.name))
+    return channel_service.read(await channel_service.update(channel, data))
 
 
 @router.get("/{channel_id}/permissions")
