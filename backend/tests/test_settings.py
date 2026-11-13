@@ -306,6 +306,12 @@ async def test_patch_settings_checks_expected_version(
     assert stale.status_code == 409
     assert stale.json()["detail"] == "Settings changed since they were read"
     assert "personas" not in stale.text
+    out_of_range = await client.patch(
+        "/api/v1/settings/",
+        json={"personas": [], "expected_version": 2**63},
+        headers=headers,
+    )
+    assert out_of_range.status_code == 422
     stored = (await client.get("/api/v1/settings/", headers=headers)).json()
     assert stored["personas"] == newer
     assert stored["settings_version"] == 2
