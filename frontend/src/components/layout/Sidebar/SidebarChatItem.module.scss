@@ -124,6 +124,36 @@
   }
 }
 
+// Status words reuse the dot's hues at steps that clear 4.5:1 for 12px text:
+// darker on light (warning/success need 700), lighter on dark.
+.status-word {
+  flex-shrink: 0;
+
+  &--blocked {
+    color: colors.status-color('error', 600);
+
+    :global([data-theme='dark']) & {
+      color: colors.status-color('error', 400);
+    }
+  }
+
+  &--running {
+    color: colors.status-color('warning', 700);
+
+    :global([data-theme='dark']) & {
+      color: colors.status-color('warning', 400);
+    }
+  }
+
+  &--completed {
+    color: colors.status-color('success', 700);
+
+    :global([data-theme='dark']) & {
+      color: colors.status-color('success', 400);
+    }
+  }
+}
+
 .machine-icon {
   height: var(--space-2-5);
   width: var(--space-2-5);

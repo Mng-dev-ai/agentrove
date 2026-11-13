@@ -9,10 +9,11 @@ export interface SidebarChatSection {
   chats: Chat[];
 }
 
+type RecentStatusGroup = Exclude<SidebarStatusFilter, 'needs-you'> | 'other';
+
 // Group order mirrors the row badge precedence in SidebarChatItem, so a chat
 // lands in the group matching its visible badge; most urgent groups first.
-const STATUS_GROUP_ORDER: { key: SidebarStatusFilter | 'other'; label: string }[] = [
-  { key: 'needs-you', label: 'Needs you' },
+const STATUS_GROUP_ORDER: { key: RecentStatusGroup; label: string }[] = [
   { key: 'running', label: 'Running' },
   { key: 'done', label: 'Done' },
   { key: 'unread', label: 'Unread' },
@@ -23,7 +24,6 @@ interface GroupingContext {
   groupBy: SidebarGroupBy;
   visibleRecentChats: Chat[];
   workspaceBadgeById: Map<string, WorkspaceBadge>;
-  blockedChatIdSet: Set<string>;
   streamingChatIdSet: Set<string>;
   completedChatIds: Set<string>;
 }
@@ -36,7 +36,6 @@ export function buildRecentChatSections({
   groupBy,
   visibleRecentChats,
   workspaceBadgeById,
-  blockedChatIdSet,
   streamingChatIdSet,
   completedChatIds,
 }: GroupingContext): SidebarChatSection[] {
@@ -84,17 +83,15 @@ export function buildRecentChatSections({
     return Array.from(groups.values());
   }
   if (groupBy === 'status') {
-    const byStatus = new Map<SidebarStatusFilter | 'other', Chat[]>();
+    const byStatus = new Map<RecentStatusGroup, Chat[]>();
     for (const chat of visibleRecentChats) {
-      const status = blockedChatIdSet.has(chat.id)
-        ? 'needs-you'
-        : streamingChatIdSet.has(chat.id)
-          ? 'running'
-          : completedChatIds.has(chat.id)
-            ? 'done'
-            : chat.unread
-              ? 'unread'
-              : 'other';
+      const status = streamingChatIdSet.has(chat.id)
+        ? 'running'
+        : completedChatIds.has(chat.id)
+          ? 'done'
+          : chat.unread
+            ? 'unread'
+            : 'other';
       const list = byStatus.get(status);
       if (list) list.push(chat);
       else byStatus.set(status, [chat]);

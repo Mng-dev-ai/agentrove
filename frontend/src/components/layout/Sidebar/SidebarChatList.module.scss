@@ -9,10 +9,9 @@
 }
 
 .empty {
-  @include type.type-default;
-  padding-block: var(--space-8);
-  text-align: center;
-  color: var(--theme-text-quaternary);
+  @include type.type-meta;
+  padding-bottom: var(--space-2);
+  color: var(--theme-text-tertiary);
 }
 
 .section {
@@ -24,7 +23,7 @@
   @include type.type-overflow;
   padding-top: var(--space-1-5);
   padding-bottom: var(--space-1);
-  color: var(--theme-text-quaternary);
+  color: var(--theme-text-tertiary);
 }
 
 .no-match {
@@ -37,7 +36,7 @@
 
 .no-match-text {
   @include type.type-default;
-  color: var(--theme-text-quaternary);
+  color: var(--theme-text-tertiary);
 }
 
 .clear-filters {

@@ -63,6 +63,13 @@
   width: var(--space-3-5);
 }
 
+.shortcut {
+  @include type.type-meta;
+  margin-left: auto;
+  font-family: inherit;
+  color: var(--theme-text-tertiary);
+}
+
 .badge {
   @include type.type-meta(500);
   margin-left: auto;

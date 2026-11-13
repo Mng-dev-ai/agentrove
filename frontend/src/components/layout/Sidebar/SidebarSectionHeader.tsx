@@ -7,27 +7,36 @@ import styles from './SidebarSectionHeader.module.scss';
 
 interface SidebarSectionHeaderProps {
   title: string;
-  section: SidebarSection;
+  // Omit for a static, non-collapsible header.
+  section?: SidebarSection;
   children?: ReactNode;
 }
 
 export function SidebarSectionHeader({ title, section, children }: SidebarSectionHeaderProps) {
-  const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes(section));
   return (
     <div className={styles.header}>
-      <Button
-        variant="unstyled"
-        type="button"
-        onClick={() => useUIStore.getState().toggleSidebarSection(section)}
-        aria-expanded={!isCollapsed}
-        className={styles.toggle}
-      >
-        <span className={styles.title}>{title}</span>
-        <ChevronRight
-          className={clsx(styles.chevron, !isCollapsed && styles['chevron--expanded'])}
-        />
-      </Button>
+      {section ? (
+        <CollapseToggle title={title} section={section} />
+      ) : (
+        <span className={clsx(styles.label, styles.title)}>{title}</span>
+      )}
       {children}
     </div>
+  );
+}
+
+function CollapseToggle({ title, section }: { title: string; section: SidebarSection }) {
+  const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes(section));
+  return (
+    <Button
+      variant="unstyled"
+      type="button"
+      onClick={() => useUIStore.getState().toggleSidebarSection(section)}
+      aria-expanded={!isCollapsed}
+      className={clsx(styles.label, styles.toggle)}
+    >
+      <span className={styles.title}>{title}</span>
+      <ChevronRight className={clsx(styles.chevron, !isCollapsed && styles['chevron--expanded'])} />
+    </Button>
   );
 }

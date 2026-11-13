@@ -170,6 +170,19 @@ export function Sidebar({
     [hasActiveFilters, recentChats, chatMatchesFilters],
   );
   const hasVisibleContent = visiblePinnedChats.length > 0 || visibleRecentChats.length > 0;
+  // Chats blocked on the user lift into a "Needs you" group above Pinned, so an
+  // approval or question isn't buried in Recents. They leave their usual section
+  // while blocked and drop back once answered.
+  const { needsYouChats, listedPinnedChats, listedRecentChats } = useMemo(
+    () => ({
+      needsYouChats: [...visiblePinnedChats, ...visibleRecentChats].filter((chat) =>
+        blockedChatIdSet.has(chat.id),
+      ),
+      listedPinnedChats: visiblePinnedChats.filter((chat) => !blockedChatIdSet.has(chat.id)),
+      listedRecentChats: visibleRecentChats.filter((chat) => !blockedChatIdSet.has(chat.id)),
+    }),
+    [visiblePinnedChats, visibleRecentChats, blockedChatIdSet],
+  );
 
   const groupBy = filters.groupBy;
   const showWorkspaceBadges = useMemo(
@@ -182,20 +195,12 @@ export function Sidebar({
     () =>
       buildRecentChatSections({
         groupBy,
-        visibleRecentChats,
+        visibleRecentChats: listedRecentChats,
         workspaceBadgeById,
-        blockedChatIdSet,
         streamingChatIdSet,
         completedChatIds,
       }),
-    [
-      groupBy,
-      visibleRecentChats,
-      workspaceBadgeById,
-      blockedChatIdSet,
-      streamingChatIdSet,
-      completedChatIds,
-    ],
+    [groupBy, listedRecentChats, workspaceBadgeById, streamingChatIdSet, completedChatIds],
   );
 
   // Opening a chat (or watching it finish while open) counts as seeing the
@@ -280,8 +285,9 @@ export function Sidebar({
           }
           isLoadingChats={isLoadingChats}
           hasAnyContent={hasAnyContent}
-          visiblePinnedChats={visiblePinnedChats}
-          visibleRecentChats={visibleRecentChats}
+          needsYouChats={needsYouChats}
+          pinnedChats={listedPinnedChats}
+          recentChats={listedRecentChats}
           hasVisibleContent={hasVisibleContent}
           recentChatSections={recentChatSections}
           rowProps={rowProps}

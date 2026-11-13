@@ -57,7 +57,7 @@ export function SidebarChannels({
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const machineChannels = useMachinesChannels(isAuthenticated);
+  const { machineChannels, isLoading: isLoadingChannels } = useMachinesChannels(isAuthenticated);
   const liveActivity = useChannelStore((state) => state.activity);
   const completedChannelIds = useChannelStore((state) => state.completedChannelIds);
   const filteredChannels = machineChannels.filter(({ channel, machineId }) => {
@@ -231,6 +231,13 @@ export function SidebarChannels({
           onDropdownClick={handleDropdownClick}
         />
       ))}
+      {!isCollapsed && !isLoadingChannels && channels.length === 0 && (
+        <p className={styles.empty}>
+          {machineChannels.length > 0
+            ? 'No channels match the current filters'
+            : 'No channels yet. Group chats where several agents share a workspace.'}
+        </p>
+      )}
 
       {dropdown && (
         <SidebarMenu
