@@ -48,7 +48,7 @@ export function usePermissionRequest(chatId: string | undefined): UsePermissionR
       // duplicate envelope for one still awaiting a response.
       const added = usePermissionStore.getState().enqueuePermissionRequest(chatId, request);
       if (added) {
-        notifyBackground(chatId, (options) => notifyPermissionRequest(request, options));
+        notifyBackground(`/chat/${chatId}`, (options) => notifyPermissionRequest(request, options));
       }
     },
     [chatId, notifyBackground],

@@ -52,9 +52,15 @@ interface StreamReconnectOptions {
   onQueueProcess?: (data: QueueProcessingData) => void;
 }
 
+export type ChannelNotice = Extract<
+  ChannelEnvelope,
+  { kind: 'channel_completed' | 'channel_permission_request' }
+>;
+
 class StreamService {
   private readonly maxRecentSeqPerChat = 4096;
   private readonly recentSeqByChat = new Map<string, Set<number>>();
+  private channelNoticeListener: ((notice: ChannelNotice) => void) | null = null;
 
   constructor() {
     streamConnection.configure({
@@ -177,6 +183,13 @@ class StreamService {
     }
   }
 
+  onChannelNotice(listener: (notice: ChannelNotice) => void): () => void {
+    this.channelNoticeListener = listener;
+    return () => {
+      if (this.channelNoticeListener === listener) this.channelNoticeListener = null;
+    };
+  }
+
   private handleChannelReply(channelId: string): void {
     if (channelId in useChannelStore.getState().channels) {
       void markChannelViewed(queryClient, channelId);
@@ -192,8 +205,11 @@ class StreamService {
     if (isChannelEnvelope(parsed)) {
       if (parsed.kind === 'channel_queue_sent') {
         useChannelQueueStore.getState().removeLocalOnly(parsed.channelId, parsed.payload.id);
+      } else if (parsed.kind === 'channel_completed') {
+        this.channelNoticeListener?.(parsed);
       } else {
         useChannelStore.getState().applyEnvelope(parsed);
+        if (parsed.kind === 'channel_permission_request') this.channelNoticeListener?.(parsed);
         if (
           parsed.kind === 'channel_message' &&
           parsed.payload.message.author_type === 'agent' &&

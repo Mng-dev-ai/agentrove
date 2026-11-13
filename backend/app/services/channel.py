@@ -136,6 +136,7 @@ class ChannelState:
     retries: dict[UUID, MemberRetry] = field(default_factory=dict)
     gave_up: dict[UUID, str] = field(default_factory=dict)
     permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
+    last_reply: tuple[str, ChannelMessage] | None = None
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
     waiting_member_ids: list[str] = field(default_factory=list)
@@ -794,6 +795,7 @@ class ChannelService(BaseDbService[Channel]):
     async def send_next_queued(self, state: ChannelState) -> None:
         if not self.idle(state):
             return
+        await self.notify_settled(state)
         channel_id = str(state.channel.id)
         try:
             async with cache_connection() as cache:
@@ -827,6 +829,24 @@ class ChannelService(BaseDbService[Channel]):
         await self.publish_message(state.channel, message)
         self.fan_out(state)
         await self.publish(state.channel, "channel_queue_sent", {"id": item["id"]})
+
+    async def notify_settled(self, state: ChannelState) -> None:
+        if state.last_reply is None:
+            return
+        author, message = state.last_reply
+        state.last_reply = None
+        title = f"#{state.channel.name}"
+        body = f"{author}: {message.content.strip()}"
+        await self.publish(
+            state.channel, "channel_completed", {"title": title, "body": body}
+        )
+        await PushService(self.session_factory).notify_channel_completion(
+            user_id=state.channel.user_id,
+            channel_id=state.channel.id,
+            message_id=message.id,
+            title=title,
+            body=body,
+        )
 
     async def dispatch_queued(self, channel: Channel) -> None:
         state = self.state(channel)
@@ -1170,6 +1190,8 @@ class ChannelService(BaseDbService[Channel]):
         if message is not None:
             await self.publish_message(state.channel, message)
             if successful and not silent:
+                if state.last_reply is None or message.seq > state.last_reply[1].seq:
+                    state.last_reply = (turn.member.display_name, message)
                 self.fan_out(state)
 
     async def stop_state(self, state: ChannelState) -> None:
@@ -1179,6 +1201,7 @@ class ChannelService(BaseDbService[Channel]):
                 state.timer.cancel()
                 state.timer = None
             state.retries.clear()
+            state.last_reply = None
             turns = list(state.turns.values())
             await self.cancel_active(state, turns)
             async with self.session_factory() as db:

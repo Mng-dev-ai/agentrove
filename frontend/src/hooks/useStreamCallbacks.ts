@@ -470,7 +470,7 @@ export function useStreamCallbacks({
       }
 
       if (!isCancelled) {
-        notifyBackground(targetChatId, (options) =>
+        notifyBackground(targetChatId ? `/chat/${targetChatId}` : undefined, (options) =>
           notifyStreamComplete({ ...options, message: assistantText }),
         );
       }

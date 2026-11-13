@@ -43,7 +43,9 @@ interface ChannelState {
   dropPermission: (channelId: string, memberId: string, requestId: string) => void;
   syncActivity: (channelId: string, activity: ChannelMemberActivity) => void;
   clearCompleted: (channelId: string) => void;
-  applyEnvelope: (envelope: Exclude<ChannelEnvelope, { kind: 'channel_queue_sent' }>) => void;
+  applyEnvelope: (
+    envelope: Exclude<ChannelEnvelope, { kind: 'channel_queue_sent' | 'channel_completed' }>,
+  ) => void;
 }
 
 export const EMPTY_MESSAGES: Record<string, ChannelMessage> = {};
@@ -145,7 +147,10 @@ function withActivity(
 
 function applyToSlice(
   slice: ChannelSlice,
-  envelope: Exclude<ChannelEnvelope, { kind: 'channel_member_activity' | 'channel_queue_sent' }>,
+  envelope: Exclude<
+    ChannelEnvelope,
+    { kind: 'channel_member_activity' | 'channel_queue_sent' | 'channel_completed' }
+  >,
 ): ChannelSlice {
   switch (envelope.kind) {
     case 'channel_message':

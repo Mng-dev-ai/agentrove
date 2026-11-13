@@ -88,7 +88,8 @@ export type ChannelEnvelope =
   | ChannelEnvelopeBase<'channel_permission_request', ChannelPermissionRequest>
   | ChannelEnvelopeBase<'channel_permission_resolved', { member_id: string; request_id: string }>
   | ChannelEnvelopeBase<'channel_member_activity', ChannelMemberActivity>
-  | ChannelEnvelopeBase<'channel_queue_sent', { id: string }>;
+  | ChannelEnvelopeBase<'channel_queue_sent', { id: string }>
+  | ChannelEnvelopeBase<'channel_completed', { title: string; body: string }>;
 
 export function isChannelEnvelope(value: unknown): value is ChannelEnvelope {
   return typeof value === 'object' && value !== null && 'channelId' in value;
