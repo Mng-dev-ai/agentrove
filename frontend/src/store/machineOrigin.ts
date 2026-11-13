@@ -135,7 +135,11 @@ export function assignChatRecordsToMachine(
 
 export function assignChannelsToMachine(
   machineId: string,
-  channels: { id: string; members: { chat_id: string }[] }[],
+  channels: {
+    id: string;
+    members: { chat_id: string }[];
+    former_members?: { chat_id: string }[];
+  }[],
 ): void {
   assign(
     CHANNELS_KEY,
@@ -144,7 +148,9 @@ export function assignChannelsToMachine(
   );
   assignChatsToMachine(
     machineId,
-    channels.flatMap((channel) => channel.members.map((member) => member.chat_id)),
+    channels.flatMap((channel) =>
+      [...channel.members, ...(channel.former_members ?? [])].map((member) => member.chat_id),
+    ),
   );
 }
 

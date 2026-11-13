@@ -177,6 +177,11 @@
   &--capped {
     overflow-y: auto;
   }
+
+  &--fill {
+    right: 0;
+    width: auto;
+  }
 }
 
 .popover-field {

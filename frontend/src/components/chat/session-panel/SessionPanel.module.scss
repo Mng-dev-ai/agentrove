@@ -50,6 +50,12 @@
   }
 }
 
+.editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-1) var(--space-1) 0;
+}
+
 .row,
 .thread-row {
   display: flex;

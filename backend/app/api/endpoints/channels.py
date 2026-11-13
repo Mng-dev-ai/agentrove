@@ -18,6 +18,8 @@ from app.core.security import get_current_user
 from app.models.db_models.user import User
 from app.models.schemas.channel import (
     ChannelCreate,
+    ChannelMemberCreate,
+    ChannelMemberUpdate,
     ChannelUpdate,
     ChannelMessageRead,
     ChannelRead,
@@ -235,6 +237,35 @@ async def rename_channel(
 ) -> ChannelRead:
     channel = await channel_service.get(channel_id, user)
     return channel_service.read(await channel_service.update(channel, data))
+
+
+@router.post("/{channel_id}/members", response_model=ChannelRead, status_code=201)
+async def add_channel_member(
+    channel_id: UUID, data: ChannelMemberCreate, user: User = Depends(get_current_user)
+) -> ChannelRead:
+    channel = await channel_service.get(channel_id, user)
+    return channel_service.read(await channel_service.add_member(channel, data))
+
+
+@router.patch("/{channel_id}/members/{member_id}", response_model=ChannelRead)
+async def update_channel_member(
+    channel_id: UUID,
+    member_id: UUID,
+    data: ChannelMemberUpdate,
+    user: User = Depends(get_current_user),
+) -> ChannelRead:
+    channel = await channel_service.get(channel_id, user)
+    return channel_service.read(
+        await channel_service.update_member(channel, member_id, data)
+    )
+
+
+@router.delete("/{channel_id}/members/{member_id}", response_model=ChannelRead)
+async def remove_channel_member(
+    channel_id: UUID, member_id: UUID, user: User = Depends(get_current_user)
+) -> ChannelRead:
+    channel = await channel_service.get(channel_id, user)
+    return channel_service.read(await channel_service.remove_member(channel, member_id))
 
 
 @router.get("/{channel_id}/permissions")

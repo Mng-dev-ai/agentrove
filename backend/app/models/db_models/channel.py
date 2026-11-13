@@ -37,7 +37,13 @@ class Channel(Base):
     last_viewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     pinned_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     members: Mapped[list["ChannelMember"]] = relationship(
-        cascade="all, delete-orphan", passive_deletes=True
+        primaryjoin="and_(Channel.id == ChannelMember.channel_id, "
+        "ChannelMember.removed_at.is_(None))",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    all_members: Mapped[list["ChannelMember"]] = relationship(
+        viewonly=True, lazy="selectin"
     )
 
     @property
@@ -71,6 +77,7 @@ class ChannelMember(Base):
     thinking_mode: Mapped[str | None] = mapped_column(String(50))
     display_name: Mapped[str] = mapped_column(String(255))
     introduced: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    removed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class ChannelMessage(Base):

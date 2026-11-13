@@ -309,8 +309,8 @@ class APIClient {
     return this.request<T>(endpoint, 'POST', { formData, signal });
   }
 
-  async delete(endpoint: string, signal?: AbortSignal) {
-    return this.request(endpoint, 'DELETE', { signal });
+  async delete<T = unknown>(endpoint: string, signal?: AbortSignal) {
+    return this.request<T>(endpoint, 'DELETE', { signal });
   }
 
   async getBlob(endpoint: string, signal?: AbortSignal, isRetry = false): Promise<Blob> {

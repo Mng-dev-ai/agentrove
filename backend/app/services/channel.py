@@ -29,7 +29,9 @@ from app.models.schemas.channel import (
     BROADCAST_MENTIONS,
     ChannelCreate,
     ChannelMemberActivity,
+    ChannelMemberCreate,
     ChannelMemberRead,
+    ChannelMemberUpdate,
     ChannelMessageRead,
     ChannelRead,
     ChannelUpdate,
@@ -41,7 +43,7 @@ from app.models.schemas.chat import (
     Message as MessageSchema,
 )
 from app.models.schemas.queue import QueuedChannelMessage
-from app.models.types import MessageAttachmentDict
+from app.models.types import MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
@@ -71,6 +73,7 @@ MENTION = re.compile(r"(?:^|(?<=\s))@(\S+)")
 ACTIVITY_EPOCH = uuid4().hex
 REASON_LIMIT = 300
 MAX_ATTEMPTS = 5
+NEWCOMER_HISTORY = 20
 
 INTRODUCTION = (
     "You are {name}, a member of a group chat channel with the user and {others}. "
@@ -121,6 +124,7 @@ class MemberTurn:
     flush_task: asyncio.Task[None] | None = None
     message: ChannelMessage | None = None
     status: TurnStatus = TurnStatus.RUNNING
+    introducing: bool = False
     provider_task: asyncio.Task[str] | None = None
     task: asyncio.Task[None] | None = None
 
@@ -262,33 +266,15 @@ class ChannelService(BaseDbService[Channel]):
 
     async def create(self, user: User, data: ChannelCreate) -> Channel:
         self.require_agent_workspace(user, data.workspace_id)
-        display_names: list[str] = []
         used_names = set(BROADCAST_MENTIONS)
-        for item in data.members:
-            model = MODELS[item.model_id]
-            kind = model.agent_kind
-            if (
-                item.permission_mode is not None
-                and item.permission_mode not in AGENT_ADAPTERS[kind].session_modes
-            ):
-                raise HTTPException(400, f"Invalid permission mode for {kind.value}")
-            if item.display_name is not None:
-                display_name = item.display_name
-                if display_name.lower() in used_names:
-                    raise HTTPException(400, f"Duplicate display name: {display_name}")
-            else:
-                name = re.sub(r"\s+", "-", model.display_name.lower())
-                name = re.sub(r"[^a-z0-9.-]", "", name)
-                name = re.sub(r"-+", "-", name).strip("-.")[:32]
-                name = name or kind.value.lower()
-                display_name = name
-                number = 2
-                while display_name.lower() in used_names:
-                    suffix = f"-{number}"
-                    display_name = f"{name[: 32 - len(suffix)]}{suffix}"
-                    number += 1
-            used_names.add(display_name.lower())
-            display_names.append(display_name)
+        settings = [
+            (
+                item,
+                self.permission_mode(item.model_id, item.permission_mode),
+                self.member_name(item.model_id, item.display_name, used_names),
+            )
+            for item in data.members
+        ]
         async with self.session_factory() as db:
             workspace = await db.scalar(
                 select(Workspace).where(
@@ -316,30 +302,16 @@ class ChannelService(BaseDbService[Channel]):
                 worktree=data.worktree,
                 branch=data.branch,
                 members=[],
+                all_members=[],
             )
             db.add(channel)
             await db.flush()
-            for item, display_name in zip(data.members, display_names, strict=True):
-                chat = Chat(
-                    title=data.name,
-                    user_id=user.id,
-                    workspace_id=data.workspace_id,
-                    channel_id=channel.id,
-                    workspace=workspace,
+            for item, permission_mode, display_name in settings:
+                member = await self.new_member(
+                    db, channel, workspace, item, permission_mode, display_name
                 )
-                db.add(chat)
-                await db.flush()
-                channel.members.append(
-                    ChannelMember(
-                        chat_id=chat.id,
-                        model_id=item.model_id,
-                        permission_mode=item.permission_mode
-                        or NORMAL_SESSION_MODE[MODELS[item.model_id].agent_kind],
-                        persona=item.persona,
-                        thinking_mode=item.thinking_mode,
-                        display_name=display_name,
-                    )
-                )
+                channel.members.append(member)
+                channel.all_members.append(member)
             await db.commit()
         self.states[channel.id] = ChannelState(channel)
         try:
@@ -350,8 +322,71 @@ class ChannelService(BaseDbService[Channel]):
         return channel
 
     @staticmethod
+    def permission_mode(model_id: str, mode: PermissionMode | None) -> PermissionMode:
+        kind = MODELS[model_id].agent_kind
+        if mode is None:
+            return NORMAL_SESSION_MODE[kind]
+        if mode not in AGENT_ADAPTERS[kind].session_modes:
+            raise HTTPException(400, f"Invalid permission mode for {kind.value}")
+        return mode
+
+    @staticmethod
+    def member_name(
+        model_id: str, display_name: str | None, used_names: set[str]
+    ) -> str:
+        if display_name is not None:
+            if display_name.lower() in used_names:
+                raise HTTPException(400, f"Duplicate display name: {display_name}")
+        else:
+            model = MODELS[model_id]
+            name = re.sub(r"\s+", "-", model.display_name.lower())
+            name = re.sub(r"[^a-z0-9.-]", "", name)
+            name = re.sub(r"-+", "-", name).strip("-.")[:32]
+            name = name or model.agent_kind.value.lower()
+            display_name = name
+            number = 2
+            while display_name.lower() in used_names:
+                suffix = f"-{number}"
+                display_name = f"{name[: 32 - len(suffix)]}{suffix}"
+                number += 1
+        used_names.add(display_name.lower())
+        return display_name
+
+    @staticmethod
+    async def new_member(
+        db: AsyncSession,
+        channel: Channel,
+        workspace: Workspace,
+        item: ChannelMemberCreate,
+        permission_mode: PermissionMode,
+        display_name: str,
+        chat_id: UUID | None = None,
+        worktree_cwd: str | None = None,
+    ) -> ChannelMember:
+        chat = Chat(
+            id=chat_id or uuid4(),
+            title=channel.name,
+            user_id=channel.user_id,
+            workspace_id=channel.workspace_id,
+            channel_id=channel.id,
+            workspace=workspace,
+            worktree_cwd=worktree_cwd,
+        )
+        db.add(chat)
+        await db.flush()
+        return ChannelMember(
+            channel_id=channel.id,
+            chat_id=chat.id,
+            model_id=item.model_id,
+            permission_mode=permission_mode,
+            persona=item.persona,
+            thinking_mode=item.thinking_mode,
+            display_name=display_name,
+        )
+
+    @staticmethod
     def anchor_chat_id(channel: Channel) -> UUID:
-        chat_id: UUID = min(member.chat_id for member in channel.members)
+        chat_id: UUID = min(member.chat_id for member in channel.all_members)
         return chat_id
 
     async def anchor_chat(self, channel: Channel) -> Chat:
@@ -454,6 +489,11 @@ class ChannelService(BaseDbService[Channel]):
             pinned_at=channel.pinned_at,
             members=[
                 ChannelMemberRead.model_validate(member) for member in channel.members
+            ],
+            former_members=[
+                ChannelMemberRead.model_validate(member)
+                for member in channel.all_members
+                if member.removed_at is not None
             ],
             anchor_chat_id=self.anchor_chat_id(channel),
             activity=ChannelMemberActivity.model_validate(
@@ -707,6 +747,157 @@ class ChannelService(BaseDbService[Channel]):
                 state.channel.name = data.name
         return await self.get(channel.id, User(id=channel.user_id))
 
+    @staticmethod
+    def idle_member(state: ChannelState, member_id: UUID) -> ChannelMember:
+        member: ChannelMember | None = next(
+            (m for m in state.channel.members if m.id == member_id), None
+        )
+        if member is None:
+            raise HTTPException(404, "Member not found")
+        turn = state.turns.get(member_id)
+        if turn is not None and turn.task is not None and not turn.task.done():
+            raise HTTPException(
+                409, f"{member.display_name} is busy, try again when it finishes"
+            )
+        return member
+
+    @staticmethod
+    async def reintroduce(db: AsyncSession, state: ChannelState) -> None:
+        await db.execute(
+            update(ChannelMember)
+            .where(
+                ChannelMember.channel_id == state.channel.id,
+                ChannelMember.removed_at.is_(None),
+            )
+            .values(introduced=False)
+        )
+        for member in state.channel.members:
+            member.introduced = False
+
+    async def add_member(self, channel: Channel, data: ChannelMemberCreate) -> Channel:
+        state = self.state(channel)
+        async with state.control, state.lock:
+            used_names = BROADCAST_MENTIONS | {
+                member.display_name.lower() for member in state.channel.all_members
+            }
+            permission_mode = self.permission_mode(data.model_id, data.permission_mode)
+            display_name = self.member_name(
+                data.model_id, data.display_name, used_names
+            )
+            anchor_chat_id = self.anchor_chat_id(state.channel)
+            chat_id = uuid4()
+            while chat_id < anchor_chat_id:
+                chat_id = uuid4()
+            async with self.session_factory() as db:
+                member = await self.new_member(
+                    db,
+                    state.channel,
+                    await db.get_one(Workspace, state.channel.workspace_id),
+                    data,
+                    permission_mode,
+                    display_name,
+                    chat_id,
+                    await db.scalar(
+                        select(Chat.worktree_cwd).where(Chat.id == anchor_chat_id)
+                    ),
+                )
+                db.add(member)
+                await db.flush()
+                older = await db.scalars(
+                    select(ChannelMessage.id)
+                    .where(
+                        ChannelMessage.channel_id == state.channel.id,
+                        ChannelMessage.status == "completed",
+                    )
+                    .order_by(ChannelMessage.seq.desc())
+                    .offset(NEWCOMER_HISTORY)
+                )
+                db.add_all(
+                    ChannelDelivery(member_id=member.id, message_id=message_id)
+                    for message_id in older
+                )
+                await self.reintroduce(db, state)
+                await db.commit()
+            state.channel.members.append(member)
+            state.channel.all_members.append(member)
+        return await self.get(channel.id, User(id=channel.user_id))
+
+    async def update_member(
+        self, channel: Channel, member_id: UUID, data: ChannelMemberUpdate
+    ) -> Channel:
+        state = self.state(channel)
+        async with state.control, state.lock:
+            member = self.idle_member(state, member_id)
+            values: dict[str, Any] = data.model_dump(
+                include={"persona", "thinking_mode"}, exclude_unset=True
+            )
+            previous = MODELS.get(member.model_id)
+            if data.model_id is not None:
+                values["model_id"] = data.model_id
+            if data.permission_mode is not None or (
+                data.model_id is not None
+                and (
+                    previous is None
+                    or previous.agent_kind != MODELS[data.model_id].agent_kind
+                )
+            ):
+                values["permission_mode"] = self.permission_mode(
+                    data.model_id or member.model_id, data.permission_mode
+                )
+            if (
+                data.display_name is not None
+                and data.display_name != member.display_name
+            ):
+                used_names = BROADCAST_MENTIONS | {
+                    other.display_name.lower()
+                    for other in state.channel.all_members
+                    if other.id != member.id
+                }
+                values["display_name"] = self.member_name(
+                    member.model_id, data.display_name, used_names
+                )
+            if values:
+                async with self.session_factory() as db:
+                    await db.execute(
+                        update(ChannelMember)
+                        .where(ChannelMember.id == member.id)
+                        .values(**values)
+                    )
+                    if "display_name" in values:
+                        await self.reintroduce(db, state)
+                    await db.commit()
+                for key, value in values.items():
+                    setattr(member, key, value)
+            state.retries.pop(member.id, None)
+            state.gave_up.pop(member.id, None)
+            await self.publish_activity(state)
+        return await self.get(channel.id, User(id=channel.user_id))
+
+    async def remove_member(self, channel: Channel, member_id: UUID) -> Channel:
+        state = self.state(channel)
+        async with state.control:
+            async with state.lock:
+                member = self.idle_member(state, member_id)
+                if len(state.channel.members) == 1:
+                    raise HTTPException(400, "A channel needs at least one member")
+                now = datetime.now(timezone.utc)
+                async with self.session_factory() as db:
+                    await db.execute(
+                        update(ChannelMember)
+                        .where(ChannelMember.id == member.id)
+                        .values(removed_at=now)
+                    )
+                    await self.reintroduce(db, state)
+                    await db.commit()
+                state.channel.members.remove(member)
+                member.removed_at = now
+                state.turns.pop(member.id, None)
+                state.retries.pop(member.id, None)
+                state.gave_up.pop(member.id, None)
+                await self.publish_activity(state)
+            await session_registry.terminate(str(member.chat_id))
+        return await self.get(channel.id, User(id=channel.user_id))
+
     async def mark_viewed(self, channel: Channel) -> None:
         async with self.session_factory() as db:
             await db.execute(
@@ -871,7 +1062,7 @@ class ChannelService(BaseDbService[Channel]):
                     else:
                         retry_times.append(state.retries[member.id].until)
                     continue
-                turn = MemberTurn(member, batch)
+                turn = MemberTurn(member, batch, introducing=not member.introduced)
                 state.turns[member.id] = turn
                 turn.task = asyncio.create_task(self.run_turn(state, turn))
                 turn.task.add_done_callback(self.task_done)
@@ -1028,14 +1219,14 @@ class ChannelService(BaseDbService[Channel]):
             self.backoff(state, turn.member, error)
 
     def prompt(self, state: ChannelState, turn: MemberTurn) -> str:
-        names = {member.id: member.display_name for member in state.channel.members}
+        names = {member.id: member.display_name for member in state.channel.all_members}
         lines = [
             f"[{self.label(message, names)}]: {message.content}"
             for message in turn.batch
         ]
         if any(message.audience is not None for message in turn.batch):
             lines.insert(0, ROUTING_NOTE)
-        if not turn.member.introduced:
+        if turn.introducing:
             others = (
                 ", ".join(
                     member.display_name
@@ -1448,7 +1639,7 @@ class ChannelService(BaseDbService[Channel]):
         self, state: ChannelState, turn: MemberTurn, kind: str, payload: dict[str, Any]
     ) -> None:
         # Provider output confirms delivery; bootstrap failures must not consume the introduction.
-        if not turn.member.introduced and kind in (
+        if turn.introducing and kind in (
             "assistant_text",
             "assistant_thinking",
             "tool_started",
@@ -1463,6 +1654,7 @@ class ChannelService(BaseDbService[Channel]):
                 )
                 await db.commit()
             turn.member.introduced = True
+            turn.introducing = False
         if kind == "stream_started":
             turn.source_message_id = UUID(payload["message_id"])
         elif kind == "permission_request":

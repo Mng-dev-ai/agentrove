@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.endpoints import chat as chat_endpoint
 from app.constants import MODELS
 from app.core import deps
+from app.core.security import create_mcp_access_token
 from app.models.db_models.channel import (
     Channel,
     ChannelDelivery,
@@ -1078,6 +1079,7 @@ async def test_channel_routes_require_the_owner(
     )
     assert queued.status_code == 201
     queued_path = f"{base}/queue/{queued.json()['id']}"
+    member_path = f"{base}/members/{channel_state.channel.members[0].id}"
     routes: list[tuple[str, str, dict[str, Any]]] = [
         ("GET", base, {}),
         ("PATCH", base, {"json": {"name": "Renamed"}}),
@@ -1095,6 +1097,9 @@ async def test_channel_routes_require_the_owner(
         ("PATCH", queued_path, {"json": {"content": "Hijacked"}}),
         ("DELETE", queued_path, {}),
         ("POST", f"{queued_path}/send-now", {}),
+        ("POST", f"{base}/members", {"json": {"model_id": TEST_MODEL_ID}}),
+        ("PATCH", member_path, {"json": {"display_name": "Hijacked"}}),
+        ("DELETE", member_path, {}),
     ]
     if not authenticated:
         routes.extend(
@@ -1755,3 +1760,205 @@ async def test_message_queued_on_an_idle_channel_is_sent_immediately(
         "channel_queue_sent",
         {"id": queued.json()["id"]},
     ) in (channel_runtime.publications)
+
+
+async def complete(db_session: AsyncSession, message: ChannelMessage) -> None:
+    await db_session.execute(
+        update(ChannelMessage)
+        .where(ChannelMessage.id == message.id)
+        .values(status="completed")
+    )
+    await db_session.commit()
+
+
+async def test_members_are_added_edited_and_removed_keeping_their_history(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    monkeypatch.setattr(channel_module, "NEWCOMER_HISTORY", 3)
+    channel_data["members"] = [{"model_id": TEST_MODEL_ID, "display_name": "alpha"}]
+    created = await client.post("/api/v1/channels", json=channel_data, headers=owner[0])
+    assert created.status_code == 201, created.text
+    state = channel_service.states[UUID(created.json()["id"])]
+    state.paused = True
+    [alpha] = state.channel.members
+    base = f"/api/v1/channels/{state.channel.id}"
+    for text in ("Old question", "Second question"):
+        await channel_service.new_message(state, text, device_ids=frozenset())
+    channel_runtime.events = [("assistant_text", {"text": "Alpha answer"})]
+    await channel_runtime.wake(state)
+    assert alpha.introduced
+    await channel_service.new_message(state, "@alpha follow up", device_ids=frozenset())
+
+    added = await client.post(
+        f"{base}/members",
+        json={"model_id": TEST_MODEL_ID, "display_name": "beta"},
+        headers=owner[0],
+    )
+    assert added.status_code == 201, added.text
+    assert [m["display_name"] for m in added.json()["members"]] == ["alpha", "beta"]
+    assert added.json()["former_members"] == []
+    beta = state.channel.members[1]
+    assert not alpha.introduced
+    assert channel_runtime.requests[1:] == []
+
+    await channel_service.new_message(state, "Hello everyone", device_ids=frozenset())
+    channel_runtime.events = [("assistant_text", {"text": "PASS"})]
+    await channel_runtime.wake(state)
+    prompts = {request.chat_id: request.prompt for request in channel_runtime.requests}
+    assert prompts[alpha.chat_id].startswith(
+        "You are alpha, a member of a group chat channel with the user and beta."
+    )
+    assert prompts[beta.chat_id].endswith(
+        "[user]: Second question\n"
+        "[alpha]: Alpha answer\n"
+        "[user → @alpha]: @alpha follow up\n"
+        "[user]: Hello everyone"
+    )
+    assert "Old question" not in prompts[beta.chat_id]
+
+    claude_model = next(
+        model_id
+        for model_id, model in MODELS.items()
+        if model.agent_kind is AgentKind.CLAUDE
+    )
+    edited = await client.patch(
+        f"{base}/members/{beta.id}",
+        json={"display_name": "gamma", "model_id": claude_model, "persona": "Critic"},
+        headers=owner[0],
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["members"][1] | {"id": None, "chat_id": None} == {
+        "id": None,
+        "chat_id": None,
+        "display_name": "gamma",
+        "model_id": claude_model,
+        "permission_mode": "default",
+        "persona": "Critic",
+        "thinking_mode": None,
+    }
+    assert (beta.display_name, beta.permission_mode) == ("gamma", "default")
+    invalid = await client.patch(
+        f"{base}/members/{beta.id}",
+        json={"permission_mode": "build"},
+        headers=owner[0],
+    )
+    assert invalid.status_code == 400, invalid.text
+
+    await channel_service.new_message(state, "@alpha last call", device_ids=frozenset())
+    await complete(
+        db_session,
+        await channel_service.new_message(
+            state, "Alpha final", alpha.id, device_ids=frozenset()
+        ),
+    )
+    anchor_chat_id = created.json()["anchor_chat_id"]
+    removed = await client.delete(f"{base}/members/{alpha.id}", headers=owner[0])
+    assert removed.status_code == 200, removed.text
+    body = removed.json()
+    assert [m["display_name"] for m in body["members"]] == ["gamma"]
+    assert [m["display_name"] for m in body["former_members"]] == ["alpha"]
+    assert body["anchor_chat_id"] == anchor_chat_id
+    assert await db_session.get(Chat, alpha.chat_id) is not None
+    messages = (await client.get(f"{base}/messages", headers=owner[0])).json()
+    assert [m["content"] for m in messages if m["member_id"] == str(alpha.id)] == [
+        "Alpha answer",
+        "Alpha final",
+    ]
+
+    duplicate = await client.post(
+        f"{base}/members",
+        json={"model_id": TEST_MODEL_ID, "display_name": "Alpha"},
+        headers=owner[0],
+    )
+    assert duplicate.status_code == 400, duplicate.text
+    last = await client.delete(f"{base}/members/{beta.id}", headers=owner[0])
+    assert last.status_code == 400, last.text
+    gone = await client.patch(
+        f"{base}/members/{alpha.id}", json={"persona": None}, headers=owner[0]
+    )
+    assert gone.status_code == 404, gone.text
+
+    mention = await channel_service.new_message(
+        state, "@alpha are you there?", device_ids=frozenset()
+    )
+    assert mention.audience is None
+    channel_runtime.requests.clear()
+    channel_runtime.events = [("assistant_text", {"text": "Alpha left"})]
+    await channel_runtime.wake(state)
+    [request] = channel_runtime.requests
+    assert request.chat_id == beta.chat_id
+    assert request.prompt.startswith(
+        "You are gamma, a member of a group chat channel with the user and no other agents."
+    )
+    assert request.prompt.endswith(
+        "[user → @alpha]: @alpha last call\n"
+        "[alpha]: Alpha final\n"
+        "[user]: @alpha are you there?"
+    )
+
+    channel_service.states.clear()
+    await channel_service.recover()
+    recovered = channel_service.states[state.channel.id]
+    recovered.paused = True
+    assert [m.display_name for m in recovered.channel.members] == ["gamma"]
+    assert channel_service.anchor_chat_id(recovered.channel) == UUID(anchor_chat_id)
+    await channel_service.new_message(
+        recovered, "After restart", device_ids=frozenset()
+    )
+    channel_runtime.requests.clear()
+    channel_runtime.events = [("assistant_text", {"text": "PASS"})]
+    await channel_runtime.wake(recovered)
+    assert [r.chat_id for r in channel_runtime.requests] == [beta.chat_id]
+
+
+async def test_member_changes_are_refused_while_its_turn_runs(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+) -> None:
+    member = channel_state.channel.members[0]
+    channel_state.gave_up[member.id] = "Gave up"
+    path = f"/api/v1/channels/{channel_state.channel.id}/members/{member.id}"
+    cleared = await client.patch(path, json={}, headers=owner[0])
+    assert cleared.status_code == 200, cleared.text
+    assert member.id not in channel_state.gave_up
+
+    await channel_service.new_message(channel_state, "Question", device_ids=frozenset())
+    channel_runtime.events = [("assistant_text", {"text": "Working"})]
+    channel_runtime.gate = asyncio.Event()
+    wake = asyncio.create_task(channel_runtime.wake(channel_state))
+    await asyncio.wait_for(channel_runtime.emitted.wait(), timeout=5)
+    for method, kwargs in (("PATCH", {"json": {"persona": None}}), ("DELETE", {})):
+        response = await client.request(method, path, headers=owner[0], **kwargs)
+        assert response.status_code == 409, (method, response.text)
+        assert "busy" in response.json()["detail"]
+    channel_runtime.gate.set()
+    await wake
+    response = await client.patch(path, json={"persona": None}, headers=owner[0])
+    assert response.status_code == 200, response.text
+
+
+async def test_agent_tokens_cannot_change_members(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    user = owner[1]
+    token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    base = f"/api/v1/channels/{channel_state.channel.id}/members"
+    member_path = f"{base}/{channel_state.channel.members[0].id}"
+    for method, path, kwargs in (
+        ("POST", base, {"json": {"model_id": TEST_MODEL_ID}}),
+        ("PATCH", member_path, {"json": {"persona": None}}),
+        ("DELETE", member_path, {}),
+    ):
+        response = await client.request(
+            method, path, headers={"Authorization": f"Bearer {token}"}, **kwargs
+        )
+        assert response.status_code == 403, (method, response.text)
