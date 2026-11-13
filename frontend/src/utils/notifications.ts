@@ -5,7 +5,7 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification';
-import type { PermissionRequest } from '@/types/chat.types';
+import type { ToolPermissionRequest } from '@/types/chat.types';
 import { logger } from '@/utils/logger';
 
 // Dedup OS notifications when SSE envelopes replay on reconnect.
@@ -18,11 +18,12 @@ const BODY_MAX_CHARS = 200;
 export interface NotifyOptions {
   // The assistant's reply — becomes the notification body.
   message?: string;
+  title?: string;
   // Web only: invoked after focusing the window. Tauri clicks activate the app natively.
   onClick?: () => void;
 }
 
-function buildPermissionNotification(request: PermissionRequest): {
+function buildPermissionNotification(request: ToolPermissionRequest): {
   title: string;
   body: string;
 } {
@@ -143,7 +144,11 @@ function assistantBody(message: string | undefined): string {
 
 export async function notifyStreamComplete(options: NotifyOptions = {}): Promise<boolean> {
   try {
-    return await deliver('Task completed', assistantBody(options.message), options.onClick);
+    return await deliver(
+      options.title ?? 'Task completed',
+      assistantBody(options.message),
+      options.onClick,
+    );
   } catch (error) {
     logger.debug('Failed to send stream complete notification', 'notifications', error);
     return false;
@@ -151,7 +156,7 @@ export async function notifyStreamComplete(options: NotifyOptions = {}): Promise
 }
 
 export async function notifyPermissionRequest(
-  request: PermissionRequest,
+  request: ToolPermissionRequest,
   options: NotifyOptions = {},
 ): Promise<boolean> {
   // Claimed synchronously so concurrent replays can't double-notify, and

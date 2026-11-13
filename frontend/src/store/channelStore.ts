@@ -162,6 +162,8 @@ function applyToSlice(
       return addPermission(slice, envelope.payload);
     case 'channel_permission_resolved':
       return removePermission(slice, envelope.payload.member_id, envelope.payload.request_id);
+    default:
+      return slice;
   }
 }
 

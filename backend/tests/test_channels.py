@@ -22,11 +22,13 @@ from app.models.db_models.channel import (
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.paired_device import PairedDevice
+from app.models.db_models.push import PushDelivery
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatRequest
 from app.models.types import AgentKind
 from app.services import channel as channel_module
+from app.services import push as push_module
 from app.services.channel import (
     MAX_ATTEMPTS,
     ChannelService,
@@ -322,6 +324,75 @@ async def test_pass_turn_never_creates_or_publishes_a_message(
     assert [(row.member_id, row.message_id) for row in deliveries] == [
         (channel_state.channel.members[0].id, message.id)
     ]
+
+
+@pytest.mark.parametrize(
+    "replies", [["Shipped it."], ["PASS"], ["Shipped it.", "PASS"]]
+)
+async def test_settled_run_pushes_its_last_visible_reply_once(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    channel_queue: EndpointCache,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    replies: list[str],
+) -> None:
+    for name in ("APNS_KEY", "APNS_KEY_ID", "APNS_TEAM_ID"):
+        monkeypatch.setattr(push_module.settings, name, "configured")
+    response = await client.post(
+        "/api/v1/push/devices",
+        json={"token": "abc123", "sandbox": True},
+        headers=owner[0],
+    )
+    assert response.status_code == 204
+    await channel_service.new_message(channel_state, "Ship it?", device_ids=frozenset())
+
+    for index, reply in enumerate(replies):
+        if index:
+            await channel_service.post(channel_state.channel, "Again?", [], frozenset())
+            assert channel_state.timer is not None
+            channel_state.timer.cancel()
+            await asyncio.gather(channel_state.timer, return_exceptions=True)
+            channel_state.timer = None
+        channel_runtime.events = [("assistant_text", {"text": reply})]
+        await channel_runtime.wake(channel_state)
+    await channel_runtime.wake(channel_state)
+    await channel_runtime.wake(channel_state)
+
+    deliveries = (await db_session.scalars(select(PushDelivery))).all()
+    completions = [
+        payload
+        for payload in activity_publications(channel_runtime)
+        if "completed" in payload
+    ]
+    if replies != ["Shipped it."]:
+        assert deliveries == []
+        assert completions == []
+        return
+    [delivery] = deliveries
+    [message] = [
+        message
+        for message in await channel_service.messages(channel_state.channel, 0)
+        if message.member_id is not None
+    ]
+    member = channel_state.channel.members[0]
+    assert (delivery.event_key, delivery.path, delivery.collapse_id) == (
+        f"{message.id}:complete",
+        f"/channels/{channel_state.channel.id}",
+        f"{channel_state.channel.id}:complete",
+    )
+    assert (delivery.title, delivery.body) == (
+        "#Review",
+        f"{member.display_name}: Shipped it.",
+    )
+    [completion] = completions
+    assert completion.pop("completed") == {
+        "title": delivery.title,
+        "body": delivery.body,
+    }
+    assert completion == channel_service.member_activity(channel_state)
 
 
 async def test_tool_segments_counts_and_source_duration_are_persisted(

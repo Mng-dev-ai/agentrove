@@ -9,21 +9,25 @@ import { logger } from '@/utils/logger';
 import { bumpAppBadge, type NotifyOptions } from '@/utils/notifications';
 import { isPushRegistered } from '@/utils/push';
 
-// Suppress only when the event's chat is painted on screen in a focused window.
+// Suppress only when the event's route is painted on screen in a focused window.
 // Panes stay mounted while hidden, so mount state can't stand in for visibility.
 export function useBackgroundNotify(): (
-  targetChatId: string | undefined,
+  targetPath: string | undefined,
   notify: (options: NotifyOptions) => Promise<boolean>,
 ) => void {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   return useCallback(
-    (targetChatId: string | undefined, notify: (options: NotifyOptions) => Promise<boolean>) => {
+    (targetPath: string | undefined, notify: (options: NotifyOptions) => Promise<boolean>) => {
       // Read live: stored stream callbacks can invoke this closure long after
       // the pane that created it unmounted, freezing anything captured at render.
       const pathname = window.location.pathname;
       const routeChatId = matchPath('/chat/:chatId', pathname)?.params.chatId;
+      const targetChatId = targetPath
+        ? matchPath('/chat/:chatId', targetPath)?.params.chatId
+        : undefined;
+      if (!targetChatId && targetPath === pathname && document.hasFocus()) return;
       // Only the workspace routes mount tiles — elsewhere (settings, auth) the
       // persisted layout paints nothing, so it can't suppress anything.
       const paintsTiles = Boolean(routeChatId || matchPath('/', pathname));
@@ -43,7 +47,7 @@ export function useBackgroundNotify(): (
       void (async () => {
         if (!(await fetchNotificationsEnabled(queryClient))) return;
         const delivered = await notify({
-          onClick: targetChatId ? () => navigate(`/chat/${targetChatId}`) : undefined,
+          onClick: targetPath ? () => navigate(targetPath) : undefined,
         });
         // Focus is re-read: the user can return during the awaits above, after
         // useAppBadge's clear already ran on a zero count.
