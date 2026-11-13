@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Literal, get_args
+from typing import Any, Literal, get_args
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -81,6 +81,7 @@ class ChannelMemberActivity(BaseModel):
     version: int
     member_ids: list[str]
     waiting_member_ids: list[str]
+    elicitations: list[dict[str, Any]]
     retrying_member_ids: list[str]
     member_errors: dict[str, str]
     unavailable_members: dict[str, str]

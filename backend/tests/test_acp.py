@@ -31,6 +31,7 @@ from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.services import channel as channel_module
+from app.services.acp import client as acp_client_module
 from app.services.automation import AutomationService
 from app.services.chat import ChatService
 from app.services import subthread_wake as wake_module
@@ -1299,6 +1300,161 @@ async def test_concurrent_elicitations_share_tool_id_but_resolve_independently(
         event["responses"]
         for event in fake_agent.events_of("concurrent_elicitation_responses")
     ]
+
+
+async def wait_for_channel_activity(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    channel_id: str,
+    predicate: Any,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + 10
+    while True:
+        response = await client.get(
+            f"/api/v1/channels/{channel_id}/member-activity", headers=headers
+        )
+        assert response.status_code == 200, response.text
+        if predicate(response.json()):
+            return dict(response.json())
+        assert time.monotonic() < deadline, response.json()
+        await asyncio.sleep(0.05)
+
+
+@pytest.mark.parametrize(
+    "resolution,expected_response",
+    [
+        ("answer", {"action": "accept", "content": {"question_0": "Red"}}),
+        ("stop", {"action": "cancel"}),
+    ],
+)
+async def test_channel_member_question_waits_for_the_owner(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    resolution: str,
+    expected_response: dict[str, Any],
+) -> None:
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.1)
+    headers, workspace = auth_workspace
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [{"model_id": "sonnet", "display_name": "alice"}],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+    [member] = channel.json()["members"]
+    posted = await client.post(
+        f"/api/v1/channels/{channel_id}/messages",
+        data={"content": f"{MARKER_ELICITATION} choose"},
+        headers=headers,
+    )
+    assert posted.status_code == 201, posted.text
+
+    activity = await wait_for_channel_activity(
+        client, headers, channel_id, lambda activity: activity["elicitations"]
+    )
+    [pending] = activity["elicitations"]
+    request_id = pending["request"]["request_id"]
+    assert pending == {
+        "member_id": member["id"],
+        "chat_id": member["chat_id"],
+        "request": {
+            "request_id": request_id,
+            "message": "Choose a color",
+            "tool_call_id": "tool-elicitation",
+            "requested_schema": ELICITATION_REQUESTED_SCHEMA,
+        },
+    }
+    assert activity["waiting_member_ids"] == [member["id"]]
+    snapshot = await client.get(f"/api/v1/channels/{channel_id}", headers=headers)
+    assert snapshot.json()["activity"]["elicitations"] == [pending]
+    assert fake_agent.events_of("elicitation_response") == []
+
+    respond_path = f"/api/v1/chat/chats/{member['chat_id']}/elicitation"
+    unknown = await client.post(
+        f"{respond_path}/elicit-99/respond",
+        json={"request_id": "elicit-99", "action": "decline", "content": None},
+        headers=headers,
+    )
+    assert unknown.status_code == 404
+    if resolution == "answer":
+        response = await client.post(
+            f"{respond_path}/{request_id}/respond",
+            json={
+                "request_id": request_id,
+                "action": "accept",
+                "content": {"question_0": "Red"},
+            },
+            headers=headers,
+        )
+        assert response.status_code == 200, response.text
+    else:
+        stopped = await client.post(
+            f"/api/v1/channels/{channel_id}/stop", headers=headers
+        )
+        assert stopped.status_code == 204, stopped.text
+
+    activity = await wait_for_channel_activity(
+        client, headers, channel_id, lambda activity: not activity["member_ids"]
+    )
+    assert activity["elicitations"] == []
+    assert activity["waiting_member_ids"] == []
+    assert [
+        event["response"] for event in fake_agent.events_of("elicitation_response")
+    ] == [expected_response]
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
+
+
+async def test_unanswered_channel_member_question_is_declined_on_timeout(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(channel_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_module, "DEBOUNCE_SECONDS", 0.1)
+    monkeypatch.setattr(acp_client_module, "CHANNEL_ELICITATION_TIMEOUT_SECONDS", 0)
+    headers, workspace = auth_workspace
+    channel = await client.post(
+        "/api/v1/channels",
+        json={
+            "name": "Review",
+            "workspace_id": str(workspace.id),
+            "members": [{"model_id": "sonnet", "display_name": "alice"}],
+        },
+        headers=headers,
+    )
+    assert channel.status_code == 201, channel.text
+    channel_id = channel.json()["id"]
+    posted = await client.post(
+        f"/api/v1/channels/{channel_id}/messages",
+        data={"content": f"{MARKER_ELICITATION} choose"},
+        headers=headers,
+    )
+    assert posted.status_code == 201, posted.text
+
+    deadline = time.monotonic() + 10
+    while not fake_agent.events_of("elicitation_response"):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.05)
+    assert fake_agent.events_of("elicitation_response")[0]["response"] == {
+        "action": "decline"
+    }
+    activity = await wait_for_channel_activity(
+        client, headers, channel_id, lambda activity: not activity["member_ids"]
+    )
+    assert activity["elicitations"] == []
+    assert activity["waiting_member_ids"] == []
+    await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
 
 
 @pytest.mark.parametrize(

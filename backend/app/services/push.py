@@ -103,6 +103,19 @@ class PushService:
             ttl_seconds=PERMISSION_TTL_SECONDS,
         )
 
+    async def notify_question(
+        self, *, user_id: UUID, path: str, request_id: str, title: str, body: str
+    ) -> None:
+        await self.enqueue(
+            user_id=user_id,
+            event_key=f"{path}:ask:{request_id}",
+            title=title,
+            body=self.truncated(body),
+            path=path,
+            collapse_id=f"ask:{request_id}",
+            ttl_seconds=PERMISSION_TTL_SECONDS,
+        )
+
     async def notify_completion(
         self, *, user_id: UUID, chat_id: str, message_id: str, failed: bool, reply: str
     ) -> None:

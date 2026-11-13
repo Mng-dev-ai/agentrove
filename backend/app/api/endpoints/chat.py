@@ -754,7 +754,7 @@ async def respond_to_elicitation(
     chat_id: UUID,
     request_id: str,
     response: ElicitationRespondRequest,
-    _chat: Chat = Depends(ensure_chat_access),
+    _chat: Chat = Depends(ensure_member_chat_access),
 ) -> PermissionRespondResponse:
     if response.request_id != request_id:
         raise HTTPException(
