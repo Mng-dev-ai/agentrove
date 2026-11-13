@@ -1435,7 +1435,7 @@ class ChannelService(BaseDbService[Channel]):
             await PushService(self.session_factory).notify_question(
                 user_id=state.channel.user_id,
                 path=f"/channels/{state.channel.id}",
-                request_id=f"{turn.member.chat_id}:{request_id}",
+                request_id=f"{turn.source_message_id}:{request_id}",
                 title=asked["title"],
                 body=asked["body"],
             )

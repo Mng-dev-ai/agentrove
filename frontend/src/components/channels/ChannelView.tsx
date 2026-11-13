@@ -157,6 +157,7 @@ interface ChannelTypingRowProps {
   thinking: ChannelMember[];
   typing: ChannelMember[];
   waiting: ChannelMember[];
+  answering: ChannelMember[];
   retrying: ChannelMember[];
   unavailable: ChannelMember[];
   reasons: Record<string, string>;
@@ -166,6 +167,7 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
   thinking,
   typing,
   waiting,
+  answering,
   retrying,
   unavailable,
   reasons,
@@ -175,6 +177,8 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
     thinking.length > 0 && memberStatus(thinking, 'is thinking…', 'are thinking…'),
     waiting.length > 0 &&
       memberStatus(waiting, 'is waiting for approval', 'are waiting for approval'),
+    answering.length > 0 &&
+      memberStatus(answering, 'is waiting for your answer', 'are waiting for your answer'),
     retrying.length > 0 &&
       memberStatus(retrying, 'hit an error, retrying soon', 'hit errors, retrying soon'),
     unavailable.length > 0 && memberStatus(unavailable, 'is unavailable', 'are unavailable'),
@@ -186,13 +190,15 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
       <StatusIndicator
         leading={
           <span className={styles['typing-icons']}>
-            {[...typing, ...thinking, ...waiting, ...retrying, ...unavailable].map((member) => (
-              <ProviderIcon
-                key={member.id}
-                agentKind={getAgentKindForModelId(member.model_id)}
-                className={styles['author-icon']}
-              />
-            ))}
+            {[...typing, ...thinking, ...waiting, ...answering, ...retrying, ...unavailable].map(
+              (member) => (
+                <ProviderIcon
+                  key={member.id}
+                  agentKind={getAgentKindForModelId(member.model_id)}
+                  className={styles['author-icon']}
+                />
+              ),
+            )}
           </span>
         }
         text={text}
@@ -371,10 +377,12 @@ export function ChannelView({ channel }: { channel: Channel }) {
     thinkingMembers,
     typingMembers,
     waitingMembers,
+    answeringMembers,
     retryingMembers,
     unavailableMembers,
     memberReasons,
   } = useMemo(() => {
+    const approvingIds = new Set(permissions.map((p) => p.member_id));
     const waitingIds = new Set([...permissions, ...elicitations].map((p) => p.member_id));
     const typingIds = new Set(
       messages.flatMap((m) => (m.status === 'streaming' && m.member_id ? [m.member_id] : [])),
@@ -390,7 +398,10 @@ export function ChannelView({ channel }: { channel: Channel }) {
       typingMembers: channel.members.filter(
         (member) => typingIds.has(member.id) && !waitingIds.has(member.id),
       ),
-      waitingMembers: channel.members.filter((member) => waitingIds.has(member.id)),
+      waitingMembers: channel.members.filter((member) => approvingIds.has(member.id)),
+      answeringMembers: channel.members.filter(
+        (member) => waitingIds.has(member.id) && !approvingIds.has(member.id),
+      ),
       retryingMembers: channel.members.filter((member) => retryingIds.has(member.id)),
       unavailableMembers: channel.members.filter(
         (member) => activity.unavailable_members?.[member.id] !== undefined,
@@ -402,6 +413,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
     thinkingMembers.length > 0 ||
     typingMembers.length > 0 ||
     waitingMembers.length > 0 ||
+    answeringMembers.length > 0 ||
     retryingMembers.length > 0;
 
   const trailMessages = useMemo<TrailMessage[]>(
@@ -523,6 +535,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                       thinking={thinkingMembers}
                       typing={typingMembers}
                       waiting={waitingMembers}
+                      answering={answeringMembers}
                       retrying={retryingMembers}
                       unavailable={unavailableMembers}
                       reasons={memberReasons}

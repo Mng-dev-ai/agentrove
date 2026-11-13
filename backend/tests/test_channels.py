@@ -947,23 +947,30 @@ async def test_activity_reports_members_waiting_for_approval(
 
 @pytest.mark.parametrize("resolved", [True, False], ids=["resolved", "turn-ended"])
 async def test_activity_reports_member_questions_until_resolved(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
     channel_state: ChannelState,
     channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
     resolved: bool,
 ) -> None:
-    pushes: list[dict[str, Any]] = []
-
-    async def notify_question(self: Any, **kwargs: Any) -> None:
-        pushes.append(kwargs)
-
-    monkeypatch.setattr(push_module.PushService, "notify_question", notify_question)
+    for name in ("APNS_KEY", "APNS_KEY_ID", "APNS_TEAM_ID"):
+        monkeypatch.setattr(push_module.settings, name, "configured")
+    response = await client.post(
+        "/api/v1/push/devices",
+        json={"token": "abc123", "sandbox": True},
+        headers=owner[0],
+    )
+    assert response.status_code == 204
     await channel_service.new_message(
         channel_state, "Pick a color", device_ids=frozenset()
     )
     data = {"message": "Choose a color", "tool_call_id": None, "requested_schema": {}}
+    request = ("elicitation_request", {"request_id": "elicit-1", "data": data})
     channel_runtime.events = [
-        ("elicitation_request", {"request_id": "elicit-1", "data": data}),
+        request,
+        request,
         *([("elicitation_resolved", {"request_id": "elicit-1"})] if resolved else []),
         ("assistant_text", {"text": "PASS"}),
     ]
@@ -995,16 +1002,29 @@ async def test_activity_reports_member_questions_until_resolved(
         "body": f"{member.display_name} asks: Choose a color",
     }
     assert [activity.get("asked") for activity in activities[2:]] == [None, None]
-    assert pushes == [
-        {
-            "user_id": channel_state.channel.user_id,
-            "path": f"/channels/{channel_state.channel.id}",
-            "request_id": f"{member.chat_id}:elicit-1",
-            "title": f"#{channel_state.channel.name}",
-            "body": f"{member.display_name} asks: Choose a color",
-        }
-    ]
     assert channel_state.elicitations == {}
+
+    await channel_service.new_message(
+        channel_state, "Pick again", device_ids=frozenset()
+    )
+    channel_runtime.events = [request, ("assistant_text", {"text": "PASS"})]
+    await channel_runtime.wake(channel_state)
+
+    path = f"/channels/{channel_state.channel.id}"
+    deliveries = (await db_session.scalars(select(PushDelivery))).all()
+    assert sorted(
+        (row.event_key, row.collapse_id, row.title, row.body, row.path)
+        for row in deliveries
+    ) == sorted(
+        (
+            f"{path}:ask:{source.id}:elicit-1",
+            f"ask:{source.id}:elicit-1",
+            f"#{channel_state.channel.name}",
+            f"{member.display_name} asks: Choose a color",
+            path,
+        )
+        for source in channel_runtime.sources
+    )
 
 
 async def test_question_from_a_finished_turn_is_declined(
