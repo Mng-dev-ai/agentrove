@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { logger } from './logger';
 
+const ISO_TIMESTAMP = /^\[\d{4}-\d{2}-\d{2}T[\d:.]+Z\]/;
+
 beforeEach(() => {
   vi.spyOn(console, 'debug').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -13,6 +15,14 @@ afterEach(() => {
 });
 
 describe('logger message formatting', () => {
+  it('prefixes an ISO timestamp and the level, then the message', () => {
+    logger.warn('hello');
+    const [line] = vi.mocked(console.warn).mock.calls[0];
+    expect(line).toMatch(ISO_TIMESTAMP);
+    expect(line).toContain('[WARN]');
+    expect(line).toContain('hello');
+  });
+
   it('includes the context segment only when provided', () => {
     logger.warn('with ctx', 'my.context');
     expect(vi.mocked(console.warn).mock.calls[0][0]).toContain('[my.context]');
