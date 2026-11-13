@@ -170,6 +170,31 @@ export function Sidebar({
     [hasActiveFilters, recentChats, chatMatchesFilters],
   );
   const hasVisibleContent = visiblePinnedChats.length > 0 || visibleRecentChats.length > 0;
+  // Chats blocked on the user lift into a "Needs you" group above Pinned, so an
+  // approval or question isn't buried in Recents. They leave their usual section
+  // while blocked and drop back once answered.
+  const needsYouChats = useMemo(() => {
+    const seen = new Set<string>();
+    return [...visiblePinnedChats, ...visibleRecentChats].filter((chat) => {
+      if (!blockedChatIdSet.has(chat.id) || seen.has(chat.id)) return false;
+      seen.add(chat.id);
+      return true;
+    });
+  }, [visiblePinnedChats, visibleRecentChats, blockedChatIdSet]);
+  const listedPinnedChats = useMemo(
+    () =>
+      needsYouChats.length > 0
+        ? visiblePinnedChats.filter((chat) => !blockedChatIdSet.has(chat.id))
+        : visiblePinnedChats,
+    [needsYouChats.length, visiblePinnedChats, blockedChatIdSet],
+  );
+  const listedRecentChats = useMemo(
+    () =>
+      needsYouChats.length > 0
+        ? visibleRecentChats.filter((chat) => !blockedChatIdSet.has(chat.id))
+        : visibleRecentChats,
+    [needsYouChats.length, visibleRecentChats, blockedChatIdSet],
+  );
 
   const groupBy = filters.groupBy;
   const showWorkspaceBadges = useMemo(
@@ -182,7 +207,7 @@ export function Sidebar({
     () =>
       buildRecentChatSections({
         groupBy,
-        visibleRecentChats,
+        visibleRecentChats: listedRecentChats,
         workspaceBadgeById,
         blockedChatIdSet,
         streamingChatIdSet,
@@ -190,7 +215,7 @@ export function Sidebar({
       }),
     [
       groupBy,
-      visibleRecentChats,
+      listedRecentChats,
       workspaceBadgeById,
       blockedChatIdSet,
       streamingChatIdSet,
@@ -280,8 +305,9 @@ export function Sidebar({
           }
           isLoadingChats={isLoadingChats}
           hasAnyContent={hasAnyContent}
-          visiblePinnedChats={visiblePinnedChats}
-          visibleRecentChats={visibleRecentChats}
+          needsYouChats={needsYouChats}
+          visiblePinnedChats={listedPinnedChats}
+          visibleRecentChats={listedRecentChats}
           hasVisibleContent={hasVisibleContent}
           recentChatSections={recentChatSections}
           rowProps={rowProps}

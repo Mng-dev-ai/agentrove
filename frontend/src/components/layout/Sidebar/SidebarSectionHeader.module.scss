@@ -15,7 +15,8 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  color: var(--theme-text-quaternary);
+  // Tertiary, not quaternary: quaternary only targets 3:1, too faint for 12px labels
+  color: var(--theme-text-tertiary);
 
   @include responsive.hover {
     color: var(--theme-text-secondary);

@@ -1,4 +1,5 @@
 @use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/typography' as type;
 @use '@/styles/globals/responsive' as responsive;
 
 .channels {
@@ -22,4 +23,10 @@
 .new-icon {
   height: var(--space-3-5);
   width: var(--space-3-5);
+}
+
+.empty {
+  @include type.type-meta;
+  padding-bottom: var(--space-2);
+  color: var(--theme-text-tertiary);
 }

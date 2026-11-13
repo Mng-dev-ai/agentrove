@@ -231,6 +231,13 @@ export function SidebarChannels({
           onDropdownClick={handleDropdownClick}
         />
       ))}
+      {!isCollapsed && channels.length === 0 && (
+        <p className={styles.empty}>
+          {machineChannels.length > 0
+            ? 'No channels match the current filters'
+            : 'No channels yet. Group chats where several agents share a workspace.'}
+        </p>
+      )}
 
       {dropdown && (
         <SidebarMenu

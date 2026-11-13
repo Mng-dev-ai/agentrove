@@ -16,6 +16,7 @@ interface SidebarChatListProps {
   channels: ReactNode;
   isLoadingChats: boolean;
   hasAnyContent: boolean;
+  needsYouChats: Chat[];
   visiblePinnedChats: Chat[];
   visibleRecentChats: Chat[];
   hasVisibleContent: boolean;
@@ -35,6 +36,7 @@ export function SidebarChatList({
   channels,
   isLoadingChats,
   hasAnyContent,
+  needsYouChats,
   visiblePinnedChats,
   visibleRecentChats,
   hasVisibleContent,
@@ -62,10 +64,23 @@ export function SidebarChatList({
       {channels}
       {!hasAnyContent ? (
         isLoadingChats ? null : (
-          <p className={styles.empty}>No chats yet</p>
+          <div>
+            <SidebarSectionHeader title="Threads" />
+            <p className={styles.empty}>No threads yet. Start one with New thread.</p>
+          </div>
         )
       ) : (
         <div>
+          {needsYouChats.length > 0 && (
+            // Not collapsible: hiding what's blocked on you defeats the group.
+            <div className={styles.section}>
+              <SidebarSectionHeader title="Needs you" />
+              {needsYouChats.map((chat) => (
+                <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
+              ))}
+            </div>
+          )}
+
           {visiblePinnedChats.length > 0 && (
             <div className={styles.section}>
               <SidebarSectionHeader title="Pinned" section="pinned" />

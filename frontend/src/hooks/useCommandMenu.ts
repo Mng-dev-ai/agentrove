@@ -22,7 +22,19 @@ export function useCommandMenu() {
 
   useMountEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || !e.shiftKey) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+
+      // ⌘K / Ctrl+K: the conventional palette chord, aliasing ⌘⇧P. Monaco/xterm keep
+      // their own ⌘K (chords, clear terminal).
+      if (e.code === 'KeyK' && !e.shiftKey && !e.altKey) {
+        if (isEmbeddedEditor(e.target)) return;
+        e.preventDefault();
+        const { commandMenuOpen, setCommandMenuOpen } = useUIStore.getState();
+        setCommandMenuOpen(!commandMenuOpen);
+        return;
+      }
+
+      if (!e.shiftKey) return;
 
       // Skip Monaco/xterm — they own their own command palette.
       if (e.code === 'KeyP') {

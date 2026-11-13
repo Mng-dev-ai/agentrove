@@ -47,6 +47,9 @@ interface SidebarRowBadgesProps {
   machineOffline?: boolean;
   workspaceName?: string;
   isIndented: boolean;
+  // Spelled-out status so the colored dot never carries meaning alone. Unread is
+  // left out: the bold title already says it.
+  status?: ChatStatusTone | null;
 }
 
 export function SidebarRowBadges({
@@ -54,12 +57,20 @@ export function SidebarRowBadges({
   machineOffline = false,
   workspaceName,
   isIndented,
+  status,
 }: SidebarRowBadgesProps) {
-  if (!workspaceName && !machineName) return null;
+  const statusWord = status && status !== 'unread' ? CHAT_STATUS_LABEL[status] : null;
+  if (!workspaceName && !machineName && !statusWord) return null;
   return (
     <span
       className={clsx(styles['workspace-badge'], isIndented && styles['workspace-badge--indented'])}
     >
+      {statusWord && (
+        <span className={clsx(styles['status-word'], styles[`status-word--${status}`])}>
+          {statusWord}
+        </span>
+      )}
+      {statusWord && (machineName || workspaceName) && <span aria-hidden>·</span>}
       {machineName && (
         <span
           className={clsx(
@@ -230,6 +241,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           machineOffline={machineOffline}
           workspaceName={workspaceBadge?.name}
           isIndented={hasLeadingSlot}
+          status={status}
         />
       }
       timestamp={getRelativeTime(chat.updated_at)}
