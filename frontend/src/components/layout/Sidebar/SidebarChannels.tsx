@@ -34,6 +34,8 @@ import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import styles from './SidebarChannels.module.scss';
 
+const CHANNELS_PAGE_SIZE = 5;
+
 interface SidebarChannelsProps {
   workspaces: Workspace[];
   workspaceId: string | undefined;
@@ -88,6 +90,11 @@ export function SidebarChannels({
   const renameChannel = useRenameChannelMutation();
   const pinChannel = usePinChannelMutation();
   const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes('channels'));
+  const [channelLimit, setChannelLimit] = useState(CHANNELS_PAGE_SIZE);
+  const visibleChannels = channels.filter(
+    ({ channel }, index) =>
+      channel.id === selectedChannelId || (!isCollapsed && index < channelLimit),
+  );
   const connections = useMachineStore((state) => state.connections);
   const notifyBackground = useBackgroundNotify();
   const liveMachineIdsKey = [...new Set(machineChannels.map(({ machineId }) => machineId))]
@@ -216,10 +223,7 @@ export function SidebarChannels({
           <Plus className={styles['new-icon']} />
         </Button>
       </SidebarSectionHeader>
-      {(isCollapsed
-        ? channels.filter(({ channel }) => channel.id === selectedChannelId)
-        : channels
-      ).map(({ channel, machineId }) => (
+      {visibleChannels.map(({ channel, machineId }) => (
         <SidebarChannelItem
           key={channel.id}
           channel={channel}
@@ -231,6 +235,16 @@ export function SidebarChannels({
           onDropdownClick={handleDropdownClick}
         />
       ))}
+      {!isCollapsed && visibleChannels.length < channels.length && (
+        <Button
+          variant="unstyled"
+          type="button"
+          onClick={() => setChannelLimit((limit) => limit + CHANNELS_PAGE_SIZE)}
+          className={styles['load-more']}
+        >
+          Load more
+        </Button>
+      )}
       {!isCollapsed && !isLoadingChannels && channels.length === 0 && (
         <p className={styles.empty}>
           {machineChannels.length > 0
