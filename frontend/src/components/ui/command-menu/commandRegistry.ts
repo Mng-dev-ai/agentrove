@@ -180,12 +180,6 @@ export const ALL_COMMANDS: CommandItem[] = [
 
 const PUNCTUATION_CODES: Record<string, string> = { '.': 'Period', ',': 'Comma' };
 
-const shortcutToCode = (key: string) => PUNCTUATION_CODES[key] ?? `Key${key.toUpperCase()}`;
-
-export const SHORTCUT_MAP = new Map<string, CommandItem>(
-  ALL_COMMANDS.map((cmd) => [shortcutToCode(cmd.shortcut), cmd]),
-);
-
 // ⌘⇧<key> chords that jump straight to a filter tab — opening the menu on it when
 // closed, switching tabs when open. 'all' is covered by the ⌘⇧P toggle. Keys must
 // not collide with command shortcuts above.
@@ -197,18 +191,24 @@ export const FILTER_SHORTCUTS: Record<Exclude<MainFilter, 'all'>, string> = {
   actions: 'x',
 };
 
+// Commands that switch the menu into a sub-mode instead of dispatching an action.
+export const COMMAND_TO_MODE: Partial<Record<string, MenuMode>> = {
+  'switch-branch': 'branches',
+  'set-theme': 'themes',
+};
+
+const shortcutToCode = (key: string) => PUNCTUATION_CODES[key] ?? `Key${key.toUpperCase()}`;
+
+export const SHORTCUT_MAP = new Map<string, CommandItem>(
+  ALL_COMMANDS.map((cmd) => [shortcutToCode(cmd.shortcut), cmd]),
+);
+
 export const FILTER_SHORTCUT_MAP = new Map<string, MainFilter>(
   (Object.entries(FILTER_SHORTCUTS) as [MainFilter, string][]).map(([filter, key]) => [
     shortcutToCode(key),
     filter,
   ]),
 );
-
-// Commands that switch the menu into a sub-mode instead of dispatching an action.
-export const COMMAND_TO_MODE: Partial<Record<string, MenuMode>> = {
-  'switch-branch': 'branches',
-  'set-theme': 'themes',
-};
 
 export const flattenFiles = (files: FileStructure[]): FlatFileItem[] =>
   traverseFileStructure(files, (item) =>

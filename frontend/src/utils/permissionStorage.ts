@@ -1,16 +1,16 @@
 import type { PermissionOption } from '@/types/chat.types';
 
+// Resolved permission seqs so SSE replays after refresh don't re-show them.
+// Keyed by chatId:seq (not request_id) — providers may reuse tool-call ids.
+const RESOLVED_PERMISSIONS_KEY = 'agentrove_resolved_permission_seqs';
+const MAX_RESOLVED_PERMISSIONS = 200;
+
 export function filterOptions(
   options: PermissionOption[],
   prefix: 'allow' | 'reject',
 ): PermissionOption[] {
   return options.filter((o) => o.kind.startsWith(prefix));
 }
-
-// Resolved permission seqs so SSE replays after refresh don't re-show them.
-// Keyed by chatId:seq (not request_id) — providers may reuse tool-call ids.
-const RESOLVED_PERMISSIONS_KEY = 'agentrove_resolved_permission_seqs';
-const MAX_RESOLVED_PERMISSIONS = 200;
 
 function resolvedKey(chatId: string, seq: number): string {
   return `${chatId}:${seq}`;

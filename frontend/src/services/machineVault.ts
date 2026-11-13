@@ -15,6 +15,12 @@ export type MachineVaultErrorCode =
   | 'bad_response'
   | 'internal';
 
+const REQUEST_TIMEOUT_MS = 15_000;
+const UNPAIR_TIMEOUT_MS = 5_000;
+
+const memorySessions = new Map<string, { origin: string; refreshToken: string }>();
+const memoryLocks = new Map<string, Promise<unknown>>();
+
 export class MachineVaultError extends Error {
   code: MachineVaultErrorCode;
 
@@ -48,9 +54,6 @@ interface MachineVault {
   probe(url: string): Promise<void>;
 }
 
-const REQUEST_TIMEOUT_MS = 15_000;
-const UNPAIR_TIMEOUT_MS = 5_000;
-
 function toVaultError(error: unknown): MachineVaultError {
   if (error instanceof MachineVaultError) return error;
   if (error && typeof error === 'object' && 'code' in error && 'message' in error) {
@@ -78,9 +81,6 @@ const desktopVault: MachineVault = {
   forget: (machineId) => invokeVault('machine_forget', { machineId }),
   probe: (url) => invokeVault('machine_probe', { url }),
 };
-
-const memorySessions = new Map<string, { origin: string; refreshToken: string }>();
-const memoryLocks = new Map<string, Promise<unknown>>();
 
 function withMachineLock<T>(machineId: string, task: () => Promise<T>): Promise<T> {
   const previous = memoryLocks.get(machineId) ?? Promise.resolve();

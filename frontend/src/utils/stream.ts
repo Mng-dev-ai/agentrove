@@ -1,6 +1,8 @@
 import type { AssistantStreamEvent } from '@/types/chat.types';
 import { logger } from '@/utils/logger';
 
+export const PROMPT_SUGGESTIONS_RE = /<prompt_suggestions>[\s\S]*?<\/prompt_suggestions>/g;
+
 function isAssistantStreamEventArray(value: unknown): value is AssistantStreamEvent[] {
   return (
     Array.isArray(value) &&
@@ -140,8 +142,6 @@ export class StreamContentBuffer {
     return JSON.stringify(this.events);
   }
 }
-
-export const PROMPT_SUGGESTIONS_RE = /<prompt_suggestions>[\s\S]*?<\/prompt_suggestions>/g;
 
 export const extractAssistantText = (source: string | AssistantStreamEvent[]): string => {
   const events = Array.isArray(source) ? source : parseEventLog(source);

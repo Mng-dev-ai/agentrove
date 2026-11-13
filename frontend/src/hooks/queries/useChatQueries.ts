@@ -29,6 +29,8 @@ const CHATS_PER_PAGE = 25;
 const RECENT_CHATS_PER_PAGE = 100;
 const GLOBAL_WORKSPACE_SENTINEL = 'all';
 
+export const MESSAGE_PAGE_SIZE = 20;
+
 // Global infinite chats: key[3]=GLOBAL_WORKSPACE_SENTINEL, key[4]=null (unpinned).
 function isGlobalChatsQuery(query: Query): boolean {
   const key = query.queryKey;
@@ -111,8 +113,6 @@ export const useSearchChatsQuery = (
     ...options,
   });
 };
-
-export const MESSAGE_PAGE_SIZE = 20;
 
 export const useInfiniteMessagesQuery = (
   chatId: string | undefined,

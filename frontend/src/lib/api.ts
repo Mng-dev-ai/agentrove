@@ -26,6 +26,12 @@ interface TokenResponse {
   token_type: string;
 }
 
+const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
+
+const LOCAL_REFRESH_LOCK = 'agentrove-local-session-refresh';
+// Must exceed the backend SQLite busy_timeout (30s): aborting doesn't stop the server consuming the token.
+const REFRESH_TIMEOUT_MS = 45_000;
+
 class RefreshTokenError extends Error {
   status: number;
 
@@ -61,8 +67,6 @@ function shouldInvalidateSession(error: unknown): boolean {
   return error instanceof RefreshTokenError && error.status === 401;
 }
 
-const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
-
 // Missing/undecodable claims or exp within buffer → don't open long-lived connections on it.
 function accessTokenExpiresSoon(token: string): boolean {
   const expiresAt = jwtExpiryMs(token);
@@ -81,10 +85,6 @@ const extractErrorMessage = async (response: Response): Promise<string> => {
     return response.statusText || 'An error occurred';
   }
 };
-
-const LOCAL_REFRESH_LOCK = 'agentrove-local-session-refresh';
-// Must exceed the backend SQLite busy_timeout (30s): aborting doesn't stop the server consuming the token.
-const REFRESH_TIMEOUT_MS = 45_000;
 
 async function refreshLocalSession(baseUrl: string): Promise<string> {
   const observedRefreshToken = authStorage.getRefreshToken();

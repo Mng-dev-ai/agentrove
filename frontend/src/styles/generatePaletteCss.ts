@@ -23,6 +23,22 @@ const VAR_NAMES: Record<ColorField, string> = {
 
 const COLOR_FIELDS = Object.keys(VAR_NAMES) as ColorField[];
 
+// @pierre/diffs re-skins its code/gutter/buffer surfaces via `--diffs-*-override` vars
+// (inherited through :root). Each maps to one structural token; dark-base palettes read
+// the `*-dark` form. Syntax colors stay on the pierre-light/dark Shiki themes; only these
+// backgrounds are overridden so the diff matches the editor. Same source as the surface
+// blocks, so adding a palette themes its diff view with no extra hand-editing.
+const DIFF_OVERRIDES: Record<string, string> = {
+  'bg-context': 'surface-secondary',
+  'bg-buffer': 'surface',
+  'bg-context-gutter': 'surface',
+  'bg-separator': 'surface-tertiary',
+  'fg-number': 'text-quaternary',
+  'bg-hover': 'surface-hover',
+  'bg-selection': 'surface-active',
+  'bg-selection-number': 'surface-active',
+};
+
 // Tailwind reads tokens as `rgb(var(--x) / alpha)`, so vars hold space-separated channels.
 const hexToChannels = (hex: string): string => {
   const match = /^#([0-9a-f]{6})$/i.exec(hex);
@@ -49,22 +65,6 @@ export function generatePaletteCss(): string {
   });
   return `${blocks.join('\n\n')}\n`;
 }
-
-// @pierre/diffs re-skins its code/gutter/buffer surfaces via `--diffs-*-override` vars
-// (inherited through :root). Each maps to one structural token; dark-base palettes read
-// the `*-dark` form. Syntax colors stay on the pierre-light/dark Shiki themes; only these
-// backgrounds are overridden so the diff matches the editor. Same source as the surface
-// blocks, so adding a palette themes its diff view with no extra hand-editing.
-const DIFF_OVERRIDES: Record<string, string> = {
-  'bg-context': 'surface-secondary',
-  'bg-buffer': 'surface',
-  'bg-context-gutter': 'surface',
-  'bg-separator': 'surface-tertiary',
-  'fg-number': 'text-quaternary',
-  'bg-hover': 'surface-hover',
-  'bg-selection': 'surface-active',
-  'bg-selection-number': 'surface-active',
-};
 
 export function generateDiffPaletteCss(): string {
   const blocks = (Object.keys(PALETTES) as (keyof typeof PALETTES)[]).map((name) => {

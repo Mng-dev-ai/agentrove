@@ -4,6 +4,16 @@ type UploadedFileType = 'image' | 'pdf' | 'xlsx';
 
 const IMAGE_EXT_RE = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i;
 
+const FILE_TYPE_EXTENSIONS: Record<string, string[]> = {
+  markdown: ['.md', '.markdown'],
+  csv: ['.csv'],
+  xlsx: ['.xlsx', '.xls'],
+  image: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'],
+  html: ['.html', '.htm'],
+  powerpoint: ['.ppt', '.pptx'],
+  pdf: ['.pdf'],
+};
+
 const checkMimeType = (file: File, mimeType: string | string[], extension?: string): boolean => {
   const types = Array.isArray(mimeType) ? mimeType : [mimeType];
   const lowerName = file.name?.toLowerCase();
@@ -21,16 +31,6 @@ const hasFileExtension = (file: FileStructure | null, extensions: string[]): boo
   if (!file || file.type !== 'file') return false;
   const fileName = file.path.split('/').pop()?.toLowerCase() || '';
   return extensions.some((ext) => fileName.endsWith(ext));
-};
-
-const FILE_TYPE_EXTENSIONS: Record<string, string[]> = {
-  markdown: ['.md', '.markdown'],
-  csv: ['.csv'],
-  xlsx: ['.xlsx', '.xls'],
-  image: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.ico'],
-  html: ['.html', '.htm'],
-  powerpoint: ['.ppt', '.pptx'],
-  pdf: ['.pdf'],
 };
 
 // Must match backend ALLOWED_IMAGE_TYPES (image/jpeg, image/png, image/gif, image/webp)

@@ -43,19 +43,19 @@ import type {
 import type { Channel } from '@/types/channel.types';
 import styles from './AutomationsSettingsTab.module.scss';
 
-const AutomationEditDialog = lazyNamed(
-  () => import('@/components/settings/dialogs/AutomationEditDialog/AutomationEditDialog'),
-  'AutomationEditDialog',
-);
-
-type AutomationListItem = MachineAutomation;
-
 const NEXT_RUN_FORMAT: Intl.DateTimeFormatOptions = {
   month: 'short',
   day: 'numeric',
   hour: '2-digit',
   minute: '2-digit',
 };
+
+const AutomationEditDialog = lazyNamed(
+  () => import('@/components/settings/dialogs/AutomationEditDialog/AutomationEditDialog'),
+  'AutomationEditDialog',
+);
+
+type AutomationListItem = MachineAutomation;
 
 function createDefaultForm(): AutomationForm {
   return {

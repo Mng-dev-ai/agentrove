@@ -51,6 +51,8 @@ const LANGUAGE_MAP: Record<string, string> = {
 
 const LEADING_SLASH_RE = /^\.?\/+/;
 
+const FILE_HREF_LINE_RE = /^#L(\d+)(?:-L?\d+)?$/i;
+
 export function sortFiles(files: FileStructure[]): FileStructure[] {
   const sorted = [...files].sort((a, b) => {
     if (a.type === 'folder' && b.type === 'file') return -1;
@@ -140,8 +142,6 @@ export function findOwningWorkspace(
   }
   return owner && { ...owner, relPath: path.slice(owner.root.length + 1) };
 }
-
-const FILE_HREF_LINE_RE = /^#L(\d+)(?:-L?\d+)?$/i;
 
 export function parseFileHref(href: string): { path: string; line?: number } | null {
   if (!/^file:/i.test(href)) return null;

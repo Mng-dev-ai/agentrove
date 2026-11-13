@@ -10,12 +10,6 @@ const BASE_SURFACE = {
   dark: { background: '#141414', foreground: '#e4e4e7' },
 } as const;
 
-function paletteSurface(palette: Palette): { background: string; foreground: string } {
-  if (palette === 'light' || palette === 'dark') return BASE_SURFACE[palette];
-  const t = CUSTOM_PALETTE_TOKENS[palette];
-  return { background: t.surfaceSecondary, foreground: t.textPrimary };
-}
-
 // Built-in ANSI 16 assumes dark bg — light canvas makes white/yellow near-invisible.
 // Light palettes use VS Code Light+; dark keeps xterm defaults.
 const LIGHT_ANSI = {
@@ -36,6 +30,12 @@ const LIGHT_ANSI = {
   brightCyan: '#0598bc',
   brightWhite: '#a5a5a5',
 } as const;
+
+function paletteSurface(palette: Palette): { background: string; foreground: string } {
+  if (palette === 'light' || palette === 'dark') return BASE_SURFACE[palette];
+  const t = CUSTOM_PALETTE_TOKENS[palette];
+  return { background: t.surfaceSecondary, foreground: t.textPrimary };
+}
 
 export const buildTerminalTheme = (palette: Palette): ITerminalOptions['theme'] => {
   const isDark = DARK_PALETTES.has(palette);

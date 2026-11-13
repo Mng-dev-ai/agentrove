@@ -50,6 +50,12 @@ export type MessageSegment =
   | SuggestionsSegment
   | PlanSegment;
 
+const statusMap: Record<'tool_started' | 'tool_completed' | 'tool_failed', ToolEventStatus> = {
+  tool_started: 'started',
+  tool_completed: 'completed',
+  tool_failed: 'failed',
+};
+
 const toolsEqual = (a: ToolAggregate, b: ToolAggregate): boolean => {
   // Aggregates are rebuilt from scratch on every stream flush, but input/result/
   // error come straight off the underlying event payloads, which keep object
@@ -83,12 +89,6 @@ export const segmentsEqual = (a: MessageSegment, b: MessageSegment): boolean => 
   if (a.kind === 'suggestions' && b.kind === 'suggestions') return a.suggestions === b.suggestions;
   if (a.kind === 'plan' && b.kind === 'plan') return a.entries === b.entries;
   return false;
-};
-
-const statusMap: Record<'tool_started' | 'tool_completed' | 'tool_failed', ToolEventStatus> = {
-  tool_started: 'started',
-  tool_completed: 'completed',
-  tool_failed: 'failed',
 };
 
 // pendingChildren holds tools whose parent_id arrived before the parent tool event.

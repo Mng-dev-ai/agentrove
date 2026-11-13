@@ -24,18 +24,18 @@ import {
 import styles from './Tree.module.scss';
 import '@/styles/pierre-tree-theme.css';
 
+const UNSAFE_CSS = `
+  [data-file-tree-search-input] {
+    --trees-focus-ring-width: 1px;
+  }
+`;
+
 // getItem() returns a union of file/directory handles; expand()/isExpanded() live only
 // on the directory variant. isDirectory()'s literal return type doesn't narrow the object
 // through a call, so narrow explicitly with a type predicate.
 function isDirectoryHandle(item: ReturnType<FileTree['getItem']>): item is FileTreeDirectoryHandle {
   return item != null && item.isDirectory();
 }
-
-const UNSAFE_CSS = `
-  [data-file-tree-search-input] {
-    --trees-focus-ring-width: 1px;
-  }
-`;
 
 function focusPathWithTreeOwnership(
   model: FileTree,

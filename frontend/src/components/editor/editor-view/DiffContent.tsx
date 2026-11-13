@@ -4,12 +4,6 @@ import { MONACO_FONT_FAMILY } from '@/config/constants';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './DiffContent.module.scss';
 
-const DiffEditor = lazy(() =>
-  // Library module namespace (loader, hooks, components) doesn't fit lazyNamed's
-  // Record<string, ComponentType> bound — keep the manual default remap here.
-  import('@monaco-editor/react').then((m) => ({ default: m.DiffEditor })),
-);
-
 const DIFF_OPTIONS = {
   readOnly: true,
   originalEditable: false,
@@ -39,6 +33,12 @@ const DIFF_OPTIONS = {
   stickyScroll: { enabled: false },
   smoothScrolling: true,
 } as const;
+
+const DiffEditor = lazy(() =>
+  // Library module namespace (loader, hooks, components) doesn't fit lazyNamed's
+  // Record<string, ComponentType> bound — keep the manual default remap here.
+  import('@monaco-editor/react').then((m) => ({ default: m.DiffEditor })),
+);
 
 export interface DiffContentProps {
   original: string | undefined;

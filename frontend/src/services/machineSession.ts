@@ -6,15 +6,15 @@ import type { Machine, MachineConnection } from '@/types/machine.types';
 const HEALTH_TIMEOUT_MS = 5_000;
 const ACCESS_REFRESH_BUFFER_MS = 60_000;
 
+const accessGrants = new Map<string, MachineAccessGrant>();
+const inflightChecks = new Map<string, Promise<void>>();
+
 export class MachineUnavailableError extends Error {
   constructor(name: string) {
     super(`${name} is not connected`);
     this.name = 'MachineUnavailableError';
   }
 }
-
-const accessGrants = new Map<string, MachineAccessGrant>();
-const inflightChecks = new Map<string, Promise<void>>();
 
 export function getMachineAccessToken(machineId: string): string | null {
   return accessGrants.get(machineId)?.access_token ?? null;
