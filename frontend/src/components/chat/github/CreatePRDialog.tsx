@@ -226,13 +226,7 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
   };
 
   return (
-    <BaseModal
-      isOpen={true}
-      onClose={onClose}
-      size="md"
-      zIndex="modalHighest"
-      className={styles.dialog}
-    >
+    <BaseModal isOpen={true} onClose={onClose} size="md" className={styles.dialog}>
       <div className={styles.body}>
         <div className={styles.header}>
           <div className={styles['icon-box']}>

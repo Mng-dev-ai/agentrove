@@ -50,7 +50,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'query-vendor': ['@tanstack/react-query', '@tanstack/react-query-devtools'],
+          'query-vendor': ['@tanstack/react-query'],
           monaco: ['monaco-editor', '@monaco-editor/react'],
           terminal: ['@xterm/xterm', '@xterm/addon-fit', '@xterm/addon-clipboard'],
           mermaid: ['mermaid'],

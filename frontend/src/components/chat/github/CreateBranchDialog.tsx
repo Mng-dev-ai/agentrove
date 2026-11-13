@@ -53,7 +53,7 @@ export function CreateBranchDialog({ onClose }: CreateBranchDialogProps) {
   };
 
   return (
-    <BaseModal isOpen={true} onClose={onClose} size="sm" zIndex="modalHighest">
+    <BaseModal isOpen={true} onClose={onClose} size="sm">
       <div className={styles.body}>
         <div className={styles.header}>
           <div className={styles['icon-box']}>

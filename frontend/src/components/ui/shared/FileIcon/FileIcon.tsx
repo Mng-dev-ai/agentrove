@@ -1,6 +1,5 @@
 import { memo, useState, useEffect } from 'react';
 import clsx from 'clsx';
-import { Folder, FolderOpen } from 'lucide-react';
 import styles from './FileIcon.module.scss';
 
 type GetIconFn = (name: string) => { svg: string };
@@ -33,16 +32,6 @@ function loadModule(): Promise<GetIconFn | null> {
   }
   return loadPromise;
 }
-
-export interface FolderIconProps {
-  isExpanded?: boolean;
-  className?: string;
-}
-
-export const FolderIcon = memo(function FolderIcon({ isExpanded, className }: FolderIconProps) {
-  const Icon = isExpanded ? FolderOpen : Folder;
-  return <Icon className={clsx(styles['folder-icon'], className)} />;
-});
 
 export interface FileIconProps {
   name: string;

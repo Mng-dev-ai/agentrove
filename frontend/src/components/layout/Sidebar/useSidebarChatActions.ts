@@ -22,7 +22,6 @@ interface UseSidebarChatActionsParams {
   navigate: NavigateFunction;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   onChatSelect: (chatId: string) => void;
-  onDeleteChat?: (chatId: string) => void;
 }
 
 export function useSidebarChatActions({
@@ -32,7 +31,6 @@ export function useSidebarChatActions({
   navigate,
   scrollContainerRef,
   onChatSelect,
-  onDeleteChat,
 }: UseSidebarChatActionsParams) {
   const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
@@ -172,13 +170,12 @@ export function useSidebarChatActions({
       }
       // Release any pending File blobs held for this chat.
       useChatStore.getState().clearAttachedFilesForChat(chatToDelete);
-      onDeleteChat?.(chatToDelete);
     } catch {
       // toast already shown by mutateWithToast
     } finally {
       setChatToDelete(null);
     }
-  }, [chatToDelete, deleteChat, selectedChatId, selectedChatParentId, navigate, onDeleteChat]);
+  }, [chatToDelete, deleteChat, selectedChatId, selectedChatParentId, navigate]);
 
   const handleDropdownClick = useCallback((e: React.MouseEvent<HTMLButtonElement>, chat: Chat) => {
     e.stopPropagation();

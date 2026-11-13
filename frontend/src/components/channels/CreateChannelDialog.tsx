@@ -357,13 +357,7 @@ export function CreateChannelDialog({
   };
 
   return (
-    <BaseModal
-      isOpen={true}
-      onClose={onClose}
-      size="md"
-      zIndex="modalHighest"
-      className={styles.dialog}
-    >
+    <BaseModal isOpen={true} onClose={onClose} size="md" className={styles.dialog}>
       <div ref={bodyRef} className={clsx(styles.body, bodyOverflows && styles['body--scroll'])}>
         <div ref={bodyContentRef} className={styles['body-content']}>
           <div className={styles.header}>

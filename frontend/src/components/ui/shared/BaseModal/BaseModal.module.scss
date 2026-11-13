@@ -4,8 +4,6 @@
   // All modal tiers collapse to the single 'modal' z-layer; nested modals (e.g.
   // a ConfirmDialog opened over another dialog) still stack correctly because each
   // BaseModal portals to document.body in open order, so later mounts paint on top.
-  // TODO(refactor): the old modalHigh/modalHighest tiers (z 100/200) have no distinct
-  // z-layer token — relying on portal DOM order instead.
   @include z.z('modal');
   position: fixed;
   inset: 0;

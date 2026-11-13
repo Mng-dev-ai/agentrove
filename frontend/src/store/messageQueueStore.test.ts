@@ -15,7 +15,6 @@ vi.mock('@/services/queueService', () => ({
     updateQueuedMessage: vi.fn(),
     deleteQueuedMessage: vi.fn(),
     sendNow: vi.fn(),
-    clearQueue: vi.fn(),
   },
 }));
 
