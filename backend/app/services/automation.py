@@ -20,7 +20,7 @@ from app.models.schemas.automation import (
     AutomationUpdate,
 )
 from app.models.schemas.chat import ChatCreate, ChatRequest
-from app.models.schemas.queue import AutomationQueuedMessage
+from app.models.schemas.queue import QUEUE_CONTENT_MAX_LENGTH, AutomationQueuedMessage
 from app.models.types import PermissionMode
 from app.services.agent import AgentService
 from app.services.channel import channel_service
@@ -131,6 +131,20 @@ class AutomationService(BaseDbService[Automation]):
             )
         return channel
 
+    @staticmethod
+    def _channel_post(name: str, prompt: str) -> str:
+        return f"[Automation: {name}]\n{prompt}"
+
+    @classmethod
+    def _validate_channel_post(cls, name: str, prompt: str) -> None:
+        if len(cls._channel_post(name, prompt)) > QUEUE_CONTENT_MAX_LENGTH:
+            raise AutomationException(
+                "Prompt is too long to post into a channel with the automation name",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                details={"max_length": str(QUEUE_CONTENT_MAX_LENGTH)},
+                status_code=400,
+            )
+
     async def _get_owned(
         self, db: AsyncSession, automation_id: UUID, user: User
     ) -> Automation:
@@ -167,6 +181,7 @@ class AutomationService(BaseDbService[Automation]):
         async with self.session_factory() as db:
             await self._validate_workspace(db, data.workspace_id, user.id)
             if data.channel_id is not None:
+                self._validate_channel_post(data.name, data.prompt)
                 await self._target_channel(user, data.channel_id, data.workspace_id)
             automation = Automation(
                 user_id=user.id,
@@ -197,6 +212,15 @@ class AutomationService(BaseDbService[Automation]):
                 self.require_agent_workspace(user, changes["workspace_id"])
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
             channel_id = changes.get("channel_id", automation.channel_id)
+            if channel_id is not None and changes.keys() & {
+                "name",
+                "prompt",
+                "channel_id",
+            }:
+                self._validate_channel_post(
+                    changes.get("name", automation.name),
+                    changes.get("prompt", automation.prompt),
+                )
             retargeted = changes.keys() & {"channel_id", "workspace_id"}
             if channel_id is not None and retargeted:
                 await self._target_channel(
@@ -413,13 +437,13 @@ class AutomationService(BaseDbService[Automation]):
     ) -> AutomationRunResponse:
         channel = await cls._target_channel(user, channel_id, automation.workspace_id)
         async with cache_connection() as cache:
-            await ChannelQueueService(cache).add_automation_message(
+            added = await ChannelQueueService(cache).add_automation_message(
                 str(channel.id),
                 AutomationQueuedMessage(
-                    content=f"[Automation: {automation.name}]\n{automation.prompt}",
+                    content=cls._channel_post(automation.name, automation.prompt),
                     device_ids=device_ids,
                     automation_id=automation.id,
                 ),
             )
         await channel_service.dispatch_queued(channel)
-        return AutomationRunResponse(channel_id=channel.id)
+        return AutomationRunResponse(channel_id=channel.id, queued=added is not None)

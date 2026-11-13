@@ -66,13 +66,21 @@ def _automation_summary(a: dict[str, Any]) -> dict[str, Any]:
         "enabled": a["enabled"],
         "model_id": a["model_id"],
         "workspace_id": a["workspace_id"],
-        "channel_id": a["channel_id"],
+        "channel_id": a.get("channel_id"),
         "thinking_mode": a["thinking_mode"],
         "worktree": a["worktree"],
         "persona": a["selected_persona_name"],
         "next_run_at": a["next_run_at"],
         "last_run_at": a["last_run_at"],
     }
+
+
+def _require_channel_target(automation: dict[str, Any]) -> None:
+    if automation.get("channel_id") is None:
+        raise AgentroveError(
+            "This backend does not support channel targets; automation "
+            f"{automation['id']} was saved without one and starts a new chat per run."
+        )
 
 
 @functools.cache
@@ -833,6 +841,8 @@ async def create_automation(
     if channel_id:
         body["channel_id"] = channel_id
     automation = await client.create_automation(body)
+    if channel_id:
+        _require_channel_target(automation)
     return {"automation": _automation_summary(automation)}
 
 
@@ -886,6 +896,8 @@ async def update_automation(
     if channel_id is not None:
         body["channel_id"] = channel_id or None
     automation = await client.update_automation(automation_id, body)
+    if channel_id:
+        _require_channel_target(automation)
     return {"automation": _automation_summary(automation)}
 
 
@@ -904,12 +916,13 @@ async def run_automation(automation_id: str) -> dict[str, Any]:
     Starts a new unattended chat with the automation's prompt right now; the regular cron
     schedule (next_run_at) is unaffected. Returns the chat_id of the new chat — poll
     get_messages on it to read the reply. For a channel target it returns channel_id
-    instead — read the replies with get_channel_messages.
+    instead — read the replies with get_channel_messages — and queued=false when the run
+    was skipped because the previous run is still waiting in the channel's queue.
     """
     client, _ = _session()
     result = await client.run_automation(automation_id)
-    if result["channel_id"]:
-        return {"channel_id": result["channel_id"]}
+    if result.get("channel_id"):
+        return {"channel_id": result["channel_id"], "queued": result.get("queued")}
     return {"chat_id": result["chat_id"]}
 
 

@@ -21,14 +21,22 @@ from app.models.db_models.chat import Chat
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatCreate, ChatRequest
+from app.models.schemas.queue import QUEUE_CONTENT_MAX_LENGTH
+from app.services import automation as automation_module
 from app.services.automation import AutomationService
+from app.services.channel import ChannelState, channel_service
 from app.services.chat import ChatService
 from app.services.exceptions import ChatException
+from app.services.queue import ChannelQueueService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.user import UserService
 
 from tests.conftest import LoginClient, UserFactory
-from tests.helpers import FakeProviderFactory, create_authenticated_workspace
+from tests.helpers import (
+    EndpointCache,
+    FakeProviderFactory,
+    create_authenticated_workspace,
+)
 
 
 pytestmark = pytest.mark.anyio
@@ -373,9 +381,88 @@ async def test_channel_target_must_be_an_owned_channel_in_the_automation_workspa
     assert ran.json() == {
         "chat_id": str(chat_runtime.created_chat_ids[0]),
         "channel_id": None,
+        "queued": None,
     }
     [chat_data] = chat_runtime.created_chats
     assert chat_data.workspace_id == second.id
+
+
+async def test_channel_post_must_fit_the_queue_with_its_prefix(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    channel = await add_channel(db_session, user, workspace)
+    prompt = "x" * (QUEUE_CONTENT_MAX_LENGTH - len("[Automation: Nightly digest]\n"))
+    too_long = "Prompt is too long to post into a channel with the automation name"
+
+    refused = await client.post(
+        "/api/v1/automations",
+        json=automation_payload(
+            workspace.id, prompt=prompt + "x", channel_id=str(channel.id)
+        ),
+        headers=headers,
+    )
+    assert refused.status_code == 400
+    assert refused.json()["detail"] == too_long
+    chat_target = await create_automation(client, headers, workspace.id, prompt=prompt)
+    fitting = await create_automation(
+        client, headers, workspace.id, prompt=prompt, channel_id=str(channel.id)
+    )
+
+    for path, patch in (
+        (fitting["id"], {"name": "Nightly digest!"}),
+        (fitting["id"], {"prompt": prompt + "x"}),
+        (chat_target["id"], {"name": "Nightly digest!", "channel_id": str(channel.id)}),
+    ):
+        response = await client.patch(
+            f"/api/v1/automations/{path}", json=patch, headers=headers
+        )
+        assert response.status_code == 400, patch
+        assert response.json()["detail"] == too_long
+    renamed = await client.patch(
+        f"/api/v1/automations/{chat_target['id']}",
+        json={"name": "Nightly digest!"},
+        headers=headers,
+    )
+    assert renamed.status_code == 200
+
+
+async def test_run_now_reports_a_run_skipped_while_the_previous_is_queued(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    channel = await add_channel(db_session, user, workspace)
+    cache = EndpointCache()
+    monkeypatch.setattr(automation_module, "cache_connection", cache.connect)
+    monkeypatch.setitem(
+        channel_service.states, channel.id, ChannelState(channel, paused=True)
+    )
+    created = await create_automation(
+        client, headers, workspace.id, channel_id=str(channel.id)
+    )
+    path = f"/api/v1/automations/{created['id']}/run"
+
+    first = await client.post(path, headers=headers)
+    second = await client.post(path, headers=headers)
+
+    expected = {"chat_id": None, "channel_id": str(channel.id)}
+    assert first.json() == {**expected, "queued": True}
+    assert second.json() == {**expected, "queued": False}
+    queue = await ChannelQueueService(cache.store).get_queue(str(channel.id))
+    assert [item.content for item in queue] == [
+        "[Automation: Nightly digest]\nSummarize today's changes"
+    ]
 
 
 async def test_agent_tokens_cannot_target_a_channel_outside_their_reach(

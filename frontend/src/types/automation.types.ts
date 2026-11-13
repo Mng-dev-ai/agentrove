@@ -40,6 +40,7 @@ export interface AutomationCreateRequest {
 export interface AutomationRunResponse {
   chat_id?: string | null;
   channel_id?: string | null;
+  queued?: boolean | null;
 }
 
 export type AutomationTarget = 'chat' | 'channel';

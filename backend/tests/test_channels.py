@@ -2238,7 +2238,7 @@ async def test_automation_posts_its_prompt_into_an_idle_channel_and_wakes_member
     )
 
     assert ran.status_code == 200, ran.text
-    assert ran.json() == {"chat_id": None, "channel_id": channel_id}
+    assert ran.json() == {"chat_id": None, "channel_id": channel_id, "queued": True}
     assert await user_messages(channel_state) == [AUTOMATION_POST]
     assert channel_state.timer is not None
     await channel_runtime.wake(channel_state)

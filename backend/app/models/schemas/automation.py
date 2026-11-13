@@ -129,3 +129,4 @@ class Automation(BaseModel):
 class AutomationRunResponse(BaseModel):
     chat_id: UUID | None = None
     channel_id: UUID | None = None
+    queued: bool | None = None

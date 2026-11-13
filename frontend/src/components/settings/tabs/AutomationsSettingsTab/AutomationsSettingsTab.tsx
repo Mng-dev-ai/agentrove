@@ -238,22 +238,32 @@ export function AutomationsSettingsTab() {
           })
         : await createMutation.mutateAsync({ data, machineId });
       if (data.channel_id && saved.channel_id !== data.channel_id) {
-        if (editingItem) {
-          await updateMutation.mutateAsync({
-            automationId: saved.id,
-            data: requestFromAutomation(editingItem.automation),
-            machineId,
-          });
-        } else {
-          await deleteMutation.mutateAsync({ automationId: saved.id, machineId });
-        }
         const name =
           machineId === LOCAL_MACHINE_ID
             ? LOCAL_MACHINE_NAME
             : (machineNames.get(machineId) ?? 'This machine');
-        throw new Error(
-          `${name}'s backend does not support channel targets — update AgentRove on that machine.`,
-        );
+        const unsupported = `${name}'s backend does not support channel targets — update AgentRove on that machine.`;
+        try {
+          if (editingItem) {
+            await updateMutation.mutateAsync({
+              automationId: saved.id,
+              data: requestFromAutomation(editingItem.automation),
+              machineId,
+            });
+          } else {
+            await deleteMutation.mutateAsync({ automationId: saved.id, machineId });
+          }
+        } catch {
+          setIsDialogOpen(false);
+          toast.error(
+            editingItem
+              ? `${unsupported} "${editingItem.automation.name}" kept the edited values, which could not be restored — edit it back.`
+              : `${unsupported} "${saved.name}" was created as a chat automation and could not be removed — delete it from the list.`,
+            { duration: 15_000 },
+          );
+          return;
+        }
+        throw new Error(unsupported);
       }
       setIsDialogOpen(false);
       toast.success('Saved', { id: 'automation-saved' });
@@ -284,10 +294,13 @@ export function AutomationsSettingsTab() {
       const channel = queryClient
         .getQueryData<Channel[]>(queryKeys.channels(item.machineId))
         ?.find((candidate) => candidate.id === result.channel_id);
+      const channelName = `#${channel?.name ?? 'its channel'}`;
       toast.success(
-        result.channel_id
-          ? `"${item.automation.name}" posted to #${channel?.name ?? 'its channel'}`
-          : `"${item.automation.name}" started — check the sidebar for its chat`,
+        !result.channel_id
+          ? `"${item.automation.name}" started — check the sidebar for its chat`
+          : result.queued === false
+            ? `"${item.automation.name}" not posted again — its previous run is still waiting in ${channelName}`
+            : `"${item.automation.name}" posted to ${channelName}`,
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to run automation');
@@ -374,7 +387,9 @@ export function AutomationsSettingsTab() {
             personas={formPersonas}
             machineOptions={machineOptions}
             error={formError}
-            isSaving={createMutation.isPending || updateMutation.isPending}
+            isSaving={
+              createMutation.isPending || updateMutation.isPending || deleteMutation.isPending
+            }
             onClose={() => setIsDialogOpen(false)}
             onSubmit={() => void handleSave()}
             onChange={handleFormChange}
