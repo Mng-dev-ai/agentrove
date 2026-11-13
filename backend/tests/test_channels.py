@@ -896,6 +896,28 @@ async def test_member_permission_response_allows_only_the_owner(
     assert resolver.calls == [(str(chat_id), "request-1", "allow")]
 
 
+async def test_member_context_usage_is_readable_only_by_the_owner(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    owner: tuple[dict[str, str], User, Workspace],
+    other_owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    monkeypatch.setattr(chat_endpoint, "cache_connection", EndpointCache().connect)
+    chat_id = channel_state.channel.members[0].chat_id
+    await db_session.execute(
+        update(Chat).where(Chat.id == chat_id).values(context_token_usage=1234)
+    )
+    await db_session.commit()
+    path = f"/api/v1/chat/chats/{chat_id}/context-usage"
+    response = await client.get(path, headers=owner[0])
+    assert response.status_code == 200
+    assert response.json()["tokens_used"] == 1234
+    response = await client.get(path, headers=other_owner[0])
+    assert response.status_code == 404
+
+
 async def test_normal_chat_routes_hide_member_chats(
     client: AsyncClient,
     owner: tuple[dict[str, str], User, Workspace],

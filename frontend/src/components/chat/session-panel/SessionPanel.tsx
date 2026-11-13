@@ -16,8 +16,12 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
-import { AGENTS_WITHOUT_USAGE_UPDATE } from '@/config/constants';
-import { useChatQuery, useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
+import { AGENTS_WITHOUT_USAGE_UPDATE, CONTEXT_WINDOW_TOKENS } from '@/config/constants';
+import {
+  useChatQuery,
+  useContextUsageQuery,
+  useSubThreadsQuery,
+} from '@/hooks/queries/useChatQueries';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import {
   useGitBranchesQuery,
@@ -28,10 +32,11 @@ import { useBranchPullRequests } from '@/hooks/queries/useGitHubQueries';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { useChatSessionState } from '@/hooks/useChatSessionContext';
+import { useChannelActivity } from '@/store/channelStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import { getAgentKindForModelId, type Chat } from '@/types/chat.types';
-import type { Channel } from '@/types/channel.types';
+import type { Channel, ChannelMember } from '@/types/channel.types';
 import type { DiffMode, GitDiffTotals } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
 import { useChatMachineId } from '@/store/machineOrigin';
@@ -70,7 +75,17 @@ function Card({
   );
 }
 
-function Row({ icon, children, hint }: { icon: ReactNode; children: ReactNode; hint?: string }) {
+function Row({
+  icon,
+  children,
+  hint,
+  trailing,
+}: {
+  icon: ReactNode;
+  children: ReactNode;
+  hint?: string;
+  trailing?: ReactNode;
+}) {
   return (
     <div className={styles.row}>
       <span className={styles['row-icon']}>{icon}</span>
@@ -81,6 +96,7 @@ function Row({ icon, children, hint }: { icon: ReactNode; children: ReactNode; h
       ) : (
         <span className={styles['row-text']}>{children}</span>
       )}
+      {trailing}
     </div>
   );
 }
@@ -152,34 +168,77 @@ function EnvironmentCard({
 }
 
 function MembersCard({ channel }: { channel: Channel }) {
-  const modelMap = useModelMap();
+  const activeMemberIds = useChannelActivity(channel).member_ids;
   return (
     <Card title="Members">
-      {channel.members.map((member) => {
-        const details = [
-          modelMap.get(member.model_id)?.name ?? member.model_id,
-          member.persona,
-          member.thinking_mode,
-        ]
-          .filter(Boolean)
-          .join(' · ');
-        return (
-          <Row
-            key={member.id}
-            icon={
-              <ProviderIcon
-                agentKind={getAgentKindForModelId(member.model_id)}
-                className={styles.glyph}
-              />
-            }
-            hint={details}
-          >
-            {member.display_name}
-            <span className={styles.secondary}>{` · ${details}`}</span>
-          </Row>
-        );
-      })}
+      {channel.members.map((member) => (
+        <MemberRow key={member.id} member={member} active={activeMemberIds.includes(member.id)} />
+      ))}
     </Card>
+  );
+}
+
+function MemberRow({ member, active }: { member: ChannelMember; active: boolean }) {
+  const modelMap = useModelMap();
+  const model = modelMap.get(member.model_id);
+  const { data, refetch } = useContextUsageQuery(member.chat_id);
+  useEffect(() => {
+    if (!active) void refetch({ cancelRefetch: false });
+  }, [active, refetch]);
+  const details = [model?.name ?? member.model_id, member.persona, member.thinking_mode]
+    .filter(Boolean)
+    .join(' · ');
+  const usage = data?.tokens_used
+    ? getContextUsageDisplay({
+        tokensUsed: data.tokens_used,
+        contextWindow: model?.context_window ?? CONTEXT_WINDOW_TOKENS,
+      })
+    : null;
+  return (
+    <div>
+      <Row
+        icon={
+          <ProviderIcon
+            agentKind={getAgentKindForModelId(member.model_id)}
+            className={styles.glyph}
+          />
+        }
+        hint={details}
+        trailing={usage && <ContextValue usage={usage} />}
+      >
+        {member.display_name}
+        <span className={styles.secondary}>{` · ${details}`}</span>
+      </Row>
+      {usage && <ContextTrack usage={usage} label={`Context used by ${member.display_name}`} />}
+    </div>
+  );
+}
+
+type ContextUsageDisplay = ReturnType<typeof getContextUsageDisplay>;
+
+function ContextValue({ usage }: { usage: ContextUsageDisplay }) {
+  return (
+    <FloatingTooltip content={usage.tooltip} className={styles['context-value']}>
+      {usage.label}
+    </FloatingTooltip>
+  );
+}
+
+function ContextTrack({ usage, label }: { usage: ContextUsageDisplay; label: string }) {
+  return (
+    <div
+      className={styles['context-track']}
+      role="progressbar"
+      aria-label={label}
+      aria-valuenow={Math.round(usage.percentage)}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <div
+        className={clsx(styles['context-fill'], styles[`context-fill--${usage.tone}`])}
+        style={{ width: `${usage.percentage}%` }}
+      />
+    </div>
   );
 }
 
@@ -189,29 +248,10 @@ function ContextCard({ chat }: { chat: Chat }) {
   const agentKind =
     modelMap.get(selectedModelId)?.agent_kind ?? getAgentKindForModelId(selectedModelId);
   if (!contextUsage || AGENTS_WITHOUT_USAGE_UPDATE.has(agentKind)) return null;
-  const { percentage, tone, label, tooltip } = getContextUsageDisplay(contextUsage);
+  const usage = getContextUsageDisplay(contextUsage);
   return (
-    <Card
-      title="Context"
-      action={
-        <FloatingTooltip content={tooltip} className={styles['context-value']}>
-          {label}
-        </FloatingTooltip>
-      }
-    >
-      <div
-        className={styles['context-track']}
-        role="progressbar"
-        aria-label={`Context used in ${chat.title}`}
-        aria-valuenow={Math.round(percentage)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div
-          className={clsx(styles['context-fill'], styles[`context-fill--${tone}`])}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
+    <Card title="Context" action={<ContextValue usage={usage} />}>
+      <ContextTrack usage={usage} label={`Context used in ${chat.title}`} />
     </Card>
   );
 }

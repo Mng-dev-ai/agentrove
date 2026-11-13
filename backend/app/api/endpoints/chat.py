@@ -426,7 +426,7 @@ async def get_chat_context_usage(
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> ContextUsage:
-    chat = await chat_service.get_chat(chat_id, current_user)
+    chat = await chat_service.get_chat(chat_id, current_user, include_channel=True)
 
     try:
         async with cache_connection() as cache:
