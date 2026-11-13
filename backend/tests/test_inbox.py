@@ -11,6 +11,8 @@ from httpx import AsyncClient, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import create_mcp_access_token
+from app.models.db_models.channel import Channel
 from app.models.db_models.push import PushDelivery, PushDevice
 from app.models.db_models.user import UserSettings
 from app.services import push as push_module
@@ -352,3 +354,32 @@ async def test_apns_failures_remove_dead_tokens_or_retry_transient_errors(
         assert delivery.finished_at is not None
     assert await PushService().send_due() == {}
     assert len(apns.requests) == 1
+
+
+async def test_create_message_rejects_channel_member_chat(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    apns: FakeApns,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    channel = Channel(user_id=user.id, workspace_id=workspace.id, name="Review")
+    db_session.add(channel)
+    await db_session.flush()
+    member_chat = await create_chat_row(db_session, user, workspace)
+    member_chat.channel_id = channel.id
+    await db_session.commit()
+    await register_device(client, headers)
+    agent_headers = {
+        "Authorization": "Bearer "
+        + create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    }
+
+    response = await post_message(client, agent_headers, member_chat.id)
+
+    assert response.status_code == 404
+    assert (await client.get("/api/v1/inbox", headers=headers)).json()["items"] == []
+    assert await deliveries(db_session) == []

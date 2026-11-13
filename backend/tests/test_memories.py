@@ -6,6 +6,8 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import create_mcp_access_token
+from app.models.db_models.channel import Channel
 from app.models.db_models.chat import Chat
 from app.models.db_models.workspace import Workspace
 from app.services.memory import MemoryService
@@ -232,3 +234,60 @@ async def test_prompt_block_lists_pinned_workspace_then_global_memories(
         f"- {global_memory['id']} [global] Global: Use pnpm\n"
         "</memory>"
     )
+
+
+async def test_member_chat_memory_is_shared_within_its_workspace_without_a_source_link(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    tmp_path: Path,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    other_workspace = await add_workspace(db_session, user.id, tmp_path)
+    other_headers, _other, _other_workspace = await create_authenticated_workspace(
+        db_session, create_user, login, email="o@example.com", username="other"
+    )
+    channel = Channel(user_id=user.id, workspace_id=workspace.id, name="Review")
+    db_session.add(channel)
+    await db_session.flush()
+    member_chat = Chat(
+        title="Member",
+        user_id=user.id,
+        workspace_id=workspace.id,
+        channel_id=channel.id,
+        last_model_id="m1",
+    )
+    db_session.add(member_chat)
+    await db_session.commit()
+    agent_headers = {
+        "Authorization": "Bearer "
+        + create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    }
+
+    for scope in (str(workspace.id), None):
+        created = await create_memory(
+            client,
+            agent_headers,
+            title=f"Member {scope or 'global'}",
+            workspace_id=scope,
+            chat_id=str(member_chat.id),
+        )
+        assert (created["source_chat_id"], created["source_model_id"]) == (None, "m1")
+    updated = await client.patch(
+        f"/api/v1/memories/{created['id']}",
+        json={"content": "Revised", "chat_id": str(member_chat.id)},
+        headers=agent_headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["source_chat_id"] is None
+
+    assert await list_titles(
+        client, agent_headers, workspace_id=str(workspace.id), query="Member"
+    ) == ["Member global", f"Member {workspace.id}"]
+    assert await list_titles(
+        client, headers, workspace_id=str(other_workspace.id), query="Member"
+    ) == ["Member global"]
+    assert await list_titles(client, other_headers, query="Member") == []

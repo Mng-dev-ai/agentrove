@@ -84,6 +84,7 @@ def build_system_prompt_for_chat(
     selected_persona_name: str = DEFAULT_PERSONA_NAME,
     *,
     channel_member: bool = False,
+    agentrove_mcp: bool = True,
     sub_thread: bool = False,
 ) -> str:
     persona_content = ""
@@ -105,7 +106,11 @@ def build_system_prompt_for_chat(
             persona_content = f"\n{persona['content']}\n"
 
     if channel_member:
-        return persona_content
+        return (
+            f"{persona_content}\n{MEMORY_INSTRUCTIONS}"
+            if agentrove_mcp
+            else persona_content
+        )
 
     if sub_thread:
         return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{FILE_ATTACHMENT_INSTRUCTIONS}\n{MEMORY_INSTRUCTIONS}"

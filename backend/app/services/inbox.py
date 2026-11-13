@@ -68,6 +68,7 @@ class InboxService(BaseDbService[InboxItem]):
                     Chat.id == data.chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
+                    Chat.is_visible(),
                 )
             )
             if user.agent_scope is not None and chat_id != user.agent_scope.chat_id:

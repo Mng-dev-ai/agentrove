@@ -49,6 +49,15 @@ FULL_ACCESS_SESSION_MODES: dict[AgentKind, frozenset[PermissionMode]] = {
     AgentKind.OPENCODE: frozenset(),
 }
 
+
+def loads_agentrove_mcp(
+    agent_kind: AgentKind, permission_mode: PermissionMode, *, channel_member: bool
+) -> bool:
+    return (
+        not channel_member or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind]
+    )
+
+
 # Agents that support persona system-prompt replacement over ACP (Cursor/Copilot ignore it).
 PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
     {

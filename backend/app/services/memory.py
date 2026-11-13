@@ -41,7 +41,7 @@ class MemoryService(BaseDbService[Memory]):
                 title=data.title,
                 content=data.content,
                 pinned=data.pinned,
-                source_chat_id=chat.id if chat else None,
+                source_chat_id=chat.id if chat and chat.channel_id is None else None,
                 source_model_id=chat.last_model_id if chat else None,
             )
             db.add(memory)
@@ -61,7 +61,7 @@ class MemoryService(BaseDbService[Memory]):
                 await self._check_owned_workspace(db, changes["workspace_id"], user.id)
             chat = await self._get_owned_chat(db, data.chat_id, user)
             if chat is not None:
-                memory.source_chat_id = chat.id
+                memory.source_chat_id = chat.id if chat.channel_id is None else None
                 memory.source_model_id = chat.last_model_id
             for field, value in changes.items():
                 setattr(memory, field, value)
@@ -152,7 +152,6 @@ class MemoryService(BaseDbService[Memory]):
                 Chat.id == chat_id,
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),
-                Chat.is_visible(),
             )
         )
         if chat is None:
