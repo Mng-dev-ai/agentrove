@@ -60,6 +60,8 @@ class UserSettingsBase(BaseModel):
 # Validated on write only: a stored id may leave MODELS in a later release and
 # must still read back so the user can pick a new one.
 class UserSettingsUpdate(UserSettingsBase):
+    expected_version: int | None = None
+
     @field_validator("title_model_id")
     @classmethod
     def _validate_title_model(cls, value: str) -> str:
@@ -75,3 +77,4 @@ class UserSettingsResponse(UserSettingsBase):
     user_id: UUID
     created_at: datetime
     updated_at: datetime
+    settings_version: int = 0

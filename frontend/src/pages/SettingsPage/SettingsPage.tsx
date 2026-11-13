@@ -13,7 +13,8 @@ import { SettingsProvider } from '@/contexts/SettingsContext';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
 import { useLogout } from '@/hooks/useLogout';
-import { getGeneralSecretFields } from '@/utils/settings';
+import { settingsService } from '@/services/settingsService';
+import { getGeneralSecretFields, writeVersionedSettings } from '@/utils/settings';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { SettingsSidebarNav } from './SettingsSidebarNav';
 import { SettingsMobileNav } from './SettingsMobileNav';
@@ -91,7 +92,7 @@ export function SettingsPage() {
   const buildChangedPayload = useCallback(
     (current: UserSettings, previous: UserSettings): UserSettingsUpdate => {
       const payload: UserSettingsUpdate = {};
-      const fields: (keyof UserSettingsUpdate)[] = [
+      const fields: (keyof UserSettings & keyof UserSettingsUpdate)[] = [
         'github_personal_access_token',
         'custom_instructions',
         'custom_env_vars',
@@ -116,7 +117,7 @@ export function SettingsPage() {
   const persistSettings = useCallback(
     async (
       updater: (previous: UserSettings) => UserSettings,
-      options: { errorMessage?: string } = {},
+      options: { errorMessage?: string; versioned?: boolean } = {},
     ) => {
       if (!localSettingsRef.current) {
         throw new Error('Settings data is required before persisting changes');
@@ -132,7 +133,14 @@ export function SettingsPage() {
         const payload = buildChangedPayload(updatedSettings, previousSettings);
         if (Object.keys(payload).length === 0) return;
 
-        const result = await instantUpdateMutation.mutateAsync(payload);
+        const result = options.versioned
+          ? await writeVersionedSettings(
+              previousSettings,
+              settingsService.getSettings,
+              (settings) => buildChangedPayload(updater(settings), settings),
+              instantUpdateMutation.mutateAsync,
+            )
+          : await instantUpdateMutation.mutateAsync(payload);
         setLocalSettings(result);
         localSettingsRef.current = result;
         // Stable id collapses rapid successive autosaves into one updating toast

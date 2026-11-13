@@ -55,8 +55,9 @@ export interface UserSettings {
   title_model_id: string;
   created_at: string;
   updated_at: string;
+  settings_version?: number;
 }
 
 export type UserSettingsUpdate = Partial<
-  Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at'>
->;
+  Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'settings_version'>
+> & { expected_version?: number };

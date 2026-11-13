@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import Boolean, ForeignKey, JSON, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
 from app.constants import DEFAULT_TITLE_MODEL_ID
@@ -111,5 +111,8 @@ class UserSettings(Base):
         default=DEFAULT_TITLE_MODEL_ID,
         server_default=DEFAULT_TITLE_MODEL_ID,
         nullable=False,
+    )
+    settings_version: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
     )
     user = relationship("User", back_populates="settings")
