@@ -156,6 +156,7 @@ export function AutomationsSettingsTab() {
         : allItems,
     [allItems, machineFilter],
   );
+  const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
   const modelMap = useModelMap();
   const queryClient = useQueryClient();
 
@@ -343,9 +344,11 @@ export function AutomationsSettingsTab() {
             <div className={styles['item-header']}>
               <h3 className={styles['item-title']}>{item.automation.name}</h3>
               {item.machineId !== LOCAL_MACHINE_ID && (
-                <span className={styles['machine-badge']}>
+                <span className={styles['machine-badge']} title={machineName(item.machineId)}>
                   <Server className={styles['machine-icon']} />
-                  {machineNames.get(item.machineId) ?? 'Machine'}
+                  <span className={styles['machine-badge-label']}>
+                    {machineName(item.machineId)}
+                  </span>
                 </span>
               )}
             </div>

@@ -50,10 +50,11 @@ export function ListFilterMenu({ categories, onClear }: ListFilterMenuProps) {
     submenuRef,
   } = useFilterMenu<string>({ closeOnEscape: true });
   const [position, setPosition] = useState({ top: 0, left: 0, maxHeight: 0 });
-  const activeCategories = categories.flatMap((category) => {
-    const label = selectedLabel(category);
-    return label === null ? [] : [{ category, label }];
-  });
+  const summarizedCategories = categories.map((category) => ({
+    category,
+    summary: category.value === null ? 'All' : (selectedLabel(category) ?? '1 selected'),
+  }));
+  const activeCategories = summarizedCategories.filter(({ category }) => category.value !== null);
   const submenuCategory = categories.find((category) => category.key === submenu?.view);
 
   const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -92,9 +93,9 @@ export function ListFilterMenu({ categories, onClear }: ListFilterMenuProps) {
         </Button>
       </div>
 
-      {activeCategories.map(({ category, label }) => (
-        <span key={category.key} className={styles.chip} title={`${category.label}: ${label}`}>
-          <span className={styles['chip-label']}>{label}</span>
+      {activeCategories.map(({ category, summary }) => (
+        <span key={category.key} className={styles.chip} title={`${category.label}: ${summary}`}>
+          <span className={styles['chip-label']}>{summary}</span>
           <Button
             variant="unstyled"
             onClick={() => category.onChange(null)}
@@ -120,12 +121,12 @@ export function ListFilterMenu({ categories, onClear }: ListFilterMenuProps) {
                 width: FILTER_PANEL_WIDTH,
               }}
             >
-              {categories.map((category) => (
+              {summarizedCategories.map(({ category, summary }) => (
                 <FilterCategoryRow
                   key={category.key}
                   label={category.label}
-                  summary={selectedLabel(category) ?? 'All'}
-                  active={selectedLabel(category) !== null}
+                  summary={summary}
+                  active={category.value !== null}
                   expanded={submenu?.view === category.key}
                   onOpen={(e) => openSubmenu(category.key, e)}
                   onLeave={scheduleSubmenuClose}

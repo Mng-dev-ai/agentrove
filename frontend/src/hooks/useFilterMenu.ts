@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 
 export const FILTER_PANEL_WIDTH = 240;
 export const FILTER_SUBMENU_WIDTH = 200;
+// Grace delay lets the pointer cross the gap between a row and its flyout
+// without the flyout closing mid-travel
 const SUBMENU_GRACE_MS = 150;
 
 export function useFilterMenu<V extends string>({ closeOnEscape = false } = {}) {
@@ -40,6 +42,9 @@ export function useFilterMenu<V extends string>({ closeOnEscape = false } = {}) 
   const openSubmenu = (view: V, e: React.MouseEvent<HTMLButtonElement>) => {
     cancelSubmenuClose();
     const rect = e.currentTarget.getBoundingClientRect();
+    // Flip to the panel's left when the flyout would overflow the viewport;
+    // on narrow (mobile) viewports neither side fits, so clamp on-screen —
+    // overlapping the root panel beats rendering off the left edge
     const left =
       rect.right + 10 + FILTER_SUBMENU_WIDTH <= window.innerWidth
         ? rect.right + 10
@@ -54,6 +59,9 @@ export function useFilterMenu<V extends string>({ closeOnEscape = false } = {}) 
     setSubmenu({ view, top, left, maxHeight: window.innerHeight - top - 8 });
   };
 
+  // The panel and flyout portal to body (out of the trigger's subtree), so
+  // outside-click must check all three refs — a single-ref useDropdown would
+  // treat every panel/flyout click as outside and close the menu.
   useEffect(() => {
     if (!isOpen) return;
     const handleMouseDown = (event: MouseEvent) => {
@@ -73,6 +81,8 @@ export function useFilterMenu<V extends string>({ closeOnEscape = false } = {}) 
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, [isOpen]);
 
+  // Scrolling the page detaches the fixed panel from its trigger — close it.
+  // Scrolls inside the panel or flyout keep it open.
   useEffect(() => {
     if (!isOpen) return;
     const handleScroll = (e: Event) => {

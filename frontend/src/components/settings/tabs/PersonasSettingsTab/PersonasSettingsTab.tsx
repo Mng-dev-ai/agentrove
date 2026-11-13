@@ -92,6 +92,7 @@ export function PersonasSettingsTab() {
     [machineOptions, personasByMachine, machineFilter],
   );
 
+  const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
   const queryClient = useQueryClient();
   const remoteMutation = useUpdateMachinePersonasMutation({
     scope: { id: 'machine-personas' },
@@ -201,9 +202,9 @@ export function PersonasSettingsTab() {
             <div className={styles['item-header']}>
               <h3 className={styles['item-title']}>{item.persona.name}</h3>
               {item.machineId !== LOCAL_MACHINE_ID && (
-                <span className={styles.chip}>
+                <span className={styles.chip} title={machineName(item.machineId)}>
                   <Server className={styles['chip-icon']} />
-                  {machineNames.get(item.machineId) ?? 'Machine'}
+                  <span className={styles['chip-label']}>{machineName(item.machineId)}</span>
                 </span>
               )}
             </div>
