@@ -1,7 +1,5 @@
-import { type ReactNode } from 'react';
-import { Check, Server } from 'lucide-react';
-import clsx from 'clsx';
-import { Button } from '@/components/ui/primitives/Button/Button';
+import { Server } from 'lucide-react';
+import { FilterOptionRow } from '@/components/ui/FilterMenu/FilterMenu';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import {
   AGENT_OPTIONS,
@@ -11,7 +9,7 @@ import {
   type SidebarFilters,
   type SidebarStatusFilter,
 } from '@/store/sidebarFilters';
-import styles from './SidebarFilterSubmenu.module.scss';
+import styles from '@/components/ui/FilterMenu/FilterMenu.module.scss';
 
 interface WorkspaceOption {
   id: string;
@@ -22,27 +20,6 @@ interface WorkspaceOption {
 interface MachineOption {
   id: string;
   name: string;
-}
-
-function FilterOptionRow({
-  selected,
-  onSelect,
-  children,
-}: {
-  selected: boolean;
-  onSelect: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <Button
-      variant="unstyled"
-      onClick={onSelect}
-      className={clsx(styles['option-row'], selected && styles['option-row--selected'])}
-    >
-      <span className={styles['option-label']}>{children}</span>
-      {selected && <Check className={styles['option-check']} />}
-    </Button>
-  );
 }
 
 interface SidebarFilterSubmenuProps {

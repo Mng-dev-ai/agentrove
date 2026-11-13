@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronRight, SlidersVertical } from 'lucide-react';
+import { SlidersVertical } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { FilterCategoryRow } from '@/components/ui/FilterMenu/FilterMenu';
+import menuStyles from '@/components/ui/FilterMenu/FilterMenu.module.scss';
 import {
   AGENT_OPTIONS,
   clearSidebarFilters,
@@ -14,55 +16,10 @@ import {
   type SidebarStatusFilter,
 } from '@/store/sidebarFilters';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
+import { FILTER_PANEL_WIDTH, FILTER_SUBMENU_WIDTH, useFilterMenu } from '@/hooks/useFilterMenu';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { SidebarFilterSubmenu } from './SidebarFilterSubmenu';
 import styles from './SidebarFilterMenu.module.scss';
-
-const PANEL_WIDTH = 240;
-const SUBMENU_WIDTH = 200;
-// Grace delay lets the pointer cross the gap between a row and its flyout
-// without the flyout closing mid-travel
-const SUBMENU_GRACE_MS = 150;
-
-// Category row on the root panel: label left, current value + chevron right.
-// The value reads muted when the filter is off ("All") and emphasized when set.
-function FilterCategoryRow({
-  label,
-  summary,
-  active,
-  expanded,
-  onOpen,
-  onLeave,
-}: {
-  label: string;
-  summary: string;
-  active: boolean;
-  expanded: boolean;
-  onOpen: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  onLeave: () => void;
-}) {
-  return (
-    <Button
-      variant="unstyled"
-      onClick={onOpen}
-      onMouseEnter={onOpen}
-      onMouseLeave={onLeave}
-      aria-haspopup="menu"
-      aria-expanded={expanded}
-      className={styles['category-row']}
-    >
-      {label}
-      <span className={styles['category-value']}>
-        <span
-          className={clsx(styles['category-summary'], active && styles['category-summary--active'])}
-        >
-          {summary}
-        </span>
-        <ChevronRight className={styles['category-chevron']} />
-      </span>
-    </Button>
-  );
-}
 
 interface SidebarFilterMenuProps {
   filters: SidebarFilters;
@@ -77,56 +34,23 @@ export function SidebarFilterMenu({
   workspaceBadgeById,
   machineOptions,
 }: SidebarFilterMenuProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [submenu, setSubmenu] = useState<{
-    view: FilterCategory;
-    top: number;
-    left: number;
-    maxHeight: number;
-  } | null>(null);
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const submenuRef = useRef<HTMLDivElement>(null);
-  const closeTimerRef = useRef<number | null>(null);
+  const {
+    isOpen,
+    open,
+    closeAll,
+    submenu,
+    openSubmenu,
+    closeSubmenu,
+    scheduleSubmenuClose,
+    cancelSubmenuClose,
+    triggerRef,
+    panelRef,
+    submenuRef,
+  } = useFilterMenu<FilterCategory>();
   // Fixed positioning keeps the panel out of the scroll container's clipping;
   // captured on open from the trigger rect, right-aligned to it.
   const [position, setPosition] = useState({ top: 0, right: 0, maxHeight: 0 });
   const activeCount = countActiveSidebarFilters(filters);
-
-  const cancelSubmenuClose = () => {
-    if (closeTimerRef.current != null) {
-      window.clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-  };
-
-  const scheduleSubmenuClose = () => {
-    cancelSubmenuClose();
-    closeTimerRef.current = window.setTimeout(() => setSubmenu(null), SUBMENU_GRACE_MS);
-  };
-
-  const closeAll = () => {
-    cancelSubmenuClose();
-    setSubmenu(null);
-    setIsOpen(false);
-  };
-
-  const openSubmenu = (view: FilterCategory, e: React.MouseEvent<HTMLButtonElement>) => {
-    cancelSubmenuClose();
-    const rect = e.currentTarget.getBoundingClientRect();
-    // Flip to the panel's left when the flyout would overflow the viewport;
-    // on narrow (mobile) viewports neither side fits, so clamp on-screen —
-    // overlapping the root panel beats rendering off the left edge
-    const left =
-      rect.right + 10 + SUBMENU_WIDTH <= window.innerWidth
-        ? rect.right + 10
-        : Math.max(
-            8,
-            Math.min(rect.left - SUBMENU_WIDTH - 10, window.innerWidth - SUBMENU_WIDTH - 8),
-          );
-    const top = Math.max(8, rect.top - 6);
-    setSubmenu({ view, top, left, maxHeight: window.innerHeight - top - 8 });
-  };
 
   const handleToggle = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isOpen) {
@@ -136,54 +60,17 @@ export function SidebarFilterMenu({
     const rect = e.currentTarget.getBoundingClientRect();
     setPosition({
       top: rect.bottom + 6,
-      right: Math.max(8, window.innerWidth - Math.max(rect.right, PANEL_WIDTH + 8)),
+      right: Math.max(8, window.innerWidth - Math.max(rect.right, FILTER_PANEL_WIDTH + 8)),
       maxHeight: window.innerHeight - rect.bottom - 14,
     });
-    setIsOpen(true);
+    open();
   };
-
-  // The panel and flyout portal to body (out of this subtree), so outside-click
-  // must check all three refs — a single-ref useDropdown would treat every
-  // panel/flyout click as outside and close the menu.
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleMouseDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        triggerRef.current?.contains(target) ||
-        panelRef.current?.contains(target) ||
-        submenuRef.current?.contains(target)
-      ) {
-        return;
-      }
-      cancelSubmenuClose();
-      setSubmenu(null);
-      setIsOpen(false);
-    };
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, [isOpen]);
-
-  // Scrolling the chat list detaches the fixed panel from its trigger — close it.
-  // Scrolls inside the panel or flyout (workspace list) keep it open.
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleScroll = (e: Event) => {
-      const target = e.target as Node;
-      if (panelRef.current?.contains(target) || submenuRef.current?.contains(target)) return;
-      cancelSubmenuClose();
-      setSubmenu(null);
-      setIsOpen(false);
-    };
-    window.addEventListener('scroll', handleScroll, true);
-    return () => window.removeEventListener('scroll', handleScroll, true);
-  }, [isOpen]);
 
   // Single-select options close their flyout; the root panel stays open with
   // the updated summary. Multi-select status stays put for further toggles.
   const selectAndClose = (patch: Partial<SidebarFilters>) => {
     onChange({ ...filters, ...patch });
-    setSubmenu(null);
+    closeSubmenu();
   };
 
   const toggleStatus = (status: SidebarStatusFilter) => {
@@ -243,12 +130,12 @@ export function SidebarFilterMenu({
             <div
               ref={panelRef}
               onMouseLeave={scheduleSubmenuClose}
-              className={styles.panel}
+              className={menuStyles.panel}
               style={{
                 top: position.top,
                 right: position.right,
                 maxHeight: position.maxHeight,
-                width: PANEL_WIDTH,
+                width: FILTER_PANEL_WIDTH,
               }}
             >
               <FilterCategoryRow
@@ -285,7 +172,7 @@ export function SidebarFilterMenu({
               />
               {/* Divider sets grouping apart from the rows above — it changes
                   presentation, not which chats show */}
-              <div className={styles.divider}>
+              <div className={menuStyles.divider}>
                 <FilterCategoryRow
                   label="Group by"
                   summary={groupBySummary}
@@ -296,11 +183,11 @@ export function SidebarFilterMenu({
                 />
               </div>
               {activeCount > 0 && (
-                <div className={styles.divider}>
+                <div className={menuStyles.divider}>
                   <Button
                     variant="unstyled"
                     onClick={() => onChange(clearSidebarFilters(filters))}
-                    className={styles['clear-all']}
+                    className={menuStyles['clear-all']}
                   >
                     Clear all filters
                   </Button>
@@ -319,7 +206,7 @@ export function SidebarFilterMenu({
                   top: submenu.top,
                   left: submenu.left,
                   maxHeight: submenu.maxHeight,
-                  width: SUBMENU_WIDTH,
+                  width: FILTER_SUBMENU_WIDTH,
                 }}
                 onMouseEnter={cancelSubmenuClose}
                 onMouseLeave={scheduleSubmenuClose}

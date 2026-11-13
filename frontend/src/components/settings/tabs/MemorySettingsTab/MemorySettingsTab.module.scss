@@ -2,18 +2,6 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/responsive' as responsive;
 
-.filter {
-  margin-bottom: var(--space-3);
-
-  @include responsive.media('sm-up') {
-    max-width: 16rem;
-  }
-}
-
-.filter-select {
-  @include type.type-default;
-}
-
 .item-header {
   display: flex;
   align-items: center;

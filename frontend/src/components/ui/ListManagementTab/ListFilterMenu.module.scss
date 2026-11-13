@@ -1,0 +1,100 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1-5);
+  margin-bottom: var(--space-3);
+}
+
+.trigger {
+  @include type.type-default(500);
+  @include anim.transition-colors;
+  display: flex;
+  height: var(--space-6);
+  align-items: center;
+  gap: var(--space-1-5);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  padding-inline: var(--space-2);
+  color: var(--theme-text-secondary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+
+  &--open {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+}
+
+.icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+}
+
+.count {
+  @include type.type-meta(500);
+  display: flex;
+  min-width: var(--space-4);
+  height: var(--space-4);
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background-color: var(--theme-text-primary);
+  padding-inline: var(--space-1);
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-surface);
+}
+
+.chip {
+  @include type.type-default;
+  display: flex;
+  height: var(--space-6);
+  min-width: 0;
+  max-width: 16rem;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  background-color: var(--theme-surface-hover);
+  padding-left: var(--space-2);
+  padding-right: var(--space-1);
+  color: var(--theme-text-primary);
+}
+
+.chip-label {
+  @include type.type-overflow;
+}
+
+.chip-remove {
+  @include anim.transition-colors;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1);
+  color: var(--theme-text-quaternary);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+}
+
+.group-heading {
+  @include type.type-meta(500);
+  @include type.type-overflow;
+  padding: var(--space-1-5) var(--space-2) var(--space-1);
+  color: var(--theme-text-quaternary);
+
+  &:not(:first-child) {
+    margin-top: var(--space-1);
+  }
+}

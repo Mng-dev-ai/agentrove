@@ -6,6 +6,7 @@ import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagem
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
+import { useMachineFilter } from '@/hooks/useMachineFilter';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
 import { useMachineSettingsQuery } from '@/hooks/queries/useMachineQueries';
 import { useMachineChannelsQuery } from '@/hooks/queries/useChannelQueries';
@@ -128,7 +129,7 @@ function AutomationTargetChip({ machineId, channelId }: { machineId: string; cha
 
 export function AutomationsSettingsTab() {
   const { localSettings } = useSettingsContext();
-  const items = useAutomationsAcrossMachines();
+  const allItems = useAutomationsAcrossMachines();
   const machines = useMachineStore((state) => state.machines);
   const connections = useMachineStore((state) => state.connections);
   const machineNames = useMemo(
@@ -143,6 +144,17 @@ export function AutomationsSettingsTab() {
         .map((machine) => ({ id: machine.id, name: machine.name })),
     ],
     [machines, connections],
+  );
+  const { machineId: machineFilter, filter } = useMachineFilter(
+    machineOptions,
+    'No automations match these filters',
+  );
+  const items = useMemo(
+    () =>
+      machineFilter && allItems
+        ? allItems.filter((item) => item.machineId === machineFilter)
+        : allItems,
+    [allItems, machineFilter],
   );
   const modelMap = useModelMap();
   const queryClient = useQueryClient();
@@ -325,6 +337,7 @@ export function AutomationsSettingsTab() {
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
+        filter={filter}
         renderItem={(item) => (
           <>
             <div className={styles['item-header']}>

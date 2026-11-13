@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { Plus, Loader2, LucideIcon, Edit2, Trash2 } from 'lucide-react';
 import { logger } from '@/utils/logger';
+import { ListFilterMenu, type ListFilterCategory } from './ListFilterMenu';
 import styles from './ListManagementTab.module.scss';
 
 // Delay-reveal spinner (300ms); forwards keeps it visible after the animation.
@@ -27,6 +28,7 @@ interface ListManagementTabProps<T> {
   renderItem: (item: T, index: number) => ReactNode;
   renderItemActions?: (item: T, index: number) => ReactNode;
   headerContent?: ReactNode;
+  filter?: { categories: ListFilterCategory[]; onClear: () => void; emptyText: string };
   footerContent?: ReactNode;
   logContext: string;
 }
@@ -49,6 +51,7 @@ export function ListManagementTab<T>({
   renderItem,
   renderItemActions,
   headerContent,
+  filter,
   footerContent,
   logContext,
 }: ListManagementTabProps<T>) {
@@ -71,6 +74,10 @@ export function ListManagementTab<T>({
       setDeletingIndex(null);
     }
   };
+
+  const activeFilter = filter?.categories.some((category) => category.value !== null)
+    ? filter
+    : null;
 
   const deleteTargetItem =
     pendingDeleteIndex !== null && items?.[pendingDeleteIndex] ? items[pendingDeleteIndex] : null;
@@ -97,6 +104,10 @@ export function ListManagementTab<T>({
 
         {headerContent}
 
+        {filter && filter.categories.length > 0 && (
+          <ListFilterMenu categories={filter.categories} onClear={filter.onClear} />
+        )}
+
         {items === null ? (
           // null means the list is still loading — stay invisible for 300ms so
           // fast loads render nothing instead of flashing a spinner
@@ -106,9 +117,11 @@ export function ListManagementTab<T>({
         ) : items.length === 0 ? (
           <div className={styles.empty}>
             <EmptyIcon className={styles['empty-icon']} />
-            <p className={styles['empty-text']}>{emptyText}</p>
+            <p className={styles['empty-text']}>
+              {activeFilter ? activeFilter.emptyText : emptyText}
+            </p>
             <Button type="button" onClick={onAdd} variant="outline" size="sm">
-              {emptyButtonText}
+              {activeFilter ? addButtonText : emptyButtonText}
             </Button>
           </div>
         ) : (
