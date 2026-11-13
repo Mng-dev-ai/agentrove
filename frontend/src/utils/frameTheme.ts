@@ -77,11 +77,6 @@ const PALETTE_OVERRIDES = Object.fromEntries(
   }),
 ) as Partial<Record<Theme, Record<string, string>>>;
 
-export const getFrameThemeVariables = (isDark: boolean, theme: Theme): Record<string, string> => ({
-  ...(isDark ? DARK_VARS : LIGHT_VARS),
-  ...PALETTE_OVERRIDES[theme],
-});
-
 export const FRAME_BASE_CSS = `
   button { background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 6px 14px; font-size: 13px; color: var(--color-text-primary); cursor: pointer; font-family: var(--font-sans); }
   button:hover { background: var(--color-background-secondary); }
@@ -92,3 +87,8 @@ export const FRAME_BASE_CSS = `
   * { box-sizing: border-box; margin: 0; font-family: var(--font-sans); }
   body { background: transparent; color: var(--color-text-primary); line-height: 1.5; padding: 1rem; }
 `;
+
+export const getFrameThemeVariables = (isDark: boolean, theme: Theme): Record<string, string> => ({
+  ...(isDark ? DARK_VARS : LIGHT_VARS),
+  ...PALETTE_OVERRIDES[theme],
+});

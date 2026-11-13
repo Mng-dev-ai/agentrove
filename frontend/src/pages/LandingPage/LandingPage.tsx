@@ -56,18 +56,18 @@ import iconDark from '/assets/images/icon-dark.svg';
 import iconLight from '/assets/images/icon-white.svg';
 import styles from './LandingPage.module.scss';
 
+const EXAMPLE_PROMPTS = [
+  'Build a REST API with authentication',
+  'Find and fix bugs in my codebase',
+  'Refactor this project to use TypeScript',
+];
+
 const Editor = lazyNamed(() => import('@/components/editor/editor-core/Editor'), 'Editor');
 const DiffView = lazyNamed(() => import('@/components/sandbox/git/DiffView/DiffView'), 'DiffView');
 const TerminalContainer = lazyNamed(
   () => import('@/components/sandbox/terminal/Container/Container'),
   'Container',
 );
-
-const EXAMPLE_PROMPTS = [
-  'Build a REST API with authentication',
-  'Find and fix bugs in my codebase',
-  'Refactor this project to use TypeScript',
-];
 
 function getTimeGreeting(): string {
   const hour = new Date().getHours();

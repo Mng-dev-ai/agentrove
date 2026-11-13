@@ -10,7 +10,6 @@ import type {
   GitDiffData,
   GitFetchBaseData,
   GitFileBaselineData,
-  GitPushPullResult,
   SearchParams,
   SearchResponse,
   UpdateFileResult,
@@ -204,38 +203,6 @@ export const useGitCommitMutation = createMutation<
   ({ sandboxId, message, cwd }) => sandboxService.gitCommit(sandboxId, message, cwd),
   async (queryClient, _data, variables) => {
     await invalidateGitState(queryClient, variables.sandboxId);
-  },
-);
-
-export const useGitPushMutation = createMutation<
-  GitPushPullResult,
-  Error,
-  { sandboxId: string; cwd?: string }
->(
-  ({ sandboxId, cwd }) => sandboxService.gitPush(sandboxId, cwd),
-  async (queryClient, _data, variables) => {
-    await queryClient.invalidateQueries({
-      queryKey: queryKeys.sandbox.gitBranchesAll(variables.sandboxId),
-    });
-  },
-);
-
-export const useGitPullMutation = createMutation<
-  GitPushPullResult,
-  Error,
-  { sandboxId: string; cwd?: string }
->(
-  ({ sandboxId, cwd }) => sandboxService.gitPull(sandboxId, cwd),
-  async (queryClient, _data, variables) => {
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.sandbox.gitBranchesAll(variables.sandboxId),
-      }),
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.sandbox.filesMetadataAll(variables.sandboxId),
-      }),
-      invalidateGitState(queryClient, variables.sandboxId),
-    ]);
   },
 );
 

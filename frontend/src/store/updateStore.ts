@@ -5,9 +5,7 @@ export type DesktopUpdateStatus = 'idle' | 'available' | 'downloading' | 'instal
 interface DesktopUpdateState {
   status: DesktopUpdateStatus;
   version: string | null;
-  currentVersion: string | null;
   releaseNotes: string | null;
-  releaseDate: string | null;
   downloadedBytes: number;
   // null when the server omitted Content-Length
   totalBytes: number | null;
@@ -19,9 +17,7 @@ interface DesktopUpdateActions {
   setAvailable: (
     info: {
       version: string;
-      currentVersion: string;
       body: string | null;
-      date: string | null;
     },
     triggerInstall: () => Promise<void>,
   ) => void;
@@ -35,9 +31,7 @@ interface DesktopUpdateActions {
 const initialState: DesktopUpdateState = {
   status: 'idle',
   version: null,
-  currentVersion: null,
   releaseNotes: null,
-  releaseDate: null,
   downloadedBytes: 0,
   totalBytes: null,
   errorMessage: null,
@@ -46,13 +40,11 @@ const initialState: DesktopUpdateState = {
 
 export const useDesktopUpdateStore = create<DesktopUpdateState & DesktopUpdateActions>((set) => ({
   ...initialState,
-  setAvailable: ({ version, currentVersion, body, date }, triggerInstall) =>
+  setAvailable: ({ version, body }, triggerInstall) =>
     set({
       status: 'available',
       version,
-      currentVersion,
       releaseNotes: body,
-      releaseDate: date,
       downloadedBytes: 0,
       totalBytes: null,
       errorMessage: null,

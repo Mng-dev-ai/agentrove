@@ -5,7 +5,6 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useMemo, memo } from 'react';
 import type { Options } from 'react-markdown';
-import clsx from 'clsx';
 import { MARKDOWN_COMPONENTS } from './markdownComponents';
 import { MATH_PATTERN, rehypeMentionPills, splitMarkdownBlocks } from './markdownParsing';
 import styles from './MarkDown.module.scss';
@@ -42,7 +41,6 @@ const MarkdownBlock = memo(function MarkdownBlock({
 
 interface MarkDownProps {
   content: string;
-  className?: string;
   // While streaming, split blocks for cheap incremental re-parse (breaks cross-block refs).
   streaming?: boolean;
   // @mention /command pills — user messages only.
@@ -51,7 +49,6 @@ interface MarkDownProps {
 
 export const MarkDown = memo(function MarkDown({
   content,
-  className,
   streaming = false,
   highlightMentions = false,
 }: MarkDownProps) {
@@ -74,7 +71,7 @@ export const MarkDown = memo(function MarkDown({
   );
 
   return (
-    <div className={clsx(styles.markdown, className)}>
+    <div className={styles.markdown}>
       {blocks.map((block, i) => (
         <MarkdownBlock
           key={i}

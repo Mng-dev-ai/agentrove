@@ -1,5 +1,4 @@
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/colors' as colors;
 
 .label {
   @include type.type-body(500);
@@ -7,8 +6,4 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--theme-text-primary);
-}
-
-.required-indicator {
-  color: colors.status-color('error', 500);
 }

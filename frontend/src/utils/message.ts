@@ -3,6 +3,13 @@ import type { Message } from '@/types/chat.types';
 
 export type ChatStatusTone = 'blocked' | 'running' | 'completed' | 'unread';
 
+export const CHAT_STATUS_LABEL: Record<ChatStatusTone, string> = {
+  blocked: 'Needs you',
+  running: 'Running',
+  completed: 'Done',
+  unread: 'Unread',
+};
+
 export function chatStatusTone(flags: {
   blocked: boolean;
   streaming: boolean;
@@ -15,13 +22,6 @@ export function chatStatusTone(flags: {
   if (flags.unread) return 'unread';
   return null;
 }
-
-export const CHAT_STATUS_LABEL: Record<ChatStatusTone, string> = {
-  blocked: 'Needs you',
-  running: 'Running',
-  completed: 'Done',
-  unread: 'Unread',
-};
 
 export const isAssistantMessage = (msg: Pick<Message, 'role' | 'is_bot'>) =>
   msg.is_bot ?? msg.role === 'assistant';

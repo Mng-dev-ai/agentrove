@@ -27,4 +27,3 @@ class ToolStatus(str, enum.Enum):
 
 class StreamEventKind(str, enum.Enum):
     STREAM = "stream"
-    QUEUE_PROCESSING = "queue_processing"

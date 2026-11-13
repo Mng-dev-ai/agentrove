@@ -5,17 +5,6 @@ from app.models.types import AgentKind
 
 settings = get_settings()
 
-
-class ModelInfo(NamedTuple):
-    display_name: str
-    agent_kind: AgentKind
-    context_window: int | None
-    legacy: bool = False
-    # Effort tiers the model accepts (OpenCode's from models.dev
-    # `reasoning_options`); empty = no effort dial.
-    effort_levels: tuple[str, ...] = ()
-
-
 REDIS_KEY_USER_STREAMS_LIVE: Final[str] = "user:{user_id}:streams:live"
 REDIS_KEY_USER_CHATS_LIVE: Final[str] = "user:{user_id}:chats:live"
 REDIS_KEY_USER_SETTINGS: Final[str] = "user_settings:{user_id}"
@@ -35,21 +24,6 @@ DEFAULT_TITLE_MODEL_ID: Final[str] = "haiku"
 SANDBOX_DEFAULT_COMMAND_TIMEOUT: Final[int] = 120
 PTY_OUTPUT_QUEUE_SIZE: Final[int] = 512
 PTY_INPUT_QUEUE_SIZE: Final[int] = 1024
-
-SANDBOX_SYSTEM_VARIABLES: Final[list[str]] = [
-    "SHELL",
-    "PWD",
-    "LOGNAME",
-    "HOME",
-    "USER",
-    "SHLVL",
-    "PS1",
-    "PATH",
-    "_",
-    "NVM_DIR",
-    "NODE_VERSION",
-    "TERM",
-]
 
 SANDBOX_BINARY_EXTENSIONS: Final[set[str]] = {
     "exe",
@@ -117,7 +91,6 @@ SANDBOX_BINARY_EXTENSIONS: Final[set[str]] = {
 
 SANDBOX_HOME_DIR: Final[str] = "/home/user"
 SANDBOX_WORKSPACE_DIR: Final[str] = "/home/user/workspace"
-SANDBOX_CLAUDE_JSON_PATH: Final[str] = "/home/user/.claude.json"
 SANDBOX_GIT_ASKPASS_PATH: Final[str] = "/home/user/.git-askpass.sh"
 
 WS_MSG_AUTH: Final[str] = "auth"
@@ -138,7 +111,271 @@ DEFAULT_PTY_COLS: Final[int] = 80
 DEFAULT_TERMINAL_ID: Final[str] = "terminal-1"
 DOCKER_STATUS_RUNNING: Final[str] = "running"
 
-SANDBOX_BASHRC_PATH: Final[str] = "/home/user/.bashrc"
+# Built-in slash commands per agent kind for the frontend. Claude/Codex lists
+# are filtered ACP-exposed subsets (not full CLI/TUI chrome); skills are runtime.
+# Codex omits logout — too easy to hit from chat autocomplete.
+BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
+    AgentKind.ANTIGRAVITY: [],
+    AgentKind.CLAUDE: [
+        {
+            "value": "/compact",
+            "label": "Compact",
+            "description": "Free up context by summarizing the conversation so far. Optional: /compact [instructions for summarization]",
+        },
+        {
+            "value": "/clear",
+            "label": "Clear",
+            "description": "Start a new session with empty context; previous session stays on disk (resumable with /resume)",
+        },
+        {
+            "value": "/review",
+            "label": "Review",
+            "description": "Review a GitHub pull request; for your working diff use /code-review",
+        },
+        {
+            "value": "/code-review",
+            "label": "Code Review",
+            "description": "Review the current diff for correctness bugs and reuse/simplification/efficiency cleanups. Optional: /code-review [low|medium|high|xhigh|max] [--fix] [--comment] [target]",
+        },
+        {
+            "value": "/security-review",
+            "label": "Security Review",
+            "description": "Complete a security review of the pending changes on the current branch",
+        },
+        {
+            "value": "/simplify",
+            "label": "Simplify",
+            "description": "Review changed code for reuse, simplification, efficiency, and altitude cleanups, then apply the fixes",
+        },
+        {
+            "value": "/init",
+            "label": "Init",
+            "description": "Initialize a new CLAUDE.md file with codebase documentation",
+        },
+        {
+            "value": "/debug",
+            "label": "Debug",
+            "description": "Enable debug logging for this session and help diagnose issues",
+        },
+        {
+            "value": "/doctor",
+            "label": "Doctor",
+            "description": "Health-check the Claude Code setup and fix installation, settings, and configuration issues",
+        },
+        {
+            "value": "/insights",
+            "label": "Insights",
+            "description": "Generate a report analyzing your Claude Code sessions",
+        },
+        {
+            "value": "/recap",
+            "label": "Recap",
+            "description": "Generate a one-line session recap now",
+        },
+        {
+            "value": "/loop",
+            "label": "Loop",
+            "description": "Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo, defaults to 10m)",
+        },
+        {
+            "value": "/batch",
+            "label": "Batch",
+            "description": "Research and plan a large-scale change, then execute it in parallel across isolated worktree agents that each open a PR",
+        },
+        {
+            "value": "/deep-research",
+            "label": "Deep Research",
+            "description": "Fan out web searches, fetch and cross-check sources, and synthesize a cited report",
+        },
+        {
+            "value": "/verify",
+            "label": "Verify",
+            "description": "Verify a code change end-to-end by driving the affected flow, not just tests or typecheck",
+        },
+        {
+            "value": "/run",
+            "label": "Run",
+            "description": "Launch and drive this project's app to see a change working",
+        },
+        {
+            "value": "/run-skill-generator",
+            "label": "Run Skill Generator",
+            "description": "Author or improve a per-project run skill that tells agents how to build, launch, and drive this app",
+        },
+        {
+            "value": "/goal",
+            "label": "Goal",
+            "description": "Set a goal — keep working until the condition is met",
+        },
+        {
+            "value": "/update-config",
+            "label": "Update Config",
+            "description": "Configure Claude Code settings via settings.json (permissions, hooks, env vars)",
+        },
+        {
+            "value": "/claude-api",
+            "label": "Claude API",
+            "description": "Build apps with the Claude API or Anthropic SDK",
+        },
+        {
+            "value": "/dataviz",
+            "label": "Data Viz",
+            "description": "Design guidance for charts, graphs, and dashboards",
+        },
+        {
+            "value": "/fewer-permission-prompts",
+            "label": "Fewer Permission Prompts",
+            "description": "Scan transcripts for common read-only tool calls and add a project allowlist to reduce permission prompts",
+        },
+        {
+            "value": "/team-onboarding",
+            "label": "Team Onboarding",
+            "description": "Help teammates ramp on Claude Code with a guide from your usage",
+        },
+        {
+            "value": "/reload-skills",
+            "label": "Reload Skills",
+            "description": "Pick up skills added or changed on disk during this session",
+        },
+    ],
+    AgentKind.CODEX: [
+        {
+            "value": "/review",
+            "label": "Review",
+            "description": "Review uncommitted changes, or review with custom instructions",
+        },
+        {
+            "value": "/review-branch",
+            "label": "Review Branch",
+            "description": "Review changes relative to a base branch",
+        },
+        {
+            "value": "/review-commit",
+            "label": "Review Commit",
+            "description": "Review a specific commit",
+        },
+        {
+            "value": "/compact",
+            "label": "Compact",
+            "description": "Summarize conversation to avoid hitting the context limit",
+        },
+        {
+            "value": "/status",
+            "label": "Status",
+            "description": "Display session configuration and token usage",
+        },
+        {
+            "value": "/goal",
+            "label": "Goal",
+            "description": "Set, pause, resume, or clear a task goal",
+        },
+        {
+            "value": "/mcp",
+            "label": "MCP",
+            "description": "List configured Model Context Protocol (MCP) tools",
+        },
+        {
+            "value": "/skills",
+            "label": "Skills",
+            "description": "List available skills",
+        },
+    ],
+    AgentKind.COPILOT: [
+        {"value": "/model", "label": "Model", "description": "Select the active model"},
+        {
+            "value": "/compact",
+            "label": "Compact",
+            "description": "Clear conversation history but keep a summary in context",
+        },
+        {
+            "value": "/context",
+            "label": "Context",
+            "description": "Show context window token usage and visualization",
+        },
+        {
+            "value": "/usage",
+            "label": "Usage",
+            "description": "Display session usage metrics and statistics",
+        },
+        {"value": "/review", "label": "Review", "description": "Review a pull request"},
+        {
+            "value": "/diff",
+            "label": "Diff",
+            "description": "Review the changes made in the current directory",
+        },
+        {
+            "value": "/pr",
+            "label": "PR",
+            "description": "Operate on pull requests for the current branch",
+        },
+        {
+            "value": "/init",
+            "label": "Init",
+            "description": "Initialize project configuration",
+        },
+        {
+            "value": "/agent",
+            "label": "Agent",
+            "description": "Browse and select from available agents",
+        },
+        {
+            "value": "/skills",
+            "label": "Skills",
+            "description": "Manage skills for enhanced capabilities",
+        },
+        {
+            "value": "/mcp",
+            "label": "MCP",
+            "description": "Manage MCP server configuration",
+        },
+        {
+            "value": "/plugin",
+            "label": "Plugin",
+            "description": "Manage plugins and plugin marketplaces",
+        },
+        {
+            "value": "/session",
+            "label": "Session",
+            "description": "View and manage sessions",
+        },
+        {
+            "value": "/tasks",
+            "label": "Tasks",
+            "description": "View and manage background tasks",
+        },
+        {
+            "value": "/delegate",
+            "label": "Delegate",
+            "description": "Send this session to GitHub and create a PR",
+        },
+        {
+            "value": "/fleet",
+            "label": "Fleet",
+            "description": "Enable parallel subagent execution",
+        },
+        {
+            "value": "/allow-all",
+            "label": "Allow All",
+            "description": "Enable all permissions for the session",
+        },
+    ],
+    # Cursor slash commands are TUI-only; ACP would treat them as prompt text.
+    AgentKind.CURSOR: [],
+    # Grok advertises commands via availableCommands — runtime discovery only.
+    AgentKind.GROK: [],
+    # OpenCode slash commands are TUI-only; ACP surfaces user-defined ones.
+    AgentKind.OPENCODE: [],
+}
+
+
+class ModelInfo(NamedTuple):
+    display_name: str
+    agent_kind: AgentKind
+    context_window: int | None
+    legacy: bool = False
+    # Effort tiers the model accepts (OpenCode's from models.dev
+    # `reasoning_options`); empty = no effort dial.
+    effort_levels: tuple[str, ...] = ()
 
 
 MODELS: dict[str, ModelInfo] = {
@@ -4879,260 +5116,4 @@ MODELS: dict[str, ModelInfo] = {
         1_000_000,
         effort_levels=("low", "high", "max"),
     ),
-}
-
-# Built-in slash commands per agent kind for the frontend. Claude/Codex lists
-# are filtered ACP-exposed subsets (not full CLI/TUI chrome); skills are runtime.
-# Codex omits logout — too easy to hit from chat autocomplete.
-BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
-    AgentKind.ANTIGRAVITY: [],
-    AgentKind.CLAUDE: [
-        {
-            "value": "/compact",
-            "label": "Compact",
-            "description": "Free up context by summarizing the conversation so far. Optional: /compact [instructions for summarization]",
-        },
-        {
-            "value": "/clear",
-            "label": "Clear",
-            "description": "Start a new session with empty context; previous session stays on disk (resumable with /resume)",
-        },
-        {
-            "value": "/review",
-            "label": "Review",
-            "description": "Review a GitHub pull request; for your working diff use /code-review",
-        },
-        {
-            "value": "/code-review",
-            "label": "Code Review",
-            "description": "Review the current diff for correctness bugs and reuse/simplification/efficiency cleanups. Optional: /code-review [low|medium|high|xhigh|max] [--fix] [--comment] [target]",
-        },
-        {
-            "value": "/security-review",
-            "label": "Security Review",
-            "description": "Complete a security review of the pending changes on the current branch",
-        },
-        {
-            "value": "/simplify",
-            "label": "Simplify",
-            "description": "Review changed code for reuse, simplification, efficiency, and altitude cleanups, then apply the fixes",
-        },
-        {
-            "value": "/init",
-            "label": "Init",
-            "description": "Initialize a new CLAUDE.md file with codebase documentation",
-        },
-        {
-            "value": "/debug",
-            "label": "Debug",
-            "description": "Enable debug logging for this session and help diagnose issues",
-        },
-        {
-            "value": "/doctor",
-            "label": "Doctor",
-            "description": "Health-check the Claude Code setup and fix installation, settings, and configuration issues",
-        },
-        {
-            "value": "/insights",
-            "label": "Insights",
-            "description": "Generate a report analyzing your Claude Code sessions",
-        },
-        {
-            "value": "/recap",
-            "label": "Recap",
-            "description": "Generate a one-line session recap now",
-        },
-        {
-            "value": "/loop",
-            "label": "Loop",
-            "description": "Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo, defaults to 10m)",
-        },
-        {
-            "value": "/batch",
-            "label": "Batch",
-            "description": "Research and plan a large-scale change, then execute it in parallel across isolated worktree agents that each open a PR",
-        },
-        {
-            "value": "/deep-research",
-            "label": "Deep Research",
-            "description": "Fan out web searches, fetch and cross-check sources, and synthesize a cited report",
-        },
-        {
-            "value": "/verify",
-            "label": "Verify",
-            "description": "Verify a code change end-to-end by driving the affected flow, not just tests or typecheck",
-        },
-        {
-            "value": "/run",
-            "label": "Run",
-            "description": "Launch and drive this project's app to see a change working",
-        },
-        {
-            "value": "/run-skill-generator",
-            "label": "Run Skill Generator",
-            "description": "Author or improve a per-project run skill that tells agents how to build, launch, and drive this app",
-        },
-        {
-            "value": "/goal",
-            "label": "Goal",
-            "description": "Set a goal — keep working until the condition is met",
-        },
-        {
-            "value": "/update-config",
-            "label": "Update Config",
-            "description": "Configure Claude Code settings via settings.json (permissions, hooks, env vars)",
-        },
-        {
-            "value": "/claude-api",
-            "label": "Claude API",
-            "description": "Build apps with the Claude API or Anthropic SDK",
-        },
-        {
-            "value": "/dataviz",
-            "label": "Data Viz",
-            "description": "Design guidance for charts, graphs, and dashboards",
-        },
-        {
-            "value": "/fewer-permission-prompts",
-            "label": "Fewer Permission Prompts",
-            "description": "Scan transcripts for common read-only tool calls and add a project allowlist to reduce permission prompts",
-        },
-        {
-            "value": "/team-onboarding",
-            "label": "Team Onboarding",
-            "description": "Help teammates ramp on Claude Code with a guide from your usage",
-        },
-        {
-            "value": "/reload-skills",
-            "label": "Reload Skills",
-            "description": "Pick up skills added or changed on disk during this session",
-        },
-    ],
-    AgentKind.CODEX: [
-        {
-            "value": "/review",
-            "label": "Review",
-            "description": "Review uncommitted changes, or review with custom instructions",
-        },
-        {
-            "value": "/review-branch",
-            "label": "Review Branch",
-            "description": "Review changes relative to a base branch",
-        },
-        {
-            "value": "/review-commit",
-            "label": "Review Commit",
-            "description": "Review a specific commit",
-        },
-        {
-            "value": "/compact",
-            "label": "Compact",
-            "description": "Summarize conversation to avoid hitting the context limit",
-        },
-        {
-            "value": "/status",
-            "label": "Status",
-            "description": "Display session configuration and token usage",
-        },
-        {
-            "value": "/goal",
-            "label": "Goal",
-            "description": "Set, pause, resume, or clear a task goal",
-        },
-        {
-            "value": "/mcp",
-            "label": "MCP",
-            "description": "List configured Model Context Protocol (MCP) tools",
-        },
-        {
-            "value": "/skills",
-            "label": "Skills",
-            "description": "List available skills",
-        },
-    ],
-    AgentKind.COPILOT: [
-        {"value": "/model", "label": "Model", "description": "Select the active model"},
-        {
-            "value": "/compact",
-            "label": "Compact",
-            "description": "Clear conversation history but keep a summary in context",
-        },
-        {
-            "value": "/context",
-            "label": "Context",
-            "description": "Show context window token usage and visualization",
-        },
-        {
-            "value": "/usage",
-            "label": "Usage",
-            "description": "Display session usage metrics and statistics",
-        },
-        {"value": "/review", "label": "Review", "description": "Review a pull request"},
-        {
-            "value": "/diff",
-            "label": "Diff",
-            "description": "Review the changes made in the current directory",
-        },
-        {
-            "value": "/pr",
-            "label": "PR",
-            "description": "Operate on pull requests for the current branch",
-        },
-        {
-            "value": "/init",
-            "label": "Init",
-            "description": "Initialize project configuration",
-        },
-        {
-            "value": "/agent",
-            "label": "Agent",
-            "description": "Browse and select from available agents",
-        },
-        {
-            "value": "/skills",
-            "label": "Skills",
-            "description": "Manage skills for enhanced capabilities",
-        },
-        {
-            "value": "/mcp",
-            "label": "MCP",
-            "description": "Manage MCP server configuration",
-        },
-        {
-            "value": "/plugin",
-            "label": "Plugin",
-            "description": "Manage plugins and plugin marketplaces",
-        },
-        {
-            "value": "/session",
-            "label": "Session",
-            "description": "View and manage sessions",
-        },
-        {
-            "value": "/tasks",
-            "label": "Tasks",
-            "description": "View and manage background tasks",
-        },
-        {
-            "value": "/delegate",
-            "label": "Delegate",
-            "description": "Send this session to GitHub and create a PR",
-        },
-        {
-            "value": "/fleet",
-            "label": "Fleet",
-            "description": "Enable parallel subagent execution",
-        },
-        {
-            "value": "/allow-all",
-            "label": "Allow All",
-            "description": "Enable all permissions for the session",
-        },
-    ],
-    # Cursor slash commands are TUI-only; ACP would treat them as prompt text.
-    AgentKind.CURSOR: [],
-    # Grok advertises commands via availableCommands — runtime discovery only.
-    AgentKind.GROK: [],
-    # OpenCode slash commands are TUI-only; ACP surfaces user-defined ones.
-    AgentKind.OPENCODE: [],
 }

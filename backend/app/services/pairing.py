@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
@@ -8,13 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.user import User
 from app.services.exceptions import AuthException
-from app.services.refresh_token import RefreshTokenService, hash_refresh_token
+from app.services.refresh_token import RefreshTokenService
 
 PAIRING_SECRET_TTL = timedelta(minutes=5)
 MAX_PAIRING_SECRETS_PER_USER = 5
 
 
 class PairingService:
+    @staticmethod
+    def hash_secret(secret: str) -> str:
+        return hashlib.sha256(secret.encode()).hexdigest()
+
     @staticmethod
     async def create_secret(user_id: UUID, db: AsyncSession) -> tuple[str, datetime]:
         secret = secrets.token_urlsafe(16)
@@ -23,7 +28,7 @@ class PairingService:
         await db.execute(delete(PairingSecret).where(PairingSecret.expires_at <= now))
         db.add(
             PairingSecret(
-                secret_hash=hash_refresh_token(secret),
+                secret_hash=PairingService.hash_secret(secret),
                 user_id=user_id,
                 expires_at=expires_at,
             )
@@ -54,7 +59,7 @@ class PairingService:
         user_id = await db.scalar(
             delete(PairingSecret)
             .where(
-                PairingSecret.secret_hash == hash_refresh_token(secret),
+                PairingSecret.secret_hash == PairingService.hash_secret(secret),
                 PairingSecret.expires_at > datetime.now(timezone.utc),
             )
             .returning(PairingSecret.user_id)

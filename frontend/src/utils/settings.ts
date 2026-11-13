@@ -14,12 +14,6 @@ import type {
 import type { GeneralSecretFieldConfig } from '@/types/settings.types';
 import { validateRequired, validateUnique } from '@/utils/validation';
 
-export const mergeByName = <T extends { name: string }>(primary: T[], secondary: T[]): T[] => {
-  if (!secondary.length) return primary;
-  const primaryNames = new Set(primary.map((item) => item.name.toLowerCase()));
-  return [...primary, ...secondary.filter((item) => !primaryNames.has(item.name.toLowerCase()))];
-};
-
 export const createDefaultEnvVarForm = (): CustomEnvVar => ({
   key: '',
   value: '',

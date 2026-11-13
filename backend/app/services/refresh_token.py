@@ -21,13 +21,13 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
-def hash_refresh_token(token: str) -> str:
-    return hashlib.sha256(token.encode()).hexdigest()
-
-
 class RefreshTokenService:
     def __init__(self, session_factory: SessionFactoryType | None = None) -> None:
         self.session_factory = session_factory or SessionLocal
+
+    @staticmethod
+    def hash_refresh_token(token: str) -> str:
+        return hashlib.sha256(token.encode()).hexdigest()
 
     @staticmethod
     def generate_refresh_token() -> str:
@@ -48,7 +48,7 @@ class RefreshTokenService:
         ip_address: str | None = None,
     ) -> str:
         token = self.generate_refresh_token()
-        token_hash = hash_refresh_token(token)
+        token_hash = self.hash_refresh_token(token)
         expires_at = self.get_refresh_token_expiry()
 
         refresh_token = RefreshToken(
@@ -73,7 +73,7 @@ class RefreshTokenService:
         ip_address: str | None = None,
     ) -> tuple[User, str, UUID | None]:
         now = datetime.now(timezone.utc)
-        token_hash = hash_refresh_token(token)
+        token_hash = self.hash_refresh_token(token)
         refresh_token = await db.scalar(
             update(RefreshToken)
             .where(
@@ -136,7 +136,7 @@ class RefreshTokenService:
             device.last_used_at = now
 
         new_token = self.generate_refresh_token()
-        new_token_hash = hash_refresh_token(new_token)
+        new_token_hash = self.hash_refresh_token(new_token)
         new_expires_at = self.get_refresh_token_expiry()
 
         new_refresh_token = RefreshToken(
@@ -159,7 +159,7 @@ class RefreshTokenService:
         return or_(RefreshToken.id == token_id, RefreshToken.parent_id == token_id)
 
     async def revoke_token(self, token: str, db: AsyncSession) -> bool:
-        token_hash = hash_refresh_token(token)
+        token_hash = self.hash_refresh_token(token)
 
         result = await db.execute(
             select(RefreshToken).where(RefreshToken.token_hash == token_hash)

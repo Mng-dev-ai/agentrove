@@ -10,9 +10,7 @@ export async function checkDesktopUpdate(): Promise<void> {
   useDesktopUpdateStore.getState().setAvailable(
     {
       version: update.version,
-      currentVersion: update.currentVersion,
       body: update.body ?? null,
-      date: update.date ?? null,
     },
     () => downloadAndInstall(update),
   );

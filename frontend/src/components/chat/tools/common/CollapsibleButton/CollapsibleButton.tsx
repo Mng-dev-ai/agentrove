@@ -5,7 +5,6 @@ import styles from './CollapsibleButton.module.scss';
 
 interface CollapsibleButtonProps {
   label: string;
-  labelWhenExpanded?: string;
   isExpanded: boolean;
   onToggle: () => void;
   count?: number;
@@ -14,14 +13,12 @@ interface CollapsibleButtonProps {
 
 export function CollapsibleButton({
   label,
-  labelWhenExpanded,
   isExpanded,
   onToggle,
   count,
   fullWidth = false,
 }: CollapsibleButtonProps) {
-  const effectiveLabel = isExpanded && labelWhenExpanded ? labelWhenExpanded : label;
-  const displayLabel = count !== undefined ? `${effectiveLabel} (${count})` : effectiveLabel;
+  const displayLabel = count !== undefined ? `${label} (${count})` : label;
 
   return (
     <Button

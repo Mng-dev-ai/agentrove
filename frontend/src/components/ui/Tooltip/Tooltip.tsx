@@ -8,12 +8,11 @@ interface TooltipProps {
   // 'bottom-end' drops below the trigger but right-aligns the bubble, so tooltips
   // on right-edge controls (e.g. the view switcher) grow leftward and never clip.
   position?: 'top' | 'right' | 'bottom' | 'bottom-end' | 'left';
-  className?: string;
 }
 
-export function Tooltip({ content, children, position = 'right', className }: TooltipProps) {
+export function Tooltip({ content, children, position = 'right' }: TooltipProps) {
   return (
-    <div className={clsx(styles['tooltip-wrapper'], className)}>
+    <div className={styles['tooltip-wrapper']}>
       {children}
       <div role="tooltip" className={clsx(styles.bubble, styles[`bubble--${position}`])}>
         {content}

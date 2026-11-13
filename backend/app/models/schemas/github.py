@@ -12,7 +12,6 @@ class GitHubRepo(BaseModel):
     clone_url: str
     private: bool
     pushed_at: str | None
-    stargazers_count: int
 
 
 class GitHubReposResponse(BaseModel):
@@ -30,7 +29,6 @@ class GitHubPullRequest(BaseModel):
     base: dict[str, Any]
     user: dict[str, Any]
     draft: bool
-    review_comments: int
     merged: bool
 
 
@@ -57,7 +55,6 @@ class CreatePullRequestResponse(BaseModel):
 
 class GitHubCollaborator(BaseModel):
     login: str
-    avatar_url: str
 
 
 class GeneratePRDescriptionRequest(BaseModel):

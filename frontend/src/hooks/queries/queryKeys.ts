@@ -67,7 +67,6 @@ export const queryKeys = {
         include,
         exclude,
       ] as const,
-    searchAll: (sandboxId?: string) => ['sandbox', sandboxId, 'search'] as const,
   },
   workspaces: ['workspaces'] as const,
   workspaceResources: (workspaceId?: string, chatId?: string) =>

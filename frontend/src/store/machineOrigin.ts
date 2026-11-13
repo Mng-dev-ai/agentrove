@@ -7,6 +7,8 @@ const SANDBOXES_KEY = 'machine-sandbox-origins';
 const CHANNELS_KEY = 'machine-channel-origins';
 const REMOVED_MACHINES_KEY = 'machine-removed-identities';
 
+const listeners = new Set<() => void>();
+
 function load(key: string): Map<string, string> {
   try {
     const raw = localStorage.getItem(key);
@@ -43,7 +45,6 @@ const maps: Record<OriginKey, Map<string, string>> = {
   [REMOVED_MACHINES_KEY]: load(REMOVED_MACHINES_KEY),
 };
 let chatOriginsSnapshot: ReadonlyMap<string, string> = new Map(maps[CHATS_KEY]);
-const listeners = new Set<() => void>();
 
 function notify(): void {
   chatOriginsSnapshot = new Map(maps[CHATS_KEY]);

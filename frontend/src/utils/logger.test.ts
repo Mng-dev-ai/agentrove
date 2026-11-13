@@ -5,7 +5,6 @@ const ISO_TIMESTAMP = /^\[\d{4}-\d{2}-\d{2}T[\d:.]+Z\]/;
 
 beforeEach(() => {
   vi.spyOn(console, 'debug').mockImplementation(() => {});
-  vi.spyOn(console, 'info').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
@@ -17,10 +16,10 @@ afterEach(() => {
 
 describe('logger message formatting', () => {
   it('prefixes an ISO timestamp and the level, then the message', () => {
-    logger.info('hello');
-    const [line] = vi.mocked(console.info).mock.calls[0];
+    logger.warn('hello');
+    const [line] = vi.mocked(console.warn).mock.calls[0];
     expect(line).toMatch(ISO_TIMESTAMP);
-    expect(line).toContain('[INFO]');
+    expect(line).toContain('[WARN]');
     expect(line).toContain('hello');
   });
 

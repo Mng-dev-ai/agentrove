@@ -50,14 +50,6 @@ FULL_ACCESS_SESSION_MODES: dict[AgentKind, frozenset[PermissionMode]] = {
 }
 
 
-def loads_agentrove_mcp(
-    agent_kind: AgentKind, permission_mode: PermissionMode, *, channel_member: bool
-) -> bool:
-    return (
-        not channel_member or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind]
-    )
-
-
 # Agents that support persona system-prompt replacement over ACP (Cursor/Copilot ignore it).
 PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
     {
@@ -79,48 +71,6 @@ THINKING_MODE_ORDER = (
     "max",
     "ultra",
 )
-
-
-def unsupported_effort_error(mode: str, supported: Iterable[str]) -> AgentException:
-    levels = ", ".join(supported)
-    if not levels:
-        return AgentException(
-            f"Effort `{mode}` isn't supported: this model has no effort setting."
-        )
-    return AgentException(
-        f"Effort `{mode}` isn't supported by this model. Supported: {levels}."
-    )
-
-
-def resolve_thinking_mode(
-    mode: str | None, valid_modes: frozenset[str], default: str = "medium"
-) -> str:
-    # An explicit tier is never substituted (it changes cost and latency);
-    # only the agent default steps down when this model lacks it.
-    if mode:
-        if mode in valid_modes:
-            return mode
-        raise unsupported_effort_error(
-            mode, sorted(valid_modes, key=THINKING_MODE_ORDER.index)
-        )
-    if default in valid_modes:
-        return default
-    default_index = THINKING_MODE_ORDER.index(default)
-    for candidate in reversed(THINKING_MODE_ORDER[:default_index]):
-        if candidate in valid_modes:
-            return candidate
-    return next(m for m in THINKING_MODE_ORDER if m in valid_modes)
-
-
-def build_system_prompt_meta(
-    system_prompt: str | None, is_full_replace: bool
-) -> dict[str, Any]:
-    # For adapters using _meta.systemPrompt, str replaces and {"append": ...} appends.
-    if not system_prompt:
-        return {}
-    if is_full_replace:
-        return {"systemPrompt": system_prompt}
-    return {"systemPrompt": {"append": system_prompt}}
 
 
 @dataclass(frozen=True)
@@ -160,6 +110,57 @@ class AgentAdapter:
     # otherwise keep the last tier. None = nothing to send.
     unset_effort_value: str | None = None
 
+    @staticmethod
+    def loads_agentrove_mcp(
+        agent_kind: AgentKind, permission_mode: PermissionMode, *, channel_member: bool
+    ) -> bool:
+        return (
+            not channel_member
+            or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind]
+        )
+
+    @staticmethod
+    def unsupported_effort_error(mode: str, supported: Iterable[str]) -> AgentException:
+        levels = ", ".join(supported)
+        if not levels:
+            return AgentException(
+                f"Effort `{mode}` isn't supported: this model has no effort setting."
+            )
+        return AgentException(
+            f"Effort `{mode}` isn't supported by this model. Supported: {levels}."
+        )
+
+    @staticmethod
+    def resolve_thinking_mode(
+        mode: str | None, valid_modes: frozenset[str], default: str = "medium"
+    ) -> str:
+        # An explicit tier is never substituted (it changes cost and latency);
+        # only the agent default steps down when this model lacks it.
+        if mode:
+            if mode in valid_modes:
+                return mode
+            raise AgentAdapter.unsupported_effort_error(
+                mode, sorted(valid_modes, key=THINKING_MODE_ORDER.index)
+            )
+        if default in valid_modes:
+            return default
+        default_index = THINKING_MODE_ORDER.index(default)
+        for candidate in reversed(THINKING_MODE_ORDER[:default_index]):
+            if candidate in valid_modes:
+                return candidate
+        return next(m for m in THINKING_MODE_ORDER if m in valid_modes)
+
+    @staticmethod
+    def build_system_prompt_meta(
+        system_prompt: str | None, is_full_replace: bool
+    ) -> dict[str, Any]:
+        # For adapters using _meta.systemPrompt, str replaces and {"append": ...} appends.
+        if not system_prompt:
+            return {}
+        if is_full_replace:
+            return {"systemPrompt": system_prompt}
+        return {"systemPrompt": {"append": system_prompt}}
+
     def build_launch_config(
         self,
         *,
@@ -197,7 +198,9 @@ class AgentAdapter:
     def build_session_meta(
         self, system_prompt: str | None, system_prompt_is_full_replace: bool
     ) -> dict[str, Any]:
-        return build_system_prompt_meta(system_prompt, system_prompt_is_full_replace)
+        return self.build_system_prompt_meta(
+            system_prompt, system_prompt_is_full_replace
+        )
 
     def build_session_env(self, model_id: str) -> dict[str, str]:
         return {}
@@ -211,7 +214,9 @@ class AgentAdapter:
         modes = self.valid_thinking_modes(model_id)
         if not modes:
             return None
-        return resolve_thinking_mode(thinking_mode, modes, self.default_thinking_mode)
+        return self.resolve_thinking_mode(
+            thinking_mode, modes, self.default_thinking_mode
+        )
 
     def map_session_mode(self, permission_mode: str) -> str:
         # UI permission mode → ACP session mode id (plan-mode transitions).
@@ -244,7 +249,9 @@ class ClaudeAgentAdapter(AgentAdapter):
     def build_session_meta(
         self, system_prompt: str | None, system_prompt_is_full_replace: bool
     ) -> dict[str, Any]:
-        meta = build_system_prompt_meta(system_prompt, system_prompt_is_full_replace)
+        meta = self.build_system_prompt_meta(
+            system_prompt, system_prompt_is_full_replace
+        )
         # Effort controls depth; visible thinking requires the SDK display option.
         meta["claudeCode"] = {
             "options": {"thinking": {"type": "adaptive", "display": "summarized"}}
@@ -388,7 +395,7 @@ class AntigravityAgentAdapter(AgentAdapter):
 
     def reasoning_effort(self, model_id: str, thinking_mode: str | None) -> str:
         # Every Antigravity model has tiers, and its model IDs encode one.
-        return resolve_thinking_mode(
+        return self.resolve_thinking_mode(
             thinking_mode,
             self.valid_thinking_modes(model_id),
             self.default_thinking_mode,
@@ -439,7 +446,7 @@ class OpencodeAgentAdapter(AgentAdapter):
         modes = self.valid_thinking_modes(model_id)
         if thinking_mode in (None, "", "default") or not modes:
             return None
-        return resolve_thinking_mode(thinking_mode, modes)
+        return self.resolve_thinking_mode(thinking_mode, modes)
 
     def effort_explicit(
         self, model_id: str, thinking_mode: str | None, effort: str | None

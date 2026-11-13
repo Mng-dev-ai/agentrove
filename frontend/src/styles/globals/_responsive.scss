@@ -46,36 +46,8 @@ $queries: (
   }
 }
 
-// Apply a block across interactive states in one go
-@mixin active(
-  $states: (
-    active,
-    focus-visible,
-    hover,
-  )
-) {
-  @each $state in $states {
-    @if $state == hover {
-      @include hover {
-        @content;
-      }
-    } @else {
-      &:#{$state} {
-        @content;
-      }
-    }
-  }
-}
-
 @mixin hide($query: 'mobile') {
   @include media($query) {
     display: none;
-  }
-}
-
-@mixin show($query: 'desktop', $display: block) {
-  display: none;
-  @include media($query) {
-    display: $display;
   }
 }

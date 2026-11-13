@@ -33,7 +33,7 @@ from app.api.endpoints import websocket
 from app.core.config import get_settings
 from app.core.middleware import McpAuthMiddleware, setup_middleware
 from app.db.session import SessionLocal, engine
-from app.services.agent import MCP_SERVER_PATH, loopback_api_url
+from app.services.agent import MCP_SERVER_PATH, AgentService
 from app.services.channel import channel_service
 from app.services.maintenance import MaintenanceService
 from app.services.session_registry import session_registry
@@ -55,7 +55,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
-mcp_endpoint = HttpEndpoint(loopback_api_url())
+mcp_endpoint = HttpEndpoint(AgentService.loopback_api_url())
 
 
 @asynccontextmanager

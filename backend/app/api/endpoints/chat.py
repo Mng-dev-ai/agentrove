@@ -978,15 +978,3 @@ async def _send_now_queued_message(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Cannot send now while a checkpoint is being restored.",
             )
-
-
-@router.delete(
-    "/chats/{chat_id}/queue",
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def clear_queue(
-    chat_id: UUID,
-    _chat: Chat = Depends(ensure_chat_access),
-    queue_service: QueueService = Depends(get_queue_service),
-) -> None:
-    await queue_service.clear_queue(str(chat_id))

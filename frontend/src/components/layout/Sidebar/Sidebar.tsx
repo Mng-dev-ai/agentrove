@@ -35,7 +35,6 @@ export interface SidebarProps {
   selectedChatWorkspaceId?: string | null;
   selectedChatParentId?: string | null;
   onChatSelect: (chatId: string) => void;
-  onDeleteChat?: (chatId: string) => void;
 }
 
 export function Sidebar({
@@ -45,7 +44,6 @@ export function Sidebar({
   selectedChatWorkspaceId,
   selectedChatParentId,
   onChatSelect,
-  onDeleteChat,
 }: SidebarProps) {
   const navigate = useNavigate();
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
@@ -90,7 +88,6 @@ export function Sidebar({
     navigate,
     scrollContainerRef,
     onChatSelect,
-    onDeleteChat,
   });
   const workspaceActions = useSidebarWorkspaceActions({
     selectedChatId,

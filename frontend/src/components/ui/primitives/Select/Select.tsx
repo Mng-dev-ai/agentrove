@@ -4,26 +4,14 @@ import styles from './Select.module.scss';
 
 export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   ref?: Ref<HTMLSelectElement>;
-  hasError?: boolean;
 }
 
-export function Select({
-  ref,
-  className,
-  hasError = false,
-  disabled,
-  children,
-  ...props
-}: SelectProps) {
+export function Select({ ref, className, disabled, children, ...props }: SelectProps) {
   return (
     <div className={styles.select}>
       <select
         ref={ref}
-        className={clsx(
-          styles['select-input'],
-          hasError && styles['select-input--error'],
-          className,
-        )}
+        className={clsx(styles['select-input'], className)}
         disabled={disabled}
         {...props}
       >

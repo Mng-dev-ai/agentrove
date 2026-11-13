@@ -4,14 +4,12 @@ import styles from './Textarea.module.scss';
 
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   ref?: Ref<HTMLTextAreaElement>;
-  hasError?: boolean;
   variant?: 'default' | 'unstyled';
 }
 
 export function Textarea({
   ref,
   className,
-  hasError = false,
   disabled,
   variant = 'default',
   ...props
@@ -20,9 +18,7 @@ export function Textarea({
     <textarea
       ref={ref}
       className={clsx(
-        variant === 'unstyled'
-          ? styles['textarea-unstyled']
-          : [styles.textarea, hasError && styles['textarea--error']],
+        variant === 'unstyled' ? styles['textarea-unstyled'] : styles.textarea,
         className,
       )}
       disabled={disabled}

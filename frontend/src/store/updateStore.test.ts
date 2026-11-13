@@ -5,18 +5,14 @@ const state = () => useDesktopUpdateStore.getState();
 
 const availableInfo = {
   version: '2.0.0',
-  currentVersion: '1.0.0',
   body: 'notes',
-  date: '2020-01-01',
 };
 
 beforeEach(() => {
   useDesktopUpdateStore.setState({
     status: 'idle',
     version: null,
-    currentVersion: null,
     releaseNotes: null,
-    releaseDate: null,
     downloadedBytes: 0,
     totalBytes: null,
     errorMessage: null,

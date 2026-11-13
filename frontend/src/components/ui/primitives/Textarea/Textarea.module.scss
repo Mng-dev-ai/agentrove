@@ -4,10 +4,6 @@
   @include controls.input-base;
   min-height: var(--space-32);
   resize: vertical;
-
-  &--error {
-    @include controls.input-error;
-  }
 }
 
 .textarea-unstyled {

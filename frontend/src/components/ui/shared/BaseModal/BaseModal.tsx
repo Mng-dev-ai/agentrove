@@ -4,16 +4,12 @@ import clsx from 'clsx';
 import styles from './BaseModal.module.scss';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl' | 'full';
-export type ModalZIndex = 'modal' | 'modalHigh' | 'modalHighest';
 
 export interface BaseModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: ReactNode;
   size?: ModalSize;
-  // Retained for API compatibility; all tiers share the 'modal' z-layer and stack by
-  // portal mount order (see BaseModal.module.scss).
-  zIndex?: ModalZIndex;
   className?: string;
   ariaLabel?: string;
 }

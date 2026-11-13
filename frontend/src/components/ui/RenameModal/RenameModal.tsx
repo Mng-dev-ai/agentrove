@@ -85,7 +85,7 @@ export function RenameModal({
   if (!isOpen) return null;
 
   return (
-    <BaseModal isOpen={isOpen} onClose={onClose} size="md" zIndex="modalHighest">
+    <BaseModal isOpen={isOpen} onClose={onClose} size="md">
       <ModalHeader title={modalTitle} onClose={onClose} />
 
       <div className={styles.body}>

@@ -25,7 +25,7 @@ export function ConfirmDialog({
   if (!isOpen) return null;
 
   return (
-    <BaseModal isOpen={isOpen} onClose={onClose} size="sm" zIndex="modalHighest">
+    <BaseModal isOpen={isOpen} onClose={onClose} size="sm">
       <div className={styles.body}>
         <div className={styles.row}>
           <div className={styles['icon-badge']}>

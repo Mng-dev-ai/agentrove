@@ -496,9 +496,7 @@ async def test_github_lists_collaborators(
     )
 
     assert response.status_code == 200
-    assert response.json() == [
-        {"login": "reviewer", "avatar_url": "https://example.com/r"}
-    ]
+    assert response.json() == [{"login": "reviewer"}]
 
 
 @pytest.mark.parametrize("status_code", [403, 404])

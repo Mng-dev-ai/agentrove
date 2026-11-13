@@ -34,7 +34,7 @@ from app.prompts.generate_title import GENERATE_TITLE_SYSTEM_PROMPT
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
     NORMAL_SESSION_MODE,
-    loads_agentrove_mcp,
+    AgentAdapter,
 )
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -56,15 +56,6 @@ logger = logging.getLogger(__name__)
 MCP_SERVER_PATH = Path(__file__).resolve().parents[2] / "mcp-server" / "server.py"
 
 
-def loopback_api_url() -> str:
-    # The public BASE_URL is often unreachable from inside the deployment
-    # (hairpin NAT), so in-process callers use the local uvicorn instead.
-    # Web mode listens on ${PORT:-8080}; desktop derives its port from a
-    # loopback BASE_URL (desktop/entry.py).
-    port = os.environ.get("PORT") or urlparse(settings.BASE_URL).port or 8080
-    return f"http://127.0.0.1:{port}{settings.API_V1_STR}"
-
-
 class StreamResult:
     __slots__ = ("total_cost_usd", "usage")
 
@@ -76,6 +67,15 @@ class StreamResult:
 class AgentService:
     def __init__(self, session_factory: Any | None = None) -> None:
         self.session_factory = session_factory or SessionLocal
+
+    @staticmethod
+    def loopback_api_url() -> str:
+        # The public BASE_URL is often unreachable from inside the deployment
+        # (hairpin NAT), so in-process callers use the local uvicorn instead.
+        # Web mode listens on ${PORT:-8080}; desktop derives its port from a
+        # loopback BASE_URL (desktop/entry.py).
+        port = os.environ.get("PORT") or urlparse(settings.BASE_URL).port or 8080
+        return f"http://127.0.0.1:{port}{settings.API_V1_STR}"
 
     async def _get_user_settings(self, user_id: UUID) -> UserSettings:
         return await UserService(
@@ -165,7 +165,7 @@ class AgentService:
             user_settings=user_settings,
             user_id=str(user.id),
             device_ids=device_ids,
-            agentrove_mcp=loads_agentrove_mcp(
+            agentrove_mcp=AgentAdapter.loads_agentrove_mcp(
                 agent_kind, permission_mode, channel_member=channel_member
             ),
             agent_kind=agent_kind,
@@ -514,7 +514,7 @@ class AgentService:
             access_token = create_mcp_access_token(user_id, hashed_password, device_ids)
             # Host-provider agents share this process's network namespace.
             env = {
-                "AGENTROVE_API_URL": loopback_api_url(),
+                "AGENTROVE_API_URL": AgentService.loopback_api_url(),
                 "AGENTROVE_ACCESS_TOKEN": access_token,
                 "AGENTROVE_CREDENTIAL_EPOCH": credential_epoch,
             }

@@ -13,6 +13,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   VERIFY_USER_TOKEN_EXPIRED: 'Verification link has expired',
 };
 
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_RETRY_DELAY = 1000;
+
 function formatErrorMessage(error: string | undefined): string {
   if (!error) {
     return 'An unexpected error occurred';
@@ -34,9 +37,6 @@ interface ServiceCallOptions {
   retryDelay?: number;
   signal?: AbortSignal;
 }
-
-const DEFAULT_MAX_RETRIES = 3;
-const DEFAULT_RETRY_DELAY = 1000;
 
 export async function serviceCall<T>(
   fn: () => Promise<T>,

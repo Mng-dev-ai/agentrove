@@ -3,8 +3,6 @@ import type * as monaco from 'monaco-editor';
 import { MONACO_FONT_FAMILY } from '@/config/constants';
 import styles from './Content.module.scss';
 
-const Editor = lazy(() => import('@monaco-editor/react'));
-
 const EDITOR_OPTIONS = {
   minimap: { enabled: false },
   scrollBeyondLastLine: false,
@@ -43,6 +41,8 @@ const EDITOR_OPTIONS = {
   cursorSmoothCaretAnimation: 'on',
   smoothScrolling: true,
 } as const;
+
+const Editor = lazy(() => import('@monaco-editor/react'));
 
 export interface ContentProps {
   content: string;

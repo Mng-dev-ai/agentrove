@@ -31,7 +31,6 @@ interface MessageQueueState<AddArgs extends unknown[]> {
   removeMessage: (chatId: string, messageId: string) => Promise<void>;
   getQueue: (chatId: string) => LocalQueuedMessage[];
   sendNow: (chatId: string, messageId: string) => Promise<boolean>;
-  clearQueue: (chatId: string) => void;
   fetchQueue: (chatId: string) => Promise<void>;
   removeLocalOnly: (chatId: string, messageId: string) => void;
   cleanupChat: (chatId: string) => void;
@@ -223,14 +222,6 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
 
     getQueue: (chatId: string) => {
       return get().queues.get(chatId) ?? EMPTY_QUEUE;
-    },
-
-    clearQueue: (chatId: string) => {
-      set((state) => {
-        const nextQueues = new Map(state.queues);
-        nextQueues.delete(chatId);
-        return { queues: nextQueues };
-      });
     },
 
     cleanupChat: (chatId: string) => {

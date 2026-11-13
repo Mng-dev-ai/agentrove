@@ -157,13 +157,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
   };
 
   return (
-    <BaseModal
-      isOpen={true}
-      onClose={onClose}
-      size="sm"
-      zIndex="modalHighest"
-      className={styles.dialog}
-    >
+    <BaseModal isOpen={true} onClose={onClose} size="sm" className={styles.dialog}>
       <div className={styles['create-sub-thread-dialog']}>
         <div className={styles.header}>
           <div className={styles['icon-box']}>

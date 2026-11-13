@@ -3,6 +3,8 @@ import type { ToolComponent } from '@/types/ui.types';
 import type { AgentKind } from '@/types/chat.types';
 type ToolModuleLoader = () => Promise<{ default: ToolComponent }>;
 
+const lazyToolComponents = new Map<string, ToolComponent>();
+
 const toLazy = (loader: ToolModuleLoader): ToolComponent =>
   lazy(loader) as unknown as ToolComponent;
 
@@ -120,8 +122,6 @@ const agentRoveLoader: ToolModuleLoader = () =>
   import('./agentrove/AgentRoveTool').then((m) => ({ default: m.AgentRoveTool }));
 const renderUiLoader: ToolModuleLoader = () =>
   import('./agentrove/RenderUiTool').then((m) => ({ default: m.RenderUiTool }));
-
-const lazyToolComponents = new Map<string, ToolComponent>();
 
 const getOrCreateLazy = (key: string, loader: ToolModuleLoader) => {
   const existing = lazyToolComponents.get(key);

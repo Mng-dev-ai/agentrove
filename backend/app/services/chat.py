@@ -41,7 +41,7 @@ from app.models.schemas.pagination import (
 )
 from app.models.types import ChatCompletionResult, MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME, build_system_prompt_for_chat
-from app.services.acp.adapters import loads_agentrove_mcp
+from app.services.acp.adapters import AgentAdapter
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException, ErrorCode
 from app.services.git import GitService
@@ -1141,7 +1141,7 @@ class ChatService(BaseDbService[Chat]):
             agent_kind=model.agent_kind,
             selected_persona_name=request.selected_persona_name,
             channel_member=member_turn is not None,
-            agentrove_mcp=loads_agentrove_mcp(
+            agentrove_mcp=AgentAdapter.loads_agentrove_mcp(
                 model.agent_kind,
                 request.permission_mode,
                 channel_member=member_turn is not None,
