@@ -6,7 +6,6 @@ export const CONTEXT_WINDOW_TOKENS = 200_000;
 // Agents whose ACP servers don't emit UsageUpdate notifications — the context
 // window indicator stays at 0 for these, so we hide it entirely.
 export const AGENTS_WITHOUT_USAGE_UPDATE: ReadonlySet<AgentKind> = new Set([
-  'antigravity',
   'copilot',
   'cursor',
   'grok',
