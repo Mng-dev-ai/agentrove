@@ -5,6 +5,7 @@ export interface Automation {
   id: string;
   user_id: string;
   workspace_id: string;
+  channel_id?: string | null;
   name: string;
   prompt: string;
   model_id: string;
@@ -26,6 +27,7 @@ export interface AutomationCreateRequest {
   prompt: string;
   model_id: string;
   workspace_id: string;
+  channel_id: string | null;
   cron_expression: string;
   timezone: string;
   permission_mode: PermissionMode;
@@ -35,6 +37,14 @@ export interface AutomationCreateRequest {
   enabled: boolean;
 }
 
+export interface AutomationRunResponse {
+  chat_id?: string | null;
+  channel_id?: string | null;
+  queued?: boolean | null;
+}
+
+export type AutomationTarget = 'chat' | 'channel';
+
 export type AutomationUpdateRequest = Partial<AutomationCreateRequest>;
 
 // Inputbar settings an automation replays; shared edit-dialog form shape.
@@ -43,6 +53,8 @@ export interface AutomationForm {
   prompt: string;
   model_id: string;
   workspace_id: string;
+  target: AutomationTarget;
+  channel_id: string;
   schedule: ScheduleForm;
   timezone: string;
   permission_mode: PermissionMode;

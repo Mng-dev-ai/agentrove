@@ -8,9 +8,11 @@ from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.utils.sandbox import BaseBranch
 
+QUEUE_CONTENT_MAX_LENGTH = 100000
+
 
 class QueueMessageContent(BaseModel):
-    content: str = Field(..., min_length=1, max_length=100000)
+    content: str = Field(..., min_length=1, max_length=QUEUE_CONTENT_MAX_LENGTH)
 
 
 class QueuedMessageEdit(QueueMessageContent):
@@ -32,6 +34,10 @@ class QueuedMessage(QueuedMessageBase):
     id: UUID
     queued_at: datetime
     attachments: list[dict[str, Any]] | None = None
+
+
+class AutomationQueuedMessage(QueuedMessageEdit):
+    automation_id: UUID
 
 
 class QueuedChannelMessage(QueuedMessageEdit):

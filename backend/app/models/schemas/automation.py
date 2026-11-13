@@ -52,6 +52,7 @@ class AutomationBase(BaseModel):
 
 class AutomationCreate(AutomationBase):
     workspace_id: UUID
+    channel_id: UUID | None = None
 
 
 class AutomationUpdate(BaseModel):
@@ -59,6 +60,7 @@ class AutomationUpdate(BaseModel):
     prompt: str | None = Field(None, min_length=1, max_length=100000)
     model_id: str | None = Field(None, min_length=1, max_length=255)
     workspace_id: UUID | None = None
+    channel_id: UUID | None = None
     cron_expression: str | None = Field(None, min_length=1, max_length=128)
     timezone: str | None = Field(None, min_length=1, max_length=64)
     permission_mode: PermissionMode | None = None
@@ -107,6 +109,7 @@ class Automation(BaseModel):
     id: UUID
     user_id: UUID
     workspace_id: UUID
+    channel_id: UUID | None = None
     name: str
     prompt: str
     model_id: str
@@ -124,4 +127,6 @@ class Automation(BaseModel):
 
 
 class AutomationRunResponse(BaseModel):
-    chat_id: UUID
+    chat_id: UUID | None = None
+    channel_id: UUID | None = None
+    queued: bool | None = None

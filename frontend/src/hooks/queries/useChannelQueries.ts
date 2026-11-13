@@ -57,6 +57,14 @@ export const useMachinesChannels = (enabled: boolean) => {
   });
 };
 
+export const useMachineChannelsQuery = (machineId: string, enabled: boolean) =>
+  useQuery({
+    queryKey: queryKeys.channels(machineId),
+    queryFn: () => channelService.listChannels(machineId),
+    enabled,
+    staleTime: 30_000,
+  });
+
 export const useChannelQuery = (channelId: string | undefined) => {
   const queryClient = useQueryClient();
   return useQuery<Channel>({

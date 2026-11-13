@@ -15,6 +15,7 @@ from app.api.endpoints import chat as chat_endpoint
 from app.constants import MODELS
 from app.core import deps
 from app.core.security import create_mcp_access_token
+from app.models.db_models.automation import Automation
 from app.models.db_models.channel import (
     Channel,
     ChannelDelivery,
@@ -31,6 +32,7 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatRequest
 from app.models.types import AgentKind
+from app.services import automation as automation_module
 from app.services import channel as channel_module
 from app.services import push as push_module
 from app.services.channel import (
@@ -41,9 +43,12 @@ from app.services.channel import (
     TurnStatus,
     channel_service,
 )
+from app.services.automation import AutomationService
+from app.services.chat import ChatService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChannelMemberTurn, EventSink
+from app.services.user import UserService
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
@@ -284,6 +289,7 @@ def channel_queue(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
     cache = EndpointCache()
     monkeypatch.setattr(deps, "cache_connection", cache.connect)
     monkeypatch.setattr(channel_module, "cache_connection", cache.connect)
+    monkeypatch.setattr(automation_module, "cache_connection", cache.connect)
     return cache
 
 
@@ -2164,6 +2170,194 @@ async def test_message_queued_on_an_idle_channel_is_sent_immediately(
         "channel_queue_sent",
         {"id": queued.json()["id"]},
     ) in (channel_runtime.publications)
+
+
+AUTOMATION_POST = "[Automation: Digest]\nReview yesterday's changes"
+
+
+async def add_channel_automation(
+    db_session: AsyncSession, channel: Channel, **overrides: Any
+) -> Automation:
+    values: dict[str, Any] = {
+        "name": "Digest",
+        "prompt": "Review yesterday's changes",
+        "model_id": TEST_MODEL_ID,
+        "cron_expression": "0 9 * * *",
+        "next_run_at": datetime.now(timezone.utc) - timedelta(minutes=1),
+        **overrides,
+    }
+    automation = Automation(
+        user_id=channel.user_id,
+        workspace_id=channel.workspace_id,
+        channel_id=channel.id,
+        **values,
+    )
+    db_session.add(automation)
+    await db_session.commit()
+    await db_session.refresh(automation)
+    return automation
+
+
+def automation_service() -> AutomationService:
+    return AutomationService(ChatService(UserService()))
+
+
+async def standalone_chats(db_session: AsyncSession) -> list[Chat]:
+    return list(
+        (await db_session.scalars(select(Chat).where(Chat.channel_id.is_(None)))).all()
+    )
+
+
+async def test_automation_posts_its_prompt_into_an_idle_channel_and_wakes_members(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    channel_queue: EndpointCache,
+) -> None:
+    channel_state.paused = False
+    channel_id = str(channel_state.channel.id)
+    created = await client.post(
+        "/api/v1/automations",
+        headers=owner[0],
+        json={
+            "name": "Digest",
+            "prompt": "Review yesterday's changes",
+            "model_id": TEST_MODEL_ID,
+            "cron_expression": "0 9 * * *",
+            "workspace_id": str(owner[2].id),
+            "channel_id": channel_id,
+        },
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["channel_id"] == channel_id
+
+    ran = await client.post(
+        f"/api/v1/automations/{created.json()['id']}/run", headers=owner[0]
+    )
+
+    assert ran.status_code == 200, ran.text
+    assert ran.json() == {"chat_id": None, "channel_id": channel_id, "queued": True}
+    assert await user_messages(channel_state) == [AUTOMATION_POST]
+    assert channel_state.timer is not None
+    await channel_runtime.wake(channel_state)
+    [request] = channel_runtime.requests
+    assert AUTOMATION_POST in request.prompt
+    assert await standalone_chats(db_session) == []
+
+
+async def test_busy_channel_queues_one_run_per_automation_until_idle(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    channel_queue: EndpointCache,
+) -> None:
+    automation = await add_channel_automation(db_session, channel_state.channel)
+    await channel_service.new_message(
+        channel_state, "Start reviewing", device_ids=frozenset()
+    )
+    channel_runtime.gate = asyncio.Event()
+    turn = asyncio.create_task(channel_runtime.wake(channel_state))
+    await asyncio.wait_for(channel_runtime.emitted.wait(), timeout=5)
+    channel_state.paused = False
+    run_path = f"/api/v1/automations/{automation.id}/run"
+    queue_path = f"/api/v1/channels/{channel_state.channel.id}/queue"
+
+    _, ran = await asyncio.gather(
+        automation_service().run_due_automations(),
+        client.post(run_path, headers=owner[0]),
+    )
+    again = await client.post(run_path, headers=owner[0])
+
+    assert ran.status_code == again.status_code == 200
+    queued = (await client.get(queue_path, headers=owner[0])).json()
+    assert [item["content"] for item in queued] == [AUTOMATION_POST]
+    assert await user_messages(channel_state) == ["Start reviewing"]
+    channel_runtime.gate.set()
+    await turn
+    channel_state.paused = False
+    await channel_service.dispatch_queued(channel_state.channel)
+    assert await user_messages(channel_state) == ["Start reviewing", AUTOMATION_POST]
+    assert (await client.get(queue_path, headers=owner[0])).json() == []
+    assert await standalone_chats(db_session) == []
+
+
+async def test_deleted_target_channel_disables_the_automation_without_a_chat(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_queue: EndpointCache,
+) -> None:
+    automation = await add_channel_automation(db_session, channel_state.channel)
+    deleted = await client.delete(
+        f"/api/v1/channels/{channel_state.channel.id}", headers=owner[0]
+    )
+    assert deleted.status_code == 204
+
+    ran = await client.post(
+        f"/api/v1/automations/{automation.id}/run", headers=owner[0]
+    )
+    assert ran.status_code == 404
+    assert ran.json()["detail"] == "Target channel not found in this workspace"
+    await automation_service().run_due_automations()
+
+    await db_session.refresh(automation)
+    assert automation.enabled is False
+    assert automation.channel_id == channel_state.channel.id
+    assert (await db_session.scalars(select(Chat))).all() == []
+
+
+async def test_retired_model_does_not_disable_a_channel_automation(
+    db_session: AsyncSession,
+    channel_state: ChannelState,
+    channel_queue: EndpointCache,
+) -> None:
+    channel_state.paused = False
+    automation = await add_channel_automation(
+        db_session, channel_state.channel, model_id="antigravity:gemini-3.1-pro"
+    )
+
+    await automation_service().run_due_automations()
+
+    await db_session.refresh(automation)
+    assert automation.enabled is True
+    assert await user_messages(channel_state) == [AUTOMATION_POST]
+
+
+async def test_automation_from_a_revoked_device_does_not_post(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_queue: EndpointCache,
+) -> None:
+    channel_state.paused = False
+    device = PairedDevice(
+        user_id=channel_state.channel.user_id,
+        name="Laptop",
+        revoked_at=datetime.now(timezone.utc),
+    )
+    db_session.add(device)
+    await db_session.commit()
+    automation = await add_channel_automation(
+        db_session, channel_state.channel, device_ids=frozenset({device.id})
+    )
+
+    await automation_service().run_due_automations()
+    ran = await client.post(
+        f"/api/v1/automations/{automation.id}/run", headers=owner[0]
+    )
+
+    assert ran.status_code == 403
+    assert await user_messages(channel_state) == []
+    queue = await client.get(
+        f"/api/v1/channels/{channel_state.channel.id}/queue", headers=owner[0]
+    )
+    assert queue.json() == []
 
 
 async def complete(db_session: AsyncSession, message: ChannelMessage) -> None:

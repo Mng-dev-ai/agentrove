@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Clock, Brain, Shield, GitFork } from 'lucide-react';
 import type { Persona } from '@/types/user.types';
-import type { AutomationForm } from '@/types/automation.types';
+import type { AutomationForm, AutomationTarget } from '@/types/automation.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
 import { Select } from '@/components/ui/primitives/Select/Select';
@@ -26,6 +26,7 @@ import {
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
+import { useMachineChannelsQuery } from '@/hooks/queries/useChannelQueries';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { machineName } from '@/store/machineStore';
 import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
@@ -75,6 +76,14 @@ export function AutomationEditDialog({
 
   const workspaces = isLocal ? localWorkspaces : machineWorkspaces;
   const machineOffline = !machineOptions.some((machine) => machine.id === form.machineId);
+  const { data: machineChannels = [], isSuccess: channelsLoaded } = useMachineChannelsQuery(
+    form.machineId,
+    !machineOffline,
+  );
+  const channels = machineChannels.filter((channel) => channel.workspace_id === form.workspace_id);
+  const isChannel = form.target === 'channel';
+  const channelPicked = channels.some((channel) => channel.id === form.channel_id);
+  const channelMissing = isChannel && channelsLoaded && !channelPicked;
   const machines = machineOffline
     ? [...machineOptions, { id: form.machineId, name: `${machineName(form.machineId)} (offline)` }]
     : machineOptions;
@@ -95,6 +104,12 @@ export function AutomationEditDialog({
       onChange('workspace_id', workspaces[0].id);
     }
   }, [workspaces, form.workspace_id, onChange]);
+
+  useEffect(() => {
+    if (!isChannel || channelPicked || channels.length === 0) return;
+    if (isEditing && form.channel_id) return;
+    onChange('channel_id', channels[0].id);
+  }, [isChannel, channelPicked, channels, isEditing, form.channel_id, onChange]);
 
   const selectedModel = models.find((m) => m.model_id === form.model_id);
   const agentKind = selectedModel?.agent_kind ?? 'claude';
@@ -119,6 +134,7 @@ export function AutomationEditDialog({
     !!form.model_id &&
     !!form.workspace_id &&
     (schedule.frequency !== 'custom' || !!schedule.cron.trim()) &&
+    (!isChannel || channelPicked) &&
     !machineOffline;
 
   return (
@@ -191,61 +207,103 @@ export function AutomationEditDialog({
             )}
           </div>
 
-          <div>
-            <Label className={styles.label}>Model</Label>
-            <ModelSelector
-              selectedModelId={form.model_id}
-              onModelChange={(modelId) => onChange('model_id', modelId)}
-              dropdownPosition="bottom"
-              compact={false}
-            />
-          </div>
+          {(channels.length > 0 || isChannel) && (
+            <div>
+              <Label className={styles.label}>Target</Label>
+              <div className={styles.row}>
+                <div className={styles['select-w36']}>
+                  <Select
+                    value={form.target}
+                    onChange={(e) => onChange('target', e.target.value as AutomationTarget)}
+                    className={styles.select}
+                    aria-label="Target"
+                  >
+                    <option value="chat">New chat</option>
+                    <option value="channel">Channel</option>
+                  </Select>
+                </div>
+                {isChannel && (
+                  <Select
+                    value={form.channel_id}
+                    onChange={(e) => onChange('channel_id', e.target.value)}
+                    className={styles.select}
+                    aria-label="Channel"
+                  >
+                    {channelMissing && (
+                      <option value={form.channel_id} disabled>
+                        Target channel missing
+                      </option>
+                    )}
+                    {channels.map((channel) => (
+                      <option key={channel.id} value={channel.id}>
+                        #{channel.name}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </div>
+            </div>
+          )}
 
-          <div>
-            <Label className={styles.label}>Persona</Label>
-            <Select
-              value={form.persona_name}
-              onChange={(e) => onChange('persona_name', e.target.value)}
-              className={styles.select}
-            >
-              <option value={DEFAULT_PERSONA}>Default</option>
-              {personas.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+          {!isChannel && (
+            <>
+              <div>
+                <Label className={styles.label}>Model</Label>
+                <ModelSelector
+                  selectedModelId={form.model_id}
+                  onModelChange={(modelId) => onChange('model_id', modelId)}
+                  dropdownPosition="bottom"
+                  compact={false}
+                />
+              </div>
 
-          <div className={styles['control-row']}>
-            {selectedThinkingOption && (
-              <Dropdown
-                value={selectedThinkingOption}
-                items={thinkingModes}
-                getItemKey={(m) => m.value}
-                getItemLabel={(m) => m.label}
-                onSelect={(m) => onChange('thinking_mode', m.value)}
-                leftIcon={Brain}
-                dropdownPosition="bottom"
-              />
-            )}
-            <Dropdown
-              value={selectedPermissionOption}
-              items={permissionModes}
-              getItemKey={(m) => m.value}
-              getItemLabel={(m) => m.label}
-              onSelect={(m) => onChange('permission_mode', m.value)}
-              leftIcon={Shield}
-              dropdownPosition="bottom"
-            />
-            <ToggleDropdown
-              options={WORKTREE_OPTIONS}
-              value={form.worktree}
-              onSelect={(enabled) => onChange('worktree', enabled)}
-              icon={GitFork}
-              width="9rem"
-            />
-          </div>
+              <div>
+                <Label className={styles.label}>Persona</Label>
+                <Select
+                  value={form.persona_name}
+                  onChange={(e) => onChange('persona_name', e.target.value)}
+                  className={styles.select}
+                >
+                  <option value={DEFAULT_PERSONA}>Default</option>
+                  {personas.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div className={styles['control-row']}>
+                {selectedThinkingOption && (
+                  <Dropdown
+                    value={selectedThinkingOption}
+                    items={thinkingModes}
+                    getItemKey={(m) => m.value}
+                    getItemLabel={(m) => m.label}
+                    onSelect={(m) => onChange('thinking_mode', m.value)}
+                    leftIcon={Brain}
+                    dropdownPosition="bottom"
+                  />
+                )}
+                <Dropdown
+                  value={selectedPermissionOption}
+                  items={permissionModes}
+                  getItemKey={(m) => m.value}
+                  getItemLabel={(m) => m.label}
+                  onSelect={(m) => onChange('permission_mode', m.value)}
+                  leftIcon={Shield}
+                  dropdownPosition="bottom"
+                />
+                <ToggleDropdown
+                  options={WORKTREE_OPTIONS}
+                  value={form.worktree}
+                  onSelect={(enabled) => onChange('worktree', enabled)}
+                  icon={GitFork}
+                  width="9rem"
+                />
+              </div>
+            </>
+          )}
 
           <div>
             <Label className={styles.label}>Schedule</Label>
@@ -350,7 +408,9 @@ export function AutomationEditDialog({
               rows={5}
             />
             <p className={styles.hint}>
-              Each run starts a new chat in the selected workspace with this prompt.
+              {isChannel
+                ? 'Each run posts this prompt to the channel as you, prefixed with the automation name.'
+                : 'Each run starts a new chat in the selected workspace with this prompt.'}
             </p>
           </div>
         </div>

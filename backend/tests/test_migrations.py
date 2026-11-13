@@ -40,7 +40,10 @@ ADDED_TO_BASE_TABLES = {
         ("index", "ix_refresh_tokens_device_id", 0, "c", 0, ("device_id",)),
     },
     "channel_messages": {("column", "device_ids", "JSON", 1, "'[]'", 0)},
-    "automations": {("column", "device_ids", "JSON", 1, "'[]'", 0)},
+    "automations": {
+        ("column", "device_ids", "JSON", 1, "'[]'", 0),
+        ("column", "channel_id", "CHAR(32)", 0, None, 0),
+    },
     "chat_checkpoints": {("column", "head_ref", "VARCHAR(255)", 0, None, 0)},
     "channels": {
         ("column", "last_viewed_at", "DATETIME", 0, None, 0),

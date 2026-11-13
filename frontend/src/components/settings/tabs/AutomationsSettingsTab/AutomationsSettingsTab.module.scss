@@ -74,3 +74,12 @@
 .toggle {
   margin-right: var(--space-1-5);
 }
+
+.target-chip {
+  @include type.type-overflow;
+  max-width: var(--space-64);
+}
+
+.target-missing {
+  color: var(--theme-error-text);
+}
