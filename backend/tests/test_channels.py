@@ -742,6 +742,46 @@ async def test_member_gives_up_after_max_attempts(
     assert len(channel_runtime.requests) == MAX_ATTEMPTS
 
 
+async def test_member_that_gave_up_does_not_keep_a_failed_turn(
+    monkeypatch: pytest.MonkeyPatch,
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+) -> None:
+    await channel_service.new_message(
+        channel_state, "Please retry", device_ids=frozenset()
+    )
+    member = channel_state.channel.members[0]
+    finish = channel_service.finish
+
+    async def failing_finish(state: ChannelState, turn: MemberTurn) -> None:
+        if turn.member.id in state.gave_up:
+            raise RuntimeError("Database unavailable")
+        await finish(state, turn)
+
+    monkeypatch.setattr(channel_service, "finish", failing_finish)
+    await give_up(channel_state, channel_runtime)
+    assert member.id in channel_state.turns
+    await channel_runtime.wake(channel_state)
+    activity = (
+        await client.get(
+            f"/api/v1/channels/{channel_state.channel.id}/member-activity",
+            headers=owner[0],
+        )
+    ).json()
+
+    assert len(channel_runtime.requests) == MAX_ATTEMPTS
+    assert channel_state.turns == {}
+    assert channel_state.retries == {}
+    channel_state.paused = False
+    assert ChannelService.idle(channel_state)
+    assert activity["retrying_member_ids"] == []
+    assert activity["unavailable_members"] == {
+        str(member.id): "Gave up after 5 attempts: Authentication required"
+    }
+
+
 async def test_user_post_gives_a_member_that_gave_up_fresh_attempts(
     client: AsyncClient,
     owner: tuple[dict[str, str], User, Workspace],

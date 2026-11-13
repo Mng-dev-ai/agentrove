@@ -741,8 +741,6 @@ class ChannelService(BaseDbService[Channel]):
                         )
                         state.unavailable.add(member.id)
                     continue
-                if member.id in state.gave_up:
-                    continue
                 retry = state.retries.get(member.id)
                 if retry is not None and retry.until > now:
                     retry_times.append(retry.until)
@@ -757,6 +755,8 @@ class ChannelService(BaseDbService[Channel]):
                     if previous is not None:
                         await self.finish(state, previous)
                         state.turns.pop(member.id)
+                    if member.id in state.gave_up:
+                        continue
                     async with self.session_factory() as db:
                         batch = await self.unseen_batch(db, state.channel, member)
                         if not any(
@@ -764,8 +764,11 @@ class ChannelService(BaseDbService[Channel]):
                         ):
                             continue
                 except Exception as exc:
-                    self.backoff(state, member, exc)
-                    if member.id in state.retries:
+                    if member.id not in state.gave_up:
+                        self.backoff(state, member, exc)
+                    if member.id in state.gave_up:
+                        state.turns.pop(member.id, None)
+                    else:
                         retry_times.append(state.retries[member.id].until)
                     continue
                 turn = MemberTurn(member, batch)
