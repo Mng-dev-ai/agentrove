@@ -35,8 +35,8 @@ from app.models.types import AgentKind
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
     NATIVE_FILE_TYPES,
+    AgentAdapter,
     LaunchConfig,
-    unsupported_effort_error,
 )
 from app.services.acp.client import AcpClientHandler
 from app.services.exceptions import AgentException
@@ -349,7 +349,9 @@ class AcpSession:
             and AGENT_ADAPTERS[self._agent_kind].effort_config_id is not None
             and reasoning_effort not in self.effort_levels
         ):
-            raise unsupported_effort_error(reasoning_effort, self.effort_levels)
+            raise AgentAdapter.unsupported_effort_error(
+                reasoning_effort, self.effort_levels
+            )
 
     async def set_mode(self, mode_id: str) -> None:
         await self._set_mode_on_conn(

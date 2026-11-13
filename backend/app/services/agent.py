@@ -34,7 +34,7 @@ from app.prompts.generate_title import GENERATE_TITLE_SYSTEM_PROMPT
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
     NORMAL_SESSION_MODE,
-    loads_agentrove_mcp,
+    AgentAdapter,
 )
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -165,7 +165,7 @@ class AgentService:
             user_settings=user_settings,
             user_id=str(user.id),
             device_ids=device_ids,
-            agentrove_mcp=loads_agentrove_mcp(
+            agentrove_mcp=AgentAdapter.loads_agentrove_mcp(
                 agent_kind, permission_mode, channel_member=channel_member
             ),
             agent_kind=agent_kind,

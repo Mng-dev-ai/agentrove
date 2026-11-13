@@ -15,15 +15,6 @@ DEFAULT_STORAGE_PATH = "/data/agentrove/storage"
 DEFAULT_DATABASE_URL = f"sqlite+aiosqlite:///{DEFAULT_STORAGE_PATH}/agentrove.db"
 
 
-def _desktop_data_dir() -> Path:
-    system = platform.system()
-    if system == "Darwin":
-        return Path.home() / "Library" / "Application Support" / "com.agentrove.app"
-    if system == "Windows":
-        return Path.home() / "AppData" / "Roaming" / "com.agentrove.app"
-    return Path.home() / ".local" / "share" / "com.agentrove.app"
-
-
 class Settings(BaseSettings):
     DESKTOP_MODE: bool = False
 
@@ -80,13 +71,22 @@ class Settings(BaseSettings):
             raise ValueError("SECRET_KEY must be at least 32 characters long")
         return v
 
+    @staticmethod
+    def _desktop_data_dir() -> Path:
+        system = platform.system()
+        if system == "Darwin":
+            return Path.home() / "Library" / "Application Support" / "com.agentrove.app"
+        if system == "Windows":
+            return Path.home() / "AppData" / "Roaming" / "com.agentrove.app"
+        return Path.home() / ".local" / "share" / "com.agentrove.app"
+
     @model_validator(mode="after")
     def apply_desktop_defaults(self) -> "Settings":
         # Desktop (Tauri): redirect DB/storage to the OS user-data dir and allow
         # the webview origin.
         if not self.DESKTOP_MODE:
             return self
-        data_dir = _desktop_data_dir()
+        data_dir = self._desktop_data_dir()
         data_dir.mkdir(parents=True, exist_ok=True)
         default_db = f"sqlite+aiosqlite:///{(data_dir / 'agentrove.db').as_posix()}"
         if self.DATABASE_URL == DEFAULT_DATABASE_URL:
