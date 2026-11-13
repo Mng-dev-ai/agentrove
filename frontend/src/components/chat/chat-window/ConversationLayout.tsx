@@ -1,4 +1,5 @@
 import type { ReactNode, Ref } from 'react';
+import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ScrollButton } from './ScrollButton';
 import styles from './ConversationLayout.module.scss';
 
@@ -48,4 +49,26 @@ export function ConversationScroller({ ref, children }: ConversationScrollerProp
 
 export function ConversationColumn({ children }: { children: ReactNode }) {
   return <div className={styles.column}>{children}</div>;
+}
+
+export function ConversationOlderPages({
+  hasNextPage,
+  isFetchingNextPage,
+}: {
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+}) {
+  if (!hasNextPage) return null;
+  return (
+    <ConversationColumn>
+      <div className={styles['list-header-row']}>
+        {isFetchingNextPage && (
+          <div className={styles['loading-more']}>
+            <Spinner size="xs" />
+            Loading older messages...
+          </div>
+        )}
+      </div>
+    </ConversationColumn>
+  );
 }

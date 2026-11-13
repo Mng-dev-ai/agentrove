@@ -5,6 +5,7 @@ import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import {
   ConversationColumn,
   ConversationLayout,
+  ConversationOlderPages,
   ConversationScroller,
 } from '@/components/chat/chat-window/ConversationLayout';
 import { ChatSelectionActions } from '@/components/chat/chat-window/ChatSelectionActions';
@@ -53,7 +54,6 @@ import { SetChatInputMessageContext } from '@/contexts/ChatInputMessageContextDe
 import { ChannelComposer } from './ChannelComposer';
 import styles from './ChannelView.module.scss';
 
-const NO_OLDER_PAGES = () => {};
 const ACTIVITY_EVENT_TYPES = new Set([
   'assistant_thinking',
   'tool_started',
@@ -265,7 +265,7 @@ function ChannelEmptyState({ channel }: { channel: Channel }) {
 }
 
 export function ChannelView({ channel }: { channel: Channel }) {
-  useChannelLive(channel.id);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = useChannelLive(channel.id);
   const machineId = useChatMachineId(channel.anchor_chat_id);
   const machineOnline = useMachineStatus(machineId) === 'online';
   const machineLabel = useMachineName(machineId);
@@ -365,9 +365,9 @@ export function ChannelView({ channel }: { channel: Channel }) {
     messages: visibleMessages,
     pendingUserMessageId: null,
     latestUserMessageId: null,
-    hasNextPage: false,
-    isFetchingNextPage: false,
-    fetchNextPage: NO_OLDER_PAGES,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   });
 
   return (
@@ -405,6 +405,10 @@ export function ChannelView({ channel }: { channel: Channel }) {
           ) : (
             <>
               <ConversationScroller ref={containerRefCallback}>
+                <ConversationOlderPages
+                  hasNextPage={hasNextPage}
+                  isFetchingNextPage={isFetchingNextPage}
+                />
                 {visibleMessages.map((message) => (
                   <div key={message.id} data-message-id={message.id}>
                     <ConversationColumn>

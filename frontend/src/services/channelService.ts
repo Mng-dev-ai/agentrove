@@ -69,10 +69,16 @@ async function deleteChannel(channelId: string): Promise<void> {
   });
 }
 
-async function listMessages(channelId: string, afterSeq: number): Promise<ChannelMessage[]> {
+async function listMessages(
+  channelId: string,
+  page: { after_seq: number } | { before_seq?: number; limit: number },
+): Promise<ChannelMessage[]> {
   return serviceCall(async () => {
+    const query = new URLSearchParams(
+      Object.entries(page).map(([key, value]) => [key, String(value)]),
+    );
     const response = await resolveChannelClient(channelId).get<ChannelMessage[]>(
-      `/channels/${channelId}/messages?after_seq=${afterSeq}`,
+      `/channels/${channelId}/messages?${query}`,
     );
     return ensureResponse(response, 'Failed to load channel messages');
   });

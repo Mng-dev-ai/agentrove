@@ -11,20 +11,23 @@ import { ChatInlineElicitation } from './ChatInlineElicitation';
 import { StreamActionsBar } from './StreamActionsBar';
 import { Input } from '@/components/chat/message-input/Input';
 import { ChatSkeleton } from './ChatSkeleton';
-import { ConversationColumn, ConversationLayout, ConversationScroller } from './ConversationLayout';
+import {
+  ConversationColumn,
+  ConversationLayout,
+  ConversationOlderPages,
+  ConversationScroller,
+} from './ConversationLayout';
 import { MessageTrail } from './MessageTrail';
 import { FindInChat } from './FindInChat';
 import { ChatSelectionActions } from './ChatSelectionActions';
 import { StatusTypewriter } from './StatusTypewriter';
 import { useChatScroll } from './useChatScroll';
-import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { useStreamStore } from '@/store/streamStore';
 import { useMessageQueueStore, EMPTY_QUEUE, sendQueuedMessageNow } from '@/store/messageQueueStore';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useChatSessionContext } from '@/hooks/useChatSessionContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useUIStore } from '@/store/uiStore';
-import styles from './Chat.module.scss';
 
 export const Chat = memo(function Chat() {
   const { chatId } = useChatContext();
@@ -282,25 +285,6 @@ export const Chat = memo(function Chat() {
     ],
   );
 
-  const listHeader = useMemo(() => {
-    if (!hasNextPage) {
-      return null;
-    }
-
-    return (
-      <ConversationColumn>
-        <div className={styles['list-header-row']}>
-          {isFetchingNextPage && (
-            <div className={styles['loading-more']}>
-              <Spinner size="xs" />
-              Loading older messages...
-            </div>
-          )}
-        </div>
-      </ConversationColumn>
-    );
-  }, [hasNextPage, isFetchingNextPage]);
-
   // !lastBotIsStreaming covers the follow-up-turn handoff: the previous turn's
   // message (with content) is still the last bot row until the new stream's message
   // lands in the list — without it the indicator unmounts/remounts, restarting the
@@ -374,7 +358,10 @@ export const Chat = memo(function Chat() {
         <>
           {/* Single wrapper so the stick-to-bottom ResizeObserver tracks all content */}
           <ConversationScroller key={chatId ?? 'chat'} ref={containerRefCallback}>
-            {listHeader}
+            <ConversationOlderPages
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+            />
 
             {turns.map((turn, turnIndex) => {
               const isLastTurn = turnIndex === turns.length - 1;
