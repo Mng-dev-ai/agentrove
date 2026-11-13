@@ -10,9 +10,10 @@ import {
   useMachinesChannels,
   useRenameChannelMutation,
 } from '@/hooks/queries/useChannelQueries';
+import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { getMachineClient } from '@/lib/api';
-import '@/services/streamService';
+import { streamService } from '@/services/streamService';
 import { streamConnection } from '@/services/streamConnection';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuthStore } from '@/store/authStore';
@@ -24,6 +25,7 @@ import type { Workspace } from '@/types/workspace.types';
 import { getAgentKindForModelId } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Channel } from '@/types/channel.types';
+import { notifyPermissionRequest, notifyStreamComplete } from '@/utils/notifications';
 import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
 import { SidebarChannelItem } from './SidebarChannelItem';
 import type { MachineBadge } from './SidebarChatItem';
@@ -81,6 +83,7 @@ export function SidebarChannels({
   const renameChannel = useRenameChannelMutation();
   const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes('channels'));
   const connections = useMachineStore((state) => state.connections);
+  const notifyBackground = useBackgroundNotify();
   const liveMachineIdsKey = [...new Set(machineChannels.map(({ machineId }) => machineId))]
     .filter((id) => id === LOCAL_MACHINE_ID || connections[id]?.status === 'online')
     .join('\n');
@@ -90,6 +93,22 @@ export function SidebarChannels({
       useChannelStore.getState().clearCompleted(selectedChannelId);
     }
   }, [selectedChannelId, completedChannelIds]);
+
+  useEffect(
+    () =>
+      streamService.onChannelNotice((notice) =>
+        notifyBackground(`/channels/${notice.channelId}`, (options) =>
+          notice.kind === 'channel_completed'
+            ? notifyStreamComplete({
+                ...options,
+                title: notice.payload.title,
+                message: notice.payload.body,
+              })
+            : notifyPermissionRequest(notice.payload.request, options),
+        ),
+      ),
+    [notifyBackground],
+  );
 
   useEffect(() => {
     if (!liveMachineIdsKey) return;

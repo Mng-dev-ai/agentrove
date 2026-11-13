@@ -106,20 +106,40 @@ class PushService:
     async def notify_completion(
         self, *, user_id: UUID, chat_id: str, message_id: str, failed: bool, reply: str
     ) -> None:
-        body = reply.strip()
-        if not body:
-            body = "Open the chat to see the result."
-        elif len(body) > BODY_MAX_CHARS:
-            body = body[:BODY_MAX_CHARS].rstrip() + "…"
         await self.enqueue(
             user_id=user_id,
             event_key=f"{message_id}:complete",
             title="Task failed" if failed else "Task completed",
-            body=body,
+            body=self.truncated(reply.strip()) or "Open the chat to see the result.",
             path=f"/chat/{chat_id}",
             collapse_id=f"{chat_id}:complete",
             ttl_seconds=COMPLETION_TTL_SECONDS,
         )
+
+    async def notify_channel_completion(
+        self,
+        *,
+        user_id: UUID,
+        channel_id: UUID,
+        message_id: UUID,
+        title: str,
+        body: str,
+    ) -> None:
+        await self.enqueue(
+            user_id=user_id,
+            event_key=f"{message_id}:complete",
+            title=title,
+            body=self.truncated(body),
+            path=f"/channels/{channel_id}",
+            collapse_id=f"{channel_id}:complete",
+            ttl_seconds=COMPLETION_TTL_SECONDS,
+        )
+
+    @staticmethod
+    def truncated(text: str) -> str:
+        if len(text) > BODY_MAX_CHARS:
+            return text[:BODY_MAX_CHARS].rstrip() + "…"
+        return text
 
     async def enqueue(
         self,

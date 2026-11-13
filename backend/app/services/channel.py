@@ -136,6 +136,7 @@ class ChannelState:
     retries: dict[UUID, MemberRetry] = field(default_factory=dict)
     gave_up: dict[UUID, str] = field(default_factory=dict)
     permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
+    last_reply: tuple[str, ChannelMessage] | None = None
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
     waiting_member_ids: list[str] = field(default_factory=list)
@@ -669,6 +670,7 @@ class ChannelService(BaseDbService[Channel]):
                     if state.deleted:
                         raise HTTPException(404, "Channel not found")
                     state.paused = True
+                    state.last_reply = None
                     audience = self.mentions(channel, content) or None
                     turns = [
                         turn
@@ -778,7 +780,17 @@ class ChannelService(BaseDbService[Channel]):
             await self.publish_activity(state)
             if retry_times:
                 self.schedule(state, min(retry_times))
+            completion = await self.settle(state)
             await self.send_next_queued(state)
+        if completion is not None:
+            message_id, title, body = completion
+            await PushService(self.session_factory).notify_channel_completion(
+                user_id=state.channel.user_id,
+                channel_id=state.channel.id,
+                message_id=message_id,
+                title=title,
+                body=body,
+            )
 
     @staticmethod
     def idle(state: ChannelState) -> bool:
@@ -827,6 +839,24 @@ class ChannelService(BaseDbService[Channel]):
         await self.publish_message(state.channel, message)
         self.fan_out(state)
         await self.publish(state.channel, "channel_queue_sent", {"id": item["id"]})
+
+    async def settle(self, state: ChannelState) -> tuple[UUID, str, str] | None:
+        if state.last_reply is None or not self.idle(state):
+            return None
+        author, message = state.last_reply
+        state.last_reply = None
+        title = f"#{state.channel.name}"
+        body = f"{author}: {message.content.strip()}"
+        state.activity_version += 1
+        await self.publish(
+            state.channel,
+            "channel_member_activity",
+            {
+                **self.member_activity(state),
+                "completed": {"title": title, "body": body},
+            },
+        )
+        return message.id, title, body
 
     async def dispatch_queued(self, channel: Channel) -> None:
         state = self.state(channel)
@@ -1170,6 +1200,8 @@ class ChannelService(BaseDbService[Channel]):
         if message is not None:
             await self.publish_message(state.channel, message)
             if successful and not silent:
+                if state.last_reply is None or message.seq > state.last_reply[1].seq:
+                    state.last_reply = (turn.member.display_name, message)
                 self.fan_out(state)
 
     async def stop_state(self, state: ChannelState) -> None:
@@ -1179,6 +1211,7 @@ class ChannelService(BaseDbService[Channel]):
                 state.timer.cancel()
                 state.timer = None
             state.retries.clear()
+            state.last_reply = None
             turns = list(state.turns.values())
             await self.cancel_active(state, turns)
             async with self.session_factory() as db:

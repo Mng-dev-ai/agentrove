@@ -56,7 +56,7 @@ describe('usePermissionRequest', () => {
     const req = makeRequest();
     act(() => result.current.handlePermissionRequest(req));
     expect(result.current.pendingRequest).toBe(req);
-    expect(h.notifyBackground).toHaveBeenCalledWith('chat-1', expect.any(Function));
+    expect(h.notifyBackground).toHaveBeenCalledWith('/chat/chat-1', expect.any(Function));
 
     const [, notifyFn] = h.notifyBackground.mock.calls[0];
     const onClick = vi.fn();
