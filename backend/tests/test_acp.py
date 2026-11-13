@@ -2474,7 +2474,9 @@ async def test_channel_member_gets_its_chat_and_memory_only_with_agentrove_tools
     [alice_config] = [c for c in spawned if c.mcp_servers]
     [bob_config] = [c for c in spawned if not c.mcp_servers]
     assert "<memory_instructions>" in (alice_config.system_prompt or "")
+    assert "attached to your reply in the channel" in (alice_config.system_prompt or "")
     assert "memory" not in (bob_config.system_prompt or "")
+    assert "attach_file" not in (bob_config.system_prompt or "")
 
     user = await db_session.get_one(User, workspace.user_id)
     workspace.sandbox_provider = "docker"
@@ -2502,6 +2504,7 @@ async def test_channel_member_gets_its_chat_and_memory_only_with_agentrove_tools
             ("notify_user", {"title": "Hi", "body": "Body"}, "-> 404"),
             ("stop_channel", {"channel_id": channel_id}, "Cannot stop a channel"),
             ("stop_chat", {"chat_id": member_chats["alice"]}, "Cannot stop the"),
+            ("attach_file", {"path": "shot.png"}, "/attachments/sandbox -> 400"),
         ):
             refused = await mcp_call_tool(client, authorization, name, **arguments)
             assert refused["isError"], (name, refused)

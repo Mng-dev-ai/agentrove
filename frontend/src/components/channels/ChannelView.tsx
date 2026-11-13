@@ -99,11 +99,13 @@ function ChannelMessageActivity({ channelId, messageId, agentKind }: ChannelMess
 interface AgentChannelMessageProps {
   message: ChannelMessage;
   member: ChannelMember | undefined;
+  chatId: string;
 }
 
 const AgentChannelMessage = memo(function AgentChannelMessage({
   message,
   member,
+  chatId,
 }: AgentChannelMessageProps) {
   const isStreaming = message.status === 'streaming';
   const isInterrupted = message.status === 'cancelled';
@@ -140,6 +142,11 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
         </WorkedRollup>
       )}
       {isInterrupted ? <div className={styles['interrupted-text']}>{text}</div> : text}
+      <MessageAttachments
+        attachments={message.attachments}
+        chatId={chatId}
+        className={styles['agent-attachments']}
+      />
       {!isStreaming && message.content.trim() && (
         <div className={styles['actions-slot']}>
           <MessageActions messageId={message.id} contentText={message.content} />
@@ -366,7 +373,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
     [messagesById],
   );
   const visibleMessages = useMemo(
-    () => messages.filter((m) => m.status !== 'streaming' || m.content),
+    () => messages.filter((m) => m.status !== 'streaming' || m.content || m.attachments.length),
     [messages],
   );
   const membersById = useMemo(
@@ -509,6 +516,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                           member={
                             message.member_id ? membersById.get(message.member_id) : undefined
                           }
+                          chatId={channel.anchor_chat_id}
                         />
                       )}
                     </ConversationColumn>

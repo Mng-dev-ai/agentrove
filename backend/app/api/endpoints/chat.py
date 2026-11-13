@@ -679,7 +679,7 @@ async def _attach_to_current_message(
 async def attach_file_to_current_message(
     chat_id: UUID,
     file: UploadFile = File(...),
-    chat: Chat = Depends(ensure_chat_access),
+    chat: Chat = Depends(ensure_member_chat_access),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> MessageAttachment:
@@ -694,7 +694,7 @@ async def attach_file_to_current_message(
 async def attach_sandbox_file_to_current_message(
     chat_id: UUID,
     request: SandboxAttachmentRequest,
-    chat: Chat = Depends(ensure_chat_access),
+    chat: Chat = Depends(ensure_member_chat_access),
     current_user: User = Depends(get_current_user),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> MessageAttachment:

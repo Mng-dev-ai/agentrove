@@ -22,7 +22,12 @@ from app.models.db_models.channel import (
     ChannelMessage,
     ChannelMessageAttachment,
 )
-from app.models.db_models.chat import Chat, ChatCheckpoint, Message
+from app.models.db_models.chat import (
+    Chat,
+    ChatCheckpoint,
+    Message,
+    MessageAttachment,
+)
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.channel import (
@@ -1145,7 +1150,7 @@ class ChannelService(BaseDbService[Channel]):
         author, message = state.last_reply
         state.last_reply = None
         title = f"#{state.channel.name}"
-        body = f"{author}: {message.content.strip()}"
+        body = f"{author}: {message.content.strip() or 'Open the channel to see the result.'}"
         state.activity_version += 1
         await self.publish(
             state.channel,
@@ -1420,18 +1425,64 @@ class ChannelService(BaseDbService[Channel]):
                 duration_ms=message.duration_ms,
                 audience=message.audience,
             )
+            .execution_options(synchronize_session=False)
         )
 
     async def begin_speaking(self, state: ChannelState, turn: MemberTurn) -> None:
         turn.message = await self.new_message(
             state,
-            turn.text,
+            "" if self.is_silent(turn.text) else turn.text,
             turn.member.id,
             source_message_id=turn.source_message_id,
             tool_call_count=len(turn.tool_call_ids),
             device_ids=turn.device_ids,
         )
+        async with self.session_factory() as db:
+            await self.promote_attachments(db, turn.message)
+            await db.commit()
         await self.publish_message(state.channel, turn.message)
+
+    async def has_attachments(self, source_message_id: UUID | None) -> bool:
+        async with self.session_factory() as db:
+            attachment_id = await db.scalar(
+                select(MessageAttachment.id)
+                .where(MessageAttachment.message_id == source_message_id)
+                .limit(1)
+            )
+        return attachment_id is not None
+
+    @staticmethod
+    async def promote_attachments(db: AsyncSession, message: ChannelMessage) -> bool:
+        promoted = set(
+            await db.scalars(
+                select(ChannelMessageAttachment.file_path).where(
+                    ChannelMessageAttachment.message_id == message.id
+                )
+            )
+        )
+        added = [
+            ChannelMessageAttachment(
+                message_id=message.id,
+                file_url="",
+                file_path=attachment.file_path,
+                file_type=attachment.file_type.value,
+                filename=attachment.filename,
+            )
+            for attachment in await db.scalars(
+                select(MessageAttachment)
+                .where(MessageAttachment.message_id == message.source_message_id)
+                .order_by(MessageAttachment.created_at, MessageAttachment.id)
+            )
+            if attachment.file_path not in promoted
+        ]
+        if not added:
+            return False
+        db.add_all(added)
+        await db.flush()
+        for attachment in added:
+            attachment.file_url = AttachmentURL.build_preview_url(attachment.id)
+        message.attachments = [*message.attachments, *added]
+        return True
 
     async def publish_message(self, channel: Channel, message: ChannelMessage) -> None:
         await self.publish(
@@ -1445,7 +1496,10 @@ class ChannelService(BaseDbService[Channel]):
         await self.resolve_elicitations(state, turn.member.id)
         successful = turn.status is TurnStatus.RUNNING
         silent = self.is_silent(turn.text)
-        if turn.message is None and successful and not silent:
+        if turn.message is None and (
+            (successful and not silent)
+            or await self.has_attachments(turn.source_message_id)
+        ):
             await self.begin_speaking(state, turn)
         message = turn.message
         async with self.session_factory() as db:
@@ -1456,6 +1510,9 @@ class ChannelService(BaseDbService[Channel]):
                 )
             if message is not None:
                 message.tool_call_count = len(turn.tool_call_ids)
+                await self.promote_attachments(db, message)
+                # A PASS that attached files stays visible: the user should see them.
+                silent = silent and not message.attachments
                 if silent:
                     await self.write_message(db, message, "", "deleted")
                 else:
@@ -1482,7 +1539,7 @@ class ChannelService(BaseDbService[Channel]):
                     await self.write_message(
                         db,
                         message,
-                        turn.text,
+                        "" if self.is_silent(turn.text) else turn.text,
                         "completed" if successful else "cancelled",
                     )
                 if not silent and successful:
@@ -1571,7 +1628,8 @@ class ChannelService(BaseDbService[Channel]):
                 ).all()
             )
             for message in messages:
-                silent = self.is_silent(message.content)
+                await self.promote_attachments(db, message)
+                silent = self.is_silent(message.content) and not message.attachments
                 await self.write_message(
                     db,
                     message,
@@ -1738,6 +1796,14 @@ class ChannelService(BaseDbService[Channel]):
                     turn.tool_call_ids.add(payload["tool"]["id"])
                     if kind == "tool_started":
                         turn.reset_segment = True
+                    elif turn.message is not None:
+                        async with self.session_factory() as db:
+                            promoted = await self.promote_attachments(db, turn.message)
+                            await db.commit()
+                        if promoted:
+                            await self.flush(state, turn)
+                    elif await self.has_attachments(turn.source_message_id):
+                        await self.begin_speaking(state, turn)
         elif kind == "error" and turn.status is TurnStatus.RUNNING:
             self.fail_turn(state, turn, payload["error"])
         elif kind == "cancelled" and turn.status is TurnStatus.RUNNING:

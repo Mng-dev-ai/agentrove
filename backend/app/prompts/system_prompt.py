@@ -46,6 +46,15 @@ attach_file tool with its path; it is shown in the chat with your response.
 """
 
 
+CHANNEL_FILE_ATTACHMENT_INSTRUCTIONS = """
+<file_attachment_instructions>
+The user cannot see files you create on disk (e.g. screenshots in /tmp). To show the
+user a screenshot or other output image, PDF, or XLSX file, call the agentrove MCP
+attach_file tool with its path; it is attached to your reply in the channel.
+</file_attachment_instructions>
+"""
+
+
 INBOX_INSTRUCTIONS = """
 <inbox_instructions>
 The user may not be watching this chat. The inbox is for things the user doesn't know
@@ -107,7 +116,7 @@ def build_system_prompt_for_chat(
 
     if channel_member:
         return (
-            f"{persona_content}\n{MEMORY_INSTRUCTIONS}"
+            f"{persona_content}\n{CHANNEL_FILE_ATTACHMENT_INSTRUCTIONS}\n{MEMORY_INSTRUCTIONS}"
             if agentrove_mcp
             else persona_content
         )
