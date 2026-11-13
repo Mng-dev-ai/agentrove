@@ -51,6 +51,7 @@ export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
       getItemLabel={(mode) => mode.label}
       onSelect={(mode) => onChange(mode.value)}
       leftIcon={Brain}
+      ariaLabel="Thinking mode"
       width="8rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}

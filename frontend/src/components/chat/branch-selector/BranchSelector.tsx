@@ -47,6 +47,7 @@ export const BranchSelector = memo(function BranchSelector({
       getItemLabel={(branch) => branch}
       onSelect={(branch) => checkout(branch, currentBranch)}
       leftIcon={GitBranch}
+      ariaLabel="Branch"
       getItemShortLabel={shortenBranchName}
       width="16rem"
       dropdownPosition={dropdownPosition}

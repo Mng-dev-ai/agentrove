@@ -52,6 +52,7 @@ export const FastModeSelector = memo(function FastModeSelector({
       getItemLabel={(mode) => mode.label}
       onSelect={(mode) => useChatSettingsStore.getState().setFastMode(key, mode.value)}
       leftIcon={Zap}
+      ariaLabel="Fast mode"
       width="8rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}

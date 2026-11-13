@@ -54,6 +54,7 @@ export interface DropdownProps<T> {
   // 'toolbar' matches ToggleDropdown's composer-toolbar trigger (icon always shown).
   triggerVariant?: 'default' | 'text' | 'toolbar';
   dropdownAlign?: 'left' | 'right';
+  ariaLabel?: string;
 }
 
 const isGroupedItems = <T,>(
@@ -144,6 +145,7 @@ const Dropdown = memo(function Dropdown<T>({
   onOpenChange,
   triggerVariant = 'default',
   dropdownAlign = 'left',
+  ariaLabel,
 }: DropdownProps<T>) {
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -197,6 +199,7 @@ const Dropdown = memo(function Dropdown<T>({
         variant="unstyled"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
+        aria-label={ariaLabel && `${ariaLabel}: ${triggerLabel}`}
         className={clsx(
           triggerVariant === 'text'
             ? styles['trigger-text']
