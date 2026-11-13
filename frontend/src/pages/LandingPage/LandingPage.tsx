@@ -88,12 +88,14 @@ export function LandingPage() {
     (state) => state.attachedFilesByChat[PENDING_NEW_CHAT_KEY] ?? null,
   );
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const targetMachineId = useTargetMachineId();
   const { selectedModelId, selectModel } = useModelSelection({
     enabled: isAuthenticated,
+    machineId: targetMachineId,
   });
 
   const workspaces = useWorkspacesList({ enabled: isAuthenticated });
-  const modelMap = useModelMap(isAuthenticated);
+  const modelMap = useModelMap({ enabled: isAuthenticated, machineId: targetMachineId });
 
   const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
   // Same merged local+cloud list as the sidebar (empty → example prompts).
@@ -123,7 +125,6 @@ export function LandingPage() {
   // location.key (not target id) so re-clicking the same "new thread" re-applies it.
   const consumedNavKeyRef = useRef<string | null>(null);
 
-  const targetMachineId = useTargetMachineId();
   const isRemote = targetMachineId !== LOCAL_MACHINE_ID;
   const [workspaceIdByMachine, setWorkspaceIdByMachine] = useState<Record<string, string>>({});
   const selectedWorkspaceId = workspaceIdByMachine[targetMachineId] ?? null;
@@ -246,6 +247,11 @@ export function LandingPage() {
         return;
       }
 
+      if (isRemote && machineStatus(targetMachineId) !== 'online') {
+        toast.error(`${machineName(targetMachineId)} is not connected`);
+        return;
+      }
+
       if (!selectedModelId?.trim()) {
         toast.error('Please select an AI model');
         return;
@@ -254,10 +260,6 @@ export function LandingPage() {
       const title = trimmedPrompt.replace(/\s+/g, ' ').slice(0, 80) || 'New Chat';
 
       if (isRemote) {
-        if (machineStatus(targetMachineId) !== 'online') {
-          toast.error(`${machineName(targetMachineId)} is not connected`);
-          return;
-        }
         if (!selectedWorkspaceId) {
           toast.error('Please select a workspace');
           return;
@@ -448,6 +450,7 @@ export function LandingPage() {
                   showLoadingSpinner={true}
                   selectedModelId={selectedModelId}
                   onModelChange={selectModel}
+                  machineId={targetMachineId}
                   showTip={false}
                   showBranch={false}
                   placeholder="Message Agentrove... (@ to mention, / for commands)"
@@ -527,6 +530,7 @@ export function LandingPage() {
       isLoading,
       message,
       selectModel,
+      targetMachineId,
       selectedModelId,
       composerSelectors,
       showRecents,

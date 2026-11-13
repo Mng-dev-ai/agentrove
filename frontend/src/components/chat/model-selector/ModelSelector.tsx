@@ -24,6 +24,7 @@ export interface ModelSelectorProps {
   compact?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
+  machineId?: string;
 }
 
 export const ModelSelector = memo(function ModelSelector({
@@ -34,10 +35,14 @@ export const ModelSelector = memo(function ModelSelector({
   disabled = false,
   compact,
   variant = 'default',
+  machineId,
 }: ModelSelectorProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isSplitMode = useIsSplitMode();
-  const { data: models = [], isLoading } = useModelsQuery({ enabled: isAuthenticated });
+  const { data: models = [], isLoading } = useModelsQuery({
+    enabled: isAuthenticated,
+    machineId,
+  });
   const favoriteModelIds = useModelStore((state) => state.favoriteModelIds);
 
   const [agentFilter, setAgentFilter] = useState<AgentKind | null>(null);

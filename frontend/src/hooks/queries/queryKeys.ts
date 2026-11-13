@@ -78,6 +78,7 @@ export const queryKeys = {
     workspaceResources: (machineId: string, workspaceId?: string) =>
       ['machine', machineId, 'workspaces', workspaceId, 'resources'] as const,
     settings: (machineId: string) => ['machine', machineId, 'settings'] as const,
+    models: (machineId: string) => ['machine', machineId, 'models'] as const,
     chats: (machineId: string) => ['machine', machineId, 'chats'] as const,
     chatsPage: (machineId: string, page: number) =>
       ['machine', machineId, 'chats', 'page', page] as const,

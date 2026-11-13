@@ -25,7 +25,7 @@ import {
 } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import { useDropdown } from '@/hooks/useDropdown';
 import { usePanelFit } from '@/hooks/usePanelFit';
-import { useModelsQuery } from '@/hooks/queries/useModelQueries';
+import { resolveModelId, useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useSettingsForMachineQuery } from '@/hooks/queries/useSettingsQueries';
 import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
@@ -73,7 +73,7 @@ function newMemberDraft(): MemberDraft {
 }
 
 function resolveMember(member: MemberDraft, models: Model[]) {
-  const modelId = member.modelId || models[0]?.model_id || '';
+  const modelId = resolveModelId(models, member.modelId);
   const model = models.find((m) => m.model_id === modelId);
   const agentKind = model?.agent_kind ?? 'claude';
   return {
@@ -155,6 +155,7 @@ function useContentOverflows(
 }
 
 interface MemberChipProps {
+  machineId: string;
   member: MemberDraft;
   memberName: MemberName;
   models: Model[];
@@ -165,6 +166,7 @@ interface MemberChipProps {
 }
 
 function MemberChip({
+  machineId,
   member,
   memberName,
   models,
@@ -251,6 +253,7 @@ function MemberChip({
               dropdownPosition="auto"
               dropdownAlign="right"
               variant="text"
+              machineId={machineId}
             />
           </div>
           {hasThinking && (
@@ -323,8 +326,11 @@ export function CreateChannelDialog({
   onCreated,
 }: CreateChannelDialogProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const { data: models = [] } = useModelsQuery({ enabled: isAuthenticated });
   const targetMachineId = useTargetMachineId();
+  const { data: models = [] } = useModelsQuery({
+    enabled: isAuthenticated,
+    machineId: targetMachineId,
+  });
   const isRemote = targetMachineId !== LOCAL_MACHINE_ID;
   const { data: settings } = useSettingsForMachineQuery(targetMachineId, isAuthenticated);
   const personas = settings?.personas ?? [];
@@ -498,6 +504,7 @@ export function CreateChannelDialog({
                 {members.map((member, index) => (
                   <MemberChip
                     key={member.key}
+                    machineId={targetMachineId}
                     member={member}
                     memberName={memberNames[index]}
                     models={models}

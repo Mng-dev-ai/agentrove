@@ -1,6 +1,7 @@
 import { useRef, useState, useMemo, type ReactNode } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
+import { useChatMachineId } from '@/store/machineOrigin';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useRecentChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
@@ -44,6 +45,7 @@ export function InputProvider({
   showBranch = true,
   compact = true,
   chatId,
+  machineId,
   showLoadingSpinner = false,
   disabled = false,
   children,
@@ -51,7 +53,9 @@ export function InputProvider({
   const { fileStructure, builtinSlashCommands, personas } = useChatContext();
   // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const modelMap = useModelMap(isAuthenticated);
+  const chatMachineId = useChatMachineId(chatId);
+  const modelMachineId = machineId ?? chatMachineId;
+  const modelMap = useModelMap({ enabled: isAuthenticated, machineId: modelMachineId });
   const { data: recentChats } = useRecentChatsQuery(isAuthenticated);
   const selectedModel = modelMap.get(selectedModelId);
   const agentKind = selectedModel?.agent_kind ?? getAgentKindForModelId(selectedModelId);
@@ -189,6 +193,7 @@ export function InputProvider({
       editingImageIndex,
       contextUsage: visibleContextUsage,
       chatId,
+      machineId: modelMachineId,
       isMentionActive,
       slashCommandSuggestions,
       highlightedSlashCommandIndex,
@@ -223,6 +228,7 @@ export function InputProvider({
       editingImageIndex,
       visibleContextUsage,
       chatId,
+      modelMachineId,
       isMentionActive,
       slashCommandSuggestions,
       highlightedSlashCommandIndex,

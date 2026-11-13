@@ -19,7 +19,7 @@ export function InputControls() {
   const actions = useInputActions();
   // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const modelMap = useModelMap(isAuthenticated);
+  const modelMap = useModelMap({ enabled: isAuthenticated, machineId: state.machineId });
   const selectedModel = modelMap.get(state.selectedModelId);
   const agentKind = selectedModel?.agent_kind;
 
@@ -49,6 +49,7 @@ export function InputControls() {
         dropdownAlign="right"
         disabled={state.isLoading}
         variant="text"
+        machineId={state.machineId}
       />
 
       {showThinking && (
