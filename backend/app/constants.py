@@ -36,21 +36,6 @@ SANDBOX_DEFAULT_COMMAND_TIMEOUT: Final[int] = 120
 PTY_OUTPUT_QUEUE_SIZE: Final[int] = 512
 PTY_INPUT_QUEUE_SIZE: Final[int] = 1024
 
-SANDBOX_SYSTEM_VARIABLES: Final[list[str]] = [
-    "SHELL",
-    "PWD",
-    "LOGNAME",
-    "HOME",
-    "USER",
-    "SHLVL",
-    "PS1",
-    "PATH",
-    "_",
-    "NVM_DIR",
-    "NODE_VERSION",
-    "TERM",
-]
-
 SANDBOX_BINARY_EXTENSIONS: Final[set[str]] = {
     "exe",
     "dll",
@@ -117,7 +102,6 @@ SANDBOX_BINARY_EXTENSIONS: Final[set[str]] = {
 
 SANDBOX_HOME_DIR: Final[str] = "/home/user"
 SANDBOX_WORKSPACE_DIR: Final[str] = "/home/user/workspace"
-SANDBOX_CLAUDE_JSON_PATH: Final[str] = "/home/user/.claude.json"
 SANDBOX_GIT_ASKPASS_PATH: Final[str] = "/home/user/.git-askpass.sh"
 
 WS_MSG_AUTH: Final[str] = "auth"
@@ -137,8 +121,6 @@ DEFAULT_PTY_ROWS: Final[int] = 24
 DEFAULT_PTY_COLS: Final[int] = 80
 DEFAULT_TERMINAL_ID: Final[str] = "terminal-1"
 DOCKER_STATUS_RUNNING: Final[str] = "running"
-
-SANDBOX_BASHRC_PATH: Final[str] = "/home/user/.bashrc"
 
 
 MODELS: dict[str, ModelInfo] = {

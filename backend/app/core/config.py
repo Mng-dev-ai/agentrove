@@ -171,7 +171,6 @@ class Settings(BaseSettings):
     DOCKER_PIDS_LIMIT: int = 512
 
     HOST_SANDBOX_BASE_DIR: str | None = None
-    HOST_PREVIEW_BASE_URL: str = "http://localhost"
 
     @field_validator("HOST_SANDBOX_BASE_DIR", mode="before")
     @classmethod
@@ -207,7 +206,6 @@ class Settings(BaseSettings):
     DISPOSABLE_DOMAINS_CACHE_TTL_SECONDS: int = 3600
 
     USER_SETTINGS_CACHE_TTL_SECONDS: int = 300
-    MODELS_CACHE_TTL_SECONDS: int = 3600
     CONTEXT_USAGE_CACHE_TTL_SECONDS: int = 600
     # Idle reaping is lossless (session_id persists); trades respawn latency
     # for ~500MB per warm session (agent CLI + wrapper + MCP server).

@@ -63,8 +63,3 @@ class ChatCompletionResult(TypedDict):
     last_seq: int
     checkpoint_id: str | None
     worktree_cwd: str | None
-
-
-class EnabledResourceInfo(TypedDict):
-    name: str
-    path: str
