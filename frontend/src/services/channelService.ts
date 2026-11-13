@@ -57,6 +57,16 @@ async function renameChannel(channelId: string, name: string): Promise<Channel> 
   });
 }
 
+async function pinChannel(channelId: string, pinned: boolean): Promise<Channel> {
+  return serviceCall(async () => {
+    const response = await resolveChannelClient(channelId).patch<Channel>(
+      `/channels/${channelId}`,
+      { pinned },
+    );
+    return ensureResponse(response, 'Failed to update pin status');
+  });
+}
+
 async function markChannelViewed(channelId: string): Promise<void> {
   await serviceCall(async () => {
     await resolveChannelClient(channelId).post(`/channels/${channelId}/viewed`);
@@ -197,6 +207,7 @@ export const channelService = {
   getChannel,
   createChannel,
   renameChannel,
+  pinChannel,
   deleteChannel,
   markChannelViewed,
   listMessages,

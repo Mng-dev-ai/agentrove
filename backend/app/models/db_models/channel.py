@@ -35,6 +35,7 @@ class Channel(Base):
     worktree: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
     branch: Mapped[str | None] = mapped_column(String(255))
     last_viewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    pinned_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     members: Mapped[list["ChannelMember"]] = relationship(
         cascade="all, delete-orphan", passive_deletes=True
     )

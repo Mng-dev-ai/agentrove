@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Edit2, Plus, Trash2 } from 'lucide-react';
+import { Edit2, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
@@ -8,6 +8,7 @@ import { CreateChannelDialog } from '@/components/channels/CreateChannelDialog';
 import {
   useDeleteChannelMutation,
   useMachinesChannels,
+  usePinChannelMutation,
   useRenameChannelMutation,
 } from '@/hooks/queries/useChannelQueries';
 import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
@@ -59,7 +60,7 @@ export function SidebarChannels({
   const machineChannels = useMachinesChannels(isAuthenticated);
   const liveActivity = useChannelStore((state) => state.activity);
   const completedChannelIds = useChannelStore((state) => state.completedChannelIds);
-  const channels = machineChannels.filter(({ channel, machineId }) => {
+  const filteredChannels = machineChannels.filter(({ channel, machineId }) => {
     if (filters.workspaceId && channel.workspace_id !== filters.workspaceId) return false;
     if (
       filters.agentKind &&
@@ -79,8 +80,13 @@ export function SidebarChannels({
       (filters.statuses.includes('needs-you') && activity.waiting_member_ids.length > 0)
     );
   });
+  const channels = [
+    ...filteredChannels.filter(({ channel }) => channel.pinned_at),
+    ...filteredChannels.filter(({ channel }) => !channel.pinned_at),
+  ];
   const deleteChannel = useDeleteChannelMutation();
   const renameChannel = useRenameChannelMutation();
+  const pinChannel = usePinChannelMutation();
   const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes('channels'));
   const connections = useMachineStore((state) => state.connections);
   const notifyBackground = useBackgroundNotify();
@@ -178,6 +184,16 @@ export function SidebarChannels({
     }
   };
 
+  const togglePin = async (channel: Channel) => {
+    setDropdown(null);
+    const isPinned = !!channel.pinned_at;
+    await mutateWithToast(
+      () => pinChannel.mutateAsync({ channelId: channel.id, pinned: !isPinned }),
+      isPinned ? 'Channel unpinned' : 'Channel pinned',
+      'Failed to update pin status',
+    ).catch(() => undefined);
+  };
+
   const saveRename = async (name: string) => {
     if (!channelToRename) return;
     await mutateWithToast(
@@ -222,6 +238,14 @@ export function SidebarChannels({
           position={dropdown.position}
           onClose={() => setDropdown(null)}
         >
+          {dropdown.channel.pinned_at !== undefined && (
+            <SidebarMenuItem
+              icon={dropdown.channel.pinned_at ? PinOff : Pin}
+              onClick={() => togglePin(dropdown.channel)}
+            >
+              {dropdown.channel.pinned_at ? 'Unpin' : 'Pin'}
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem
             icon={Edit2}
             onClick={() => {

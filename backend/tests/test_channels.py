@@ -1081,6 +1081,7 @@ async def test_channel_routes_require_the_owner(
     routes: list[tuple[str, str, dict[str, Any]]] = [
         ("GET", base, {}),
         ("PATCH", base, {"json": {"name": "Renamed"}}),
+        ("PATCH", base, {"json": {"pinned": True}}),
         ("DELETE", base, {}),
         ("GET", f"{base}/messages", {}),
         ("POST", f"{base}/messages", {"data": {"content": "Hello"}}),
@@ -1215,6 +1216,38 @@ async def test_own_post_and_rename_keep_a_read_channel_read(
 
     response = await client.patch(base, headers=owner[0], json={"name": "Renamed"})
     assert response.json()["unread"] is False
+
+
+async def test_pin_round_trips_without_touching_name_unread_or_recency(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+) -> None:
+    base = f"/api/v1/channels/{channel_state.channel.id}"
+    before = (await client.get(base, headers=owner[0])).json()
+    assert before["unread"] is True
+    assert before["pinned_at"] is None
+
+    pinned = (await client.patch(base, headers=owner[0], json={"pinned": True})).json()
+    assert pinned["pinned_at"] is not None
+    assert pinned["unread"] is True
+    assert pinned["name"] == before["name"]
+    assert pinned["updated_at"] == before["updated_at"]
+    repinned = await client.patch(base, headers=owner[0], json={"pinned": True})
+    assert repinned.json()["pinned_at"] == pinned["pinned_at"]
+
+    renamed = await client.patch(base, headers=owner[0], json={"name": "Renamed"})
+    assert renamed.json()["name"] == "Renamed"
+    assert renamed.json()["pinned_at"] == pinned["pinned_at"]
+
+    await client.post(f"{base}/viewed", headers=owner[0])
+    read = (await client.get(base, headers=owner[0])).json()
+    unpinned = await client.patch(base, headers=owner[0], json={"pinned": False})
+    assert unpinned.json()["pinned_at"] is None
+    assert unpinned.json()["unread"] is False
+    assert unpinned.json()["updated_at"] == read["updated_at"]
+    pinned_read = await client.patch(base, headers=owner[0], json={"pinned": True})
+    assert pinned_read.json()["unread"] is False
 
 
 async def test_channel_list_is_scoped_to_user_and_workspace(

@@ -42,7 +42,10 @@ ADDED_TO_BASE_TABLES = {
     "channel_messages": {("column", "device_ids", "JSON", 1, "'[]'", 0)},
     "automations": {("column", "device_ids", "JSON", 1, "'[]'", 0)},
     "chat_checkpoints": {("column", "head_ref", "VARCHAR(255)", 0, None, 0)},
-    "channels": {("column", "last_viewed_at", "DATETIME", 0, None, 0)},
+    "channels": {
+        ("column", "last_viewed_at", "DATETIME", 0, None, 0),
+        ("column", "pinned_at", "DATETIME", 0, None, 0),
+    },
     "user_settings": {("column", "settings_version", "INTEGER", 1, "'0'", 0)},
 }
 

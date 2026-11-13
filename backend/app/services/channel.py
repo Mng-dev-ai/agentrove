@@ -32,6 +32,7 @@ from app.models.schemas.channel import (
     ChannelMemberRead,
     ChannelMessageRead,
     ChannelRead,
+    ChannelUpdate,
 )
 from app.models.schemas.chat import (
     ChannelSearchMatch,
@@ -450,6 +451,7 @@ class ChannelService(BaseDbService[Channel]):
             created_at=channel.created_at,
             updated_at=channel.updated_at,
             unread=channel.unread,
+            pinned_at=channel.pinned_at,
             members=[
                 ChannelMemberRead.model_validate(member) for member in channel.members
             ],
@@ -680,21 +682,29 @@ class ChannelService(BaseDbService[Channel]):
         if not task.cancelled() and (error := task.exception()) is not None:
             logger.error("Channel task failed", exc_info=error)
 
-    async def rename(self, channel: Channel, name: str) -> Channel:
+    async def update(self, channel: Channel, data: ChannelUpdate) -> Channel:
         state = self.state(channel)
         async with state.control, state.lock:
             async with self.session_factory() as db:
                 now = datetime.now(timezone.utc)
+                values: dict[str, Any] = {"updated_at": Channel.updated_at}
+                if data.pinned is not None:
+                    values["pinned_at"] = (
+                        func.coalesce(Channel.pinned_at, now) if data.pinned else None
+                    )
+                if data.name is not None:
+                    values.update(name=data.name, **Channel.touched_by_user(now))
+                    await db.execute(
+                        update(Chat)
+                        .where(Chat.channel_id == channel.id)
+                        .values(title=data.name)
+                    )
                 await db.execute(
-                    update(Channel)
-                    .where(Channel.id == channel.id)
-                    .values(name=name, **Channel.touched_by_user(now))
-                )
-                await db.execute(
-                    update(Chat).where(Chat.channel_id == channel.id).values(title=name)
+                    update(Channel).where(Channel.id == channel.id).values(**values)
                 )
                 await db.commit()
-            state.channel.name = name
+            if data.name is not None:
+                state.channel.name = data.name
         return await self.get(channel.id, User(id=channel.user_id))
 
     async def mark_viewed(self, channel: Channel) -> None:
