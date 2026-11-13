@@ -84,6 +84,18 @@ memory files, and forget memories that turn out to be wrong.
 """
 
 
+PROGRESS_UPDATES_INSTRUCTIONS = """
+<progress_updates_instructions>
+The user may be watching your work live in AgentRove, where tool calls are collapsed to
+summaries and your text shows between them. On multi-step work, write a one-line update
+when you start, when you learn something that changes what you do next, and before a
+long-running step (for example "Tests pass; now checking the migration"). Skip updates
+that only restate the next tool call. The final answer must stand on its own: repeat
+anything from an update that the user needs.
+</progress_updates_instructions>
+"""
+
+
 DEFAULT_PERSONA_NAME = "Default"
 
 
@@ -124,4 +136,4 @@ def build_system_prompt_for_chat(
     if sub_thread:
         return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{FILE_ATTACHMENT_INSTRUCTIONS}\n{MEMORY_INSTRUCTIONS}"
 
-    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{FILE_ATTACHMENT_INSTRUCTIONS}\n{INBOX_INSTRUCTIONS}\n{MEMORY_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"
+    return f"{persona_content}\n{CHAT_MENTIONS_INSTRUCTIONS}\n{FILE_ATTACHMENT_INSTRUCTIONS}\n{INBOX_INSTRUCTIONS}\n{MEMORY_INSTRUCTIONS}\n{PROGRESS_UPDATES_INSTRUCTIONS}\n{PROMPT_SUGGESTIONS_INSTRUCTIONS}"
