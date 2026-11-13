@@ -157,8 +157,27 @@ export interface ChatSearchResult {
   match_count: number;
 }
 
+export interface ChannelSearchMatch {
+  message_id: string;
+  author: string | null;
+  snippet_before: string;
+  snippet_match: string;
+  snippet_after: string;
+  created_at: string;
+}
+
+export interface ChannelSearchResult {
+  channel_id: string;
+  channel_name: string;
+  workspace_id: string;
+  workspace_name: string;
+  matches: ChannelSearchMatch[];
+  match_count: number;
+}
+
 export interface ChatSearchResponse {
   results: ChatSearchResult[];
+  channel_results?: ChannelSearchResult[];
   truncated: boolean;
 }
 

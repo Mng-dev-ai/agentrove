@@ -33,7 +33,12 @@ from app.models.schemas.channel import (
     ChannelMessageRead,
     ChannelRead,
 )
-from app.models.schemas.chat import ChatRequest, Message as MessageSchema
+from app.models.schemas.chat import (
+    ChannelSearchMatch,
+    ChannelSearchResult,
+    ChatRequest,
+    Message as MessageSchema,
+)
 from app.models.schemas.queue import QueuedChannelMessage
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
@@ -48,7 +53,7 @@ from app.services.git import GitService
 from app.services.push import PushService
 from app.services.queue import ChannelQueueService
 from app.services.storage import StorageService
-from app.services.chat import ChatService
+from app.services.chat import SEARCH_MAX_ROWS, ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
@@ -183,6 +188,74 @@ class ChannelService(BaseDbService[Channel]):
             if workspace_id is not None:
                 query = query.where(Channel.workspace_id == workspace_id)
             return list((await db.scalars(query)).all())
+
+    async def search_messages(
+        self,
+        user: User,
+        query: str,
+        workspace_id: UUID | None,
+        limit: int,
+        per_channel_limit: int,
+    ) -> tuple[list[ChannelSearchResult], bool]:
+        workspace_id = self.agent_workspace_filter(user, workspace_id)
+        async with self.session_factory() as db:
+            stmt = (
+                select(
+                    ChannelMessage.id,
+                    ChannelMessage.channel_id,
+                    ChannelMessage.content,
+                    ChannelMessage.created_at,
+                    Channel.name,
+                    Channel.workspace_id,
+                    Workspace.name.label("workspace_name"),
+                    ChannelMember.display_name,
+                )
+                .join(Channel, Channel.id == ChannelMessage.channel_id)
+                .join(Workspace, Workspace.id == Channel.workspace_id)
+                .outerjoin(ChannelMember, ChannelMember.id == ChannelMessage.member_id)
+                .where(
+                    Channel.user_id == user.id,
+                    ChannelMessage.status != "deleted",
+                    ChannelMessage.content.icontains(query, autoescape=True),
+                )
+                .order_by(ChannelMessage.created_at.desc())
+                .limit(SEARCH_MAX_ROWS)
+            )
+            if workspace_id is not None:
+                stmt = stmt.where(Channel.workspace_id == workspace_id)
+            rows = (await db.execute(stmt)).all()
+
+        groups, truncated = ChatService.group_search_rows(
+            rows, "channel_id", limit, per_channel_limit
+        )
+        query_lower = query.lower()
+        results = []
+        for matches, match_count in groups:
+            first = matches[0]
+            result = ChannelSearchResult(
+                channel_id=first.channel_id,
+                channel_name=first.name,
+                workspace_id=first.workspace_id,
+                workspace_name=first.workspace_name,
+                matches=[],
+                match_count=match_count,
+            )
+            for row in matches:
+                before, match_text, after = ChatService.build_snippet(
+                    row.content, query_lower
+                )
+                result.matches.append(
+                    ChannelSearchMatch(
+                        message_id=row.id,
+                        author=row.display_name,
+                        snippet_before=before,
+                        snippet_match=match_text,
+                        snippet_after=after,
+                        created_at=row.created_at,
+                    )
+                )
+            results.append(result)
+        return results, truncated
 
     async def create(self, user: User, data: ChannelCreate) -> Channel:
         self.require_agent_workspace(user, data.workspace_id)

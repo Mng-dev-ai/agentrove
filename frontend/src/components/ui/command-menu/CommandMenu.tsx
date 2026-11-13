@@ -111,7 +111,11 @@ export function CommandMenu() {
           </div>
         ) : mode === 'messages' ? (
           <div className={styles.panel}>
-            <ChatSearchPanel onOpenChat={handleOpenChatResult} inputRef={chatSearchInputRef} />
+            <ChatSearchPanel
+              onOpenChat={handleOpenChatResult}
+              onOpenChannel={handleOpenChannel}
+              inputRef={chatSearchInputRef}
+            />
           </div>
         ) : (
           <CommandMenuList

@@ -79,6 +79,7 @@ from app.models.schemas.queue import (
     QueuedMessageEdit,
     QueueMessageContent,
 )
+from app.services.channel import channel_service
 from app.services.chat import ChatService
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.device_session import DeviceSession
@@ -292,12 +293,20 @@ async def search_chats(
             detail="Query must contain at least 2 non-whitespace characters",
         )
     try:
-        return await chat_service.search_messages(
+        chats = await chat_service.search_messages(
             current_user,
             stripped,
             workspace_id=workspace_id,
             limit=limit,
             per_chat_limit=per_chat_limit,
+        )
+        channels, channels_truncated = await channel_service.search_messages(
+            current_user, stripped, workspace_id, limit, per_chat_limit
+        )
+        return ChatSearchResponse(
+            results=chats.results,
+            channel_results=channels,
+            truncated=chats.truncated or channels_truncated,
         )
     except SQLAlchemyError as e:
         logger.error("Database error searching chats: %s", e, exc_info=True)

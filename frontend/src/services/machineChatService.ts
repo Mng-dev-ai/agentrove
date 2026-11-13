@@ -3,6 +3,7 @@ import { ensureResponse, serviceCall, buildQueryString } from '@/services/base/B
 import { AuthEventSource } from '@/services/authEventSource';
 import { buildChatFormData } from '@/services/chatService';
 import {
+  assignChannelsToMachine,
   assignChatRecordsToMachine,
   assignChatsToMachine,
   assignSandboxesToMachine,
@@ -61,6 +62,10 @@ async function searchChats(machineId: string, query: string): Promise<ChatSearch
     assignChatsToMachine(
       machineId,
       data.results.map((result) => result.chat_id),
+    );
+    assignChannelsToMachine(
+      machineId,
+      (data.channel_results ?? []).map((result) => ({ id: result.channel_id, members: [] })),
     );
     return data;
   });
