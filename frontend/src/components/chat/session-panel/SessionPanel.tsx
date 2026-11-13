@@ -7,10 +7,21 @@ import {
   Folder,
   GitBranch,
   Monitor,
+  Pencil,
   Plus,
   Server,
 } from 'lucide-react';
 import clsx from 'clsx';
+import toast from 'react-hot-toast';
+import { MemberPopover } from '@/components/channels/CreateChannelDialog';
+import {
+  memberDraftFrom,
+  memberRequest,
+  newMemberDraft,
+  resolveMember,
+  resolveMemberNames,
+} from '@/components/channels/memberDraft';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
@@ -22,7 +33,13 @@ import {
   useContextUsageQuery,
   useSubThreadsQuery,
 } from '@/hooks/queries/useChatQueries';
-import { useModelMap } from '@/hooks/queries/useModelQueries';
+import {
+  useAddChannelMemberMutation,
+  useRemoveChannelMemberMutation,
+  useUpdateChannelMemberMutation,
+} from '@/hooks/queries/useChannelQueries';
+import { useModelMap, useModelsQuery } from '@/hooks/queries/useModelQueries';
+import { useSettingsForMachineQuery } from '@/hooks/queries/useSettingsQueries';
 import {
   useGitBranchesQuery,
   useGitDiffStatsQuery,
@@ -36,7 +53,7 @@ import { useChannelActivity } from '@/store/channelStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import { getAgentKindForModelId, type Chat } from '@/types/chat.types';
-import type { Channel, ChannelMember } from '@/types/channel.types';
+import type { Channel, ChannelMember, ChannelMemberCreateRequest } from '@/types/channel.types';
 import type { DiffMode, GitDiffTotals } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
 import { useChatMachineId } from '@/store/machineOrigin';
@@ -169,16 +186,180 @@ function EnvironmentCard({
 
 function MembersCard({ channel }: { channel: Channel }) {
   const activeMemberIds = useChannelActivity(channel).member_ids;
+  const editable = channel.former_members !== undefined;
   return (
     <Card title="Members">
-      {channel.members.map((member) => (
-        <MemberRow key={member.id} member={member} active={activeMemberIds.includes(member.id)} />
-      ))}
+      {channel.members.map((member) =>
+        editable ? (
+          <MemberEditor
+            key={member.id}
+            channel={channel}
+            member={member}
+            trigger={(toggle) => (
+              <MemberRow
+                member={member}
+                active={activeMemberIds.includes(member.id)}
+                action={
+                  <FloatingTooltip content="Edit member">
+                    <Button
+                      variant="unstyled"
+                      type="button"
+                      className={styles['header-button']}
+                      aria-label={`Edit ${member.display_name}`}
+                      onClick={toggle}
+                    >
+                      <Pencil className={styles.glyph} />
+                    </Button>
+                  </FloatingTooltip>
+                }
+              />
+            )}
+          />
+        ) : (
+          <MemberRow key={member.id} member={member} active={activeMemberIds.includes(member.id)} />
+        ),
+      )}
+      {editable && (
+        <MemberEditor
+          channel={channel}
+          trigger={(toggle) => (
+            <Button
+              variant="unstyled"
+              type="button"
+              className={clsx(styles['thread-row'], styles['show-more'])}
+              onClick={toggle}
+            >
+              <span className={styles['row-icon']}>
+                <Plus className={styles.glyph} />
+              </span>
+              <span className={styles['row-text']}>Add member</span>
+            </Button>
+          )}
+        />
+      )}
     </Card>
   );
 }
 
-function MemberRow({ member, active }: { member: ChannelMember; active: boolean }) {
+function MemberEditor({
+  channel,
+  member,
+  trigger,
+}: {
+  channel: Channel;
+  member?: ChannelMember;
+  trigger: (toggle: () => void) => ReactNode;
+}) {
+  const machineId = useChatMachineId(channel.anchor_chat_id);
+  const { data: models = [] } = useModelsQuery({ machineId });
+  const { data: settings } = useSettingsForMachineQuery(machineId);
+  const personas = settings?.personas ?? [];
+  const [draft, setDraft] = useState(() => (member ? memberDraftFrom(member) : newMemberDraft()));
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
+  const addMember = useAddChannelMemberMutation();
+  const updateMember = useUpdateChannelMemberMutation();
+  const removeMember = useRemoveChannelMemberMutation();
+  const taken = new Set(
+    [...channel.members, ...(channel.former_members ?? [])]
+      .filter((other) => other.id !== member?.id)
+      .map((other) => other.display_name.toLowerCase()),
+  );
+  const [memberName] = resolveMemberNames([draft], models, taken);
+
+  const save = async (close: () => void) => {
+    const data: ChannelMemberCreateRequest = {
+      ...memberRequest(draft, models, personas),
+      display_name: memberName.name,
+    };
+    if (
+      member &&
+      resolveMember(draft, models).supportsPersona &&
+      draft.persona === memberDraftFrom(member).persona
+    ) {
+      delete data.persona;
+    }
+    try {
+      if (member) {
+        await updateMember.mutateAsync({ channelId: channel.id, memberId: member.id, data });
+      } else {
+        await addMember.mutateAsync({ channelId: channel.id, data });
+      }
+      close();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to save member');
+    }
+  };
+
+  const remove = async (memberId: string) => {
+    try {
+      await removeMember.mutateAsync({ channelId: channel.id, memberId });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to remove member');
+    }
+  };
+
+  return (
+    <>
+      <MemberPopover
+        machineId={machineId}
+        member={draft}
+        memberName={memberName}
+        models={models}
+        personas={personas}
+        fill
+        onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
+        onRemove={
+          member && channel.members.length > 1 ? () => setConfirmingRemove(true) : undefined
+        }
+        trigger={(isOpen, toggle) =>
+          trigger(() => {
+            if (!isOpen) setDraft(member ? memberDraftFrom(member) : newMemberDraft());
+            toggle();
+          })
+        }
+        footer={(close) => (
+          <div className={styles['editor-footer']}>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              disabled={
+                addMember.isPending ||
+                updateMember.isPending ||
+                !!memberName.error ||
+                models.length === 0 ||
+                !settings
+              }
+              onClick={() => void save(close)}
+            >
+              {member ? 'Save' : 'Add member'}
+            </Button>
+          </div>
+        )}
+      />
+      {member && (
+        <ConfirmDialog
+          isOpen={confirmingRemove}
+          onClose={() => setConfirmingRemove(false)}
+          onConfirm={() => void remove(member.id)}
+          title="Remove member"
+          message={`Remove ${member.display_name} from this channel? Its past messages stay in the channel.`}
+          confirmLabel="Remove"
+        />
+      )}
+    </>
+  );
+}
+
+function MemberRow({
+  member,
+  active,
+  action,
+}: {
+  member: ChannelMember;
+  active: boolean;
+  action?: ReactNode;
+}) {
   const modelMap = useModelMap({ machineId: useChatMachineId(member.chat_id) });
   const model = modelMap.get(member.model_id);
   const { data, refetch } = useContextUsageQuery(member.chat_id);
@@ -204,7 +385,12 @@ function MemberRow({ member, active }: { member: ChannelMember; active: boolean 
           />
         }
         hint={details}
-        trailing={usage && <ContextValue usage={usage} />}
+        trailing={
+          <>
+            {usage && <ContextValue usage={usage} />}
+            {action}
+          </>
+        }
       >
         {member.display_name}
         <span className={styles.secondary}>{` · ${details}`}</span>

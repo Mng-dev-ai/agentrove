@@ -36,9 +36,13 @@ class Channel(Base):
     branch: Mapped[str | None] = mapped_column(String(255))
     last_viewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     pinned_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
-    members: Mapped[list["ChannelMember"]] = relationship(
-        cascade="all, delete-orphan", passive_deletes=True
+    all_members: Mapped[list["ChannelMember"]] = relationship(
+        cascade="all, delete-orphan", passive_deletes=True, lazy="selectin"
     )
+
+    @property
+    def members(self) -> list["ChannelMember"]:
+        return [member for member in self.all_members if member.removed_at is None]
 
     @property
     def unread(self) -> bool:
@@ -71,6 +75,7 @@ class ChannelMember(Base):
     thinking_mode: Mapped[str | None] = mapped_column(String(50))
     display_name: Mapped[str] = mapped_column(String(255))
     introduced: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    removed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
 
 
 class ChannelMessage(Base):

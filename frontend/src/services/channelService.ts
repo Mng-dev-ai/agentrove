@@ -6,6 +6,8 @@ import type {
   Channel,
   ChannelCreateRequest,
   ChannelMemberActivity,
+  ChannelMemberCreateRequest,
+  ChannelMemberUpdateRequest,
   ChannelMessage,
   ChannelPermissionRequest,
 } from '@/types/channel.types';
@@ -64,6 +66,41 @@ async function pinChannel(channelId: string, pinned: boolean): Promise<Channel> 
       { pinned },
     );
     return ensureResponse(response, 'Failed to update pin status');
+  });
+}
+
+async function addMember(channelId: string, data: ChannelMemberCreateRequest): Promise<Channel> {
+  return serviceCall(async () => {
+    const response = await resolveChannelClient(channelId).post<Channel>(
+      `/channels/${channelId}/members`,
+      data,
+    );
+    const channel = ensureResponse(response, 'Failed to add member');
+    assignChannelsToMachine(channelMachineId(channelId), [channel]);
+    return channel;
+  });
+}
+
+async function updateMember(
+  channelId: string,
+  memberId: string,
+  data: ChannelMemberUpdateRequest,
+): Promise<Channel> {
+  return serviceCall(async () => {
+    const response = await resolveChannelClient(channelId).patch<Channel>(
+      `/channels/${channelId}/members/${memberId}`,
+      data,
+    );
+    return ensureResponse(response, 'Failed to update member');
+  });
+}
+
+async function removeMember(channelId: string, memberId: string): Promise<Channel> {
+  return serviceCall(async () => {
+    const response = await resolveChannelClient(channelId).delete<Channel>(
+      `/channels/${channelId}/members/${memberId}`,
+    );
+    return ensureResponse(response, 'Failed to remove member');
   });
 }
 
@@ -209,6 +246,9 @@ export const channelService = {
   renameChannel,
   pinChannel,
   deleteChannel,
+  addMember,
+  updateMember,
+  removeMember,
   markChannelViewed,
   listMessages,
   getMessageActivity,

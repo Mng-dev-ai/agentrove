@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import clsx from 'clsx';
 import { ChevronDown, Hash, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -13,126 +21,35 @@ import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { ThinkingModeDropdown } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
 import { PersonaDropdown } from '@/components/chat/persona-selector/PersonaSelector';
 import { PermissionModeDropdown } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
-import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
-import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
 import { MachineWorkspaceSelector } from '@/components/chat/workspace-selector/MachineWorkspaceSelector';
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
 import { BranchWorktreeDropdown } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
-import {
-  coerceThinkingModeForAgent,
-  getThinkingModesForAgent,
-} from '@/components/chat/thinking-mode-selector/thinkingModes';
 import { useDropdown } from '@/hooks/useDropdown';
 import { usePanelFit } from '@/hooks/usePanelFit';
-import { resolveModelId, useModelsQuery } from '@/hooks/queries/useModelQueries';
+import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useSettingsForMachineQuery } from '@/hooks/queries/useSettingsQueries';
 import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useCreateChannelMutation } from '@/hooks/queries/useChannelQueries';
-import {
-  DEFAULT_PERMISSION_MODE,
-  DEFAULT_PERSONA,
-  DEFAULT_THINKING_MODE,
-  DEFAULT_WORKTREE,
-  type PermissionMode,
-} from '@/store/chatSettingsStore';
+import { DEFAULT_WORKTREE } from '@/store/chatSettingsStore';
 import { useAuthStore } from '@/store/authStore';
 import { machineName, machineStatus, useTargetMachineId } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
-import { resolvePersona } from '@/utils/settings';
 import { stateClasses } from '@/config/stateClasses';
 import type { Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
-import type { ChannelMemberCreateRequest } from '@/types/channel.types';
+import {
+  MEMBER_NAME_MAX_LENGTH,
+  memberRequest,
+  newMemberDraft,
+  resolveMember,
+  resolveMemberNames,
+  type MemberDraft,
+  type MemberName,
+} from './memberDraft';
 import styles from './CreateChannelDialog.module.scss';
-
-const MEMBER_NAME_MAX_LENGTH = 32;
-const MEMBER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
-const BROADCAST_MENTIONS = new Set(['all', 'everyone']);
-
-interface MemberDraft {
-  key: string;
-  customName: string | null;
-  modelId: string;
-  persona: string;
-  thinkingMode: string;
-  permissionMode: PermissionMode;
-}
-
-function newMemberDraft(): MemberDraft {
-  return {
-    key: crypto.randomUUID(),
-    customName: null,
-    modelId: '',
-    persona: DEFAULT_PERSONA,
-    thinkingMode: DEFAULT_THINKING_MODE,
-    permissionMode: DEFAULT_PERMISSION_MODE,
-  };
-}
-
-function resolveMember(member: MemberDraft, models: Model[]) {
-  const modelId = resolveModelId(models, member.modelId);
-  const model = models.find((m) => m.model_id === modelId);
-  const agentKind = model?.agent_kind ?? 'claude';
-  return {
-    modelId,
-    modelName: model?.name ?? modelId,
-    agentKind,
-    model,
-    hasThinking: getThinkingModesForAgent(agentKind, model).length > 0,
-    supportsPersona: PERSONAS_SUPPORTED_AGENTS.has(agentKind),
-  };
-}
-
-function defaultMemberName(modelName: string, agentKind: string): string {
-  const slug = modelName
-    .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9.-]/g, '')
-    .replace(/-+/g, '-')
-    .replace(/^[-.]+|[-.]+$/g, '')
-    .slice(0, MEMBER_NAME_MAX_LENGTH);
-  return slug || agentKind.toLowerCase();
-}
-
-interface MemberName {
-  name: string;
-  error: string | null;
-}
-
-function resolveMemberNames(members: MemberDraft[], models: Model[]): MemberName[] {
-  const taken = new Set<string>();
-  return members.map((member) => {
-    if (member.customName) {
-      const name = member.customName;
-      if (!MEMBER_NAME_PATTERN.test(name)) {
-        return {
-          name,
-          error: 'Use up to 32 letters, digits, ".", "_" or "-", starting with a letter or digit',
-        };
-      }
-      if (BROADCAST_MENTIONS.has(name.toLowerCase())) {
-        return { name, error: `@${name} is reserved for mentioning everyone` };
-      }
-      if (taken.has(name.toLowerCase())) {
-        return { name, error: 'Another member already has this name' };
-      }
-      taken.add(name.toLowerCase());
-      return { name, error: null };
-    }
-    const { modelName, agentKind } = resolveMember(member, models);
-    const base = defaultMemberName(modelName, agentKind);
-    let name = base;
-    for (let n = 2; taken.has(name.toLowerCase()); n++) {
-      const suffix = `-${n}`;
-      name = base.slice(0, MEMBER_NAME_MAX_LENGTH - suffix.length) + suffix;
-    }
-    taken.add(name.toLowerCase());
-    return { name, error: null };
-  });
-}
 
 function useContentOverflows(
   scrollerRef: RefObject<HTMLElement | null>,
@@ -154,34 +71,35 @@ function useContentOverflows(
   return overflows;
 }
 
-interface MemberChipProps {
+interface MemberPopoverProps {
   machineId: string;
   member: MemberDraft;
   memberName: MemberName;
   models: Model[];
   personas: Persona[];
-  canRemove: boolean;
   onChange: (patch: Partial<MemberDraft>) => void;
-  onRemove: () => void;
+  onRemove?: () => void;
+  trigger: (isOpen: boolean, toggle: () => void) => ReactNode;
+  footer?: (close: () => void) => ReactNode;
+  fill?: boolean;
 }
 
-function MemberChip({
+export function MemberPopover({
   machineId,
   member,
   memberName,
   models,
   personas,
-  canRemove,
   onChange,
   onRemove,
-}: MemberChipProps) {
+  trigger,
+  footer,
+  fill = false,
+}: MemberPopoverProps) {
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const popoverRef = useRef<HTMLDivElement>(null);
   const fit = usePanelFit(dropdownRef, popoverRef, isOpen);
-  const { modelId, model, modelName, agentKind, hasThinking, supportsPersona } = resolveMember(
-    member,
-    models,
-  );
+  const { modelId, model, agentKind, hasThinking, supportsPersona } = resolveMember(member, models);
   const nameInputId = `member-name-${member.key}`;
 
   useEffect(() => {
@@ -197,24 +115,7 @@ function MemberChip({
 
   return (
     <div ref={dropdownRef} className={styles['chip-wrap']}>
-      <FloatingTooltip content={isOpen ? '' : modelName}>
-        <Button
-          type="button"
-          variant="unstyled"
-          onClick={() => setIsOpen(!isOpen)}
-          aria-haspopup="dialog"
-          aria-expanded={isOpen}
-          className={clsx(
-            styles.chip,
-            memberName.error && styles['chip--error'],
-            isOpen && stateClasses.OPEN,
-          )}
-        >
-          <ProviderIcon agentKind={agentKind} className={styles['chip-icon']} />
-          <span className={styles['chip-label']}>{memberName.name}</span>
-          <ChevronDown className={styles['chip-caret']} />
-        </Button>
-      </FloatingTooltip>
+      {trigger(isOpen, () => setIsOpen(!isOpen))}
 
       {isOpen && (
         <div
@@ -226,6 +127,7 @@ function MemberChip({
             styles.popover,
             fit?.side === 'top' && styles['popover--top'],
             fit?.maxHeight !== undefined && styles['popover--capped'],
+            fill && styles['popover--fill'],
           )}
         >
           <div className={styles['popover-field']}>
@@ -294,13 +196,16 @@ function MemberChip({
               variant="text"
             />
           </div>
-          {canRemove && (
+          {onRemove && (
             <>
               <div role="separator" className={styles['popover-divider']} />
               <Button
                 type="button"
                 variant="unstyled"
-                onClick={onRemove}
+                onClick={() => {
+                  setIsOpen(false);
+                  onRemove();
+                }}
                 className={styles['popover-remove']}
               >
                 <Trash2 className={styles['popover-remove-icon']} />
@@ -308,9 +213,51 @@ function MemberChip({
               </Button>
             </>
           )}
+          {footer?.(() => setIsOpen(false))}
         </div>
       )}
     </div>
+  );
+}
+
+interface MemberChipProps {
+  machineId: string;
+  member: MemberDraft;
+  memberName: MemberName;
+  models: Model[];
+  personas: Persona[];
+  canRemove: boolean;
+  onChange: (patch: Partial<MemberDraft>) => void;
+  onRemove: () => void;
+}
+
+function MemberChip({ canRemove, onRemove, ...props }: MemberChipProps) {
+  const { modelName, agentKind } = resolveMember(props.member, props.models);
+  return (
+    <MemberPopover
+      {...props}
+      onRemove={canRemove ? onRemove : undefined}
+      trigger={(isOpen, toggle) => (
+        <FloatingTooltip content={isOpen ? '' : modelName}>
+          <Button
+            type="button"
+            variant="unstyled"
+            onClick={toggle}
+            aria-haspopup="dialog"
+            aria-expanded={isOpen}
+            className={clsx(
+              styles.chip,
+              props.memberName.error && styles['chip--error'],
+              isOpen && stateClasses.OPEN,
+            )}
+          >
+            <ProviderIcon agentKind={agentKind} className={styles['chip-icon']} />
+            <span className={styles['chip-label']}>{props.memberName.name}</span>
+            <ChevronDown className={styles['chip-caret']} />
+          </Button>
+        </FloatingTooltip>
+      )}
+    />
   );
 }
 
@@ -389,24 +336,7 @@ export function CreateChannelDialog({
       return;
     }
 
-    const requestMembers: ChannelMemberCreateRequest[] = members.map((member) => {
-      const { modelId, model, agentKind, hasThinking, supportsPersona } = resolveMember(
-        member,
-        models,
-      );
-      return {
-        model_id: modelId,
-        persona:
-          supportsPersona && resolvePersona(member.persona, personas) !== DEFAULT_PERSONA
-            ? member.persona
-            : null,
-        thinking_mode: hasThinking
-          ? coerceThinkingModeForAgent(member.thinkingMode, agentKind, model)
-          : null,
-        permission_mode: coercePermissionModeForAgent(member.permissionMode, agentKind),
-        display_name: member.customName || undefined,
-      };
-    });
+    const requestMembers = members.map((member) => memberRequest(member, models, personas));
 
     try {
       const channel = await createChannel.mutateAsync({

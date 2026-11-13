@@ -26,6 +26,7 @@ export interface Channel {
   unread?: boolean;
   pinned_at?: string | null;
   members: ChannelMember[];
+  former_members?: ChannelMember[];
   // Member chat that owns the shared sandbox/worktree; backs the channel's workspace views.
   anchor_chat_id: string;
   activity: ChannelMemberActivity;
@@ -38,6 +39,8 @@ export interface ChannelMemberCreateRequest {
   permission_mode?: PermissionMode;
   display_name?: string;
 }
+
+export type ChannelMemberUpdateRequest = Partial<ChannelMemberCreateRequest>;
 
 export interface ChannelCreateRequest {
   workspace_id: string;

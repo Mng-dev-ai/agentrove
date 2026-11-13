@@ -14,8 +14,7 @@ from app.utils.sandbox import BaseBranch
 BROADCAST_MENTIONS = {"all", "everyone"}
 
 
-class ChannelMemberCreate(BaseModel):
-    model_id: str
+class ChannelMemberFields(BaseModel):
     display_name: str | None = None
     permission_mode: PermissionMode | None = None
     persona: str | None = Field(None, max_length=100)
@@ -45,12 +44,20 @@ class ChannelMemberCreate(BaseModel):
             raise HTTPException(400, "Invalid permission mode")
         return value
 
-    @field_validator("model_id")
+    @field_validator("model_id", check_fields=False)
     @classmethod
-    def valid_model(cls, value: str) -> str:
-        if value not in MODELS:
+    def valid_model(cls, value: str | None) -> str | None:
+        if value is not None and value not in MODELS:
             raise ValueError("Unknown model_id")
         return value
+
+
+class ChannelMemberCreate(ChannelMemberFields):
+    model_id: str
+
+
+class ChannelMemberUpdate(ChannelMemberFields):
+    model_id: str | None = None
 
 
 class ChannelCreate(BaseModel):
@@ -99,6 +106,7 @@ class ChannelRead(BaseModel):
     unread: bool
     pinned_at: datetime | None
     members: list[ChannelMemberRead]
+    former_members: list[ChannelMemberRead]
     anchor_chat_id: UUID
     activity: ChannelMemberActivity
 

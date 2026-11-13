@@ -46,6 +46,7 @@ ADDED_TO_BASE_TABLES = {
         ("column", "last_viewed_at", "DATETIME", 0, None, 0),
         ("column", "pinned_at", "DATETIME", 0, None, 0),
     },
+    "channel_members": {("column", "removed_at", "DATETIME", 0, None, 0)},
     "user_settings": {("column", "settings_version", "INTEGER", 1, "'0'", 0)},
 }
 

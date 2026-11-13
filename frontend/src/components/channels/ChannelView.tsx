@@ -370,8 +370,14 @@ export function ChannelView({ channel }: { channel: Channel }) {
     [messages],
   );
   const membersById = useMemo(
-    () => new Map(channel.members.map((member) => [member.id, member])),
-    [channel.members],
+    () =>
+      new Map(
+        [...channel.members, ...(channel.former_members ?? [])].map((member) => [
+          member.id,
+          member,
+        ]),
+      ),
+    [channel.members, channel.former_members],
   );
   const {
     thinkingMembers,
