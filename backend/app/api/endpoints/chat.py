@@ -668,7 +668,9 @@ async def _attach_to_current_message(
         ).save_file(file, agent_kind=None, user_id=str(user.id))
     except StorageException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
-    return await message_service.create_attachment(message.id, attachment_data)
+    attachment = await message_service.create_attachment(message.id, attachment_data)
+    await channel_service.attachment_saved(chat, message.id)
+    return attachment
 
 
 @router.post(

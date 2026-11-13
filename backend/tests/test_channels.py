@@ -95,6 +95,12 @@ async def attach_file(message_id: UUID, filename: str) -> None:
         await db.commit()
 
 
+async def hand_off(source: Message) -> None:
+    async with channel_service.session_factory() as db:
+        chat = await db.get_one(Chat, source.chat_id)
+    await channel_service.attachment_saved(chat, source.id)
+
+
 ATTACH = [
     ("tool_started", {"tool": {"id": "attach"}}),
     ("attach", {"filename": "chart.png"}),
@@ -148,6 +154,7 @@ class ScriptedTurns:
         for kind, payload in events:
             if kind == "attach":
                 await attach_file(source.id, payload["filename"])
+                await hand_off(source)
             else:
                 await event_sink(kind, payload)
         self.emitted.set()
@@ -556,11 +563,10 @@ async def test_member_attachments_are_promoted_onto_its_reply(
         if kind == "channel_message" and payload["message"]["id"] == reply["id"]
     ]
     assert published[-1] == reply
-    if "tool_completed" in [kind for kind, _ in events]:
-        assert any(
-            message["status"] == "streaming" and message["attachments"]
-            for message in published
-        )
+    assert any(
+        message["status"] == "streaming" and message["attachments"]
+        for message in published
+    )
     assert (await client.get(base, headers=owner[0])).json()["unread"] is True
     if status == "completed":
         channel_state.paused = False
@@ -571,6 +577,71 @@ async def test_member_attachments_are_promoted_onto_its_reply(
             + (content or "Open the channel to see the result."),
         )
         channel_state.paused = True
+
+
+async def test_attachment_saved_after_the_turn_finished_lands_on_a_reply(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    db_session: AsyncSession,
+) -> None:
+    await channel_service.new_message(channel_state, "Draw it", device_ids=frozenset())
+    channel_runtime.events = [("cancelled", {})]
+    await channel_runtime.wake(channel_state)
+    url = f"/api/v1/channels/{channel_state.channel.id}/messages"
+    assert len((await client.get(url, headers=owner[0])).json()) == 1
+
+    [source] = channel_runtime.sources
+    await db_session.execute(
+        update(Message)
+        .where(Message.id == source.id)
+        .values(stream_status=MessageStreamStatus.INTERRUPTED)
+    )
+    await db_session.commit()
+    await attach_file(source.id, "chart.png")
+    for _ in range(2):
+        await hand_off(source)
+
+    _, reply = (await client.get(url, headers=owner[0])).json()
+    assert (reply["status"], reply["content"]) == ("cancelled", "")
+    assert [a["filename"] for a in reply["attachments"]] == ["chart.png"]
+    published = [
+        payload["message"]
+        for _, kind, payload in channel_runtime.publications
+        if kind == "channel_message"
+    ]
+    assert published[-1] == reply
+
+
+async def test_recover_cancels_and_republishes_streaming_replies(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+) -> None:
+    reply = await channel_service.new_message(
+        channel_state,
+        "Partial reply",
+        channel_state.channel.members[0].id,
+        device_ids=frozenset(),
+    )
+
+    await channel_service.recover()
+    for state in channel_service.states.values():
+        state.paused = True
+        channel_service.schedule(state)
+
+    [published] = [
+        payload["message"]
+        for _, kind, payload in channel_runtime.publications
+        if kind == "channel_message"
+    ]
+    assert (published["id"], published["status"], published["content"]) == (
+        str(reply.id),
+        "cancelled",
+        "Partial reply",
+    )
 
 
 async def test_recover_promotes_attachments_of_interrupted_replies(
@@ -593,6 +664,25 @@ async def test_recover_promotes_attachments_of_interrupted_replies(
             source_message_id=source.id,
             device_ids=frozenset(),
         )
+    orphan = await create_source_message(db_session, member.chat_id)
+    orphan.stream_status = MessageStreamStatus.IN_PROGRESS
+    await db_session.commit()
+    await attach_file(orphan.id, "orphan.png")
+    missed = await create_source_message(db_session, member.chat_id)
+    replies["Done."] = await channel_service.new_message(
+        channel_state,
+        "Done.",
+        member.id,
+        source_message_id=missed.id,
+        device_ids=frozenset(),
+    )
+    await db_session.execute(
+        update(ChannelMessage)
+        .where(ChannelMessage.id == replies["Done."].id)
+        .values(status="completed")
+    )
+    await db_session.commit()
+    await attach_file(missed.id, "missed.png")
 
     for _ in range(2):
         await channel_service.recover()
@@ -613,6 +703,7 @@ async def test_recover_promotes_attachments_of_interrupted_replies(
         ("Here is the chart.", ("cancelled", "Here is the chart.", ["chart.png"])),
         ("", ("cancelled", "", ["chart.png"])),
         ("PASS", ("deleted", "", [])),
+        ("Done.", ("completed", "Done.", ["missed.png"])),
     ):
         message = messages[str(replies[text].id)]
         assert (
@@ -620,6 +711,16 @@ async def test_recover_promotes_attachments_of_interrupted_replies(
             message["content"],
             [a["filename"] for a in message["attachments"]],
         ) == expected
+    [orphan_reply] = [
+        message
+        for message in messages.values()
+        if message["id"] not in {str(reply.id) for reply in replies.values()}
+    ]
+    assert (
+        orphan_reply["status"],
+        orphan_reply["content"],
+        [a["filename"] for a in orphan_reply["attachments"]],
+    ) == ("cancelled", "", ["orphan.png"])
     published = [
         payload["message"]
         for _, kind, payload in channel_runtime.publications
@@ -684,16 +785,11 @@ async def test_member_chat_attachment_routes_allow_only_the_owner(
     response = await client.post(url, files=upload, headers=headers)
     assert response.status_code == 201, response.text
     assert response.json()["message_id"] == str(source.id)
-    reply = await channel_service.new_message(
-        channel_state,
-        "",
-        member.id,
-        source_message_id=source.id,
-        device_ids=frozenset(),
+    reply = await db_session.scalar(
+        select(ChannelMessage).where(ChannelMessage.source_message_id == source.id)
     )
-    async with channel_service.session_factory() as db:
-        assert await channel_service.promote_attachments(db, reply)
-        await db.commit()
+    assert reply is not None
+    assert reply.status == "cancelled"
     for action in ("preview", "download"):
         hidden = f"/api/v1/attachments/{response.json()['id']}/{action}"
         assert (await client.get(hidden, headers=headers)).status_code == 404
