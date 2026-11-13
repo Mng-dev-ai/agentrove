@@ -28,6 +28,7 @@ class Automation(Base):
     workspace_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
+    channel_id: Mapped[UUID | None] = mapped_column(GUID(), nullable=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     model_id: Mapped[str] = mapped_column(String(255), nullable=False)

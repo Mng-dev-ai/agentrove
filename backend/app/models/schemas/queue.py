@@ -34,6 +34,10 @@ class QueuedMessage(QueuedMessageBase):
     attachments: list[dict[str, Any]] | None = None
 
 
+class AutomationQueuedMessage(QueuedMessageEdit):
+    automation_id: UUID
+
+
 class QueuedChannelMessage(QueuedMessageEdit):
     id: UUID
     queued_at: datetime

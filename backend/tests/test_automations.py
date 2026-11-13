@@ -12,8 +12,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_automation_service
+from app.core.security import create_mcp_access_token, create_scoped_mcp_token
+from app.core.user_manager import password_fingerprint
 from app.db.session import SessionLocal
 from app.models.db_models.automation import Automation
+from app.models.db_models.channel import Channel
 from app.models.db_models.chat import Chat
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
@@ -284,6 +287,152 @@ async def test_automation_cannot_target_another_users_workspace(
     )
     assert moved.status_code == 404
     assert moved.json()["detail"] == "Workspace not found"
+
+
+async def add_channel(
+    db_session: AsyncSession, user: User, workspace: Workspace
+) -> Channel:
+    channel = Channel(user_id=user.id, workspace_id=workspace.id, name="team")
+    db_session.add(channel)
+    await db_session.commit()
+    await db_session.refresh(channel)
+    return channel
+
+
+async def add_workspace(
+    db_session: AsyncSession, user: User, workspace: Workspace
+) -> Workspace:
+    second = Workspace(
+        name="Second Workspace",
+        user_id=user.id,
+        sandbox_id=f"{workspace.sandbox_id}-2",
+        sandbox_provider=workspace.sandbox_provider,
+        workspace_path=f"{workspace.workspace_path}-2",
+        source_type="empty",
+    )
+    db_session.add(second)
+    await db_session.commit()
+    await db_session.refresh(second)
+    return second
+
+
+async def test_channel_target_must_be_an_owned_channel_in_the_automation_workspace(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    chat_runtime: FakeChatService,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    _other_headers, other, other_workspace = await create_authenticated_workspace(
+        db_session, create_user, login, email="other@example.com", username="other"
+    )
+    second = await add_workspace(db_session, user, workspace)
+    channel = await add_channel(db_session, user, workspace)
+    second_channel = await add_channel(db_session, user, second)
+    foreign_channel = await add_channel(db_session, other, other_workspace)
+    missing = "Target channel not found in this workspace"
+
+    for channel_id in (foreign_channel.id, second_channel.id, uuid4()):
+        refused = await client.post(
+            "/api/v1/automations",
+            json=automation_payload(workspace.id, channel_id=str(channel_id)),
+            headers=headers,
+        )
+        assert refused.status_code == 404, channel_id
+        assert refused.json()["detail"] == missing
+    created = await create_automation(
+        client, headers, workspace.id, channel_id=str(channel.id)
+    )
+    assert created["channel_id"] == str(channel.id)
+    path = f"/api/v1/automations/{created['id']}"
+
+    for patch in (
+        {"channel_id": str(foreign_channel.id)},
+        {"channel_id": str(second_channel.id)},
+        {"workspace_id": str(second.id)},
+    ):
+        refused = await client.patch(path, json=patch, headers=headers)
+        assert refused.status_code == 404, patch
+        assert refused.json()["detail"] == missing
+    moved = await client.patch(
+        path,
+        json={"workspace_id": str(second.id), "channel_id": str(second_channel.id)},
+        headers=headers,
+    )
+    assert moved.status_code == 200
+    assert moved.json()["channel_id"] == str(second_channel.id)
+
+    cleared = await client.patch(path, json={"channel_id": None}, headers=headers)
+    assert cleared.status_code == 200
+    assert cleared.json()["channel_id"] is None
+    ran = await client.post(f"{path}/run", headers=headers)
+    assert ran.status_code == 200
+    assert ran.json() == {
+        "chat_id": str(chat_runtime.created_chat_ids[0]),
+        "channel_id": None,
+    }
+    [chat_data] = chat_runtime.created_chats
+    assert chat_data.workspace_id == second.id
+
+
+async def test_agent_tokens_cannot_target_a_channel_outside_their_reach(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    _headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    _other_headers, other, other_workspace = await create_authenticated_workspace(
+        db_session, create_user, login, email="other@example.com", username="other"
+    )
+    second = await add_workspace(db_session, user, workspace)
+    channel = await add_channel(db_session, user, workspace)
+    second_channel = await add_channel(db_session, user, second)
+    foreign_channel = await add_channel(db_session, other, other_workspace)
+    scoped = create_scoped_mcp_token(
+        {
+            "sub": str(user.id),
+            "wid": str(workspace.id),
+            "cid": None,
+            "did": [],
+            "pwd": password_fingerprint(user.hashed_password),
+        }
+    )
+    host = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    scoped_headers = {"Authorization": f"Bearer {scoped}"}
+    host_headers = {"Authorization": f"Bearer {host}"}
+
+    for headers, workspace_id, channel_id in (
+        (scoped_headers, workspace.id, second_channel.id),
+        (scoped_headers, second.id, second_channel.id),
+        (scoped_headers, workspace.id, foreign_channel.id),
+        (host_headers, workspace.id, foreign_channel.id),
+    ):
+        refused = await client.post(
+            "/api/v1/automations",
+            json=automation_payload(workspace_id, channel_id=str(channel_id)),
+            headers=headers,
+        )
+        assert refused.status_code == 404, (workspace_id, channel_id)
+    created = await create_automation(
+        client, scoped_headers, workspace.id, channel_id=str(channel.id)
+    )
+    path = f"/api/v1/automations/{created['id']}"
+    for patch in (
+        {"channel_id": str(second_channel.id)},
+        {"workspace_id": str(second.id), "channel_id": str(second_channel.id)},
+        {"channel_id": str(foreign_channel.id)},
+    ):
+        refused = await client.patch(path, json=patch, headers=scoped_headers)
+        assert refused.status_code == 404, patch
+    [stored] = (await db_session.scalars(select(Automation))).all()
+    assert stored.channel_id == channel.id
+    assert stored.workspace_id == workspace.id
 
 
 async def test_other_users_cannot_see_modify_run_or_delete_an_automation(

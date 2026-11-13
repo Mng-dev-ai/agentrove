@@ -5,22 +5,31 @@ from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from croniter import CroniterError, croniter
+from fastapi import HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import MODELS
 from app.models.db_models.automation import Automation
-from app.models.db_models.chat import Chat
+from app.models.db_models.channel import Channel
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
-from app.models.schemas.automation import AutomationCreate, AutomationUpdate
+from app.models.schemas.automation import (
+    AutomationCreate,
+    AutomationRunResponse,
+    AutomationUpdate,
+)
 from app.models.schemas.chat import ChatCreate, ChatRequest
+from app.models.schemas.queue import AutomationQueuedMessage
 from app.models.types import PermissionMode
 from app.services.agent import AgentService
+from app.services.channel import channel_service
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import AutomationException, ErrorCode, ServiceException
 from app.services.pairing import PairingService
+from app.services.queue import ChannelQueueService
+from app.utils.cache import cache_connection
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +114,23 @@ class AutomationService(BaseDbService[Automation]):
                 status_code=404,
             )
 
+    @staticmethod
+    async def _target_channel(
+        user: User, channel_id: UUID, workspace_id: UUID
+    ) -> Channel:
+        try:
+            channel: Channel | None = await channel_service.get(channel_id, user)
+        except HTTPException:
+            channel = None
+        if channel is None or channel.workspace_id != workspace_id:
+            raise AutomationException(
+                "Target channel not found in this workspace",
+                error_code=ErrorCode.CHANNEL_NOT_FOUND,
+                details={"channel_id": str(channel_id)},
+                status_code=404,
+            )
+        return channel
+
     async def _get_owned(
         self, db: AsyncSession, automation_id: UUID, user: User
     ) -> Automation:
@@ -140,6 +166,8 @@ class AutomationService(BaseDbService[Automation]):
         self.require_agent_workspace(user, data.workspace_id)
         async with self.session_factory() as db:
             await self._validate_workspace(db, data.workspace_id, user.id)
+            if data.channel_id is not None:
+                await self._target_channel(user, data.channel_id, data.workspace_id)
             automation = Automation(
                 user_id=user.id,
                 device_ids=device_ids,
@@ -168,6 +196,14 @@ class AutomationService(BaseDbService[Automation]):
             if "workspace_id" in changes:
                 self.require_agent_workspace(user, changes["workspace_id"])
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
+            channel_id = changes.get("channel_id", automation.channel_id)
+            retargeted = changes.keys() & {"channel_id", "workspace_id"}
+            if channel_id is not None and retargeted:
+                await self._target_channel(
+                    user,
+                    channel_id,
+                    changes.get("workspace_id", automation.workspace_id),
+                )
             automation.device_ids = PairingService.edited_device_ids(
                 automation.device_ids,
                 device_ids,
@@ -191,7 +227,7 @@ class AutomationService(BaseDbService[Automation]):
 
     async def run_automation(
         self, automation_id: UUID, user: User, device_ids: frozenset[UUID]
-    ) -> Chat:
+    ) -> AutomationRunResponse:
         # Manual "run now" — records last_run_at but leaves next_run_at alone so
         # the scheduled slot still fires.
         async with self.session_factory() as db:
@@ -270,7 +306,7 @@ class AutomationService(BaseDbService[Automation]):
             await db.commit()
 
         for automation in to_fire:
-            if automation.model_id not in MODELS:
+            if automation.channel_id is None and automation.model_id not in MODELS:
                 await self._disable_unrunnable(
                     automation, f"model {automation.model_id} retired"
                 )
@@ -284,6 +320,10 @@ class AutomationService(BaseDbService[Automation]):
                     # Soft-deleted workspace: the run can never succeed again.
                     await self._disable_unrunnable(
                         automation, f"workspace {automation.workspace_id} deleted"
+                    )
+                elif exc.error_code == ErrorCode.CHANNEL_NOT_FOUND:
+                    await self._disable_unrunnable(
+                        automation, f"target channel {automation.channel_id} missing"
                     )
                 logger.exception(
                     "Automation %s (%s) failed to start",
@@ -303,9 +343,10 @@ class AutomationService(BaseDbService[Automation]):
                 .where(
                     Automation.id == automation.id,
                     # Guard against a concurrent repair: only disable if the
-                    # row still points at the workspace and model that failed.
+                    # row still points at the workspace, model and channel that failed.
                     Automation.workspace_id == automation.workspace_id,
                     Automation.model_id == automation.model_id,
+                    Automation.channel_id == automation.channel_id,
                 )
                 .values(enabled=False)
             )
@@ -314,13 +355,18 @@ class AutomationService(BaseDbService[Automation]):
 
     async def _fire(
         self, automation: Automation, user: User, device_ids: frozenset[UUID]
-    ) -> Chat:
+    ) -> AutomationRunResponse:
         # Re-check the saved model before creating the chat — a model retired
         # after creation would otherwise leave an orphan empty chat every slot.
-        self._validate_model(automation.model_id)
+        if automation.channel_id is None:
+            self._validate_model(automation.model_id)
         await AgentService(session_factory=self.session_factory).ensure_devices_active(
             user.id, device_ids
         )
+        if automation.channel_id is not None:
+            return await self._queue_in_channel(
+                automation, user, automation.channel_id, device_ids
+            )
         # Timestamp in the title keeps recurring runs distinguishable in the
         # sidebar; sliced so a max-length name still fits ChatCreate's 255 cap.
         stamp = datetime.now(ZoneInfo(automation.timezone)).strftime("%b %d, %H:%M")
@@ -355,4 +401,25 @@ class AutomationService(BaseDbService[Automation]):
                     "Failed to clean up chat %s after initiation failure", chat.id
                 )
             raise
-        return chat
+        return AutomationRunResponse(chat_id=chat.id)
+
+    @classmethod
+    async def _queue_in_channel(
+        cls,
+        automation: Automation,
+        user: User,
+        channel_id: UUID,
+        device_ids: frozenset[UUID],
+    ) -> AutomationRunResponse:
+        channel = await cls._target_channel(user, channel_id, automation.workspace_id)
+        async with cache_connection() as cache:
+            await ChannelQueueService(cache).add_automation_message(
+                str(channel.id),
+                AutomationQueuedMessage(
+                    content=f"[Automation: {automation.name}]\n{automation.prompt}",
+                    device_ids=device_ids,
+                    automation_id=automation.id,
+                ),
+            )
+        await channel_service.dispatch_queued(channel)
+        return AutomationRunResponse(channel_id=channel.id)

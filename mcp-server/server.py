@@ -66,6 +66,7 @@ def _automation_summary(a: dict[str, Any]) -> dict[str, Any]:
         "enabled": a["enabled"],
         "model_id": a["model_id"],
         "workspace_id": a["workspace_id"],
+        "channel_id": a["channel_id"],
         "thinking_mode": a["thinking_mode"],
         "worktree": a["worktree"],
         "persona": a["selected_persona_name"],
@@ -791,6 +792,7 @@ async def create_automation(
     worktree: bool = False,
     persona: str | None = None,
     enabled: bool = True,
+    channel_id: str | None = None,
 ) -> dict[str, Any]:
     """Create a scheduled automation that runs a prompt on a cron schedule.
 
@@ -801,6 +803,12 @@ async def create_automation(
     a Claude model and workspace_id to use the most recently active workspace. Per-run
     options (thinking_mode, worktree, persona) match send_message. Set
     enabled=false to create it paused.
+
+    Pass channel_id (a channel in the same workspace, from list_channels) to post the
+    prompt into that channel instead of starting a chat: each run adds it, prefixed with
+    "[Automation: <name>]", as a user message to the channel's queue, delivered as soon
+    as the channel is idle; a run is skipped while the previous one is still queued.
+    Model, thinking_mode, worktree and persona are not used for a channel target.
 
     Returns the created automation, including its id and next_run_at.
     """
@@ -822,6 +830,8 @@ async def create_automation(
         body["thinking_mode"] = thinking_mode
     if persona:
         body["selected_persona_name"] = persona
+    if channel_id:
+        body["channel_id"] = channel_id
     automation = await client.create_automation(body)
     return {"automation": _automation_summary(automation)}
 
@@ -839,11 +849,14 @@ async def update_automation(
     worktree: bool | None = None,
     persona: str | None = None,
     enabled: bool | None = None,
+    channel_id: str | None = None,
 ) -> dict[str, Any]:
     """Update an existing automation; only the arguments you pass are changed.
 
     Pass model_id to switch models (its permission mode is updated to match), enabled to
     pause/resume, or cron_expression/timezone to reschedule (next_run_at is recomputed).
+    Pass channel_id to post each run into that channel (see create_automation), or an
+    empty string to go back to starting a new chat per run.
     Returns the updated automation.
     """
     client, _ = _session()
@@ -870,6 +883,8 @@ async def update_automation(
         body["selected_persona_name"] = persona
     if enabled is not None:
         body["enabled"] = enabled
+    if channel_id is not None:
+        body["channel_id"] = channel_id or None
     automation = await client.update_automation(automation_id, body)
     return {"automation": _automation_summary(automation)}
 
@@ -888,10 +903,13 @@ async def run_automation(automation_id: str) -> dict[str, Any]:
 
     Starts a new unattended chat with the automation's prompt right now; the regular cron
     schedule (next_run_at) is unaffected. Returns the chat_id of the new chat — poll
-    get_messages on it to read the reply.
+    get_messages on it to read the reply. For a channel target it returns channel_id
+    instead — read the replies with get_channel_messages.
     """
     client, _ = _session()
     result = await client.run_automation(automation_id)
+    if result["channel_id"]:
+        return {"channel_id": result["channel_id"]}
     return {"chat_id": result["chat_id"]}
 
 

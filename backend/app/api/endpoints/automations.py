@@ -86,9 +86,8 @@ async def run_automation(
     automation_service: AutomationService = Depends(get_automation_service),
 ) -> AutomationRunResponse:
     try:
-        chat = await automation_service.run_automation(
+        return await automation_service.run_automation(
             automation_id, current_user, current_user.device_ids
         )
     except (AutomationException, ChatException) as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
-    return AutomationRunResponse(chat_id=chat.id)

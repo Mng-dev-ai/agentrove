@@ -4,6 +4,7 @@ import { assignChatsToMachine } from '@/store/machineOrigin';
 import type {
   Automation,
   AutomationCreateRequest,
+  AutomationRunResponse,
   AutomationUpdateRequest,
 } from '@/types/automation.types';
 
@@ -47,13 +48,13 @@ async function deleteAutomation(automationId: string, machineId: string): Promis
 async function runAutomation(
   automationId: string,
   machineId: string,
-): Promise<{ chat_id: string }> {
+): Promise<AutomationRunResponse> {
   return serviceCall(async () => {
-    const response = await getMachineClient(machineId).post<{ chat_id: string }>(
+    const response = await getMachineClient(machineId).post<AutomationRunResponse>(
       `/automations/${automationId}/run`,
     );
     const payload = ensureResponse(response, 'Failed to run automation');
-    assignChatsToMachine(machineId, [payload.chat_id]);
+    if (payload.chat_id) assignChatsToMachine(machineId, [payload.chat_id]);
     return payload;
   });
 }

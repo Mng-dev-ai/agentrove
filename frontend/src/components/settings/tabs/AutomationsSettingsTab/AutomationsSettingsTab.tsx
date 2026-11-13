@@ -1,12 +1,15 @@
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { Clock, Server, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
 import { useMachineSettingsQuery } from '@/hooks/queries/useMachineQueries';
+import { useMachineChannelsQuery } from '@/hooks/queries/useChannelQueries';
+import { queryKeys } from '@/hooks/queries/queryKeys';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import {
   useAutomationsAcrossMachines,
@@ -32,10 +35,12 @@ import {
 } from '@/utils/automationSchedule';
 import { lazyNamed } from '@/utils/lazyNamed';
 import type {
+  Automation,
   AutomationCreateRequest,
   AutomationForm,
   AutomationUpdateRequest,
 } from '@/types/automation.types';
+import type { Channel } from '@/types/channel.types';
 import styles from './AutomationsSettingsTab.module.scss';
 
 const AutomationEditDialog = lazyNamed(
@@ -58,6 +63,8 @@ function createDefaultForm(): AutomationForm {
     prompt: '',
     model_id: '',
     workspace_id: '',
+    target: 'chat',
+    channel_id: '',
     schedule: { ...DEFAULT_SCHEDULE },
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     permission_mode: DEFAULT_PERMISSION_MODE,
@@ -75,6 +82,8 @@ function formFromItem(item: AutomationListItem): AutomationForm {
     prompt: automation.prompt,
     model_id: automation.model_id,
     workspace_id: automation.workspace_id,
+    target: automation.channel_id ? 'channel' : 'chat',
+    channel_id: automation.channel_id ?? '',
     schedule: parseCronExpression(automation.cron_expression),
     // Keep the zone the schedule was authored in — editing from another
     // timezone must not silently shift the automation's wall-clock time.
@@ -85,6 +94,36 @@ function formFromItem(item: AutomationListItem): AutomationForm {
     persona_name: automation.selected_persona_name,
     machineId: item.machineId,
   };
+}
+
+function requestFromAutomation(automation: Automation): AutomationCreateRequest {
+  return {
+    name: automation.name,
+    prompt: automation.prompt,
+    model_id: automation.model_id,
+    workspace_id: automation.workspace_id,
+    channel_id: automation.channel_id ?? null,
+    cron_expression: automation.cron_expression,
+    timezone: automation.timezone,
+    permission_mode: automation.permission_mode,
+    thinking_mode: automation.thinking_mode,
+    worktree: automation.worktree,
+    selected_persona_name: automation.selected_persona_name,
+    enabled: automation.enabled,
+  };
+}
+
+function AutomationTargetChip({ machineId, channelId }: { machineId: string; channelId: string }) {
+  const { data: channels } = useMachineChannelsQuery(machineId, true);
+  if (!channels) return null;
+  const channel = channels.find((candidate) => candidate.id === channelId);
+  return channel ? (
+    <span className={`${styles.chip} ${styles['target-chip']}`} title={`#${channel.name}`}>
+      → #{channel.name}
+    </span>
+  ) : (
+    <span className={`${styles.chip} ${styles['target-missing']}`}>target channel missing</span>
+  );
 }
 
 export function AutomationsSettingsTab() {
@@ -106,6 +145,7 @@ export function AutomationsSettingsTab() {
     [machines, connections],
   );
   const modelMap = useModelMap();
+  const queryClient = useQueryClient();
 
   const createMutation = useCreateAutomationMutation();
   const updateMutation = useUpdateAutomationMutation();
@@ -186,16 +226,34 @@ export function AutomationsSettingsTab() {
       worktree: agentFields.worktree ?? false,
       selected_persona_name: agentFields.selected_persona_name,
       enabled: editingItem?.automation.enabled ?? true,
+      channel_id: form.target === 'channel' ? form.channel_id : null,
     };
+    const machineId = editingItem?.machineId ?? form.machineId;
     try {
-      if (editingItem) {
-        await updateMutation.mutateAsync({
-          automationId: editingItem.automation.id,
-          data,
-          machineId: editingItem.machineId,
-        });
-      } else {
-        await createMutation.mutateAsync({ data, machineId: form.machineId });
+      const saved = editingItem
+        ? await updateMutation.mutateAsync({
+            automationId: editingItem.automation.id,
+            data,
+            machineId,
+          })
+        : await createMutation.mutateAsync({ data, machineId });
+      if (data.channel_id && saved.channel_id !== data.channel_id) {
+        if (editingItem) {
+          await updateMutation.mutateAsync({
+            automationId: saved.id,
+            data: requestFromAutomation(editingItem.automation),
+            machineId,
+          });
+        } else {
+          await deleteMutation.mutateAsync({ automationId: saved.id, machineId });
+        }
+        const name =
+          machineId === LOCAL_MACHINE_ID
+            ? LOCAL_MACHINE_NAME
+            : (machineNames.get(machineId) ?? 'This machine');
+        throw new Error(
+          `${name}'s backend does not support channel targets — update AgentRove on that machine.`,
+        );
       }
       setIsDialogOpen(false);
       toast.success('Saved', { id: 'automation-saved' });
@@ -219,11 +277,18 @@ export function AutomationsSettingsTab() {
 
   const handleRunNow = async (item: AutomationListItem) => {
     try {
-      await runMutation.mutateAsync({
+      const result = await runMutation.mutateAsync({
         automationId: item.automation.id,
         machineId: item.machineId,
       });
-      toast.success(`"${item.automation.name}" started — check the sidebar for its chat`);
+      const channel = queryClient
+        .getQueryData<Channel[]>(queryKeys.channels(item.machineId))
+        ?.find((candidate) => candidate.id === result.channel_id);
+      toast.success(
+        result.channel_id
+          ? `"${item.automation.name}" posted to #${channel?.name ?? 'its channel'}`
+          : `"${item.automation.name}" started — check the sidebar for its chat`,
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to run automation');
     }
@@ -233,7 +298,7 @@ export function AutomationsSettingsTab() {
     <>
       <ListManagementTab<AutomationListItem>
         title="Automations"
-        description="Scheduled prompts that start a new chat with your chosen model, workspace, and settings — e.g. check email daily or triage errors every 6 hours."
+        description="Scheduled prompts that start a new chat with your chosen model, workspace, and settings, or post into a channel — e.g. check email daily or triage errors every 6 hours."
         items={items}
         emptyIcon={Clock}
         emptyText="No automations configured yet"
@@ -259,7 +324,14 @@ export function AutomationsSettingsTab() {
               )}
             </div>
             <div className={styles['item-meta']}>
-              <span className={styles.chip}>{item.automation.model_id}</span>
+              {item.automation.channel_id ? (
+                <AutomationTargetChip
+                  machineId={item.machineId}
+                  channelId={item.automation.channel_id}
+                />
+              ) : (
+                <span className={styles.chip}>{item.automation.model_id}</span>
+              )}
               <span className={styles.chip}>{describeCron(item.automation.cron_expression)}</span>
               {item.automation.enabled && (
                 <span className={styles['next-run']}>

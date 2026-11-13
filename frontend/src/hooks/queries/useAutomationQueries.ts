@@ -8,6 +8,7 @@ import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type {
   Automation,
   AutomationCreateRequest,
+  AutomationRunResponse,
   AutomationUpdateRequest,
 } from '@/types/automation.types';
 
@@ -73,7 +74,7 @@ export const useDeleteAutomationMutation = createMutation<
 );
 
 export const useRunAutomationMutation = createMutation<
-  { chat_id: string },
+  AutomationRunResponse,
   Error,
   { automationId: string; machineId: string }
 >(

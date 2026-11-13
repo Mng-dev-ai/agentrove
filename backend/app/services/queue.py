@@ -14,6 +14,7 @@ from app.constants import (
     REDIS_KEY_CHAT_QUEUE_SEND_NOW,
 )
 from app.models.schemas.queue import (
+    AutomationQueuedMessage,
     QueueAddResponse,
     QueuedChannelMessage,
     QueuedMessage,
@@ -71,20 +72,28 @@ class BaseQueueService(Generic[ItemT]):
         async with self._lock(queue_id):
             key = self._queue_key(queue_id)
             queue = await self._read_queue(key)
+            return await self._append(key, queue, message, attachments)
 
-            message_id = uuid4()
-            queued_at = datetime.now(timezone.utc)
-            queue.append(
-                {
-                    **message.model_dump(mode="json"),
-                    "id": str(message_id),
-                    "queued_at": queued_at.isoformat(),
-                    "attachments": attachments,
-                }
-            )
-            await self._write_queue(key, queue)
+    async def _append(
+        self,
+        key: str,
+        queue: list[dict[str, Any]],
+        message: BaseModel,
+        attachments: list[dict[str, Any]] | None,
+    ) -> QueueAddResponse:
+        message_id = uuid4()
+        queued_at = datetime.now(timezone.utc)
+        queue.append(
+            {
+                **message.model_dump(mode="json"),
+                "id": str(message_id),
+                "queued_at": queued_at.isoformat(),
+                "attachments": attachments,
+            }
+        )
+        await self._write_queue(key, queue)
 
-            return QueueAddResponse(id=message_id, queued_at=queued_at)
+        return QueueAddResponse(id=message_id, queued_at=queued_at)
 
     async def get_queue(self, queue_id: str) -> list[ItemT]:
         key = self._queue_key(queue_id)
@@ -228,3 +237,14 @@ class QueueService(BaseQueueService[QueuedMessage]):
 class ChannelQueueService(BaseQueueService[QueuedChannelMessage]):
     key_template = REDIS_KEY_CHANNEL_QUEUE
     item_type = QueuedChannelMessage
+
+    async def add_automation_message(
+        self, channel_id: str, message: AutomationQueuedMessage
+    ) -> QueueAddResponse | None:
+        async with self._lock(channel_id):
+            key = self._queue_key(channel_id)
+            queue = await self._read_queue(key)
+            automation_id = str(message.automation_id)
+            if any(item.get("automation_id") == automation_id for item in queue):
+                return None
+            return await self._append(key, queue, message, None)
