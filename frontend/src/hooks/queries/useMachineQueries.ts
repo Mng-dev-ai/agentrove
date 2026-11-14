@@ -9,7 +9,7 @@ import type {
   WorkspaceResources,
   UpdateWorkspaceRequest,
 } from '@/types/workspace.types';
-import type { Persona, UserSettings } from '@/types/user.types';
+import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
 import { writeVersionedSettings } from '@/utils/settings';
 import type { ChatSearchResponse } from '@/types/chat.types';
@@ -99,13 +99,16 @@ export const useMachineSettingsQuery = (machineId: string, enabled: boolean) => 
   });
 };
 
-export const useMachinesPersonas = (machineIds: string[]) => {
+export const useMachinesSettingsList = <K extends 'personas' | 'custom_env_vars'>(
+  machineIds: string[],
+  key: K,
+) => {
   const combine = useCallback(
-    (results: UseQueryResult<UserSettings>[]): Record<string, Persona[]> =>
+    (results: UseQueryResult<UserSettings>[]): Record<string, NonNullable<UserSettings[K]>> =>
       Object.fromEntries(
-        machineIds.map((machineId, index) => [machineId, results[index]?.data?.personas ?? []]),
+        machineIds.map((machineId, index) => [machineId, results[index]?.data?.[key] ?? []]),
       ),
-    [machineIds],
+    [machineIds, key],
   );
   return useQueries({
     queries: machineIds.map(machineSettingsQuery),
@@ -113,16 +116,16 @@ export const useMachinesPersonas = (machineIds: string[]) => {
   });
 };
 
-export const useUpdateMachinePersonasMutation = createMutation<
+export const useUpdateMachineSettingsMutation = createMutation<
   UserSettings,
   Error,
-  { machineId: string; update: (personas: Persona[]) => Persona[] | null }
+  { machineId: string; update: (settings: UserSettings) => UserSettingsUpdate }
 >(
   async ({ machineId, update }) =>
     writeVersionedSettings(
       await machineChatService.getSettings(machineId),
       () => machineChatService.getSettings(machineId),
-      (settings) => ({ personas: update(settings.personas ?? []) }),
+      update,
       (data) => machineChatService.updateSettings(machineId, data),
     ),
   (queryClient, data, { machineId }) => {
