@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 import uvicorn
-from acp.schema import PermissionOption, ToolCallUpdate
+from acp.schema import PermissionOption, ToolCallStart, ToolCallUpdate
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import event as sa_event
@@ -139,6 +139,8 @@ class FakeAcpSession:
                     await self._steered.wait()
                 elif isinstance(step, BaseException):
                     raise step
+                elif isinstance(step, ToolCallStart):
+                    await self.handler.session_update(self.acp_session_id, step)
                 else:
                     self.handler.event_queue.put_nowait(step)
             prompt_completed = True
@@ -660,7 +662,13 @@ async def test_cancel_stream_marks_message_interrupted(
     )
     chat = await create_chat_row(db_session, user, workspace, session_id="resumed-4")
 
-    script = [StreamEvent(type="assistant_text", text="Working..."), BLOCK_FOREVER]
+    script = [
+        StreamEvent(type="assistant_text", text="Working..."),
+        ToolCallStart(
+            session_update="tool_call", tool_call_id="tool-sleep", title="sleep 25"
+        ),
+        BLOCK_FOREVER,
+    ]
     acp_factory.queue(FakeAcpSession([script], session_id="resumed-4"))
 
     result = await send_message(client, headers, chat)
@@ -678,6 +686,15 @@ async def test_cancel_stream_marks_message_interrupted(
     assistant_item = await get_message_item(client, headers, chat, message_id)
     assert assistant_item["stream_status"] == MessageStreamStatus.INTERRUPTED.value
     assert assistant_item["content_text"] == "Working..."
+    tool_events = [
+        event
+        for event in assistant_item["content_render"]["events"]
+        if event["type"].startswith("tool_")
+    ]
+    assert [(e["type"], e["tool"]["status"]) for e in tool_events] == [
+        ("tool_started", "started"),
+        ("tool_failed", "failed"),
+    ]
     assert await get_event_types(client, headers, message_id) == ["cancelled"]
 
 

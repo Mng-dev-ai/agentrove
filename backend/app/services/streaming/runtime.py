@@ -630,6 +630,10 @@ class ChatStreamRuntime:
         stream_result: StreamResult,
         status: MessageStreamStatus,
     ) -> str:
+        if status == MessageStreamStatus.INTERRUPTED:
+            # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
+            await self._close_stream()
+            await self._emit_unread_events(stream_result)
         snapshot = await self._save_final_snapshot(stream_result, status)
         final_content = self.snapshot.content_text
         if snapshot is None:
@@ -652,8 +656,6 @@ class ChatStreamRuntime:
                 await self._emit_terminal_signal(kind, payload)
                 await self._push_completion(failed=False, reply=final_content)
         elif status == MessageStreamStatus.INTERRUPTED:
-            # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
-            await self._close_stream()
             if await self._process_next_queued(
                 send_now_only=True, prior_duration_ms=duration_ms
             ):
@@ -667,6 +669,12 @@ class ChatStreamRuntime:
             await self._push_completion(failed=True, reply=final_content)
 
         return final_content
+
+    async def _emit_unread_events(self, stream_result: StreamResult) -> None:
+        if self._acp_session is None:
+            return
+        for event in self._acp_session.handler.take_unread_events():
+            await self._process_stream_event(stream_result, event)
 
     async def _emit_terminal_signal(self, kind: str, payload: dict[str, Any]) -> None:
         task = asyncio.create_task(self.emit_event(kind, payload, apply_snapshot=False))
