@@ -63,8 +63,10 @@ from tests.fake_acp_agent import (
     MARKER_RAW_INPUT_STRING,
     MARKER_TOOL_CODEX_ERROR,
     MARKER_TOOL_DIFF,
+    MARKER_TOOL_ANTIGRAVITY_MCP,
     MARKER_TOOL_EMPTY_RESULT,
     MARKER_TOOL_LEFT_OPEN,
+    MARKER_TOOL_LOCATIONS,
     MARKER_TOOL_START_DIFF,
     MARKER_TOOL_STRING_ERROR,
     MARKER_TOOL_TEXT_ERROR,
@@ -537,6 +539,11 @@ async def test_enhance_prompt_survives_config_option_failures(
             },
             id="empty-result-unknown-dict-error",
         ),
+        pytest.param(
+            (MARKER_TOOL_LOCATIONS,),
+            {("tool-primary", "path"): "/workspace/app.py"},
+            id="location-path",
+        ),
     ],
 )
 async def test_chat_tool_call_extraction_variants(
@@ -569,6 +576,37 @@ async def test_chat_tool_call_extraction_variants(
         for tool_id, field in expected
     } == expected
     assert any(e["type"] == "plan" for e in message["content_render"]["events"])
+
+
+async def test_antigravity_mcp_tool_call_is_unwrapped(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    model_id = "antigravity:gemini-4-argon"
+    chat = await create_chat(client, headers, workspace, model_id=model_id)
+
+    send_response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id=model_id,
+        prompt=f"{MARKER_TOOL_ANTIGRAVITY_MCP} go",
+    )
+    message = await wait_for_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        message_id=send_response.json()["message_id"],
+    )
+
+    mcp_tool = last_tool(message, "tool-mcp")
+    assert (mcp_tool["name"], mcp_tool["input"]) == (
+        "mcp__agentrove__list_chats",
+        {"limit": 5},
+    )
 
 
 async def test_chat_untracked_tool_updates_render_only_with_identity(

@@ -92,6 +92,7 @@ class ToolPayload(TypedDict, total=False):
     status: Literal["started", "completed", "failed"]
     parent_id: str | None
     input: dict[str, Any] | None
+    path: str
     result: Any
     error: str
     permission_mode: PermissionMode
