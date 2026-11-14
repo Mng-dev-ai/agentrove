@@ -174,7 +174,7 @@ function EnvironmentCard({
           {path && <span className={styles.secondary}>{` · ${path}`}</span>}
         </Row>
       )}
-      {branch && (
+      {branch && branch !== 'HEAD' && (
         <Row icon={<GitBranch className={styles.glyph} />} hint={branch}>
           {branch}
         </Row>
