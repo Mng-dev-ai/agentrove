@@ -88,7 +88,11 @@ export function EnvVarDialog({
               containerClassName={styles['secret-value']}
               inputClassName={styles['secret-mono']}
             />
-            <p className={styles.hint}>Available in all sandboxes</p>
+            <p className={styles.hint}>
+              {machineOptions.length > 1
+                ? 'Available in all sandboxes on the selected machine'
+                : 'Available in all sandboxes'}
+            </p>
           </div>
         </div>
 
