@@ -394,6 +394,63 @@ class ChatService(BaseDbService[Chat]):
         except CacheError:
             logger.warning("Failed to publish %s user chat event", payload.get("kind"))
 
+    @classmethod
+    async def publish_stream_started(
+        cls,
+        user_id: UUID,
+        user_message: Message,
+        assistant_message: Message,
+        checkpoint_id: UUID | None,
+        *,
+        content: str,
+        app_notice: bool,
+        attachments: list[dict[str, Any]] | None,
+        model_id: str,
+        thinking_mode: str | None,
+        permission_mode: str,
+        selected_persona_name: str,
+    ) -> None:
+        await cls.publish_user_chat_event(
+            user_id,
+            {
+                "kind": "stream_started",
+                "chat_id": str(user_message.chat_id),
+                "message_id": str(assistant_message.id),
+                "user_message_id": str(user_message.id),
+                "content": content,
+                "app_notice": app_notice,
+                "attachments": attachments,
+                "model_id": model_id,
+                "thinking_mode": thinking_mode,
+                "permission_mode": permission_mode,
+                "selected_persona_name": selected_persona_name,
+                "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
+            },
+        )
+
+    @classmethod
+    async def publish_queued_turn_started(
+        cls,
+        user_id: UUID,
+        queued_msg: dict[str, Any],
+        user_message: Message,
+        assistant_message: Message,
+        checkpoint_id: UUID | None,
+    ) -> None:
+        await cls.publish_stream_started(
+            user_id,
+            user_message,
+            assistant_message,
+            checkpoint_id,
+            content=queued_msg["content"],
+            app_notice=False,
+            attachments=MessageService.serialize_attachments(queued_msg, user_message),
+            model_id=queued_msg["model_id"],
+            thinking_mode=queued_msg["thinking_mode"],
+            permission_mode=queued_msg["permission_mode"],
+            selected_persona_name=queued_msg["selected_persona_name"],
+        )
+
     async def get_sub_threads(self, chat_id: UUID, user: User) -> list[Chat]:
         # sub_thread_count defaults to 0 (nesting is one level only).
         async with self.session_factory() as db:
@@ -1190,24 +1247,20 @@ class ChatService(BaseDbService[Chat]):
         else:
             # Lets open sessions mark this chat "running" even when the turn was
             # started out-of-band (e.g. via the MCP server) with no client stream.
-            await self.publish_user_chat_event(
+            await self.publish_stream_started(
                 current_user.id,
-                {
-                    "kind": "stream_started",
-                    "chat_id": str(chat_id),
-                    "message_id": str(assistant_message.id),
-                    "user_message_id": str(user_message.id),
-                    "content": user_app_notice or user_message.content_text,
-                    "app_notice": user_app_notice is not None,
-                    "attachments": MessageService.serialize_attachments(
-                        {"attachments": attachments}, user_message
-                    ),
-                    "model_id": request.model_id,
-                    "thinking_mode": request.thinking_mode,
-                    "permission_mode": request.permission_mode,
-                    "selected_persona_name": request.selected_persona_name,
-                    "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
-                },
+                user_message,
+                assistant_message,
+                checkpoint_id,
+                content=user_app_notice or user_message.content_text,
+                app_notice=user_app_notice is not None,
+                attachments=MessageService.serialize_attachments(
+                    {"attachments": attachments}, user_message
+                ),
+                model_id=request.model_id,
+                thinking_mode=request.thinking_mode,
+                permission_mode=request.permission_mode,
+                selected_persona_name=request.selected_persona_name,
             )
 
         return {

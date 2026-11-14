@@ -28,6 +28,7 @@ from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
 from app.services import chat as chat_service_module
+from app.services.chat import ChatService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.types import CommandResult
 from app.services.streaming import runtime as runtime_module
@@ -956,6 +957,14 @@ async def test_message_queued_after_the_turns_queue_check_runs_after_the_turn(
     monkeypatch.setattr(
         ChatStreamRuntime, "_process_next_queued", check_queue_then_hold
     )
+    chat_events: list[dict[str, Any]] = []
+
+    async def record_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
+        chat_events.append(payload)
+
+    monkeypatch.setattr(
+        ChatService, "publish_user_chat_event", staticmethod(record_chat_event)
+    )
 
     await send_message(client, headers, chat, prompt="First prompt")
     await asyncio.wait_for(queue_checked.wait(), timeout=5)
@@ -976,6 +985,7 @@ async def test_message_queued_after_the_turns_queue_check_runs_after_the_turn(
 
     queue_response = await asyncio.wait_for(queue_request, timeout=5)
     assert queue_response.status_code == 201
+    assert queue_response.json()["started"] is True
     await run_background_task(chat.id)
 
     items = (
@@ -987,6 +997,16 @@ async def test_message_queued_after_the_turns_queue_check_runs_after_the_turn(
         ("assistant", "First turn done"),
         ("user", "First prompt"),
     ]
+    late_started = chat_events[-1]
+    assert (
+        late_started["kind"],
+        late_started["message_id"],
+        late_started["content"],
+    ) == (
+        "stream_started",
+        items[0]["id"],
+        "Late follow-up",
+    )
     queue_list = await client.get(
         f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
     )

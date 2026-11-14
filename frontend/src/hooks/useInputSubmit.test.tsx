@@ -82,7 +82,7 @@ beforeEach(() => {
   appQueryClient.setQueryData([queryKeys.settings], {
     auto_steer_queued_messages: false,
   } as UserSettings);
-  queueMessage.mockResolvedValue({ id: 'queued-id', send_now_failed: false });
+  queueMessage.mockResolvedValue({ id: 'queued-id', send_now_failed: false, started: false });
   useMessageQueueStore.setState({ queues: new Map() });
   useUIStore.setState({ composerSelectionsByChat: {} });
   useChatSettingsStore.setState({ worktreeByChat: {}, worktreeBaseBranchByChat: {} });

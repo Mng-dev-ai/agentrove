@@ -4,6 +4,7 @@ import json
 import logging
 import mimetypes
 import posixpath
+from functools import partial
 from typing import Any, cast
 from uuid import UUID
 
@@ -859,9 +860,12 @@ async def queue_message(
             )
     else:
         try:
-            await ChatStreamRuntime.process_queue_after_turn(
-                str(chat_id), chat_service.session_factory
+            started_id = await ChatStreamRuntime.process_queue_after_turn(
+                str(chat_id),
+                chat_service.session_factory,
+                partial(ChatService.publish_queued_turn_started, current_user.id),
             )
+            response.started = started_id == str(response.id)
         except Exception:
             logger.exception(
                 "Failed to start queued message %s after the turn for chat %s",
@@ -973,7 +977,7 @@ async def _send_now_queued_message(
     else:
         try:
             started = await ChatStreamRuntime.process_queue_idle(
-                str(chat_id), chat_service.session_factory, send_now_only=True
+                str(chat_id), chat_service.session_factory
             )
         except asyncio.CancelledError:
             raise

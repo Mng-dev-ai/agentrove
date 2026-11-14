@@ -649,6 +649,8 @@ class ChatStreamRuntime:
             # If there's a queued follow-up message, start it immediately in this
             # same background task chain — the "complete" event is deferred until
             # the entire queue is drained so the client stays in streaming mode.
+            if self.member_turn is None:
+                self._completed_turn_chat_ids.add(self.chat_id)
             queue_processed = await self._process_next_queued(
                 prior_duration_ms=duration_ms
             )
@@ -657,9 +659,7 @@ class ChatStreamRuntime:
                 await self._emit_terminal_signal(kind, payload)
                 await self._push_completion(failed=False, reply=final_content)
         elif status == MessageStreamStatus.INTERRUPTED:
-            if await self._process_next_queued(
-                send_now_only=True, prior_duration_ms=duration_ms
-            ):
+            if await self._process_next_queued(prior_duration_ms=duration_ms):
                 session_registry.consume_pending_cancel(self.chat_id)
                 return final_content
             await self._emit_context_usage(stream_result)
@@ -772,20 +772,20 @@ class ChatStreamRuntime:
         if exc:
             logger.error("Session update task failed: %s", exc)
 
-    async def _process_next_queued(
-        self, *, send_now_only: bool = False, prior_duration_ms: int | None = None
-    ) -> bool:
+    @classmethod
+    async def _pop_next_queued(cls, chat_id: str) -> dict[str, Any] | None:
+        async with cache_connection() as cache:
+            queue_service = QueueService(cache)
+            next_msg = await queue_service.pop_send_now_message(chat_id)
+            if next_msg is None and chat_id in cls._completed_turn_chat_ids:
+                next_msg = await queue_service.pop_next_message(chat_id)
+            return next_msg
+
+    async def _process_next_queued(self, *, prior_duration_ms: int | None) -> bool:
         if self.member_turn is not None:
             return False
-        if not send_now_only:
-            self._completed_turn_chat_ids.add(self.chat_id)
-        next_msg: dict[str, Any] | None = None
         try:
-            async with cache_connection() as cache:
-                queue_service = QueueService(cache)
-                next_msg = await queue_service.pop_send_now_message(self.chat_id)
-                if not next_msg and not send_now_only:
-                    next_msg = await queue_service.pop_next_message(self.chat_id)
+            next_msg = await self._pop_next_queued(self.chat_id)
         except CacheError as exc:
             logger.error(
                 "Failed to read queued messages for chat %s: %s", self.chat_id, exc
@@ -1397,37 +1397,34 @@ class ChatStreamRuntime:
         cls,
         chat_id: str,
         session_factory: SessionFactoryType,
-    ) -> bool:
+        on_started: Callable[
+            [dict[str, Any], Message, Message, UUID | None], Awaitable[None]
+        ],
+    ) -> str | None:
         if chat_id not in cls._completed_turn_chat_ids:
-            return False
+            return None
         tasks = cls._chat_tasks(chat_id)
         if tasks:
             await asyncio.wait(tasks)
-        return await cls.process_queue_idle(
-            chat_id, session_factory, send_now_only=False
-        )
+        return await cls.process_queue_idle(chat_id, session_factory, on_started)
 
     @classmethod
     async def process_queue_idle(
         cls,
         chat_id: str,
         session_factory: SessionFactoryType,
-        *,
-        send_now_only: bool,
-    ) -> bool:
+        on_started: Callable[
+            [dict[str, Any], Message, Message, UUID | None], Awaitable[None]
+        ]
+        | None = None,
+    ) -> str | None:
         async with cls.chat_start_slot(chat_id) as reserved:
-            if not reserved or (
-                not send_now_only and chat_id not in cls._completed_turn_chat_ids
-            ):
-                return False
+            if not reserved:
+                return None
 
-            async with cache_connection() as cache:
-                queue_service = QueueService(cache)
-                queued_msg = await queue_service.pop_send_now_message(chat_id)
-                if not queued_msg and not send_now_only:
-                    queued_msg = await queue_service.pop_next_message(chat_id)
-                if not queued_msg:
-                    return False
+            queued_msg = await cls._pop_next_queued(chat_id)
+            if not queued_msg:
+                return None
 
             try:
                 async with session_factory() as db:
@@ -1445,6 +1442,9 @@ class ChatStreamRuntime:
                     queued_msg=queued_msg,
                     message_service=MessageService(session_factory=session_factory),
                     session_factory=session_factory,
+                    before_handoff=partial(on_started, queued_msg)
+                    if on_started is not None
+                    else None,
                 )
 
                 logger.info(
@@ -1452,7 +1452,7 @@ class ChatStreamRuntime:
                     queued_msg["id"],
                     chat_id,
                 )
-                return True
+                return str(queued_msg["id"])
 
             except Exception:
                 await cls._requeue_message_quietly(chat_id, queued_msg)
