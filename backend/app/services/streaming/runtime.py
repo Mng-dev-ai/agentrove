@@ -1251,6 +1251,10 @@ class ChatStreamRuntime:
         return chat_id in cls._starting_chat_ids
 
     @classmethod
+    def has_completed_turn(cls, chat_id: str) -> bool:
+        return chat_id in cls._completed_turn_chat_ids
+
+    @classmethod
     def has_pending_restore(cls, chat_id: str) -> bool:
         return chat_id in cls._restoring_chat_ids
 
@@ -1427,13 +1431,12 @@ class ChatStreamRuntime:
     @classmethod
     async def process_queue_after_turn(
         cls, chat_id: str, session_factory: SessionFactoryType
-    ) -> None:
-        if chat_id not in cls._completed_turn_chat_ids:
-            return
-        tasks = cls._chat_tasks(chat_id)
-        if tasks:
-            await asyncio.wait(tasks)
-        await cls.process_queue_idle(chat_id, session_factory)
+    ) -> bool:
+        if chat_id in cls._completed_turn_chat_ids:
+            tasks = cls._chat_tasks(chat_id)
+            if tasks:
+                await asyncio.wait(tasks)
+        return await cls.process_queue_idle(chat_id, session_factory)
 
     @classmethod
     async def process_queue_idle(

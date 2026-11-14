@@ -1087,6 +1087,93 @@ async def test_late_queued_message_taken_by_the_turns_chain_returns_started(
     assert queue_list.json() == []
 
 
+async def test_send_now_after_the_turns_queue_check_starts_after_the_turn(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(
+        db_session, user, workspace, session_id="resumed-late-send-now"
+    )
+    acp_factory.queue(
+        FakeAcpSession(
+            [
+                [StreamEvent(type="assistant_text", text="First turn done")],
+                [StreamEvent(type="assistant_text", text="Send-now turn done")],
+            ],
+            session_id="resumed-late-send-now",
+        )
+    )
+
+    queue_checked = asyncio.Event()
+    release_turn = asyncio.Event()
+    steer_checked = asyncio.Event()
+    process_next_queued = ChatStreamRuntime._process_next_queued
+    steer_send_now = ChatStreamRuntime.steer_send_now
+
+    async def check_queue_then_hold(runtime: ChatStreamRuntime, **kwargs: Any) -> bool:
+        processed = await process_next_queued(runtime, **kwargs)
+        queue_checked.set()
+        await release_turn.wait()
+        return processed
+
+    async def record_steer_check(chat_id: str) -> bool:
+        steered = await steer_send_now(chat_id)
+        steer_checked.set()
+        return steered
+
+    monkeypatch.setattr(
+        ChatStreamRuntime, "_process_next_queued", check_queue_then_hold
+    )
+    monkeypatch.setattr(ChatStreamRuntime, "steer_send_now", record_steer_check)
+
+    await send_message(client, headers, chat, prompt="First prompt")
+    await asyncio.wait_for(queue_checked.wait(), timeout=5)
+    queue_request = asyncio.create_task(
+        client.post(
+            f"/api/v1/chat/chats/{chat.id}/queue",
+            data={
+                "content": "Late send-now",
+                "model_id": TEST_MODEL_ID,
+                "send_now": "true",
+            },
+            headers=headers,
+        )
+    )
+    await asyncio.wait_for(steer_checked.wait(), timeout=5)
+    release_turn.set()
+
+    queue_response = await asyncio.wait_for(queue_request, timeout=5)
+    assert queue_response.status_code == 201
+    assert queue_response.json()["send_now_failed"] is False
+    await run_background_task(chat.id)
+
+    items = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    assert [(item["role"], item["content_text"]) for item in items] == [
+        ("assistant", "Send-now turn done"),
+        ("user", "Late send-now"),
+        ("assistant", "First turn done"),
+        ("user", "First prompt"),
+    ]
+    assert {item["stream_status"] for item in items} == {
+        MessageStreamStatus.COMPLETED.value
+    }
+    assert not session_registry._pending_cancels
+    queue_list = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
+    )
+    assert queue_list.json() == []
+
+
 @pytest.mark.parametrize(
     ("steer_outcome", "queued_mode", "expected_steer_calls"),
     [
