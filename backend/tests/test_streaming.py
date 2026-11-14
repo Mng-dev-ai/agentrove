@@ -920,6 +920,79 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     assert first_events[0]["render_payload"]["content"] == "Follow-up prompt"
 
 
+async def test_message_queued_after_the_turns_queue_check_runs_after_the_turn(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="resumed-late")
+    acp_factory.queue(
+        FakeAcpSession(
+            [
+                [StreamEvent(type="assistant_text", text="First turn done")],
+                [StreamEvent(type="assistant_text", text="Late turn done")],
+            ],
+            session_id="resumed-late",
+        )
+    )
+
+    queue_checked = asyncio.Event()
+    release_turn = asyncio.Event()
+    process_next_queued = ChatStreamRuntime._process_next_queued
+
+    async def check_queue_then_hold(runtime: ChatStreamRuntime, **kwargs: Any) -> bool:
+        processed = await process_next_queued(runtime, **kwargs)
+        queue_checked.set()
+        await release_turn.wait()
+        return processed
+
+    monkeypatch.setattr(
+        ChatStreamRuntime, "_process_next_queued", check_queue_then_hold
+    )
+
+    await send_message(client, headers, chat, prompt="First prompt")
+    await asyncio.wait_for(queue_checked.wait(), timeout=5)
+
+    queue_request = asyncio.create_task(
+        client.post(
+            f"/api/v1/chat/chats/{chat.id}/queue",
+            data={"content": "Late follow-up", "model_id": TEST_MODEL_ID},
+            headers=headers,
+        )
+    )
+    key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat.id)
+    deadline = time.monotonic() + 5
+    while not await streaming_cache.store.get(key):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.01)
+    release_turn.set()
+
+    queue_response = await asyncio.wait_for(queue_request, timeout=5)
+    assert queue_response.status_code == 201
+    await run_background_task(chat.id)
+
+    items = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    assert [(item["role"], item["content_text"]) for item in items] == [
+        ("assistant", "Late turn done"),
+        ("user", "Late follow-up"),
+        ("assistant", "First turn done"),
+        ("user", "First prompt"),
+    ]
+    queue_list = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
+    )
+    assert queue_list.json() == []
+
+
 @pytest.mark.parametrize(
     ("steer_outcome", "queued_mode", "expected_steer_calls"),
     [

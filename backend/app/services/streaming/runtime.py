@@ -99,6 +99,7 @@ class ChatStreamRuntime:
     # window. The event fires when the reservation is released.
     _starting_chat_ids: dict[str, asyncio.Event] = {}
     _restoring_chat_ids: dict[str, asyncio.Event] = {}
+    _completed_turn_chat_ids: set[str] = set()
 
     @classmethod
     @asynccontextmanager
@@ -776,6 +777,8 @@ class ChatStreamRuntime:
     ) -> bool:
         if self.member_turn is not None:
             return False
+        if not send_now_only:
+            self._completed_turn_chat_ids.add(self.chat_id)
         next_msg: dict[str, Any] | None = None
         try:
             async with cache_connection() as cache:
@@ -1313,6 +1316,7 @@ class ChatStreamRuntime:
         request: ChatStreamRequest,
     ) -> asyncio.Task[str]:
         chat_id = str(request.chat_data["id"])
+        cls._completed_turn_chat_ids.discard(chat_id)
         background_task = asyncio.create_task(
             cls._bootstrap_and_execute(
                 request=request,
@@ -1389,18 +1393,39 @@ class ChatStreamRuntime:
         )
 
     @classmethod
-    async def process_send_now_idle(
+    async def process_queue_after_turn(
         cls,
         chat_id: str,
         session_factory: SessionFactoryType,
     ) -> bool:
+        if chat_id not in cls._completed_turn_chat_ids:
+            return False
+        tasks = cls._chat_tasks(chat_id)
+        if tasks:
+            await asyncio.wait(tasks)
+        return await cls.process_queue_idle(
+            chat_id, session_factory, send_now_only=False
+        )
+
+    @classmethod
+    async def process_queue_idle(
+        cls,
+        chat_id: str,
+        session_factory: SessionFactoryType,
+        *,
+        send_now_only: bool,
+    ) -> bool:
         async with cls.chat_start_slot(chat_id) as reserved:
-            if not reserved:
+            if not reserved or (
+                not send_now_only and chat_id not in cls._completed_turn_chat_ids
+            ):
                 return False
 
             async with cache_connection() as cache:
                 queue_service = QueueService(cache)
                 queued_msg = await queue_service.pop_send_now_message(chat_id)
+                if not queued_msg and not send_now_only:
+                    queued_msg = await queue_service.pop_next_message(chat_id)
                 if not queued_msg:
                     return False
 
@@ -1413,9 +1438,7 @@ class ChatStreamRuntime:
                     )
                     chat = result.scalar_one_or_none()
                     if not chat:
-                        raise AgentException(
-                            f"Chat {chat_id} not found for idle send-now"
-                        )
+                        raise AgentException(f"Chat {chat_id} not found for idle queue")
 
                 await cls._start_queued_turn(
                     chat=chat,
@@ -1425,7 +1448,7 @@ class ChatStreamRuntime:
                 )
 
                 logger.info(
-                    "Idle send-now: message %s started for chat %s",
+                    "Idle queue: message %s started for chat %s",
                     queued_msg["id"],
                     chat_id,
                 )
