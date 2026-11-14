@@ -857,6 +857,21 @@ async def queue_message(
                 response.id,
                 chat_id,
             )
+    else:
+        try:
+            await ChatStreamRuntime.process_queue_after_turn(
+                str(chat_id), chat_service.session_factory
+            )
+            response.started = all(
+                item.id != response.id
+                for item in await queue_service.get_queue(str(chat_id))
+            )
+        except Exception:
+            logger.exception(
+                "Failed to start queued message %s after the turn for chat %s",
+                response.id,
+                chat_id,
+            )
     return response
 
 
@@ -961,7 +976,7 @@ async def _send_now_queued_message(
         await session_registry.cancel_generation(str(chat_id))
     else:
         try:
-            started = await ChatStreamRuntime.process_send_now_idle(
+            started = await ChatStreamRuntime.process_queue_idle(
                 str(chat_id), chat_service.session_factory
             )
         except asyncio.CancelledError:

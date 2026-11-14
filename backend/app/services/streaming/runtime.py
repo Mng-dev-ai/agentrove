@@ -99,6 +99,7 @@ class ChatStreamRuntime:
     # window. The event fires when the reservation is released.
     _starting_chat_ids: dict[str, asyncio.Event] = {}
     _restoring_chat_ids: dict[str, asyncio.Event] = {}
+    _completed_turn_chat_ids: set[str] = set()
 
     @classmethod
     @asynccontextmanager
@@ -630,6 +631,10 @@ class ChatStreamRuntime:
         stream_result: StreamResult,
         status: MessageStreamStatus,
     ) -> str:
+        if status == MessageStreamStatus.INTERRUPTED:
+            # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
+            await self._close_stream()
+            await self._emit_unread_events(stream_result)
         snapshot = await self._save_final_snapshot(stream_result, status)
         final_content = self.snapshot.content_text
         if snapshot is None:
@@ -644,18 +649,18 @@ class ChatStreamRuntime:
             # If there's a queued follow-up message, start it immediately in this
             # same background task chain — the "complete" event is deferred until
             # the entire queue is drained so the client stays in streaming mode.
+            if self.member_turn is None:
+                self._completed_turn_chat_ids.add(self.chat_id)
             queue_processed = await self._process_next_queued(
-                prior_duration_ms=duration_ms
+                include_normal=True, prior_duration_ms=duration_ms
             )
             if not queue_processed:
                 await self._emit_context_usage(stream_result)
                 await self._emit_terminal_signal(kind, payload)
                 await self._push_completion(failed=False, reply=final_content)
         elif status == MessageStreamStatus.INTERRUPTED:
-            # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
-            await self._close_stream()
             if await self._process_next_queued(
-                send_now_only=True, prior_duration_ms=duration_ms
+                include_normal=False, prior_duration_ms=duration_ms
             ):
                 session_registry.consume_pending_cancel(self.chat_id)
                 return final_content
@@ -667,6 +672,12 @@ class ChatStreamRuntime:
             await self._push_completion(failed=True, reply=final_content)
 
         return final_content
+
+    async def _emit_unread_events(self, stream_result: StreamResult) -> None:
+        if self._acp_session is None:
+            return
+        for event in self._acp_session.handler.take_unread_events():
+            await self._process_stream_event(stream_result, event)
 
     async def _emit_terminal_signal(self, kind: str, payload: dict[str, Any]) -> None:
         task = asyncio.create_task(self.emit_event(kind, payload, apply_snapshot=False))
@@ -763,18 +774,26 @@ class ChatStreamRuntime:
         if exc:
             logger.error("Session update task failed: %s", exc)
 
+    @staticmethod
+    async def _pop_next_queued(
+        chat_id: str, *, include_normal: bool
+    ) -> dict[str, Any] | None:
+        async with cache_connection() as cache:
+            queue_service = QueueService(cache)
+            next_msg = await queue_service.pop_send_now_message(chat_id)
+            if next_msg is None and include_normal:
+                next_msg = await queue_service.pop_next_message(chat_id)
+            return next_msg
+
     async def _process_next_queued(
-        self, *, send_now_only: bool = False, prior_duration_ms: int | None = None
+        self, *, include_normal: bool, prior_duration_ms: int | None
     ) -> bool:
         if self.member_turn is not None:
             return False
-        next_msg: dict[str, Any] | None = None
         try:
-            async with cache_connection() as cache:
-                queue_service = QueueService(cache)
-                next_msg = await queue_service.pop_send_now_message(self.chat_id)
-                if not next_msg and not send_now_only:
-                    next_msg = await queue_service.pop_next_message(self.chat_id)
+            next_msg = await self._pop_next_queued(
+                self.chat_id, include_normal=include_normal
+            )
         except CacheError as exc:
             logger.error(
                 "Failed to read queued messages for chat %s: %s", self.chat_id, exc
@@ -830,6 +849,30 @@ class ChatStreamRuntime:
                 # The terminal is suppressed during handoff — ship the duration here.
                 "prior_duration_ms": prior_duration_ms,
             },
+        )
+
+    @staticmethod
+    async def _publish_queued_turn_started(
+        chat: Chat,
+        queued_msg: dict[str, Any],
+        user_message: Message,
+        assistant_message: Message,
+        checkpoint_id: UUID | None,
+    ) -> None:
+        from app.services.chat import ChatService
+
+        await ChatService.publish_stream_started(
+            chat.user_id,
+            user_message,
+            assistant_message,
+            checkpoint_id,
+            content=queued_msg["content"],
+            app_notice=False,
+            attachments=MessageService.serialize_attachments(queued_msg, user_message),
+            model_id=queued_msg["model_id"],
+            thinking_mode=queued_msg["thinking_mode"],
+            permission_mode=queued_msg["permission_mode"],
+            selected_persona_name=queued_msg["selected_persona_name"],
         )
 
     @staticmethod
@@ -1305,6 +1348,7 @@ class ChatStreamRuntime:
         request: ChatStreamRequest,
     ) -> asyncio.Task[str]:
         chat_id = str(request.chat_data["id"])
+        cls._completed_turn_chat_ids.discard(chat_id)
         background_task = asyncio.create_task(
             cls._bootstrap_and_execute(
                 request=request,
@@ -1381,20 +1425,29 @@ class ChatStreamRuntime:
         )
 
     @classmethod
-    async def process_send_now_idle(
-        cls,
-        chat_id: str,
-        session_factory: SessionFactoryType,
+    async def process_queue_after_turn(
+        cls, chat_id: str, session_factory: SessionFactoryType
+    ) -> None:
+        if chat_id not in cls._completed_turn_chat_ids:
+            return
+        tasks = cls._chat_tasks(chat_id)
+        if tasks:
+            await asyncio.wait(tasks)
+        await cls.process_queue_idle(chat_id, session_factory)
+
+    @classmethod
+    async def process_queue_idle(
+        cls, chat_id: str, session_factory: SessionFactoryType
     ) -> bool:
         async with cls.chat_start_slot(chat_id) as reserved:
             if not reserved:
                 return False
 
-            async with cache_connection() as cache:
-                queue_service = QueueService(cache)
-                queued_msg = await queue_service.pop_send_now_message(chat_id)
-                if not queued_msg:
-                    return False
+            queued_msg = await cls._pop_next_queued(
+                chat_id, include_normal=chat_id in cls._completed_turn_chat_ids
+            )
+            if not queued_msg:
+                return False
 
             try:
                 async with session_factory() as db:
@@ -1405,19 +1458,20 @@ class ChatStreamRuntime:
                     )
                     chat = result.scalar_one_or_none()
                     if not chat:
-                        raise AgentException(
-                            f"Chat {chat_id} not found for idle send-now"
-                        )
+                        raise AgentException(f"Chat {chat_id} not found for idle queue")
 
                 await cls._start_queued_turn(
                     chat=chat,
                     queued_msg=queued_msg,
                     message_service=MessageService(session_factory=session_factory),
                     session_factory=session_factory,
+                    before_handoff=partial(
+                        cls._publish_queued_turn_started, chat, queued_msg
+                    ),
                 )
 
                 logger.info(
-                    "Idle send-now: message %s started for chat %s",
+                    "Idle queue: message %s started for chat %s",
                     queued_msg["id"],
                     chat_id,
                 )

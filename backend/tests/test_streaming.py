@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 import uvicorn
-from acp.schema import PermissionOption, ToolCallUpdate
+from acp.schema import PermissionOption, ToolCallStart, ToolCallUpdate
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import event as sa_event
@@ -28,6 +28,7 @@ from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
 from app.services import chat as chat_service_module
+from app.services.chat import ChatService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.types import CommandResult
 from app.services.streaming import runtime as runtime_module
@@ -139,6 +140,8 @@ class FakeAcpSession:
                     await self._steered.wait()
                 elif isinstance(step, BaseException):
                     raise step
+                elif isinstance(step, ToolCallStart):
+                    await self.handler.session_update(self.acp_session_id, step)
                 else:
                     self.handler.event_queue.put_nowait(step)
             prompt_completed = True
@@ -660,7 +663,13 @@ async def test_cancel_stream_marks_message_interrupted(
     )
     chat = await create_chat_row(db_session, user, workspace, session_id="resumed-4")
 
-    script = [StreamEvent(type="assistant_text", text="Working..."), BLOCK_FOREVER]
+    script = [
+        StreamEvent(type="assistant_text", text="Working..."),
+        ToolCallStart(
+            session_update="tool_call", tool_call_id="tool-sleep", title="sleep 25"
+        ),
+        BLOCK_FOREVER,
+    ]
     acp_factory.queue(FakeAcpSession([script], session_id="resumed-4"))
 
     result = await send_message(client, headers, chat)
@@ -678,6 +687,15 @@ async def test_cancel_stream_marks_message_interrupted(
     assistant_item = await get_message_item(client, headers, chat, message_id)
     assert assistant_item["stream_status"] == MessageStreamStatus.INTERRUPTED.value
     assert assistant_item["content_text"] == "Working..."
+    tool_events = [
+        event
+        for event in assistant_item["content_render"]["events"]
+        if event["type"].startswith("tool_")
+    ]
+    assert [(e["type"], e["tool"]["status"]) for e in tool_events] == [
+        ("tool_started", "started"),
+        ("tool_failed", "failed"),
+    ]
     assert await get_event_types(client, headers, message_id) == ["cancelled"]
 
 
@@ -901,6 +919,172 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     first_events = first_events_response.json()
     assert [e["event_type"] for e in first_events] == ["queue_processing"]
     assert first_events[0]["render_payload"]["content"] == "Follow-up prompt"
+
+
+async def test_message_queued_after_the_turns_queue_check_runs_after_the_turn(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="resumed-late")
+    acp_factory.queue(
+        FakeAcpSession(
+            [
+                [StreamEvent(type="assistant_text", text="First turn done")],
+                [StreamEvent(type="assistant_text", text="Late turn done")],
+            ],
+            session_id="resumed-late",
+        )
+    )
+
+    queue_checked = asyncio.Event()
+    release_turn = asyncio.Event()
+    process_next_queued = ChatStreamRuntime._process_next_queued
+
+    async def check_queue_then_hold(runtime: ChatStreamRuntime, **kwargs: Any) -> bool:
+        processed = await process_next_queued(runtime, **kwargs)
+        queue_checked.set()
+        await release_turn.wait()
+        return processed
+
+    monkeypatch.setattr(
+        ChatStreamRuntime, "_process_next_queued", check_queue_then_hold
+    )
+    chat_events: list[dict[str, Any]] = []
+
+    async def record_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
+        chat_events.append(payload)
+
+    monkeypatch.setattr(
+        ChatService, "publish_user_chat_event", staticmethod(record_chat_event)
+    )
+
+    await send_message(client, headers, chat, prompt="First prompt")
+    await asyncio.wait_for(queue_checked.wait(), timeout=5)
+
+    queue_request = asyncio.create_task(
+        client.post(
+            f"/api/v1/chat/chats/{chat.id}/queue",
+            data={"content": "Late follow-up", "model_id": TEST_MODEL_ID},
+            headers=headers,
+        )
+    )
+    key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat.id)
+    deadline = time.monotonic() + 5
+    while not await streaming_cache.store.get(key):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.01)
+    release_turn.set()
+
+    queue_response = await asyncio.wait_for(queue_request, timeout=5)
+    assert queue_response.status_code == 201
+    assert queue_response.json()["started"] is True
+    await run_background_task(chat.id)
+
+    items = (
+        await client.get(f"/api/v1/chat/chats/{chat.id}/messages", headers=headers)
+    ).json()["items"]
+    assert [(item["role"], item["content_text"]) for item in items] == [
+        ("assistant", "Late turn done"),
+        ("user", "Late follow-up"),
+        ("assistant", "First turn done"),
+        ("user", "First prompt"),
+    ]
+    late_started = chat_events[-1]
+    assert (
+        late_started["kind"],
+        late_started["message_id"],
+        late_started["content"],
+    ) == (
+        "stream_started",
+        items[0]["id"],
+        "Late follow-up",
+    )
+    queue_list = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
+    )
+    assert queue_list.json() == []
+
+
+async def test_late_queued_message_taken_by_the_turns_chain_returns_started(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(
+        db_session, user, workspace, session_id="resumed-chain"
+    )
+    acp_factory.queue(
+        FakeAcpSession(
+            [
+                [StreamEvent(type="assistant_text", text="First turn done")],
+                [StreamEvent(type="assistant_text", text="Chained"), BLOCK_FOREVER],
+            ],
+            session_id="resumed-chain",
+        )
+    )
+
+    turn_completing = asyncio.Event()
+    message_queued = asyncio.Event()
+    process_next_queued = ChatStreamRuntime._process_next_queued
+
+    async def hold_before_queue_check(
+        runtime: ChatStreamRuntime, **kwargs: Any
+    ) -> bool:
+        turn_completing.set()
+        await message_queued.wait()
+        return await process_next_queued(runtime, **kwargs)
+
+    monkeypatch.setattr(
+        ChatStreamRuntime, "_process_next_queued", hold_before_queue_check
+    )
+
+    first = await send_message(client, headers, chat, prompt="First prompt")
+    await asyncio.wait_for(turn_completing.wait(), timeout=5)
+    queue_request = asyncio.create_task(
+        client.post(
+            f"/api/v1/chat/chats/{chat.id}/queue",
+            data={"content": "Late follow-up", "model_id": TEST_MODEL_ID},
+            headers=headers,
+        )
+    )
+    key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat.id)
+    deadline = time.monotonic() + 5
+    while not await streaming_cache.store.get(key):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.01)
+    message_queued.set()
+
+    queue_response = await asyncio.wait_for(queue_request, timeout=5)
+    assert queue_response.status_code == 201
+    assert queue_response.json()["started"] is True
+    await wait_for_message_event(
+        client, headers, first["message_id"], "queue_processing"
+    )
+    assert not find_background_task(chat.id).done()
+
+    cancel_response = await client.delete(
+        f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
+    )
+    assert cancel_response.status_code == 204
+    queue_list = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
+    )
+    assert queue_list.json() == []
 
 
 @pytest.mark.parametrize(

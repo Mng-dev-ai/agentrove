@@ -14,7 +14,9 @@ import { useMessageQueueStore } from '@/store/messageQueueStore';
 
 vi.mock('@/services/queueService', () => ({
   queueService: {
-    queueMessage: vi.fn(() => Promise.resolve({ id: 'queued-id', send_now_failed: false })),
+    queueMessage: vi.fn(() =>
+      Promise.resolve({ id: 'queued-id', send_now_failed: false, started: false }),
+    ),
   },
 }));
 vi.mock('@/services/settingsService', () => ({
