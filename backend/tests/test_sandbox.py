@@ -755,12 +755,52 @@ async def test_git_diff_stats_counts_uncommitted_and_branch(
     assert response.json() == {
         "uncommitted": {"additions": 3, "deletions": 0, "files_changed": 3},
         "branch": {"additions": 2, "deletions": 1, "files_changed": 1},
+        "total": {"additions": 5, "deletions": 1, "files_changed": 3},
         "is_git_repo": True,
         "head_sha": rev(repo),
     }
     status = git(repo, "status", "--porcelain").splitlines()
     assert "?? notes.txt" in status
     assert "?? logo.bin" in status
+    assert git(repo, "diff", "--cached", "--name-only") == ""
+
+
+async def test_git_diff_stats_total_counts_recommitted_line_once(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "a\n"})
+    git(repo, "checkout", "-q", "-b", "feature")
+    write_files(repo, {"app.py": "a\nb\n"})
+    commit_all(repo, "feature")
+    write_files(repo, {"app.py": "a\nB\n", "notes.txt": "x\n"})
+    api = await open_host_sandbox(repo)
+
+    body = (await api.get("git/diff-stats")).json()
+
+    assert body["uncommitted"] == {"additions": 2, "deletions": 1, "files_changed": 2}
+    assert body["branch"] == {"additions": 1, "deletions": 0, "files_changed": 1}
+    assert body["total"] == {"additions": 2, "deletions": 0, "files_changed": 2}
+    assert "?? notes.txt" in git(repo, "status", "--porcelain").splitlines()
+
+
+async def test_git_diff_total_mode_spans_committed_uncommitted_and_untracked(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "base\n"})
+    git(repo, "checkout", "-q", "-b", "feature")
+    write_files(repo, {"app.py": "base\ncommitted\n"})
+    commit_all(repo, "feature")
+    write_files(repo, {"app.py": "base\ncommitted\ndirty\n", "new.txt": "fresh\n"})
+    api = await open_host_sandbox(repo)
+
+    body = (await api.get("git/diff", mode="total")).json()
+
+    assert body["error"] is None
+    assert body["has_changes"] is True
+    assert "+committed" in body["diff"]
+    assert "+dirty" in body["diff"]
+    assert "diff --git a/new.txt b/new.txt" in body["diff"]
+    assert "+fresh" in body["diff"]
     assert git(repo, "diff", "--cached", "--name-only") == ""
 
 
@@ -778,6 +818,7 @@ async def test_git_diff_stats_unborn_head(
     assert response.json() == {
         "uncommitted": {"additions": 3, "deletions": 0, "files_changed": 2},
         "branch": {"additions": 0, "deletions": 0, "files_changed": 0},
+        "total": {"additions": 0, "deletions": 0, "files_changed": 0},
         "is_git_repo": True,
         "head_sha": None,
     }

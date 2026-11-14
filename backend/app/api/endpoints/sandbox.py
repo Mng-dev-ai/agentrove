@@ -135,7 +135,7 @@ async def download_sandbox_files(
 async def get_git_diff(
     sandbox_id: str = Depends(validate_sandbox_ownership),
     git_service: GitService = Depends(get_git_service),
-    mode: Literal["all", "branch"] = Query("all"),
+    mode: Literal["all", "branch", "total"] = Query("all"),
     full_context: bool = Query(False),
     cwd: str | None = Query(None),
 ) -> GitDiffResponse:

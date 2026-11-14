@@ -442,28 +442,20 @@ function ContextCard({ chat }: { chat: Chat }) {
   );
 }
 
-function SubThreadStats({
-  thread,
-  onOpenDiff,
-}: {
-  thread: Chat;
-  onOpenDiff: (mode: DiffMode) => void;
-}) {
+function SubThreadStats({ thread, onOpenDiff }: { thread: Chat; onOpenDiff: () => void }) {
   const { data: stats } = useGitDiffStatsQuery(thread.sandbox_id, thread.worktree_cwd ?? undefined);
-  if (!stats) return null;
-  const additions = stats.uncommitted.additions + stats.branch.additions;
-  const deletions = stats.uncommitted.deletions + stats.branch.deletions;
-  if (additions === 0 && deletions === 0) return null;
+  const total = stats?.total;
+  if (!total || (total.additions === 0 && total.deletions === 0)) return null;
   return (
     <Button
       variant="unstyled"
       type="button"
       className={styles['thread-stats']}
-      onClick={() => onOpenDiff(stats.uncommitted.files_changed > 0 ? 'all' : 'branch')}
-      aria-label={`Open diff for ${stripMarkdownTitle(thread.title)}`}
+      onClick={onOpenDiff}
+      aria-label={`Open diff for ${stripMarkdownTitle(thread.title)}, ${total.additions} additions, ${total.deletions} deletions`}
     >
-      <span className={styles['stat-add']}>+{additions}</span>
-      <span className={styles['stat-del']}>−{deletions}</span>
+      <span className={styles['stat-add']}>+{total.additions}</span>
+      <span className={styles['stat-del']}>−{total.deletions}</span>
     </Button>
   );
 }
@@ -493,7 +485,7 @@ function SubThreadRow({
   thread: Chat;
   parentWorktreeCwd: string | null;
   onSelect: (chatId: string) => void;
-  onOpenDiff: (chatId: string, mode: DiffMode) => void;
+  onOpenDiff: (chatId: string) => void;
 }) {
   const agentKind = useChatAgentKind(thread.id, thread.session_agent_kind, thread.last_model_id);
   const isStreaming = useStreamStore((s) =>
@@ -534,9 +526,7 @@ function SubThreadRow({
           {ownWorktree && <SubThreadBranch thread={thread} />}
         </span>
       </Button>
-      {ownWorktree && (
-        <SubThreadStats thread={thread} onOpenDiff={(mode) => onOpenDiff(thread.id, mode)} />
-      )}
+      {ownWorktree && <SubThreadStats thread={thread} onOpenDiff={() => onOpenDiff(thread.id)} />}
       <span className={styles.timestamp}>{getRelativeTime(thread.updated_at)}</span>
     </div>
   );
@@ -596,8 +586,8 @@ function SubThreadsCard({ chatId, worktreeCwd }: { chatId: string; worktreeCwd: 
               thread={thread}
               parentWorktreeCwd={worktreeCwd}
               onSelect={(id) => navigate(`/chat/${id}`)}
-              onOpenDiff={(id, mode) => {
-                useUIStore.setState({ pendingDiffMode: { chatId: id, mode } });
+              onOpenDiff={(id) => {
+                useUIStore.setState({ pendingDiffMode: { chatId: id, mode: 'total' } });
                 navigate(`/chat/${id}`);
               }}
             />
