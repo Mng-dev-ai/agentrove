@@ -442,7 +442,59 @@ function ContextCard({ chat }: { chat: Chat }) {
   );
 }
 
-function SubThreadRow({ thread, onSelect }: { thread: Chat; onSelect: (chatId: string) => void }) {
+function SubThreadStats({
+  thread,
+  onOpenDiff,
+}: {
+  thread: Chat;
+  onOpenDiff: (mode: DiffMode) => void;
+}) {
+  const { data: stats } = useGitDiffStatsQuery(thread.sandbox_id, thread.worktree_cwd ?? undefined);
+  if (!stats) return null;
+  const additions = stats.uncommitted.additions + stats.branch.additions;
+  const deletions = stats.uncommitted.deletions + stats.branch.deletions;
+  if (additions === 0 && deletions === 0) return null;
+  return (
+    <Button
+      variant="unstyled"
+      type="button"
+      className={styles['thread-stats']}
+      onClick={() => onOpenDiff(stats.uncommitted.files_changed > 0 ? 'all' : 'branch')}
+      aria-label={`Open diff for ${stripMarkdownTitle(thread.title)}`}
+    >
+      <span className={styles['stat-add']}>+{additions}</span>
+      <span className={styles['stat-del']}>−{deletions}</span>
+    </Button>
+  );
+}
+
+function SubThreadBranch({ thread }: { thread: Chat }) {
+  const { data: branches, isPending } = useGitBranchesQuery(
+    thread.sandbox_id,
+    true,
+    thread.worktree_cwd ?? undefined,
+  );
+  const branch = branches?.is_git_repo ? branches.current_branch : null;
+  if (!isPending && (!branch || branch === 'HEAD')) return null;
+  return (
+    <span className={styles['thread-branch']}>
+      <GitBranch className={styles['branch-glyph']} />
+      <span className={styles['branch-name']}>{branch}</span>
+    </span>
+  );
+}
+
+function SubThreadRow({
+  thread,
+  parentWorktreeCwd,
+  onSelect,
+  onOpenDiff,
+}: {
+  thread: Chat;
+  parentWorktreeCwd: string | null;
+  onSelect: (chatId: string) => void;
+  onOpenDiff: (chatId: string, mode: DiffMode) => void;
+}) {
   const agentKind = useChatAgentKind(thread.id, thread.session_agent_kind, thread.last_model_id);
   const isStreaming = useStreamStore((s) =>
     s.activeStreamMetadata.some((meta) => meta.chatId === thread.id),
@@ -454,30 +506,39 @@ function SubThreadRow({ thread, onSelect }: { thread: Chat; onSelect: (chatId: s
     streaming: isStreaming,
     completed: isCompleted,
   });
+  const ownWorktree = !!thread.worktree_cwd && thread.worktree_cwd !== parentWorktreeCwd;
   return (
-    <Button
-      variant="unstyled"
-      type="button"
-      className={styles['thread-row']}
-      onClick={() => onSelect(thread.id)}
-    >
-      <span className={styles['row-icon']}>
-        {status === 'running' ? (
-          <AsciiSpinner className={styles.spinner} />
-        ) : agentKind ? (
-          <ProviderIcon agentKind={agentKind} className={styles.glyph} />
-        ) : null}
-        {status && status !== 'running' && (
-          <ChatStatusDot
-            tone={status}
-            className={clsx(agentKind && styles['status-corner'])}
-            ringClassName={styles['status-ring']}
-          />
-        )}
-      </span>
-      <span className={styles['row-text']}>{stripMarkdownTitle(thread.title)}</span>
+    <div className={styles['thread-row']}>
+      <Button
+        variant="unstyled"
+        type="button"
+        className={styles['thread-link']}
+        onClick={() => onSelect(thread.id)}
+      >
+        <span className={styles['row-icon']}>
+          {status === 'running' ? (
+            <AsciiSpinner className={styles.spinner} />
+          ) : agentKind ? (
+            <ProviderIcon agentKind={agentKind} className={styles.glyph} />
+          ) : null}
+          {status && status !== 'running' && (
+            <ChatStatusDot
+              tone={status}
+              className={clsx(agentKind && styles['status-corner'])}
+              ringClassName={styles['status-ring']}
+            />
+          )}
+        </span>
+        <span className={styles['thread-text']}>
+          <span className={styles['row-text']}>{stripMarkdownTitle(thread.title)}</span>
+          {ownWorktree && <SubThreadBranch thread={thread} />}
+        </span>
+      </Button>
+      {ownWorktree && (
+        <SubThreadStats thread={thread} onOpenDiff={(mode) => onOpenDiff(thread.id, mode)} />
+      )}
       <span className={styles.timestamp}>{getRelativeTime(thread.updated_at)}</span>
-    </Button>
+    </div>
   );
 }
 
@@ -503,7 +564,7 @@ function ParentThreadCard({ parentChatId }: { parentChatId: string }) {
   );
 }
 
-function SubThreadsCard({ chatId }: { chatId: string }) {
+function SubThreadsCard({ chatId, worktreeCwd }: { chatId: string; worktreeCwd: string | null }) {
   const navigate = useNavigate();
   const { data: subThreads } = useSubThreadsQuery(chatId);
   const [expanded, setExpanded] = useState(false);
@@ -533,7 +594,12 @@ function SubThreadsCard({ chatId }: { chatId: string }) {
             <SubThreadRow
               key={thread.id}
               thread={thread}
+              parentWorktreeCwd={worktreeCwd}
               onSelect={(id) => navigate(`/chat/${id}`)}
+              onOpenDiff={(id, mode) => {
+                useUIStore.setState({ pendingDiffMode: { chatId: id, mode } });
+                navigate(`/chat/${id}`);
+              }}
             />
           ))}
           {subThreads.length > 10 && (
@@ -709,7 +775,7 @@ export const SessionPanel = memo(function SessionPanel({
           {chat.parent_chat_id ? (
             <ParentThreadCard parentChatId={chat.parent_chat_id} />
           ) : (
-            <SubThreadsCard chatId={chat.id} />
+            <SubThreadsCard chatId={chat.id} worktreeCwd={chat.worktree_cwd} />
           )}
         </>
       )}
