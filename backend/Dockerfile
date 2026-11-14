@@ -37,7 +37,7 @@ RUN . /etc/os-release && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.323 @agentclientprotocol/claude-agent-acp@0.106.0 @agentclientprotocol/codex-acp@2.6.0 @openai/codex@0.168.0 @github/copilot@1.0.110
+RUN npm install -g @anthropic-ai/claude-code@2.1.325 @agentclientprotocol/claude-agent-acp@0.107.0 @agentclientprotocol/codex-acp@2.6.0 @openai/codex@0.169.0 @github/copilot@1.0.112
 
 # Playwright + Chromium for browser-testing local dev servers.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
@@ -51,7 +51,7 @@ RUN npm install -g playwright@1.64.1 && \
 # Cursor CLI — used for the Cursor ACP server (`cursor-agent acp`). Pinned
 # download replicating cursor.com/install, which always fetches its own latest.
 RUN set -eux; \
-    v=2026.11.11-b912975; \
+    v=2026.11.13-eacade1; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
     dir=/opt/cursor-agent/versions/$v; \
     mkdir -p "$dir" /root/.local/bin; \
@@ -62,7 +62,7 @@ RUN set -eux; \
 
 # OpenCode CLI — used for the OpenCode ACP server (`opencode acp`); installs to
 # /root/.opencode/bin. Pinned for reproducible builds.
-RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.2.7 && \
+RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.3.0 && \
     cp /root/.opencode/bin/opencode /usr/local/bin/opencode && \
     chmod +x /usr/local/bin/opencode
 
