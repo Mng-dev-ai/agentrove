@@ -47,7 +47,7 @@ export const DIFF_UNSAFE_CSS =
 
 // Below this tile width the toolbar compacts: diffstat moves right, labels
 // shorten, and diff style moves into the overflow menu.
-export const NARROW_BREAKPOINT = 800;
+export const NARROW_BREAKPOINT = 900;
 
 export const FILES_PANEL_WIDTH = 256;
 export const OVERFLOW_PANEL_WIDTH = 220;
