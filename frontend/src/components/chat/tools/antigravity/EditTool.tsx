@@ -35,7 +35,7 @@ export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }
     : /^(create|add)\b/i.test(summary)
       ? 'create'
       : 'edit';
-  const filePath = first?.path ?? input?.file_path ?? input?.target_file ?? '';
+  const filePath = first?.path ?? input?.file_path ?? input?.target_file ?? tool.path ?? '';
   const fileName = filePath ? extractFilename(filePath) : humanizeToolTitle(tool.title) || 'file';
   const target = diffs.length > 1 ? `${diffs.length} files` : fileName;
 

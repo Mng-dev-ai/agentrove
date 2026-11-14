@@ -33,6 +33,7 @@ from acp.schema import (
     SetSessionConfigOptionResponse,
     SetSessionModeResponse,
     TextContentBlock,
+    ToolCallLocation,
     ToolCallProgress,
     ToolCallStart,
     ToolCallUpdate,
@@ -92,6 +93,8 @@ MARKER_TOOL_EMPTY_RESULT = "MARKER_TOOL_EMPTY_RESULT"
 MARKER_TOOL_START_DIFF = "MARKER_TOOL_START_DIFF"
 MARKER_TOOL_UNKNOWN_DICT_ERROR = "MARKER_TOOL_UNKNOWN_DICT_ERROR"
 MARKER_ENTER_PLAN_MODE = "MARKER_ENTER_PLAN_MODE"
+MARKER_TOOL_LOCATIONS = "MARKER_TOOL_LOCATIONS"
+MARKER_TOOL_ANTIGRAVITY_MCP = "MARKER_TOOL_ANTIGRAVITY_MCP"
 # Title generation echoes the user's prompt, markers included.
 TITLE_PROMPT_PREFIX = "Generate a title for this message:"
 # 1x1 transparent PNG, reused wherever the protocol needs inline image bytes.
@@ -355,6 +358,7 @@ class FakeAgent:
         raw_input: Any = None,
         kind: str = "execute",
         content: list[Any] | None = None,
+        locations: list[ToolCallLocation] | None = None,
     ) -> None:
         assert self._client is not None
         await self._client.session_update(
@@ -367,6 +371,7 @@ class FakeAgent:
                 raw_input=raw_input,
                 field_meta=field_meta,
                 content=content,
+                locations=locations,
             ),
         )
 
@@ -655,6 +660,11 @@ class FakeAgent:
             },
             raw_input=raw_input,
             content=start_content,
+            locations=(
+                [ToolCallLocation(path="/workspace/app.py", line=3)]
+                if MARKER_TOOL_LOCATIONS in text
+                else None
+            ),
         )
         # Title-only update with no status — re-emitted as tool_started so the
         # UI can refresh the loading title before the tool finishes.
@@ -680,6 +690,19 @@ class FakeAgent:
 
         if MARKER_UNTRACKED_TOOL_UPDATES in text:
             await self._emit_untracked_tool_updates(session_id)
+
+        if MARKER_TOOL_ANTIGRAVITY_MCP in text:
+            await self._emit_tool_started(
+                session_id,
+                "tool-mcp",
+                "agentrove_list_chats",
+                kind="other",
+                field_meta={
+                    "is_mcp_tool_call": True,
+                    "mcp": {"tool": "list_chats", "server": "agentrove"},
+                },
+                raw_input={"arguments": {"limit": 5}, "limit": 5},
+            )
 
         await self._emit_tool_started(session_id, "tool-secondary", "Running a command")
         if MARKER_TOOL_LEFT_OPEN in text:

@@ -1,6 +1,7 @@
 export interface AntigravityReadInput {
   AbsolutePath?: string;
   absolute_path?: string;
+  file_path?: string;
 }
 
 export interface AntigravityEditInput {

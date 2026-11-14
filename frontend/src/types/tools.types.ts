@@ -7,6 +7,7 @@ export interface ToolEventPayload {
   status: ToolEventStatus;
   parent_id?: string | null;
   input?: Record<string, unknown> | null;
+  path?: string;
   result?: unknown;
   error?: string;
   permission_mode?: string | null;
@@ -19,6 +20,7 @@ export interface ToolAggregate {
   status: ToolEventStatus;
   parentId?: string | null;
   input?: Record<string, unknown> | null;
+  path?: string;
   result?: unknown;
   error?: string;
   children: ToolAggregate[];

@@ -151,6 +151,7 @@ const createToolAggregate = (
   status,
   parentId,
   input: (payload.input || null) as Record<string, unknown> | null,
+  path: payload.path,
   result: payload.result,
   error: payload.error,
   children: [],
@@ -301,6 +302,7 @@ const processExistingTool = (
     title: payload.title || existingAggregate.title,
     status: toolStatus,
     input: payload.input ? (payload.input as Record<string, unknown>) : existingAggregate.input,
+    path: payload.path ?? existingAggregate.path,
     result: payload.result !== undefined ? payload.result : existingAggregate.result,
     error: payload.error || existingAggregate.error,
   };
