@@ -148,6 +148,7 @@ async def database(schema: None) -> None:
 def clear_runtime_state() -> None:
     ChatStreamRuntime._background_task_chat_ids.clear()
     ChatStreamRuntime._starting_chat_ids.clear()
+    ChatStreamRuntime._completed_turn_chat_ids.clear()
     ChatStreamRuntime._active_runtimes.clear()
     QueueService._locks.clear()
     session_registry._sessions.clear()

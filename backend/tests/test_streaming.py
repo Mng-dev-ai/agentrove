@@ -1013,6 +1013,80 @@ async def test_message_queued_after_the_turns_queue_check_runs_after_the_turn(
     assert queue_list.json() == []
 
 
+async def test_late_queued_message_taken_by_the_turns_chain_returns_started(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(
+        db_session, user, workspace, session_id="resumed-chain"
+    )
+    acp_factory.queue(
+        FakeAcpSession(
+            [
+                [StreamEvent(type="assistant_text", text="First turn done")],
+                [StreamEvent(type="assistant_text", text="Chained"), BLOCK_FOREVER],
+            ],
+            session_id="resumed-chain",
+        )
+    )
+
+    turn_completing = asyncio.Event()
+    message_queued = asyncio.Event()
+    process_next_queued = ChatStreamRuntime._process_next_queued
+
+    async def hold_before_queue_check(
+        runtime: ChatStreamRuntime, **kwargs: Any
+    ) -> bool:
+        turn_completing.set()
+        await message_queued.wait()
+        return await process_next_queued(runtime, **kwargs)
+
+    monkeypatch.setattr(
+        ChatStreamRuntime, "_process_next_queued", hold_before_queue_check
+    )
+
+    first = await send_message(client, headers, chat, prompt="First prompt")
+    await asyncio.wait_for(turn_completing.wait(), timeout=5)
+    queue_request = asyncio.create_task(
+        client.post(
+            f"/api/v1/chat/chats/{chat.id}/queue",
+            data={"content": "Late follow-up", "model_id": TEST_MODEL_ID},
+            headers=headers,
+        )
+    )
+    key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat.id)
+    deadline = time.monotonic() + 5
+    while not await streaming_cache.store.get(key):
+        assert time.monotonic() < deadline
+        await asyncio.sleep(0.01)
+    message_queued.set()
+
+    queue_response = await asyncio.wait_for(queue_request, timeout=5)
+    assert queue_response.status_code == 201
+    assert queue_response.json()["started"] is True
+    await wait_for_message_event(
+        client, headers, first["message_id"], "queue_processing"
+    )
+    assert not find_background_task(chat.id).done()
+
+    cancel_response = await client.delete(
+        f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
+    )
+    assert cancel_response.status_code == 204
+    queue_list = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/queue", headers=headers
+    )
+    assert queue_list.json() == []
+
+
 @pytest.mark.parametrize(
     ("steer_outcome", "queued_mode", "expected_steer_calls"),
     [

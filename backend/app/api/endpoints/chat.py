@@ -4,7 +4,6 @@ import json
 import logging
 import mimetypes
 import posixpath
-from functools import partial
 from typing import Any, cast
 from uuid import UUID
 
@@ -860,12 +859,13 @@ async def queue_message(
             )
     else:
         try:
-            started_id = await ChatStreamRuntime.process_queue_after_turn(
-                str(chat_id),
-                chat_service.session_factory,
-                partial(ChatService.publish_queued_turn_started, current_user.id),
+            await ChatStreamRuntime.process_queue_after_turn(
+                str(chat_id), chat_service.session_factory
             )
-            response.started = started_id == str(response.id)
+            response.started = all(
+                item.id != response.id
+                for item in await queue_service.get_queue(str(chat_id))
+            )
         except Exception:
             logger.exception(
                 "Failed to start queued message %s after the turn for chat %s",

@@ -428,29 +428,6 @@ class ChatService(BaseDbService[Chat]):
             },
         )
 
-    @classmethod
-    async def publish_queued_turn_started(
-        cls,
-        user_id: UUID,
-        queued_msg: dict[str, Any],
-        user_message: Message,
-        assistant_message: Message,
-        checkpoint_id: UUID | None,
-    ) -> None:
-        await cls.publish_stream_started(
-            user_id,
-            user_message,
-            assistant_message,
-            checkpoint_id,
-            content=queued_msg["content"],
-            app_notice=False,
-            attachments=MessageService.serialize_attachments(queued_msg, user_message),
-            model_id=queued_msg["model_id"],
-            thinking_mode=queued_msg["thinking_mode"],
-            permission_mode=queued_msg["permission_mode"],
-            selected_persona_name=queued_msg["selected_persona_name"],
-        )
-
     async def get_sub_threads(self, chat_id: UUID, user: User) -> list[Chat]:
         # sub_thread_count defaults to 0 (nesting is one level only).
         async with self.session_factory() as db:
