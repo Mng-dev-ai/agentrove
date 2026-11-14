@@ -2551,6 +2551,72 @@ async def test_channel_member_gets_its_chat_and_memory_only_with_agentrove_tools
     await client.delete(f"/api/v1/channels/{channel_id}", headers=headers)
 
 
+async def test_respond_to_request_answers_only_the_callers_sub_threads(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def send_via_app(
+        agent: _SandboxClient, method: str, path: str, **kwargs: Any
+    ) -> httpx.Response:
+        headers = {"Authorization": f"Bearer {agent._access_token}"}
+        return await client.request(method, f"/api/v1{path}", headers=headers, **kwargs)
+
+    monkeypatch.setattr(_SandboxClient, "_send", send_via_app)
+    _headers, workspace = auth_workspace
+    user = await db_session.get_one(User, workspace.user_id)
+    workspace.sandbox_provider = "docker"
+    await db_session.commit()
+    parent = await create_chat_row(db_session, user, workspace)
+    sibling = await create_chat_row(db_session, user, workspace)
+    sub_thread = Chat(
+        title="Sub-thread",
+        user_id=user.id,
+        workspace_id=workspace.id,
+        parent_chat_id=parent.id,
+    )
+    db_session.add(sub_thread)
+    await db_session.commit()
+    monkeypatch.setitem(session_registry._mcp_sessions, "respond-scope", None)
+    server = docker_mcp_server(
+        str(user.id),
+        user.hashed_password,
+        workspace_id=str(workspace.id),
+        chat_id=str(parent.id),
+        session_id="respond-scope",
+    )
+    authorization = {"Authorization": server["headers"]["Authorization"]}
+    async with main_module.mcp_endpoint.run():
+        refused = await mcp_call_tool(
+            client,
+            authorization,
+            "respond_to_request",
+            chat_id=str(sibling.id),
+            request_id="request-1",
+            option_id="allow",
+        )
+        assert refused["isError"], refused
+        assert (
+            f"Chat {sibling.id} is not a sub-thread of this chat"
+            in refused["content"][0]["text"]
+        )
+        allowed = await mcp_call_tool(
+            client,
+            authorization,
+            "respond_to_request",
+            chat_id=str(sub_thread.id),
+            request_id="request-1",
+            option_id="allow",
+        )
+        assert allowed["structuredContent"] == {
+            "answered": False,
+            "detail": "Permission request not found or expired",
+        }
+    workspace.sandbox_provider = "host"
+    await db_session.commit()
+
+
 @pytest.mark.parametrize("revoke", ["device", "password_reset"])
 async def test_revocation_cancels_the_devices_running_turn(
     client: httpx.AsyncClient,
