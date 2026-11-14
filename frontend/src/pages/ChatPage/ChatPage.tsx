@@ -84,7 +84,10 @@ export function ChatPage() {
         focusedTile: null,
         activeAgentTile: 'agent:primary',
       });
-      if (pendingDiffMode) useUIStore.getState().toggleView('diff', false);
+      if (pendingDiffMode) {
+        ui.rebuildSplitLayout();
+        ui.toggleView('diff', false);
+      }
     }
     return () => useUIStore.getState().stashWorkspace();
   }, [chatId]);
