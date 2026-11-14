@@ -202,7 +202,10 @@ const DiffViewContent = memo(function DiffViewContent({
   const parsedFiles = useMemo<FileDiffMetadata[]>(() => {
     if (!diffContent) return [];
     return (
-      parsePatchFiles(diffContent, diffCacheKey)
+      parsePatchFiles(diffContent, {
+        cacheKeyPrefix: diffCacheKey,
+        disableLineMatching: true,
+      })
         .flatMap((p) => p.files)
         // No unchanged context on new/deleted — skip the re-diff.
         .map((f) =>

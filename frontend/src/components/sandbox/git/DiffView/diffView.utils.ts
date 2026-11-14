@@ -140,7 +140,7 @@ export function rebuildWithCollapsedContext(
       contents: contents.newContent,
       cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:new${keySuffix}` : undefined,
     },
-    { ignoreWhitespace },
+    { ignoreWhitespace, disableLineMatching: true },
   );
   rebuilt.type = fullFile.type;
   rebuilt.prevName = fullFile.prevName;
