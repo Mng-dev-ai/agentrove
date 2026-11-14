@@ -1,6 +1,7 @@
-import type { CustomEnvVar } from '@/types/user.types';
+import type { EnvVarForm } from '@/types/user.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
+import { Select } from '@/components/ui/primitives/Select/Select';
 import { SecretInput } from '@/components/settings/inputs/SecretInput/SecretInput';
 import { useState } from 'react';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
@@ -11,18 +12,22 @@ import styles from './EnvVarDialog.module.scss';
 interface EnvVarDialogProps {
   isOpen: boolean;
   isEditing: boolean;
-  envVar: CustomEnvVar;
+  envVar: EnvVarForm;
+  machineOptions: { id: string; name: string }[];
   error: string | null;
+  isSaving: boolean;
   onClose: () => void;
   onSubmit: () => void;
-  onEnvVarChange: <K extends keyof CustomEnvVar>(field: K, value: CustomEnvVar[K]) => void;
+  onEnvVarChange: <K extends keyof EnvVarForm>(field: K, value: EnvVarForm[K]) => void;
 }
 
 export function EnvVarDialog({
   isOpen,
   isEditing,
   envVar,
+  machineOptions,
   error,
+  isSaving,
   onClose,
   onSubmit,
   onEnvVarChange,
@@ -39,6 +44,25 @@ export function EnvVarDialog({
         <DialogError error={error} className={styles.error} />
 
         <div className={styles.fields}>
+          {machineOptions.length > 1 && (
+            <div>
+              <Label className={styles.label}>Machine</Label>
+              <Select
+                value={envVar.machineId}
+                onChange={(e) => onEnvVarChange('machineId', e.target.value)}
+                className={styles.input}
+                aria-label="Machine"
+                disabled={isEditing}
+              >
+                {machineOptions.map((machine) => (
+                  <option key={machine.id} value={machine.id}>
+                    {machine.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           <div>
             <Label className={styles.label}>Variable Name</Label>
             <Input
@@ -72,6 +96,7 @@ export function EnvVarDialog({
           onCancel={onClose}
           onSave={onSubmit}
           saveLabel={isEditing ? 'Update' : 'Add Variable'}
+          saving={isSaving}
           disabled={!envVar.key.trim() || !envVar.value.trim()}
         />
       </div>

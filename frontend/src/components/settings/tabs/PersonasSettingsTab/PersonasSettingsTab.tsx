@@ -7,8 +7,8 @@ import { useSettingsContext } from '@/hooks/useSettingsContext';
 import { useMachineFilter } from '@/hooks/useMachineFilter';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import {
-  useMachinesPersonas,
-  useUpdateMachinePersonasMutation,
+  useMachinesSettingsList,
+  useUpdateMachineSettingsMutation,
 } from '@/hooks/queries/useMachineQueries';
 import {
   LOCAL_MACHINE_NAME,
@@ -55,7 +55,7 @@ function deletePersona(personas: Persona[], name: string) {
 export function PersonasSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
   const remoteIds = useOnlineRemoteMachineIds();
-  const remotePersonas = useMachinesPersonas(remoteIds);
+  const remotePersonas = useMachinesSettingsList(remoteIds, 'personas');
   const machines = useMachineStore((state) => state.machines);
   const machineNames = useMemo(
     () => new Map(machines.map((machine) => [machine.id, machine.name])),
@@ -94,7 +94,7 @@ export function PersonasSettingsTab() {
 
   const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
   const queryClient = useQueryClient();
-  const remoteMutation = useUpdateMachinePersonasMutation({
+  const remoteMutation = useUpdateMachineSettingsMutation({
     scope: { id: 'machine-personas' },
     onError: (_error, { machineId }) =>
       queryClient.invalidateQueries({ queryKey: queryKeys.machine.settings(machineId) }),
@@ -132,7 +132,10 @@ export function PersonasSettingsTab() {
       return;
     }
     try {
-      await remoteMutation.mutateAsync({ machineId, update });
+      await remoteMutation.mutateAsync({
+        machineId,
+        update: (settings) => ({ personas: update(settings.personas ?? []) }),
+      });
     } catch (error) {
       if (!(error instanceof ValidationError)) toast.error(errorMessage);
       throw error;

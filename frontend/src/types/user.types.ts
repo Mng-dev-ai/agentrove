@@ -29,6 +29,10 @@ export interface PersonaForm extends Persona {
   machineId: string;
 }
 
+export interface EnvVarForm extends CustomEnvVar {
+  machineId: string;
+}
+
 // Post-stream button: runs `command` on `model_id` in a new sub-thread.
 export interface StreamAction {
   label: string;

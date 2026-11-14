@@ -31,6 +31,10 @@
   color: var(--theme-text-secondary);
 }
 
+.input {
+  @include type.type-default;
+}
+
 .key-input {
   @include type.type-mono;
 }
