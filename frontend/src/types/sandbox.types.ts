@@ -22,7 +22,7 @@ export interface UpdateFileResult {
 }
 
 // `all` = uncommitted changes (worktree + index vs HEAD); shown as "Uncommitted".
-export type DiffMode = 'all' | 'branch';
+export type DiffMode = 'all' | 'branch' | 'total';
 
 export interface GitDiffData {
   diff: string;
@@ -46,6 +46,7 @@ export interface GitDiffTotals {
 export interface GitDiffStatsData {
   uncommitted: GitDiffTotals;
   branch: GitDiffTotals;
+  total?: GitDiffTotals;
   is_git_repo: boolean;
   head_sha: string | null;
 }

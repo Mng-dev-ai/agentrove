@@ -14,6 +14,7 @@ export const VIRTUALIZER_CONFIG = { overscrollSize: 2500, intersectionObserverMa
 export const DIFF_MODE_OPTIONS = [
   { value: 'all', label: 'Uncommitted' },
   { value: 'branch', label: 'Branch' },
+  { value: 'total', label: 'Total' },
 ] satisfies { value: DiffMode; label: string }[];
 
 export const DIFF_STYLE_OPTIONS = [
@@ -34,6 +35,7 @@ export const SCROLL_KEYS = new Set([
 export const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
   all: 'No uncommitted changes',
   branch: 'No changes from base branch',
+  total: 'No changes from base branch',
 };
 
 // The library washes annotation rows with the line-selection tint when they sit
