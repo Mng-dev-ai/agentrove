@@ -6,8 +6,9 @@
 
 .toolbar {
   display: flex;
-  height: var(--space-9);
+  min-height: var(--space-9);
   flex-shrink: 0;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1-5);
   border-bottom: 1px solid colors.theme-color('border', 0.5);
@@ -51,8 +52,10 @@
 
 .file-switch {
   @include anim.transition-colors;
-  display: flex;
-  min-width: 0;
+  display: grid;
+  max-width: max-content;
+  flex: 1 1 0;
+  grid-template-columns: minmax(0, auto) auto auto;
   align-items: center;
   gap: var(--space-1);
   border-radius: var(--radius-md);
@@ -121,8 +124,7 @@
 }
 
 .spacer {
-  min-width: 0;
-  flex: 1;
+  margin-inline-start: auto;
 }
 
 .progress {
