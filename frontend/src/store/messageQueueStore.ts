@@ -70,6 +70,10 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
         const result = await api.queueMessage(chatId, content, ...args);
 
         if (sendNow) return result;
+        if (result.started) {
+          get().removeLocalOnly(chatId, tempId);
+          return result;
+        }
 
         const pending = get()
           .getQueue(chatId)

@@ -161,11 +161,17 @@ class AcpClientHandler:
     def prepare_for_prompt(self) -> None:
         # Drain any stale events/sentinels left from a previous prompt whose
         # stream consumer was force-closed (e.g., via aclose() after ACP cancel).
+        self.take_unread_events()
+
+    def take_unread_events(self) -> list[StreamEvent]:
+        events: list[StreamEvent] = []
         while True:
             try:
-                self.event_queue.get_nowait()
+                item = self.event_queue.get_nowait()
             except asyncio.QueueEmpty:
-                break
+                return events
+            if not self.is_sentinel(item):
+                events.append(cast(StreamEvent, item))
 
     def finish(self, *, prompt_completed: bool) -> None:
         if self._active_tools:

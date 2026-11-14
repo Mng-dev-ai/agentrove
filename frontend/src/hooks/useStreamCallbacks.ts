@@ -398,6 +398,11 @@ export function useStreamCallbacks({
       terminalKind: 'complete' | 'cancelled' = 'complete',
       durationMs?: number | null,
     ) => {
+      if (messageId && pendingStopRef.current.delete(messageId)) {
+        for (const envelope of takePendingStopEnvelopes(messageId)) {
+          onEnvelope(envelope);
+        }
+      }
       const resolvedStreamId = streamId ?? findStreamIdByMessage(messageId);
       const isCancelled = terminalKind === 'cancelled';
       const isCurrentChat = chatId === chatIdRef.current;
@@ -420,8 +425,6 @@ export function useStreamCallbacks({
 
       // Finalize cache even off-screen so return within staleTime isn't stuck.
       if (messageId) {
-        pendingStopRef.current.delete(messageId);
-        takePendingStopEnvelopes(messageId);
         const finalizeMessage = (message: Message): Message => ({
           ...message,
           active_stream_id: null,
@@ -512,6 +515,7 @@ export function useStreamCallbacks({
       currentChat?.parent_chat_id,
       isPaneTurn,
       notifyBackground,
+      onEnvelope,
       pendingStopRef,
       queryClient,
       setCurrentMessageId,
