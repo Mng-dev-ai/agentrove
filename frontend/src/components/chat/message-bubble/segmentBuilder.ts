@@ -67,6 +67,7 @@ const toolsEqual = (a: ToolAggregate, b: ToolAggregate): boolean => {
     a.status !== b.status ||
     a.parentId !== b.parentId ||
     a.input !== b.input ||
+    a.path !== b.path ||
     a.result !== b.result ||
     a.error !== b.error ||
     a.children.length !== b.children.length
