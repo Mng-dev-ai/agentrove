@@ -45,9 +45,9 @@ export const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
 export const DIFF_UNSAFE_CSS =
   '[data-selected-line]:is([data-line-annotation],[data-gutter-buffer=annotation]){--diffs-computed-selected-line-bg:var(--diffs-annotation-bg)}';
 
-// Below this tile width the sidebar can't coexist with a readable diff — it
-// collapses into the toolbar file dropdown instead.
-export const NARROW_BREAKPOINT = 600;
+// Below this tile width the toolbar compacts: diffstat moves right, labels
+// shorten, and diff style moves into the overflow menu.
+export const NARROW_BREAKPOINT = 800;
 
 export const FILES_PANEL_WIDTH = 256;
 export const OVERFLOW_PANEL_WIDTH = 220;
