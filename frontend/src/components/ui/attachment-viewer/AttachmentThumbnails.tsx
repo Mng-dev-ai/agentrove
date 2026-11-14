@@ -15,6 +15,8 @@ export interface ImageState {
   imageSrc: string;
 }
 
+export type ImageSize = 'thumbnail' | 'large';
+
 interface IconConfig {
   icon: LucideIcon;
   tone: 'pdf' | 'xlsx' | 'file';
@@ -127,11 +129,13 @@ export function ImageThumbnail({
   state,
   index,
   isUploading = false,
+  size = 'thumbnail',
 }: {
   attachment: MessageAttachment;
   state: ImageState;
   index: number;
   isUploading?: boolean;
+  size?: ImageSize;
 }) {
   const filename = attachment.filename || getDefaultFilename('image', index);
 
@@ -153,8 +157,13 @@ export function ImageThumbnail({
 
   if (state.imageSrc) {
     return (
-      <div className={styles['image-wrap']}>
-        <img src={state.imageSrc} alt={filename} className={styles.image} loading="lazy" />
+      <div className={clsx(styles['image-wrap'], size === 'large' && styles['image-wrap--large'])}>
+        <img
+          src={state.imageSrc}
+          alt={filename}
+          className={clsx(styles.image, size === 'large' && styles['image--large'])}
+          loading="lazy"
+        />
         {isUploading && <LoadingProgressOverlay />}
       </div>
     );
