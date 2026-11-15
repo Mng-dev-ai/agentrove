@@ -13,15 +13,13 @@
 
 .new-thread {
   @include anim.transition-colors;
+  @include type.type-default(500);
   display: flex;
   width: 100%;
   align-items: center;
   gap: var(--space-2-5);
   border-radius: var(--radius-lg);
   padding: var(--space-2) var(--space-3);
-  // TODO(refactor): no 13px type token exists — sidebar controls use a one-off text-[13px]
-  font-size: 16px;
-  font-weight: 500;
   color: var(--theme-text-primary);
   background-color: var(--theme-surface-tertiary);
 
@@ -37,14 +35,13 @@
 
 .search-btn {
   @include anim.transition-colors;
+  @include type.type-default;
   display: flex;
   width: 100%;
   align-items: center;
   gap: var(--space-2-5);
   border-radius: var(--radius-lg);
   padding: var(--space-2) var(--space-3);
-  // TODO(refactor): no 13px type token exists — sidebar controls use a one-off text-[13px]
-  font-size: 16px;
   color: var(--theme-text-secondary);
 
   @include responsive.hover {

@@ -1,12 +1,11 @@
 // Typography system. Components never set font-size/weight/line-height directly —
 // always via a type-* mixin. Semantic names map to the app's dense-UI scale.
-// The scale (and $space-base) is the original 10/12/14/18/20px design ×1.2 —
-// the ratios were right but the whole system rendered too small at 1×:
-//   type-meta      12px — metadata, badges, section headers (old text-2xs)
-//   type-default   14.4px — the app-wide default (old text-xs)
-//   type-body      16.8px — primary inputs, prose (old text-sm)
-//   type-title     21.6px — dialog titles only (old text-lg)
-//   type-page-title 24px — page headings (old text-xl font-semibold)
+// The scale (and $space-base) is the original 10/12/14/18/20px design ×1.1:
+//   type-meta      11px — metadata, badges, section headers (old text-2xs)
+//   type-default   13.2px — the app-wide default (old text-xs)
+//   type-body      15.4px — primary inputs, prose (old text-sm)
+//   type-title     19.8px — dialog titles only (old text-lg)
+//   type-page-title 22px — page headings (old text-xl font-semibold)
 
 @mixin typography-tokens {
   :root {
@@ -30,43 +29,43 @@
 }
 
 @mixin type-meta($weight: 400) {
-  @include type(0.75rem, 1.05rem, $weight);
+  @include type(0.6875rem, 0.9625rem, $weight);
 }
 
 @mixin type-default($weight: 400) {
-  @include type(0.9rem, 1.2rem, $weight);
+  @include type(0.825rem, 1.1rem, $weight);
 }
 
 @mixin type-body($weight: 400) {
-  @include type(1.05rem, 1.5rem, $weight);
+  @include type(0.9625rem, 1.375rem, $weight);
 }
 
 @mixin type-large($weight: 400) {
-  @include type(1.2rem, 1.8rem, $weight);
+  @include type(1.1rem, 1.65rem, $weight);
 }
 
 @mixin type-title($weight: 500) {
-  @include type(1.35rem, 2.1rem, $weight);
+  @include type(1.2375rem, 1.925rem, $weight);
 }
 
 @mixin type-page-title($weight: 600) {
-  @include type(1.5rem, 2.1rem, $weight);
+  @include type(1.375rem, 1.925rem, $weight);
 }
 
-// Panel/sidebar section headers: 12px uppercase wide-tracked quaternary
+// Panel/sidebar section headers: 11px uppercase wide-tracked quaternary
 @mixin type-section-header {
-  @include type(0.75rem, 1.05rem, 500, $letter-spacing: 0.05em);
+  @include type(0.6875rem, 0.9625rem, 500, $letter-spacing: 0.05em);
   text-transform: uppercase;
   color: var(--theme-text-quaternary);
 }
 
 // Code, file paths, env vars, technical IDs
-@mixin type-mono($size: 0.9rem, $line-height: 1.2rem, $weight: 400) {
+@mixin type-mono($size: 0.825rem, $line-height: 1.1rem, $weight: 400) {
   @include type($size, $line-height, $weight, var(--font-mono));
 }
 
 @mixin type-mono-meta {
-  @include type-mono(0.75rem, 1.05rem);
+  @include type-mono(0.6875rem, 0.9625rem);
 }
 
 // ---- utilities ----

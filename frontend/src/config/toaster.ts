@@ -13,7 +13,7 @@ export const toasterConfig: ToasterProps = {
     className: '',
     style: {
       padding: '12px 16px',
-      fontSize: '17px',
+      fontSize: '15.4px',
       fontFamily: 'inherit',
       maxWidth: '420px',
     },

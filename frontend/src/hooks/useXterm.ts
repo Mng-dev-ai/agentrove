@@ -125,7 +125,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
         allowProposedApi: true,
         // No alternate screen (tmux smcup@) — this is scroll/search history.
         scrollback: 10000,
-        fontSize: 14,
+        fontSize: 13,
         // Nerd Font for PUA icons; monospace only as last-resort fallback.
         fontFamily: '"JetBrainsMono Nerd Font", monospace',
         theme: buildTerminalTheme(modeRef.current),

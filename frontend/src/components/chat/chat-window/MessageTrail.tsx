@@ -8,8 +8,6 @@ import styles from './MessageTrail.module.scss';
 // Cap preview text so a huge message doesn't dump megabytes into the DOM
 const PREVIEW_MAX_CHARS = 200;
 const TICK_SPACING_PX = 12;
-// Width of the centered message column (ConversationLayout.module.scss .column max-width: 67.2rem)
-const MESSAGE_COLUMN_MAX_PX = 67.2 * 16;
 const MIN_GUTTER_PX = 40;
 const ACTIVE_VIEWPORT_FRACTION = 0.4;
 
@@ -66,8 +64,13 @@ export const MessageTrail = memo(function MessageTrail({
     // Compact by the pane's actual left gutter, not a viewport breakpoint — open
     // sidebars narrow the pane until the message column reaches the edge; the
     // slimmer rail fits within the column's edge padding without covering text.
+    // The column cap token is in rem
+    const rootFontPx = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const columnMaxPx =
+      parseFloat(getComputedStyle(scroller).getPropertyValue('--reading-column-width')) *
+      rootFontPx;
     const resizeObserver = new ResizeObserver(() => {
-      setIsCompact((scroller.clientWidth - MESSAGE_COLUMN_MAX_PX) / 2 < MIN_GUTTER_PX);
+      setIsCompact((scroller.clientWidth - columnMaxPx) / 2 < MIN_GUTTER_PX);
     });
     resizeObserver.observe(scroller);
 

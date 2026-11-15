@@ -34,8 +34,7 @@
   @include responsive.media('lg-up') {
     margin-left: auto;
     margin-right: auto;
-    // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token
-    max-width: 67.2rem;
+    max-width: var(--reading-column-width);
   }
 }
 
@@ -58,8 +57,7 @@
   @include responsive.media('lg-up') {
     margin-left: auto;
     margin-right: auto;
-    // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token
-    max-width: 67.2rem;
+    max-width: var(--reading-column-width);
   }
 }
 

@@ -21,9 +21,11 @@
   flex: 1;
 }
 
+// Right-aligned, hugging its text, leaving a left gutter on long messages
 .user-bubble {
-  display: inline-block;
-  max-width: 100%;
+  width: fit-content;
+  max-width: 85%;
+  margin-left: auto;
   overflow: hidden;
   border-radius: var(--radius-xl);
   padding: var(--space-1-5) var(--space-3);
@@ -42,6 +44,8 @@
 }
 
 .actions-slot {
+  display: flex;
+  justify-content: flex-end;
   margin-top: var(--space-1);
 }
 

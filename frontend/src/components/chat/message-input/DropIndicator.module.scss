@@ -58,7 +58,7 @@
 
 .hint {
   @include type.type-default(500);
-  max-width: 24rem;
+  max-width: 22rem;
   text-align: center;
   color: var(--theme-text-tertiary);
 }
