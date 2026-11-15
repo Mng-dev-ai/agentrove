@@ -14,7 +14,7 @@
 }
 
 .item-name {
-  @include type.type-mono(0.825rem, 1.25);
+  @include type.type-mono($line-height: 1.25);
   @include type.type-overflow;
   color: var(--theme-text-secondary);
 

@@ -49,7 +49,12 @@ $space-steps: (
   80,
   88,
   96,
-  128
+  112,
+  128,
+  144,
+  168,
+  192,
+  224
 );
 
 // Fractional steps get hyphenated var names: space(1.5) → var(--space-1-5)

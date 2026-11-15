@@ -111,7 +111,7 @@
 .p {
   margin-bottom: var(--space-3);
   white-space: pre-wrap;
-  line-height: 1.375rem;
+  line-height: var(--space-5);
   color: var(--theme-text-secondary);
   overflow-wrap: anywhere;
 

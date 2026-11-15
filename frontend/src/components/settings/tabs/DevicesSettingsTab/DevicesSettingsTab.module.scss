@@ -39,6 +39,6 @@
 }
 
 .item-meta {
-  @include type.type-mono(0.6875rem, 0.9167rem, 400);
+  @include type.type-mono-meta(type.$type-meta-tight-line-height);
   color: var(--theme-text-quaternary);
 }

@@ -3,7 +3,7 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .list-body {
-  max-height: 26.4rem;
+  max-height: var(--space-96);
   overflow-y: auto;
   padding: var(--space-1) 0;
 }

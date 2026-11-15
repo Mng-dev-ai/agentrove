@@ -44,7 +44,7 @@
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 52.8rem;
+  max-width: var(--space-192);
   padding: var(--space-6) var(--space-4);
 
   @include responsive.media('sm-up') {

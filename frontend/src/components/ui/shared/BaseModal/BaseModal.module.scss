@@ -25,22 +25,22 @@
 
   // Content max-widths mirror the old Tailwind max-w-* scale (rem, not spacing steps)
   &--sm {
-    max-width: 26.4rem;
+    max-width: var(--space-96);
   }
   &--md {
-    max-width: 30.8rem;
+    max-width: var(--space-112);
   }
   &--lg {
-    max-width: 35.2rem;
+    max-width: var(--space-128);
   }
   &--xl {
-    max-width: 39.6rem;
+    max-width: var(--space-144);
   }
   &--2xl {
-    max-width: 46.2rem;
+    max-width: var(--space-168);
   }
   &--4xl {
-    max-width: 61.6rem;
+    max-width: var(--space-224);
   }
   &--full {
     max-width: 100%;
