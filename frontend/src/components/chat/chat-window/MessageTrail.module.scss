@@ -2,6 +2,7 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/zlayer' as z;
+@use '@/styles/globals/spacing' as spacing;
 
 .trail {
   @include z.z('raised');
@@ -23,12 +24,6 @@
   pointer-events: auto;
   position: relative;
   width: var(--space-6);
-
-  @include responsive.hover {
-    .tick--inactive-compact {
-      background-color: colors.theme-color('text-quaternary', 0.5);
-    }
-  }
 }
 
 .trail-item {
@@ -45,11 +40,6 @@
       background-color: var(--theme-text-tertiary);
     }
 
-    .tick--inactive-compact {
-      width: var(--space-2);
-      background-color: var(--theme-text-tertiary);
-    }
-
     .tooltip {
       visibility: visible;
       opacity: 1;
@@ -61,16 +51,7 @@
   display: flex;
   height: var(--space-2-5);
   align-items: center;
-
-  &--compact {
-    padding-left: var(--space-1);
-    padding-right: var(--space-1);
-  }
-
-  &--regular {
-    padding-left: var(--space-2);
-    padding-right: var(--space-2);
-  }
+  padding-inline: var(--space-2);
 }
 
 .tick {
@@ -83,19 +64,43 @@
     background-color: var(--theme-text-primary);
   }
 
-  &--active-compact {
-    width: var(--space-2-5);
-    background-color: var(--theme-text-primary);
-  }
-
   &--inactive {
     width: var(--space-2-5);
     background-color: colors.theme-color('text-quaternary', 0.5);
   }
+}
 
-  &--inactive-compact {
+// Slimmer rail once the column's side gutter drops under 40px, so it fits inside the
+// column's edge padding without covering text
+@container conversation (width < #{spacing.$reading-column-width + 5rem}) {
+  .trail-button {
+    padding-inline: var(--space-1);
+  }
+
+  .tick--active {
+    width: var(--space-2-5);
+  }
+
+  .tick--inactive {
     width: var(--space-1-5);
     background-color: colors.theme-color('text-quaternary', 0.25);
+  }
+
+  .trail-rail {
+    @include responsive.hover {
+      .tick--inactive {
+        background-color: colors.theme-color('text-quaternary', 0.5);
+      }
+    }
+  }
+
+  .trail-item {
+    @include responsive.hover {
+      .tick--inactive {
+        width: var(--space-2);
+        background-color: var(--theme-text-tertiary);
+      }
+    }
   }
 }
 

@@ -8,6 +8,10 @@
 @use 'sass:list';
 
 $space-base: 0.275rem;
+
+// Max width of the centred chat column (messages, composer, skeleton)
+$reading-column-width: 47.5rem;
+
 $space-steps: (
   0,
   0.5,
@@ -69,9 +73,6 @@ $space-steps: (
       }
       --space-#{$name}: #{$step * $space-base};
     }
-
-    // Max width of the centred chat column (messages, composer, skeleton)
-    --reading-column-width: 47.5rem;
 
     // iOS safe areas — used by edge-touching surfaces (title bar, chat composer)
     --safe-area-top: env(safe-area-inset-top, 0px);

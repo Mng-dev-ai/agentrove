@@ -10,7 +10,6 @@
 .trigger {
   @include anim.transition-colors;
   @include responsive.touch-target;
-  position: relative;
   // -m-1/p-1 keeps a comfortable hit target without inflating the header row
   display: flex;
   margin: calc(var(--space-1) * -1);

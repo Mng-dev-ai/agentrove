@@ -8,7 +8,6 @@
 .enhance-button {
   @include anim.transition-colors;
   @include responsive.touch-target;
-  position: relative;
   padding: var(--space-1-5);
   border-radius: var(--radius-full);
   color: var(--theme-text-tertiary);

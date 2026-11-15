@@ -16,7 +16,6 @@
 .view-button {
   @include anim.transition-colors;
   @include responsive.touch-target;
-  position: relative;
   border-radius: var(--radius-md);
   padding: var(--space-1-5);
   color: var(--theme-text-tertiary);

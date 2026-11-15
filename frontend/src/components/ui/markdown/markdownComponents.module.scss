@@ -2,9 +2,60 @@
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
+@property --table-fade-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --table-fade-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
 .table-wrap {
   margin: var(--space-6) 0;
   overflow-x: auto;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--table-fade-start),
+    #000 calc(100% - var(--table-fade-end)),
+    transparent
+  );
+
+  // Edge fades follow the horizontal scroll; a table that fits has an inactive
+  // timeline, so both fades stay at 0
+  @supports (animation-timeline: scroll()) {
+    animation: table-scroll-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+@keyframes table-scroll-fade {
+  from {
+    --table-fade-start: 0px;
+    --table-fade-end: var(--space-10);
+  }
+
+  to {
+    --table-fade-start: var(--space-10);
+    --table-fade-end: 0px;
+  }
+}
+
+// Chat prose (MarkDown wideTables): a table wider than the reading column grows past
+// it, centred on the column, up to the conversation pane minus its side padding
+.wide-tables .table-wrap {
+  @container conversation (min-width: 0) {
+    position: relative;
+    left: 50%;
+    width: max-content;
+    min-width: 100%;
+    max-width: calc(100cqw - 2 * var(--space-6));
+    transform: translateX(-50%);
+  }
 }
 
 .table {

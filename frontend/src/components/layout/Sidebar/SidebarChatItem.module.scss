@@ -57,7 +57,6 @@
 .caret-btn {
   @include anim.transition-colors;
   @include responsive.touch-target;
-  position: relative;
   // Negative margin + padding keeps a large thumb target without shifting the row
   margin: calc(var(--space-1) * -1);
   flex-shrink: 0;

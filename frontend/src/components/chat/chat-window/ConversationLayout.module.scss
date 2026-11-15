@@ -1,3 +1,4 @@
+@use '@/styles/globals/spacing' as spacing;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/zlayer' as z;
 @use '@/styles/globals/typography' as type;
@@ -11,6 +12,7 @@
 }
 
 .viewport {
+  container: conversation / inline-size;
   position: relative;
   flex: 1;
   overflow: hidden;
@@ -34,7 +36,7 @@
   @include responsive.media('lg-up') {
     margin-left: auto;
     margin-right: auto;
-    max-width: var(--reading-column-width);
+    max-width: spacing.$reading-column-width;
   }
 }
 
@@ -57,7 +59,7 @@
   @include responsive.media('lg-up') {
     margin-left: auto;
     margin-right: auto;
-    max-width: var(--reading-column-width);
+    max-width: spacing.$reading-column-width;
   }
 }
 

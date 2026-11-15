@@ -41,6 +41,10 @@ export function UserBubble({ children }: { children: ReactNode }) {
   );
 }
 
+export function UserActions({ children }: { children: ReactNode }) {
+  return <div className={styles['user-actions']}>{children}</div>;
+}
+
 interface SharedContentProps {
   contentRender: {
     events: AssistantStreamEvent[];
@@ -90,9 +94,9 @@ export const UserMessage = memo(function UserMessage({
       </UserBubble>
 
       {contentText.trim() && !isStreaming && (
-        <div className={styles['actions-slot']}>
+        <UserActions>
           <MessageActions messageId={id} contentText={contentText} />
-        </div>
+        </UserActions>
       )}
     </MessageRow>
   );

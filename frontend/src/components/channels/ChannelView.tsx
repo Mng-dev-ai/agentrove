@@ -18,7 +18,12 @@ import elicitationStyles from '@/components/chat/chat-window/ChatInlineElicitati
 import { ElicitationInline } from '@/components/chat/tools/ElicitationInline';
 import { StatusIndicator } from '@/components/chat/chat-window/StatusTypewriter';
 import { useChatScroll } from '@/components/chat/chat-window/useChatScroll';
-import { MessageRow, MessageText, UserBubble } from '@/components/chat/message-bubble/Message';
+import {
+  MessageRow,
+  MessageText,
+  UserActions,
+  UserBubble,
+} from '@/components/chat/message-bubble/Message';
 import { MessageActions } from '@/components/chat/message-bubble/MessageActions';
 import { MessageAttachments } from '@/components/chat/message-bubble/MessageAttachments';
 import { MessageRenderer } from '@/components/chat/message-bubble/MessageRenderer';
@@ -113,7 +118,7 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
   const [content, isRevealing] = useSmoothText(message.content, isStreaming, true);
   const text = (
     <MessageText>
-      <MarkDown content={content} streaming={isRevealing} />
+      <MarkDown content={content} streaming={isRevealing} wideTables />
     </MessageText>
   );
 
@@ -502,12 +507,12 @@ export function ChannelView({ channel }: { channel: Channel }) {
                             <MarkDown content={message.content} highlightMentions />
                           </UserBubble>
                           {message.content.trim() && (
-                            <div className={styles['actions-slot']}>
+                            <UserActions>
                               <MessageActions
                                 messageId={message.id}
                                 contentText={message.content}
                               />
-                            </div>
+                            </UserActions>
                           )}
                         </MessageRow>
                       ) : (

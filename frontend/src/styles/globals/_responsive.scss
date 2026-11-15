@@ -46,9 +46,11 @@ $queries: (
   }
 }
 
-// Grows the hit area to at least 40px on touch without moving layout. The host must
-// be positioned. px on purpose: a thumb target is a physical size, not part of the scale.
+// Grows the hit area to at least 40px on touch without moving layout. px on purpose:
+// a thumb target is a physical size, not part of the scale.
 @mixin touch-target {
+  position: relative;
+
   @include media('touch') {
     &::after {
       content: '';

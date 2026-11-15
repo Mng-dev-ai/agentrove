@@ -64,7 +64,6 @@
 .title-btn {
   @include type.type-default;
   @include responsive.touch-target;
-  position: relative;
   // flex-1 keeps the whole row width as the open-chat hit target, not just the text
   display: flex;
   min-width: 0;
@@ -101,7 +100,6 @@
 
 .dropdown-btn {
   @include anim.transition-colors;
-  @include responsive.touch-target;
   position: absolute;
   right: var(--space-2);
   flex-shrink: 0;
@@ -121,6 +119,8 @@
   }
 
   &--visible {
+    @include responsive.touch-target;
+    position: absolute;
     opacity: 1;
   }
 }

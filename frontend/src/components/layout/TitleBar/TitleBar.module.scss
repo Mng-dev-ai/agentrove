@@ -99,7 +99,6 @@
 
 .icon-button {
   @include responsive.touch-target;
-  position: relative;
   height: var(--space-8);
   width: var(--space-8);
 }

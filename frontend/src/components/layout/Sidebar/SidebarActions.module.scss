@@ -15,7 +15,6 @@
   @include anim.transition-colors;
   @include type.type-default(500);
   @include responsive.touch-target;
-  position: relative;
   display: flex;
   width: 100%;
   align-items: center;
@@ -39,7 +38,6 @@
   @include anim.transition-colors;
   @include type.type-default;
   @include responsive.touch-target;
-  position: relative;
   display: flex;
   width: 100%;
   align-items: center;
