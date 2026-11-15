@@ -52,6 +52,10 @@
   flex: 1;
   flex-direction: column;
   padding-right: var(--space-10);
+
+  @include responsive.media('touch') {
+    padding-right: var(--space-16);
+  }
 }
 
 .title-row {
@@ -96,10 +100,17 @@
   &--hidden {
     opacity: 0;
   }
+
+  // Clear of the always-visible dropdown's 40px hit area
+  @include responsive.media('touch') {
+    right: var(--space-10);
+    opacity: 1;
+  }
 }
 
 .dropdown-btn {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   position: absolute;
   right: var(--space-2);
   flex-shrink: 0;
@@ -119,8 +130,10 @@
   }
 
   &--visible {
-    @include responsive.touch-target;
-    position: absolute;
+    opacity: 1;
+  }
+
+  @include responsive.media('touch') {
     opacity: 1;
   }
 }
