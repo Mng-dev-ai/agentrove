@@ -4,12 +4,10 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import { useMemo, memo } from 'react';
-import clsx from 'clsx';
 import type { Options } from 'react-markdown';
 import { MARKDOWN_COMPONENTS } from './markdownComponents';
 import { MATH_PATTERN, rehypeMentionPills, splitMarkdownBlocks } from './markdownParsing';
 import styles from './MarkDown.module.scss';
-import componentStyles from './markdownComponents.module.scss';
 
 function markdownUrlTransform(url: string, key: string): string {
   const colon = url.indexOf(':');
@@ -47,15 +45,12 @@ interface MarkDownProps {
   streaming?: boolean;
   // @mention /command pills — user messages only.
   highlightMentions?: boolean;
-  // Chat prose only: wide tables may extend past the reading column.
-  wideTables?: boolean;
 }
 
 export const MarkDown = memo(function MarkDown({
   content,
   streaming = false,
   highlightMentions = false,
-  wideTables = false,
 }: MarkDownProps) {
   const blocks = useMemo(
     () => (streaming ? splitMarkdownBlocks(content) : [content]),
@@ -76,7 +71,7 @@ export const MarkDown = memo(function MarkDown({
   );
 
   return (
-    <div className={clsx(styles.markdown, wideTables && componentStyles['wide-tables'])}>
+    <div className={styles.markdown}>
       {blocks.map((block, i) => (
         <MarkdownBlock
           key={i}

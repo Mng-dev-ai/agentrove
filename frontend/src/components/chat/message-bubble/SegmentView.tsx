@@ -38,12 +38,7 @@ function TextSegment({
   const [smoothText] = useSmoothText(text, isActive);
   return (
     <div className={styles['text-segment']}>
-      <MarkDown
-        content={smoothText}
-        streaming={isActive}
-        highlightMentions={highlightMentions}
-        wideTables
-      />
+      <MarkDown content={smoothText} streaming={isActive} highlightMentions={highlightMentions} />
     </div>
   );
 }

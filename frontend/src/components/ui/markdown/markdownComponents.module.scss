@@ -45,19 +45,6 @@
   }
 }
 
-// Chat prose (MarkDown wideTables): a table wider than the reading column grows past
-// it, centred on the column, up to the conversation pane minus its side padding
-.wide-tables .table-wrap {
-  @container conversation (min-width: 0) {
-    position: relative;
-    left: 50%;
-    width: max-content;
-    min-width: 100%;
-    max-width: calc(100cqw - 2 * var(--space-6));
-    transform: translateX(-50%);
-  }
-}
-
 .table {
   min-width: 100%;
 
