@@ -48,7 +48,6 @@
     color: var(--theme-text-primary);
 
     .tab-close {
-      @include responsive.touch-target;
       opacity: 1;
     }
   }
