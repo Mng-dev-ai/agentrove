@@ -1,3 +1,4 @@
+@use '@/styles/globals/typography' as type;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/state-classes' as state;
 
@@ -23,20 +24,67 @@
   }
 }
 
-.textarea-wrap {
-  position: relative;
-  padding: var(--space-2-5) var(--space-4) 0;
+// The middle column is the single-row text width in both layouts: the multi-line text
+// spans all three columns, which the spec excludes from sizing the auto columns.
+.row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'leading text trailing';
+  align-items: center;
+  column-gap: var(--space-0-5);
+  padding: var(--space-0-5);
+
+  // Clears the 40px touch targets of the side buttons off the textarea
+  @include responsive.media('touch') {
+    column-gap: var(--space-1);
+  }
+
+  &--multiline {
+    grid-template-areas:
+      'text text text'
+      'leading probe trailing';
+    row-gap: var(--space-1);
+  }
 }
 
-.actions {
+.leading {
+  grid-area: leading;
+  display: flex;
+}
+
+.text {
+  grid-area: text;
+  min-width: 0;
+  padding-inline: var(--space-1-5);
+
+  .row--multiline & {
+    padding-inline: var(--space-2);
+  }
+}
+
+.trailing {
+  grid-area: trailing;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--space-0-5);
-  padding: var(--space-0-5) var(--space-2) var(--space-2);
 
-  // Spread the icon buttons so their 40px touch targets don't overlap
+  // Keeps neighbouring 40px touch targets from overlapping
   @include responsive.media('touch') {
-    gap: var(--space-3);
+    gap: var(--space-2);
+  }
+}
+
+// Same typography and inline inset as the single-row text, kept zero-height and hidden
+.probe {
+  @include type.type-default;
+  grid-area: text;
+  height: 0;
+  overflow: hidden;
+  margin-inline: var(--space-1-5);
+  white-space: pre;
+  visibility: hidden;
+
+  .row--multiline & {
+    grid-area: probe;
   }
 }

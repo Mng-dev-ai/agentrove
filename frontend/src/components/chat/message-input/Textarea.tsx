@@ -36,7 +36,6 @@ export interface TextareaProps {
   onKeyDown: (e: React.KeyboardEvent) => void;
   onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onCursorPositionChange?: (position: number) => void;
-  compact?: boolean;
 }
 
 const CURSOR_DEBOUNCE_MS = 150;
@@ -51,7 +50,6 @@ export function Textarea({
   onKeyDown,
   onPaste,
   onCursorPositionChange,
-  compact,
 }: TextareaProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = (ref as React.RefObject<HTMLTextAreaElement>) || internalRef;
@@ -68,7 +66,7 @@ export function Textarea({
     }
   }, [textareaRef]);
 
-  useLayoutEffect(() => {
+  const fitHeight = useCallback(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
@@ -76,7 +74,26 @@ export function Textarea({
     }
     // Content changes can shift the textarea's scroll position without a scroll event
     syncBackdropScroll();
-  }, [message, textareaRef, syncBackdropScroll]);
+  }, [textareaRef, syncBackdropScroll]);
+
+  useLayoutEffect(() => {
+    fitHeight();
+  }, [message, fitHeight]);
+
+  // The composer re-lays out after a message change (single row vs. own row), which
+  // changes the wrap width without changing the message.
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    let width = textarea.clientWidth;
+    const observer = new ResizeObserver(() => {
+      if (textarea.clientWidth === width) return;
+      width = textarea.clientWidth;
+      fitHeight();
+    });
+    observer.observe(textarea);
+    return () => observer.disconnect();
+  }, [textareaRef, fitHeight]);
 
   useEffect(() => {
     if (!isLoading && textareaRef.current && !isMobile) {
@@ -173,7 +190,6 @@ export function Textarea({
         className={clsx(
           styles['textarea-field'],
           hasTokens && styles['textarea-field--highlighted'],
-          isMobile && compact && styles['textarea-field--compact'],
         )}
         style={THIN_SCROLLBAR_STYLE}
         aria-label="Message input"

@@ -17,10 +17,8 @@ export interface InputState {
   showFileUpload: boolean;
   showDrawingModal: boolean;
   showLoadingSpinner: boolean;
-  showTip: boolean;
   showBranch: boolean;
   isDragging: boolean;
-  compact: boolean;
   placeholder: string;
   selectedModelId: string;
   dropdownPosition: 'top' | 'bottom';

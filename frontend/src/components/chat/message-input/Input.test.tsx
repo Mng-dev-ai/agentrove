@@ -24,7 +24,7 @@ vi.mock('@/services/chatService', () => ({
   chatService: { getChat: () => new Promise(() => {}) },
 }));
 
-vi.mock('./InputControls', () => ({ InputControls: () => null }));
+vi.mock('./InputControls', () => ({ InputControls: () => null, ModelControls: () => null }));
 
 function Composer({
   isStreaming,
@@ -69,6 +69,13 @@ function renderComposer(props: { isStreaming: boolean; selectedModelId?: string 
 describe('Input send/queue path', () => {
   beforeEach(() => {
     vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
     useAuthStore.setState({ isAuthenticated: false });
     useMessageQueueStore.setState({ queues: new Map() });
   });

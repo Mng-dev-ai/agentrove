@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { PermissionModeSelector } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { ThinkingModeSelector } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
@@ -12,36 +13,33 @@ import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { SelectorDot } from '@/components/ui/primitives/SelectorDot/SelectorDot';
+import { ContextUsageIndicator } from './ContextUsageIndicator';
 import styles from './InputControls.module.scss';
 
-export function InputControls() {
+function useSelectedModel() {
   const state = useInputState();
-  const actions = useInputActions();
   // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const modelMap = useModelMap({ enabled: isAuthenticated, machineId: state.machineId });
   const selectedModel = modelMap.get(state.selectedModelId);
-  const agentKind = selectedModel?.agent_kind;
+  return { selectedModel, agentKind: selectedModel?.agent_kind };
+}
 
-  const { sandboxId, worktreeCwd, personas } = useChatContext();
-  const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
+// Keeps focus in the textarea while a trigger is clicked
+const preventBlur = (e: React.MouseEvent) => e.preventDefault();
 
-  const showPersona =
-    personas.length > 0 && (!agentKind || PERSONAS_SUPPORTED_AGENTS.has(agentKind));
-  const showBranch =
-    state.showBranch &&
-    !!sandboxId &&
-    !!branchesData?.is_git_repo &&
-    branchesData.branches.length > 0;
+export function ModelControls() {
+  const state = useInputState();
+  const actions = useInputActions();
+  const { selectedModel, agentKind } = useSelectedModel();
   // Model-aware: some agents only expose a reasoning dial on specific models
   // (e.g. Claude's Haiku has none), so the base per-agent list isn't enough.
   const showThinking = agentKind
     ? getThinkingModesForAgent(agentKind, selectedModel).length > 0
     : true;
-  const showFastMode = agentKind === 'codex';
 
   return (
-    <div className={styles['input-controls']} onMouseDown={(e) => e.preventDefault()}>
+    <div className={clsx(styles.group, styles['group--field'])} onMouseDown={preventBlur}>
       <ModelSelector
         selectedModelId={state.selectedModelId}
         onModelChange={actions.onModelChange}
@@ -55,7 +53,6 @@ export function InputControls() {
       {showThinking && (
         <>
           <SelectorDot />
-
           <ThinkingModeSelector
             chatId={state.chatId}
             agentKind={agentKind}
@@ -67,56 +64,78 @@ export function InputControls() {
           />
         </>
       )}
+    </div>
+  );
+}
 
-      {showFastMode && (
-        <>
-          <SelectorDot />
-          <FastModeSelector
-            chatId={state.chatId}
-            agentKind={agentKind}
-            dropdownPosition={state.dropdownPosition}
-            dropdownAlign="right"
-            disabled={state.isLoading}
-            variant="text"
-          />
-        </>
-      )}
+export function InputControls() {
+  const state = useInputState();
+  const { agentKind } = useSelectedModel();
 
-      <SelectorDot />
+  const { sandboxId, worktreeCwd, personas } = useChatContext();
+  const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
 
-      <PermissionModeSelector
-        chatId={state.chatId}
-        agentKind={agentKind}
-        dropdownPosition={state.dropdownPosition}
-        dropdownAlign="right"
-        disabled={state.isLoading}
-        variant="text"
-      />
+  const showPersona =
+    personas.length > 0 && (!agentKind || PERSONAS_SUPPORTED_AGENTS.has(agentKind));
+  const showBranch =
+    state.showBranch &&
+    !!sandboxId &&
+    !!branchesData?.is_git_repo &&
+    branchesData.branches.length > 0;
+  const showFastMode = agentKind === 'codex';
 
-      {showPersona && (
-        <>
-          <SelectorDot />
-          <PersonaSelector
-            chatId={state.chatId}
-            dropdownPosition={state.dropdownPosition}
-            dropdownAlign="right"
-            disabled={state.isLoading}
-            variant="text"
-          />
-        </>
-      )}
-
-      {showBranch && (
-        <>
-          <SelectorDot />
+  return (
+    <>
+      <div className={styles.group} onMouseDown={preventBlur}>
+        {showBranch && (
           <BranchSelector
             dropdownPosition={state.dropdownPosition}
-            dropdownAlign="right"
+            dropdownAlign="left"
             disabled={state.isLoading}
             variant="text"
           />
-        </>
-      )}
-    </div>
+        )}
+      </div>
+
+      <div className={styles.group} onMouseDown={preventBlur}>
+        {showFastMode && (
+          <>
+            <FastModeSelector
+              chatId={state.chatId}
+              agentKind={agentKind}
+              dropdownPosition={state.dropdownPosition}
+              dropdownAlign="right"
+              disabled={state.isLoading}
+              variant="text"
+            />
+            <SelectorDot />
+          </>
+        )}
+
+        <PermissionModeSelector
+          chatId={state.chatId}
+          agentKind={agentKind}
+          dropdownPosition={state.dropdownPosition}
+          dropdownAlign="right"
+          disabled={state.isLoading}
+          variant="text"
+        />
+
+        {showPersona && (
+          <>
+            <SelectorDot />
+            <PersonaSelector
+              chatId={state.chatId}
+              dropdownPosition={state.dropdownPosition}
+              dropdownAlign="right"
+              disabled={state.isLoading}
+              variant="text"
+            />
+          </>
+        )}
+
+        {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
+      </div>
+    </>
   );
 }

@@ -451,7 +451,6 @@ export function LandingPage() {
                   selectedModelId={selectedModelId}
                   onModelChange={selectModel}
                   machineId={targetMachineId}
-                  showTip={false}
                   showBranch={false}
                   placeholder="Message Agentrove... (@ to mention, / for commands)"
                 />

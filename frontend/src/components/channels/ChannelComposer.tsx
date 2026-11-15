@@ -147,6 +147,7 @@ export function ChannelComposer({
         e.preventDefault();
         void handleSend();
       }}
+      message={draft}
       isDragging={attachments.isDragging}
       dragHandlers={attachments.dragHandlers}
       attachments={
@@ -172,6 +173,15 @@ export function ChannelComposer({
             }
           />
         </>
+      }
+      leading={
+        <AttachButton
+          disabled={disabled}
+          onAttach={() => {
+            attachments.resetDragState();
+            attachments.setShowFileUpload(true);
+          }}
+        />
       }
       textarea={
         <>
@@ -205,20 +215,15 @@ export function ChannelComposer({
           )}
         </>
       }
-      actions={
+      trailing={
         <>
-          <EnhanceButton
-            onEnhance={handleEnhancePrompt}
-            isEnhancing={isEnhancing}
-            disabled={disabled || postMessage.isPending || !hasDraft}
-          />
-          <AttachButton
-            disabled={disabled}
-            onAttach={() => {
-              attachments.resetDragState();
-              attachments.setShowFileUpload(true);
-            }}
-          />
+          {hasDraft && (
+            <EnhanceButton
+              onEnhance={handleEnhancePrompt}
+              isEnhancing={isEnhancing}
+              disabled={disabled || postMessage.isPending}
+            />
+          )}
           <SendButton
             status={sendStatus}
             disabled={

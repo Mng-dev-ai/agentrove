@@ -41,7 +41,8 @@
   align-items: center;
   gap: var(--space-1);
   padding: 0;
-  color: var(--theme-text-secondary);
+  // Composer groups set this to quiet their triggers without a variant of their own
+  color: var(--dropdown-text-trigger-color, var(--theme-text-secondary));
 
   @include responsive.hover {
     color: var(--theme-text-primary);

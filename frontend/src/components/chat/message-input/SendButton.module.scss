@@ -4,9 +4,8 @@
 .send-button {
   @include anim.transition-colors;
   @include responsive.touch-target;
-  padding: var(--space-1-5);
+  padding: var(--space-2);
   border-radius: var(--radius-full);
-  transform: scale(0.9);
 
   &:active {
     transform: scale(0.95);
@@ -15,10 +14,6 @@
   &:disabled {
     cursor: not-allowed;
     opacity: 0.5;
-  }
-
-  &--ready {
-    transform: scale(1);
   }
 
   &--primary {

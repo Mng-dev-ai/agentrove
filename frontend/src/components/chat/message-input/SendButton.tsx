@@ -52,7 +52,6 @@ export function SendButton({
       className={clsx(
         styles['send-button'],
         isPrimary ? styles['send-button--primary'] : styles['send-button--idle'],
-        hasMessage && !disabled && styles['send-button--ready'],
       )}
       aria-label={ariaLabel}
     >

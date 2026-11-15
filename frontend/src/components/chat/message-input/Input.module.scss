@@ -1,25 +1,15 @@
-@use '@/styles/globals/typography' as type;
-@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
 
 .footer-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
   padding: var(--space-1-5) var(--space-2) var(--safe-area-bottom);
-}
 
-.context-slot {
-  flex-shrink: 0;
-}
-
-.tip {
-  @include type.type-meta;
-  @include anim.fade-in;
-  margin-top: var(--space-1);
-  text-align: center;
-  color: var(--theme-text-quaternary);
-}
-
-.tip-label {
-  font-weight: 500;
+  // A full 40px row keeps the triggers' touch targets clear of the controls in the box
+  @include responsive.media('touch') {
+    min-height: var(--space-9);
+    padding-top: var(--space-0-5);
+  }
 }

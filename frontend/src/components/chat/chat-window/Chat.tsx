@@ -345,7 +345,6 @@ export const Chat = memo(function Chat() {
           dropdownPosition="top"
           showAttachedFilesPreview={true}
           contextUsage={contextUsage}
-          showTip={false}
           chatId={chatId}
           disabled={!machineOnline}
           placeholder={machineOnline ? undefined : `${machineLabel} is offline — read-only`}

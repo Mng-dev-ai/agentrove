@@ -1,6 +1,8 @@
 @use '@/styles/globals/responsive' as responsive;
 
-.input-controls {
+.group {
+  // Quieter than the Dropdown default so the controls recede behind the message text
+  --dropdown-text-trigger-color: var(--theme-text-tertiary);
   display: flex;
   min-width: 0;
   align-items: center;
@@ -9,5 +11,14 @@
   // Spread the selector triggers so their 40px touch targets don't overlap
   @include responsive.media('touch') {
     gap: var(--space-3);
+  }
+
+  &--field {
+    padding-inline: var(--space-2);
+
+    // Clears the triggers' 40px touch targets off Enhance and Send
+    @include responsive.media('touch') {
+      padding-inline: var(--space-2-5);
+    }
   }
 }

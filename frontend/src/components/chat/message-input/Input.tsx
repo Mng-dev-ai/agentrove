@@ -4,12 +4,11 @@ import type { SendButtonStatus } from './SendButton';
 import { AttachButton } from './AttachButton';
 import { EnhanceButton } from './EnhanceButton';
 import { Textarea } from './Textarea';
-import { InputControls } from './InputControls';
+import { InputControls, ModelControls } from './InputControls';
 import { ComposerField } from './ComposerField';
 import { ComposerAttachmentSlots } from './ComposerAttachmentSlots';
 import { SelectionAttachments } from './SelectionAttachments';
 import { InputSuggestionsPanel } from './InputSuggestionsPanel';
-import { ContextUsageIndicator } from './ContextUsageIndicator';
 import { InputProvider } from './InputProvider';
 import { useInputContext } from '@/hooks/useInputContext';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
@@ -30,10 +29,8 @@ export interface InputProps {
   dropdownPosition?: 'top' | 'bottom';
   showAttachedFilesPreview?: boolean;
   contextUsage?: ContextUsageInfo;
-  showTip?: boolean;
   // Landing hosts branch selection in its own composer control, so its footer hides it.
   showBranch?: boolean;
-  compact?: boolean;
   chatId?: string;
   machineId?: string;
   showLoadingSpinner?: boolean;
@@ -65,6 +62,7 @@ function InputLayout() {
     <ComposerField
       ref={meta.formRef}
       onSubmit={actions.handleSubmit}
+      message={state.message}
       isDragging={state.isDragging}
       dragHandlers={meta.dragHandlers}
       attachments={
@@ -90,6 +88,15 @@ function InputLayout() {
           />
         </>
       }
+      leading={
+        <AttachButton
+          disabled={state.isDisabled}
+          onAttach={() => {
+            actions.resetDragState();
+            actions.setShowFileUpload(true);
+          }}
+        />
+      }
       textarea={
         <>
           <Textarea
@@ -102,25 +109,20 @@ function InputLayout() {
             onKeyDown={actions.handleKeyDown}
             onPaste={actions.handlePaste}
             onCursorPositionChange={actions.setCursorPosition}
-            compact={state.compact}
           />
           <InputSuggestionsPanel />
         </>
       }
-      actions={
+      trailing={
         <>
-          <EnhanceButton
-            onEnhance={actions.handleEnhancePrompt}
-            isEnhancing={state.isEnhancing}
-            disabled={state.isLoading || !state.hasMessage}
-          />
-          <AttachButton
-            disabled={state.isDisabled}
-            onAttach={() => {
-              actions.resetDragState();
-              actions.setShowFileUpload(true);
-            }}
-          />
+          {state.hasMessage && (
+            <EnhanceButton
+              onEnhance={actions.handleEnhancePrompt}
+              isEnhancing={state.isEnhancing}
+              disabled={state.isLoading}
+            />
+          )}
+          <ModelControls />
           <SendButton
             status={sendStatus}
             disabled={sendStatus === 'idle' || state.isEnhancing || state.isDisabled}
@@ -132,19 +134,8 @@ function InputLayout() {
       }
     >
       <div className={styles['footer-row']}>
-        <div className={styles['context-slot']}>
-          {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
-        </div>
         <InputControls />
       </div>
-
-      {state.showTip && !state.hasAttachments && (
-        <div className={styles.tip}>
-          <span className={styles['tip-label']}>Tip:</span> Drag and drop or paste images, pdfs and
-          xlsx files into the input area, type `/` for slash commands, or `@` to mention files and
-          agents
-        </div>
-      )}
     </ComposerField>
   );
 }
