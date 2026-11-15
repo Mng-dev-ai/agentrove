@@ -452,7 +452,6 @@ export function LandingPage() {
                   onModelChange={selectModel}
                   machineId={targetMachineId}
                   showBranch={false}
-                  placeholder="Message Agentrove... (@ to mention, / for commands)"
                 />
 
                 <div className={styles['panel-below']}>

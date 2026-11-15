@@ -5,6 +5,7 @@ import { useChatMachineId } from '@/store/machineOrigin';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useRecentChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useInputAttachments } from '@/hooks/useInputAttachments';
 import { useInputEnhance } from '@/hooks/useInputEnhance';
 import { useInputSuggestions } from '@/hooks/useInputSuggestions';
@@ -35,7 +36,7 @@ export function InputProvider({
   isLoading,
   isStreaming = false,
   onStopStream,
-  placeholder = 'Message Agentrove... (@ to mention, / for commands)',
+  placeholder,
   selectedModelId,
   onModelChange,
   dropdownPosition = 'top',
@@ -161,7 +162,11 @@ export function InputProvider({
       handleSlashCommandKeyDown,
     });
 
-  const dynamicPlaceholder = isStreaming ? 'Type to queue message...' : placeholder;
+  const isMobile = useIsMobile();
+  const dynamicPlaceholder = isStreaming
+    ? 'Type to queue message...'
+    : (placeholder ??
+      (isMobile ? 'Message Agentrove…' : 'Message Agentrove... (@ to mention, / for commands)'));
 
   const stateValue: InputState = useMemo(
     () => ({
