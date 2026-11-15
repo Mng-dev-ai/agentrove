@@ -35,6 +35,8 @@
 // triggerVariant="text" — bare inline trigger for composer toolbars
 .trigger-text {
   @include anim.transition-colors;
+  @include responsive.touch-target;
+  position: relative;
   display: flex;
   min-width: 0;
   align-items: center;

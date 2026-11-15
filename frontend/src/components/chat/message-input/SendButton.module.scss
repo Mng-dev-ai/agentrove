@@ -3,6 +3,8 @@
 
 .send-button {
   @include anim.transition-colors;
+  @include responsive.touch-target;
+  position: relative;
   padding: var(--space-1-5);
   border-radius: var(--radius-full);
   transform: scale(0.9);

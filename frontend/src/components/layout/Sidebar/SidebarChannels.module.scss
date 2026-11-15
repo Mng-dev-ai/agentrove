@@ -8,6 +8,8 @@
 
 .new-btn {
   @include anim.transition-colors;
+  @include responsive.touch-target;
+  position: relative;
   display: flex;
   margin: calc(var(--space-1) * -1);
   align-items: center;

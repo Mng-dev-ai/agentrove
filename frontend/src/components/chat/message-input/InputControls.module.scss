@@ -1,6 +1,13 @@
+@use '@/styles/globals/responsive' as responsive;
+
 .input-controls {
   display: flex;
   min-width: 0;
   align-items: center;
   gap: var(--space-1);
+
+  // Spread the selector triggers so their 40px touch targets don't overlap
+  @include responsive.media('touch') {
+    gap: var(--space-3);
+  }
 }

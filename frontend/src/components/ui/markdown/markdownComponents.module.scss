@@ -106,6 +106,12 @@
   padding: var(--space-0-5) var(--space-1);
   background-color: var(--theme-surface-secondary);
   color: var(--theme-text-primary);
+
+  // Wide tables scroll inside .table-wrap rather than breaking chips mid-token
+  .td &,
+  .th & {
+    white-space: nowrap;
+  }
 }
 
 .plain-code-block {

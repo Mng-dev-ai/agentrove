@@ -34,4 +34,9 @@
   justify-content: flex-end;
   gap: var(--space-0-5);
   padding: var(--space-0-5) var(--space-2) var(--space-2);
+
+  // Spread the icon buttons so their 40px touch targets don't overlap
+  @include responsive.media('touch') {
+    gap: var(--space-3);
+  }
 }

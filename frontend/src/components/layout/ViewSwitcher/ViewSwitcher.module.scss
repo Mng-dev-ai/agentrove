@@ -5,10 +5,18 @@
   display: flex;
   align-items: center;
   gap: var(--space-0-5);
+
+  // Wider on touch so neighbouring 40px targets overlap less; the band is only
+  // ~90px wide while the mobile sidebar is open, so it can't fully separate them
+  @include responsive.media('touch') {
+    gap: var(--space-1);
+  }
 }
 
 .view-button {
   @include anim.transition-colors;
+  @include responsive.touch-target;
+  position: relative;
   border-radius: var(--radius-md);
   padding: var(--space-1-5);
   color: var(--theme-text-tertiary);

@@ -1,8 +1,12 @@
+@use '@/styles/globals/responsive' as responsive;
+
 .toggle-button {
   display: flex;
 }
 
 .icon-button {
+  @include responsive.touch-target;
+  position: relative;
   height: var(--space-8);
   width: var(--space-8);
   transition: all var(--duration-base) var(--easing-in-out);
