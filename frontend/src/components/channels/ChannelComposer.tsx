@@ -128,7 +128,12 @@ export function ChannelComposer({
   };
 
   const placeholders = useMemo(
-    () => [placeholder ?? (isBusy ? 'Type to queue message...' : `Message #${channel.name}`)],
+    () =>
+      placeholder !== undefined
+        ? [placeholder]
+        : isBusy
+          ? ['Type to queue message...', 'Queue…']
+          : [`Message #${channel.name}`, 'Message…'],
     [placeholder, isBusy, channel.name],
   );
 
