@@ -28,7 +28,8 @@
 // spans all three columns, which the spec excludes from sizing the auto columns.
 .row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  // The trailing track may shrink below its content so the model controls truncate on a narrow row
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, auto);
   grid-template-areas: 'leading text trailing';
   align-items: center;
   column-gap: var(--space-0-5);

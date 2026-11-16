@@ -27,6 +27,11 @@
   &--idle {
     background-color: var(--theme-surface-tertiary);
   }
+
+  // Opts out of the global svg reset so a narrow composer row truncates the model controls instead
+  > svg {
+    max-width: none;
+  }
 }
 
 .icon-spinner {

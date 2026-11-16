@@ -27,4 +27,6 @@
 .icon {
   height: var(--space-3-5);
   width: var(--space-3-5);
+  // Opts out of the global svg reset so a narrow composer row truncates the model controls instead
+  max-width: none;
 }

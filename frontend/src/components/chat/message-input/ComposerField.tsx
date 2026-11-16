@@ -48,9 +48,9 @@ export function ComposerField({
     const measure = () => {
       const room = Math.floor(probe.getBoundingClientRect().width);
       const fits = (el: Element) => Math.ceil(el.getBoundingClientRect().width) <= room;
-      setMultiline(message.includes('\n') || !fits(probeText));
       const candidates = [...probePlaceholders.children];
       const index = candidates.findIndex(fits);
+      setMultiline(message.includes('\n') || !fits(probeText) || index === -1);
       setPlaceholderIndex(index === -1 ? candidates.length - 1 : index);
     };
     measure();
