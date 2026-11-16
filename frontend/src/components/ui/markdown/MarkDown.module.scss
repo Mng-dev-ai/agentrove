@@ -1,7 +1,8 @@
 @use 'sass:math';
 @use '@/styles/globals/typography' as type;
 
-// Prose blocks inherit this colour, so bold, lists and table cells match the paragraph
+// Prose blocks inherit this colour, so lists, table cells and bold match the paragraph;
+// in dark replies bold steps up to primary like headings and links
 .markdown {
   @include type.type-body;
   // Block margins scale with the leading so looser prose keeps its proportions
@@ -19,6 +20,10 @@
     :global([data-theme='dark']) & {
       -webkit-font-smoothing: auto;
       -moz-osx-font-smoothing: auto;
+
+      strong {
+        color: var(--theme-text-primary);
+      }
     }
   }
 }
