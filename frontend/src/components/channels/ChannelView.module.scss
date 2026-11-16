@@ -46,7 +46,7 @@
 
 .member-reason {
   @include type.type-default;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   padding: 0 var(--space-4) var(--space-1);
   color: var(--theme-text-tertiary);
 
