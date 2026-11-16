@@ -13,6 +13,10 @@
   gap: var(--space-1-5);
   border-bottom: 1px solid colors.theme-color('border', 0.5);
   padding-inline: var(--space-3);
+
+  @include responsive.media('mobile') {
+    padding-block: var(--space-1-5);
+  }
 }
 
 .tooltip-inline {
@@ -65,6 +69,12 @@
 
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
+  }
+
+  // Phones can't fit a readable file name beside the three-way mode switch
+  @include responsive.media('mobile') {
+    order: 1;
+    flex-basis: 100%;
   }
 }
 
