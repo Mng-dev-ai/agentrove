@@ -20,6 +20,10 @@ export const MEMBER_NAME_MAX_LENGTH = 32;
 const MEMBER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 const BROADCAST_MENTIONS = new Set(['all', 'everyone']);
 
+export function channelMentionHandles(members: ChannelMember[]): string[] {
+  return [...members.map((member) => member.display_name), 'all'];
+}
+
 export interface MemberDraft {
   key: string;
   customName: string | null;

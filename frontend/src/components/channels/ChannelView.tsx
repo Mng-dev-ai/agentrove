@@ -67,6 +67,7 @@ import type {
 import { ChatCopiedMessageProvider } from '@/contexts/ChatCopiedMessageContext';
 import { SetChatInputMessageContext } from '@/contexts/ChatInputMessageContextDefinition';
 import { ChannelComposer } from './ChannelComposer';
+import { channelMentionHandles } from './memberDraft';
 import styles from './ChannelView.module.scss';
 
 const EMPTY_ELICITATIONS: ChannelElicitationRequest[] = [];
@@ -109,6 +110,7 @@ interface AgentChannelMessageProps {
   chatId: string;
   isLatest: boolean;
   isGrouped: boolean;
+  mentionHandles: ReadonlySet<string>;
 }
 
 const AgentChannelMessage = memo(function AgentChannelMessage({
@@ -117,6 +119,7 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
   chatId,
   isLatest,
   isGrouped,
+  mentionHandles,
 }: AgentChannelMessageProps) {
   const isStreaming = message.status === 'streaming';
   const isInterrupted = message.status === 'cancelled';
@@ -150,7 +153,7 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
         </WorkedRollup>
       )}
       <MessageText>
-        <MarkDown content={content} streaming={isRevealing} prose />
+        <MarkDown content={content} streaming={isRevealing} mentionHandles={mentionHandles} prose />
       </MessageText>
       <MessageAttachments
         attachments={message.attachments}
@@ -394,6 +397,10 @@ export function ChannelView({ channel }: { channel: Channel }) {
     () => messages.filter((m) => m.status !== 'streaming' || m.content || m.attachments.length),
     [messages],
   );
+  const mentionHandles = useMemo(
+    () => new Set(channelMentionHandles(channel.members).map((name) => name.toLowerCase())),
+    [channel.members],
+  );
   const membersById = useMemo(
     () =>
       new Map(
@@ -537,6 +544,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                           chatId={channel.anchor_chat_id}
                           isLatest={index === visibleMessages.length - 1}
                           isGrouped={isGroupedWithPrevious(message, visibleMessages[index - 1])}
+                          mentionHandles={mentionHandles}
                         />
                       )}
                     </ConversationColumn>

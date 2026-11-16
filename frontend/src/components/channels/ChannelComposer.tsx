@@ -27,6 +27,7 @@ import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { formatComposerSelections } from '@/utils/composerSelections';
 import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
+import { channelMentionHandles } from './memberDraft';
 
 const NO_SELECTIONS: ComposerSelection[] = [];
 const NO_CHATS: Chat[] = [];
@@ -58,10 +59,7 @@ export function ChannelComposer({
   const { fileStructure } = useChatContext();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: recentChats } = useRecentChatsQuery(isAuthenticated);
-  const memberNames = useMemo(
-    () => [...channel.members.map((member) => member.display_name), 'all'],
-    [channel.members],
-  );
+  const memberNames = useMemo(() => channelMentionHandles(channel.members), [channel.members]);
   const insertTokenAt = useInsertToken(draftRef, setDraft, setCursorPosition, textareaRef);
   const handleTokenDeleteKeyDown = useTokenDeleteKeyDown(draftRef, textareaRef);
   const mentions = useMentionSuggestions({

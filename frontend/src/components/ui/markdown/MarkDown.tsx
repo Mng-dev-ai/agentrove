@@ -46,6 +46,8 @@ interface MarkDownProps {
   streaming?: boolean;
   // @mention /command pills — user messages only.
   highlightMentions?: boolean;
+  // Lowercased channel member handles: pills only `@member` mentions (agent text).
+  mentionHandles?: ReadonlySet<string>;
   // Chat reply text: looser leading, with block spacing scaled to match.
   prose?: boolean;
 }
@@ -54,6 +56,7 @@ export const MarkDown = memo(function MarkDown({
   content,
   streaming = false,
   highlightMentions = false,
+  mentionHandles,
   prose = false,
 }: MarkDownProps) {
   const blocks = useMemo(
@@ -69,10 +72,14 @@ export const MarkDown = memo(function MarkDown({
     () => (needsMath ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }]] : [remarkGfm]),
     [needsMath],
   );
-  const rehypePlugins = useMemo(
-    () => [...(highlightMentions ? [rehypeMentionPills] : []), ...(needsMath ? [rehypeKatex] : [])],
-    [needsMath, highlightMentions],
-  );
+  const rehypePlugins = useMemo(() => {
+    const mentionPlugins: NonNullable<Options['rehypePlugins']> = highlightMentions
+      ? [rehypeMentionPills]
+      : mentionHandles
+        ? [[rehypeMentionPills, mentionHandles]]
+        : [];
+    return [...mentionPlugins, ...(needsMath ? [rehypeKatex] : [])];
+  }, [needsMath, highlightMentions, mentionHandles]);
 
   return (
     <div className={clsx(styles.markdown, prose && styles['markdown--prose'])}>
