@@ -29,8 +29,8 @@ const SYNTAX_TOKENS = [
   'function',
 ] as const;
 
-export const CODE_FLOOR = 4.5;
-export const COMMENT_FLOOR = 3;
+const CODE_FLOOR = 4.5;
+const COMMENT_FLOOR = 3;
 const LIGHTNESS_STEP = 0.5;
 
 const LIGHT_SYNTAX: Syntax = {
@@ -224,7 +224,7 @@ const luminance = (hex: string) => {
   const [r, g, b] = parseHex(hex).map(toLinear);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 };
-export const contrast = (a: string, b: string) => {
+const contrast = (a: string, b: string) => {
   const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 };
@@ -260,7 +260,7 @@ const floorColor = (
 
 // Code tokens to the code floor toward `text`; comments only to the comment floor, toward
 // the floored code text so they never read louder than code.
-const floorSyntax = (
+export const floorSyntax = (
   syntax: Syntax,
   backgrounds: string[],
   text: string,

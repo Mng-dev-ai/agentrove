@@ -1,13 +1,6 @@
 import { registerCustomCSSVariableTheme } from '@pierre/diffs';
 import type { EditorTheme, SyntaxToken } from '@/styles/editorThemes';
-import {
-  CODE_FLOOR,
-  COMMENT_FLOOR,
-  THEME_DATA,
-  contrast,
-  mixLab,
-  over,
-} from '@/styles/editorThemes';
+import { THEME_DATA, floorSyntax, mixLab, over } from '@/styles/editorThemes';
 
 type Base = 'light' | 'dark';
 
@@ -54,25 +47,25 @@ const lineBackgrounds = (surface: string, base: Base) => {
   };
 };
 
-// Editor colour where it clears the floor on every given background, else the theme's
-// own text token: secondary for comments on plain lines, primary otherwise (word-level
-// highlights are the strongest tint, where secondary text can drop under 3:1).
-const slotColor = (color: string, comment: boolean, backgrounds: string[], fallback: string) => {
-  const floor = comment ? COMMENT_FLOOR : CODE_FLOOR;
-  return backgrounds.every((bg) => contrast(color, bg) >= floor) ? color : fallback;
-};
-
-const themeDeclarations = ({ data, syntax }: EditorTheme): string => {
+// The editor's colours (already floored on its background) floored again on the diff's
+// line tints. Word-level highlights are the strongest tint, where secondary text can drop
+// under 3:1, so comments fall back to primary text there.
+const themeDeclarations = ({ data, syntax, text }: EditorTheme): string => {
   const base: Base = data.base === 'vs-dark' ? 'dark' : 'light';
   const { line, emphasis } = lineBackgrounds(data.colors['editor.background'], base);
-  const { green, red, blue } = GIT_COLORS[base];
-  const slots = Object.entries(SLOT_TOKENS).map(([slot, token]) => {
-    const comment = token === 'comment';
-    return (
-      `--diffs-${slot}: ${slotColor(syntax[token], comment, line, comment ? TEXT_SECONDARY : TEXT_PRIMARY)}; ` +
-      `--diff-emphasis-${slot}: ${slotColor(syntax[token], comment, emphasis, TEXT_PRIMARY)};`
-    );
+  const lineSyntax = floorSyntax(syntax, line, text, {
+    code: TEXT_PRIMARY,
+    comment: TEXT_SECONDARY,
   });
+  const emphasisSyntax = floorSyntax(syntax, emphasis, text, {
+    code: TEXT_PRIMARY,
+    comment: TEXT_PRIMARY,
+  });
+  const { green, red, blue } = GIT_COLORS[base];
+  const slots = Object.entries(SLOT_TOKENS).map(
+    ([slot, token]) =>
+      `--diffs-${slot}: ${lineSyntax[token]}; --diff-emphasis-${slot}: ${emphasisSyntax[token]};`,
+  );
   return [
     `--diffs-ansi-green: ${green};`,
     `--diffs-ansi-red: ${red};`,
