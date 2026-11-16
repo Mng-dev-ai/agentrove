@@ -1,6 +1,7 @@
-import { memo, Suspense } from 'react';
+import { memo, Suspense, useContext, useLayoutEffect } from 'react';
 import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import { useSmoothText } from '@/hooks/useSmoothText';
+import { TextRevealContext } from '@/components/chat/chat-window/TextRevealContext';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';
 import { PlanCard } from './PlanCard';
@@ -33,8 +34,16 @@ function TextSegment({
   highlightMentions?: boolean;
 }) {
   // The segment receiving stream output reveals its text word-by-word instead
-  // of jumping a flush-sized chunk at a time.
-  const [smoothText] = useSmoothText(text, isActive);
+  // of jumping a flush-sized chunk at a time; once the stream ends it finishes the
+  // buffered rest at that pace while its reply holds the streaming presentation.
+  const reveal = useContext(TextRevealContext);
+  const finishing = isActive && reveal !== null;
+  const [smoothText, revealing] = useSmoothText(text, isActive && !finishing, finishing);
+  useLayoutEffect(() => {
+    if (!isActive || !reveal) return;
+    if (revealing) reveal.claim();
+    else reveal.end();
+  }, [isActive, reveal, revealing]);
   return (
     <div className={styles['text-segment']}>
       <MarkDown

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, memo, useMemo } from 'react';
+import { useCallback, useEffect, useLayoutEffect, memo, useMemo, useRef, useState } from 'react';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineName, useMachineStatus } from '@/store/machineStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -22,6 +22,7 @@ import { FindInChat } from './FindInChat';
 import { ChatSelectionActions } from './ChatSelectionActions';
 import { StatusTypewriter } from './StatusTypewriter';
 import { useChatScroll } from './useChatScroll';
+import { TextRevealContext, type TextReveal } from './TextRevealContext';
 import { useStreamStore } from '@/store/streamStore';
 import { useMessageQueueStore, EMPTY_QUEUE, sendQueuedMessageNow } from '@/store/messageQueueStore';
 import { useChatContext } from '@/hooks/useChatContext';
@@ -158,6 +159,39 @@ export const Chat = memo(function Chat() {
 
   const lastBotMessageId = lastBotMessage?.id ?? null;
 
+  // The reply whose stream just ended stays in its streaming presentation until its
+  // buffered text has revealed — set in the same render, so no commit shows it settled.
+  const [revealingMessageId, setRevealingMessageId] = useState<string | null>(null);
+  const [prevStreamingIds, setPrevStreamingIds] = useState(streamingMessageIdSet);
+  if (prevStreamingIds !== streamingMessageIdSet) {
+    setPrevStreamingIds(streamingMessageIdSet);
+    if (
+      lastBotMessageId &&
+      prevStreamingIds.has(lastBotMessageId) &&
+      !streamingMessageIdSet.has(lastBotMessageId)
+    ) {
+      setRevealingMessageId(lastBotMessageId);
+    }
+  }
+  // A new send lands the rest at once, in the commit the send anchor measures.
+  if (revealingMessageId && pendingUserMessageId) {
+    setRevealingMessageId(null);
+  }
+  const revealClaimedRef = useRef(false);
+  const textReveal = useMemo<TextReveal>(
+    () => ({
+      claim: () => {
+        revealClaimedRef.current = true;
+      },
+      end: () => setRevealingMessageId(null),
+    }),
+    [],
+  );
+  useLayoutEffect(() => {
+    if (revealingMessageId && !revealClaimedRef.current) setRevealingMessageId(null);
+    revealClaimedRef.current = false;
+  }, [revealingMessageId]);
+
   const {
     scrollerRef,
     turnRef,
@@ -191,7 +225,9 @@ export const Chat = memo(function Chat() {
 
   const canShowPermissionInline =
     pendingPermissionRequest && pendingPermissionRequest.tool_name !== 'ExitPlanMode';
-  const lastBotIsStreaming = !!lastBotMessageId && streamingMessageIdSet.has(lastBotMessageId);
+  const lastBotIsStreaming =
+    !!lastBotMessageId &&
+    (streamingMessageIdSet.has(lastBotMessageId) || lastBotMessageId === revealingMessageId);
   const lastBotHasContent =
     !!lastBotMessage &&
     ((lastBotMessage.content_render?.events?.length ?? 0) > 0 || !!lastBotMessage.content_text);
@@ -222,7 +258,7 @@ export const Chat = memo(function Chat() {
 
   const renderMessage = useCallback(
     (msg: (typeof messages)[number], hasReply: boolean) => {
-      const messageIsStreaming = streamingMessageIdSet.has(msg.id);
+      const messageIsStreaming = streamingMessageIdSet.has(msg.id) || msg.id === revealingMessageId;
       const isBotMessage = isAssistantMessage(msg);
       const isLastBotMessage = isBotMessage && msg.id === lastBotMessageId;
       if (isLastBotMessage && lastBotRowHidden) {
@@ -245,25 +281,27 @@ export const Chat = memo(function Chat() {
       return (
         <ConversationColumn>
           {isBotMessage ? (
-            <AssistantMessage
-              id={msg.id}
-              contentText={msg.content_text}
-              contentRender={msg.content_render}
-              attachments={attachments}
-              isStreaming={messageIsStreaming}
-              createdAt={msg.created_at}
-              modelId={msg.model_id ?? undefined}
-              durationMs={msg.duration_ms}
-              checkpointId={msg.checkpoint_id}
-              toolResultsOmitted={msg.tool_results_omitted}
-              isCompleted={msg.stream_status === 'completed'}
-              // Idle-gated so prompt suggestions unmount in the send commit itself —
-              // unmounting when the placeholder lands shifts the anchored turn late.
-              isLastBotMessage={
-                isLastBotMessage && !messageIsStreaming && !isLoading && !isStreaming
-              }
-              isLatest={msg.id === latestMessageId}
-            />
+            <TextRevealContext value={msg.id === revealingMessageId ? textReveal : null}>
+              <AssistantMessage
+                id={msg.id}
+                contentText={msg.content_text}
+                contentRender={msg.content_render}
+                attachments={attachments}
+                isStreaming={messageIsStreaming}
+                createdAt={msg.created_at}
+                modelId={msg.model_id ?? undefined}
+                durationMs={msg.duration_ms}
+                checkpointId={msg.checkpoint_id}
+                toolResultsOmitted={msg.tool_results_omitted}
+                isCompleted={msg.stream_status === 'completed'}
+                // Idle-gated so prompt suggestions unmount in the send commit itself —
+                // unmounting when the placeholder lands shifts the anchored turn late.
+                isLastBotMessage={
+                  isLastBotMessage && !messageIsStreaming && !isLoading && !isStreaming
+                }
+                isLatest={msg.id === latestMessageId}
+              />
+            </TextRevealContext>
           ) : (
             <UserMessage
               id={msg.id}
@@ -293,7 +331,9 @@ export const Chat = memo(function Chat() {
       latestMessageId,
       latestUserMessageId,
       pendingUserMessageId,
+      revealingMessageId,
       streamingMessageIdSet,
+      textReveal,
     ],
   );
 
