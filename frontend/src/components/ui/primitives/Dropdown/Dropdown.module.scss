@@ -133,8 +133,9 @@
     color: inherit;
   }
 
-  // Breaking anywhere keeps the trigger's min-content at one character, so a parent row
-  // can shrink the name away without clipping the icon, suffix or chevron.
+  // Breaking anywhere after the unbreakable head keeps the trigger's min-content at about
+  // five characters plus the ellipsis, so a parent row can shrink the name that far
+  // without clipping the icon, suffix or chevron.
   .trigger-toolbar & {
     @include type.type-lineclamp(1);
     overflow-wrap: anywhere;
@@ -142,6 +143,10 @@
     font-weight: 400;
     color: inherit;
   }
+}
+
+.trigger-label-head {
+  white-space: nowrap;
 }
 
 .trigger-suffix {
