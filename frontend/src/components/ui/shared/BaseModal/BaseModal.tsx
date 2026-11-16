@@ -31,11 +31,19 @@ export function BaseModal({
   const containerRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  // Read during the opening render: a child's autoFocus runs in commit, before any effect.
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
+  if (isOpen && !wasOpenRef.current) {
+    triggerRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+  wasOpenRef.current = isOpen;
 
   useEffect(() => {
     const container = containerRef.current;
     if (!isOpen || !container) return;
-    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const trigger = triggerRef.current;
     openStack.push(container);
     if (!container.contains(document.activeElement)) container.focus({ preventScroll: true });
 
@@ -72,7 +80,8 @@ export function BaseModal({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       openStack.splice(openStack.indexOf(container), 1);
-      if (trigger?.isConnected) trigger.focus();
+      // StrictMode's simulated unmount keeps the dialog in the DOM; restore only on a real close.
+      if (!container.isConnected && trigger?.isConnected) trigger.focus();
     };
   }, [isOpen]);
 
