@@ -320,7 +320,7 @@ export function SidebarChannels({
         onSave={saveRename}
         currentTitle={channelToRename?.name ?? ''}
         isLoading={renameChannel.isPending}
-        title="Rename Channel"
+        subject="channel"
       />
 
       {createOpen && (

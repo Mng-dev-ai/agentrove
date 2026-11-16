@@ -20,7 +20,8 @@ interface RenameModalProps {
   // Resolves to '' on failure (caller shows the toast) so the input is left untouched.
   onGenerateTitle?: () => Promise<string>;
   isGenerating?: boolean;
-  title?: string;
+  // What is being renamed, lowercase: "chat", "workspace", ...
+  subject: string;
 }
 
 export function RenameModal({
@@ -31,7 +32,7 @@ export function RenameModal({
   isLoading = false,
   onGenerateTitle,
   isGenerating = false,
-  title: modalTitle = 'Rename Chat',
+  subject,
 }: RenameModalProps) {
   const [title, setTitle] = useState(currentTitle);
   const [error, setError] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export function RenameModal({
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="md">
-      <ModalHeader title={modalTitle} onClose={onClose} />
+      <ModalHeader title={`Rename ${subject}`} onClose={onClose} />
       <DialogError error={error} className={styles.error} />
 
       <div className={styles.body}>
@@ -106,11 +107,11 @@ export function RenameModal({
             setTitle(e.target.value);
             setError(null);
           }}
-          placeholder="Enter chat title"
+          placeholder={`New ${subject} name`}
           disabled={isLoading}
           hasError={!!error}
           className={styles.input}
-          aria-label="New name"
+          aria-label={`New ${subject} name`}
         />
         {onGenerateTitle && (
           <FloatingTooltip

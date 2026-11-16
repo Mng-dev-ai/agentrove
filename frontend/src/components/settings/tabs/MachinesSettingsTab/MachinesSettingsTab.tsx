@@ -229,7 +229,7 @@ export function MachinesSettingsTab() {
           setRenaming(null);
         }}
         currentTitle={renaming?.name ?? ''}
-        title="Rename machine"
+        subject="machine"
       />
     </>
   );
