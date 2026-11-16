@@ -111,10 +111,10 @@ export function WorkspaceSurface({ renderView, sessionPanel, children }: Workspa
 
   return (
     <div className={styles.root}>
-      <div className={styles.surface}>
+      <div className={isMobile && sessionPanelOpen ? styles.hidden : styles.surface}>
         <SplitViewContainer renderView={renderView} />
       </div>
-      {sessionPanelOpen && !isMobile && sessionPanel}
+      {sessionPanelOpen && sessionPanel}
       <CommandMenu />
       {children}
       {createCommitDialogOpen && (

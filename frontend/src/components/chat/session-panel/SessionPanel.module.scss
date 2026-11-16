@@ -13,6 +13,13 @@
   border-left: 1px solid colors.theme-color('border', 0.5);
   background-color: var(--theme-surface);
   padding: var(--space-3) var(--space-4);
+
+  // Phones show the panel in place of the workspace, like the other views.
+  @include responsive.media('mobile') {
+    width: 100%;
+    border-left: none;
+    padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  }
 }
 
 .card {
@@ -34,6 +41,7 @@
 
 .header-button {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   display: flex;
   margin: calc(var(--space-1) * -1);
   border-radius: var(--radius-md);
@@ -68,6 +76,10 @@
   @include anim.transition-colors;
   position: relative;
   text-align: left;
+
+  @include responsive.media('touch') {
+    padding-block: var(--space-2-5);
+  }
 
   @include responsive.hover {
     background-color: colors.theme-color('surface-hover', 0.5);
@@ -121,7 +133,7 @@
 .thread-stats {
   @include anim.transition-colors;
   @include type.type-meta;
-  position: relative;
+  @include responsive.touch-target;
   display: flex;
   flex-shrink: 0;
   column-gap: var(--space-1-5);
@@ -137,6 +149,7 @@
 
 .show-more {
   @include type.type-meta;
+  @include responsive.touch-target;
   color: var(--theme-text-tertiary);
 }
 
@@ -246,6 +259,10 @@
   border-radius: var(--radius-lg);
   padding: var(--space-1-5) var(--space-2);
 
+  @include responsive.media('touch') {
+    padding-block: var(--space-2-5);
+  }
+
   @include responsive.hover {
     background-color: colors.theme-color('surface-hover', 0.5);
   }
@@ -275,6 +292,7 @@
 
 .pr-button {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   @include type.type-meta(500);
   display: flex;
   flex-shrink: 0;
