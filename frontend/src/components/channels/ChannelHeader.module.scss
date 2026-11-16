@@ -1,13 +1,10 @@
-.header {
-  display: flex;
-  height: 100%;
-  min-width: 0;
-  flex: 1;
-  align-items: flex-end;
-}
+@use '@/styles/globals/typography' as type;
 
-.tab-icon {
-  height: var(--space-3);
-  width: var(--space-3);
-  flex-shrink: 0;
+.title {
+  @include type.type-default;
+  @include type.type-overflow;
+  align-self: center;
+  min-width: 0;
+  padding-inline: var(--space-2);
+  color: var(--theme-text-secondary);
 }
