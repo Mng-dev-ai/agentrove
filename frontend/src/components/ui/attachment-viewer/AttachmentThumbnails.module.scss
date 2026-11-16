@@ -114,16 +114,16 @@
 
 .image-loading {
   position: relative;
-  height: var(--space-10);
-  width: var(--space-10);
+  height: var(--space-20);
+  width: var(--space-20);
   border-radius: var(--radius-md);
   background-color: var(--theme-surface-secondary);
 }
 
 .image-error {
   display: flex;
-  height: var(--space-10);
-  width: var(--space-10);
+  height: var(--space-20);
+  width: var(--space-20);
   align-items: center;
   justify-content: center;
   border: 1px solid colors.theme-color('border', 0.5);
@@ -144,8 +144,11 @@
 
 .image {
   display: block;
-  height: var(--space-10);
-  width: var(--space-10);
+  height: var(--space-20);
+  width: auto;
+  min-width: var(--space-14);
+  max-width: var(--space-56);
+  border: 1px solid colors.theme-color('border', 0.5);
   border-radius: var(--radius-md);
   object-fit: cover;
 }
