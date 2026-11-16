@@ -69,6 +69,23 @@ describe('APIClient success + error shaping', () => {
     await expect(apiClient.get('/thing')).rejects.toMatchObject({ message: 'Boom' });
   });
 
+  it.each([
+    [[{ msg: 'field required', loc: ['body'] }, { msg: 'too long' }], 'field required; too long'],
+    [['a', 'b'], 'a; b'],
+    [['only'], 'only'],
+    [['a', { msg: 'b' }, 7, { loc: ['x'] }], 'a; b'],
+    [[7, null], 'Unprocessable'],
+    [{ message: 'from message' }, 'from message'],
+    [{ msg: 'from msg' }, 'from msg'],
+    [{ detail: 'nested' }, 'nested'],
+    [{ code: 'E1' }, 'Unprocessable'],
+  ])('turns a `detail` of %j into %j', async (detail, message) => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail }), { status: 422, statusText: 'Unprocessable' }),
+    );
+    await expect(apiClient.get('/thing')).rejects.toMatchObject({ message });
+  });
+
   it('uses a status placeholder when the error body is empty', async () => {
     fetchMock.mockResolvedValueOnce(new Response('', { status: 503 }));
     await expect(apiClient.get('/thing')).rejects.toMatchObject({
