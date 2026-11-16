@@ -52,11 +52,6 @@
     height: var(--space-10);
     padding-inline: var(--space-4);
     border-radius: var(--radius-lg);
-  } @else if $size == 'lg' {
-    @include type.type-large(500);
-    height: var(--space-12);
-    padding-inline: var(--space-6);
-    border-radius: var(--radius-xl);
   } @else if $size == 'icon' {
     height: var(--space-9);
     width: var(--space-9);

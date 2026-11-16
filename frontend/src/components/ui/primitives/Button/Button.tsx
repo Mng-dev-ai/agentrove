@@ -13,7 +13,7 @@ type ButtonVariant =
   | 'gradient'
   | 'unstyled';
 
-type ButtonSize = 'sm' | 'md' | 'lg' | 'icon';
+type ButtonSize = 'sm' | 'md' | 'icon';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   ref?: Ref<HTMLButtonElement>;
@@ -36,7 +36,7 @@ export function Button({
   children,
   ...props
 }: ButtonProps) {
-  const spinnerSize = size === 'sm' ? 'sm' : size === 'lg' ? 'lg' : 'md';
+  const spinnerSize = size === 'sm' ? 'sm' : 'md';
   const spinner = loadingIcon ?? <Spinner size={spinnerSize} />;
 
   const content = (

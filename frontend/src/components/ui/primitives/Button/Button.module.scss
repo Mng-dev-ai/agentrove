@@ -13,10 +13,6 @@
     @include controls.button-size('md');
   }
 
-  &--lg {
-    @include controls.button-size('lg');
-  }
-
   &--icon {
     @include controls.button-size('icon');
   }
