@@ -24,14 +24,21 @@ export interface MachineAutomation {
   machineId: string;
 }
 
-export const useAutomationsAcrossMachines = (): MachineAutomation[] | null => {
+export const useAutomationsAcrossMachines = (): {
+  items: MachineAutomation[] | null;
+  error: Error | null;
+} => {
   const remoteIds = useOnlineRemoteMachineIds();
   const combine = useCallback(
     (results: UseQueryResult<Automation[]>[]) => {
-      if (results.some((result) => result.isLoading)) return null;
-      return [LOCAL_MACHINE_ID, ...remoteIds].flatMap((machineId, index) =>
-        (results[index]?.data ?? []).map((automation) => ({ automation, machineId })),
-      );
+      const error = results.find((result) => result.error)?.error ?? null;
+      if (results.some((result) => result.isLoading)) return { items: null, error };
+      return {
+        items: [LOCAL_MACHINE_ID, ...remoteIds].flatMap((machineId, index) =>
+          (results[index]?.data ?? []).map((automation) => ({ automation, machineId })),
+        ),
+        error,
+      };
     },
     [remoteIds],
   );

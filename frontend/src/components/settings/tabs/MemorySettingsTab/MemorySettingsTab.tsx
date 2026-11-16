@@ -87,7 +87,8 @@ export function MemorySettingsTab() {
     machineOptions.map((machine) => machine.id),
     workspacesByMachine,
   );
-  const items = useMemoriesAcrossMachines(activeFilter);
+  const { items, error } = useMemoriesAcrossMachines(activeFilter);
+  const loadErrorText = error && `Couldn't load memories: ${error.message}`;
 
   const createMutation = useCreateMemoryMutation();
   const updateMutation = useUpdateMemoryMutation();
@@ -216,7 +217,7 @@ export function MemorySettingsTab() {
         description="Durable facts agents remember across every provider and chat — preferences, corrections, and repo conventions. Agents save and search them with the AgentRove MCP tools; pinned memories are sent in full to every new session."
         items={items}
         emptyIcon={Brain}
-        emptyText="No memories saved yet"
+        emptyText={loadErrorText ?? 'No memories saved yet'}
         emptyButtonText="Add Your First Memory"
         addButtonText="Add Memory"
         deleteConfirmTitle="Delete Memory"
@@ -230,7 +231,7 @@ export function MemorySettingsTab() {
         filter={{
           categories: filterCategories,
           onClear: () => setFilter(null),
-          emptyText: 'No memories match these filters',
+          emptyText: loadErrorText ?? 'No memories match these filters',
         }}
         renderItem={(item) => (
           <>

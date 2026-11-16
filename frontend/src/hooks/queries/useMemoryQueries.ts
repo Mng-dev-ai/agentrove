@@ -31,7 +31,9 @@ export interface MemoryFilter {
   workspaceId: string | null;
 }
 
-export const useMemoriesAcrossMachines = (filter: MemoryFilter | null): MachineMemory[] | null => {
+export const useMemoriesAcrossMachines = (
+  filter: MemoryFilter | null,
+): { items: MachineMemory[] | null; error: Error | null } => {
   const remoteIds = useOnlineRemoteMachineIds();
   const filterMachineId = filter?.machineId;
   const workspaceId = filter?.workspaceId ?? null;
@@ -44,10 +46,14 @@ export const useMemoriesAcrossMachines = (filter: MemoryFilter | null): MachineM
   );
   const combine = useCallback(
     (results: UseQueryResult<Memory[]>[]) => {
-      if (results.some((result) => result.isLoading)) return null;
-      return machineIds.flatMap((machineId, index) =>
-        (results[index]?.data ?? []).map((memory) => ({ memory, machineId })),
-      );
+      const error = results.find((result) => result.error)?.error ?? null;
+      if (results.some((result) => result.isLoading)) return { items: null, error };
+      return {
+        items: machineIds.flatMap((machineId, index) =>
+          (results[index]?.data ?? []).map((memory) => ({ memory, machineId })),
+        ),
+        error,
+      };
     },
     [machineIds],
   );
