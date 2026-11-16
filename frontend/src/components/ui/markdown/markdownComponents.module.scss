@@ -1,6 +1,5 @@
 @use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
 // Vertical block spacing, scaled by the root's --markdown-rhythm (MarkDown.module.scss)
@@ -212,12 +211,20 @@
 }
 
 .link {
-  @include anim.transition-colors;
   color: var(--theme-text-primary);
   text-decoration: underline;
+  text-decoration-color: colors.theme-color('text-primary', 0.35);
+  text-decoration-thickness: from-font;
+  text-underline-offset: 0.18em;
+  overflow-wrap: anywhere;
+  transition: text-decoration-color var(--duration-base) var(--easing-in-out);
 
   @include responsive.hover {
-    color: var(--theme-text-secondary);
+    text-decoration-color: currentColor;
+  }
+
+  &:focus-visible {
+    text-decoration-color: currentColor;
   }
 }
 
@@ -226,7 +233,6 @@
   border-radius: var(--radius-md);
   padding: var(--space-0-5) var(--space-1);
   background-color: colors.theme-color('text-primary', 0.06);
-  text-decoration: underline;
   cursor: pointer;
 }
 
