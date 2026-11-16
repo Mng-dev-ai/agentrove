@@ -30,7 +30,7 @@
 .description {
   @include type.type-default;
   margin-top: var(--space-1);
-  color: var(--theme-text-tertiary);
+  color: var(--theme-text-secondary);
 }
 
 .add-btn {
@@ -82,7 +82,7 @@
 .empty-text {
   @include type.type-default;
   margin-bottom: var(--space-3);
-  color: var(--theme-text-tertiary);
+  color: var(--theme-text-secondary);
 }
 
 .items {
