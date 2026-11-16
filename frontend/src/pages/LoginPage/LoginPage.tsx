@@ -128,12 +128,6 @@ export function LoginPage() {
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
       <form onSubmit={handleSubmit} className={styles.form}>
-        {error && (
-          <AuthErrorBanner>
-            <p className={styles['error-text']}>{error}</p>
-          </AuthErrorBanner>
-        )}
-
         <div className={styles.fields}>
           {fieldConfigs.map(({ name, label, placeholder, type, action }) => (
             <div key={name} className={styles.field}>
@@ -156,6 +150,12 @@ export function LoginPage() {
             </div>
           ))}
         </div>
+
+        {error && (
+          <AuthErrorBanner>
+            <p className={styles['error-text']}>{error}</p>
+          </AuthErrorBanner>
+        )}
 
         <Button
           type="submit"

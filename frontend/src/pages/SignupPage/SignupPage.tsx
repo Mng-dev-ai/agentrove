@@ -147,12 +147,6 @@ export function SignupPage() {
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
       <form onSubmit={handleSubmit} className={styles.form}>
-        {error && (
-          <AuthErrorBanner>
-            <p className={styles['error-text']}>{error}</p>
-          </AuthErrorBanner>
-        )}
-
         <div className={styles.fields}>
           {fieldConfigs.map(({ name, label, placeholder, type, helperText }) => (
             <div key={name} className={styles.field}>
@@ -181,6 +175,12 @@ export function SignupPage() {
             </div>
           ))}
         </div>
+
+        {error && (
+          <AuthErrorBanner>
+            <p className={styles['error-text']}>{error}</p>
+          </AuthErrorBanner>
+        )}
 
         <Button
           type="submit"

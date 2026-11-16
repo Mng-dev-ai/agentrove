@@ -97,6 +97,23 @@ export function ForgotPasswordPage() {
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
       <form onSubmit={handleSubmit} className={styles.form}>
+        <div className={styles.fields}>
+          <div className={styles.field}>
+            <Label htmlFor="email" className={styles.label}>
+              Email address
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              value={values.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              placeholder="name@example.com"
+              hasError={Boolean(errors?.email)}
+            />
+            <FieldMessage variant="error">{errors?.email}</FieldMessage>
+          </div>
+        </div>
+
         {forgotPasswordMutation.error && (
           <AuthErrorBanner>
             <p className={styles['error-text']}>
@@ -117,23 +134,6 @@ export function ForgotPasswordPage() {
             </p>
           </AuthErrorBanner>
         )}
-
-        <div className={styles.fields}>
-          <div className={styles.field}>
-            <Label htmlFor="email" className={styles.label}>
-              Email address
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              value={values.email}
-              onChange={(e) => handleChange('email', e.target.value)}
-              placeholder="name@example.com"
-              hasError={Boolean(errors?.email)}
-            />
-            <FieldMessage variant="error">{errors?.email}</FieldMessage>
-          </div>
-        </div>
 
         <Button
           type="submit"

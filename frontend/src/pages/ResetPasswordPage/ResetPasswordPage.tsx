@@ -126,27 +126,6 @@ export function ResetPasswordPage() {
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
       <form onSubmit={handleSubmit} className={styles.form}>
-        {(tokenError || resetPasswordMutation.error) && (
-          <AuthErrorBanner>
-            <p className={styles['error-text']}>
-              {tokenError || resetPasswordMutation.error?.message}
-            </p>
-            {(tokenError?.includes('token') ||
-              resetPasswordMutation.error?.message?.includes('token')) && (
-              <div className={styles['error-cta']}>
-                <Button
-                  type="button"
-                  variant="link"
-                  className={styles['error-link']}
-                  onClick={() => navigate('/forgot-password')}
-                >
-                  Request a new reset link
-                </Button>
-              </div>
-            )}
-          </AuthErrorBanner>
-        )}
-
         <div className={styles.fields}>
           {fieldConfigs.map(({ name, label, placeholder }) => (
             <div key={name} className={styles.field}>
@@ -183,6 +162,27 @@ export function ResetPasswordPage() {
             </div>
           ))}
         </div>
+
+        {(tokenError || resetPasswordMutation.error) && (
+          <AuthErrorBanner>
+            <p className={styles['error-text']}>
+              {tokenError || resetPasswordMutation.error?.message}
+            </p>
+            {(tokenError?.includes('token') ||
+              resetPasswordMutation.error?.message?.includes('token')) && (
+              <div className={styles['error-cta']}>
+                <Button
+                  type="button"
+                  variant="link"
+                  className={styles['error-link']}
+                  onClick={() => navigate('/forgot-password')}
+                >
+                  Request a new reset link
+                </Button>
+              </div>
+            )}
+          </AuthErrorBanner>
+        )}
 
         <Button
           type="submit"
