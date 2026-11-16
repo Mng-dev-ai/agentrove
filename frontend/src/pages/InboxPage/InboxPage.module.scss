@@ -144,6 +144,7 @@
 
 .footer-btn {
   @include type.type-meta;
+  @include responsive.touch-target;
   color: var(--theme-text-tertiary);
 
   @include responsive.hover {
