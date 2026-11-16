@@ -1,3 +1,4 @@
+@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/spacing' as spacing;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/responsive' as responsive;
@@ -136,12 +137,16 @@
   @include anim.transition-colors;
   border-radius: var(--radius-lg);
   margin-inline: calc(var(--space-2) * -1);
-  padding: var(--space-2);
+  padding: var(--space-1-5) var(--space-2);
   text-align: left;
   color: var(--theme-text-tertiary);
 
+  @include responsive.media('touch') {
+    padding-block: var(--space-2-5);
+  }
+
   @include responsive.hover {
-    background-color: var(--theme-surface-hover);
+    background-color: colors.theme-color('surface-hover', 0.5);
     color: var(--theme-text-primary);
   }
 }

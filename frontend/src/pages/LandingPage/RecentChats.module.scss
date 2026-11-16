@@ -25,26 +25,28 @@
   @include anim.transition-colors;
   display: flex;
   align-items: center;
-  gap: var(--space-2-5);
+  gap: var(--space-2);
   margin-inline: calc(var(--space-2) * -1);
-  padding: var(--space-2);
+  padding: var(--space-1-5) var(--space-2);
   border-radius: var(--radius-lg);
-  border: 1px solid transparent;
   text-align: left;
+  color: var(--theme-text-secondary);
+
+  @include responsive.media('touch') {
+    padding-block: var(--space-2-5);
+  }
 
   @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    border-color: colors.theme-color('border', 0.5);
+    background-color: colors.theme-color('surface-hover', 0.5);
+    color: var(--theme-text-primary);
   }
 }
 
-// Same fixed box as the sidebar's status slot: the dot/spinner centers in it,
-// and no-status rows keep it empty so titles stay aligned.
 .status-slot {
   position: relative;
   display: flex;
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  height: var(--space-3);
+  width: var(--space-3);
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -55,18 +57,37 @@
   line-height: 1;
 }
 
+.provider-icon {
+  @include anim.transition-colors;
+  height: var(--space-3);
+  width: var(--space-3);
+  color: var(--theme-text-quaternary);
+
+  .row:hover & {
+    color: var(--theme-text-tertiary);
+  }
+}
+
+.status-corner {
+  position: absolute;
+  right: calc(var(--space-0-5) * -1);
+  top: calc(var(--space-0-5) * -1);
+}
+
+.status-ring {
+  box-shadow: 0 0 0 1px var(--theme-surface);
+}
+
 .text {
   display: flex;
   flex-direction: column;
-  gap: var(--space-0-5);
   min-width: 0;
   flex: 1;
 }
 
 .title {
-  @include type.type-default(500);
+  @include type.type-default;
   @include type.type-overflow;
-  color: var(--theme-text-primary);
 }
 
 .meta {
@@ -86,6 +107,7 @@
 
 .time {
   @include type.type-meta;
-  color: var(--theme-text-quaternary);
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-quaternary);
 }
