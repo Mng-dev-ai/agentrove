@@ -24,8 +24,10 @@
   transition: opacity var(--duration-fast);
 
   @include responsive.media('not-touch') {
+    // Same show delay as FloatingTooltip so sweeping across a toolbar doesn't flash bubbles
     .tooltip-wrapper:hover & {
       opacity: 1;
+      transition-delay: 500ms;
     }
   }
 
