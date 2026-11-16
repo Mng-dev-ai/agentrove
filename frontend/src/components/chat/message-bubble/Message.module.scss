@@ -12,7 +12,8 @@
 
   // The turn gap is tall enough to hold an overlaid action row
   @include responsive.media('not-touch') {
-    padding-block: var(--space-4);
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-4);
   }
 
   @include responsive.hover {

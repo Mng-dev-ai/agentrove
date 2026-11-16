@@ -201,8 +201,11 @@ export const Chat = memo(function Chat() {
   // list before the stream store registers its message id.
   const lastBotRowHidden = !lastBotHasContent && (isLoading || isStreaming);
   // The latest row that actually renders keeps its actions visible.
+  const lastMessage = messages[messages.length - 1];
   const latestMessageId = (
-    lastBotRowHidden && messages.at(-1)?.id === lastBotMessageId ? messages.at(-2) : messages.at(-1)
+    lastBotRowHidden && lastMessage?.id === lastBotMessageId
+      ? messages[messages.length - 2]
+      : lastMessage
   )?.id;
   const showPermissionAtEnd = canShowPermissionInline && (!lastBotMessageId || lastBotIsStreaming);
   // Permission and elicitation share the slot; a pending permission wins.
