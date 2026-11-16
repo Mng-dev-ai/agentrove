@@ -1,4 +1,5 @@
 @use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/typography' as type;
 
 .loading-screen {
   min-height: 100vh;
@@ -30,8 +31,6 @@
 }
 
 .label {
-  // TODO(refactor): source used text-text-dark-quaternary with no light-mode
-  // class (always the dark-mode shade, in both themes) — preserving that exact
-  // color rather than switching to the theme-aware --theme-text-quaternary token
-  color: rgb(var(--text-dark-quaternary));
+  @include type.type-default;
+  color: var(--theme-text-tertiary);
 }
