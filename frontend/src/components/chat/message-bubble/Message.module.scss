@@ -9,6 +9,29 @@
   @include responsive.media('sm-up') {
     padding: var(--space-2) var(--space-6);
   }
+
+  @include responsive.hover {
+    .reveal {
+      opacity: 1;
+    }
+  }
+
+  &--latest .reveal,
+  &:has(:focus-visible) .reveal {
+    opacity: 1;
+  }
+}
+
+// Opacity only, so revealing never shifts layout; touch has no hover, so it stays visible
+.reveal {
+  @include responsive.media('not-touch') {
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--easing-out);
+  }
+
+  &:has([data-copied]) {
+    opacity: 1;
+  }
 }
 
 .message-row {
@@ -46,6 +69,10 @@
 .user-actions {
   display: flex;
   justify-content: flex-end;
+  margin-top: var(--space-1);
+}
+
+.agent-actions {
   margin-top: var(--space-1);
 }
 

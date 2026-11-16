@@ -157,6 +157,7 @@ export const Chat = memo(function Chat() {
   }, [messages]);
 
   const lastBotMessageId = lastBotMessage?.id ?? null;
+  const latestMessageId = messages.at(-1)?.id;
 
   const {
     scrollerRef,
@@ -254,6 +255,7 @@ export const Chat = memo(function Chat() {
               isLastBotMessage={
                 isLastBotMessage && !messageIsStreaming && !isLoading && !isStreaming
               }
+              isLatest={msg.id === latestMessageId}
             />
           ) : (
             <UserMessage
@@ -263,6 +265,7 @@ export const Chat = memo(function Chat() {
               attachments={attachments}
               uploadingAttachmentIds={uploadingAttachmentIds}
               isStreaming={messageIsStreaming}
+              isLatest={msg.id === latestMessageId}
             />
           )}
           {isLastBotMessage && !messageIsStreaming && (
@@ -279,6 +282,7 @@ export const Chat = memo(function Chat() {
       isStreaming,
       lastBotHasContent,
       lastBotMessageId,
+      latestMessageId,
       latestUserMessageId,
       pendingUserMessageId,
       streamingMessageIdSet,

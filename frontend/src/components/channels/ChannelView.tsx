@@ -19,6 +19,7 @@ import { ElicitationInline } from '@/components/chat/tools/ElicitationInline';
 import { StatusIndicator } from '@/components/chat/chat-window/StatusTypewriter';
 import { useChatScroll } from '@/components/chat/chat-window/useChatScroll';
 import {
+  AgentActions,
   MessageRow,
   MessageText,
   UserActions,
@@ -105,12 +106,14 @@ interface AgentChannelMessageProps {
   message: ChannelMessage;
   member: ChannelMember | undefined;
   chatId: string;
+  isLatest: boolean;
 }
 
 const AgentChannelMessage = memo(function AgentChannelMessage({
   message,
   member,
   chatId,
+  isLatest,
 }: AgentChannelMessageProps) {
   const isStreaming = message.status === 'streaming';
   const isInterrupted = message.status === 'cancelled';
@@ -123,7 +126,7 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
   );
 
   return (
-    <MessageRow>
+    <MessageRow isLatest={isLatest}>
       <div className={styles.author}>
         <ProviderIcon agentKind={agentKind} className={styles['author-icon']} />
         <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
@@ -153,9 +156,9 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
         className={styles['agent-attachments']}
       />
       {!isStreaming && message.content.trim() && (
-        <div className={styles['actions-slot']}>
+        <AgentActions>
           <MessageActions messageId={message.id} contentText={message.content} />
-        </div>
+        </AgentActions>
       )}
     </MessageRow>
   );
@@ -493,11 +496,11 @@ export function ChannelView({ channel }: { channel: Channel }) {
                   hasNextPage={hasNextPage}
                   isFetchingNextPage={isFetchingNextPage}
                 />
-                {visibleMessages.map((message) => (
+                {visibleMessages.map((message, index) => (
                   <div key={message.id} data-message-id={message.id}>
                     <ConversationColumn>
                       {message.author_type === 'user' ? (
-                        <MessageRow>
+                        <MessageRow isLatest={index === visibleMessages.length - 1}>
                           <UserBubble>
                             <MessageAttachments
                               attachments={message.attachments}
@@ -522,6 +525,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                             message.member_id ? membersById.get(message.member_id) : undefined
                           }
                           chatId={channel.anchor_chat_id}
+                          isLatest={index === visibleMessages.length - 1}
                         />
                       )}
                     </ConversationColumn>
