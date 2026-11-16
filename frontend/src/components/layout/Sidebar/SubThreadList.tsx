@@ -160,8 +160,6 @@ export const SubThreadList = memo(function SubThreadList({
 
   return (
     <div className={styles.branch}>
-      <div className={styles['list-line']} />
-
       {subThreads.map((thread) => (
         <SubThreadRow
           key={thread.id}

@@ -15,6 +15,21 @@
     background-color: colors.theme-color('surface-hover', 0.5);
   }
 
+  // Spine segment: full height between children, stopping at the last child's elbow
+  &::before {
+    content: '';
+    position: absolute;
+    left: calc(var(--elbow) * -1);
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: var(--theme-border-secondary);
+  }
+
+  &:last-child::before {
+    bottom: 50%;
+  }
+
   &:global(.#{state.$state-active}) {
     background-color: colors.theme-color('surface-hover', 0.5);
 
@@ -35,13 +50,13 @@
   flex: 1;
 }
 
-// Horizontal elbow connecting the row to the parent's vertical spine
+// Horizontal elbow from the spine to the row's edge, at the row's vertical centre
 .connector {
   position: absolute;
-  left: -22px;
+  left: calc(var(--elbow) * -1);
   top: 50%;
   height: 1px;
-  width: 18px;
+  width: var(--elbow);
   background-color: var(--theme-border-secondary);
 }
 
@@ -52,7 +67,7 @@
   min-width: 0;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1-5) var(--space-2);
+  padding: var(--space-1-5) var(--space-1);
   padding-right: var(--space-10);
   color: var(--theme-text-tertiary);
 
@@ -161,26 +176,21 @@
   width: var(--space-3);
 }
 
-// Shared branch wrapper for the error + list states (indented under the parent)
+// Shared branch wrapper for the error + list states. Geometry follows the parent row
+// (SidebarChatItem): its leading icon is --space-3-5 wide with a --space-1-5 gap to the
+// title. The spine sits under the icon's centre (-0.5px centres the 1px line), and the
+// child's icon (row inset --space-1) lands on the parent's title start.
 .branch {
+  --elbow: calc(var(--space-3-5) / 2 + var(--space-1-5) - var(--space-1) + 0.5px);
   position: relative;
-  margin-left: 11px;
+  margin-left: calc(var(--space-3-5) / 2 - 0.5px);
   margin-top: var(--space-0-5);
-  padding-left: 22px;
+  padding-left: var(--elbow);
 }
 
 .error-line {
   position: absolute;
   bottom: var(--space-2);
-  left: 0;
-  top: 0;
-  width: 1px;
-  background-color: var(--theme-border-secondary);
-}
-
-.list-line {
-  position: absolute;
-  bottom: 14px;
   left: 0;
   top: 0;
   width: 1px;
