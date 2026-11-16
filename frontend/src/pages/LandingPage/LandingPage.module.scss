@@ -1,4 +1,5 @@
 @use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/spacing' as spacing;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/animations' as anim;
@@ -19,7 +20,9 @@
   height: 100%;
   width: 100%;
   overflow-y: auto;
-  padding: var(--space-4) var(--space-4) var(--space-10);
+  // No inline padding: the composer and the rows around it carry the chat composer's own
+  // inset, so the field matches the chat page's at every width.
+  padding-block: var(--space-4) var(--space-10);
 }
 
 // The greeting and recents/prompts regions are 1:1.5 flexible spacers, so the
@@ -28,7 +31,7 @@
 .agent-panel {
   margin: 0 auto;
   width: 100%;
-  max-width: var(--space-168);
+  max-width: spacing.$reading-column-width;
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
@@ -42,6 +45,7 @@
   justify-content: flex-end;
   gap: var(--space-1-5);
   margin-bottom: var(--space-6);
+  padding-inline: var(--space-4);
   text-align: center;
 }
 
