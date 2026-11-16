@@ -1,4 +1,5 @@
-import { Suspense, type ReactNode } from 'react';
+import { Suspense, useLayoutEffect, type ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -103,18 +104,26 @@ interface WorkspaceSurfaceProps {
 }
 
 export function WorkspaceSurface({ renderView, sessionPanel, children }: WorkspaceSurfaceProps) {
-  const sessionPanelOpen = useUIStore((s) => s.sessionPanelOpen);
+  const isMobile = useIsMobile();
+  const { pathname } = useLocation();
+  const sessionPanelOpen = useUIStore((s) =>
+    isMobile ? s.mobileSessionPanelOpen : s.sessionPanelOpen,
+  );
   const createCommitDialogOpen = useUIStore((s) => s.createCommitDialogOpen);
   const createPRDialogOpen = useUIStore((s) => s.createPRDialogOpen);
   const createBranchDialogOpen = useUIStore((s) => s.createBranchDialogOpen);
-  const isMobile = useIsMobile();
+  // The phone panel is a transient view of this route; layout effect so a new route never paints it.
+  useLayoutEffect(() => {
+    useUIStore.getState().closeMobileSessionPanel();
+  }, [pathname, isMobile]);
+  const panel = sessionPanelOpen && sessionPanel;
 
   return (
     <div className={styles.root}>
-      <div className={isMobile && sessionPanelOpen ? styles.hidden : styles.surface}>
+      <div className={isMobile && panel ? styles.hidden : styles.surface}>
         <SplitViewContainer renderView={renderView} />
       </div>
-      {sessionPanelOpen && sessionPanel}
+      {panel}
       <CommandMenu />
       {children}
       {createCommitDialogOpen && (

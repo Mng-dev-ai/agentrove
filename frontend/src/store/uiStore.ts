@@ -89,8 +89,11 @@ type UIStoreState = ThemeState &
     setPendingMenuMode: (mode: MenuMode | null) => void;
     subThreadDialogOpen: boolean;
     setSubThreadDialogOpen: (open: boolean) => void;
+    // Desktop preference (persisted); phones use the transient mobileSessionPanelOpen.
     sessionPanelOpen: boolean;
-    setSessionPanelOpen: (open: boolean) => void;
+    mobileSessionPanelOpen: boolean;
+    toggleSessionPanel: () => void;
+    closeMobileSessionPanel: () => void;
     createPRDialogOpen: boolean;
     setCreatePRDialogOpen: (open: boolean) => void;
     createBranchDialogOpen: boolean;
@@ -300,7 +303,21 @@ export const useUIStore = create<UIStoreState>()(
       subThreadDialogOpen: false,
       setSubThreadDialogOpen: (open) => set({ subThreadDialogOpen: open }),
       sessionPanelOpen: getInitialSidebarState(),
-      setSessionPanelOpen: (open) => set({ sessionPanelOpen: open }),
+      mobileSessionPanelOpen: false,
+      toggleSessionPanel: () => {
+        if (isDesktop()) {
+          set((state) => ({ sessionPanelOpen: !state.sessionPanelOpen }));
+          return;
+        }
+        if (get().mobileSessionPanelOpen) {
+          set({ mobileSessionPanelOpen: false });
+          return;
+        }
+        // The panel describes the routed chat, so its actions target the primary pane.
+        get().activateTab('agent:primary');
+        set({ mobileSessionPanelOpen: true });
+      },
+      closeMobileSessionPanel: () => set({ mobileSessionPanelOpen: false }),
       createPRDialogOpen: false,
       setCreatePRDialogOpen: (open) => set({ createPRDialogOpen: open }),
       createBranchDialogOpen: false,
@@ -394,13 +411,18 @@ export const useUIStore = create<UIStoreState>()(
           visibleLayout: [[tileId]],
           focusedTile: tileId,
           activeAgentTile: agentTileFor(tileId),
+          mobileSessionPanelOpen: false,
         });
       },
 
       focusTile: (tileId) => {
         if (get().focusedTile === tileId) return;
         // activeAgentTile is always-defined coarsening of nullable focusedTile.
-        set({ focusedTile: tileId, activeAgentTile: agentTileFor(tileId) });
+        set({
+          focusedTile: tileId,
+          activeAgentTile: agentTileFor(tileId),
+          mobileSessionPanelOpen: false,
+        });
       },
 
       toggleView: (view, toggle) => {
@@ -423,6 +445,7 @@ export const useUIStore = create<UIStoreState>()(
             visibleLayout: [[target]],
             focusedTile: target,
             activeAgentTile: agentTileFor(target),
+            mobileSessionPanelOpen: false,
           });
           return;
         }

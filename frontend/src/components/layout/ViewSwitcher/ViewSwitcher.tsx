@@ -37,9 +37,11 @@ export function ViewSwitcher() {
   const activeAgentTile = useUIStore((s) => s.activeAgentTile);
   const splitChatIds = useUIStore((s) => s.splitChatIds);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
-  const sessionPanelOpen = useUIStore((s) => s.sessionPanelOpen);
   const isLandingPage = useMatch('/');
   const isMobile = useIsMobile();
+  const sessionPanelOpen = useUIStore((s) =>
+    isMobile ? s.mobileSessionPanelOpen : s.sessionPanelOpen,
+  );
   // Phones show one view at a time; an open session panel covers the workspace.
   const panelCoversWorkspace = isMobile && sessionPanelOpen;
 
@@ -63,7 +65,6 @@ export function ViewSwitcher() {
                   useUIStore.getState().addViewToSplit(view, 'row');
                   return;
                 }
-                if (panelCoversWorkspace) useUIStore.getState().setSessionPanelOpen(false);
                 useUIStore.getState().toggleView(view, true);
               }}
               onContextMenu={(e) => {
@@ -86,10 +87,7 @@ export function ViewSwitcher() {
         <Tooltip content={SESSION_PANEL_TOOLTIP} position="bottom-end">
           <Button
             variant="unstyled"
-            onClick={() => {
-              if (isMobile && !sessionPanelOpen) useUIStore.getState().toggleView('agent', false);
-              useUIStore.getState().setSessionPanelOpen(!sessionPanelOpen);
-            }}
+            onClick={() => useUIStore.getState().toggleSessionPanel()}
             className={styles['view-button']}
             aria-label="Toggle session panel"
             aria-pressed={sessionPanelOpen}

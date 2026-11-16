@@ -49,7 +49,6 @@ import { useBranchPullRequests } from '@/hooks/queries/useGitHubQueries';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { useChatSessionState } from '@/hooks/useChatSessionContext';
-import { isMobileViewport } from '@/hooks/useIsMobile';
 import { useChannelActivity } from '@/store/channelStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
@@ -71,11 +70,6 @@ import styles from './SessionPanel.module.scss';
 // routed chat, so point them at the primary pane first.
 function focusPrimaryAgent() {
   useUIStore.getState().focusTile('agent:primary');
-}
-
-// On phones the panel covers the workspace, so leaving it must uncover the destination.
-function closePanelOnPhone() {
-  if (isMobileViewport()) useUIStore.getState().setSessionPanelOpen(false);
 }
 
 function Card({
@@ -547,10 +541,7 @@ function ParentThreadCard({ parentChatId }: { parentChatId: string }) {
         variant="unstyled"
         type="button"
         className={styles['thread-row']}
-        onClick={() => {
-          closePanelOnPhone();
-          navigate(`/chat/${parentChatId}`);
-        }}
+        onClick={() => navigate(`/chat/${parentChatId}`)}
       >
         <span className={styles['row-icon']}>
           <CornerLeftUp className={styles.glyph} />
@@ -594,12 +585,8 @@ function SubThreadsCard({ chatId, worktreeCwd }: { chatId: string; worktreeCwd: 
               key={thread.id}
               thread={thread}
               parentWorktreeCwd={worktreeCwd}
-              onSelect={(id) => {
-                closePanelOnPhone();
-                navigate(`/chat/${id}`);
-              }}
+              onSelect={(id) => navigate(`/chat/${id}`)}
               onOpenDiff={(id) => {
-                closePanelOnPhone();
                 useUIStore.setState({ pendingDiffMode: { chatId: id, mode: 'total' } });
                 navigate(`/chat/${id}`);
               }}
@@ -624,7 +611,6 @@ function SubThreadsCard({ chatId, worktreeCwd }: { chatId: string; worktreeCwd: 
 }
 
 function openDiff(chatId: string, mode: DiffMode) {
-  closePanelOnPhone();
   focusPrimaryAgent();
   useUIStore.setState({ pendingDiffMode: { chatId, mode } });
   useUIStore.getState().toggleView('diff', false);

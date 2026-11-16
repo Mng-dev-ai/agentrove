@@ -332,7 +332,7 @@ export function executeCommand(
   } else if (cmd.id === 'toggle-sidebar') {
     ui.setSidebarOpen(!ui.sidebarOpen);
   } else if (cmd.id === 'toggle-session-panel') {
-    ui.setSessionPanelOpen(!ui.sessionPanelOpen);
+    ui.toggleSessionPanel();
   } else if (cmd.id === 'set-theme') {
     ui.setPendingMenuMode('themes');
     ui.setCommandMenuOpen(true);
