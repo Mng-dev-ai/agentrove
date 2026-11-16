@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { useUIStore } from '@/store/uiStore';
 import { getFrameThemeVariables } from '@/utils/frameTheme';
@@ -54,7 +54,7 @@ export const McpAppFrame = memo(function McpAppFrame({ html, title, onMessage }:
     [html],
   );
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const post = (message: Record<string, unknown>) =>
       iframeRef.current?.contentWindow?.postMessage({ jsonrpc: '2.0', ...message }, '*');
 
