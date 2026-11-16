@@ -3,16 +3,19 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .scroll-button-slot {
+  pointer-events: none;
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 100%;
+  bottom: calc(100% + var(--space-2));
   display: flex;
   justify-content: center;
 }
 
+// Floats over the messages, so it keeps its own surface, border and shadow.
 .scroll-button {
   @include anim.transition-colors;
+  pointer-events: auto;
   display: flex;
   height: var(--space-8);
   width: var(--space-8);

@@ -25,10 +25,9 @@
 }
 
 // Positioning context for the selection-actions layer anchored to message content.
-// The bottom padding keeps the last row clear of the composer fade (same token as the band).
 .content {
   position: relative;
-  padding-bottom: var(--space-12);
+  padding-bottom: var(--space-3);
 }
 
 // Centered message column — full width, capped and centered from the lg breakpoint
@@ -45,21 +44,23 @@
 .composer {
   position: relative;
 
-  // Text dissolves into the surface above the composer; the scroll button sits in this band.
+  // Text scrolled under the composer dissolves into its top edge; at the bottom
+  // of the scroll there is nothing underneath, so the fade is hidden.
   &::before {
     content: '';
     position: absolute;
     left: 0;
     right: 0;
     bottom: 100%;
-    height: var(--space-12);
-    // Short ramp, then solid from a --space-2 margin above the button down to the input
-    background: linear-gradient(
-      to bottom,
-      transparent,
-      var(--theme-surface) calc(100% - var(--space-10))
-    );
+    height: var(--space-6);
+    background: linear-gradient(to bottom, transparent, var(--theme-surface));
+    opacity: 0;
+    transition: opacity var(--duration-fast);
     pointer-events: none;
+  }
+
+  &--scrolled::before {
+    opacity: 1;
   }
 }
 
