@@ -51,7 +51,7 @@
 .segment {
   @include anim.transition-colors;
   @include controls.focus-ring;
-  position: relative;
+  @include responsive.touch-target;
   cursor: pointer;
   border: none;
   background: none;
