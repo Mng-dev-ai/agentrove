@@ -104,6 +104,7 @@
 .chip {
   @include type.type-meta(500);
   @include anim.transition-colors;
+  @include responsive.touch-target;
   display: inline-flex;
   max-width: 14rem;
   align-items: center;
@@ -246,6 +247,7 @@
 
 .add-chip {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   display: inline-flex;
   height: var(--space-7);
   width: var(--space-7);
