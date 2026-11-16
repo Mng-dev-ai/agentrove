@@ -42,6 +42,18 @@
 
 .composer {
   position: relative;
+
+  // Text dissolves into the surface above the composer; the scroll button sits in this band.
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: var(--space-8);
+    background: linear-gradient(to bottom, transparent, var(--theme-surface));
+    pointer-events: none;
+  }
 }
 
 .composer-surface {
