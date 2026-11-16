@@ -150,8 +150,11 @@ export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogP
         <div className={styles.fields}>
           {!repairing && (
             <div>
-              <Label className={styles.label}>Name</Label>
+              <Label htmlFor="machine-name" className={styles.label}>
+                Name
+              </Label>
               <Input
+                id="machine-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="VPS"
@@ -160,8 +163,11 @@ export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogP
             </div>
           )}
           <div>
-            <Label className={styles.label}>Pairing link</Label>
+            <Label htmlFor="machine-pairing-link" className={styles.label}>
+              Pairing link
+            </Label>
             <Input
+              id="machine-pairing-link"
               type="password"
               value={link}
               onChange={(e) => {
