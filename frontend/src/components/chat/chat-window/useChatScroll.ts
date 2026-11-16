@@ -143,9 +143,12 @@ export function useChatScroll({
     // Send anchor, step 1 of a two-commit handshake: reserve a viewport of space under
     // the new turn (the reply streams into it instead of growing the page); the state
     // commit re-fires step 2, which scrolls once the spacer exists in the DOM.
-    if (!pendingUserMessageId || !scrollerRef.current) return;
+    const scroller = scrollerRef.current;
+    if (!pendingUserMessageId || !scroller?.firstElementChild) return;
     anchorTurnRef.current = pendingUserMessageId;
-    setTurnMinHeight(scrollerRef.current.clientHeight);
+    // Net of the content's bottom padding, so the anchored turn top is exactly max scroll.
+    const reserved = parseFloat(getComputedStyle(scroller.firstElementChild).paddingBottom);
+    setTurnMinHeight(scroller.clientHeight - reserved);
   }, [pendingUserMessageId]);
 
   useLayoutEffect(() => {

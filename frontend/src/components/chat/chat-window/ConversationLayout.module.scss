@@ -25,8 +25,10 @@
 }
 
 // Positioning context for the selection-actions layer anchored to message content.
+// The bottom padding keeps the last row clear of the composer fade (same token as the band).
 .content {
   position: relative;
+  padding-bottom: var(--space-8);
 }
 
 // Centered message column — full width, capped and centered from the lg breakpoint
