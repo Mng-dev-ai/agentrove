@@ -72,7 +72,9 @@ function InboxRow({ entry, onOpen }: InboxRowProps) {
           {!item.read_at && <ChatStatusDot tone="unread" />}
         </span>
         <span className={styles.text}>
-          <span className={styles['item-title']}>{item.title}</span>
+          <span className={clsx(styles['item-title'], item.read_at && styles['item-title--read'])}>
+            {item.title}
+          </span>
           <span ref={bodyRef} className={clsx(styles.body, expanded && styles['body--expanded'])}>
             {item.body}
           </span>

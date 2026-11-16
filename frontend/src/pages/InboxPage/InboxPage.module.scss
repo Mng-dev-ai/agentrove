@@ -186,6 +186,10 @@
   @include responsive.media('mobile') {
     grid-column: 2;
   }
+
+  &--read {
+    @include type.type-default;
+  }
 }
 
 .body {
