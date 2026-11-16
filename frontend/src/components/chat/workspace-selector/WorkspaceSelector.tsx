@@ -1,4 +1,4 @@
-import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
+import { useWorkspacesList, useWorkspacesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { WorkspacePicker } from './WorkspacePicker';
 import { CreateWorkspaceFooter } from './CreateWorkspaceFooter';
 
@@ -14,12 +14,14 @@ export function WorkspaceSelector({
   enabled,
 }: WorkspaceSelectorProps) {
   const workspaces = useWorkspacesList({ enabled });
+  const { isLoading } = useWorkspacesQuery({ enabled });
 
   return (
     <WorkspacePicker
       workspaces={workspaces}
       selectedWorkspaceId={selectedWorkspaceId}
       onSelect={onWorkspaceChange}
+      isLoading={isLoading}
       showBranches
       footer={(close) => (
         <CreateWorkspaceFooter
