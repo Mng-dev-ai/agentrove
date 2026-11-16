@@ -26,6 +26,14 @@
     opacity: 1;
   }
 
+  // A collapsed notice is a one-line marker for the reply it triggered, so the reply
+  // sits half a turn gap below it. Notices have no action row to overlay the gap.
+  &--notice-before-reply:has([aria-expanded='false']) {
+    @include responsive.media('not-touch') {
+      padding-bottom: 0;
+    }
+  }
+
   // The latest row's actions always show, so they keep their place in the flow
   &--latest {
     @include responsive.media('not-touch') {

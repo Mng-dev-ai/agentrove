@@ -218,7 +218,7 @@ export const Chat = memo(function Chat() {
     !isLoading;
 
   const renderMessage = useCallback(
-    (msg: (typeof messages)[number]) => {
+    (msg: (typeof messages)[number], hasReply: boolean) => {
       const messageIsStreaming = streamingMessageIdSet.has(msg.id);
       const isBotMessage = isAssistantMessage(msg);
       const isLastBotMessage = isBotMessage && msg.id === lastBotMessageId;
@@ -270,6 +270,7 @@ export const Chat = memo(function Chat() {
               uploadingAttachmentIds={uploadingAttachmentIds}
               isStreaming={messageIsStreaming}
               isLatest={msg.id === latestMessageId}
+              hasReply={hasReply}
             />
           )}
           {isLastBotMessage && !messageIsStreaming && (
@@ -378,9 +379,9 @@ export const Chat = memo(function Chat() {
                   ref={isLastTurn ? turnRef : undefined}
                   style={isLastTurn && turnMinHeight > 0 ? { minHeight: turnMinHeight } : undefined}
                 >
-                  {turn.map((msg) => (
+                  {turn.map((msg, index) => (
                     <div key={msg.id} data-message-id={msg.id}>
-                      {renderMessage(msg)}
+                      {renderMessage(msg, index === 0 && turn.length > 1)}
                     </div>
                   ))}
                   {isLastTurn && listFooter}

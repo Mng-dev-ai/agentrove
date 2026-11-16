@@ -21,9 +21,17 @@ import { useChatMachineId } from '@/store/machineOrigin';
 import styles from './Message.module.scss';
 
 // The latest message keeps its actions visible; earlier ones reveal them on hover/focus.
-export function MessageRow({ children, isLatest }: { children: ReactNode; isLatest?: boolean }) {
+export function MessageRow({
+  children,
+  isLatest,
+  className,
+}: {
+  children: ReactNode;
+  isLatest?: boolean;
+  className?: string;
+}) {
   return (
-    <div className={clsx(styles.message, isLatest && styles['message--latest'])}>
+    <div className={clsx(styles.message, isLatest && styles['message--latest'], className)}>
       <div className={styles['message-row']}>
         <div className={styles['message-body']}>{children}</div>
       </div>
@@ -64,6 +72,8 @@ export interface UserMessageProps extends SharedContentProps {
   contentText: string;
   uploadingAttachmentIds?: string[];
   isLatest?: boolean;
+  // An assistant reply follows in the same turn
+  hasReply?: boolean;
 }
 
 export const UserMessage = memo(function UserMessage({
@@ -74,6 +84,7 @@ export const UserMessage = memo(function UserMessage({
   uploadingAttachmentIds,
   isStreaming,
   isLatest,
+  hasReply,
 }: UserMessageProps) {
   const { chatId } = useChatContext();
 
@@ -83,7 +94,7 @@ export const UserMessage = memo(function UserMessage({
     .join('\n\n');
   if (noticeText) {
     return (
-      <MessageRow>
+      <MessageRow className={hasReply ? styles['message--notice-before-reply'] : undefined}>
         <NoticeCard text={noticeText} />
       </MessageRow>
     );
