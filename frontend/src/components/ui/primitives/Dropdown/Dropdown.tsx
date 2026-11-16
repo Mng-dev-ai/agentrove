@@ -113,6 +113,10 @@ function getFilteredGroupedItems<T>(
   return result;
 }
 
+// Code points of a toolbar label that never wrap, so the shrinking trigger keeps about
+// five characters plus the ellipsis (see .trigger-label-head)
+const TOOLBAR_LABEL_HEAD_LENGTH = 7;
+
 // Wraps flat items into the grouped format so both branches share one render path
 function normalizeToGrouped<T>(
   items: readonly T[] | readonly DropdownItemType<T>[],
@@ -195,6 +199,7 @@ const Dropdown = memo(function Dropdown<T>({
   );
 
   const triggerLabel = getItemShortLabel ? getItemShortLabel(value) : getItemLabel(value);
+  const triggerLabelChars = Array.from(triggerLabel);
 
   return (
     <div className={styles.dropdown} ref={dropdownRef}>
@@ -230,8 +235,16 @@ const Dropdown = memo(function Dropdown<T>({
         )}
         <FloatingTooltip content={isOpen ? '' : triggerLabel} className={labelSlotClass}>
           <span className={styles['trigger-label']}>
-            <span className={styles['trigger-label-head']}>{triggerLabel.slice(0, 7)}</span>
-            {triggerLabel.slice(7)}
+            {triggerVariant === 'toolbar' ? (
+              <>
+                <span className={styles['trigger-label-head']}>
+                  {triggerLabelChars.slice(0, TOOLBAR_LABEL_HEAD_LENGTH).join('')}
+                </span>
+                {triggerLabelChars.slice(TOOLBAR_LABEL_HEAD_LENGTH).join('')}
+              </>
+            ) : (
+              triggerLabel
+            )}
           </span>
         </FloatingTooltip>
         {triggerSuffix && <span className={styles['trigger-suffix']}>{triggerSuffix}</span>}
