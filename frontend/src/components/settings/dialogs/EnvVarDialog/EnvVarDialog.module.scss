@@ -1,18 +1,7 @@
 @use '@/styles/globals/typography' as type;
 
-.dialog {
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
 .body {
   padding: var(--space-5);
-}
-
-.title {
-  @include type.type-body(500);
-  margin-bottom: var(--space-5);
-  color: var(--theme-text-primary);
 }
 
 .error {

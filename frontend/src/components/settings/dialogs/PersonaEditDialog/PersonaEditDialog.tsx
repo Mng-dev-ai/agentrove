@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/primitives/Label/Label';
 import { Select } from '@/components/ui/primitives/Select/Select';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import styles from './PersonaEditDialog.module.scss';
@@ -32,10 +33,9 @@ export function PersonaEditDialog({
   onPersonaChange,
 }: PersonaEditDialogProps) {
   return (
-    <BaseModal isOpen={isOpen} onClose={onClose} size="4xl" className={styles.dialog}>
+    <BaseModal isOpen={isOpen} onClose={onClose} size="lg">
+      <ModalHeader title={isEditing ? 'Edit Persona' : 'Add Persona'} onClose={onClose} />
       <div className={styles.body}>
-        <h3 className={styles.title}>{isEditing ? 'Edit Persona' : 'Add Persona'}</h3>
-
         <DialogError error={error} className={styles.error} />
 
         <div className={styles.fields}>
@@ -80,15 +80,14 @@ export function PersonaEditDialog({
             />
           </div>
         </div>
-
-        <DialogFooter
-          onCancel={onClose}
-          onSave={onSubmit}
-          saveLabel={isEditing ? 'Update' : 'Add Persona'}
-          saving={isSaving}
-          disabled={!persona.name.trim() || !persona.content.trim()}
-        />
       </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={onSubmit}
+        saveLabel={isEditing ? 'Update' : 'Add Persona'}
+        saving={isSaving}
+        disabled={!persona.name.trim() || !persona.content.trim()}
+      />
     </BaseModal>
   );
 }

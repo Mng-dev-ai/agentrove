@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { GitBranch, Brain, Shield } from 'lucide-react';
+import { Brain, Shield } from 'lucide-react';
 import type { Persona, StreamAction } from '@/types/user.types';
 import type { SlashCommand } from '@/types/ui.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/primitives/Select/Select';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
@@ -112,14 +113,8 @@ export function StreamActionEditDialog({
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="sm" className={styles.dialog}>
+      <ModalHeader title={isEditing ? 'Edit action' : 'Add action'} onClose={onClose} />
       <div className={styles.body}>
-        <div className={styles.header}>
-          <div className={styles['icon-box']}>
-            <GitBranch className={styles['header-icon']} />
-          </div>
-          <h3 className={styles.title}>{isEditing ? 'Edit action' : 'Add action'}</h3>
-        </div>
-
         <DialogError error={error} className={styles.error} />
 
         <div className={styles.fields}>
@@ -213,14 +208,13 @@ export function StreamActionEditDialog({
             </p>
           </div>
         </div>
-
-        <DialogFooter
-          onCancel={onClose}
-          onSave={onSubmit}
-          saveLabel={isEditing ? 'Update' : 'Add action'}
-          disabled={!action.label.trim() || !action.model_id.trim() || !action.command.trim()}
-        />
       </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={onSubmit}
+        saveLabel={isEditing ? 'Update' : 'Add action'}
+        disabled={!action.label.trim() || !action.model_id.trim() || !action.command.trim()}
+      />
     </BaseModal>
   );
 }
