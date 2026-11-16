@@ -40,6 +40,8 @@
   @include anim.pulse;
   height: var(--space-3);
   width: var(--space-3);
+  // Same footprint as the send icon so the button box doesn't change while streaming
+  margin: calc((var(--space-3-5) - var(--space-3)) / 2);
   color: var(--theme-surface);
 }
 
