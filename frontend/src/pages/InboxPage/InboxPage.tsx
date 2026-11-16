@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import {
   type MachineInboxItem,
@@ -192,20 +193,7 @@ export function InboxPage() {
         </div>
 
         {items.length === 0 && load.loadFailed ? (
-          <div className={styles.empty} role="alert">
-            <AlertCircle className={styles['empty-icon']} />
-            <p className={styles['empty-text']}>Couldn&apos;t load your inbox</p>
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className={styles['retry-btn']}
-              disabled={load.isRetrying}
-              onClick={() => void load.retry()}
-            >
-              {load.isRetrying ? 'Retrying…' : 'Try again'}
-            </Button>
-          </div>
+          <LoadErrorState icon={AlertCircle} message="Couldn't load your inbox" load={load} />
         ) : isLoading ? (
           <div className={styles.loading}>
             <Spinner size="md" className={styles.spinner} />

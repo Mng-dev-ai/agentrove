@@ -44,27 +44,6 @@
   }
 }
 
-.load-error {
-  border: 1px dashed var(--theme-border);
-  border-radius: var(--radius-xl);
-  padding-block: var(--space-10);
-  text-align: center;
-}
-
-.load-error-icon {
-  margin-inline: auto;
-  margin-bottom: var(--space-3);
-  height: var(--space-5);
-  width: var(--space-5);
-  color: var(--theme-text-quaternary);
-}
-
-.load-error-text {
-  @include type.type-default;
-  margin-bottom: var(--space-3);
-  color: var(--theme-text-secondary);
-}
-
 .error-box {
   margin-bottom: var(--space-5);
   border-radius: var(--radius-xl);

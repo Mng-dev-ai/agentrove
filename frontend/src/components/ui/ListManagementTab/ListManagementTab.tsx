@@ -2,6 +2,7 @@ import { CSSProperties, ReactNode, useState } from 'react';
 import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
+import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { Plus, Loader2, LucideIcon, Edit2, Trash2 } from 'lucide-react';
 import { logger } from '@/utils/logger';
 import type { ListLoadState } from '@/hooks/queries/listLoad';
@@ -146,19 +147,7 @@ export function ListManagementTab<T>({
         )}
 
         {shownError ? (
-          <div className={styles.empty} role="alert">
-            <EmptyIcon className={styles['empty-icon']} />
-            <p className={styles['empty-text']}>{shownError.message}</p>
-            <Button
-              type="button"
-              onClick={() => void shownError.load.retry()}
-              variant="secondary"
-              size="sm"
-              disabled={shownError.load.isRetrying}
-            >
-              {shownError.load.isRetrying ? 'Retrying…' : 'Try again'}
-            </Button>
-          </div>
+          <LoadErrorState icon={EmptyIcon} message={shownError.message} load={shownError.load} />
         ) : items === null ? (
           // null means the list is still loading — stay invisible for 300ms so
           // fast loads render nothing instead of flashing a spinner

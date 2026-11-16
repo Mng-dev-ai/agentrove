@@ -7,7 +7,7 @@ import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/use
 import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { AlertCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
-import { Button } from '@/components/ui/primitives/Button/Button';
+import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import toast from 'react-hot-toast';
@@ -246,19 +246,11 @@ export function SettingsPage() {
         <div className={styles.content}>
           <div className={styles['content-inner']}>
             {settingsLoad.loadFailed ? (
-              <div className={styles['load-error']} role="alert">
-                <AlertCircle className={styles['load-error-icon']} />
-                <p className={styles['load-error-text']}>Couldn&apos;t load settings</p>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={settingsLoad.isRetrying}
-                  onClick={() => void settingsLoad.retry()}
-                >
-                  {settingsLoad.isRetrying ? 'Retrying…' : 'Try again'}
-                </Button>
-              </div>
+              <LoadErrorState
+                icon={AlertCircle}
+                message="Couldn't load settings"
+                load={settingsLoad}
+              />
             ) : !settings || !localSettings ? (
               // First load, or the frame before the sync effect copies settings → localSettings.
               tabLoadingFallback
