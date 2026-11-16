@@ -88,7 +88,7 @@
 .th {
   @include type.type-default(500);
   text-align: left;
-  color: var(--theme-text-tertiary);
+  color: var(--theme-text-secondary);
 }
 
 .td {
