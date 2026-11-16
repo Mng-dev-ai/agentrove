@@ -8,7 +8,8 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearchChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useSearchMachineChatsQueries } from '@/hooks/queries/useMachineQueries';
 import { machineName, useOnlineRemoteMachineIds } from '@/store/machineStore';
-import { ChatSearchResultGroup, type SearchHit } from './ChatSearchResultGroup';
+import { ChatSearchResultGroup } from './ChatSearchResultGroup';
+import { hitKey, type SearchHit } from './searchHit';
 import styles from './ChatSearchPanel.module.scss';
 
 const LIST_ID = 'chat-search-results';
@@ -25,8 +26,17 @@ interface WorkspaceGroup {
   hits: SearchHit[];
 }
 
-function hitKey(hit: SearchHit): string {
-  return hit.kind === 'chat' ? hit.result.chat_id : hit.result.channel_id;
+interface ResultRow {
+  hit: SearchHit;
+  key: string;
+  expanded: boolean;
+  firstOption: number;
+}
+
+interface WorkspaceRows {
+  workspaceId: string;
+  workspaceName: string;
+  rows: ResultRow[];
 }
 
 function groupByWorkspace(hits: SearchHit[]): WorkspaceGroup[] {
@@ -44,6 +54,26 @@ function groupByWorkspace(hits: SearchHit[]): WorkspaceGroup[] {
     group.hits.push(hit);
   }
   return Array.from(groups.values());
+}
+
+// One option per visible match line, in render order.
+function buildResultRows(
+  groups: WorkspaceGroup[],
+  collapsed: ReadonlySet<string>,
+): { workspaces: WorkspaceRows[]; optionHits: SearchHit[] } {
+  const optionHits: SearchHit[] = [];
+  const workspaces = groups.map((group) => ({
+    workspaceId: group.workspaceId,
+    workspaceName: group.workspaceName,
+    rows: group.hits.map((hit): ResultRow => {
+      const key = hitKey(hit);
+      const expanded = !collapsed.has(key);
+      const row = { hit, key, expanded, firstOption: optionHits.length };
+      if (expanded) optionHits.push(...hit.result.matches.map(() => hit));
+      return row;
+    }),
+  }));
+  return { workspaces, optionHits };
 }
 
 export const ChatSearchPanel = memo(function ChatSearchPanel({
@@ -105,10 +135,13 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
 
   const results = sources.flatMap((source) => source.data?.results ?? []);
   const channelResults = sources.flatMap((source) => source.data?.channel_results ?? []);
-  const grouped = groupByWorkspace([
-    ...results.map((result): SearchHit => ({ kind: 'chat', result })),
-    ...channelResults.map((result): SearchHit => ({ kind: 'channel', result })),
-  ]);
+  const { workspaces, optionHits: visibleOptionHits } = buildResultRows(
+    groupByWorkspace([
+      ...results.map((result): SearchHit => ({ kind: 'chat', result })),
+      ...channelResults.map((result): SearchHit => ({ kind: 'channel', result })),
+    ]),
+    collapsed,
+  );
   const totalMatches = [...results, ...channelResults].reduce((acc, r) => acc + r.match_count, 0);
   const resultCount = results.length;
   const channelCount = channelResults.length;
@@ -124,14 +157,7 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
   const hasQuery = debouncedQuery.trim().length >= 2;
   const hasResults = resultCount + channelCount > 0;
 
-  // One option per visible match line, in render order.
-  const optionHits = hasQuery
-    ? grouped.flatMap((group) =>
-        group.hits.flatMap((hit) =>
-          collapsed.has(hitKey(hit)) ? [] : hit.result.matches.map(() => hit),
-        ),
-      )
-    : [];
+  const optionHits = hasQuery ? visibleOptionHits : [];
   const activeOption = Math.min(activeIndex, optionHits.length - 1);
 
   useEffect(() => {
@@ -156,8 +182,6 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
       openHit(optionHits[activeOption]);
     }
   };
-
-  let nextOption = 0;
 
   return (
     <div className={styles['chat-search-panel']}>
@@ -239,7 +263,7 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
               {isFetching && <Loader2 className={styles['spin-icon']} />}
               <span>
                 {totalMatches} {totalMatches === 1 ? 'result' : 'results'} in {scopeLabel} ·{' '}
-                {grouped.length} {grouped.length === 1 ? 'workspace' : 'workspaces'}
+                {workspaces.length} {workspaces.length === 1 ? 'workspace' : 'workspaces'}
                 {truncated && ' (truncated)'}
               </span>
             </p>
@@ -249,27 +273,21 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
               id={LIST_ID}
               className={styles['result-list']}
             >
-              {grouped.map((group) => (
-                <div key={group.workspaceId} className={styles['workspace-group']}>
-                  <p className={styles['workspace-name']}>{group.workspaceName}</p>
-                  {group.hits.map((hit) => {
-                    const key = hitKey(hit);
-                    const expanded = !collapsed.has(key);
-                    const firstOption = nextOption;
-                    if (expanded) nextOption += hit.result.matches.length;
-                    return (
-                      <ChatSearchResultGroup
-                        key={key}
-                        hit={hit}
-                        expanded={expanded}
-                        onToggle={toggleHit}
-                        onOpen={openHit}
-                        firstOption={firstOption}
-                        activeOption={activeOption}
-                        activeItemRef={activeItemRef}
-                      />
-                    );
-                  })}
+              {workspaces.map((workspace) => (
+                <div key={workspace.workspaceId} className={styles['workspace-group']}>
+                  <p className={styles['workspace-name']}>{workspace.workspaceName}</p>
+                  {workspace.rows.map((row) => (
+                    <ChatSearchResultGroup
+                      key={row.key}
+                      hit={row.hit}
+                      expanded={row.expanded}
+                      onToggle={toggleHit}
+                      onOpen={openHit}
+                      firstOption={row.firstOption}
+                      activeOption={activeOption}
+                      activeItemRef={activeItemRef}
+                    />
+                  ))}
                 </div>
               ))}
             </div>
