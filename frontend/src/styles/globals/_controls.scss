@@ -113,10 +113,6 @@
     @include responsive.hover {
       color: var(--theme-text-primary);
     }
-
-    &:focus-visible {
-      box-shadow: none;
-    }
   } @else {
     @error 'Unknown button variant: #{$variant}';
   }
