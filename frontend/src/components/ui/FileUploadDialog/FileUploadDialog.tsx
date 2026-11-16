@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Plus, Image, FileText, FileSpreadsheet, FileUp, Camera } from 'lucide-react';
+import { Plus, Image, FileText, FileSpreadsheet, Camera } from 'lucide-react';
 import clsx from 'clsx';
 import { useDragAndDrop } from '@/hooks/useDragAndDrop';
 import { useFileHandling } from '@/hooks/useFileHandling';
@@ -7,7 +7,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { FilePreviewList } from '@/components/ui/FilePreviewList/FilePreviewList';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
-import { Button } from '@/components/ui/primitives/Button/Button';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import styles from './FileUploadDialog.module.scss';
 
@@ -129,30 +129,12 @@ export const FileUploadDialog = memo(function FileUploadDialog({
         </div>
       </div>
 
-      <div className={styles.footer}>
-        <div className={styles['footer-actions']}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={onClose}
-            className={styles['cancel-button']}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleUpload}
-            disabled={files.length === 0}
-            className={styles['upload-button']}
-          >
-            <FileUp className={styles['upload-icon']} />
-            Upload {files.length > 0 && `(${files.length})`}
-          </Button>
-        </div>
-      </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={handleUpload}
+        saveLabel={files.length > 0 ? `Upload (${files.length})` : 'Upload'}
+        disabled={files.length === 0}
+      />
     </BaseModal>
   );
 });

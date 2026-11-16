@@ -11,7 +11,7 @@
 .content {
   flex: 1;
   overflow: auto;
-  padding: var(--space-4);
+  padding: var(--space-5);
 
   > * + * {
     margin-top: var(--space-4);
@@ -130,46 +130,4 @@
 
 .hidden-input {
   display: none;
-}
-
-.footer {
-  border-top: 1px solid var(--theme-border);
-  padding: var(--space-3);
-}
-
-.footer-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-}
-
-// Cancel button — dense modal footer look overriding the ghost primitive padding
-.cancel-button {
-  @include anim.transition-colors;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-lg);
-  color: var(--theme-text-tertiary);
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-  }
-}
-
-// Inverted-primary upload button
-.upload-button {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  border: 1px solid var(--theme-text-primary);
-  background-color: var(--theme-text-primary);
-  color: var(--theme-surface);
-
-  @include responsive.hover {
-    background-color: var(--theme-text-secondary);
-  }
-}
-
-.upload-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
 }

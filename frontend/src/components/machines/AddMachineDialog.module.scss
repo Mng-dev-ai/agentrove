@@ -5,35 +5,6 @@
   padding: var(--space-5);
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2-5);
-  margin-bottom: var(--space-5);
-}
-
-.icon-box {
-  display: flex;
-  height: var(--space-8);
-  width: var(--space-8);
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-lg);
-  background-color: var(--theme-surface-tertiary);
-}
-
-.header-icon {
-  height: var(--space-4);
-  width: var(--space-4);
-  color: var(--theme-text-tertiary);
-}
-
-.title {
-  @include type.type-body(500);
-  color: var(--theme-text-primary);
-}
-
 .error {
   @include type.type-meta;
   display: flex;
@@ -50,12 +21,12 @@
 .fields {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
 }
 
 .label {
   @include type.type-default;
-  margin-bottom: var(--space-1);
+  margin-bottom: var(--space-1-5);
   color: var(--theme-text-secondary);
 }
 

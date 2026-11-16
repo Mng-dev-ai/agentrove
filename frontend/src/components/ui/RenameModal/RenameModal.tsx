@@ -3,6 +3,7 @@ import { Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -119,28 +120,13 @@ export function RenameModal({
         )}
       </div>
 
-      <div className={styles.footer}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          disabled={isLoading}
-          className={styles['cancel-button']}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={handleSave}
-          disabled={isSaveDisabled}
-          isLoading={isLoading}
-        >
-          Save
-        </Button>
-      </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={handleSave}
+        saveLabel="Save"
+        saving={isLoading}
+        disabled={isSaveDisabled}
+      />
     </BaseModal>
   );
 }
