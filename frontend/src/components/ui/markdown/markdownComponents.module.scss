@@ -80,7 +80,6 @@
 
 .td {
   @include type.type-default;
-  color: var(--theme-text-secondary);
 }
 
 .h1 {
@@ -109,7 +108,6 @@
   margin-bottom: var(--space-3);
   white-space: pre-wrap;
   line-height: var(--space-5);
-  color: var(--theme-text-secondary);
   overflow-wrap: anywhere;
 
   &:last-child {
@@ -131,7 +129,6 @@
 
 .em {
   font-style: italic;
-  color: var(--theme-text-secondary);
 }
 
 .code-inline {
@@ -169,7 +166,6 @@
   margin-bottom: var(--space-3);
   padding-left: var(--space-4);
   list-style: disc;
-  color: var(--theme-text-secondary);
 
   > * + * {
     margin-top: var(--space-1);
@@ -180,7 +176,6 @@
   margin-bottom: var(--space-3);
   padding-left: var(--space-4);
   list-style: decimal;
-  color: var(--theme-text-secondary);
 
   > * + * {
     margin-top: var(--space-1);
@@ -189,7 +184,6 @@
 
 .li {
   padding-left: var(--space-1);
-  color: var(--theme-text-secondary);
 }
 
 .blockquote {
@@ -197,7 +191,6 @@
   border-left: 2px solid var(--theme-border);
   padding-left: var(--space-3);
   font-style: italic;
-  color: var(--theme-text-secondary);
 }
 
 .link {
