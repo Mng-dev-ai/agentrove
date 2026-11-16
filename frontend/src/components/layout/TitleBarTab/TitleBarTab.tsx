@@ -6,8 +6,8 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { stateClasses } from '@/config/stateClasses';
 import styles from './TitleBarTab.module.scss';
 
-export function TitleBarTabs({ children }: { children: ReactNode }) {
-  return <div className={styles.tabs}>{children}</div>;
+export function TitleBarTabs({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={clsx(styles.tabs, className)}>{children}</div>;
 }
 
 interface TitleBarTabActions {
