@@ -60,7 +60,7 @@
 .select {
   @include type.type-default;
   height: var(--space-8);
-  padding: var(--space-1-5) var(--space-3);
+  padding-block: var(--space-1-5);
   background-color: var(--theme-surface-secondary);
   color: var(--theme-text-primary);
 }
