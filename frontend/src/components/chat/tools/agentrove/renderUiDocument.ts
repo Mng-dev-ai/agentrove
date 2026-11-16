@@ -13,7 +13,7 @@ if(m.method==='ui/notifications/host-context-changed'){applyContext(m.params);re
 if(m.id!=null&&pending[m.id]){var p=pending[m.id];delete pending[m.id];if(m.error)p.rej(m.error);else p.res(m.result);}});
 window.agentrove={sendMessage:function(text){return request('ui/message',{role:'user',content:[{type:'text',text:String(text)}]});}};
 request('ui/initialize',{protocolVersion:'2026-01-26',appInfo:{name:'agentrove-render-ui',version:'1.0.0'},appCapabilities:{}}).then(function(r){applyContext(r.hostContext);send({method:'ui/notifications/initialized'});});
-var h=0;new ResizeObserver(function(){var n=document.documentElement.scrollHeight;if(n!==h){h=n;send({method:'ui/notifications/size-changed',params:{height:n}});}}).observe(document.documentElement);
+var h=0;new ResizeObserver(function(){var n=Math.ceil(document.documentElement.getBoundingClientRect().height);if(n!==h){h=n;send({method:'ui/notifications/size-changed',params:{height:n}});}}).observe(document.documentElement);
 })();`;
 
 export const buildRenderUiDocument = (html: string): string =>
