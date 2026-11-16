@@ -66,7 +66,10 @@ export function BaseModal({
         if (!first || !last) {
           e.preventDefault();
           container.focus();
-        } else if (!container.contains(active) || (e.shiftKey && active === first)) {
+        } else if (
+          !container.contains(active) ||
+          (e.shiftKey && (active === first || active === container))
+        ) {
           e.preventDefault();
           (e.shiftKey ? last : first).focus();
         } else if (!e.shiftKey && active === last) {
