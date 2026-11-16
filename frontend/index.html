@@ -18,21 +18,16 @@
   </head>
   <body>
     <script>
-      // Mirrors useResolvedTheme + App's theme effect (ES5 for old WebKit); LIGHT_PALETTES are
-      // the base: 'light' entries of src/styles/palettes.ts.
+      // Mirrors useResolvedTheme + App's theme effect (ES5 for old WebKit). vite.config.ts
+      // injects DARK_THEMES, the app's dark set derived from src/styles/palettes.ts.
       (function initTheme() {
-        var LIGHT_PALETTES = [
-          'sepia',
-          'solarized-light',
-          'catppuccin-latte',
-          'rose-pine-dawn',
-          'notion',
-        ];
+        var DARK_THEMES = __DARK_THEMES__;
         var root = document.documentElement;
         var theme = 'dark';
         try {
           var persisted = JSON.parse(localStorage.getItem('ui-storage'));
-          if (persisted && persisted.state && typeof persisted.state.theme === 'string') {
+          // Same as the store's shallow merge: any persisted theme value wins.
+          if (persisted && persisted.state && 'theme' in persisted.state) {
             theme = persisted.state.theme;
           }
         } catch (error) {}
@@ -43,7 +38,7 @@
               ? 'light'
               : 'dark';
         } else {
-          resolved = theme === 'light' || LIGHT_PALETTES.indexOf(theme) !== -1 ? 'light' : 'dark';
+          resolved = DARK_THEMES.indexOf(theme) !== -1 ? 'dark' : 'light';
         }
         root.setAttribute('data-theme', resolved);
         root.setAttribute('data-palette', theme);
@@ -51,10 +46,8 @@
         if (meta) {
           var surface = window.getComputedStyle(root).backgroundColor;
           var styled = surface && surface !== 'transparent' && surface !== 'rgba(0, 0, 0, 0)';
-          meta.setAttribute(
-            'content',
-            styled ? surface : resolved === 'dark' ? '#111111' : '#f5f5f5',
-          );
+          var fallback = resolved === 'dark' ? '#111111' : '#f5f5f5';
+          meta.setAttribute('content', styled ? surface : fallback);
         }
       })();
     </script>
