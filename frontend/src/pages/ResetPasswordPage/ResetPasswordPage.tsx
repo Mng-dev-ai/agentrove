@@ -93,12 +93,12 @@ export function ResetPasswordPage() {
     () => [
       {
         name: 'password' as const,
-        label: 'New Password',
+        label: 'New password',
         placeholder: 'Enter new password (min. 8 characters)',
       },
       {
         name: 'confirmPassword' as const,
-        label: 'Confirm Password',
+        label: 'Confirm password',
         placeholder: 'Confirm your new password',
       },
     ],
@@ -110,17 +110,17 @@ export function ResetPasswordPage() {
   if (resetPasswordMutation.isSuccess) {
     return (
       <AuthSuccessScreen
-        title="Password Reset"
+        title="Password reset"
         description="Your password has been updated"
         infoMessage="Password has been reset successfully! You can now log in with your new password."
-        buttonLabel="Sign In"
+        buttonLabel="Sign in"
         buttonIcon={<ArrowRight className={styles.icon} />}
         onButtonClick={() => navigate('/login')}
       />
     );
   }
 
-  const title = 'Reset Password';
+  const title = 'Reset password';
   const subtitle = 'Enter your new password';
 
   return (
@@ -194,7 +194,7 @@ export function ResetPasswordPage() {
           disabled={!token || isSubmitting}
         >
           <Lock className={styles.icon} />
-          <span>Reset Password</span>
+          <span>Reset password</span>
           <ArrowRight className={styles.icon} />
         </Button>
       </form>
@@ -207,7 +207,7 @@ export function ResetPasswordPage() {
           onClick={() => navigate('/login')}
         >
           <ArrowLeft className={styles['icon-sm']} />
-          Back to Sign in
+          Back to sign in
         </Button>
       </div>
     </AuthPageLayout>

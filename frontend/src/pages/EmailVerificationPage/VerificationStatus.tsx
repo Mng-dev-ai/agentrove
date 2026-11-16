@@ -32,7 +32,7 @@ export const VerificationStatus = memo(function VerificationStatus({
           icon: (
             <AlertCircle className={clsx(styles['status-icon'], styles['status-icon--error'])} />
           ),
-          heading: 'Verification Failed',
+          heading: 'Verification failed',
           headingClassName: styles['heading--error'],
           subText: message,
         };
@@ -41,7 +41,7 @@ export const VerificationStatus = memo(function VerificationStatus({
           icon: (
             <CheckCircle className={clsx(styles['status-icon'], styles['status-icon--primary'])} />
           ),
-          heading: 'Email Verified',
+          heading: 'Email verified',
           headingClassName: styles['heading--primary'],
           subText: message || 'Your email has been verified successfully.',
         };
@@ -55,7 +55,7 @@ export const VerificationStatus = memo(function VerificationStatus({
       default:
         return {
           icon: <Mail className={clsx(styles['status-icon'], styles['status-icon--tertiary'])} />,
-          heading: 'Check Your Email',
+          heading: 'Check your email',
           headingClassName: styles['heading--primary'],
           subText: email
             ? `We sent a verification link to ${email}`
@@ -93,7 +93,7 @@ export const VerificationStatus = memo(function VerificationStatus({
                     ) : (
                       <>
                         <Mail className={styles.icon} />
-                        Resend Verification Email
+                        Resend verification email
                       </>
                     )}
                   </Button>
@@ -105,7 +105,7 @@ export const VerificationStatus = memo(function VerificationStatus({
                     variant="primary"
                     className={styles['full-width']}
                   >
-                    Continue to Login
+                    Continue to sign in
                   </Button>
                 )}
 
@@ -115,7 +115,7 @@ export const VerificationStatus = memo(function VerificationStatus({
                     variant="secondary"
                     className={styles['full-width']}
                   >
-                    Back to Login
+                    Back to sign in
                   </Button>
                 )}
               </div>
