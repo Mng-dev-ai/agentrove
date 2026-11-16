@@ -21,10 +21,19 @@
 
 .chip {
   @include anim.transition-colors;
+  min-width: 0;
   border-radius: var(--radius-sm);
   padding: var(--space-0-5) var(--space-1-5);
   @include type.type-meta;
+  text-align: left;
+  overflow-wrap: break-word;
   color: var(--theme-text-secondary);
+
+  @include responsive.media('touch') {
+    display: inline-flex;
+    min-height: var(--space-10);
+    align-items: center;
+  }
 
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
@@ -33,9 +42,18 @@
 
 // Separate (not composed with .chip) — selected chips don't participate in the hover state
 .chip-selected {
+  min-width: 0;
   border-radius: var(--radius-sm);
   padding: var(--space-0-5) var(--space-1-5);
   @include type.type-meta;
+  text-align: left;
+  overflow-wrap: break-word;
   background-color: var(--theme-text-primary);
   color: var(--theme-surface);
+
+  @include responsive.media('touch') {
+    display: inline-flex;
+    min-height: var(--space-10);
+    align-items: center;
+  }
 }

@@ -4,10 +4,16 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .dialog {
+  display: flex;
+  max-height: 100%;
+  flex-direction: column;
   overflow: visible;
 }
 
+// The body scrolls so a tall form never pushes the actions off a short viewport
 .body {
+  min-height: 0;
+  overflow-y: auto;
   padding: var(--space-5);
 }
 
@@ -129,9 +135,14 @@
 .row {
   display: flex;
   gap: var(--space-3);
+
+  @include responsive.media('mobile') {
+    flex-direction: column;
+  }
 }
 
 .col {
+  min-width: 0;
   flex: 1;
 }
 
