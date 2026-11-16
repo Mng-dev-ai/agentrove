@@ -9,7 +9,7 @@ import {
 import { useChatContext } from '@/hooks/useChatContext';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { useBranchCheckout } from '@/hooks/useBranchCheckout';
-import { buildBranchItems, shortenBranchName } from '@/components/chat/branch-selector/branchItems';
+import { buildBranchItems } from '@/components/chat/branch-selector/branchItems';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -116,9 +116,7 @@ export const BranchWorktreeDropdown = memo(function BranchWorktreeDropdown({
       items={items}
       getItemKey={(item) => item}
       getItemLabel={(item) => item}
-      getItemShortLabel={(item) =>
-        worktree ? `${shortenBranchName(item)} → worktree` : shortenBranchName(item)
-      }
+      getItemShortLabel={(item) => (worktree ? `${item} → worktree` : item)}
       onSelect={onBranchChange}
       leftIcon={GitBranch}
       ariaLabel="Branch"

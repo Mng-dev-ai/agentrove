@@ -13,6 +13,3 @@ export function buildBranchItems(
   }
   return items;
 }
-
-export const shortenBranchName = (branch: string) =>
-  branch.length > 16 ? branch.slice(0, 16) + '…' : branch;
