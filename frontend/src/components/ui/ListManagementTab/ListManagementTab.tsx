@@ -49,6 +49,7 @@ interface ListManagementTabProps<T> {
   items: T[] | null;
   emptyIcon: LucideIcon;
   emptyText: string;
+  loadError?: string | null;
   emptyButtonText: string;
   addButtonText: string;
   deleteConfirmTitle: string;
@@ -72,6 +73,7 @@ export function ListManagementTab<T>({
   items,
   emptyIcon: EmptyIcon,
   emptyText,
+  loadError,
   emptyButtonText,
   addButtonText,
   deleteConfirmTitle,
@@ -151,11 +153,13 @@ export function ListManagementTab<T>({
           <div className={styles.empty}>
             <EmptyIcon className={styles['empty-icon']} />
             <p className={styles['empty-text']}>
-              {activeFilter ? activeFilter.emptyText : emptyText}
+              {loadError ?? (activeFilter ? activeFilter.emptyText : emptyText)}
             </p>
-            <Button type="button" onClick={onAdd} variant="outline" size="sm">
-              {activeFilter ? addButtonText : emptyButtonText}
-            </Button>
+            {!loadError && (
+              <Button type="button" onClick={onAdd} variant="outline" size="sm">
+                {activeFilter ? addButtonText : emptyButtonText}
+              </Button>
+            )}
           </div>
         ) : (
           <div className={styles.items}>

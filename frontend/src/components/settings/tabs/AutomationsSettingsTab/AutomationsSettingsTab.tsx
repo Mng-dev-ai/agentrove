@@ -150,7 +150,7 @@ export function AutomationsSettingsTab() {
   );
   const { machineId: machineFilter, filter } = useMachineFilter(
     machineOptions,
-    loadErrorText ?? 'No automations match these filters',
+    'No automations match these filters',
   );
   const items = useMemo(
     () =>
@@ -330,7 +330,8 @@ export function AutomationsSettingsTab() {
         description="Scheduled prompts that start a new chat with your chosen model, workspace, and settings, or post into a channel — e.g. check email daily or triage errors every 6 hours."
         items={items}
         emptyIcon={Clock}
-        emptyText={loadErrorText ?? 'No automations configured yet'}
+        emptyText="No automations configured yet"
+        loadError={loadErrorText}
         emptyButtonText="Add your first automation"
         addButtonText="Add automation"
         deleteConfirmTitle="Delete automation"

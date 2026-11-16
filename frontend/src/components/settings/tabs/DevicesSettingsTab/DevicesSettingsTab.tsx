@@ -92,7 +92,8 @@ export function DevicesSettingsTab() {
       description="Apps paired with this server. Each one keeps its own session; revoke a device to sign it out."
       items={devices ?? (error ? [] : null)}
       emptyIcon={Smartphone}
-      emptyText={error ? `Couldn't load devices: ${error.message}` : 'No paired devices yet'}
+      emptyText="No paired devices yet"
+      loadError={error && `Couldn't load devices: ${error.message}`}
       emptyButtonText="Pair a Device"
       addButtonText="Pair a Device"
       deleteConfirmTitle="Revoke device"

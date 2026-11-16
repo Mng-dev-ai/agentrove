@@ -217,7 +217,8 @@ export function MemorySettingsTab() {
         description="Durable facts agents remember across every provider and chat — preferences, corrections, and repo conventions. Agents save and search them with the AgentRove MCP tools; pinned memories are sent in full to every new session."
         items={items}
         emptyIcon={Brain}
-        emptyText={loadErrorText ?? 'No memories saved yet'}
+        emptyText="No memories saved yet"
+        loadError={loadErrorText}
         emptyButtonText="Add Your First Memory"
         addButtonText="Add Memory"
         deleteConfirmTitle="Delete Memory"
@@ -231,7 +232,7 @@ export function MemorySettingsTab() {
         filter={{
           categories: filterCategories,
           onClear: () => setFilter(null),
-          emptyText: loadErrorText ?? 'No memories match these filters',
+          emptyText: 'No memories match these filters',
         }}
         renderItem={(item) => (
           <>
