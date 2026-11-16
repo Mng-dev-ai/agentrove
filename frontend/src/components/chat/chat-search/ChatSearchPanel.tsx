@@ -139,6 +139,8 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
   }, [activeOption]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Keys during IME composition belong to the candidate window
+    if (e.nativeEvent.isComposing) return;
     const count = optionHits.length;
     if (e.key === 'Escape' && query) {
       e.preventDefault();

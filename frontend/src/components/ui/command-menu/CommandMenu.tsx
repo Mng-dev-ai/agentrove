@@ -69,7 +69,14 @@ export function CommandMenu() {
         onKeyDown={(e) => {
           e.stopPropagation();
           // defaultPrevented = the panel's search input consumed Escape to clear its query.
-          if (e.key === 'Escape' && isPanelMode(mode) && !e.defaultPrevented) close();
+          if (
+            e.key === 'Escape' &&
+            isPanelMode(mode) &&
+            !e.defaultPrevented &&
+            !e.nativeEvent.isComposing
+          ) {
+            close();
+          }
         }}
       >
         {/* Panel tabs (Messages/Grep) embed panels that own their inputs, so the
