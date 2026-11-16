@@ -63,6 +63,8 @@ export function RenameModal({
       await onSave(trimmedTitle);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Rename failed');
+      // Save may have been clicked; put the user back in the field to fix and resubmit.
+      inputRef.current?.focus();
     }
   }, [title, onSave]);
 
@@ -108,7 +110,6 @@ export function RenameModal({
             setError(null);
           }}
           placeholder={`New ${subject} name`}
-          disabled={isLoading}
           hasError={!!error}
           className={styles.input}
           aria-label={`New ${subject} name`}
