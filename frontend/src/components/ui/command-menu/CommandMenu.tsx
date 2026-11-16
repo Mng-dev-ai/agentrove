@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import { createPortal } from 'react-dom';
+import { X } from 'lucide-react';
 import { Button } from '../primitives/Button/Button';
 import { SearchPanel } from '@/components/editor/file-search/SearchPanel';
 import { ChatSearchPanel } from '@/components/chat/chat-search/ChatSearchPanel';
@@ -53,6 +54,13 @@ export function CommandMenu() {
 
   if (!isOpen) return null;
 
+  // Phones have no Escape key and the sheet covers the overlay.
+  const closeButton = isMobile && (
+    <Button variant="unstyled" onClick={close} aria-label="Close" className={styles.close}>
+      <X className={styles['close-icon']} />
+    </Button>
+  );
+
   return createPortal(
     <div
       className={styles.overlay}
@@ -93,6 +101,7 @@ export function CommandMenu() {
             onBack={() => switchMode('all')}
             listId={listId}
             activeDescendant={activeDescendant}
+            trailing={closeButton}
           />
         )}
 
@@ -110,6 +119,7 @@ export function CommandMenu() {
                 {FILTER_LABELS[filter]}
               </Button>
             ))}
+            {isPanelMode(mode) && closeButton}
           </div>
         )}
 
