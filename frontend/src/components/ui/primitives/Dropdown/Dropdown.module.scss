@@ -135,10 +135,11 @@
 
   // Breaking anywhere after the unbreakable head keeps the trigger's min-content at about
   // five characters plus the ellipsis, so a parent row can shrink the name that far
-  // without clipping the icon, suffix or chevron.
+  // without clipping the icon, suffix or chevron. break-all rather than overflow-wrap,
+  // which still prefers an earlier '/' or '-' and leaves the clamped line short.
   .trigger-toolbar & {
     @include type.type-lineclamp(1);
-    overflow-wrap: anywhere;
+    word-break: break-all;
     white-space: normal;
     font-weight: 400;
     color: inherit;
