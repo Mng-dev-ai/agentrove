@@ -114,7 +114,13 @@ export function ViewContentArea({
         />
       )}
 
-      {viewMode !== 'diff' && !isPreviewActive && (
+      {viewMode !== 'diff' && !isPreviewActive && selectedFile.is_binary && (
+        <div className={styles['loading-overlay']}>
+          <div className={styles['loading-text']}>Binary file — no preview available</div>
+        </div>
+      )}
+
+      {viewMode !== 'diff' && !isPreviewActive && !selectedFile.is_binary && (
         <Content
           key={selectedFile.path}
           content={displayContent}
