@@ -4,7 +4,7 @@ import type { SendButtonStatus } from './SendButton';
 import { AttachButton } from './AttachButton';
 import { EnhanceButton } from './EnhanceButton';
 import { Textarea } from './Textarea';
-import { InputControls, ModelControls } from './InputControls';
+import { ComposerFooter, ModelControls } from './InputControls';
 import { ComposerField } from './ComposerField';
 import { ComposerAttachmentSlots } from './ComposerAttachmentSlots';
 import { SelectionAttachments } from './SelectionAttachments';
@@ -12,7 +12,6 @@ import { InputSuggestionsPanel } from './InputSuggestionsPanel';
 import { InputProvider } from './InputProvider';
 import { useInputContext } from '@/hooks/useInputContext';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
-import styles from './Input.module.scss';
 
 export interface InputProps {
   message: string;
@@ -133,9 +132,7 @@ function InputLayout() {
         </>
       }
     >
-      <div className={styles['footer-row']}>
-        <InputControls />
-      </div>
+      <ComposerFooter />
     </ComposerField>
   );
 }

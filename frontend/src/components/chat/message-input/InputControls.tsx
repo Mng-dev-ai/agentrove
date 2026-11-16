@@ -68,7 +68,7 @@ export function ModelControls() {
   );
 }
 
-export function InputControls() {
+export function ComposerFooter() {
   const state = useInputState();
   const { agentKind } = useSelectedModel();
 
@@ -85,57 +85,57 @@ export function InputControls() {
   const showFastMode = agentKind === 'codex';
 
   return (
-    <>
-      <div className={styles.group} onMouseDown={preventBlur}>
-        {showBranch && (
-          <BranchSelector
-            dropdownPosition={state.dropdownPosition}
-            dropdownAlign="left"
-            disabled={state.isLoading}
-            variant="text"
-          />
-        )}
-      </div>
-
-      <div className={styles.group} onMouseDown={preventBlur}>
-        {showFastMode && (
-          <>
-            <FastModeSelector
-              chatId={state.chatId}
-              agentKind={agentKind}
-              dropdownPosition={state.dropdownPosition}
-              dropdownAlign="right"
-              disabled={state.isLoading}
-              variant="text"
-            />
-            <SelectorDot />
-          </>
-        )}
-
-        <PermissionModeSelector
-          chatId={state.chatId}
-          agentKind={agentKind}
+    <div className={styles.footer} onMouseDown={preventBlur}>
+      {showBranch && (
+        <BranchSelector
           dropdownPosition={state.dropdownPosition}
-          dropdownAlign="right"
+          dropdownAlign="left"
           disabled={state.isLoading}
           variant="text"
         />
+      )}
 
-        {showPersona && (
-          <>
-            <SelectorDot />
-            <PersonaSelector
-              chatId={state.chatId}
-              dropdownPosition={state.dropdownPosition}
-              dropdownAlign="right"
-              disabled={state.isLoading}
-              variant="text"
-            />
-          </>
-        )}
+      <div className={styles['footer-end']}>
+        <div className={styles.group}>
+          {showFastMode && (
+            <>
+              <FastModeSelector
+                chatId={state.chatId}
+                agentKind={agentKind}
+                dropdownPosition={state.dropdownPosition}
+                dropdownAlign="right"
+                disabled={state.isLoading}
+                variant="text"
+              />
+              <SelectorDot />
+            </>
+          )}
+
+          <PermissionModeSelector
+            chatId={state.chatId}
+            agentKind={agentKind}
+            dropdownPosition={state.dropdownPosition}
+            dropdownAlign="right"
+            disabled={state.isLoading}
+            variant="text"
+          />
+
+          {showPersona && (
+            <>
+              <SelectorDot />
+              <PersonaSelector
+                chatId={state.chatId}
+                dropdownPosition={state.dropdownPosition}
+                dropdownAlign="right"
+                disabled={state.isLoading}
+                variant="text"
+              />
+            </>
+          )}
+        </div>
 
         {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
       </div>
-    </>
+    </div>
   );
 }

@@ -24,7 +24,7 @@ vi.mock('@/services/chatService', () => ({
   chatService: { getChat: () => new Promise(() => {}) },
 }));
 
-vi.mock('./InputControls', () => ({ InputControls: () => null, ModelControls: () => null }));
+vi.mock('./InputControls', () => ({ ComposerFooter: () => null, ModelControls: () => null }));
 
 function Composer({
   isStreaming,
