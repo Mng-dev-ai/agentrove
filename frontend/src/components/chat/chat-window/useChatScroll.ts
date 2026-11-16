@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 const AT_BOTTOM_THRESHOLD_PX = 200;
 const TOP_PAGINATION_TRIGGER_PX = 50;
 const TOP_PAGINATION_ARM_VIEWPORT_MULTIPLIER = 1.5;
+
+// Net of the content's bottom padding, so the anchored turn top is exactly max scroll.
+function reservedTurnHeight(scroller: HTMLElement, content: Element) {
+  return scroller.clientHeight - parseFloat(getComputedStyle(content).paddingBottom);
+}
 
 interface UseChatScrollParams {
   chatId: string | undefined;
@@ -146,9 +152,7 @@ export function useChatScroll({
     const scroller = scrollerRef.current;
     if (!pendingUserMessageId || !scroller?.firstElementChild) return;
     anchorTurnRef.current = pendingUserMessageId;
-    // Net of the content's bottom padding, so the anchored turn top is exactly max scroll.
-    const reserved = parseFloat(getComputedStyle(scroller.firstElementChild).paddingBottom);
-    setTurnMinHeight(scroller.clientHeight - reserved);
+    setTurnMinHeight(reservedTurnHeight(scroller, scroller.firstElementChild));
   }, [pendingUserMessageId]);
 
   useLayoutEffect(() => {
@@ -205,7 +209,14 @@ export function useChatScroll({
         // Skipped mid-anchor: an instant snap would cancel the send's smooth scroll.
         const content = node.firstElementChild;
         if (content) {
-          const observer = new ResizeObserver(() => {
+          const observer = new ResizeObserver((entries) => {
+            // The reserve tracks the viewport height (window resize, mobile keyboard);
+            // committed synchronously so the snap below lands before paint.
+            if (entries.some((entry) => entry.target === node)) {
+              flushSync(() =>
+                setTurnMinHeight((height) => height && reservedTurnHeight(node, content)),
+              );
+            }
             if (isAtBottomRef.current && !anchoringRef.current) {
               node.scrollTop = node.scrollHeight;
             } else {
@@ -216,6 +227,7 @@ export function useChatScroll({
             }
           });
           observer.observe(content);
+          observer.observe(node);
           contentResizeObserverRef.current = observer;
         }
       }
