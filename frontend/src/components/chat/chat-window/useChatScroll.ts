@@ -209,10 +209,13 @@ export function useChatScroll({
         // Skipped mid-anchor: an instant snap would cancel the send's smooth scroll.
         const content = node.firstElementChild;
         if (content) {
-          const observer = new ResizeObserver((entries) => {
+          let height = node.clientHeight;
+          const observer = new ResizeObserver(() => {
             // The reserve tracks the viewport height (window resize, mobile keyboard);
-            // committed synchronously so the snap below lands before paint.
-            if (entries.some((entry) => entry.target === node)) {
+            // committed synchronously so the snap below lands before paint. Height only:
+            // a sync commit while a panel animates the width loops this observer in WebKit.
+            if (node.clientHeight !== height) {
+              height = node.clientHeight;
               flushSync(() =>
                 setTurnMinHeight((height) => height && reservedTurnHeight(node, content)),
               );
