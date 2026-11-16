@@ -96,7 +96,7 @@ export function ForgotPasswordPage() {
 
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
-      <form onSubmit={handleSubmit} className={styles.form}>
+      <form onSubmit={handleSubmit} className={styles.form} noValidate>
         <div className={styles.fields}>
           <div className={styles.field}>
             <Label htmlFor="email" className={styles.label}>

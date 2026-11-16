@@ -125,7 +125,7 @@ export function ResetPasswordPage() {
 
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
-      <form onSubmit={handleSubmit} className={styles.form}>
+      <form onSubmit={handleSubmit} className={styles.form} noValidate>
         <div className={styles.fields}>
           {fieldConfigs.map(({ name, label, placeholder }) => (
             <div key={name} className={styles.field}>

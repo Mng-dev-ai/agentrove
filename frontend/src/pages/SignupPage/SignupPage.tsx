@@ -146,7 +146,7 @@ export function SignupPage() {
 
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
-      <form onSubmit={handleSubmit} className={styles.form}>
+      <form onSubmit={handleSubmit} className={styles.form} noValidate>
         <div className={styles.fields}>
           {fieldConfigs.map(({ name, label, placeholder, type, helperText }) => (
             <div key={name} className={styles.field}>
