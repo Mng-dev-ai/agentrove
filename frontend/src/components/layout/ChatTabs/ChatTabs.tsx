@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { useMatch, useNavigate } from 'react-router-dom';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
@@ -73,10 +73,14 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   );
 }
 
+export function AppBarTitle({ children }: { children: ReactNode }) {
+  return <span className={styles['app-bar-title']}>{children}</span>;
+}
+
 function ChatTitle({ chatId }: { chatId: string }) {
   const title = useChatQuery(chatId).data?.title;
   if (!title) return null;
-  return <span className={styles['chat-title']}>{stripMarkdownTitle(title)}</span>;
+  return <AppBarTitle>{stripMarkdownTitle(title)}</AppBarTitle>;
 }
 
 // Working-set tabs (sidebar is the archive); re-clicking the current chat surfaces the agent pane.

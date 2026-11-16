@@ -22,8 +22,8 @@
   flex-shrink: 0;
 }
 
-// Names the open chat when no tab does; inert so the bar still drags
-.chat-title {
+// Names the open chat or channel; inert so the bar still drags
+.app-bar-title {
   @include type.type-default;
   @include type.type-overflow;
   align-self: center;

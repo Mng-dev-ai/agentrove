@@ -1,6 +1,6 @@
 import { useMatch } from 'react-router-dom';
 import { useChannelQuery } from '@/hooks/queries/useChannelQueries';
-import styles from './ChannelHeader.module.scss';
+import { AppBarTitle } from '@/components/layout/ChatTabs/ChatTabs';
 
 export function ChannelHeader() {
   const channelId = useMatch('/channels/:channelId')?.params.channelId;
@@ -8,5 +8,5 @@ export function ChannelHeader() {
 
   if (!channel) return null;
 
-  return <span className={styles.title}>#{channel.name}</span>;
+  return <AppBarTitle>#{channel.name}</AppBarTitle>;
 }
