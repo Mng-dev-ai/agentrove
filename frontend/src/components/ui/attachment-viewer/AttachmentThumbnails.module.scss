@@ -12,6 +12,32 @@
     cursor: zoom-in;
   }
 
+  // File tiles have no lightbox, so on touch the whole tile is the download button.
+  &--file {
+    @include responsive.media('touch') {
+      align-self: flex-start;
+
+      .download-wrap {
+        display: block;
+        inset: 0;
+        opacity: 1;
+      }
+
+      .download-button {
+        height: 100%;
+        width: 100%;
+        border-radius: inherit;
+        background-color: transparent;
+        box-shadow: none;
+        backdrop-filter: none;
+      }
+
+      .download-icon {
+        display: none;
+      }
+    }
+  }
+
   @include responsive.hover {
     .download-wrap {
       opacity: 1;
@@ -26,7 +52,7 @@
   opacity: 0;
   transition: opacity var(--duration-fast);
 
-  // Hover never reveals it on touch; downloading goes through the lightbox there.
+  // Hover never reveals it on touch; images download through the lightbox there.
   @include responsive.media('touch') {
     display: none;
   }

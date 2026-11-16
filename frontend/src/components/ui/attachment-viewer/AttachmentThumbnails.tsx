@@ -67,7 +67,11 @@ export function ThumbnailWrapper({
 
   return (
     <div
-      className={clsx(styles.thumbnail, isInteractive && styles['thumbnail--interactive'])}
+      className={clsx(
+        styles.thumbnail,
+        isInteractive && styles['thumbnail--interactive'],
+        attachment.file_type !== 'image' && styles['thumbnail--file'],
+      )}
       onClick={onPreview}
       onKeyDown={
         isInteractive
