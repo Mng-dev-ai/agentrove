@@ -36,6 +36,18 @@ export function usePanelFit(
   return fit;
 }
 
+// Measured with the inline transform cleared so the result depends only on layout, never on
+// the previous shift.
+function inlineShift(panel: HTMLElement): number {
+  const transform = panel.style.transform;
+  panel.style.transform = '';
+  const { left, right, width } = panel.getBoundingClientRect();
+  panel.style.transform = transform;
+  if (!width) return 0;
+  const viewport = document.documentElement.clientWidth;
+  return Math.max(VIEWPORT_MARGIN - left, Math.min(0, viewport - VIEWPORT_MARGIN - right));
+}
+
 // Transform that keeps an anchored panel inside the viewport horizontally. Re-measured
 // after every render because the anchor can move while the panel is open.
 export function usePanelInlineShift(
@@ -46,16 +58,9 @@ export function usePanelInlineShift(
 
   if (!isOpen && shift !== 0) setShift(0);
 
-  // No deps: next depends only on the unshifted position, so the update settles in one pass.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
-    const panel = panelRef.current?.getBoundingClientRect();
-    if (!isOpen || !panel) return;
-    const left = panel.left - shift;
-    const right = panel.right - shift;
-    const viewport = document.documentElement.clientWidth;
-    const next = Math.max(VIEWPORT_MARGIN - left, Math.min(0, viewport - VIEWPORT_MARGIN - right));
-    if (Math.abs(next - shift) >= 0.5) setShift(next);
+    if (isOpen && panelRef.current) setShift(inlineShift(panelRef.current));
   });
 
   return shift ? `translateX(${shift}px)` : undefined;
