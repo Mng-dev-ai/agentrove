@@ -133,10 +133,22 @@
     color: inherit;
   }
 
+  // Breaking anywhere keeps the trigger's min-content at one character, so a parent row
+  // can shrink the name away without clipping the icon, suffix or chevron.
   .trigger-toolbar & {
+    @include type.type-lineclamp(1);
+    overflow-wrap: anywhere;
+    white-space: normal;
     font-weight: 400;
     color: inherit;
   }
+}
+
+.trigger-suffix {
+  flex-shrink: 0;
+  // Sits a word-space after the label rather than a full trigger gap
+  margin-inline-start: calc(var(--space-0-5) * -1);
+  white-space: nowrap;
 }
 
 .chevron {

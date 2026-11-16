@@ -34,6 +34,8 @@ export interface DropdownProps<T> {
   getItemKey: (item: T) => string;
   getItemLabel: (item: T) => string;
   getItemShortLabel?: (item: T) => string;
+  // Kept whole after the label, which truncates first
+  triggerSuffix?: string;
   onSelect: (item: T) => void;
   renderItem?: (item: T, isSelected: boolean) => ReactNode;
   leftIcon?: ComponentType<SVGProps<SVGSVGElement>>;
@@ -129,6 +131,7 @@ const Dropdown = memo(function Dropdown<T>({
   getItemKey,
   getItemLabel,
   getItemShortLabel,
+  triggerSuffix,
   onSelect,
   renderItem,
   leftIcon: LeftIcon,
@@ -202,7 +205,9 @@ const Dropdown = memo(function Dropdown<T>({
         variant="unstyled"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        aria-label={ariaLabel && `${ariaLabel}: ${triggerLabel}`}
+        aria-label={
+          ariaLabel && `${ariaLabel}: ${triggerLabel}${triggerSuffix ? ` ${triggerSuffix}` : ''}`
+        }
         className={clsx(
           triggerVariant === 'text'
             ? styles['trigger-text']
@@ -226,6 +231,7 @@ const Dropdown = memo(function Dropdown<T>({
         <FloatingTooltip content={isOpen ? '' : triggerLabel} className={labelSlotClass}>
           <span className={styles['trigger-label']}>{triggerLabel}</span>
         </FloatingTooltip>
+        {triggerSuffix && <span className={styles['trigger-suffix']}>{triggerSuffix}</span>}
         {triggerVariant !== 'text' && !disabled && (
           <ChevronDown
             className={clsx(
