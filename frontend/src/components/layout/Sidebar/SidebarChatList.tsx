@@ -7,6 +7,7 @@ import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore } from '@/store/uiStore';
 import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
 import { SidebarFilterMenu } from './SidebarFilterMenu';
+import { SidebarLoadError } from './SidebarLoadError';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import type { SidebarChatSection } from './sidebarGrouping';
 import styles from './SidebarChatList.module.scss';
@@ -15,6 +16,10 @@ interface SidebarChatListProps {
   scrollContainerRef: Ref<HTMLDivElement>;
   channels: ReactNode;
   isLoadingChats: boolean;
+  pinnedLoadFailed: boolean;
+  recentsLoadFailed: boolean;
+  isRetrying: boolean;
+  onRetryLoad: () => void;
   hasAnyContent: boolean;
   needsYouChats: Chat[];
   pinnedChats: Chat[];
@@ -35,6 +40,10 @@ export function SidebarChatList({
   scrollContainerRef,
   channels,
   isLoadingChats,
+  pinnedLoadFailed,
+  recentsLoadFailed,
+  isRetrying,
+  onRetryLoad,
   hasAnyContent,
   needsYouChats,
   pinnedChats,
@@ -63,7 +72,16 @@ export function SidebarChatList({
     <div ref={scrollContainerRef} className={styles.scroll}>
       {channels}
       {!hasAnyContent ? (
-        isLoadingChats ? null : (
+        pinnedLoadFailed || recentsLoadFailed ? (
+          <div>
+            <SidebarSectionHeader title="Threads" />
+            <SidebarLoadError
+              message="Couldn't load threads"
+              isRetrying={isRetrying}
+              onRetry={onRetryLoad}
+            />
+          </div>
+        ) : isLoadingChats ? null : (
           <div>
             <SidebarSectionHeader title="Threads" />
             <p className={styles.empty}>No threads yet. Start one with New thread.</p>
@@ -78,6 +96,17 @@ export function SidebarChatList({
               {needsYouChats.map((chat) => (
                 <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
               ))}
+            </div>
+          )}
+
+          {pinnedChats.length === 0 && pinnedLoadFailed && (
+            <div className={styles.section}>
+              <SidebarSectionHeader title="Pinned" />
+              <SidebarLoadError
+                message="Couldn't load pinned threads"
+                isRetrying={isRetrying}
+                onRetry={onRetryLoad}
+              />
             </div>
           )}
 
@@ -106,6 +135,12 @@ export function SidebarChatList({
                 .map((chat) => (
                   <SidebarChatRow key={chat.id} chat={chat} rowProps={recentRowProps} />
                 ))
+            ) : recentChats.length === 0 && recentsLoadFailed ? (
+              <SidebarLoadError
+                message="Couldn't load threads"
+                isRetrying={isRetrying}
+                onRetry={onRetryLoad}
+              />
             ) : recentChats.length > 0 ? (
               <div>
                 {recentChatSections.map((section) => (

@@ -32,6 +32,7 @@ import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
 import { SidebarChannelItem } from './SidebarChannelItem';
 import type { MachineBadge } from './SidebarChatItem';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
+import { SidebarLoadError } from './SidebarLoadError';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import styles from './SidebarChannels.module.scss';
 
@@ -60,7 +61,13 @@ export function SidebarChannels({
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const { machineChannels, isLoading: isLoadingChannels } = useMachinesChannels(isAuthenticated);
+  const {
+    machineChannels,
+    isLoading: isLoadingChannels,
+    loadFailed,
+    isRetrying,
+    retry,
+  } = useMachinesChannels(isAuthenticated);
   const liveActivity = useChannelStore((state) => state.activity);
   const completedChannelIds = useChannelStore((state) => state.completedChannelIds);
   const filteredChannels = machineChannels.filter(({ channel, machineId }) => {
@@ -243,12 +250,22 @@ export function SidebarChannels({
           Load more
         </Button>
       )}
-      {!isCollapsed && !isLoadingChannels && channels.length === 0 && (
-        <p className={styles.empty}>
-          {machineChannels.length > 0
-            ? 'No channels match the current filters'
-            : 'No channels yet. Group chats where several agents share a workspace.'}
-        </p>
+      {!isCollapsed && machineChannels.length === 0 && loadFailed ? (
+        <SidebarLoadError
+          message="Couldn't load channels"
+          isRetrying={isRetrying}
+          onRetry={() => void retry()}
+        />
+      ) : (
+        !isCollapsed &&
+        !isLoadingChannels &&
+        channels.length === 0 && (
+          <p className={styles.empty}>
+            {machineChannels.length > 0
+              ? 'No channels match the current filters'
+              : 'No channels yet. Group chats where several agents share a workspace.'}
+          </p>
+        )
       )}
 
       {dropdown && (

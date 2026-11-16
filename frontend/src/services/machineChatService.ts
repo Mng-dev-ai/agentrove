@@ -28,15 +28,18 @@ async function listChats(
   machineId: string,
   params?: { page?: number; per_page?: number },
 ): Promise<PaginatedChats> {
-  return serviceCall(async () => {
-    const queryString = buildQueryString(params);
-    const response = await getMachineClient(machineId).get<PaginatedChats>(
-      `/chat/chats${queryString}`,
-    );
-    const data = ensureResponse(response, 'Failed to load chats');
-    assignChatRecordsToMachine(machineId, data.items);
-    return data;
-  });
+  return serviceCall(
+    async () => {
+      const queryString = buildQueryString(params);
+      const response = await getMachineClient(machineId).get<PaginatedChats>(
+        `/chat/chats${queryString}`,
+      );
+      const data = ensureResponse(response, 'Failed to load chats');
+      assignChatRecordsToMachine(machineId, data.items);
+      return data;
+    },
+    { maxRetries: 1 },
+  );
 }
 
 async function listWorkspaces(machineId: string): Promise<Workspace[]> {

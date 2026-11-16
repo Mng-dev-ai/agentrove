@@ -13,6 +13,7 @@ import type {
   QueryClient,
 } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
+import { retryTransientOnce } from '@/hooks/queries/listLoad';
 import { machineChatService } from '@/services/machineChatService';
 import { useMachineStore } from '@/store/machineStore';
 import { chatMachineId } from '@/store/machineOrigin';
@@ -78,6 +79,7 @@ export const useInfiniteChatsQuery = (options?: {
     initialPageParam: 1,
     enabled: options?.enabled ?? true,
     gcTime: 1000 * 60 * 1,
+    retry: retryTransientOnce,
     // Snapshot hydrates first paint; always refetch so out-of-band creates surface.
     refetchOnMount: 'always',
   });

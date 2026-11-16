@@ -75,6 +75,10 @@ export function Sidebar({
     workspaceBadgeById,
     machineWorkspaces,
     isLoadingChats,
+    pinnedLoadFailed,
+    recentsLoadFailed,
+    isRetrying,
+    retryLoad,
     hasMore,
     isFetchingMore,
     loadMore,
@@ -284,6 +288,10 @@ export function Sidebar({
             />
           }
           isLoadingChats={isLoadingChats}
+          pinnedLoadFailed={pinnedLoadFailed}
+          recentsLoadFailed={recentsLoadFailed}
+          isRetrying={isRetrying}
+          onRetryLoad={() => void retryLoad()}
           hasAnyContent={hasAnyContent}
           needsYouChats={needsYouChats}
           pinnedChats={listedPinnedChats}
