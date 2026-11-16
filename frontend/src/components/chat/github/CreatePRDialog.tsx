@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { FieldMessage } from '@/components/ui/primitives/FieldMessage/FieldMessage';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Link } from '@/components/ui/primitives/Link/Link';
@@ -12,6 +13,7 @@ import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useModelSelection } from '@/hooks/queries/useModelQueries';
 import { sandboxService } from '@/services/sandboxService';
+import { ServiceError } from '@/services/base/ServiceError';
 import { MAX_DIFF_LENGTH } from '@/config/constants';
 import { useGitBranchesQuery, useGitDiffQuery } from '@/hooks/queries/useSandboxQueries';
 import {
@@ -31,6 +33,15 @@ interface CreatePRDialogProps {
 
 const DIFF_HEADER_RE = /^a\/(.+?) b\//;
 const DEFAULT_BASES = ['main', 'master', 'develop', 'trunk'];
+
+// The backend reports a missing or rejected GitHub token as 400 (401 is reserved
+// for this app's own session); anything else means GitHub couldn't be reached.
+function githubErrorMessage(error: Error): string {
+  if (error instanceof ServiceError && error.status === 400) {
+    return `GitHub isn't authorised: ${error.message}. Add or update the token in Settings → General.`;
+  }
+  return `Couldn't reach GitHub: ${error.message}. Reviewers and existing pull requests can't be shown; check your connection and the token in Settings → General.`;
+}
 
 function parseChangedFiles(
   diff: string,
@@ -63,13 +74,20 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
   // GitHub calls run with the credentials of the backend that owns the chat.
   const chatId = currentChat?.id;
   const headBranch = branchesData?.current_branch ?? '';
-  const { owner, repo, openPR } = useBranchPullRequests(sandboxId, worktreeCwd, headBranch, chatId);
-  const { data: collaborators } = useGitHubCollaboratorsQuery(
+  const { owner, repo, openPR, pullsError } = useBranchPullRequests(
+    sandboxId,
+    worktreeCwd,
+    headBranch,
+    chatId,
+  );
+  const { data: collaborators, error: collaboratorsError } = useGitHubCollaboratorsQuery(
     owner,
     repo,
     !!owner && !!repo,
     chatId,
   );
+
+  const githubError = pullsError ?? collaboratorsError;
 
   const changedFiles = useMemo(
     () => (diffData?.diff ? parseChangedFiles(diffData.diff) : []),
@@ -246,6 +264,11 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
           <p className={styles['no-remote']}>No GitHub remote detected for this workspace.</p>
         ) : (
           <div className={styles.fields}>
+            {githubError && (
+              <FieldMessage variant="error" className={styles['github-error']}>
+                {githubErrorMessage(githubError)}
+              </FieldMessage>
+            )}
             {openPR && <CreatePRExistingBanner pr={openPR} />}
             <div>
               <label htmlFor={titleInputId} className={styles.label}>
@@ -322,6 +345,7 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
                 <label className={styles.label}>Reviewers</label>
                 <CreatePRReviewers
                   collaborators={collaborators}
+                  failed={!!collaboratorsError}
                   selected={selectedReviewers}
                   onToggle={toggleReviewer}
                 />

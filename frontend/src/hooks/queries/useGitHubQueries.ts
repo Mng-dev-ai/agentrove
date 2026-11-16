@@ -63,10 +63,16 @@ export function useBranchPullRequests(
   const { data: remoteUrl } = useGitRemoteUrlQuery(sandboxId, !!sandboxId, worktreeCwd);
   const owner = remoteUrl?.owner ?? '';
   const repo = remoteUrl?.repo ?? '';
-  const { data: pulls } = useGitHubPullsQuery(owner, repo, !!owner && !!repo && !!branch, chatId, {
-    head: `${owner}:${branch}`,
-    state: 'all',
-  });
+  const { data: pulls, error: pullsError } = useGitHubPullsQuery(
+    owner,
+    repo,
+    !!owner && !!repo && !!branch,
+    chatId,
+    {
+      head: `${owner}:${branch}`,
+      state: 'all',
+    },
+  );
   const { openPR, mergedPR } = useMemo(() => {
     const branchPulls =
       branch && owner && repo
@@ -79,7 +85,7 @@ export function useBranchPullRequests(
       mergedPR: branchPulls?.find((pr) => pr.merged),
     };
   }, [pulls?.items, branch, owner, repo]);
-  return { owner, repo, openPR, mergedPR };
+  return { owner, repo, openPR, mergedPR, pullsError };
 }
 
 export function useCreatePullRequestMutation(chatId?: string) {
