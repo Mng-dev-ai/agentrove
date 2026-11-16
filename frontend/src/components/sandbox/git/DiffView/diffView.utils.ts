@@ -38,10 +38,14 @@ export const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
 
 // The library washes annotation rows with the line-selection tint when they sit
 // inside the selected range; keep the comment composer's row on the plain
-// annotation background. Injected into the shadow root, where unlayered rules
-// beat the library's @layer base styles.
+// annotation background. Changed-line numbers use the app's add/remove text
+// tokens: the Shiki theme's tints drop below 3:1 on several palettes.
+// Injected into the shadow root, where unlayered rules beat the library's
+// @layer base styles.
 export const DIFF_UNSAFE_CSS =
-  '[data-selected-line]:is([data-line-annotation],[data-gutter-buffer=annotation]){--diffs-computed-selected-line-bg:var(--diffs-annotation-bg)}';
+  '[data-selected-line]:is([data-line-annotation],[data-gutter-buffer=annotation]){--diffs-computed-selected-line-bg:var(--diffs-annotation-bg)}' +
+  '[data-column-number][data-line-type=change-addition]{color:var(--theme-success-text)}' +
+  '[data-column-number][data-line-type=change-deletion]{color:var(--theme-error-text)}';
 
 // Below this tile width the sidebar can't coexist with a readable diff — it
 // collapses into the toolbar file dropdown instead.
