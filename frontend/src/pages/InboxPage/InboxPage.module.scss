@@ -195,7 +195,7 @@
 .body {
   @include type.type-default;
   @include type.type-lineclamp(3);
-  color: var(--theme-text-tertiary);
+  color: var(--theme-text-secondary);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 
