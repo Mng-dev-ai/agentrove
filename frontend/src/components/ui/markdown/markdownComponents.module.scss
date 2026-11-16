@@ -26,6 +26,14 @@
     transparent
   );
 
+  &:first-child {
+    margin-top: 0;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
   // Edge fades follow the horizontal scroll; a table that fits has an inactive
   // timeline, so both fades stay at 0
   @supports (animation-timeline: scroll()) {
@@ -82,14 +90,18 @@
   @include type.type-default;
 }
 
+.h1,
+.h2,
+.h3 {
+  &:first-child {
+    margin-top: 0;
+  }
+}
+
 .h1 {
   @include type.type-title(600);
   margin: var(--space-4) 0 var(--space-3);
   color: var(--theme-text-primary);
-
-  &:first-child {
-    margin-top: 0;
-  }
 }
 
 .h2 {

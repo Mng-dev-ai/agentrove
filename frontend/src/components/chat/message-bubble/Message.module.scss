@@ -10,6 +10,11 @@
     padding: var(--space-2) var(--space-6);
   }
 
+  // The turn gap is tall enough to hold an overlaid action row
+  @include responsive.media('not-touch') {
+    padding-block: var(--space-4);
+  }
+
   @include responsive.hover {
     .reveal {
       opacity: 1;
@@ -20,11 +25,27 @@
   &:has(:focus-visible) .reveal {
     opacity: 1;
   }
+
+  // The latest row's actions always show, so they keep their place in the flow
+  &--latest {
+    @include responsive.media('not-touch') {
+      padding-bottom: var(--space-2);
+    }
+
+    .reveal {
+      position: static;
+    }
+  }
 }
 
-// Opacity only, so revealing never shifts layout; touch has no hover, so it stays visible
+// Opacity only, so revealing never shifts layout; touch has no hover, so it stays visible.
+// Hidden rows overlay the gap below their message instead of reserving an empty band.
 .reveal {
   @include responsive.media('not-touch') {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
     opacity: 0;
     transition: opacity var(--duration-fast) var(--easing-out);
   }
@@ -40,6 +61,7 @@
 }
 
 .message-body {
+  position: relative;
   min-width: 0;
   flex: 1;
 }
@@ -77,7 +99,7 @@
 }
 
 .footer {
-  margin-top: var(--space-2);
+  margin-top: var(--space-1);
   display: flex;
   align-items: center;
   justify-content: space-between;
