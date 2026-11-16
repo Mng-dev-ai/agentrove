@@ -172,6 +172,7 @@ export function MemberPopover({
                 dropdownPosition="auto"
                 dropdownAlign="right"
                 variant="text"
+                compact={false}
               />
             </div>
           )}
@@ -185,6 +186,7 @@ export function MemberPopover({
                 dropdownPosition="auto"
                 dropdownAlign="right"
                 variant="text"
+                compact={false}
               />
             </div>
           )}
@@ -197,6 +199,7 @@ export function MemberPopover({
               dropdownPosition="auto"
               dropdownAlign="right"
               variant="text"
+              compact={false}
             />
           </div>
           {onRemove && (

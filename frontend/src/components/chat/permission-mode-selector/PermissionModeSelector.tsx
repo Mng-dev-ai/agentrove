@@ -32,6 +32,7 @@ interface PermissionModeControlProps {
   agentKind?: AgentKind;
   dropdownPosition?: DropdownPosition;
   disabled?: boolean;
+  compact?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
 }
@@ -48,6 +49,7 @@ export const PermissionModeDropdown = memo(function PermissionModeDropdown({
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
+  compact,
   variant = 'default',
 }: PermissionModeDropdownProps) {
   const resolvedAgentKind = agentKind ?? 'claude';
@@ -69,8 +71,8 @@ export const PermissionModeDropdown = memo(function PermissionModeDropdown({
       itemClassName={styles['item-column']}
       dropdownPosition={dropdownPosition}
       disabled={disabled}
-      compactOnMobile
-      forceCompact={isSplitMode}
+      compactOnMobile={compact ?? true}
+      forceCompact={compact ?? isSplitMode}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
       renderItem={renderPermissionItem}

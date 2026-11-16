@@ -6,6 +6,7 @@
 .trigger {
   @include anim.transition-colors;
   @include type.type-meta;
+  @include responsive.touch-target;
   display: inline-flex;
   min-width: 0;
   align-items: center;

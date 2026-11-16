@@ -14,6 +14,7 @@ interface ThinkingModeControlProps {
   model?: Model;
   dropdownPosition?: DropdownPosition;
   disabled?: boolean;
+  compact?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
 }
@@ -31,6 +32,7 @@ export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
+  compact,
   variant = 'default',
 }: ThinkingModeDropdownProps) {
   const resolvedAgentKind = agentKind ?? 'claude';
@@ -55,8 +57,8 @@ export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
       width="8rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
-      compactOnMobile
-      forceCompact={isSplitMode}
+      compactOnMobile={compact ?? true}
+      forceCompact={compact ?? isSplitMode}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
       renderItem={(mode, isSelected) => (
