@@ -52,6 +52,7 @@
 
 .dismiss {
   @include anim.transition-colors($duration: var(--duration-fast));
+  @include responsive.touch-target;
   display: flex;
   align-items: center;
   border-radius: var(--radius-md);
