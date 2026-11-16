@@ -28,7 +28,7 @@ function ChatCounts({ machineId, online }: { machineId: string; online: boolean 
   const { data: total } = useMachineChatsTotalQuery(machineId, online);
   return (
     <span className={styles.counts}>
-      {running?.length ?? '—'} running · {total ?? '—'} chats
+      {running?.length ?? '—'} running · {total ?? '—'} {total === 1 ? 'chat' : 'chats'}
     </span>
   );
 }
