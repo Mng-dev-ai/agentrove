@@ -27,6 +27,7 @@
   @include type.type-meta;
   text-align: left;
   overflow-wrap: break-word;
+  word-break: break-word;
   color: var(--theme-text-secondary);
 
   @include responsive.media('touch') {
@@ -48,6 +49,7 @@
   @include type.type-meta;
   text-align: left;
   overflow-wrap: break-word;
+  word-break: break-word;
   background-color: var(--theme-text-primary);
   color: var(--theme-surface);
 
