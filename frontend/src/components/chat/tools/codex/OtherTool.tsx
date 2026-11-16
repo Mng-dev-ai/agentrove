@@ -58,7 +58,6 @@ const ImageGenerationTool = memo(function ImageGenerationTool({ tool }: { tool: 
             return 'Generating image';
         }
       }}
-      loadingContent="Generating image..."
       error={tool.error}
       defaultExpanded={attachments.length > 0}
     >
@@ -95,7 +94,6 @@ const CollabAgentTool = memo(function CollabAgentTool({ tool }: { tool: ToolAggr
             return `Running ${label}`;
         }
       }}
-      loadingContent="Coordinating agents..."
       error={tool.error}
     >
       {(input.prompt || agentRows.length > 0) && (

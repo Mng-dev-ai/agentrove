@@ -33,7 +33,6 @@ export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }
             return `Editing ${fileName}...`;
         }
       }}
-      loadingContent="Applying changes..."
       error={tool.error}
       actions={filePath ? <OpenInEditorButton filePath={filePath} /> : null}
     >

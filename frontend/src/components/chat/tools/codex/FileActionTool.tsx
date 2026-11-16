@@ -36,7 +36,6 @@ export const DeleteTool = memo(function DeleteTool({ tool }: { tool: ToolAggrega
             return `Deleting ${fileName || 'file'}`;
         }
       }}
-      loadingContent="Deleting file..."
       error={tool.error}
     >
       {filePath && <div className={styles.path}>{filePath}</div>}
@@ -66,7 +65,6 @@ export const MoveTool = memo(function MoveTool({ tool }: { tool: ToolAggregate }
             return `Moving ${label}`;
         }
       }}
-      loadingContent="Moving file..."
       error={tool.error}
       actions={destination ? <OpenInEditorButton filePath={destination} /> : null}
     >

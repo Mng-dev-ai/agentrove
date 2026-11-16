@@ -36,7 +36,6 @@ export const EnterPlanModeTool = memo(function EnterPlanModeTool({ tool }: PlanM
             return 'Entering plan mode';
         }
       }}
-      loadingContent="Entering plan mode…"
       error={tool.error}
     />
   );
@@ -128,7 +127,6 @@ export const ExitPlanModeTool = memo(function ExitPlanModeTool({
             return 'Waiting for plan approval…';
         }
       }}
-      loadingContent="Waiting for plan approval…"
       error={tool.error}
     >
       {hasContent && (

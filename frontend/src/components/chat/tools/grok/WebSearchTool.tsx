@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { Globe } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { ToolCard } from '../common/ToolCard/ToolCard';
-import { SearchLoadingDots } from '../common/SearchLoadingDots/SearchLoadingDots';
 import toolIcon from './toolIcon.module.scss';
 
 const ICON = <Globe className={toolIcon.icon} />;
@@ -27,7 +26,6 @@ export const WebSearchTool = memo(function WebSearchTool({ tool }: { tool: ToolA
             return `Searching ${label}...`;
         }
       }}
-      loadingContent={<SearchLoadingDots label="Searching the web" />}
       error={tool.error}
     />
   );

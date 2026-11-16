@@ -58,7 +58,6 @@ export const ShellTool = memo(function ShellTool({ tool }: { tool: ToolAggregate
             return `Running: ${command}`;
         }
       }}
-      loadingContent="Running command..."
       error={tool.error}
     >
       {(command || output) && (

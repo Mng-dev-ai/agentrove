@@ -44,7 +44,6 @@ export const GrepTool = memo(function GrepTool({ tool }: { tool: ToolAggregate }
             return `Searching: "${pattern}" (${modeLabel})`;
         }
       }}
-      loadingContent="Searching..."
       error={tool.error}
     >
       {result && <pre className={toolText['output-pre']}>{result}</pre>}

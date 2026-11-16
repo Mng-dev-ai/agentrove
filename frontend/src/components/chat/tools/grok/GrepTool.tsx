@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { ToolCard } from '../common/ToolCard/ToolCard';
-import { SearchLoadingDots } from '../common/SearchLoadingDots/SearchLoadingDots';
 import toolText from '../common/toolText.module.scss';
 import toolIcon from './toolIcon.module.scss';
 import type { GrokGrepInput, GrokGrepOutput } from './grokPayload';
@@ -33,7 +32,6 @@ export const GrepTool = memo(function GrepTool({ tool }: { tool: ToolAggregate }
             return `Searching for "${pattern}"...`;
         }
       }}
-      loadingContent={<SearchLoadingDots label="Searching files" />}
       error={tool.error}
     >
       {output && typeof matches === 'number' && matches > 0 && (

@@ -70,7 +70,6 @@ export function TodoWrite({ tool }: TodoWriteProps) {
             return 'Updating todos';
         }
       }}
-      loadingContent="Updating todo list..."
       error={errorMessage}
     >
       {todoCount > 0 && (

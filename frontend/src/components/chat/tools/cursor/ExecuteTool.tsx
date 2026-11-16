@@ -34,7 +34,6 @@ export const ExecuteTool = memo(function ExecuteTool({ tool }: { tool: ToolAggre
             return `Running: ${title}`;
         }
       }}
-      loadingContent="Running command..."
       error={tool.error}
     >
       {(stdout || stderr) && (

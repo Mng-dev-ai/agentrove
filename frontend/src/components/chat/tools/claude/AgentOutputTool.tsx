@@ -43,7 +43,6 @@ function OutputToolInner({
             return `Getting ${label} output${idSuffix}`;
         }
       }}
-      loadingContent={`Waiting for ${label} output\u2026`}
       error={tool.error}
     >
       {output && (

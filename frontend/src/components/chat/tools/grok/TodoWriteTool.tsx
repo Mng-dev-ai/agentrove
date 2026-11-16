@@ -29,7 +29,6 @@ export const TodoWriteTool = memo(function TodoWriteTool({ tool }: { tool: ToolA
             return 'Updating plan...';
         }
       }}
-      loadingContent="Updating plan..."
       error={tool.error}
     />
   );

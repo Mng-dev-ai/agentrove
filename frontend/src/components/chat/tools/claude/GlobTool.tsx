@@ -38,7 +38,6 @@ export const GlobTool = memo(function GlobTool({ tool }: { tool: ToolAggregate }
             return `Finding: ${pattern}${locationSuffix}`;
         }
       }}
-      loadingContent="Searching for files..."
       error={tool.error}
     >
       {files.length > 0 && (

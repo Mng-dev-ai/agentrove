@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { FileSearch, FolderSearch, Globe } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { ToolCard } from '../common/ToolCard/ToolCard';
-import { SearchLoadingDots } from '../common/SearchLoadingDots/SearchLoadingDots';
 import type { CursorSearchOutput } from './cursorPayload';
 import styles from './SearchTool.module.scss';
 
@@ -35,7 +34,6 @@ export const SearchTool = memo(function SearchTool({ tool }: { tool: ToolAggrega
               return 'Searching the web...';
           }
         }}
-        loadingContent={<SearchLoadingDots label="Searching the web" />}
         error={tool.error}
       />
     );
@@ -73,7 +71,6 @@ export const SearchTool = memo(function SearchTool({ tool }: { tool: ToolAggrega
             return `Searching with ${title}...`;
         }
       }}
-      loadingContent={<SearchLoadingDots label={isGlob ? 'Finding files' : 'Searching files'} />}
       error={tool.error}
     />
   );

@@ -67,13 +67,6 @@ export const EditTool = memo(function EditTool({ tool }: { tool: ToolAggregate }
             return `${verb} ${target}`;
         }
       }}
-      loadingContent={
-        op === 'add'
-          ? 'Creating file...'
-          : op === 'delete'
-            ? 'Removing file...'
-            : 'Applying changes...'
-      }
       error={tool.error}
       actions={filePath ? <OpenInEditorButton filePath={filePath} /> : null}
     >

@@ -53,7 +53,6 @@ export const TaskTool = memo(function TaskTool({ tool }: { tool: ToolAggregate }
             return `Running agent: ${label}`;
         }
       }}
-      loadingContent="Running sub-agent..."
       error={tool.error}
     >
       {(agentType || prompt || output || tool.children.length > 0) && (

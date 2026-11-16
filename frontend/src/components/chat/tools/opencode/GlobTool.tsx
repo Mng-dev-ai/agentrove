@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { FolderSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { ToolCard } from '../common/ToolCard/ToolCard';
-import { SearchLoadingDots } from '../common/SearchLoadingDots/SearchLoadingDots';
 import toolText from '../common/toolText.module.scss';
 import toolIcon from './toolIcon.module.scss';
 import type { OpencodeGlobInput, OpencodeGlobMetadata, OpencodeOutput } from './opencodePayload';
@@ -36,7 +35,6 @@ export const GlobTool = memo(function GlobTool({ tool }: { tool: ToolAggregate }
             return `Matching "${pattern}"...`;
         }
       }}
-      loadingContent={<SearchLoadingDots label="Finding files" />}
       error={tool.error}
     >
       {output && typeof count === 'number' && count > 0 && (

@@ -56,7 +56,6 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
             return `Reading ${fileLabel}`;
         }
       }}
-      loadingContent={isGlob ? 'Searching...' : 'Loading file content...'}
       error={tool.error}
       actions={!isGlob && path ? <OpenInEditorButton filePath={path} /> : null}
     >

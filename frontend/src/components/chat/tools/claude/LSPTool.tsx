@@ -53,7 +53,6 @@ export const LSPTool = memo(function LSPTool({ tool }: { tool: ToolAggregate }) 
             return `LSP running ${opLabel}: ${filename}${location}`;
         }
       }}
-      loadingContent={`Running ${opLabel}...`}
       error={tool.error}
     >
       {(filePath || result) && (
