@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 import { Check, ChevronDown, Plus } from 'lucide-react';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { MachineStatusDot } from '@/components/machines/MachineStatusDot';
 import { MACHINE_STATUS_LABEL } from '@/components/machines/machineStatusLabel';
 import { useDropdown } from '@/hooks/useDropdown';
+import { usePanelInlineShift } from '@/hooks/usePanelFit';
 import { useChatSettingsStore } from '@/store/chatSettingsStore';
 import { LOCAL_MACHINE_NAME, useMachineStore, useTargetMachineId } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID, type MachineStatus } from '@/types/machine.types';
@@ -30,6 +31,8 @@ export const RunLocationSelector = memo(function RunLocationSelector({
   const connections = useMachineStore((state) => state.connections);
   const targetMachineId = useTargetMachineId();
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelTransform = usePanelInlineShift(panelRef, isOpen);
 
   const options: MachineOption[] = [
     { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME, status: 'online' },
@@ -58,7 +61,12 @@ export const RunLocationSelector = memo(function RunLocationSelector({
       </Button>
 
       {isOpen && (
-        <div className={clsx(toggleStyles.panel, styles.panel)} role="listbox">
+        <div
+          ref={panelRef}
+          className={clsx(toggleStyles.panel, styles.panel)}
+          style={{ transform: panelTransform }}
+          role="listbox"
+        >
           {options.map((option) => {
             const isSelected = option.id === selected.id;
             const isOnline = option.status === 'online';

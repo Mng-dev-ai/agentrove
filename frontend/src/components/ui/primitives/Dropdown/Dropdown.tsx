@@ -12,7 +12,7 @@ import {
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useDropdown } from '@/hooks/useDropdown';
-import { usePanelFit } from '@/hooks/usePanelFit';
+import { usePanelFit, usePanelInlineShift } from '@/hooks/usePanelFit';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { SelectItem } from '@/components/ui/primitives/SelectItem/SelectItem';
@@ -160,6 +160,7 @@ const Dropdown = memo(function Dropdown<T>({
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const panelRef = useRef<HTMLDivElement>(null);
   const fit = usePanelFit(dropdownRef, panelRef, isOpen && !disabled, dropdownPosition === 'auto');
+  const panelTransform = usePanelInlineShift(panelRef, isOpen && !disabled);
   const panelSide = dropdownPosition === 'auto' ? (fit?.side ?? 'bottom') : dropdownPosition;
   const [searchQuery, setSearchQuery] = useState('');
   const isMobile = useIsMobile();
@@ -266,7 +267,11 @@ const Dropdown = memo(function Dropdown<T>({
         <div
           ref={panelRef}
           role="listbox"
-          style={{ width, maxHeight: fit?.maxHeight }}
+          style={{
+            width,
+            maxHeight: fit?.maxHeight,
+            transform: panelTransform,
+          }}
           className={clsx(
             styles.panel,
             styles[`panel--${panelSide}`],
