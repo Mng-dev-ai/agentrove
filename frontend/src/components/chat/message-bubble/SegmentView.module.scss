@@ -1,4 +1,3 @@
-@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
 
 .text-segment {
@@ -19,24 +18,6 @@
 // The collapsed tool row's height, so the renderer's mount doesn't move the content below
 .tool-placeholder {
   height: calc(#{type.$type-meta-line-height} + 2 * var(--space-0-5));
-}
-
-.tool-fallback {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  border: 1px solid colors.theme-color('border', 0.5);
-  border-radius: var(--radius-lg);
-  padding: var(--space-2) var(--space-3);
-}
-
-.tool-fallback-spinner {
-  color: var(--theme-text-quaternary);
-}
-
-.tool-fallback-text {
-  @include type.type-default;
-  color: var(--theme-text-tertiary);
 }
 
 .steering-segment {

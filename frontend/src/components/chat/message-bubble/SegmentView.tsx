@@ -10,7 +10,6 @@ import { UserBubble } from './Message';
 import { getToolComponent } from '@/components/chat/tools/registry';
 import type { MessageSegment } from './segmentBuilder';
 import type { AgentKind } from '@/types/chat.types';
-import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import styles from './SegmentView.module.scss';
 
 interface SegmentViewProps {
@@ -49,13 +48,8 @@ function TextSegment({
   );
 }
 
-export function ToolLoadingFallback() {
-  return (
-    <div className={styles['tool-fallback']}>
-      <Spinner size="sm" className={styles['tool-fallback-spinner']} />
-      <span className={styles['tool-fallback-text']}>Loading tool output...</span>
-    </div>
-  );
+export function ToolPlaceholder() {
+  return <div className={styles['tool-placeholder']} />;
 }
 
 export const SegmentView = memo(function SegmentView({
@@ -102,7 +96,7 @@ export const SegmentView = memo(function SegmentView({
       const Component = getToolComponent(segment.tool.name, agentKind);
       return (
         <div className={styles['tool-segment']}>
-          <Suspense fallback={<div className={styles['tool-placeholder']} />}>
+          <Suspense fallback={<ToolPlaceholder />}>
             <Component tool={segment.tool} chatId={chatId} />
           </Suspense>
         </div>

@@ -28,7 +28,7 @@ import {
 import { MessageActions } from '@/components/chat/message-bubble/MessageActions';
 import { MessageAttachments } from '@/components/chat/message-bubble/MessageAttachments';
 import { MessageRenderer } from '@/components/chat/message-bubble/MessageRenderer';
-import { ToolLoadingFallback } from '@/components/chat/message-bubble/SegmentView';
+import { ToolPlaceholder } from '@/components/chat/message-bubble/SegmentView';
 import { WorkedRollup } from '@/components/chat/message-bubble/WorkedRollup';
 import { useChannelMessageActivityQuery } from '@/hooks/queries/useChannelQueries';
 import { useChannelLive } from '@/hooks/useChannelLive';
@@ -100,7 +100,7 @@ function ChannelMessageActivity({ channelId, messageId, agentKind }: ChannelMess
   );
 
   if (isError) return <p className={styles['activity-unavailable']}>Activity unavailable</p>;
-  if (isPending || !events) return <ToolLoadingFallback />;
+  if (isPending || !events) return <ToolPlaceholder />;
   return <MessageRenderer events={events} chatId={data.chat_id} agentKind={agentKind} />;
 }
 
