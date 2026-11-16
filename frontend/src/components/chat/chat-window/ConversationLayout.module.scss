@@ -28,7 +28,7 @@
 // The bottom padding keeps the last row clear of the composer fade (same token as the band).
 .content {
   position: relative;
-  padding-bottom: var(--space-8);
+  padding-bottom: var(--space-12);
 }
 
 // Centered message column — full width, capped and centered from the lg breakpoint
@@ -52,8 +52,13 @@
     left: 0;
     right: 0;
     bottom: 100%;
-    height: var(--space-8);
-    background: linear-gradient(to bottom, transparent, var(--theme-surface));
+    height: var(--space-12);
+    // Short ramp, then solid from a --space-2 margin above the button down to the input
+    background: linear-gradient(
+      to bottom,
+      transparent,
+      var(--theme-surface) calc(100% - var(--space-10))
+    );
     pointer-events: none;
   }
 }
