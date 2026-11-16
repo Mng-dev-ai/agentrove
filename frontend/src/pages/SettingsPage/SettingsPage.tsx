@@ -4,7 +4,7 @@ import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ApiFieldKey } from '@/types/settings.types';
 import { useDeleteAllChatsMutation } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
-import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
+import { listLoadState } from '@/hooks/queries/listLoad';
 import { AlertCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
@@ -83,7 +83,7 @@ export function SettingsPage() {
 
   const generalSecretFields = getGeneralSecretFields();
 
-  const settingsQuery = useSettingsQuery({ retry: retryTransientOnce });
+  const settingsQuery = useSettingsQuery();
   const { data: settings, error: fetchError } = settingsQuery;
   const settingsLoad = listLoadState([settingsQuery]);
   const deleteAllChats = useDeleteAllChatsMutation();
