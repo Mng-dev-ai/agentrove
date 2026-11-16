@@ -6,6 +6,7 @@
   @include responsive.touch-target;
   padding: var(--space-2);
   border-radius: var(--radius-full);
+  background-color: var(--theme-surface-tertiary);
   color: var(--theme-text-tertiary);
 
   @include responsive.hover {
