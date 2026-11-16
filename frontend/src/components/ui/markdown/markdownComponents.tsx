@@ -101,20 +101,10 @@ export const MARKDOWN_COMPONENTS: Components = {
       </table>
     </div>
   ),
-  thead: ({ children, ...props }: CommonProps) => (
-    <thead className={styles.thead} {...props}>
-      {children}
-    </thead>
-  ),
   tbody: ({ children, ...props }: CommonProps) => (
     <tbody className={styles.tbody} {...props}>
       {children}
     </tbody>
-  ),
-  tr: ({ children, ...props }: CommonProps) => (
-    <tr className={styles.tr} {...props}>
-      {children}
-    </tr>
   ),
   th: ({ children, ...props }: CommonProps) => (
     <th className={styles.th} {...props}>

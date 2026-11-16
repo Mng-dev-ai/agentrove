@@ -1,3 +1,4 @@
+@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
@@ -53,36 +54,32 @@
   }
 }
 
-.thead {
-  background-color: var(--theme-surface-secondary);
+.tbody > * + * {
+  border-top: 1px solid colors.theme-color('border', 0.5);
 }
 
-.tbody {
-  background-color: var(--theme-surface);
+.th,
+.td {
+  padding: var(--space-1-5) var(--space-3);
 
-  > * + * {
-    border-top: 1px solid var(--theme-border);
+  // Outer cells sit on the prose edges so the table shares the column's alignment line
+  &:first-child {
+    padding-left: 0;
   }
-}
 
-.tr {
-  @include anim.transition-colors;
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
+  &:last-child {
+    padding-right: 0;
   }
 }
 
 .th {
-  @include type.type-default(600);
-  padding: var(--space-2) var(--space-3);
+  @include type.type-default(500);
   text-align: left;
-  color: var(--theme-text-primary);
+  color: var(--theme-text-tertiary);
 }
 
 .td {
   @include type.type-default;
-  padding: var(--space-2) var(--space-3);
   color: var(--theme-text-secondary);
 }
 
