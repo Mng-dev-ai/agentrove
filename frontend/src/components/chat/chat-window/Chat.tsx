@@ -157,7 +157,6 @@ export const Chat = memo(function Chat() {
   }, [messages]);
 
   const lastBotMessageId = lastBotMessage?.id ?? null;
-  const latestMessageId = messages.at(-1)?.id;
 
   const {
     scrollerRef,
@@ -196,6 +195,15 @@ export const Chat = memo(function Chat() {
   const lastBotHasContent =
     !!lastBotMessage &&
     ((lastBotMessage.content_render?.events?.length ?? 0) > 0 || !!lastBotMessage.content_text);
+  // A not-yet-populated bot row renders only its padding, pushing the thinking
+  // indicator below it down a few pixels — hide it until content lands. Gate on the
+  // turn being active, not streamingMessageIdSet: the row can land in the message
+  // list before the stream store registers its message id.
+  const lastBotRowHidden = !lastBotHasContent && (isLoading || isStreaming);
+  // The latest row that actually renders keeps its actions visible.
+  const latestMessageId = (
+    lastBotRowHidden && messages.at(-1)?.id === lastBotMessageId ? messages.at(-2) : messages.at(-1)
+  )?.id;
   const showPermissionAtEnd = canShowPermissionInline && (!lastBotMessageId || lastBotIsStreaming);
   // Permission and elicitation share the slot; a pending permission wins.
   const canShowElicitationInline = !!pendingElicitationRequest && !pendingPermissionRequest;
@@ -214,11 +222,7 @@ export const Chat = memo(function Chat() {
       const messageIsStreaming = streamingMessageIdSet.has(msg.id);
       const isBotMessage = isAssistantMessage(msg);
       const isLastBotMessage = isBotMessage && msg.id === lastBotMessageId;
-      // A not-yet-populated bot row renders only its padding, pushing the thinking
-      // indicator below it down a few pixels — hide it until content lands. Gate on the
-      // turn being active, not streamingMessageIdSet: the row can land in the message
-      // list before the stream store registers its message id.
-      if (isLastBotMessage && !lastBotHasContent && (isLoading || isStreaming)) {
+      if (isLastBotMessage && lastBotRowHidden) {
         return null;
       }
       const attachments = msg.attachments ?? [];
@@ -280,7 +284,7 @@ export const Chat = memo(function Chat() {
     [
       isLoading,
       isStreaming,
-      lastBotHasContent,
+      lastBotRowHidden,
       lastBotMessageId,
       latestMessageId,
       latestUserMessageId,
