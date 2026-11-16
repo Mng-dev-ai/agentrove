@@ -6,8 +6,8 @@
 
 .icon-button {
   @include responsive.touch-target;
-  height: var(--space-8);
-  width: var(--space-8);
+  height: var(--space-7);
+  width: var(--space-7);
   transition: all var(--duration-base) var(--easing-in-out);
 
   @include responsive.hover {
