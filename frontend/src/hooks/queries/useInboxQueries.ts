@@ -119,7 +119,7 @@ export const useInboxAcrossMachines = () => {
       (source) => source.hasMore || source.items.some((entry) => entry.item.read_at),
     ),
     isLoading: local.isLoading,
-    isError: local.isError,
+    isError: local.isError || remote.some((query) => query.isError),
     hasMore: sources.some((source) => source.hasMore),
     isFetchingMore: local.isFetchingNextPage || loadMoreRemote.isPending,
     loadMore,
