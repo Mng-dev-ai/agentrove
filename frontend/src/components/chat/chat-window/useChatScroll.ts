@@ -41,6 +41,7 @@ export function useChatScroll({
   const [showScrollButton, setShowScrollButton] = useState(false);
 
   const turnRef = useRef<HTMLDivElement | null>(null);
+  const turnTopRef = useRef<{ turn: HTMLDivElement; top: number } | null>(null);
   const anchorTurnRef = useRef<string | null>(null);
   const anchoringRef = useRef(false);
   const anchorTargetRef = useRef(0);
@@ -148,6 +149,28 @@ export function useChatScroll({
     prevScrollHeightRef.current = null;
   }, [messages]);
 
+  // A reader inside the last turn keeps their place when a commit changes the height
+  // above it (the oldest turn drops out on the stream-end refetch): without scroll
+  // anchoring the engine leaves scrollTop alone, or clamps it to the shorter content.
+  useLayoutEffect(() => {
+    const scroller = scrollerRef.current;
+    const turn = turnRef.current;
+    const prev = turnTopRef.current;
+    const scrollTop = lastScrollTopRef.current;
+    if (!scroller || !turn) return;
+    const top = turn.offsetTop;
+    turnTopRef.current = { turn, top };
+    if (
+      prev?.turn === turn &&
+      prev.top !== top &&
+      !isAtBottomRef.current &&
+      scrollTop !== null &&
+      scrollTop >= prev.top
+    ) {
+      scroller.scrollTop = scrollTop + top - prev.top;
+    }
+  }, [messages]);
+
   useLayoutEffect(() => {
     // Send anchor, step 1 of a two-commit handshake: reserve a viewport of space under
     // the new turn (the reply streams into it instead of growing the page); the state
@@ -217,6 +240,8 @@ export function useChatScroll({
         if (content) {
           let height = node.clientHeight;
           const observer = new ResizeObserver(() => {
+            const turn = turnRef.current;
+            turnTopRef.current = turn && { turn, top: turn.offsetTop };
             // The reserve tracks the viewport height (window resize, mobile keyboard);
             // committed synchronously so the snap below lands before paint. Height only:
             // a sync commit while a panel animates the width loops this observer in WebKit.
