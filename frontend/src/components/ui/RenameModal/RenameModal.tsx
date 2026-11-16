@@ -70,15 +70,12 @@ export function RenameModal({
       if (e.key === 'Enter' && !isLoading && title.trim() !== '') {
         e.preventDefault();
         handleSave();
-      } else if (e.key === 'Escape' && !isLoading) {
-        e.preventDefault();
-        onClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isLoading, title, handleSave, onClose]);
+  }, [isOpen, isLoading, title, handleSave]);
 
   const isSaveDisabled = title.trim() === '' || isLoading;
 
