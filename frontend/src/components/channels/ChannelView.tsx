@@ -153,7 +153,7 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
         </WorkedRollup>
       )}
       <MessageText>
-        <MarkDown content={content} streaming={isRevealing} mentionHandles={mentionHandles} prose />
+        <MarkDown content={content} streaming={isRevealing} mentions={mentionHandles} prose />
       </MessageText>
       <MessageAttachments
         attachments={message.attachments}
@@ -524,7 +524,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                               chatId={channel.anchor_chat_id}
                               className={styles.attachments}
                             />
-                            <MarkDown content={message.content} highlightMentions />
+                            <MarkDown content={message.content} mentions="all" />
                           </UserBubble>
                           {message.content.trim() && (
                             <UserActions>

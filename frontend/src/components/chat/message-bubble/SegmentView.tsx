@@ -40,7 +40,7 @@ function TextSegment({
       <MarkDown
         content={smoothText}
         streaming={isActive}
-        highlightMentions={highlightMentions}
+        mentions={highlightMentions ? 'all' : undefined}
         // Mention pills mark user text; only replies take the looser prose leading
         prose={!highlightMentions}
       />
@@ -81,7 +81,7 @@ export const SegmentView = memo(function SegmentView({
           ) : (
             <UserBubble>
               <MessageAttachments attachments={segment.attachments} chatId={chatId} />
-              <MarkDown content={segment.text} highlightMentions />
+              <MarkDown content={segment.text} mentions="all" />
             </UserBubble>
           )}
         </div>
