@@ -91,7 +91,7 @@ export const TaskTool = memo(function TaskTool({ tool }: { tool: ToolAggregate }
           {tool.children.length > 0 && (
             <div className={styles.stack}>
               <CollapsibleButton
-                label="Tools Used"
+                label="Tools used"
                 isExpanded={toolsExpanded}
                 onToggle={() => setToolsExpanded((v) => !v)}
                 count={tool.children.length}
