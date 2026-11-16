@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useState, type RefObject } from 'react';
 
 const VIEWPORT_MARGIN = 8;
 
@@ -49,7 +49,8 @@ function inlineShift(panel: HTMLElement): number {
 }
 
 // Transform that keeps an anchored panel inside the viewport horizontally. Re-measured
-// after every render because the anchor can move while the panel is open.
+// after every render because the anchor can move while the panel is open, and on resize
+// (which also fires on rotation).
 export function usePanelInlineShift(
   panelRef: RefObject<HTMLElement | null>,
   isOpen: boolean,
@@ -62,6 +63,15 @@ export function usePanelInlineShift(
   useLayoutEffect(() => {
     if (isOpen && panelRef.current) setShift(inlineShift(panelRef.current));
   });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleResize = () => {
+      if (panelRef.current) setShift(inlineShift(panelRef.current));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isOpen, panelRef]);
 
   return shift ? `translateX(${shift}px)` : undefined;
 }
