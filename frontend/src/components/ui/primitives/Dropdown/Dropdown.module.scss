@@ -7,6 +7,7 @@
 
 .dropdown {
   position: relative;
+  min-width: 0;
 }
 
 .trigger {
@@ -38,6 +39,7 @@
   @include responsive.touch-target;
   display: flex;
   min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: var(--space-1);
   padding: 0;

@@ -5,7 +5,7 @@ import { useChatContext } from '@/hooks/useChatContext';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { useBranchCheckout } from '@/hooks/useBranchCheckout';
-import { buildBranchItems, shortenBranchName } from './branchItems';
+import { buildBranchItems } from './branchItems';
 import styles from './BranchSelector.module.scss';
 
 export interface BranchSelectorProps {
@@ -48,7 +48,6 @@ export const BranchSelector = memo(function BranchSelector({
       onSelect={(branch) => checkout(branch, currentBranch)}
       leftIcon={GitBranch}
       ariaLabel="Branch"
-      getItemShortLabel={shortenBranchName}
       width="16rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled || isPending}

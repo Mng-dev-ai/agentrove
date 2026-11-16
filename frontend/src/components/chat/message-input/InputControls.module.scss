@@ -37,9 +37,10 @@
   }
 }
 
+// The branch trigger takes the free space on the left and truncates against this group
 .footer-end {
   display: flex;
-  min-width: 0;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--space-1);
   margin-inline-start: auto;
