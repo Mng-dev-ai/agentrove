@@ -5,6 +5,22 @@ const AT_BOTTOM_THRESHOLD_PX = 200;
 const TOP_PAGINATION_TRIGGER_PX = 50;
 const TOP_PAGINATION_ARM_VIEWPORT_MULTIPLIER = 1.5;
 
+// Clamped: rubber-band overscroll reports positions outside the scroll range.
+function clampedScrollTop(node: HTMLElement) {
+  return Math.min(Math.max(node.scrollTop, 0), node.scrollHeight - node.clientHeight);
+}
+
+// Every instant write moves the direction baseline with it, or a user scroll coalesced
+// into the same scroll event would be measured from the pre-write position.
+function writeScrollTop(
+  node: HTMLElement,
+  top: number,
+  lastScrollTopRef: { current: number | null },
+) {
+  node.scrollTop = top;
+  lastScrollTopRef.current = clampedScrollTop(node);
+}
+
 // Net of the content's bottom padding, so the anchored turn top is exactly max scroll.
 function reservedTurnHeight(scroller: HTMLElement, content: Element) {
   return scroller.clientHeight - parseFloat(getComputedStyle(content).paddingBottom);
@@ -70,14 +86,21 @@ export function useChatScroll({
     const container = scrollerRef.current;
     if (!container) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = container;
+    const { scrollHeight, clientHeight } = container;
+    const scrollTop = clampedScrollTop(container);
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const isScrollingUp = lastScrollTopRef.current !== null && scrollTop < lastScrollTopRef.current;
-    // Only scrolling up leaves the bottom: a scroll event can be delivered after the
-    // content has grown past the threshold (stream end, the send's reserve), and the
-    // distance alone would then read as the reader having left.
-    const atBottom =
-      distanceFromBottom <= AT_BOTTOM_THRESHOLD_PX || (isAtBottomRef.current && !isScrollingUp);
+    const lastScrollTop = lastScrollTopRef.current;
+    const isScrollingUp = lastScrollTop !== null && scrollTop < lastScrollTop;
+    const isScrollingDown = lastScrollTop !== null && scrollTop > lastScrollTop;
+    // Direction, not distance, decides: any up-scroll leaves the bottom and only scrolling
+    // down near it (or reaching it) returns. Distance alone would misread content that
+    // grew past the threshold (stream end, the send's reserve) as the reader leaving, and
+    // a small up-scroll within it as staying. Content shrinking clamps scrollTop down too,
+    // but leaves the reader at max scroll.
+    const atBottom = isAtBottomRef.current
+      ? !isScrollingUp || distanceFromBottom <= 1
+      : distanceFromBottom <= 1 ||
+        (isScrollingDown && distanceFromBottom <= AT_BOTTOM_THRESHOLD_PX);
 
     // Settle the anchor on reaching its target or on user up-scroll — not on atBottom,
     // which never arrives when the reply outgrows the spacer mid-flight.
@@ -128,7 +151,7 @@ export function useChatScroll({
 
     // rAF so layout has committed before measuring scrollHeight.
     const raf = requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
+      writeScrollTop(container, container.scrollHeight, lastScrollTopRef);
       hasInitializedToBottomRef.current = true;
     });
     // Cancel so a chat switch or unmount can't let the stale frame scroll the
@@ -144,7 +167,7 @@ export function useChatScroll({
     const container = scrollerRef.current;
     if (!container) return;
 
-    container.scrollTop = container.scrollHeight - prevHeight;
+    writeScrollTop(container, container.scrollHeight - prevHeight, lastScrollTopRef);
     prevScrollHeightRef.current = null;
   }, [messages]);
 
@@ -205,7 +228,7 @@ export function useChatScroll({
       contentResizeObserverRef.current = null;
       scrollerRef.current = node;
       if (node) {
-        lastScrollTopRef.current = node.scrollTop;
+        lastScrollTopRef.current = clampedScrollTop(node);
         node.addEventListener('scroll', handleScroll, { passive: true });
         // Stick to bottom whenever the content grows while the user is anchored
         // there. Growth comes from stream flushes, the word-reveal animation
@@ -226,13 +249,12 @@ export function useChatScroll({
                 setTurnMinHeight((height) => height && reservedTurnHeight(node, content)),
               );
             }
+            // Settles a user scroll whose event hasn't fired yet before the snap would
+            // overwrite it; also re-checks at-bottom when shrinking content (a collapsed
+            // rollup) leaves scrollTop unchanged so no scroll event fires.
+            handleScroll();
             if (isAtBottomRef.current && !anchoringRef.current) {
-              node.scrollTop = node.scrollHeight;
-            } else {
-              // Content shrinking (e.g. collapsing a rollup) may leave scrollTop
-              // unchanged so no scroll event fires — re-check at-bottom state or
-              // the scroll button stays visible with nothing left to scroll.
-              handleScroll();
+              writeScrollTop(node, node.scrollHeight, lastScrollTopRef);
             }
           });
           observer.observe(content);
