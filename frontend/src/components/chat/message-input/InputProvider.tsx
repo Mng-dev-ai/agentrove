@@ -5,7 +5,6 @@ import { useChatMachineId } from '@/store/machineOrigin';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useRecentChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
-import { useIsMobile } from '@/hooks/useIsMobile';
 import { useInputAttachments } from '@/hooks/useInputAttachments';
 import { useInputEnhance } from '@/hooks/useInputEnhance';
 import { useInputSuggestions } from '@/hooks/useInputSuggestions';
@@ -162,11 +161,19 @@ export function InputProvider({
       handleSlashCommandKeyDown,
     });
 
-  const isMobile = useIsMobile();
-  const dynamicPlaceholder = isStreaming
-    ? 'Type to queue message...'
-    : (placeholder ??
-      (isMobile ? 'Message Agentrove…' : 'Message Agentrove... (@ to mention, / for commands)'));
+  const placeholders = useMemo(
+    () =>
+      isStreaming
+        ? ['Type to queue message...', 'Queue…']
+        : placeholder !== undefined
+          ? [placeholder]
+          : [
+              'Message Agentrove... (@ to mention, / for commands)',
+              'Message Agentrove…',
+              'Message…',
+            ],
+    [isStreaming, placeholder],
+  );
 
   const stateValue: InputState = useMemo(
     () => ({
@@ -185,7 +192,7 @@ export function InputProvider({
       showLoadingSpinner,
       showBranch,
       isDragging,
-      placeholder: dynamicPlaceholder,
+      placeholders,
       selectedModelId,
       dropdownPosition,
       attachedFiles,
@@ -218,7 +225,7 @@ export function InputProvider({
       showLoadingSpinner,
       showBranch,
       isDragging,
-      dynamicPlaceholder,
+      placeholders,
       selectedModelId,
       dropdownPosition,
       attachedFiles,

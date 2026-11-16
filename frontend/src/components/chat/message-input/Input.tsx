@@ -62,6 +62,7 @@ function InputLayout() {
       ref={meta.formRef}
       onSubmit={actions.handleSubmit}
       message={state.message}
+      placeholders={state.placeholders}
       isDragging={state.isDragging}
       dragHandlers={meta.dragHandlers}
       attachments={
@@ -96,13 +97,13 @@ function InputLayout() {
           }}
         />
       }
-      textarea={
+      textarea={(placeholder) => (
         <>
           <Textarea
             ref={meta.textareaRef}
             message={state.message}
             setMessage={actions.setMessage}
-            placeholder={state.placeholder}
+            placeholder={placeholder}
             isLoading={state.isLoading}
             disabled={state.isDisabled}
             onKeyDown={actions.handleKeyDown}
@@ -111,7 +112,7 @@ function InputLayout() {
           />
           <InputSuggestionsPanel />
         </>
-      }
+      )}
       trailing={
         <>
           {state.hasMessage && (

@@ -19,7 +19,7 @@ export interface InputState {
   showLoadingSpinner: boolean;
   showBranch: boolean;
   isDragging: boolean;
-  placeholder: string;
+  placeholders: readonly string[];
   selectedModelId: string;
   dropdownPosition: 'top' | 'bottom';
   attachedFiles: File[] | null;

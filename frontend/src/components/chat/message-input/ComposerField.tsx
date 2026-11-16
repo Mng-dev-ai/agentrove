@@ -8,8 +8,10 @@ interface ComposerFieldProps {
   ref?: Ref<HTMLFormElement>;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   message: string;
+  // Longest first; the field shows the first one its single-row width fits
+  placeholders: readonly string[];
   leading: ReactNode;
-  textarea: ReactNode;
+  textarea: (placeholder: string) => ReactNode;
   trailing: ReactNode;
   attachments?: ReactNode;
   isDragging?: boolean;
@@ -21,6 +23,7 @@ export function ComposerField({
   ref,
   onSubmit,
   message,
+  placeholders,
   leading,
   textarea,
   trailing,
@@ -31,25 +34,30 @@ export function ComposerField({
 }: ComposerFieldProps) {
   const probeRef = useRef<HTMLDivElement>(null);
   const probeTextRef = useRef<HTMLSpanElement>(null);
+  const probePlaceholdersRef = useRef<HTMLSpanElement>(null);
   const [multiline, setMultiline] = useState(false);
+  const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
   // The probe sits in the middle grid column, which is the single-row text width in both
   // layouts, so the decision never depends on the layout it produces and cannot oscillate.
   useLayoutEffect(() => {
     const probe = probeRef.current;
     const probeText = probeTextRef.current;
-    if (!probe || !probeText) return;
-    const measure = () =>
-      setMultiline(
-        message.includes('\n') ||
-          Math.ceil(probeText.getBoundingClientRect().width) >
-            Math.floor(probe.getBoundingClientRect().width),
-      );
+    const probePlaceholders = probePlaceholdersRef.current;
+    if (!probe || !probeText || !probePlaceholders) return;
+    const measure = () => {
+      const room = Math.floor(probe.getBoundingClientRect().width);
+      const fits = (el: Element) => Math.ceil(el.getBoundingClientRect().width) <= room;
+      setMultiline(message.includes('\n') || !fits(probeText));
+      const candidates = [...probePlaceholders.children];
+      const index = candidates.findIndex(fits);
+      setPlaceholderIndex(index === -1 ? candidates.length - 1 : index);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(probe);
     return () => observer.disconnect();
-  }, [message]);
+  }, [message, placeholders]);
 
   return (
     <form ref={ref} onSubmit={onSubmit} className={styles.composer}>
@@ -57,10 +65,17 @@ export function ComposerField({
         {attachments}
         <div className={clsx(styles.row, multiline && styles['row--multiline'])}>
           <div className={styles.leading}>{leading}</div>
-          <div className={styles.text}>{textarea}</div>
+          <div className={styles.text}>
+            {textarea(placeholders[Math.min(placeholderIndex, placeholders.length - 1)])}
+          </div>
           <div className={styles.trailing}>{trailing}</div>
           <div ref={probeRef} aria-hidden className={styles.probe}>
             <span ref={probeTextRef}>{message}</span>
+            <span ref={probePlaceholdersRef}>
+              {placeholders.map((placeholder) => (
+                <span key={placeholder}>{placeholder}</span>
+              ))}
+            </span>
           </div>
         </div>
       </div>

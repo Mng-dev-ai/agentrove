@@ -127,6 +127,11 @@ export function ChannelComposer({
     }
   };
 
+  const placeholders = useMemo(
+    () => [placeholder ?? (isBusy ? 'Type to queue message...' : `Message #${channel.name}`)],
+    [placeholder, isBusy, channel.name],
+  );
+
   const handleStop = () => {
     stopChannel.mutate(channel.id, {
       onError: (error) => toast.error(error.message || 'Failed to stop'),
@@ -148,6 +153,7 @@ export function ChannelComposer({
         void handleSend();
       }}
       message={draft}
+      placeholders={placeholders}
       isDragging={attachments.isDragging}
       dragHandlers={attachments.dragHandlers}
       attachments={
@@ -183,15 +189,13 @@ export function ChannelComposer({
           }}
         />
       }
-      textarea={
+      textarea={(fittingPlaceholder) => (
         <>
           <Textarea
             ref={textareaRef}
             message={draft}
             setMessage={setDraft}
-            placeholder={
-              placeholder ?? (isBusy ? 'Type to queue message...' : `Message #${channel.name}`)
-            }
+            placeholder={fittingPlaceholder}
             isLoading={postMessage.isPending}
             disabled={disabled}
             onPaste={attachments.handlePaste}
@@ -214,7 +218,7 @@ export function ChannelComposer({
             />
           )}
         </>
-      }
+      )}
       trailing={
         <>
           {hasDraft && (
