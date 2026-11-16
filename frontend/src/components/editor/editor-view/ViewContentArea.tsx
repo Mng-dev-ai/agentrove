@@ -18,6 +18,7 @@ export interface ViewContentAreaProps {
   monacoRef: RefObject<typeof import('monaco-editor') | null>;
   onCloseInlineChat: () => void;
   selectedFile: FileStructure;
+  isBinary: boolean;
   modelPath: string;
   diffOriginal: string | undefined;
   isGitRepo: boolean;
@@ -52,6 +53,7 @@ export function ViewContentArea({
   monacoRef,
   onCloseInlineChat,
   selectedFile,
+  isBinary,
   modelPath,
   diffOriginal,
   isGitRepo,
@@ -114,13 +116,13 @@ export function ViewContentArea({
         />
       )}
 
-      {viewMode !== 'diff' && !isPreviewActive && selectedFile.is_binary && (
+      {viewMode !== 'diff' && !isPreviewActive && isBinary && (
         <div className={styles['loading-overlay']}>
           <div className={styles['loading-text']}>Binary file — no preview available</div>
         </div>
       )}
 
-      {viewMode !== 'diff' && !isPreviewActive && !selectedFile.is_binary && (
+      {viewMode !== 'diff' && !isPreviewActive && !isBinary && (
         <Content
           key={selectedFile.path}
           content={displayContent}

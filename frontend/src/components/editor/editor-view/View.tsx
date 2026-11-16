@@ -114,8 +114,10 @@ export const View = memo(function View({
     retry: 1,
   });
 
-  const selectedFileContent =
-    source.path && fileContentData?.path === source.path ? fileContentData.content : undefined;
+  const loadedContent =
+    source.path && fileContentData?.path === source.path ? fileContentData : undefined;
+  const selectedFileContent = loadedContent?.content;
+  const isBinary = loadedContent?.is_binary ?? !!selectedFile?.is_binary;
 
   const {
     currentContent,
@@ -430,6 +432,7 @@ export const View = memo(function View({
             monacoRef={monacoRef}
             onCloseInlineChat={handleCloseInlineChat}
             selectedFile={selectedFile}
+            isBinary={isBinary}
             modelPath={`sandbox://${source.sandboxId ?? 'workspace'}/${source.path}`}
             diffOriginal={baselineData?.content}
             isGitRepo={baselineData?.is_git_repo ?? true}
