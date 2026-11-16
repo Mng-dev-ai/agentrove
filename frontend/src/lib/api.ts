@@ -80,7 +80,11 @@ const extractErrorMessage = async (response: Response): Promise<string> => {
       return `HTTP error! status: ${response.status}`;
     }
     const error = JSON.parse(text);
-    return error.message || error.detail || response.statusText;
+    // FastAPI 422s carry a list of validation errors in `detail`
+    const detail = Array.isArray(error.detail)
+      ? error.detail.map((item: { msg: string }) => item.msg).join('; ')
+      : error.detail;
+    return error.message || detail || response.statusText;
   } catch {
     return response.statusText || 'An error occurred';
   }
