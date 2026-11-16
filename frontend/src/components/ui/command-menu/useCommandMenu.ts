@@ -229,6 +229,8 @@ export function useCommandMenu() {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Keys during IME composition belong to the candidate window
+      if (e.isComposing) return;
       const { activeIndex: idx, mode: m } = stateRef.current;
       const len = listLengthRef.current;
 
