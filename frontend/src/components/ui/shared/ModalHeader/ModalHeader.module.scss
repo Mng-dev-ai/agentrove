@@ -11,7 +11,7 @@
 }
 
 .title {
-  @include type.type-title(600);
+  @include type.type-body(500);
   color: var(--theme-text-primary);
 }
 
@@ -23,6 +23,7 @@
 
 .close-button {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   padding: var(--space-1);
   border-radius: var(--radius-lg);
   color: var(--theme-text-quaternary);
