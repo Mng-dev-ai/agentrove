@@ -13,8 +13,7 @@
   pointer-events: none;
   position: absolute;
   white-space: nowrap;
-  // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background-color: var(--theme-surface-tertiary);
   padding: var(--space-1) var(--space-2);
   color: var(--theme-text-primary);

@@ -17,8 +17,7 @@
   max-width: min(280px, calc(100vw - var(--space-4)));
   white-space: pre-line;
   overflow-wrap: break-word;
-  // TODO(refactor): bare "rounded" (4px) has no exact token; radius-sm is closest
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background-color: var(--theme-surface-tertiary);
   padding: var(--space-1) var(--space-2);
   color: var(--theme-text-primary);
