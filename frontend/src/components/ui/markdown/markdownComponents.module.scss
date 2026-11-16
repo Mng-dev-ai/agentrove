@@ -139,8 +139,8 @@
   @include type.type-mono;
   border-radius: var(--radius-md);
   padding: var(--space-0-5) var(--space-1);
-  background-color: var(--theme-surface-secondary);
-  color: var(--theme-text-primary);
+  // A tint of the text colour stays visible on any surface, including the user bubble
+  background-color: colors.theme-color('text-primary', 0.06);
 
   // Wide tables scroll inside .table-wrap rather than breaking chips mid-token
   .td &,
@@ -215,7 +215,7 @@
   @include type.type-mono;
   border-radius: var(--radius-md);
   padding: var(--space-0-5) var(--space-1);
-  background-color: var(--theme-surface-secondary);
+  background-color: colors.theme-color('text-primary', 0.06);
   text-decoration: underline;
   cursor: pointer;
 }
