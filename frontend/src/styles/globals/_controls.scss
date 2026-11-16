@@ -7,20 +7,15 @@
 @use 'animations' as anim;
 @use 'responsive' as responsive;
 
-// Monochrome focus ring (never brand-colored); $offset emulates a ring gap by
-// painting the surface color underneath.
-@mixin focus-ring($width: 2px, $offset: 0px) {
+// Monochrome focus ring (never brand-colored). text-tertiary clears 3:1 against every
+// surface, hover and active fill on all themes. An outline (not a box-shadow) leaves the
+// offset gap transparent, so it shows whatever surface the control sits on.
+@mixin focus-ring($offset: 0px) {
   outline: none;
 
   &:focus-visible {
-    outline: none;
-    @if $offset == 0px {
-      box-shadow: 0 0 0 $width colors.theme-color('text-quaternary', 0.3);
-    } @else {
-      box-shadow:
-        0 0 0 $offset var(--theme-surface),
-        0 0 0 calc(#{$offset} + #{$width}) colors.theme-color('text-quaternary', 0.3);
-    }
+    outline: 2px solid var(--theme-text-tertiary);
+    outline-offset: $offset;
   }
 }
 
@@ -100,10 +95,6 @@
     @include responsive.hover {
       background-color: colors.status-color('error', 600);
     }
-
-    &:focus-visible {
-      box-shadow: 0 0 0 2px colors.status-color('error', 500, 0.6);
-    }
   } @else if $variant == 'link' {
     padding-inline: 0;
     color: var(--theme-text-secondary);
@@ -120,6 +111,7 @@
 
 @mixin input-base {
   @include type.type-body;
+  @include focus-ring;
   width: 100%;
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--theme-border);
@@ -137,11 +129,7 @@
   }
 
   &:focus-visible {
-    outline: none;
     border-color: var(--theme-border-hover);
-    box-shadow:
-      var(--shadow-inset),
-      0 0 0 3px colors.theme-color('text-quaternary', 0.15);
   }
 
   &:disabled {
@@ -155,8 +143,5 @@
 
   &:focus-visible {
     border-color: colors.status-color('error', 500);
-    box-shadow:
-      var(--shadow-inset),
-      0 0 0 3px colors.status-color('error', 500, 0.1);
   }
 }

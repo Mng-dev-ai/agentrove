@@ -1,4 +1,5 @@
 @use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/controls' as controls;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
@@ -242,6 +243,7 @@
 
 .search-input {
   @include type.type-meta;
+  @include controls.focus-ring;
   @include anim.transition-colors;
   height: var(--space-7);
   width: 100%;
@@ -256,7 +258,6 @@
   }
 
   &:focus {
-    outline: none;
     border-color: var(--theme-border-hover);
   }
 }

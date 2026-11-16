@@ -22,8 +22,8 @@ file-tree-container {
   --trees-selected-fg-override: var(--theme-text-primary);
   --trees-selected-focused-border-color-override: transparent;
 
-  --trees-focus-ring-color-override: rgb(var(--theme-text-quaternary-rgb) / 0.3);
-  --trees-focus-ring-width-override: 1px;
+  --trees-focus-ring-color-override: var(--theme-text-tertiary);
+  --trees-focus-ring-width-override: 2px;
   --trees-focus-ring-offset-override: 0;
 
   --trees-search-bg-override: transparent;

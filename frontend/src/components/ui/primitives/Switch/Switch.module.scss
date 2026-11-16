@@ -2,7 +2,7 @@
 @use '@/styles/globals/controls' as controls;
 
 .switch {
-  @include controls.focus-ring(1px, 2px);
+  @include controls.focus-ring(2px);
   position: relative;
   display: inline-flex;
   flex-shrink: 0;
