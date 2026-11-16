@@ -268,6 +268,8 @@ export function Sidebar({
       <aside
         aria-label="Chat history"
         className={clsx(styles.sidebar, sidebarOpen && styles['sidebar--open'])}
+        aria-hidden={isMobile && !sidebarOpen ? true : undefined}
+        inert={isMobile && !sidebarOpen}
       >
         <SidebarActions
           onNewChat={handleNewChat}
