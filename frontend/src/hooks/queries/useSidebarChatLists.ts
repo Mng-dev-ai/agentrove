@@ -81,7 +81,7 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
     (results: UseQueryResult<PaginatedChats>[]) => ({
       sources: combineRemoteSources(plan, results),
       // Later pages are load-more; only a failed first page means the list didn't load.
-      firstPages: results.filter((_, index) => plan[index].page === 1 && plan[index].online),
+      firstPages: results.filter((_, index) => plan[index].page === 1),
     }),
     [plan],
   );

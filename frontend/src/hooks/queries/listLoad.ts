@@ -17,8 +17,9 @@ export function retryTransientOnce(failureCount: number, error: Error): boolean 
 
 // A refetch puts a never-loaded query back to pending; errorUpdateCount survives it, so
 // the failure stays visible (and can show a pending retry) until data actually arrives.
+// Disabled sources (signed out, machine offline) can't load or retry, so they never fail.
 function hasFailedFirstLoad(result: UseQueryResult<unknown>): boolean {
-  return result.data === undefined && result.errorUpdateCount > 0;
+  return result.isEnabled && result.data === undefined && result.errorUpdateCount > 0;
 }
 
 export function listLoadState(results: UseQueryResult<unknown>[]): ListLoadState {
