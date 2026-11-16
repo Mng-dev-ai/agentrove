@@ -435,7 +435,6 @@ export function LandingPage() {
                     {greeting}
                     {greetingName && `, ${greetingName}`}
                   </h1>
-                  <p className={styles['greeting-subtitle']}>What are we building today?</p>
                 </div>
 
                 {composerSelectors}
