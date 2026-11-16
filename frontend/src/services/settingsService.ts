@@ -4,10 +4,13 @@ import { ValidationError } from '@/services/base/ServiceError';
 import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 
 async function getSettings(): Promise<UserSettings> {
-  return withAuth(async () => {
-    const response = await apiClient.get<UserSettings>('/settings/');
-    return ensureResponse(response, 'Failed to fetch user settings');
-  });
+  return withAuth(
+    async () => {
+      const response = await apiClient.get<UserSettings>('/settings/');
+      return ensureResponse(response, 'Failed to fetch user settings');
+    },
+    { maxRetries: 1 },
+  );
 }
 
 async function updateSettings(data: UserSettingsUpdate): Promise<UserSettings> {

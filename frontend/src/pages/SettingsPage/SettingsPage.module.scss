@@ -8,20 +8,6 @@
   background-color: var(--theme-surface);
 }
 
-.status-screen {
-  display: flex;
-  min-height: 100vh;
-  min-height: 100dvh;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--theme-surface);
-}
-
-.status-text {
-  @include type.type-default;
-  color: var(--theme-text-primary);
-}
-
 .spinner {
   color: var(--theme-text-quaternary);
 }
@@ -56,6 +42,27 @@
     padding-left: var(--space-8);
     padding-right: var(--space-8);
   }
+}
+
+.load-error {
+  border: 1px dashed var(--theme-border);
+  border-radius: var(--radius-xl);
+  padding-block: var(--space-10);
+  text-align: center;
+}
+
+.load-error-icon {
+  margin-inline: auto;
+  margin-bottom: var(--space-3);
+  height: var(--space-5);
+  width: var(--space-5);
+  color: var(--theme-text-quaternary);
+}
+
+.load-error-text {
+  @include type.type-default;
+  margin-bottom: var(--space-3);
+  color: var(--theme-text-secondary);
 }
 
 .error-box {
