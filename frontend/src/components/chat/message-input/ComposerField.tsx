@@ -8,7 +8,7 @@ interface ComposerFieldProps {
   ref?: Ref<HTMLFormElement>;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   message: string;
-  // Longest first; the field shows the first one its single-row width fits
+  // Longest first; the field shows the first one its text width fits
   placeholders: readonly string[];
   leading: ReactNode;
   textarea: (placeholder: string) => ReactNode;
@@ -32,30 +32,40 @@ export function ComposerField({
   dragHandlers,
   children,
 }: ComposerFieldProps) {
+  const textRef = useRef<HTMLDivElement>(null);
   const probeRef = useRef<HTMLDivElement>(null);
   const probeTextRef = useRef<HTMLSpanElement>(null);
   const probePlaceholdersRef = useRef<HTMLSpanElement>(null);
   const [multiline, setMultiline] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
 
-  // The probe sits in the middle grid column, which is the single-row text width in both
-  // layouts, so the decision never depends on the layout it produces and cannot oscillate.
+  // The layout decision is measured on the probe, which sits in the middle grid column: that
+  // is the single-row text width in both layouts, so the decision never depends on the layout
+  // it produces and cannot oscillate. The placeholder is measured on the text cell, which
+  // spans the whole row once stacked; the layout never depends on it.
   useLayoutEffect(() => {
+    const text = textRef.current;
     const probe = probeRef.current;
     const probeText = probeTextRef.current;
     const probePlaceholders = probePlaceholdersRef.current;
-    if (!probe || !probeText || !probePlaceholders) return;
+    if (!text || !probe || !probeText || !probePlaceholders) return;
     const measure = () => {
       const room = Math.floor(probe.getBoundingClientRect().width);
-      const fits = (el: Element) => Math.ceil(el.getBoundingClientRect().width) <= room;
+      const { paddingLeft, paddingRight } = getComputedStyle(text);
+      const textRoom = Math.floor(
+        text.getBoundingClientRect().width - parseFloat(paddingLeft) - parseFloat(paddingRight),
+      );
+      const width = (el: Element) => Math.ceil(el.getBoundingClientRect().width);
       const candidates = [...probePlaceholders.children];
-      const index = candidates.findIndex(fits);
-      setMultiline(message.includes('\n') || !fits(probeText) || index === -1);
+      const fitsRow = candidates.some((el) => width(el) <= room);
+      const index = candidates.findIndex((el) => width(el) <= textRoom);
+      setMultiline(message.includes('\n') || width(probeText) > room || !fitsRow);
       setPlaceholderIndex(index === -1 ? candidates.length - 1 : index);
     };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(probe);
+    observer.observe(text);
     return () => observer.disconnect();
   }, [message, placeholders]);
 
@@ -65,7 +75,7 @@ export function ComposerField({
         {attachments}
         <div className={clsx(styles.row, multiline && styles['row--multiline'])}>
           <div className={styles.leading}>{leading}</div>
-          <div className={styles.text}>
+          <div ref={textRef} className={styles.text}>
             {textarea(placeholders[Math.min(placeholderIndex, placeholders.length - 1)])}
           </div>
           <div className={styles.trailing}>{trailing}</div>
