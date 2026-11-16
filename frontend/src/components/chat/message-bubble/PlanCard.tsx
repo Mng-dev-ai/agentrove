@@ -35,21 +35,20 @@ export const PlanCard = memo(function PlanCard({ entries }: PlanCardProps) {
           {completedCount}/{entries.length}
         </span>
       </div>
-      <div className={styles.list}>
-        {entries.map((entry, index) => (
-          <div key={`${index}-${entry.content}`} className={styles.row}>
-            <div className={styles['status-icon-wrap']}>{getStatusIcon(entry.status)}</div>
-            <p
-              className={clsx(
-                styles.label,
-                entry.status === 'completed' && styles['label--completed'],
-              )}
-            >
-              {entry.content}
-            </p>
-          </div>
-        ))}
-      </div>
+      {entries.map((entry, index) => (
+        <div key={`${index}-${entry.content}`} className={styles.row}>
+          {getStatusIcon(entry.status)}
+          <p
+            className={clsx(
+              styles.label,
+              entry.status === 'in_progress' && styles['label--in-progress'],
+              entry.status === 'completed' && styles['label--completed'],
+            )}
+          >
+            {entry.content}
+          </p>
+        </div>
+      ))}
     </div>
   );
 });
