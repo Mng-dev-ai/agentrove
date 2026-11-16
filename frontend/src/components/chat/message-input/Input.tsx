@@ -31,6 +31,8 @@ export interface InputProps {
   contextUsage?: ContextUsageInfo;
   // Landing hosts branch selection in its own composer control, so its footer hides it.
   showBranch?: boolean;
+  // Text on its own row above the controls even when it would fit beside them
+  stacked?: boolean;
   chatId?: string;
   machineId?: string;
   showLoadingSpinner?: boolean;
@@ -40,12 +42,12 @@ export interface InputProps {
 export const Input = memo(function Input(props: InputProps) {
   return (
     <InputProvider {...props}>
-      <InputLayout />
+      <InputLayout stacked={props.stacked} />
     </InputProvider>
   );
 });
 
-function InputLayout() {
+function InputLayout({ stacked }: { stacked?: boolean }) {
   const { state, actions, meta } = useInputContext();
 
   const sendStatus: SendButtonStatus = state.isStreaming
@@ -61,6 +63,7 @@ function InputLayout() {
   return (
     <ComposerField
       ref={meta.formRef}
+      stacked={stacked}
       onSubmit={actions.handleSubmit}
       message={state.message}
       placeholders={state.placeholders}

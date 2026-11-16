@@ -452,6 +452,7 @@ export function LandingPage() {
                   onModelChange={selectModel}
                   machineId={targetMachineId}
                   showBranch={false}
+                  stacked
                 />
 
                 <div className={styles['panel-below']}>
