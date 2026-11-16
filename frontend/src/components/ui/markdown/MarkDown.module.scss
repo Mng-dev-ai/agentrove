@@ -1,11 +1,19 @@
+@use 'sass:math';
 @use '@/styles/globals/typography' as type;
 
 // Prose blocks inherit this colour, so bold, lists and table cells match the paragraph
 .markdown {
   @include type.type-body;
+  // Block margins scale with the leading so looser prose keeps its proportions
+  --markdown-rhythm: 1;
   color: var(--theme-text-primary);
 
   :global([data-theme='dark']) & {
     color: var(--theme-text-secondary);
+  }
+
+  &--prose {
+    --markdown-rhythm: #{math.div(type.$type-prose-line-height, type.$type-body-line-height)};
+    line-height: type.$type-prose-line-height;
   }
 }

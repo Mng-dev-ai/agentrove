@@ -3,6 +3,11 @@
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
+// Vertical block spacing, scaled by the root's --markdown-rhythm (MarkDown.module.scss)
+@function rhythm($space) {
+  @return calc(#{$space} * var(--markdown-rhythm));
+}
+
 @property --table-fade-start {
   syntax: '<length>';
   inherits: false;
@@ -16,7 +21,7 @@
 }
 
 .table-wrap {
-  margin: var(--space-6) 0;
+  margin: rhythm(var(--space-6)) 0;
   overflow-x: auto;
   mask-image: linear-gradient(
     to right,
@@ -100,26 +105,25 @@
 
 .h1 {
   @include type.type-title(600);
-  margin: var(--space-4) 0 var(--space-3);
+  margin: rhythm(var(--space-4)) 0 rhythm(var(--space-3));
   color: var(--theme-text-primary);
 }
 
 .h2 {
   @include type.type-large(600);
-  margin: var(--space-4) 0 var(--space-2);
+  margin: rhythm(var(--space-4)) 0 rhythm(var(--space-2));
   color: var(--theme-text-primary);
 }
 
 .h3 {
   @include type.type-body(600);
-  margin: var(--space-3) 0 var(--space-1-5);
+  margin: rhythm(var(--space-3)) 0 rhythm(var(--space-1-5));
   color: var(--theme-text-primary);
 }
 
 .p {
-  margin-bottom: var(--space-3);
+  margin-bottom: rhythm(var(--space-3));
   white-space: pre-wrap;
-  line-height: var(--space-5);
   overflow-wrap: anywhere;
 
   &:last-child {
@@ -128,7 +132,7 @@
 }
 
 .image-paragraph {
-  margin-bottom: var(--space-3);
+  margin-bottom: rhythm(var(--space-3));
 
   &:last-child {
     margin-bottom: 0;
@@ -158,11 +162,13 @@
 }
 
 .plain-code-block {
-  margin: var(--space-4) 0;
+  margin: rhythm(var(--space-4)) 0;
 }
 
 .plain-pre {
   overflow-x: auto;
+  // The pre's strut sets the code line spacing; keep it off the looser prose leading
+  line-height: type.$type-body-line-height;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-lg);
   background-color: var(--theme-surface-secondary);
@@ -175,22 +181,22 @@
 }
 
 .ul {
-  margin-bottom: var(--space-3);
+  margin-bottom: rhythm(var(--space-3));
   padding-left: var(--space-4);
   list-style: disc;
 
   > * + * {
-    margin-top: var(--space-1);
+    margin-top: rhythm(var(--space-1));
   }
 }
 
 .ol {
-  margin-bottom: var(--space-3);
+  margin-bottom: rhythm(var(--space-3));
   padding-left: var(--space-4);
   list-style: decimal;
 
   > * + * {
-    margin-top: var(--space-1);
+    margin-top: rhythm(var(--space-1));
   }
 }
 
@@ -199,7 +205,7 @@
 }
 
 .blockquote {
-  margin: var(--space-3) 0;
+  margin: rhythm(var(--space-3)) 0;
   border-left: 2px solid var(--theme-border);
   padding-left: var(--space-3);
   font-style: italic;
@@ -225,7 +231,7 @@
 }
 
 .img {
-  margin: var(--space-4) 0;
+  margin: rhythm(var(--space-4)) 0;
   height: auto;
   max-width: 100%;
   border: 1px solid var(--theme-border);
@@ -233,7 +239,7 @@
 }
 
 .hr {
-  margin: var(--space-6) 0;
+  margin: rhythm(var(--space-6)) 0;
   border: 0;
   border-top: 1px solid var(--theme-border);
 }

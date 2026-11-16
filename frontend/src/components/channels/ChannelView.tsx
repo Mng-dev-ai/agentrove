@@ -121,7 +121,7 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
   const [content, isRevealing] = useSmoothText(message.content, isStreaming, true);
   const text = (
     <MessageText>
-      <MarkDown content={content} streaming={isRevealing} />
+      <MarkDown content={content} streaming={isRevealing} prose />
     </MessageText>
   );
 

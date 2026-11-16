@@ -38,7 +38,13 @@ function TextSegment({
   const [smoothText] = useSmoothText(text, isActive);
   return (
     <div className={styles['text-segment']}>
-      <MarkDown content={smoothText} streaming={isActive} highlightMentions={highlightMentions} />
+      <MarkDown
+        content={smoothText}
+        streaming={isActive}
+        highlightMentions={highlightMentions}
+        // Mention pills mark user text; only replies take the looser prose leading
+        prose={!highlightMentions}
+      />
     </div>
   );
 }
