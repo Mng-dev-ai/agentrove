@@ -70,6 +70,7 @@ import { ChannelComposer } from './ChannelComposer';
 import styles from './ChannelView.module.scss';
 
 const EMPTY_ELICITATIONS: ChannelElicitationRequest[] = [];
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
 const ACTIVITY_EVENT_TYPES = new Set([
   'assistant_thinking',
@@ -107,6 +108,7 @@ interface AgentChannelMessageProps {
   member: ChannelMember | undefined;
   chatId: string;
   isLatest: boolean;
+  isGrouped: boolean;
 }
 
 const AgentChannelMessage = memo(function AgentChannelMessage({
@@ -114,6 +116,7 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
   member,
   chatId,
   isLatest,
+  isGrouped,
 }: AgentChannelMessageProps) {
   const isStreaming = message.status === 'streaming';
   const isInterrupted = message.status === 'cancelled';
@@ -127,19 +130,21 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
 
   return (
     <MessageRow isLatest={isLatest}>
-      <div className={styles.author}>
-        <ProviderIcon agentKind={agentKind} className={styles['author-icon']} />
-        <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
-        <Tooltip content={formatFullTimestamp(message.created_at)} position="bottom">
-          <span className={styles['author-meta']}>{formatRelativeTime(message.created_at)}</span>
-        </Tooltip>
-        {isInterrupted && (
-          <>
-            <span className={styles['author-meta']}>·</span>
-            <span className={styles.interrupted}>Interrupted</span>
-          </>
-        )}
-      </div>
+      {(!isGrouped || isInterrupted) && (
+        <div className={styles.author}>
+          <ProviderIcon agentKind={agentKind} className={styles['author-icon']} />
+          <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
+          <Tooltip content={formatFullTimestamp(message.created_at)} position="bottom">
+            <span className={styles['author-meta']}>{formatRelativeTime(message.created_at)}</span>
+          </Tooltip>
+          {isInterrupted && (
+            <>
+              <span className={styles['author-meta']}>·</span>
+              <span className={styles.interrupted}>Interrupted</span>
+            </>
+          )}
+        </div>
+      )}
       {!isStreaming && message.tool_call_count > 0 && (
         <WorkedRollup durationMs={message.duration_ms}>
           <ChannelMessageActivity
@@ -163,6 +168,14 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
     </MessageRow>
   );
 });
+
+function isGroupedWithPrevious(message: ChannelMessage, previous: ChannelMessage | undefined) {
+  return (
+    previous?.author_type === 'agent' &&
+    previous.member_id === message.member_id &&
+    Date.parse(message.created_at) - Date.parse(previous.created_at) < GROUP_WINDOW_MS
+  );
+}
 
 function memberStatus(members: ChannelMember[], singular: string, plural: string): string {
   return `${joinNames(members.map((member) => member.display_name))} ${members.length === 1 ? singular : plural}`;
@@ -526,6 +539,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                           }
                           chatId={channel.anchor_chat_id}
                           isLatest={index === visibleMessages.length - 1}
+                          isGrouped={isGroupedWithPrevious(message, visibleMessages[index - 1])}
                         />
                       )}
                     </ConversationColumn>
