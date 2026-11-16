@@ -102,7 +102,7 @@ export const SegmentView = memo(function SegmentView({
       const Component = getToolComponent(segment.tool.name, agentKind);
       return (
         <div className={styles['tool-segment']}>
-          <Suspense fallback={<ToolLoadingFallback />}>
+          <Suspense fallback={<div className={styles['tool-placeholder']} />}>
             <Component tool={segment.tool} chatId={chatId} />
           </Suspense>
         </div>

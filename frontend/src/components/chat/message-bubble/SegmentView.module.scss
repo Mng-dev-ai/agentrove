@@ -16,6 +16,11 @@
   margin-bottom: var(--space-2);
 }
 
+// The collapsed tool row's height, so the renderer's mount doesn't move the content below
+.tool-placeholder {
+  height: calc(#{type.$type-meta-line-height} + 2 * var(--space-0-5));
+}
+
 .tool-fallback {
   display: flex;
   align-items: center;
