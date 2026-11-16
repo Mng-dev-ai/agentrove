@@ -15,7 +15,22 @@
     background-color: colors.theme-color('surface-hover', 0.5);
   }
 
-  // Spine segment: full height between children, stopping at the last child's elbow
+  &:global(.#{state.$state-active}) {
+    background-color: colors.theme-color('surface-hover', 0.5);
+
+    .subthread-select {
+      color: var(--theme-text-primary);
+    }
+
+    .title {
+      font-weight: 500;
+    }
+  }
+}
+
+// Spine segment: full height between children, stopping at the last child's elbow
+.subthread-row,
+.more-toggle {
   &::before {
     content: '';
     position: absolute;
@@ -28,18 +43,6 @@
 
   &:last-child::before {
     bottom: 50%;
-  }
-
-  &:global(.#{state.$state-active}) {
-    background-color: colors.theme-color('surface-hover', 0.5);
-
-    .subthread-select {
-      color: var(--theme-text-primary);
-    }
-
-    .title {
-      font-weight: 500;
-    }
   }
 }
 
@@ -204,5 +207,24 @@
 
   @include responsive.hover {
     color: var(--theme-text-tertiary);
+  }
+}
+
+// Quiet last child: text starts where the rows' leading icon does
+.more-toggle {
+  @include type.type-meta;
+  @include anim.transition-colors;
+  position: relative;
+  display: flex;
+  width: 100%;
+  padding: var(--space-1-5) var(--space-1);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.media('touch') {
+    padding-block: var(--space-2-5);
+  }
+
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
   }
 }
