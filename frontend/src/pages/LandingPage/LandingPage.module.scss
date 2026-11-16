@@ -34,6 +34,13 @@
   flex: 1 0 auto;
   display: flex;
   flex-direction: column;
+  --panel-inset: var(--space-4);
+  // The composer text's inset from the field edge: border + row padding + text padding.
+  --text-line: calc(1px + var(--space-0-5) + var(--space-2));
+
+  @include responsive.media('sm-up') {
+    --panel-inset: var(--space-6);
+  }
 }
 
 .greeting {
@@ -100,8 +107,9 @@
   max-width: 100%;
   align-items: center;
   gap: var(--space-1);
-  padding-left: var(--space-4);
-  padding-right: var(--space-4);
+  // Puts the first trigger's icon (inside its own padding) on the composer text line.
+  padding-left: calc(var(--panel-inset) + var(--text-line) - var(--space-1-5));
+  padding-right: var(--panel-inset);
 
   > * {
     min-width: 0;
@@ -111,8 +119,6 @@
     grid-template-columns:
       fit-content(var(--space-64)) minmax(min-content, 1fr)
       fit-content(var(--space-64));
-    padding-left: var(--space-6);
-    padding-right: var(--space-6);
   }
 }
 
@@ -120,13 +126,7 @@
   margin-top: var(--space-6);
   display: flex;
   flex-direction: column;
-  padding-left: var(--space-4);
-  padding-right: var(--space-4);
-
-  @include responsive.media('sm-up') {
-    padding-left: var(--space-6);
-    padding-right: var(--space-6);
-  }
+  padding-inline: calc(var(--panel-inset) + var(--text-line));
 }
 
 // Quiet one-line rows on the recents list's inset, so the first-run page reads the same
@@ -135,7 +135,8 @@
   @include type.type-overflow;
   @include anim.transition-colors;
   border-radius: var(--radius-lg);
-  padding: var(--space-2) var(--space-2-5);
+  margin-inline: calc(var(--space-2) * -1);
+  padding: var(--space-2);
   text-align: left;
   color: var(--theme-text-tertiary);
 
