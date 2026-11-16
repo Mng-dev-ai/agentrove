@@ -110,6 +110,9 @@
   flex-shrink: 0;
   align-items: center;
   gap: var(--space-1-5);
+
+  // Phone toolbars have no room beside the file switcher; its panel header shows the totals
+  @include responsive.hide('mobile');
 }
 
 .stat-add {
