@@ -61,7 +61,11 @@ function deleteEnvVar(envVars: CustomEnvVar[], key: string) {
 export function EnvVarsSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
   const remoteIds = useOnlineRemoteMachineIds();
-  const remoteEnvVars = useMachinesSettingsList(remoteIds, 'custom_env_vars');
+  const {
+    byMachine: remoteEnvVars,
+    error: remoteError,
+    retry: retryRemote,
+  } = useMachinesSettingsList(remoteIds, 'custom_env_vars');
   const machines = useMachineStore((state) => state.machines);
   const machineNames = useMemo(
     () => new Map(machines.map((machine) => [machine.id, machine.name])),
@@ -194,6 +198,12 @@ export function EnvVarsSettingsTab() {
         title="Environment Variables"
         description="Configure environment variables that will be available in every sandbox on the machine they are saved to. Perfect for API keys like OPENAI_API_KEY, GEMINI_API_KEY, etc."
         items={items}
+        loadError={
+          remoteError && {
+            message: `Couldn't load environment variables: ${remoteError.message}`,
+            retry: retryRemote,
+          }
+        }
         emptyIcon={Key}
         emptyText="No custom environment variables configured yet"
         emptyButtonText="Add Your First Environment Variable"

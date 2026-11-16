@@ -123,10 +123,12 @@ export function InboxPage() {
     hasReadItems,
     isLoading,
     isError,
+    retry,
     hasMore,
     isFetchingMore,
     loadMore,
   } = useInboxAcrossMachines();
+  const [isRetrying, setIsRetrying] = useState(false);
   const markRead = useMarkInboxReadMutation();
   const markAllRead = useMarkAllInboxReadMutation();
   const clearRead = useClearReadInboxMutation();
@@ -148,6 +150,16 @@ export function InboxPage() {
   const openItem = ({ item, machineId }: MachineInboxItem) => {
     if (!item.read_at) markRead.mutate({ itemId: item.id, machineId });
     navigate(`/chat/${item.chat_id}`);
+  };
+
+  // A refetch resets a never-loaded query to loading; keep the error up until it settles.
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await retry();
+    } finally {
+      setIsRetrying(false);
+    }
   };
 
   const reportFailures = (action: string) => (failed: string[]) => {
@@ -191,14 +203,24 @@ export function InboxPage() {
           </div>
         </div>
 
-        {isLoading ? (
-          <div className={styles.loading}>
-            <Spinner size="md" className={styles.spinner} />
-          </div>
-        ) : items.length === 0 && isError ? (
+        {items.length === 0 && (isRetrying || (isError && !isLoading)) ? (
           <div className={styles.empty} role="alert">
             <AlertCircle className={styles['empty-icon']} />
             <p className={styles['empty-text']}>Couldn&apos;t load your inbox</p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className={styles['retry-btn']}
+              disabled={isRetrying}
+              onClick={() => void handleRetry()}
+            >
+              {isRetrying ? 'Retrying…' : 'Try again'}
+            </Button>
+          </div>
+        ) : isLoading ? (
+          <div className={styles.loading}>
+            <Spinner size="md" className={styles.spinner} />
           </div>
         ) : items.length === 0 ? (
           <div className={styles.empty}>

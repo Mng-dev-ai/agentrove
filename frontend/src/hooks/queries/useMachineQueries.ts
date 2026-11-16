@@ -3,6 +3,7 @@ import { useQuery, useQueries, type UseQueryResult } from '@tanstack/react-query
 import { machineChatService } from '@/services/machineChatService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
+import { refetchFailed, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useMachineStatus, useMachineStore } from '@/store/machineStore';
 import type {
   Workspace,
@@ -89,6 +90,7 @@ export const machineSettingsQuery = (machineId: string) => ({
   queryKey: queryKeys.machine.settings(machineId),
   queryFn: () => machineChatService.getSettings(machineId),
   staleTime: 30_000,
+  retry: retryTransientOnce,
 });
 
 export const useMachineSettingsQuery = (machineId: string, enabled: boolean) => {
@@ -104,10 +106,16 @@ export const useMachinesSettingsList = <K extends 'personas' | 'custom_env_vars'
   key: K,
 ) => {
   const combine = useCallback(
-    (results: UseQueryResult<UserSettings>[]): Record<string, NonNullable<UserSettings[K]>> =>
-      Object.fromEntries(
+    (results: UseQueryResult<UserSettings>[]) => {
+      const byMachine: Record<string, NonNullable<UserSettings[K]>> = Object.fromEntries(
         machineIds.map((machineId, index) => [machineId, results[index]?.data?.[key] ?? []]),
-      ),
+      );
+      return {
+        byMachine,
+        error: results.find((result) => result.error)?.error ?? null,
+        retry: () => refetchFailed(results),
+      };
+    },
     [machineIds, key],
   );
   return useQueries({

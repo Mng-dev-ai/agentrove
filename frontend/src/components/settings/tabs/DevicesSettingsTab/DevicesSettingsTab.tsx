@@ -52,7 +52,7 @@ function PairingLinkCard({
 }
 
 export function DevicesSettingsTab() {
-  const { data: devices, error } = useDevicesQuery();
+  const { data: devices, error, refetch } = useDevicesQuery();
   const revokeDevice = useRevokeDeviceMutation();
   const [pairing, setPairing] = useState<ActivePairing | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -93,7 +93,7 @@ export function DevicesSettingsTab() {
       items={devices ?? (error ? [] : null)}
       emptyIcon={Smartphone}
       emptyText="No paired devices yet"
-      loadError={error && `Couldn't load devices: ${error.message}`}
+      loadError={error && { message: `Couldn't load devices: ${error.message}`, retry: refetch }}
       emptyButtonText="Pair a Device"
       addButtonText="Pair a Device"
       deleteConfirmTitle="Revoke device"

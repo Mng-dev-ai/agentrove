@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { deviceService } from '@/services/deviceService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
+import { retryTransientOnce } from '@/hooks/queries/listLoad';
 import type { PairedDevice } from '@/types/machine.types';
 
 export const useDevicesQuery = () =>
@@ -9,6 +10,7 @@ export const useDevicesQuery = () =>
     queryKey: queryKeys.devices,
     queryFn: () => deviceService.listDevices(),
     staleTime: 10_000,
+    retry: retryTransientOnce,
   });
 
 export const useRevokeDeviceMutation = createMutation<void, Error, string>(

@@ -43,13 +43,18 @@ export function ListItemAction({
   );
 }
 
+export interface ListLoadError {
+  message: string;
+  retry: () => Promise<unknown>;
+}
+
 interface ListManagementTabProps<T> {
   title: string;
   description: string;
   items: T[] | null;
   emptyIcon: LucideIcon;
   emptyText: string;
-  loadError?: string | null;
+  loadError?: ListLoadError | null;
   emptyButtonText: string;
   addButtonText: string;
   deleteConfirmTitle: string;
@@ -92,6 +97,18 @@ export function ListManagementTab<T>({
 }: ListManagementTabProps<T>) {
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+  // A refetch resets a never-loaded query to pending, so the error stays on screen
+  // (with the button pending) until the retry settles instead of flashing the spinner.
+  const [retryingMessage, setRetryingMessage] = useState<string | null>(null);
+
+  const handleRetry = async (error: ListLoadError) => {
+    setRetryingMessage(error.message);
+    try {
+      await error.retry();
+    } finally {
+      setRetryingMessage(null);
+    }
+  };
 
   const handleCloseDeleteDialog = () => {
     setPendingDeleteIndex(null);
@@ -113,6 +130,13 @@ export function ListManagementTab<T>({
   const activeFilter = filter?.categories.some((category) => category.value !== null)
     ? filter
     : null;
+
+  const shownError =
+    items === null
+      ? retryingMessage
+      : items.length === 0
+        ? (loadError?.message ?? retryingMessage)
+        : null;
 
   const deleteTargetItem =
     pendingDeleteIndex !== null && items?.[pendingDeleteIndex] ? items[pendingDeleteIndex] : null;
@@ -143,7 +167,21 @@ export function ListManagementTab<T>({
           <ListFilterMenu categories={filter.categories} onClear={filter.onClear} />
         )}
 
-        {items === null ? (
+        {shownError ? (
+          <div className={styles.empty} role="alert">
+            <EmptyIcon className={styles['empty-icon']} />
+            <p className={styles['empty-text']}>{shownError}</p>
+            <Button
+              type="button"
+              onClick={() => loadError && handleRetry(loadError)}
+              variant="secondary"
+              size="sm"
+              disabled={retryingMessage !== null}
+            >
+              {retryingMessage !== null ? 'Retrying…' : 'Try again'}
+            </Button>
+          </div>
+        ) : items === null ? (
           // null means the list is still loading — stay invisible for 300ms so
           // fast loads render nothing instead of flashing a spinner
           <div className={styles.loading} style={SPINNER_STYLE}>
@@ -153,13 +191,11 @@ export function ListManagementTab<T>({
           <div className={styles.empty}>
             <EmptyIcon className={styles['empty-icon']} />
             <p className={styles['empty-text']}>
-              {loadError ?? (activeFilter ? activeFilter.emptyText : emptyText)}
+              {activeFilter ? activeFilter.emptyText : emptyText}
             </p>
-            {!loadError && (
-              <Button type="button" onClick={onAdd} variant="outline" size="sm">
-                {activeFilter ? addButtonText : emptyButtonText}
-              </Button>
-            )}
+            <Button type="button" onClick={onAdd} variant="outline" size="sm">
+              {activeFilter ? addButtonText : emptyButtonText}
+            </Button>
           </div>
         ) : (
           <div className={styles.items}>

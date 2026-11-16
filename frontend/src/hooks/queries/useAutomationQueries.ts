@@ -4,6 +4,7 @@ import { useOnlineRemoteMachineIds } from '@/store/machineStore';
 import { automationService } from '@/services/automationService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
+import { refetchFailed, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type {
   Automation,
@@ -27,17 +28,20 @@ export interface MachineAutomation {
 export const useAutomationsAcrossMachines = (): {
   items: MachineAutomation[] | null;
   error: Error | null;
+  retry: () => Promise<unknown>;
 } => {
   const remoteIds = useOnlineRemoteMachineIds();
   const combine = useCallback(
     (results: UseQueryResult<Automation[]>[]) => {
       const error = results.find((result) => result.error)?.error ?? null;
-      if (results.some((result) => result.isLoading)) return { items: null, error };
+      const retry = () => refetchFailed(results);
+      if (results.some((result) => result.isLoading)) return { items: null, error, retry };
       return {
         items: [LOCAL_MACHINE_ID, ...remoteIds].flatMap((machineId, index) =>
           (results[index]?.data ?? []).map((automation) => ({ automation, machineId })),
         ),
         error,
+        retry,
       };
     },
     [remoteIds],
@@ -47,6 +51,7 @@ export const useAutomationsAcrossMachines = (): {
       queryKey: automationsKey(machineId),
       queryFn: () => automationService.listAutomations(machineId),
       staleTime: 30_000,
+      retry: retryTransientOnce,
     })),
     combine,
   });
