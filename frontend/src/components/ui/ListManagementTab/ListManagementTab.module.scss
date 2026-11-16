@@ -98,7 +98,7 @@
   padding: var(--space-3) var(--space-4);
 }
 
-// Actions wrap under the content once it would drop below ~250px, then stay right-aligned
+// Actions wrap under the content once it would drop below ~210px, then stay right-aligned
 .card-row {
   display: flex;
   flex-wrap: wrap;
@@ -108,7 +108,7 @@
 
 .card-content {
   min-width: 0;
-  flex: 1 1 var(--space-56);
+  flex: 1 1 var(--space-48);
 }
 
 .card-actions {
