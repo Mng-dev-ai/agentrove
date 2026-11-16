@@ -9,10 +9,21 @@
   height: var(--space-8);
   width: var(--space-8);
   transition: all var(--duration-base) var(--easing-in-out);
+
+  @include responsive.hover {
+    .icon {
+      color: var(--theme-text-primary);
+    }
+  }
 }
 
+// Rests like the view switcher's buttons: tertiary, one step dimmer under dark
 .icon {
-  height: var(--space-4);
-  width: var(--space-4);
-  color: var(--theme-text-secondary);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-tertiary);
+
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-quaternary);
+  }
 }

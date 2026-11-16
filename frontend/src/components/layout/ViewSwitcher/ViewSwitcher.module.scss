@@ -16,8 +16,12 @@
 .view-button {
   @include anim.transition-colors;
   @include responsive.touch-target;
+  display: flex;
+  height: var(--space-7);
+  width: var(--space-7);
+  align-items: center;
+  justify-content: center;
   border-radius: var(--radius-md);
-  padding: var(--space-1-5);
   color: var(--theme-text-tertiary);
 
   // Dark mode rests one step dimmer than light
@@ -38,6 +42,6 @@
 }
 
 .icon {
-  height: var(--space-4);
-  width: var(--space-4);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }

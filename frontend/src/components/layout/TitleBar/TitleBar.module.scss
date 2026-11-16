@@ -100,12 +100,23 @@
   @include responsive.touch-target;
   height: var(--space-8);
   width: var(--space-8);
+
+  @include responsive.hover {
+    .icon-button-glyph {
+      color: var(--theme-text-primary);
+    }
+  }
 }
 
+// Rests like the view switcher's buttons: tertiary, one step dimmer under dark
 .icon-button-glyph {
-  height: var(--space-4);
-  width: var(--space-4);
-  color: var(--theme-text-secondary);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-tertiary);
+
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-quaternary);
+  }
 }
 
 .spacer {
