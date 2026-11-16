@@ -70,14 +70,14 @@
 
 .command {
   @include inset-surface;
-  overflow-x: auto;
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-2-5);
 }
 
 .command-code {
   @include type.type-mono;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
   color: var(--theme-text-primary);
 }
 
@@ -91,7 +91,7 @@
   @include type.type-mono-meta;
   margin-top: var(--space-2);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--space-1-5);
   color: var(--theme-text-tertiary);
 }
@@ -103,7 +103,8 @@
 }
 
 .cwd-path {
-  @include type.type-overflow;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .meta-spaced {
@@ -112,6 +113,7 @@
 
 .details-toggle {
   @include anim.transition-colors($duration: var(--duration-fast));
+  @include responsive.touch-target;
   @include type.type-meta;
   margin-top: var(--space-3);
   display: flex;
