@@ -95,6 +95,7 @@
 .subtext {
   @include type.type-default;
   color: var(--theme-text-tertiary);
+  overflow-wrap: break-word;
 }
 
 .info-box {
