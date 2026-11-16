@@ -122,11 +122,6 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
   const isInterrupted = message.status === 'cancelled';
   const agentKind = getAgentKindForModelId(member?.model_id);
   const [content, isRevealing] = useSmoothText(message.content, isStreaming, true);
-  const text = (
-    <MessageText>
-      <MarkDown content={content} streaming={isRevealing} prose />
-    </MessageText>
-  );
 
   return (
     <MessageRow isLatest={isLatest}>
@@ -154,7 +149,9 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
           />
         </WorkedRollup>
       )}
-      {isInterrupted ? <div className={styles['interrupted-text']}>{text}</div> : text}
+      <MessageText>
+        <MarkDown content={content} streaming={isRevealing} prose />
+      </MessageText>
       <MessageAttachments
         attachments={message.attachments}
         chatId={chatId}

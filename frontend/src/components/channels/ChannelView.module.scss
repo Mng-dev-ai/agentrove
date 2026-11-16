@@ -35,10 +35,6 @@
   color: var(--theme-text-tertiary);
 }
 
-.interrupted-text {
-  opacity: 0.6;
-}
-
 .activity-unavailable {
   @include type.type-meta;
   color: var(--theme-text-tertiary);
