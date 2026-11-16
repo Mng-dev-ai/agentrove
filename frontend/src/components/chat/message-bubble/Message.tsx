@@ -203,7 +203,7 @@ export const AssistantMessage = memo(function AssistantMessage({
           <div className={styles['footer-actions']}>
             {hasContentText && <MessageActions messageId={id} contentText={contentText} />}
             {checkpointId && (
-              <Tooltip content="Restore to before this run" position="bottom">
+              <Tooltip content="Restore to before this run" position="top">
                 <Button
                   onClick={() => setRestoreOpen(true)}
                   variant="unstyled"
@@ -221,7 +221,7 @@ export const AssistantMessage = memo(function AssistantMessage({
             {modelName && <span>{modelName}</span>}
             {modelName && relativeTime && <span>·</span>}
             {relativeTime && (
-              <Tooltip content={fullTimestamp} position="bottom">
+              <Tooltip content={fullTimestamp} position="top-end">
                 <span className={styles['footer-time']}>{relativeTime}</span>
               </Tooltip>
             )}

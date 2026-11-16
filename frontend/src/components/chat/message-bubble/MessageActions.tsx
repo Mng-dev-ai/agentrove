@@ -52,7 +52,7 @@ export const MessageActions = memo(function MessageActions({
       data-copied={copiedMessageId === messageId || undefined}
     >
       {showTooltip ? (
-        <Tooltip content={label} position="bottom">
+        <Tooltip content={label} position="top">
           {button}
         </Tooltip>
       ) : (

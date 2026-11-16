@@ -38,6 +38,12 @@
     transform: translateX(-50%);
   }
 
+  &--top-end {
+    bottom: 100%;
+    right: 0;
+    margin-bottom: var(--space-2);
+  }
+
   &--right {
     left: 100%;
     top: 50%;
@@ -77,6 +83,12 @@
     top: 100%;
     left: 50%;
     transform: translateX(-50%);
+    border-top-color: var(--theme-surface-tertiary);
+  }
+
+  &--top-end {
+    top: 100%;
+    right: var(--space-2);
     border-top-color: var(--theme-surface-tertiary);
   }
 
