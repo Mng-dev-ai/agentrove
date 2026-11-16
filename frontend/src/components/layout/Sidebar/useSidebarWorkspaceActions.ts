@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, type RefObject } from 'react';
+import toast from 'react-hot-toast';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import type { NavigateFunction } from 'react-router-dom';
 import type { Workspace } from '@/types/workspace.types';
@@ -121,20 +122,11 @@ export function useSidebarWorkspaceActions({
       if (!workspaceToRename) return;
       const { workspace, machineId } = workspaceToRename;
       const data = { name: newName };
-      try {
-        await mutateWithToast(
-          () =>
-            machineId === LOCAL_MACHINE_ID
-              ? updateWorkspace.mutateAsync({ workspaceId: workspace.id, data })
-              : machineUpdateWorkspace.mutateAsync({ machineId, workspaceId: workspace.id, data }),
-          'Workspace renamed',
-          'Failed to rename workspace',
-        );
-      } catch {
-        // toast already shown by mutateWithToast
-      } finally {
-        setWorkspaceToRename(null);
-      }
+      await (machineId === LOCAL_MACHINE_ID
+        ? updateWorkspace.mutateAsync({ workspaceId: workspace.id, data })
+        : machineUpdateWorkspace.mutateAsync({ machineId, workspaceId: workspace.id, data }));
+      toast.success('Workspace renamed');
+      setWorkspaceToRename(null);
     },
     [workspaceToRename, updateWorkspace, machineUpdateWorkspace],
   );
