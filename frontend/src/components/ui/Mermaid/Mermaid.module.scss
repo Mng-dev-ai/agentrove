@@ -108,7 +108,7 @@
   margin-top: var(--space-1);
   white-space: pre-wrap;
   overflow-wrap: break-word;
-  color: colors.status-color('error', 600);
+  color: colors.status-color('error', 700);
 
   :global([data-theme='dark']) & {
     color: colors.status-color('error', 300);
