@@ -165,9 +165,9 @@
 }
 
 .plain-pre {
-  overflow-x: auto;
   // The pre's strut sets the code line spacing; keep it off the looser prose leading
-  line-height: type.$type-body-line-height;
+  @include type.type-mono(type.$type-body-size, type.$type-body-line-height);
+  overflow-x: auto;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-lg);
   background-color: var(--theme-surface-secondary);

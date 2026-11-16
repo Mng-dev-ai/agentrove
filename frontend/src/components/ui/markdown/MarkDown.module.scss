@@ -14,8 +14,8 @@
   }
 
   &--prose {
+    @include type.type-prose;
     --markdown-rhythm: #{math.div(type.$type-prose-line-height, type.$type-body-line-height)};
-    line-height: type.$type-prose-line-height;
 
     :global([data-theme='dark']) & {
       -webkit-font-smoothing: auto;

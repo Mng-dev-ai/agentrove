@@ -4,6 +4,7 @@
 //   type-meta      11px — metadata, badges, section headers (old text-2xs)
 //   type-default   13.2px — the app-wide default (old text-xs)
 //   type-body      15.4px — primary inputs, prose (old text-sm)
+//   type-prose     15.4px — chat reply prose, with looser leading
 //   type-title     19.8px — dialog titles only (old text-lg)
 //   type-page-title 22px — page headings (old text-xl font-semibold)
 
@@ -57,6 +58,10 @@ $type-meta-tight-line-height: math.div($type-meta-size * 4, 3);
 
 @mixin type-body($weight: 400) {
   @include type($type-body-size, $type-body-line-height, $weight);
+}
+
+@mixin type-prose($weight: 400) {
+  @include type($type-body-size, $type-prose-line-height, $weight);
 }
 
 @mixin type-large($weight: 400) {
