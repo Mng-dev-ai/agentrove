@@ -11,6 +11,10 @@
   top: var(--space-6);
   bottom: var(--space-6);
   left: 0;
+  right: 0;
+  // On the trail, not the viewport: WebKit lays out a query container's new
+  // descendants at zero height first, which clamps the message scroller's position.
+  container: conversation / inline-size;
   display: none;
   flex-direction: column;
   justify-content: center;
