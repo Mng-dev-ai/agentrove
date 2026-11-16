@@ -178,14 +178,11 @@ const Dropdown = memo(function Dropdown<T>({
     onOpenChange?.(isOpen);
   }, [isOpen, onOpenChange]);
 
+  // An empty query lets Escape through to useDropdown, which closes the panel.
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' && searchQuery) {
       event.preventDefault();
-      if (searchQuery) {
-        setSearchQuery('');
-      } else {
-        setIsOpen(false);
-      }
+      setSearchQuery('');
     }
   };
 
