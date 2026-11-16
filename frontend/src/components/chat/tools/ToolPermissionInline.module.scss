@@ -57,7 +57,7 @@
 
 .body {
   // TODO(refactor): no spacing token for viewport-relative max-height
-  max-height: 50vh;
+  max-height: 40vh;
   overflow-y: auto;
   padding: var(--space-3);
 }
@@ -169,8 +169,9 @@
 
 .list-value {
   @include inset-surface;
-  @include type.type-default;
-  overflow: auto;
+  @include type.type-mono;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
   border-radius: var(--radius-md);
   padding: var(--space-1-5) var(--space-2);
   color: var(--theme-text-primary);

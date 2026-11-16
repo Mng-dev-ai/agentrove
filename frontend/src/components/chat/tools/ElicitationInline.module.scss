@@ -71,7 +71,7 @@
 
 .body {
   // TODO(refactor): no spacing token for viewport-relative max-height
-  max-height: 50vh;
+  max-height: 40vh;
   overflow-y: auto;
   padding: var(--space-3);
 }
@@ -101,7 +101,7 @@
 }
 
 .field-label {
-  @include type.type-body(500);
+  @include type.type-default(500);
   color: var(--theme-text-primary);
 }
 
@@ -133,10 +133,22 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-2-5);
-  border: 1px solid transparent;
   border-radius: var(--radius-lg);
-  padding: var(--space-2);
+  padding: var(--space-1-5) var(--space-2);
   cursor: pointer;
+
+  @include responsive.media('touch') {
+    min-height: var(--space-10);
+    align-items: center;
+  }
+
+  @include responsive.hover {
+    background-color: colors.theme-color('surface-hover', 0.5);
+  }
+}
+
+.option--selected {
+  background-color: colors.theme-color('surface-hover', 0.8);
 
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
@@ -144,19 +156,21 @@
 }
 
 .option-control {
-  margin-top: var(--space-1);
+  margin-block: var(--space-0-5);
   flex-shrink: 0;
   accent-color: var(--theme-text-primary);
 }
 
 .option-content {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-0-5);
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
 }
 
 .option-title {
-  @include type.type-default;
+  @include type.type-default(500);
   color: var(--theme-text-primary);
 }
 
@@ -190,4 +204,8 @@
   display: flex;
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+.action {
+  @include responsive.touch-target;
 }

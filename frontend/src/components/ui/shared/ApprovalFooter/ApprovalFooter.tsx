@@ -117,7 +117,6 @@ interface OptionRowProps {
 
 function OptionRow({ option, isPrimary, onClick, disabled }: OptionRowProps) {
   const Icon = option.kind.startsWith('allow') ? CheckCircle : XCircle;
-  const subtitle = KIND_SUBTITLES[option.kind];
 
   return (
     <FloatingTooltip content={option.name} className={styles['tooltip-wrap']}>
@@ -128,34 +127,11 @@ function OptionRow({ option, isPrimary, onClick, disabled }: OptionRowProps) {
         disabled={disabled}
         className={clsx(styles['option-row'], isPrimary && styles['option-row--primary'])}
       >
-        <div
-          className={clsx(
-            styles['option-icon-wrap'],
-            isPrimary && styles['option-icon-wrap--primary'],
-          )}
-        >
-          <Icon
-            className={clsx(styles['option-icon'], isPrimary && styles['option-icon--primary'])}
-          />
-        </div>
-        <div className={styles['option-content']}>
-          <div
-            className={clsx(
-              styles['option-title'],
-              !isPrimary && styles['option-title--secondary'],
-            )}
-          >
-            {option.name}
-          </div>
-          <div
-            className={clsx(
-              styles['option-subtitle'],
-              isPrimary ? styles['option-subtitle--primary'] : styles['option-subtitle--secondary'],
-            )}
-          >
-            {subtitle}
-          </div>
-        </div>
+        <Icon className={styles['option-icon']} />
+        <span className={styles['option-content']}>
+          <span className={styles['option-title']}>{option.name}</span>
+          <span className={styles['option-subtitle']}>{KIND_SUBTITLES[option.kind]}</span>
+        </span>
       </Button>
     </FloatingTooltip>
   );
