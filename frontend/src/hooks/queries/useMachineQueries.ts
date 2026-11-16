@@ -3,7 +3,7 @@ import { useQuery, useQueries, type UseQueryResult } from '@tanstack/react-query
 import { machineChatService } from '@/services/machineChatService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
-import { refetchFailed, retryTransientOnce } from '@/hooks/queries/listLoad';
+import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useMachineStatus, useMachineStore } from '@/store/machineStore';
 import type {
   Workspace,
@@ -112,8 +112,7 @@ export const useMachinesSettingsList = <K extends 'personas' | 'custom_env_vars'
       );
       return {
         byMachine,
-        error: results.find((result) => result.error)?.error ?? null,
-        retry: () => refetchFailed(results),
+        load: listLoadState(results),
       };
     },
     [machineIds, key],

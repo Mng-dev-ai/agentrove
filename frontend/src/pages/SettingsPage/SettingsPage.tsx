@@ -4,7 +4,7 @@ import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ApiFieldKey } from '@/types/settings.types';
 import { useDeleteAllChatsMutation } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
-import { hasFailedFirstLoad, retryTransientOnce } from '@/hooks/queries/listLoad';
+import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { AlertCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -85,7 +85,7 @@ export function SettingsPage() {
 
   const settingsQuery = useSettingsQuery({ retry: retryTransientOnce });
   const { data: settings, error: fetchError } = settingsQuery;
-  const settingsLoadFailed = hasFailedFirstLoad(settingsQuery);
+  const settingsLoad = listLoadState([settingsQuery]);
   const deleteAllChats = useDeleteAllChatsMutation();
 
   const [localSettings, setLocalSettings] = useState<UserSettings | null>(settings ?? null);
@@ -245,7 +245,7 @@ export function SettingsPage() {
 
         <div className={styles.content}>
           <div className={styles['content-inner']}>
-            {settingsLoadFailed ? (
+            {settingsLoad.loadFailed ? (
               <div className={styles['load-error']} role="alert">
                 <AlertCircle className={styles['load-error-icon']} />
                 <p className={styles['load-error-text']}>Couldn&apos;t load settings</p>
@@ -253,10 +253,10 @@ export function SettingsPage() {
                   type="button"
                   variant="secondary"
                   size="sm"
-                  disabled={settingsQuery.isFetching}
-                  onClick={() => void settingsQuery.refetch()}
+                  disabled={settingsLoad.isRetrying}
+                  onClick={() => void settingsLoad.retry()}
                 >
-                  {settingsQuery.isFetching ? 'Retrying…' : 'Try again'}
+                  {settingsLoad.isRetrying ? 'Retrying…' : 'Try again'}
                 </Button>
               </div>
             ) : !settings || !localSettings ? (

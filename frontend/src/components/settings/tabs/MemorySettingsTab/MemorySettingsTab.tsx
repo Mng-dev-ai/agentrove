@@ -87,8 +87,7 @@ export function MemorySettingsTab() {
     machineOptions.map((machine) => machine.id),
     workspacesByMachine,
   );
-  const { items, error, retry } = useMemoriesAcrossMachines(activeFilter);
-  const loadError = error && { message: `Couldn't load memories: ${error.message}`, retry };
+  const { items, load } = useMemoriesAcrossMachines(activeFilter);
 
   const createMutation = useCreateMemoryMutation();
   const updateMutation = useUpdateMemoryMutation();
@@ -218,7 +217,7 @@ export function MemorySettingsTab() {
         items={items}
         emptyIcon={Brain}
         emptyText="No memories saved yet"
-        loadError={loadError}
+        loadError={{ message: "Couldn't load memories", load }}
         emptyButtonText="Add Your First Memory"
         addButtonText="Add Memory"
         deleteConfirmTitle="Delete Memory"

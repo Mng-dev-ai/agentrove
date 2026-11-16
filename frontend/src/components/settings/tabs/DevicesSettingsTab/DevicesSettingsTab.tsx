@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { Smartphone } from 'lucide-react';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { CopyField } from '@/components/machines/CopyField';
-import { useDevicesQuery, useRevokeDeviceMutation } from '@/hooks/queries/useDeviceQueries';
+import { useDevices, useRevokeDeviceMutation } from '@/hooks/queries/useDeviceQueries';
 import { deviceService } from '@/services/deviceService';
 import { buildPairingLink } from '@/utils/machineUrl';
 import { getRelativeTime } from '@/utils/date';
@@ -52,7 +52,7 @@ function PairingLinkCard({
 }
 
 export function DevicesSettingsTab() {
-  const { data: devices, error, refetch } = useDevicesQuery();
+  const { devices, load } = useDevices();
   const revokeDevice = useRevokeDeviceMutation();
   const [pairing, setPairing] = useState<ActivePairing | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -90,10 +90,10 @@ export function DevicesSettingsTab() {
     <ListManagementTab<PairedDevice>
       title="Devices"
       description="Apps paired with this server. Each one keeps its own session; revoke a device to sign it out."
-      items={devices ?? (error ? [] : null)}
+      items={devices}
       emptyIcon={Smartphone}
       emptyText="No paired devices yet"
-      loadError={error && { message: `Couldn't load devices: ${error.message}`, retry: refetch }}
+      loadError={{ message: "Couldn't load devices", load }}
       emptyButtonText="Pair a Device"
       addButtonText="Pair a Device"
       deleteConfirmTitle="Revoke device"

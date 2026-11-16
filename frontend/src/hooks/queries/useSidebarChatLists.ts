@@ -4,7 +4,7 @@ import { MACHINE_CHATS_PER_PAGE } from '@/config/constants';
 import { useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-import { hasFailedFirstLoad, refetchFailed, retryTransientOnce } from '@/hooks/queries/listLoad';
+import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { machineChatService } from '@/services/machineChatService';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
 import { mergeRecentSources } from '@/utils/mergeRecentSources';
@@ -23,8 +23,6 @@ interface RemoteChatSource {
   hasMore: boolean;
   isLoading: boolean;
   isFetchingMore: boolean;
-  loadFailed: boolean;
-  isRetrying: boolean;
 }
 
 interface PagePlan {
@@ -46,8 +44,6 @@ function combineRemoteSources(
       hasMore: false,
       isLoading: false,
       isFetchingMore: false,
-      loadFailed: false,
-      isRetrying: false,
     };
     const seen = new Set(source.chats.map((chat) => chat.id));
     const items = result.data?.items ?? [];
@@ -57,10 +53,6 @@ function combineRemoteSources(
     }
     source.isLoading ||= online && result.isLoading;
     source.isFetchingMore ||= page > 1 && result.isFetching;
-    if (page === 1 && online && hasFailedFirstLoad(result)) {
-      source.loadFailed = true;
-      source.isRetrying ||= result.isFetching;
-    }
     sources.set(machineId, source);
   });
   return sources;
@@ -88,11 +80,12 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
   const combine = useCallback(
     (results: UseQueryResult<PaginatedChats>[]) => ({
       sources: combineRemoteSources(plan, results),
-      retry: () => refetchFailed(results),
+      // Later pages are load-more; only a failed first page means the list didn't load.
+      firstPages: results.filter((_, index) => plan[index].page === 1 && plan[index].online),
     }),
     [plan],
   );
-  const { sources, retry } = useQueries({
+  const { sources, firstPages } = useQueries({
     queries: plan.map(({ machineId, page, online }) => ({
       queryKey: queryKeys.machine.chatsPage(machineId, page),
       queryFn: () =>
@@ -115,7 +108,7 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
     [],
   );
 
-  return { sources, loadMore, retry };
+  return { sources, firstPages, loadMore };
 }
 
 export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = true) {
@@ -132,8 +125,8 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
   const remoteMachineIds = useRemoteMachineIds();
   const {
     sources: remoteSources,
+    firstPages: remoteFirstPages,
     loadMore: loadMoreRemote,
-    retry: retryRemote,
   } = useRemoteChatSources(remoteMachineIds, enabled);
   const remoteSourceList = useMemo(() => [...remoteSources.values()], [remoteSources]);
 
@@ -191,12 +184,8 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     hasMore: !!hasMoreLocal || remoteWithMore.length > 0,
     isFetchingMore: isFetchingMoreLocal || remoteSourceList.some((source) => source.isFetchingMore),
     loadMore,
-    pinnedLoadFailed: hasFailedFirstLoad(pinnedQuery),
-    recentsLoadFailed:
-      hasFailedFirstLoad(localQuery) || remoteSourceList.some((source) => source.loadFailed),
-    isRetrying:
-      [pinnedQuery, localQuery].some((query) => hasFailedFirstLoad(query) && query.isFetching) ||
-      remoteSourceList.some((source) => source.isRetrying),
-    retryLoad: () => Promise.all([refetchFailed([pinnedQuery, localQuery]), retryRemote()]),
+    threadsLoad: listLoadState([pinnedQuery, localQuery, ...remoteFirstPages]),
+    pinnedLoad: listLoadState([pinnedQuery]),
+    recentsLoad: listLoadState([localQuery, ...remoteFirstPages]),
   };
 }

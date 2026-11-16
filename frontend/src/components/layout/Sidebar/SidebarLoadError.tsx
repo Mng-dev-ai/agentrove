@@ -1,24 +1,24 @@
 import { Button } from '@/components/ui/primitives/Button/Button';
+import type { ListLoadState } from '@/hooks/queries/listLoad';
 import styles from './SidebarLoadError.module.scss';
 
 interface SidebarLoadErrorProps {
   message: string;
-  isRetrying: boolean;
-  onRetry: () => void;
+  load: ListLoadState;
 }
 
-export function SidebarLoadError({ message, isRetrying, onRetry }: SidebarLoadErrorProps) {
+export function SidebarLoadError({ message, load }: SidebarLoadErrorProps) {
   return (
     <p className={styles.error} role="alert">
       {message}
       <Button
         variant="unstyled"
         type="button"
-        onClick={onRetry}
-        disabled={isRetrying}
+        onClick={() => void load.retry()}
+        disabled={load.isRetrying}
         className={styles.retry}
       >
-        {isRetrying ? 'Retrying…' : 'Try again'}
+        {load.isRetrying ? 'Retrying…' : 'Try again'}
       </Button>
     </p>
   );

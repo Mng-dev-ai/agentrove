@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { Plus, Loader2, LucideIcon, Edit2, Trash2 } from 'lucide-react';
 import { logger } from '@/utils/logger';
+import type { ListLoadState } from '@/hooks/queries/listLoad';
 import { ListFilterMenu, type ListFilterCategory } from './ListFilterMenu';
 import styles from './ListManagementTab.module.scss';
 
@@ -43,18 +44,13 @@ export function ListItemAction({
   );
 }
 
-export interface ListLoadError {
-  message: string;
-  retry: () => Promise<unknown>;
-}
-
 interface ListManagementTabProps<T> {
   title: string;
   description: string;
   items: T[] | null;
   emptyIcon: LucideIcon;
   emptyText: string;
-  loadError?: ListLoadError | null;
+  loadError?: { message: string; load: ListLoadState };
   emptyButtonText: string;
   addButtonText: string;
   deleteConfirmTitle: string;
@@ -97,19 +93,6 @@ export function ListManagementTab<T>({
 }: ListManagementTabProps<T>) {
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
   const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
-  // A refetch resets a never-loaded query to pending, so the error stays on screen
-  // (with the button pending) until the retry settles instead of flashing the spinner.
-  const [retryingMessage, setRetryingMessage] = useState<string | null>(null);
-
-  const handleRetry = async (error: ListLoadError) => {
-    setRetryingMessage(error.message);
-    try {
-      await error.retry();
-    } finally {
-      setRetryingMessage(null);
-    }
-  };
-
   const handleCloseDeleteDialog = () => {
     setPendingDeleteIndex(null);
   };
@@ -131,12 +114,7 @@ export function ListManagementTab<T>({
     ? filter
     : null;
 
-  const shownError =
-    items === null
-      ? retryingMessage
-      : items.length === 0
-        ? (loadError?.message ?? retryingMessage)
-        : null;
+  const shownError = loadError?.load.loadFailed && !items?.length ? loadError : null;
 
   const deleteTargetItem =
     pendingDeleteIndex !== null && items?.[pendingDeleteIndex] ? items[pendingDeleteIndex] : null;
@@ -170,15 +148,15 @@ export function ListManagementTab<T>({
         {shownError ? (
           <div className={styles.empty} role="alert">
             <EmptyIcon className={styles['empty-icon']} />
-            <p className={styles['empty-text']}>{shownError}</p>
+            <p className={styles['empty-text']}>{shownError.message}</p>
             <Button
               type="button"
-              onClick={() => loadError && handleRetry(loadError)}
+              onClick={() => void shownError.load.retry()}
               variant="secondary"
               size="sm"
-              disabled={retryingMessage !== null}
+              disabled={shownError.load.isRetrying}
             >
-              {retryingMessage !== null ? 'Retrying…' : 'Try again'}
+              {shownError.load.isRetrying ? 'Retrying…' : 'Try again'}
             </Button>
           </div>
         ) : items === null ? (

@@ -4,7 +4,7 @@ import { useOnlineRemoteMachineIds } from '@/store/machineStore';
 import { memoryService } from '@/services/memoryService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
-import { refetchFailed, retryTransientOnce } from '@/hooks/queries/listLoad';
+import { listLoadState, retryTransientOnce, type ListLoadState } from '@/hooks/queries/listLoad';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Memory, MemoryCreateRequest, MemoryUpdateRequest } from '@/types/memory.types';
 
@@ -34,7 +34,7 @@ export interface MemoryFilter {
 
 export const useMemoriesAcrossMachines = (
   filter: MemoryFilter | null,
-): { items: MachineMemory[] | null; error: Error | null; retry: () => Promise<unknown> } => {
+): { items: MachineMemory[] | null; load: ListLoadState } => {
   const remoteIds = useOnlineRemoteMachineIds();
   const filterMachineId = filter?.machineId;
   const workspaceId = filter?.workspaceId ?? null;
@@ -47,15 +47,13 @@ export const useMemoriesAcrossMachines = (
   );
   const combine = useCallback(
     (results: UseQueryResult<Memory[]>[]) => {
-      const error = results.find((result) => result.error)?.error ?? null;
-      const retry = () => refetchFailed(results);
-      if (results.some((result) => result.isLoading)) return { items: null, error, retry };
+      const load = listLoadState(results);
+      if (results.some((result) => result.isLoading)) return { items: null, load };
       return {
         items: machineIds.flatMap((machineId, index) =>
           (results[index]?.data ?? []).map((memory) => ({ memory, machineId })),
         ),
-        error,
-        retry,
+        load,
       };
     },
     [machineIds],

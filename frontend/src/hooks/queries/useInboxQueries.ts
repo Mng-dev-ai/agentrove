@@ -8,7 +8,7 @@ import {
 import { inboxService } from '@/services/inboxService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
-import { refetchFailed, retryTransientOnce } from '@/hooks/queries/listLoad';
+import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useAuthStore } from '@/store/authStore';
 import { useOnlineRemoteMachineIds } from '@/store/machineStore';
 import { mergeRecentSources } from '@/utils/mergeRecentSources';
@@ -122,8 +122,7 @@ export const useInboxAcrossMachines = () => {
       (source) => source.hasMore || source.items.some((entry) => entry.item.read_at),
     ),
     isLoading: local.isLoading,
-    isError: local.isError || remote.some((query) => query.isError),
-    retry: () => refetchFailed([local, ...remote]),
+    load: listLoadState([local, ...remote]),
     hasMore: sources.some((source) => source.hasMore),
     isFetchingMore: local.isFetchingNextPage || loadMoreRemote.isPending,
     loadMore,

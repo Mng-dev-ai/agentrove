@@ -64,9 +64,7 @@ export function SidebarChannels({
   const {
     machineChannels,
     isLoading: isLoadingChannels,
-    loadFailed,
-    isRetrying,
-    retry,
+    load,
   } = useMachinesChannels(isAuthenticated);
   const liveActivity = useChannelStore((state) => state.activity);
   const completedChannelIds = useChannelStore((state) => state.completedChannelIds);
@@ -250,12 +248,8 @@ export function SidebarChannels({
           Load more
         </Button>
       )}
-      {!isCollapsed && machineChannels.length === 0 && loadFailed ? (
-        <SidebarLoadError
-          message="Couldn't load channels"
-          isRetrying={isRetrying}
-          onRetry={() => void retry()}
-        />
+      {!isCollapsed && machineChannels.length === 0 && load.loadFailed ? (
+        <SidebarLoadError message="Couldn't load channels" load={load} />
       ) : (
         !isCollapsed &&
         !isLoadingChannels &&

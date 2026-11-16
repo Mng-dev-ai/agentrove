@@ -131,8 +131,7 @@ function AutomationTargetChip({ machineId, channelId }: { machineId: string; cha
 
 export function AutomationsSettingsTab() {
   const { localSettings } = useSettingsContext();
-  const { items: allItems, error, retry } = useAutomationsAcrossMachines();
-  const loadError = error && { message: `Couldn't load automations: ${error.message}`, retry };
+  const { items: allItems, load } = useAutomationsAcrossMachines();
   const machines = useMachineStore((state) => state.machines);
   const connections = useMachineStore((state) => state.connections);
   const machineNames = useMemo(
@@ -331,7 +330,7 @@ export function AutomationsSettingsTab() {
         items={items}
         emptyIcon={Clock}
         emptyText="No automations configured yet"
-        loadError={loadError}
+        loadError={{ message: "Couldn't load automations", load }}
         emptyButtonText="Add your first automation"
         addButtonText="Add automation"
         deleteConfirmTitle="Delete automation"

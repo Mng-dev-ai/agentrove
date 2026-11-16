@@ -122,13 +122,11 @@ export function InboxPage() {
     unreadCount,
     hasReadItems,
     isLoading,
-    isError,
-    retry,
+    load,
     hasMore,
     isFetchingMore,
     loadMore,
   } = useInboxAcrossMachines();
-  const [isRetrying, setIsRetrying] = useState(false);
   const markRead = useMarkInboxReadMutation();
   const markAllRead = useMarkAllInboxReadMutation();
   const clearRead = useClearReadInboxMutation();
@@ -150,16 +148,6 @@ export function InboxPage() {
   const openItem = ({ item, machineId }: MachineInboxItem) => {
     if (!item.read_at) markRead.mutate({ itemId: item.id, machineId });
     navigate(`/chat/${item.chat_id}`);
-  };
-
-  // A refetch resets a never-loaded query to loading; keep the error up until it settles.
-  const handleRetry = async () => {
-    setIsRetrying(true);
-    try {
-      await retry();
-    } finally {
-      setIsRetrying(false);
-    }
   };
 
   const reportFailures = (action: string) => (failed: string[]) => {
@@ -203,7 +191,7 @@ export function InboxPage() {
           </div>
         </div>
 
-        {items.length === 0 && (isRetrying || (isError && !isLoading)) ? (
+        {items.length === 0 && load.loadFailed ? (
           <div className={styles.empty} role="alert">
             <AlertCircle className={styles['empty-icon']} />
             <p className={styles['empty-text']}>Couldn&apos;t load your inbox</p>
@@ -212,10 +200,10 @@ export function InboxPage() {
               variant="secondary"
               size="sm"
               className={styles['retry-btn']}
-              disabled={isRetrying}
-              onClick={() => void handleRetry()}
+              disabled={load.isRetrying}
+              onClick={() => void load.retry()}
             >
-              {isRetrying ? 'Retrying…' : 'Try again'}
+              {load.isRetrying ? 'Retrying…' : 'Try again'}
             </Button>
           </div>
         ) : isLoading ? (

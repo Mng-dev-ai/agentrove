@@ -55,11 +55,10 @@ function deletePersona(personas: Persona[], name: string) {
 export function PersonasSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
   const remoteIds = useOnlineRemoteMachineIds();
-  const {
-    byMachine: remotePersonas,
-    error: remoteError,
-    retry: retryRemote,
-  } = useMachinesSettingsList(remoteIds, 'personas');
+  const { byMachine: remotePersonas, load: remoteLoad } = useMachinesSettingsList(
+    remoteIds,
+    'personas',
+  );
   const machines = useMachineStore((state) => state.machines);
   const machineNames = useMemo(
     () => new Map(machines.map((machine) => [machine.id, machine.name])),
@@ -191,12 +190,7 @@ export function PersonasSettingsTab() {
         title="Personas"
         description="Create personas with custom system prompts. Select from the persona dropdown in the input bar. Claude, Codex, Grok, and OpenCode support replacing the system prompt; the persona selector is hidden for Cursor and Copilot."
         items={items}
-        loadError={
-          remoteError && {
-            message: `Couldn't load personas: ${remoteError.message}`,
-            retry: retryRemote,
-          }
-        }
+        loadError={{ message: "Couldn't load personas", load: remoteLoad }}
         emptyIcon={UserCircle}
         emptyText="No personas configured yet"
         emptyButtonText="Create Your First Persona"
