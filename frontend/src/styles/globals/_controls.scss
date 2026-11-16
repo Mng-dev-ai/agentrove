@@ -155,8 +155,7 @@
 }
 
 @mixin input-error {
-  border-color: colors.status-color('error', 500, 0.6);
-  color: colors.status-color('error', 700);
+  border-color: colors.status-color('error', 500);
 
   &:focus-visible {
     border-color: colors.status-color('error', 500);
