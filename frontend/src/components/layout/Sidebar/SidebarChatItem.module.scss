@@ -32,13 +32,13 @@
 }
 
 .provider-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  @include anim.transition-colors;
+  height: var(--space-3);
+  width: var(--space-3);
   color: var(--theme-text-tertiary);
-  transition: opacity var(--duration-base);
 
   &--muted {
-    opacity: 0.45;
+    color: var(--theme-text-quaternary);
   }
 }
 

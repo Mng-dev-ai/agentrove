@@ -77,7 +77,13 @@ const SubThreadRow = memo(function SubThreadRow({
               {showSpinner ? (
                 <AsciiSpinner className={styles['subthread-spinner']} />
               ) : agentKind ? (
-                <ProviderIcon agentKind={agentKind} className={styles['provider-icon']} />
+                <ProviderIcon
+                  agentKind={agentKind}
+                  className={clsx(
+                    styles['provider-icon'],
+                    !isHovered && !isActive && styles['provider-icon--muted'],
+                  )}
+                />
               ) : null}
               {statusTone && (
                 <ChatStatusDot

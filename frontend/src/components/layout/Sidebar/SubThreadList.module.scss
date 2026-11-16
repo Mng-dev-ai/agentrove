@@ -101,9 +101,14 @@
 }
 
 .provider-icon {
+  @include anim.transition-colors;
   height: var(--space-3);
   width: var(--space-3);
   color: var(--theme-text-tertiary);
+
+  &--muted {
+    color: var(--theme-text-quaternary);
+  }
 }
 
 // Corner overlay when the dot sits on top of a provider icon
