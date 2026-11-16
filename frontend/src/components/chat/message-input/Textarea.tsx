@@ -80,20 +80,34 @@ export function Textarea({
     fitHeight();
   }, [message, fitHeight]);
 
-  // The composer re-lays out after a message change (single row vs. own row), which
-  // changes the wrap width without changing the message.
+  const widthRef = useRef(0);
+  const fitToWidth = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || textarea.clientWidth === widthRef.current) return;
+    widthRef.current = textarea.clientWidth;
+    fitHeight();
+  }, [textareaRef, fitHeight]);
+
+  // The composer re-lays out after a message change (single row vs. own row) in a later
+  // commit, which changes the wrap width without changing the message.
+  useLayoutEffect(fitToWidth);
+
+  // Window and panel resizes refit a frame later: resizing the composer inside the callback
+  // would re-resize the chat scroller, which observers already handled in this frame.
   useLayoutEffect(() => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-    let width = textarea.clientWidth;
+    let frame = 0;
     const observer = new ResizeObserver(() => {
-      if (textarea.clientWidth === width) return;
-      width = textarea.clientWidth;
-      fitHeight();
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fitToWidth);
     });
     observer.observe(textarea);
-    return () => observer.disconnect();
-  }, [textareaRef, fitHeight]);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [textareaRef, fitToWidth]);
 
   useEffect(() => {
     if (!isLoading && textareaRef.current && !isMobile) {
