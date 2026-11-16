@@ -46,6 +46,7 @@
 }
 
 .pin-btn {
+  @include responsive.touch-target;
   height: var(--space-7);
   width: var(--space-7);
   color: var(--theme-text-quaternary);

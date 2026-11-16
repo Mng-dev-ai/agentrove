@@ -374,7 +374,9 @@ export function AutomationsSettingsTab() {
         renderItemActions={(item) => (
           <>
             <Button
-              variant="unstyled"
+              type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => void handleRunNow(item)}
               disabled={runMutation.isPending}
               className={styles['run-button']}
