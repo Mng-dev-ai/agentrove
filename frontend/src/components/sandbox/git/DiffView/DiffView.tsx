@@ -80,7 +80,7 @@ const DiffViewContent = memo(function DiffViewContent({
   // Expanded by default; set tracks user-collapsed exceptions.
   const [collapsedFiles, toggleCollapsed, setCollapsedFiles] = useToggleSet<string>();
   const [mode, setMode] = useState<DiffMode>('all');
-  // Owned here, not by the sidebar — the narrow files dropdown remounts it on each open.
+  // Owned here, not by the sidebar — the files dropdown remounts it on each open.
   const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>({
     query: '',
     hideReviewed: false,
@@ -174,7 +174,7 @@ const DiffViewContent = memo(function DiffViewContent({
     resetComments();
   }
 
-  // Narrow-mode file dropdown, and the secondary-actions overflow menu — both
+  // File dropdown, and the secondary-actions overflow menu — both
   // portaled to escape the toolbar's clip and stacking context.
   const filesMenu = useAnchoredPanel(computeMenuPos);
   const overflowMenu = useAnchoredPanel(computeOverflowMenuPos);
@@ -202,7 +202,10 @@ const DiffViewContent = memo(function DiffViewContent({
   const parsedFiles = useMemo<FileDiffMetadata[]>(() => {
     if (!diffContent) return [];
     return (
-      parsePatchFiles(diffContent, diffCacheKey)
+      parsePatchFiles(diffContent, {
+        cacheKeyPrefix: diffCacheKey,
+        disableLineMatching: true,
+      })
         .flatMap((p) => p.files)
         // No unchanged context on new/deleted — skip the re-diff.
         .map((f) =>
@@ -415,10 +418,6 @@ const DiffViewContent = memo(function DiffViewContent({
         />
 
         <div className={styles.content}>
-          {!isNarrow && filesSidebar && (
-            <div className={styles['sidebar-pane']}>{filesSidebar}</div>
-          )}
-
           <DiffPane
             paneRef={paneRef}
             isLoading={isLoading}

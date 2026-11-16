@@ -9,7 +9,8 @@ import styles from './ReadTool.module.scss';
 
 export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as AntigravityReadInput | undefined;
-  const filePath = input?.AbsolutePath ?? input?.absolute_path ?? '';
+  const filePath =
+    input?.file_path ?? input?.AbsolutePath ?? input?.absolute_path ?? tool.path ?? '';
   const label = filePath ? extractFilename(filePath) : humanizeToolTitle(tool.title) || 'file';
   // The server batches or omits read completions even though reads finish immediately.
   const displayStatus = tool.status === 'started' ? 'completed' : tool.status;

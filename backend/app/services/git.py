@@ -212,20 +212,33 @@ GIT_DIFF_BRANCH_TEMPLATE = Template(
 # `git diff` counts them without touching the real index. Bail if mktemp fails
 # (an empty GIT_INDEX_FILE would hit the real index); with no index yet, drop
 # the copy so git starts empty instead of rejecting a zero-byte file.
+GIT_INTENT_TO_ADD_INDEX_CMD = (
+    " tmp=$(mktemp) || exit 1; trap 'rm -f \"$tmp\"' EXIT;"
+    ' cp -p "$(git rev-parse --git-path index)" "$tmp" 2>/dev/null || rm -f "$tmp";'
+    ' GIT_INDEX_FILE="$tmp" git add -A -N >/dev/null 2>&1;'
+)
+GIT_MERGE_BASE_CMD = (
+    ' merge_base=$(git merge-base "$base" HEAD 2>/dev/null || echo "$base");'
+)
+GIT_DIFF_TOTAL_TEMPLATE = Template(
+    ' GIT_INDEX_FILE="$$tmp" git diff$flags "$$merge_base" 2>/dev/null;'
+)
 GIT_DIFF_STATS_CMD = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     'cd "$(git rev-parse --show-toplevel)"; '
     "head=$(git rev-parse --verify -q HEAD || git hash-object -t tree /dev/null);"
-    " tmp=$(mktemp) || exit 1; trap 'rm -f \"$tmp\"' EXIT;"
-    ' cp "$(git rev-parse --git-path index)" "$tmp" 2>/dev/null || rm -f "$tmp";'
-    ' GIT_INDEX_FILE="$tmp" git add -A -N >/dev/null 2>&1;'
-    " printf '__HEAD__\\n'; git rev-parse --verify -q HEAD 2>/dev/null;"
+    + GIT_INTENT_TO_ADD_INDEX_CMD
+    + " printf '__HEAD__\\n'; git rev-parse --verify -q HEAD 2>/dev/null;"
     " printf '__UNCOMMITTED__\\n';"
     ' GIT_INDEX_FILE="$tmp" git diff --numstat "$head" 2>/dev/null;'
-    " printf '__BRANCH__\\n'; " + GIT_DETECT_BASE_CMD + ' if [ -n "$base" ]; then'
-    ' merge_base=$(git merge-base "$base" HEAD 2>/dev/null || echo "$base");'
-    ' git diff --numstat "$merge_base" HEAD 2>/dev/null; fi;'
-    " true"
+    " printf '__BRANCH__\\n'; "
+    + GIT_DETECT_BASE_CMD
+    + ' if [ -n "$base" ]; then'
+    + GIT_MERGE_BASE_CMD
+    + ' git diff --numstat "$merge_base" HEAD 2>/dev/null; fi;'
+    " printf '__TOTAL__\\n'; if [ -n \"$base\" ]; then"
+    + GIT_DIFF_TOTAL_TEMPLATE.substitute(flags=" --numstat")
+    + " fi; true"
 )
 
 # Exit 2 distinguishes "not a repo" from "path not in HEAD" — `git show`
@@ -325,7 +338,7 @@ class GitService:
     async def get_diff(
         self,
         sandbox_id: str,
-        mode: Literal["all", "branch"] = "all",
+        mode: Literal["all", "branch", "total"] = "all",
         full_context: bool = False,
         cwd: str | None = None,
     ) -> GitDiffResponse:
@@ -346,13 +359,21 @@ class GitService:
             cmd = GIT_DIFF_BRANCH_TEMPLATE.substitute(
                 ctx=ctx, detect_base=GIT_DETECT_BASE_CMD
             )
+        elif mode == "total":
+            cmd = (
+                GIT_DETECT_BASE_CMD
+                + ' if [ -z "$base" ]; then exit 2; fi;'
+                + GIT_MERGE_BASE_CMD
+                + GIT_INTENT_TO_ADD_INDEX_CMD
+                + GIT_DIFF_TOTAL_TEMPLATE.substitute(flags=ctx)
+            )
         else:
             cmd = GIT_DIFF_ALL_TEMPLATE.substitute(ctx=ctx, untracked=untracked_diff)
 
         result = await self.sandbox_service.execute_command(
             sandbox_id, f"{git_prefix}{cmd}"
         )
-        if mode == "branch" and result.exit_code == 2:
+        if mode != "all" and result.exit_code == 2:
             return GitDiffResponse(
                 diff="",
                 has_changes=False,
@@ -379,6 +400,7 @@ class GitService:
             return GitDiffStatsResponse(
                 uncommitted=GitDiffTotals(),
                 branch=GitDiffTotals(),
+                total=GitDiffTotals(),
                 is_git_repo=False,
                 head_sha=None,
             )
@@ -391,10 +413,12 @@ class GitService:
             )
         _, _, rest = result.stdout.partition("__HEAD__\n")
         head_sha, _, rest = rest.partition("__UNCOMMITTED__\n")
-        uncommitted, _, branch = rest.partition("__BRANCH__\n")
+        uncommitted, _, rest = rest.partition("__BRANCH__\n")
+        branch, _, total = rest.partition("__TOTAL__\n")
         return GitDiffStatsResponse(
             uncommitted=self._sum_numstat(uncommitted),
             branch=self._sum_numstat(branch),
+            total=self._sum_numstat(total),
             is_git_repo=True,
             head_sha=head_sha.strip() or None,
         )

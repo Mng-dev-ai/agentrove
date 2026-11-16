@@ -14,6 +14,7 @@ export const VIRTUALIZER_CONFIG = { overscrollSize: 2500, intersectionObserverMa
 export const DIFF_MODE_OPTIONS = [
   { value: 'all', label: 'Uncommitted' },
   { value: 'branch', label: 'Branch' },
+  { value: 'total', label: 'Total' },
 ] satisfies { value: DiffMode; label: string }[];
 
 export const DIFF_STYLE_OPTIONS = [
@@ -34,6 +35,7 @@ export const SCROLL_KEYS = new Set([
 export const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
   all: 'No uncommitted changes',
   branch: 'No changes from base branch',
+  total: 'No changes from base branch',
 };
 
 // The library washes annotation rows with the line-selection tint when they sit
@@ -47,9 +49,9 @@ export const DIFF_UNSAFE_CSS =
   '[data-column-number][data-line-type=change-addition]{color:var(--theme-success-text)}' +
   '[data-column-number][data-line-type=change-deletion]{color:var(--theme-error-text)}';
 
-// Below this tile width the sidebar can't coexist with a readable diff — it
-// collapses into the toolbar file dropdown instead.
-export const NARROW_BREAKPOINT = 600;
+// Below this tile width the toolbar compacts: diffstat moves right, labels
+// shorten, and diff style moves into the overflow menu.
+export const NARROW_BREAKPOINT = 900;
 
 export const FILES_PANEL_WIDTH = 256;
 export const OVERFLOW_PANEL_WIDTH = 220;
@@ -142,7 +144,7 @@ export function rebuildWithCollapsedContext(
       contents: contents.newContent,
       cacheKey: fullFile.cacheKey ? `${fullFile.cacheKey}:new${keySuffix}` : undefined,
     },
-    { ignoreWhitespace },
+    { ignoreWhitespace, disableLineMatching: true },
   );
   rebuilt.type = fullFile.type;
   rebuilt.prevName = fullFile.prevName;

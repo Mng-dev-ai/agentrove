@@ -90,8 +90,8 @@ export function DiffToolbar({
   onShowShortcuts,
   shortcuts,
 }: DiffToolbarProps) {
-  // Diffstat surfaced in the toolbar so change size stays visible when the
-  // sidebar is collapsed (narrow tiles) or scrolled away.
+  // Diffstat surfaced in the toolbar so change size stays visible while the
+  // files dropdown is closed.
   const diffstat = showFiles ? (
     <div className={styles.diffstat}>
       <span className={styles['stat-add']}>+{totals.additions}</span>
@@ -122,8 +122,8 @@ export function DiffToolbar({
         className={styles.segmented}
       />
 
-      {/* Narrow: sidebar collapses into this file switcher. */}
-      {isNarrow && showFiles && currentFile && (
+      {/* The file list lives in this switcher's dropdown at every width. */}
+      {showFiles && currentFile && (
         <>
           <Button
             ref={filesMenu.triggerRef}

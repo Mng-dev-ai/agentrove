@@ -85,7 +85,7 @@ export const MCPTool = memo(function MCPTool({ tool }: MCPToolProps) {
                 </div>
               ))
             : null}
-          {hasImages ? <AttachmentViewer attachments={resultImages} /> : null}
+          {hasImages ? <AttachmentViewer attachments={resultImages} size="large" /> : null}
           {hasResult ? (
             <pre className={toolText['output-pre']}>{formatResult(textResult)}</pre>
           ) : null}

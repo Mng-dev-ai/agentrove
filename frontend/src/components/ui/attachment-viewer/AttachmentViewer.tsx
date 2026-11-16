@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo, memo } from 'react';
+import clsx from 'clsx';
 import { logger } from '@/utils/logger';
 import type { MessageAttachment } from '@/types/chat.types';
 import { resolveChatClient } from '@/lib/api';
@@ -9,6 +10,7 @@ import {
   ThumbnailWrapper,
   IconThumbnail,
   ImageThumbnail,
+  type ImageSize,
   type ImageState,
 } from './AttachmentThumbnails';
 import styles from './AttachmentViewer.module.scss';
@@ -18,6 +20,7 @@ interface AttachmentViewerProps {
   uploadingAttachmentIds?: string[];
   // Routes fetch/download to the machine that owns the chat.
   chatId?: string;
+  size?: ImageSize;
 }
 
 const DEFAULT_IMAGE_STATE: ImageState = { isLoading: true, error: false, imageSrc: '' };
@@ -26,6 +29,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
   attachments,
   uploadingAttachmentIds,
   chatId,
+  size = 'thumbnail',
 }: AttachmentViewerProps) {
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({});
   // Lightbox index into imageAttachments; null = closed.
@@ -160,7 +164,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
 
   return (
     <>
-      <div className={styles.list}>
+      <div className={clsx(styles.list, size === 'large' && styles['list--large'])}>
         {attachments.map((attachment, index) => {
           const isUploadingAttachment = uploadingIdSet.has(attachment.id);
 
@@ -184,6 +188,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
                   state={state}
                   index={index}
                   isUploading={isUploadingAttachment}
+                  size={size}
                 />
               </ThumbnailWrapper>
             );

@@ -148,12 +148,15 @@ const FileOperationTool = memo(function FileOperationTool({
   const Icon = config.icon;
   const filePath = (tool.input?.file_path as string | undefined) ?? '';
 
+  if (variant === 'read' && tool.status === 'completed') {
+    const images = toImageAttachments(tool, filePath);
+    if (images.length > 0) return <AttachmentViewer attachments={images} size="large" />;
+  }
+
   const renderContent = () => {
     if (variant === 'read') {
       const content = normalizeContent(tool.result);
       if (!content || tool.status !== 'completed') return null;
-      const images = toImageAttachments(tool, filePath);
-      if (images.length > 0) return <AttachmentViewer attachments={images} />;
       return <NumberedContent content={content} prefixPattern={CLAUDE_READ_LINE_PREFIX} />;
     }
 

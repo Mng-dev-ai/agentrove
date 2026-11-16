@@ -105,6 +105,16 @@ def _session() -> tuple[AgentroveClient, str | None]:
     return request.state.agentrove_client, request.state.agentrove_chat_id
 
 
+async def _require_sub_thread(
+    client: AgentroveClient, current_chat_id: str | None, chat_id: str
+) -> None:
+    if (
+        current_chat_id is None
+        or (await client.get_chat(chat_id)).get("parent_chat_id") != current_chat_id
+    ):
+        raise AgentroveError(f"Chat {chat_id} is not a sub-thread of this chat.")
+
+
 class _SandboxClient(AgentroveClient):
     async def attach_file(self, chat_id: str, path: str) -> dict[str, Any]:
         # HTTP callers are Docker sandbox agents: the file lives in their sandbox,
@@ -603,14 +613,15 @@ async def stop_chat(chat_id: str) -> dict[str, Any]:
 
 @mcp.tool()
 async def get_pending_requests(chat_id: str) -> dict[str, Any]:
-    """List the permission requests and questions a chat's running turn is blocked on.
+    """List the permission requests and questions a sub-thread's running turn is blocked on.
 
     Returns {"permissions": [{request_id, tool_name, tool_input, options: [{option_id,
     name, kind}]}], "questions": [{request_id, message, requested_schema}]}. Both lists
     are empty when nothing is pending or the chat has no running turn. Answer each one
-    with respond_to_request.
+    with respond_to_request. chat_id must be a sub-thread of the current chat.
     """
-    client, _ = _session()
+    client, current_chat_id = _session()
+    await _require_sub_thread(client, current_chat_id, chat_id)
     status = await client.get_chat_status(chat_id)
     return {
         "permissions": [
@@ -651,11 +662,13 @@ async def respond_to_request(
     an empty string denies it. A question is answered with action ("accept", "decline"
     or "cancel") and, when accepting, content: an object matching the question's
     requested_schema. The chat's turn resumes as soon as the request is answered.
+    chat_id must be a sub-thread of the current chat.
 
     Returns {"answered": true}, or {"answered": false, "detail": ...} when the request
     was already answered or is no longer pending, or the chat was not found.
     """
-    client, _ = _session()
+    client, current_chat_id = _session()
+    await _require_sub_thread(client, current_chat_id, chat_id)
     if option_id is not None and action is None:
         detail = await client.respond_to_permission(chat_id, request_id, option_id)
     elif action is not None and option_id is None:

@@ -27,14 +27,6 @@
   flex: 1;
 }
 
-.sidebar-pane {
-  display: flex;
-  width: var(--space-52);
-  flex-shrink: 0;
-  flex-direction: column;
-  border-right: 1px solid colors.theme-color('border', 0.5);
-}
-
 // Leading stays at the library's 20px: its virtualizer positions rows with that constant
 .pane {
   --diffs-font-family: var(--font-mono);

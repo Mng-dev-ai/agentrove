@@ -64,7 +64,7 @@ const ImageGenerationTool = memo(function ImageGenerationTool({ tool }: { tool: 
       {(output.revisedPrompt || attachments.length > 0) && (
         <div className={styles.body}>
           {output.revisedPrompt && <p className={styles.prompt}>{output.revisedPrompt}</p>}
-          {attachments.length > 0 && <AttachmentViewer attachments={attachments} />}
+          {attachments.length > 0 && <AttachmentViewer attachments={attachments} size="large" />}
         </div>
       )}
     </ToolCard>

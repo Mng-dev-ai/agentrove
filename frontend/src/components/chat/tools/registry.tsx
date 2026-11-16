@@ -137,7 +137,7 @@ export const getToolComponent = (toolName: string, agentKind?: AgentKind): ToolC
   }
 
   // Same ACP kind names across agents, different rawInput/rawOutput — prefer agent-specific loaders.
-  if (agentKind === 'antigravity') {
+  if (agentKind === 'antigravity' && !toolName.startsWith('mcp__')) {
     const loader = antigravityToolLoaders[toolName] ?? mcpLoader;
     return getOrCreateLazy(`antigravity:${toolName}`, loader);
   }

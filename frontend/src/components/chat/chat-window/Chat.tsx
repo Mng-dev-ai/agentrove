@@ -404,7 +404,11 @@ export const Chat = memo(function Chat() {
           </ConversationScroller>
           <MessageTrail messages={messages} scrollerRef={scrollerRef} />
           {/* Keyed by chat so query/match state resets on chat switch */}
-          <FindInChat key={chatId ?? 'chat'} messages={messages} scrollerRef={scrollerRef} />
+          <FindInChat
+            key={`find-${chatId ?? 'chat'}`}
+            messages={messages}
+            scrollerRef={scrollerRef}
+          />
         </>
       )}
     </ConversationLayout>

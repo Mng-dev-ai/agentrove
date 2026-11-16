@@ -161,11 +161,17 @@ class AcpClientHandler:
     def prepare_for_prompt(self) -> None:
         # Drain any stale events/sentinels left from a previous prompt whose
         # stream consumer was force-closed (e.g., via aclose() after ACP cancel).
+        self.take_unread_events()
+
+    def take_unread_events(self) -> list[StreamEvent]:
+        events: list[StreamEvent] = []
         while True:
             try:
-                self.event_queue.get_nowait()
+                item = self.event_queue.get_nowait()
             except asyncio.QueueEmpty:
-                break
+                return events
+            if not self.is_sentinel(item):
+                events.append(cast(StreamEvent, item))
 
     def finish(self, *, prompt_completed: bool) -> None:
         if self._active_tools:
@@ -596,6 +602,8 @@ class AcpClientHandler:
             parent_id=self._extract_parent_tool_id(tc),
             input=self._extract_tool_input(tc),
         )
+        if tc.locations:
+            payload["path"] = tc.locations[0].path
         # Codex attaches edit diffs as content blocks on the initial tool_call
         # (and re-sent tool_call updates), while its terminal tool_call_update
         # carries only a status — capture the diffs here or they're lost.
@@ -670,6 +678,9 @@ class AcpClientHandler:
             if parsed_input != existing.get("input"):
                 existing["input"] = parsed_input
                 changed = True
+        if tc.locations and tc.locations[0].path != existing.get("path"):
+            existing["path"] = tc.locations[0].path
+            changed = True
 
         if status in ("completed", "failed"):
             self._active_tools.pop(tc.tool_call_id, None)
@@ -760,6 +771,8 @@ class AcpClientHandler:
             return mcp_call[0]
         if tool_name := self._opencode_tool_names.get(tc.tool_call_id):
             return tool_name
+        if self._extract_antigravity_question(tc):
+            return "ask_question"
         if self.agent_kind == AgentKind.GROK:
             if tool_name := meta.get("x.ai/tool", {}).get("name"):
                 return str(tool_name)
@@ -769,12 +782,13 @@ class AcpClientHandler:
         return str(getattr(tc, "title", None) or "unknown")
 
     def _extract_mcp_call(self, tc: Any) -> tuple[str, dict[str, Any]] | None:
-        # Codex and Grok wrap MCP tool calls in their own envelopes; unwrap them
-        # to Claude's `mcp__<server>__<tool>` name and bare arguments so the
-        # frontend's MCP renderers (agentrove tools, render_ui) apply to every
-        # agent. Codex: title "mcp.<server>.<tool>" with raw_input
+        # Codex, Grok and Antigravity wrap MCP tool calls in their own envelopes;
+        # unwrap them to Claude's `mcp__<server>__<tool>` name and bare arguments
+        # so the frontend's MCP renderers (agentrove tools, render_ui) apply to
+        # every agent. Codex: title "mcp.<server>.<tool>" with raw_input
         # {server, tool, arguments}. Grok: a `use_tool` call with raw_input
-        # {tool_name: "<server>__<tool>", tool_input}.
+        # {tool_name: "<server>__<tool>", tool_input}. Antigravity:
+        # field_meta.mcp {tool, server?} with raw_input {arguments, **arguments}.
         raw_input = self._extract_raw_input(getattr(tc, "raw_input", None))
         if not raw_input:
             return None
@@ -798,11 +812,29 @@ class AcpClientHandler:
                     f"mcp__{tool_name}",
                     tool_input if isinstance(tool_input, dict) else {},
                 )
+        if self.agent_kind == AgentKind.ANTIGRAVITY and meta.get("is_mcp_tool_call"):
+            mcp = meta.get("mcp", {})
+            server, tool = mcp.get("server"), mcp.get("tool")
+            if isinstance(server, str) and isinstance(tool, str):
+                arguments = raw_input.get("arguments")
+                return (
+                    f"mcp__{server}__{tool}",
+                    arguments if isinstance(arguments, dict) else {},
+                )
+        return None
+
+    def _extract_antigravity_question(self, tc: Any) -> str | None:
+        # Antigravity's ask_question frames are the only calls it sends without
+        # a kind; their title is the question text and raw_input is empty.
+        if self.agent_kind == AgentKind.ANTIGRAVITY and not getattr(tc, "kind", None):
+            return getattr(tc, "title", None)
         return None
 
     def _extract_tool_input(self, tc: Any) -> dict[str, Any] | None:
         if mcp_call := self._extract_mcp_call(tc):
             return mcp_call[1]
+        if question := self._extract_antigravity_question(tc):
+            return {"question": question}
         return self._extract_raw_input(getattr(tc, "raw_input", None))
 
     @staticmethod

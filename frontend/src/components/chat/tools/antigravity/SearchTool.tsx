@@ -38,7 +38,7 @@ const searchTitle = (
 export const SearchTool = memo(function SearchTool({ tool }: { tool: ToolAggregate }) {
   const input = tool.input as AntigravitySearchInput | undefined;
   const query = input?.query?.trim() ?? '';
-  const directoryPath = input?.directory_path ?? '';
+  const directoryPath = input?.directory_path ?? tool.path ?? '';
   const directoryLabel = directoryPath ? extractFilename(directoryPath) : '';
   const fallback = humanizeToolTitle(tool.title) || 'Search';
   const result = typeof tool.result === 'string' ? tool.result.trim() : '';

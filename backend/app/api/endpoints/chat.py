@@ -857,6 +857,21 @@ async def queue_message(
                 response.id,
                 chat_id,
             )
+    else:
+        try:
+            await ChatStreamRuntime.process_queue_after_turn(
+                str(chat_id), chat_service.session_factory
+            )
+            response.started = all(
+                item.id != response.id
+                for item in await queue_service.get_queue(str(chat_id))
+            )
+        except Exception:
+            logger.exception(
+                "Failed to start queued message %s after the turn for chat %s",
+                response.id,
+                chat_id,
+            )
     return response
 
 
@@ -953,15 +968,16 @@ async def _send_now_queued_message(
 
     if await ChatStreamRuntime.steer_send_now(str(chat_id)):
         return
-    if ChatStreamRuntime.has_active_chat(
-        str(chat_id)
-    ) or ChatStreamRuntime.has_pending_start(str(chat_id)):
+    if ChatStreamRuntime.has_pending_start(str(chat_id)) or (
+        ChatStreamRuntime.has_active_chat(str(chat_id))
+        and not ChatStreamRuntime.has_completed_turn(str(chat_id))
+    ):
         # Cancel so send-now is picked up without waiting for the current turn —
         # a reserved start consumes the flag at bootstrap and interrupts the same way.
         await session_registry.cancel_generation(str(chat_id))
     else:
         try:
-            started = await ChatStreamRuntime.process_send_now_idle(
+            started = await ChatStreamRuntime.process_queue_after_turn(
                 str(chat_id), chat_service.session_factory
             )
         except asyncio.CancelledError:

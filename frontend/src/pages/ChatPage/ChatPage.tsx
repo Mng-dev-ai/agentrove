@@ -72,9 +72,10 @@ export function ChatPage() {
       if (chatId && ui.splitChatIds.includes(chatId)) {
         ui.closeSplitChat(chatId);
       }
+      const pendingDiffMode = ui.pendingDiffMode?.chatId === chatId ? ui.pendingDiffMode : null;
       useUIStore.setState({
         pendingFileOpen: null,
-        pendingDiffMode: null,
+        pendingDiffMode,
         subThreadDialogOpen: false,
         createCommitDialogOpen: false,
         createPRDialogOpen: false,
@@ -83,6 +84,10 @@ export function ChatPage() {
         focusedTile: null,
         activeAgentTile: 'agent:primary',
       });
+      if (pendingDiffMode) {
+        ui.rebuildSplitLayout();
+        ui.toggleView('diff', false);
+      }
     }
     return () => useUIStore.getState().stashWorkspace();
   }, [chatId]);
