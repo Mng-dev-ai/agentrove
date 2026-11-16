@@ -10,6 +10,39 @@ import styles from './ListManagementTab.module.scss';
 // Delay-reveal spinner (300ms); forwards keeps it visible after the animation.
 const SPINNER_STYLE: CSSProperties = { animationDelay: '300ms', animationFillMode: 'forwards' };
 
+interface ListItemActionProps {
+  icon: LucideIcon;
+  label: string;
+  title?: string;
+  onClick: () => void;
+  disabled?: boolean;
+  spinning?: boolean;
+}
+
+export function ListItemAction({
+  icon: Icon,
+  label,
+  title,
+  onClick,
+  disabled,
+  spinning,
+}: ListItemActionProps) {
+  return (
+    <Button
+      type="button"
+      onClick={onClick}
+      variant="ghost"
+      size="icon"
+      className={styles['action-btn']}
+      aria-label={label}
+      title={title}
+      disabled={disabled}
+    >
+      <Icon className={clsx(styles['action-icon'], spinning && styles.spin)} />
+    </Button>
+  );
+}
+
 interface ListManagementTabProps<T> {
   title: string;
   description: string;
@@ -133,32 +166,19 @@ export function ListManagementTab<T>({
                   <div className={styles['card-actions']}>
                     {renderItemActions?.(item, index)}
                     {onEdit && (
-                      <Button
-                        type="button"
+                      <ListItemAction
+                        icon={Edit2}
+                        label="Edit item"
                         onClick={() => onEdit(index)}
-                        variant="ghost"
-                        size="icon"
-                        className={styles['action-btn']}
-                        aria-label="Edit item"
-                      >
-                        <Edit2 className={styles['action-icon']} />
-                      </Button>
+                      />
                     )}
-                    <Button
-                      type="button"
+                    <ListItemAction
+                      icon={deletingIndex === index ? Loader2 : Trash2}
+                      label="Delete item"
                       onClick={() => setPendingDeleteIndex(index)}
-                      variant="ghost"
-                      size="icon"
-                      className={styles['action-btn']}
-                      aria-label="Delete item"
                       disabled={deletingIndex === index}
-                    >
-                      {deletingIndex === index ? (
-                        <Loader2 className={clsx(styles['action-icon'], styles.spin)} />
-                      ) : (
-                        <Trash2 className={styles['action-icon']} />
-                      )}
-                    </Button>
+                      spinning={deletingIndex === index}
+                    />
                   </div>
                 </div>
               </div>

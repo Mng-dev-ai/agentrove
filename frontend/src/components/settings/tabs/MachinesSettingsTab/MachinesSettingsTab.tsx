@@ -2,7 +2,10 @@ import { useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { KeyRound, Server, Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
+import {
+  ListItemAction,
+  ListManagementTab,
+} from '@/components/ui/ListManagementTab/ListManagementTab';
 import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
 import { MachineStatusDot } from '@/components/machines/MachineStatusDot';
 import { MACHINE_STATUS_LABEL } from '@/components/machines/machineStatusLabel';
@@ -99,18 +102,13 @@ function SetDefaultButton({
   isDefault: boolean;
 }) {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className={styles['action-btn']}
-      aria-label={`Set ${machine.name} as default`}
+    <ListItemAction
+      icon={Star}
+      label={`Set ${machine.name} as default`}
       title="Set as default"
       disabled={isDefault}
       onClick={() => useMachineStore.getState().setDefaultMachine(machine.id)}
-    >
-      <Star className={styles['action-icon']} />
-    </Button>
+    />
   );
 }
 
@@ -205,17 +203,12 @@ export function MachinesSettingsTab() {
         renderItemActions={(machine) => (
           <>
             <SetDefaultButton machine={machine} isDefault={defaultMachineId === machine.id} />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className={styles['action-btn']}
-              aria-label={`Pair ${machine.name} again`}
+            <ListItemAction
+              icon={KeyRound}
+              label={`Pair ${machine.name} again`}
               title="Pair again"
               onClick={() => setPairTarget({ machineId: machine.id })}
-            >
-              <KeyRound className={styles['action-icon']} />
-            </Button>
+            />
           </>
         )}
         logContext="MachinesSettingsTab"

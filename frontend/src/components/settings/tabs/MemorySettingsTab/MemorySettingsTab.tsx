@@ -1,8 +1,10 @@
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { Brain, Pin, PinOff, Server } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
-import { Button } from '@/components/ui/primitives/Button/Button';
+import {
+  ListItemAction,
+  ListManagementTab,
+} from '@/components/ui/ListManagementTab/ListManagementTab';
 import type { ListFilterCategory } from '@/components/ui/ListManagementTab/ListFilterMenu';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
@@ -254,21 +256,12 @@ export function MemorySettingsTab() {
           </>
         )}
         renderItemActions={(item) => (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => void handleTogglePinned(item)}
-            className={styles['pin-btn']}
-            aria-label={item.memory.pinned ? 'Unpin memory' : 'Pin memory'}
+          <ListItemAction
+            icon={item.memory.pinned ? PinOff : Pin}
+            label={item.memory.pinned ? 'Unpin memory' : 'Pin memory'}
             title={item.memory.pinned ? 'Unpin' : 'Pin'}
-          >
-            {item.memory.pinned ? (
-              <PinOff className={styles['pin-icon']} />
-            ) : (
-              <Pin className={styles['pin-icon']} />
-            )}
-          </Button>
+            onClick={() => void handleTogglePinned(item)}
+          />
         )}
         logContext="MemorySettingsTab"
       />

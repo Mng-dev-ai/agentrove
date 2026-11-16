@@ -2,8 +2,10 @@ import { Suspense, useCallback, useMemo, useState } from 'react';
 import { Clock, Server, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
-import { Button } from '@/components/ui/primitives/Button/Button';
+import {
+  ListItemAction,
+  ListManagementTab,
+} from '@/components/ui/ListManagementTab/ListManagementTab';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
 import { useMachineFilter } from '@/hooks/useMachineFilter';
@@ -373,18 +375,13 @@ export function AutomationsSettingsTab() {
         )}
         renderItemActions={(item) => (
           <>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
+            <ListItemAction
+              icon={Play}
+              label="Run now"
+              title="Run now"
               onClick={() => void handleRunNow(item)}
               disabled={runMutation.isPending}
-              className={styles['run-button']}
-              aria-label="Run now"
-              title="Run now"
-            >
-              <Play className={styles['run-icon']} />
-            </Button>
+            />
             <Switch
               size="sm"
               className={styles.toggle}

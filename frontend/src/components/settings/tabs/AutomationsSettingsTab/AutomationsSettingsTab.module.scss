@@ -1,6 +1,5 @@
 @use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/responsive' as responsive;
 
 .item-header {
   display: flex;
@@ -56,22 +55,6 @@
 
 .next-run {
   color: var(--theme-text-quaternary);
-}
-
-.run-button {
-  @include responsive.touch-target;
-  height: var(--space-7);
-  width: var(--space-7);
-  color: var(--theme-text-quaternary);
-
-  @include responsive.hover {
-    color: var(--theme-text-secondary);
-  }
-}
-
-.run-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
 }
 
 .toggle {
