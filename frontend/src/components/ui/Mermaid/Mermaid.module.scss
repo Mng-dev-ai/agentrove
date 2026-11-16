@@ -16,25 +16,15 @@
 }
 
 .toggle-btn {
-  @include type.type-default;
+  @include type.type-default(500);
   @include anim.transition-colors;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  border: 1px solid var(--theme-border);
   border-radius: var(--radius-md);
-  background-color: var(--theme-surface-secondary);
-  padding: var(--space-1) var(--space-2);
-  color: var(--theme-text-secondary);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-tertiary);
 
   @include responsive.hover {
-    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
   }
-}
-
-.toggle-icon {
-  height: var(--space-3);
-  width: var(--space-3);
 }
 
 .code-block {
