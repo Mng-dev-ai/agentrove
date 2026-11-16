@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import clsx from 'clsx';
 import { Zap } from 'lucide-react';
-import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -21,7 +21,7 @@ type FastModeOption = (typeof FAST_MODE_OPTIONS)[number];
 export interface FastModeSelectorProps {
   chatId?: string;
   agentKind?: AgentKind;
-  dropdownPosition?: 'top' | 'bottom';
+  dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';

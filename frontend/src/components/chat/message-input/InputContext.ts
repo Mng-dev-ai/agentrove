@@ -2,6 +2,7 @@ import { createContext, type RefObject } from 'react';
 import type { MentionItem, SlashCommand } from '@/types/ui.types';
 import type { ComposerSelection } from '@/store/uiStore';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
+import type { DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 
 export interface InputState {
   message: string;
@@ -21,7 +22,7 @@ export interface InputState {
   isDragging: boolean;
   placeholders: readonly string[];
   selectedModelId: string;
-  dropdownPosition: 'top' | 'bottom';
+  dropdownPosition: DropdownPosition;
   attachedFiles: File[] | null;
   attachedSelections: ComposerSelection[];
   previewUrls: string[];

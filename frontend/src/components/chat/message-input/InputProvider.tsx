@@ -38,7 +38,7 @@ export function InputProvider({
   placeholder,
   selectedModelId,
   onModelChange,
-  dropdownPosition = 'top',
+  dropdownPosition = 'auto',
   showAttachedFilesPreview = true,
   contextUsage,
   showBranch = true,

@@ -12,6 +12,7 @@ import { InputSuggestionsPanel } from './InputSuggestionsPanel';
 import { InputProvider } from './InputProvider';
 import { useInputContext } from '@/hooks/useInputContext';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
+import type { DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 
 export interface InputProps {
   message: string;
@@ -25,7 +26,7 @@ export interface InputProps {
   placeholder?: string;
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
-  dropdownPosition?: 'top' | 'bottom';
+  dropdownPosition?: DropdownPosition;
   showAttachedFilesPreview?: boolean;
   contextUsage?: ContextUsageInfo;
   // Landing hosts branch selection in its own composer control, so its footer hides it.

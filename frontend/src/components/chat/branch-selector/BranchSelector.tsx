@@ -1,6 +1,10 @@
 import { memo, useMemo } from 'react';
 import { GitBranch } from 'lucide-react';
-import { Dropdown, DropdownItemType } from '@/components/ui/primitives/Dropdown/Dropdown';
+import {
+  Dropdown,
+  DropdownItemType,
+  type DropdownPosition,
+} from '@/components/ui/primitives/Dropdown/Dropdown';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
@@ -9,7 +13,7 @@ import { buildBranchItems } from './branchItems';
 import styles from './BranchSelector.module.scss';
 
 export interface BranchSelectorProps {
-  dropdownPosition?: 'top' | 'bottom';
+  dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
