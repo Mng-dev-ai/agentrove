@@ -73,7 +73,7 @@ export function MemoryEditDialog({
               placeholder="Use pnpm for installs and scripts in every repo."
               maxLength={500}
               className={styles['content-textarea']}
-              rows={6}
+              rows={10}
             />
             <p className={styles.hint}>{memory.content.length}/500 characters</p>
           </div>
