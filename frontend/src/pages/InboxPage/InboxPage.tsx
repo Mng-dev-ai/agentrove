@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { Inbox, Server } from 'lucide-react';
+import { AlertCircle, Inbox, Server } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
@@ -120,6 +120,7 @@ export function InboxPage() {
     unreadCount,
     hasReadItems,
     isLoading,
+    isError,
     hasMore,
     isFetchingMore,
     loadMore,
@@ -191,6 +192,11 @@ export function InboxPage() {
         {isLoading ? (
           <div className={styles.loading}>
             <Spinner size="md" className={styles.spinner} />
+          </div>
+        ) : items.length === 0 && isError ? (
+          <div className={styles.empty} role="alert">
+            <AlertCircle className={styles['empty-icon']} />
+            <p className={styles['empty-text']}>Couldn&apos;t load your inbox</p>
           </div>
         ) : items.length === 0 ? (
           <div className={styles.empty}>
