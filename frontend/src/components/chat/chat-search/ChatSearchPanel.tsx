@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -11,6 +11,8 @@ import { machineName, useOnlineRemoteMachineIds } from '@/store/machineStore';
 import { ChatSearchResultGroup, type SearchHit } from './ChatSearchResultGroup';
 import styles from './ChatSearchPanel.module.scss';
 
+const LIST_ID = 'chat-search-results';
+
 export interface ChatSearchPanelProps {
   onOpenChat: (chatId: string) => void;
   onOpenChannel: (channelId: string) => void;
@@ -21,6 +23,10 @@ interface WorkspaceGroup {
   workspaceId: string;
   workspaceName: string;
   hits: SearchHit[];
+}
+
+function hitKey(hit: SearchHit): string {
+  return hit.kind === 'chat' ? hit.result.chat_id : hit.result.channel_id;
 }
 
 function groupByWorkspace(hits: SearchHit[]): WorkspaceGroup[] {
@@ -46,6 +52,9 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
   inputRef,
 }: ChatSearchPanelProps) {
   const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const activeItemRef = useRef<HTMLButtonElement>(null);
   const debouncedQuery = useDebouncedValue(query, 250);
   const localInputRef = useRef<HTMLInputElement>(null);
   const activeInputRef = inputRef ?? localInputRef;
@@ -74,18 +83,25 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
 
   const handleClear = useCallback(() => {
     setQuery('');
+    setActiveIndex(0);
     activeInputRef.current?.focus();
   }, [activeInputRef]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Escape' && query) {
-        e.preventDefault();
-        handleClear();
-      }
-    },
-    [query, handleClear],
+  const openHit = useCallback(
+    (hit: SearchHit) =>
+      hit.kind === 'channel'
+        ? onOpenChannel(hit.result.channel_id)
+        : onOpenChat(hit.result.chat_id),
+    [onOpenChat, onOpenChannel],
   );
+
+  const toggleHit = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  }, []);
 
   const results = sources.flatMap((source) => source.data?.results ?? []);
   const channelResults = sources.flatMap((source) => source.data?.channel_results ?? []);
@@ -108,6 +124,39 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
   const hasQuery = debouncedQuery.trim().length >= 2;
   const hasResults = resultCount + channelCount > 0;
 
+  // One option per visible match line, in render order.
+  const optionHits = hasQuery
+    ? grouped.flatMap((group) =>
+        group.hits.flatMap((hit) =>
+          collapsed.has(hitKey(hit)) ? [] : hit.result.matches.map(() => hit),
+        ),
+      )
+    : [];
+  const activeOption = Math.min(activeIndex, optionHits.length - 1);
+
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [activeOption]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    const count = optionHits.length;
+    if (e.key === 'Escape' && query) {
+      e.preventDefault();
+      handleClear();
+    } else if (e.key === 'ArrowDown' && count > 0) {
+      e.preventDefault();
+      setActiveIndex((activeOption + 1) % count);
+    } else if (e.key === 'ArrowUp' && count > 0) {
+      e.preventDefault();
+      setActiveIndex((activeOption - 1 + count) % count);
+    } else if (e.key === 'Enter' && activeOption >= 0) {
+      e.preventDefault();
+      openHit(optionHits[activeOption]);
+    }
+  };
+
+  let nextOption = 0;
+
   return (
     <div className={styles['chat-search-panel']}>
       <div className={styles.header}>
@@ -117,11 +166,19 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
             ref={activeInputRef}
             variant="unstyled"
             type="text"
-            role="searchbox"
+            role="combobox"
+            aria-expanded={optionHits.length > 0}
+            aria-controls={LIST_ID}
+            aria-activedescendant={
+              activeOption >= 0 ? `chat-search-option-${activeOption}` : undefined
+            }
             aria-label="Search in chats"
             placeholder="Search chats"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIndex(0);
+            }}
             onKeyDown={handleKeyDown}
             className={styles['search-input']}
           />
@@ -184,18 +241,33 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
                 {truncated && ' (truncated)'}
               </span>
             </p>
-            <div aria-busy={isFetching} className={styles['result-list']}>
+            <div
+              aria-busy={isFetching}
+              role="listbox"
+              id={LIST_ID}
+              className={styles['result-list']}
+            >
               {grouped.map((group) => (
                 <div key={group.workspaceId} className={styles['workspace-group']}>
                   <p className={styles['workspace-name']}>{group.workspaceName}</p>
-                  {group.hits.map((hit) => (
-                    <ChatSearchResultGroup
-                      key={hit.kind === 'chat' ? hit.result.chat_id : hit.result.channel_id}
-                      hit={hit}
-                      onOpenChat={onOpenChat}
-                      onOpenChannel={onOpenChannel}
-                    />
-                  ))}
+                  {group.hits.map((hit) => {
+                    const key = hitKey(hit);
+                    const expanded = !collapsed.has(key);
+                    const firstOption = nextOption;
+                    if (expanded) nextOption += hit.result.matches.length;
+                    return (
+                      <ChatSearchResultGroup
+                        key={key}
+                        hit={hit}
+                        expanded={expanded}
+                        onToggle={toggleHit}
+                        onOpen={openHit}
+                        firstOption={firstOption}
+                        activeOption={activeOption}
+                        activeItemRef={activeItemRef}
+                      />
+                    );
+                  })}
                 </div>
               ))}
             </div>

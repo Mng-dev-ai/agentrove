@@ -6,6 +6,11 @@
   max-height: var(--space-96);
   overflow-y: auto;
   padding: var(--space-1) 0;
+
+  @include responsive.media('mobile') {
+    flex: 1;
+    max-height: none;
+  }
 }
 
 .section-header {

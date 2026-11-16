@@ -19,8 +19,20 @@
     align-items: center;
   }
 
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
+  &:not(.chat-search-result-line--active) {
+    @include responsive.hover {
+      background-color: var(--theme-surface-hover);
+    }
+  }
+}
+
+// Same keyboard-highlight surface as the command palette's active row; the
+// match mark (also surface-active) flips to the panel surface to stay visible.
+.chat-search-result-line--active {
+  background-color: var(--theme-surface-active);
+
+  .highlight {
+    background-color: var(--theme-surface);
   }
 }
 

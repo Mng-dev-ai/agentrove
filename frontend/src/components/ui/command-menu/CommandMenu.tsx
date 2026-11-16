@@ -63,8 +63,14 @@ export function CommandMenu() {
     >
       <div
         className={styles.dialog}
+        // Focusable so a click on dead space keeps focus (and Escape) inside the menu.
+        tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          // defaultPrevented = the panel's search input consumed Escape to clear its query.
+          if (e.key === 'Escape' && isPanelMode(mode) && !e.defaultPrevented) close();
+        }}
       >
         {/* Panel tabs (Messages/Grep) embed panels that own their inputs, so the
             shared query input is hidden there and the tab row leads the dialog. */}
