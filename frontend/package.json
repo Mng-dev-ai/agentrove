@@ -86,6 +86,11 @@
     "vite": "^5.4.2",
     "vitest": "^4.1.10"
   },
+  "browserslist": [
+    "defaults",
+    "safari >= 11",
+    "ios_saf >= 13"
+  ],
   "lint-staged": {
     "*.{ts,tsx}": [
       "eslint --fix",
