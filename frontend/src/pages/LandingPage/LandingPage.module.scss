@@ -95,10 +95,11 @@
   display: grid;
   // Workspace | branch | location. All keep their labels on phones: workspace and
   // location take their natural width up to a cap, the branch keeps at least its
-  // min-content and takes the rest, so it truncates first.
+  // min-content and takes the rest, so it truncates first. The caps are fixed lengths:
+  // percentages would resolve against the hugged width and leave the branch a gap.
   grid-template-columns:
-    fit-content(max(30%, var(--space-28))) minmax(min-content, 1fr)
-    fit-content(max(30%, var(--space-28)));
+    fit-content(var(--space-28)) minmax(min-content, 1fr)
+    fit-content(var(--space-28));
   width: fit-content;
   max-width: 100%;
   align-items: center;
@@ -111,6 +112,9 @@
   }
 
   @include responsive.media('sm-up') {
+    grid-template-columns:
+      fit-content(var(--space-64)) minmax(min-content, 1fr)
+      fit-content(var(--space-64));
     padding-left: var(--space-6);
     padding-right: var(--space-6);
   }
