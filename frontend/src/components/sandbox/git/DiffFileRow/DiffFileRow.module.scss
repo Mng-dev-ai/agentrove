@@ -137,6 +137,7 @@
 }
 
 .file-action {
+  @include responsive.touch-target;
   border-radius: var(--radius-md);
   padding: var(--space-1);
   color: var(--theme-text-quaternary);
@@ -176,6 +177,7 @@
 .viewed {
   @include anim.transition-colors;
   @include type.type-meta;
+  @include responsive.touch-target;
   display: flex;
   flex-shrink: 0;
   align-items: center;
