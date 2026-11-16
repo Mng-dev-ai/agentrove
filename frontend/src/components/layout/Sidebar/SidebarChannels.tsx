@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Edit2, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
@@ -203,11 +204,8 @@ export function SidebarChannels({
 
   const saveRename = async (name: string) => {
     if (!channelToRename) return;
-    await mutateWithToast(
-      () => renameChannel.mutateAsync({ channelId: channelToRename.id, name }),
-      'Channel renamed successfully',
-      'Failed to rename channel',
-    ).catch(() => undefined);
+    await renameChannel.mutateAsync({ channelId: channelToRename.id, name });
+    toast.success('Channel renamed successfully');
     setChannelToRename(null);
   };
 

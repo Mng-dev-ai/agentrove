@@ -201,18 +201,9 @@ export function useSidebarChatActions({
   const handleSaveRename = useCallback(
     async (newTitle: string) => {
       if (!chatToRename) return;
-      try {
-        await mutateWithToast(
-          () =>
-            updateChat.mutateAsync({ chatId: chatToRename.id, updateData: { title: newTitle } }),
-          'Chat renamed successfully',
-          'Failed to rename chat',
-        );
-      } catch {
-        // toast already shown by mutateWithToast
-      } finally {
-        setChatToRename(null);
-      }
+      await updateChat.mutateAsync({ chatId: chatToRename.id, updateData: { title: newTitle } });
+      toast.success('Chat renamed successfully');
+      setChatToRename(null);
     },
     [chatToRename, updateChat],
   );

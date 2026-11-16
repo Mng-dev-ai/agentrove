@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
+import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -12,6 +13,7 @@ import styles from './RenameModal.module.scss';
 interface RenameModalProps {
   isOpen: boolean;
   onClose: () => void;
+  // Rejects on failure; the modal stays open and shows the error.
   onSave: (newTitle: string) => Promise<void>;
   currentTitle: string;
   isLoading?: boolean;
@@ -32,13 +34,18 @@ export function RenameModal({
   title: modalTitle = 'Rename Chat',
 }: RenameModalProps) {
   const [title, setTitle] = useState(currentTitle);
+  const [error, setError] = useState<string | null>(null);
+  const [wasOpen, setWasOpen] = useState(isOpen);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  // Reset during render, not in an effect: a post-select value change collapses the selection.
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setTitle(currentTitle);
+      setError(null);
     }
-  }, [isOpen, currentTitle]);
+  }
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -51,7 +58,11 @@ export function RenameModal({
     const trimmedTitle = title.trim();
     if (trimmedTitle === '') return;
 
-    await onSave(trimmedTitle);
+    try {
+      await onSave(trimmedTitle);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Rename failed');
+    }
   }, [title, onSave]);
 
   const handleGenerate = useCallback(async () => {
@@ -85,14 +96,19 @@ export function RenameModal({
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="md">
       <ModalHeader title={modalTitle} onClose={onClose} />
+      <DialogError error={error} className={styles.error} />
 
       <div className={styles.body}>
         <Input
           ref={inputRef}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            setError(null);
+          }}
           placeholder="Enter chat title"
           disabled={isLoading}
+          hasError={!!error}
           className={styles.input}
           aria-label="New name"
         />
