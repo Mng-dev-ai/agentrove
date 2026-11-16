@@ -25,11 +25,19 @@
   top: var(--space-1);
   opacity: 0;
   transition: opacity var(--duration-fast);
+
+  // Hover never reveals it on touch; downloading goes through the lightbox there.
+  @include responsive.media('touch') {
+    display: none;
+  }
 }
 
 // Fixed art on top of image thumbnails — black translucent chip, always-white icon,
 // independent of the active theme.
 .download-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: var(--space-5);
   width: var(--space-5);
   border-radius: var(--radius-full);

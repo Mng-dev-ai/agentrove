@@ -36,6 +36,10 @@
   gap: var(--space-1);
 }
 
+.action {
+  @include responsive.touch-target;
+}
+
 .icon {
   height: var(--space-3-5);
   width: var(--space-3-5);
