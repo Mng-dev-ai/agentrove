@@ -39,6 +39,10 @@
   @include responsive.hover {
     background-color: colors.theme-color('surface-hover', 0.5);
     color: var(--theme-text-primary);
+
+    .time {
+      color: var(--theme-text-tertiary);
+    }
   }
 }
 
