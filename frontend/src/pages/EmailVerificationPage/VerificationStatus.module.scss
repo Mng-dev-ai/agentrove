@@ -99,19 +99,6 @@
   overflow-wrap: break-word;
 }
 
-.info-box {
-  margin-bottom: var(--space-5);
-  border: 1px solid colors.theme-color('border', 0.5);
-  border-radius: var(--radius-lg);
-  background-color: colors.theme-color('surface-hover', 0.5);
-  padding: var(--space-3);
-}
-
-.info-text {
-  @include type.type-default;
-  color: var(--theme-text-secondary);
-}
-
 .actions {
   > * + * {
     margin-top: var(--space-3);

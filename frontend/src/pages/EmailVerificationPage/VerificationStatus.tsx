@@ -77,12 +77,6 @@ export const VerificationStatus = memo(function VerificationStatus({
                 <p className={styles.subtext}>{subText}</p>
               </div>
 
-              {status === 'success' && (
-                <div className={styles['info-box']}>
-                  <p className={styles['info-text']}>{message}</p>
-                </div>
-              )}
-
               <div className={styles.actions}>
                 {(status === 'pending' || status === 'error') && (
                   <Button
