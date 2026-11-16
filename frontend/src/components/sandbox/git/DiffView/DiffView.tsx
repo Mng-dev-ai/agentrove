@@ -29,6 +29,7 @@ import { useDiffDiscard } from './useDiffDiscard';
 import { useDiffReview } from './useDiffReview';
 import { useDiffScroll } from './useDiffScroll';
 import { useDiffShortcuts } from './useDiffShortcuts';
+import { DIFF_SYNTAX_CSS } from './diffSyntaxTheme';
 import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
@@ -49,7 +50,7 @@ const WORKER_POOL_OPTIONS: WorkerPoolOptions = {
   // 2 workers covers "expand all" without a thread per CPU.
   poolSize: 2,
 };
-const WORKER_HIGHLIGHTER_OPTIONS: WorkerInitializationRenderOptions = {};
+const WORKER_HIGHLIGHTER_OPTIONS: WorkerInitializationRenderOptions = { theme: DIFF_THEMES };
 
 interface DiffViewProps {
   // Binds sandbox/cwd and jump targeting so multi-chat tiles don't cross-talk.
@@ -385,6 +386,9 @@ const DiffViewContent = memo(function DiffViewContent({
       highlighterOptions={WORKER_HIGHLIGHTER_OPTIONS}
     >
       <div ref={rootRefCallback} className={styles['diff-view']}>
+        <style href="diff-syntax-theme" precedence="default">
+          {DIFF_SYNTAX_CSS}
+        </style>
         <DiffToolbar
           mode={mode}
           onModeChange={setMode}

@@ -6,7 +6,7 @@ import { CUSTOM_PALETTE_TOKENS, DARK_PALETTES } from '@/utils/theme';
 import type { Palette } from '@/types/ui.types';
 import type * as monaco from 'monaco-editor';
 
-const LIGHT_THEME: monaco.editor.IStandaloneThemeData = {
+export const LIGHT_THEME: monaco.editor.IStandaloneThemeData = {
   base: 'vs',
   inherit: true,
   rules: [
@@ -67,7 +67,7 @@ const LIGHT_THEME: monaco.editor.IStandaloneThemeData = {
   },
 };
 
-const DARK_THEME: monaco.editor.IStandaloneThemeData = {
+export const DARK_THEME: monaco.editor.IStandaloneThemeData = {
   base: 'vs-dark',
   inherit: true,
   rules: [

@@ -1,8 +1,9 @@
 import type { CreatePatchOptionsNonabortable, FileDiffMetadata, FileContents } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
 import { whitespaceKeySuffix } from '@/utils/diffReviewKey';
+import { DIFF_EMPHASIS_CSS, DIFF_SYNTAX_THEME } from './diffSyntaxTheme';
 
-export const DIFF_THEMES = { dark: 'pierre-dark', light: 'pierre-light' } as const;
+export const DIFF_THEMES = { dark: DIFF_SYNTAX_THEME, light: DIFF_SYNTAX_THEME };
 
 // Wider pre-render halo than the library's 1000px default — fast scrolling
 // through large files otherwise outruns rendering/highlighting (renders happen
@@ -47,7 +48,8 @@ export const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
 export const DIFF_UNSAFE_CSS =
   '[data-selected-line]:is([data-line-annotation],[data-gutter-buffer=annotation]){--diffs-computed-selected-line-bg:var(--diffs-annotation-bg)}' +
   '[data-column-number][data-line-type=change-addition]{color:var(--theme-success-text)}' +
-  '[data-column-number][data-line-type=change-deletion]{color:var(--theme-error-text)}';
+  '[data-column-number][data-line-type=change-deletion]{color:var(--theme-error-text)}' +
+  DIFF_EMPHASIS_CSS;
 
 // Below this tile width the toolbar compacts: diffstat moves right, labels
 // shorten, and diff style moves into the overflow menu.
