@@ -1,9 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GitBranch, Brain, Shield } from 'lucide-react';
+import { Brain, Shield } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
-import { Button } from '@/components/ui/primitives/Button/Button';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
+import { Label } from '@/components/ui/primitives/Label/Label';
 import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { Select } from '@/components/ui/primitives/Select/Select';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
@@ -158,21 +160,15 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
 
   return (
     <BaseModal isOpen={true} onClose={onClose} size="sm" className={styles.dialog}>
-      <div className={styles['create-sub-thread-dialog']}>
-        <div className={styles.header}>
-          <div className={styles['icon-box']}>
-            <GitBranch className={styles['header-icon']} />
-          </div>
-          <h2 className={styles.title}>New sub-thread</h2>
-        </div>
-
-        <p className={styles['parent-info']}>
-          From: <span className={styles['parent-title']}>{parentChat.title}</span>
-        </p>
-
+      <ModalHeader
+        title="New sub-thread"
+        description={`From: ${parentChat.title}`}
+        onClose={onClose}
+      />
+      <div className={styles.body}>
         <div className={styles.fields}>
           <div>
-            <label className={styles['field-label']}>Model</label>
+            <Label className={styles.label}>Model</Label>
             <ModelSelector
               selectedModelId={selectedModelId}
               onModelChange={setSelectedModelId}
@@ -182,7 +178,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
           </div>
 
           <div>
-            <label className={styles['field-label']}>Persona</label>
+            <Label className={styles.label}>Persona</Label>
             <Select
               value={personaName}
               onChange={(e) => setPersonaName(e.target.value)}
@@ -221,7 +217,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
           </div>
 
           <div>
-            <label className={styles['field-label']}>Initial message</label>
+            <Label className={styles.label}>Initial message</Label>
             <div className={styles['message-input-wrap']}>
               {hasSuggestions && (
                 <SlashCommandsPanel
@@ -251,26 +247,12 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
         </div>
       </div>
 
-      <div className={styles.footer}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          disabled={createSubThread.isPending}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={handleCreate}
-          disabled={createSubThread.isPending}
-        >
-          {createSubThread.isPending ? 'Creating...' : 'Create'}
-        </Button>
-      </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={handleCreate}
+        saveLabel="Create"
+        saving={createSubThread.isPending}
+      />
     </BaseModal>
   );
 }
