@@ -12,7 +12,8 @@
 }
 
 .header {
-  @include type.type-section-header;
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
 }
 
 .list {
