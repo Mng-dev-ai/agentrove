@@ -72,19 +72,22 @@ export function useChatScroll({
 
     const { scrollTop, scrollHeight, clientHeight } = container;
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const atBottom = distanceFromBottom <= AT_BOTTOM_THRESHOLD_PX;
     const isScrollingUp = lastScrollTopRef.current !== null && scrollTop < lastScrollTopRef.current;
+    // Only scrolling up leaves the bottom: a scroll event can be delivered after the
+    // content has grown past the threshold (stream end, the send's reserve), and the
+    // distance alone would then read as the reader having left.
+    const atBottom =
+      distanceFromBottom <= AT_BOTTOM_THRESHOLD_PX || (isAtBottomRef.current && !isScrollingUp);
 
     // Settle the anchor on reaching its target or on user up-scroll — not on atBottom,
     // which never arrives when the reply outgrows the spacer mid-flight.
     if (anchoringRef.current && (scrollTop >= anchorTargetRef.current - 1 || isScrollingUp)) {
       anchoringRef.current = false;
-      setShowScrollButton(!atBottom);
     }
 
     if (isAtBottomRef.current !== atBottom) {
       isAtBottomRef.current = atBottom;
-      setShowScrollButton(!atBottom && !anchoringRef.current);
+      setShowScrollButton(!atBottom);
     }
 
     if (atBottom) {
@@ -152,6 +155,9 @@ export function useChatScroll({
     const scroller = scrollerRef.current;
     if (!pendingUserMessageId || !scroller?.firstElementChild) return;
     anchorTurnRef.current = pendingUserMessageId;
+    // Sending takes the reader to the new turn, wherever they had scrolled to.
+    isAtBottomRef.current = true;
+    setShowScrollButton(false);
     setTurnMinHeight(reservedTurnHeight(scroller, scroller.firstElementChild));
   }, [pendingUserMessageId]);
 
