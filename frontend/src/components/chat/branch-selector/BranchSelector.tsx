@@ -54,6 +54,7 @@ export const BranchSelector = memo(function BranchSelector({
       compactOnMobile
       forceCompact={isSplitMode}
       triggerVariant={variant}
+      iconWithLabel
       dropdownAlign={dropdownAlign}
       searchable={branchesData.branches.length >= 6}
       searchPlaceholder="Search branches..."

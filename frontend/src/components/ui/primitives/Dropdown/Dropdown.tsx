@@ -53,6 +53,8 @@ export interface DropdownProps<T> {
   onOpenChange?: (isOpen: boolean) => void;
   // 'toolbar' matches ToggleDropdown's composer-toolbar trigger (icon always shown).
   triggerVariant?: 'default' | 'text' | 'toolbar';
+  // Show leftIcon beside the label at every width, not only in compact mode
+  iconWithLabel?: boolean;
   dropdownAlign?: 'left' | 'right';
   ariaLabel?: string;
 }
@@ -144,6 +146,7 @@ const Dropdown = memo(function Dropdown<T>({
   renderFooter,
   onOpenChange,
   triggerVariant = 'default',
+  iconWithLabel = false,
   dropdownAlign = 'left',
   ariaLabel,
 }: DropdownProps<T>) {
@@ -209,11 +212,14 @@ const Dropdown = memo(function Dropdown<T>({
           isOpen && !disabled && stateClasses.OPEN,
         )}
       >
-        {LeftIcon && (triggerVariant === 'text' ? showIconOnly : true) && (
+        {LeftIcon && (triggerVariant === 'text' ? showIconOnly || iconWithLabel : true) && (
           <LeftIcon
             className={clsx(
               styles['trigger-icon'],
-              !forceCompact && triggerVariant !== 'toolbar' && styles['trigger-icon--responsive'],
+              !forceCompact &&
+                triggerVariant !== 'toolbar' &&
+                !iconWithLabel &&
+                styles['trigger-icon--responsive'],
             )}
           />
         )}
