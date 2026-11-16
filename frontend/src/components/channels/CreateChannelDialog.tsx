@@ -155,6 +155,7 @@ export function MemberPopover({
               dropdownPosition="auto"
               dropdownAlign="right"
               variant="text"
+              compact={false}
               machineId={machineId}
             />
           </div>
