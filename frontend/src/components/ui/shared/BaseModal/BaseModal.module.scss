@@ -8,15 +8,23 @@
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: center;
+  // Top-aligned + auto margins on the container: centred when it fits, scrollable
+  // from its top edge when it is taller than the viewport.
+  align-items: flex-start;
   justify-content: center;
-  padding: var(--space-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: max(var(--space-4), env(safe-area-inset-top))
+    max(var(--space-4), env(safe-area-inset-right)) max(var(--space-4), env(safe-area-inset-bottom))
+    max(var(--space-4), env(safe-area-inset-left));
   // Pure-black scrim at 50% — not a theme surface, an overlay
   background-color: rgb(0 0 0 / 0.5);
 }
 
 .container {
   width: 100%;
+  margin-top: auto;
+  margin-bottom: auto;
   outline: none;
   overflow: hidden;
   border: 1px solid var(--theme-border);

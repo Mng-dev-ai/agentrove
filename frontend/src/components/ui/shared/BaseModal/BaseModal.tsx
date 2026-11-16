@@ -37,7 +37,7 @@ export function BaseModal({
     if (!isOpen || !container) return;
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     openStack.push(container);
-    if (!container.contains(document.activeElement)) container.focus();
+    if (!container.contains(document.activeElement)) container.focus({ preventScroll: true });
 
     // Window bubble phase runs after inner overlays' handlers, so a dropdown or
     // menu that handles Escape (preventDefault) closes before the dialog does.
