@@ -185,7 +185,6 @@ export function SignupPage() {
         <Button
           type="submit"
           variant="primary"
-          size="lg"
           className={styles.submit}
           isLoading={isSubmitting}
           loadingText="Creating account..."

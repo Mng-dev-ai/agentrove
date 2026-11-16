@@ -138,7 +138,6 @@ export function ForgotPasswordPage() {
         <Button
           type="submit"
           variant="primary"
-          size="lg"
           className={styles.submit}
           isLoading={forgotPasswordMutation.isPending}
           loadingText="Sending..."

@@ -83,7 +83,6 @@ export const VerificationStatus = memo(function VerificationStatus({
                     onClick={onResend}
                     disabled={isResending}
                     variant="primary"
-                    size="lg"
                     className={styles['full-width']}
                   >
                     {isResending ? (
@@ -104,7 +103,6 @@ export const VerificationStatus = memo(function VerificationStatus({
                   <Button
                     onClick={() => navigate('/login')}
                     variant="primary"
-                    size="lg"
                     className={styles['full-width']}
                   >
                     Continue to Login
@@ -115,7 +113,6 @@ export const VerificationStatus = memo(function VerificationStatus({
                   <Button
                     onClick={() => navigate('/login')}
                     variant="secondary"
-                    size="lg"
                     className={styles['full-width']}
                   >
                     Back to Login
