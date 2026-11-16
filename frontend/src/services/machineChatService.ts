@@ -119,10 +119,13 @@ async function getWorkspaceResources(
 }
 
 async function getSettings(machineId: string): Promise<UserSettings> {
-  return serviceCall(async () => {
-    const response = await getMachineClient(machineId).get<UserSettings>('/settings/');
-    return ensureResponse(response, 'Failed to fetch settings');
-  });
+  return serviceCall(
+    async () => {
+      const response = await getMachineClient(machineId).get<UserSettings>('/settings/');
+      return ensureResponse(response, 'Failed to fetch settings');
+    },
+    { maxRetries: 1 },
+  );
 }
 
 async function getModels(machineId: string): Promise<Model[]> {

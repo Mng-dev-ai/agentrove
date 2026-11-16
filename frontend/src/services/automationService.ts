@@ -9,10 +9,13 @@ import type {
 } from '@/types/automation.types';
 
 async function listAutomations(machineId: string): Promise<Automation[]> {
-  return serviceCall(async () => {
-    const response = await getMachineClient(machineId).get<Automation[]>('/automations');
-    return ensureResponse(response, 'Failed to load automations');
-  });
+  return serviceCall(
+    async () => {
+      const response = await getMachineClient(machineId).get<Automation[]>('/automations');
+      return ensureResponse(response, 'Failed to load automations');
+    },
+    { maxRetries: 1 },
+  );
 }
 
 async function createAutomation(

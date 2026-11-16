@@ -4,17 +4,20 @@ import { assignChatsToMachine } from '@/store/machineOrigin';
 import type { InboxItem, InboxList } from '@/types/inbox.types';
 
 async function listInbox(cursor: string | undefined, machineId: string): Promise<InboxList> {
-  return serviceCall(async () => {
-    const response = await getMachineClient(machineId).get<InboxList>(
-      `/inbox${buildQueryString(cursor ? { cursor } : {})}`,
-    );
-    const inbox = ensureResponse(response, 'Failed to load inbox');
-    assignChatsToMachine(
-      machineId,
-      inbox.items.map((item) => item.chat_id),
-    );
-    return inbox;
-  });
+  return serviceCall(
+    async () => {
+      const response = await getMachineClient(machineId).get<InboxList>(
+        `/inbox${buildQueryString(cursor ? { cursor } : {})}`,
+      );
+      const inbox = ensureResponse(response, 'Failed to load inbox');
+      assignChatsToMachine(
+        machineId,
+        inbox.items.map((item) => item.chat_id),
+      );
+      return inbox;
+    },
+    { maxRetries: 1 },
+  );
 }
 
 async function markRead(itemId: string, machineId: string): Promise<InboxItem> {
