@@ -77,6 +77,7 @@ function memberMentionSegments(token: string, handles: ReadonlySet<string>): Hig
   if (!token.startsWith('@')) return [{ text: token, isToken: false }];
   let name = token.slice(1);
   while (
+    name &&
     !handles.has(name.toLowerCase()) &&
     MENTION_TRAILING_PUNCTUATION.includes(name.slice(-1))
   ) {
