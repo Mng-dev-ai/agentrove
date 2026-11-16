@@ -41,6 +41,7 @@
 
 .parent-info {
   @include type.type-meta;
+  @include type.type-lineclamp(2);
   margin-top: var(--space-3);
   color: var(--theme-text-tertiary);
 }
