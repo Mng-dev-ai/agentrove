@@ -42,7 +42,6 @@ export function TitleBarTab({ icon, title, isActive, actions }: TitleBarTabProps
             }
           : undefined
       }
-      // Full height centers the label on the title bar; underline-only active state.
       className={clsx(styles.tab, isActive && stateClasses.ACTIVE)}
     >
       {actions ? (
@@ -69,11 +68,6 @@ export function TitleBarTab({ icon, title, isActive, actions }: TitleBarTabProps
         </>
       ) : (
         <span className={styles['tab-select']}>{label}</span>
-      )}
-      {isActive && (
-        // The strip overlaps the band's hairline by 1px (-mb-px on the
-        // container), so this 2px line covers it and reads as crossing it.
-        <span aria-hidden="true" className={styles['tab-underline']} />
       )}
     </div>
   );

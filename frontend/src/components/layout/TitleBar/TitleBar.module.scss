@@ -74,18 +74,17 @@
   width: auto;
   align-items: center;
   gap: var(--space-1);
-  background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface);
   padding-top: var(--safe-area-top);
-  border-bottom: 1px solid colors.theme-color('border', 0.5);
   transition-property: width, padding;
   transition-duration: var(--sidebar-transition-duration, var(--duration-slower));
   transition-timing-function: var(--easing-in-out);
 
   // While the sidebar is open the left section becomes its header strip:
-  // full sidebar width, right border merging into the sidebar, no hairline below.
+  // full sidebar width, sidebar fill, right border merging into the sidebar's edge.
   &--docked {
     width: var(--sidebar-width);
-    border-bottom: none;
+    background-color: var(--theme-surface-secondary);
     border-right: 1px solid colors.theme-color('border', 0.5);
   }
 }
@@ -121,8 +120,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  border-bottom: 1px solid colors.theme-color('border', 0.5);
-  background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface);
   padding-inline: var(--space-3);
   padding-top: var(--safe-area-top);
 }

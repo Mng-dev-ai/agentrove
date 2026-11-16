@@ -72,6 +72,12 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   );
 }
 
+function ChatTitle({ chatId }: { chatId: string }) {
+  const title = useChatQuery(chatId).data?.title;
+  if (!title) return null;
+  return <span className={styles['chat-title']}>{stripMarkdownTitle(title)}</span>;
+}
+
 // Working-set tabs (sidebar is the archive); re-clicking the current chat surfaces the agent pane.
 export function ChatTabs() {
   const navigate = useNavigate();
@@ -132,7 +138,8 @@ export function ChatTabs() {
     [navigate, routedChatId, visibleTabs],
   );
 
-  if (isMobile || visibleTabs.length === 0) return null;
+  if (isMobile) return null;
+  if (visibleTabs.length === 0) return routedChatId ? <ChatTitle chatId={routedChatId} /> : null;
 
   return (
     <TitleBarTabs>
