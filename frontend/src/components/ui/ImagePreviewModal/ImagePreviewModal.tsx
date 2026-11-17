@@ -1,4 +1,4 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Download, ImageOff, X } from 'lucide-react';
 import clsx from 'clsx';
 import type { MessageAttachment } from '@/types/chat.types';
@@ -10,8 +10,9 @@ import {
   PreviewToolbarButton,
 } from '@/components/ui/PreviewToolbar/PreviewToolbar';
 import type { ImageState } from '@/components/ui/attachment-viewer/AttachmentThumbnails';
-import { useImageZoom } from './useImageZoom';
-import { ZoomControls } from './ZoomControls';
+import { useImageZoom } from '@/components/ui/ZoomableImage/useImageZoom';
+import { ZoomControls } from '@/components/ui/ZoomableImage/ZoomControls';
+import { ZoomableImage } from '@/components/ui/ZoomableImage/ZoomableImage';
 import styles from './ImagePreviewModal.module.scss';
 
 interface ImagePreviewModalProps {
@@ -40,7 +41,6 @@ export const ImagePreviewModal = memo(function ImagePreviewModal({
   const current = attachments[currentIndex];
   const state = current ? imageStates[current.id] : undefined;
   const zoom = useImageZoom(current ? `${current.id}:${state?.imageSrc}` : '', onClose);
-  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const goPrev = () => onIndexChange((currentIndex - 1 + total) % total);
   const goNext = () => onIndexChange((currentIndex + 1) % total);
 
@@ -68,8 +68,7 @@ export const ImagePreviewModal = memo(function ImagePreviewModal({
   if (!isOpen || !current) return null;
 
   const filename = current.filename || `image-${currentIndex + 1}`;
-  const hasError =
-    Boolean(state?.error) || (state?.imageSrc !== undefined && failedSrc === state.imageSrc);
+  const hasError = Boolean(state?.error) || zoom.hasFailed;
   const isLoading = !hasError && (state?.isLoading || (Boolean(state?.imageSrc) && !zoom.isReady));
 
   return (
@@ -108,34 +107,13 @@ export const ImagePreviewModal = memo(function ImagePreviewModal({
           <PreviewToolbarButton label="Close" shortcut="Esc" icon={X} onClick={onClose} />
         </PreviewToolbar>
         <div className={clsx(styles.body, hasMultiple && styles['body--gallery'])}>
-          <div
-            ref={zoom.stageRef}
-            className={clsx(
-              styles.stage,
-              zoom.zoom !== 'fit' && styles['stage--zoomed'],
-              zoom.isDragging && styles['stage--dragging'],
-            )}
-            {...zoom.stageHandlers}
-          >
-            {state?.imageSrc && !hasError && (
-              <img
-                key={state.imageSrc}
-                ref={zoom.imageRef}
-                src={state.imageSrc}
-                alt={filename}
-                draggable={false}
-                onLoad={zoom.onImageLoad}
-                onError={() => setFailedSrc(state.imageSrc)}
-                style={zoom.imageStyle}
-                className={clsx(
-                  styles.image,
-                  !zoom.isReady && styles['image--pending'],
-                  zoom.canToggle &&
-                    styles[zoom.zoom === 'fit' ? 'image--zoom-in' : 'image--zoom-out'],
-                )}
-              />
-            )}
-          </div>
+          <ZoomableImage
+            zoom={zoom}
+            src={state?.imageSrc ?? ''}
+            alt={filename}
+            tone="scrim"
+            className={styles.stage}
+          />
           {isLoading && <Spinner size="md" className={styles.status} />}
           {hasError && (
             <div className={styles.status}>

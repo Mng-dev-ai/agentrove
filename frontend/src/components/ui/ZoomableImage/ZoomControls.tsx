@@ -4,8 +4,6 @@ import { PreviewToolbarButton } from '@/components/ui/PreviewToolbar/PreviewTool
 import type { ImageZoom } from './useImageZoom';
 import styles from './ZoomControls.module.scss';
 
-const MAX_SCALE = 8;
-
 export function ZoomControls({ zoom, className }: { zoom: ImageZoom; className?: string }) {
   const isFit = zoom.zoom === 'fit';
   return (
@@ -15,7 +13,7 @@ export function ZoomControls({ zoom, className }: { zoom: ImageZoom; className?:
         shortcut="−"
         icon={ZoomOut}
         onClick={zoom.zoomOut}
-        disabled={!zoom.isReady || isFit}
+        disabled={!zoom.canZoomOut}
       />
       <span className={styles.level}>{zoom.isReady ? `${Math.round(zoom.scale * 100)}%` : ''}</span>
       <PreviewToolbarButton
@@ -23,7 +21,7 @@ export function ZoomControls({ zoom, className }: { zoom: ImageZoom; className?:
         shortcut="+"
         icon={ZoomIn}
         onClick={zoom.zoomIn}
-        disabled={!zoom.isReady || zoom.scale >= MAX_SCALE}
+        disabled={!zoom.canZoomIn}
       />
       <PreviewToolbarButton
         label={isFit ? 'Actual size' : 'Fit to window'}

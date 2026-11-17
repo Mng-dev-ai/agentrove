@@ -41,6 +41,7 @@ export function useImageZoom(resetKey: string, onBackgroundTap?: () => void) {
   const [natural, setNatural] = useState<Size | null>(null);
   const [zoom, setZoom] = useState<Zoom>('fit');
   const [isDragging, setIsDragging] = useState(false);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
   const [prevResetKey, setPrevResetKey] = useState(resetKey);
   const anchorRef = useRef<Anchor | null>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -180,6 +181,8 @@ export function useImageZoom(resetKey: string, onBackgroundTap?: () => void) {
     stageRef: setStage,
     imageRef,
     onImageLoad,
+    onImageError: () => setFailedKey(resetKey),
+    hasFailed: failedKey === resetKey,
     stageHandlers,
     imageStyle,
     natural,
@@ -187,6 +190,8 @@ export function useImageZoom(resetKey: string, onBackgroundTap?: () => void) {
     scale,
     isReady,
     canToggle,
+    canZoomIn: isReady && stepZoomIn(scale) > scale,
+    canZoomOut: isReady && zoom !== 'fit',
     isDragging,
     zoomIn: () => zoomTo(stepZoomIn(scale)),
     zoomOut: () => zoomTo(stepZoomOut(scale, fitScale)),

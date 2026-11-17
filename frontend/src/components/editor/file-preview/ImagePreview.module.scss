@@ -9,55 +9,7 @@
 }
 
 .stage {
-  position: relative;
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
-  touch-action: manipulation;
   padding: var(--space-6);
-
-  &--zoomed {
-    overflow: auto;
-    cursor: grab;
-  }
-
-  &--dragging,
-  &--dragging .image {
-    cursor: grabbing;
-  }
-}
-
-.image {
-  display: block;
-  flex-shrink: 0;
-  max-width: none;
-  margin: auto;
-  user-select: none;
-  background-color: var(--theme-surface);
-  background-image: conic-gradient(
-    var(--theme-surface-secondary) 25%,
-    transparent 0 50%,
-    var(--theme-surface-secondary) 0 75%,
-    transparent 0
-  );
-  background-size: var(--space-4) var(--space-4);
-  box-shadow: 0 0 0 1px colors.theme-color('border', 0.5);
-
-  &--pending {
-    position: absolute;
-    max-width: 100%;
-    max-height: 100%;
-    opacity: 0;
-  }
-
-  &--zoom-in {
-    cursor: zoom-in;
-  }
-
-  &--zoom-out {
-    cursor: zoom-out;
-  }
 }
 
 .footer {

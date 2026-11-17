@@ -27,27 +27,11 @@
 }
 
 .stage {
-  position: relative;
-  display: flex;
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
   overscroll-behavior: contain;
-  touch-action: manipulation;
   padding: var(--space-8);
 
   .body--gallery & {
     padding-inline: var(--space-16);
-  }
-
-  &--zoomed {
-    overflow: auto;
-    cursor: grab;
-  }
-
-  &--dragging,
-  &--dragging .image {
-    cursor: grabbing;
   }
 
   @include responsive.media('mobile') {
@@ -55,40 +39,6 @@
     .body--gallery & {
       padding: 0;
     }
-  }
-}
-
-.image {
-  display: block;
-  flex-shrink: 0;
-  max-width: none;
-  margin: auto;
-  user-select: none;
-  background-color: rgb(255 255 255 / 0.04);
-  background-image: conic-gradient(
-    rgb(255 255 255 / 0.06) 25%,
-    transparent 0 50%,
-    rgb(255 255 255 / 0.06) 0 75%,
-    transparent 0
-  );
-  background-size: var(--space-4) var(--space-4);
-  box-shadow:
-    0 0 0 1px rgb(255 255 255 / 0.14),
-    var(--shadow-strong);
-
-  &--pending {
-    position: absolute;
-    max-width: 100%;
-    max-height: 100%;
-    opacity: 0;
-  }
-
-  &--zoom-in {
-    cursor: zoom-in;
-  }
-
-  &--zoom-out {
-    cursor: zoom-out;
   }
 }
 
