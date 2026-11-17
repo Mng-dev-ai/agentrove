@@ -82,10 +82,11 @@ export function useImageZoom(resetKey: string, onBackgroundTap?: () => void) {
     stage.scrollTop = image.offsetTop + anchor.fractionY * image.offsetHeight - anchor.y;
   }, [scale, stage]);
 
-  const zoomTo = (next: Zoom, point?: Point) => {
-    if (!isReady || (next === 'fit' ? fitScale : next) === scale) return;
+  const zoomTo = (requested: Zoom, point?: Point) => {
+    const next = requested === fitScale ? 'fit' : requested;
+    if (!isReady || next === zoom) return;
     const image = imageRef.current;
-    if (stage && image) {
+    if (stage && image && (next === 'fit' ? fitScale : next) !== scale) {
       const at = point ?? { x: stage.clientWidth / 2, y: stage.clientHeight / 2 };
       const stageRect = stage.getBoundingClientRect();
       const imageRect = image.getBoundingClientRect();
