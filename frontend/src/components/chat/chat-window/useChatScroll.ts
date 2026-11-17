@@ -90,7 +90,8 @@ export function useChatScroll({
     const scrollTop = clampedScrollTop(container);
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
     const lastScrollTop = lastScrollTopRef.current;
-    const isScrollingUp = lastScrollTop !== null && scrollTop < lastScrollTop;
+    // Fractional scrollTop at non-integer device pixel ratios jitters by under a pixel.
+    const isScrollingUp = lastScrollTop !== null && lastScrollTop - scrollTop >= 1;
     const isScrollingDown = lastScrollTop !== null && scrollTop > lastScrollTop;
     // Direction, not distance, decides: any up-scroll leaves the bottom and only scrolling
     // down near it (or reaching it) returns. Distance alone would misread content that
