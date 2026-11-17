@@ -591,7 +591,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                 />
               </ConversationScroller>
               <MessageTrail messages={trailMessages} scrollerRef={scrollerRef} />
-              <FindInChat key={channel.id} messages={visibleMessages} scrollerRef={scrollerRef} />
+              <FindInChat key={channel.id} scrollerRef={scrollerRef} />
             </>
           )}
         </ConversationLayout>

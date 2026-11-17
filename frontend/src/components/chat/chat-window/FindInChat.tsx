@@ -16,6 +16,8 @@ const HIGHLIGHT_CURRENT = 'find-in-chat-current';
 // (ThinkingBlock) listen on their root and expand so the match is actually visible
 export const FIND_REVEAL_EVENT = 'find-in-chat:reveal';
 
+const RESCAN_THROTTLE_MS = 250;
+
 // Inline formatting and unclassed (syntax token) spans don't break a match: text inside
 // them belongs to the nearest other ancestor.
 const INLINE_TAGS = new Set(['A', 'B', 'CODE', 'DEL', 'EM', 'I', 'KBD', 'S', 'SPAN', 'STRONG']);
@@ -48,16 +50,16 @@ function isEmbeddedEditor(target: EventTarget | null): boolean {
 }
 
 interface FindInChatProps {
-  messages: readonly object[];
   scrollerRef: RefObject<HTMLDivElement | null>;
 }
 
 // ⌘F over rendered messages via CSS Custom Highlight (avoids <mark> in React-owned DOM).
-export const FindInChat = memo(function FindInChat({ messages, scrollerRef }: FindInChatProps) {
+export const FindInChat = memo(function FindInChat({ scrollerRef }: FindInChatProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [matchCount, setMatchCount] = useState(0);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [domVersion, setDomVersion] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const rangesRef = useRef<Range[]>([]);
   const activeIndexRef = useRef(0);
@@ -135,12 +137,30 @@ export const FindInChat = memo(function FindInChat({ messages, scrollerRef }: Fi
   }, [open]);
 
   useEffect(() => {
-    // messages.length gate doubles as the dep read: rescanning on every messages
-    // change keeps matches fresh while streaming or paginating older pages in
+    // Streaming, pagination, collapsing traces and progressive code highlighting all
+    // replace text nodes, which leaves ranges detached or collapsed: rescan on DOM changes
     const scroller = scrollerRef.current;
+    if (!open || !debouncedQuery || !scroller) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const observer = new MutationObserver(() => {
+      timer ??= setTimeout(() => {
+        timer = undefined;
+        setDomVersion((version) => version + 1);
+      }, RESCAN_THROTTLE_MS);
+    });
+    observer.observe(scroller, { childList: true, subtree: true, characterData: true });
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
+  }, [open, debouncedQuery, scrollerRef]);
+
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    const active = rangesRef.current[activeIndexRef.current];
     rangesRef.current = [];
     const needle = debouncedQuery.toLowerCase();
-    if (open && needle && scroller && messages.length > 0) {
+    if (open && needle && scroller) {
       const ranges: Range[] = [];
       for (const el of scroller.querySelectorAll('[data-message-id]')) {
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
@@ -172,18 +192,23 @@ export const FindInChat = memo(function FindInChat({ messages, scrollerRef }: Fi
     } else {
       CSS.highlights.delete(HIGHLIGHT_ALL);
     }
-    // Jump to the first match on a new query; hold position on streaming rescans
+    // Jump to the first match on a new query; hold position on rescans
     const queryChanged = prevQueryRef.current !== debouncedQuery;
     prevQueryRef.current = debouncedQuery;
-    const index = queryChanged
+    let index = queryChanged
       ? 0
-      : Math.min(activeIndexRef.current, Math.max(0, ranges.length - 1));
+      : ranges.findIndex(
+          (range) =>
+            range.startContainer === active?.startContainer &&
+            range.startOffset === active.startOffset,
+        );
+    if (index === -1) index = Math.min(activeIndexRef.current, Math.max(0, ranges.length - 1));
     setActiveMatch(index, queryChanged);
     return () => {
       CSS.highlights.delete(HIGHLIGHT_ALL);
       CSS.highlights.delete(HIGHLIGHT_CURRENT);
     };
-  }, [open, debouncedQuery, messages, scrollerRef, setActiveMatch]);
+  }, [open, debouncedQuery, domVersion, scrollerRef, setActiveMatch]);
 
   const goToNext = useCallback(() => {
     const count = rangesRef.current.length;
