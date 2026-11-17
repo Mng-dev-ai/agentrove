@@ -40,6 +40,12 @@ export interface TextareaProps {
 
 const CURSOR_DEBOUNCE_MS = 150;
 
+function canRestoreComposerFocus(textarea: HTMLTextAreaElement): boolean {
+  const active = document.activeElement;
+  if (active && active !== document.body) return !!textarea.form?.contains(active);
+  return !!window.getSelection()?.isCollapsed;
+}
+
 export function Textarea({
   ref,
   message,
@@ -110,8 +116,9 @@ export function Textarea({
   }, [textareaRef, fitToWidth]);
 
   useEffect(() => {
-    if (!isLoading && textareaRef.current && !isMobile) {
-      textareaRef.current.focus();
+    const textarea = textareaRef.current;
+    if (!isLoading && textarea && !isMobile && canRestoreComposerFocus(textarea)) {
+      textarea.focus();
     }
   }, [isLoading, isMobile, textareaRef]);
 
