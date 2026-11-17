@@ -26,39 +26,8 @@
   font-display: swap;
 }
 
-// Third-party render targets (mermaid SVG, monaco widgets) — global because the
-// libraries own the DOM, so CSS modules can't reach it.
-
-.mermaid-container {
-  font-family: var(--font-sans);
-
-  svg {
-    display: block;
-    width: 100% !important;
-    max-width: 100%;
-    height: auto !important;
-
-    text {
-      font-size: 10px !important;
-      font-family: var(--font-sans) !important;
-    }
-
-    .node rect,
-    .node circle,
-    .node ellipse,
-    .node polygon {
-      stroke-width: 1px;
-    }
-
-    .edgeLabel {
-      font-size: 9px !important;
-    }
-
-    .nodeLabel {
-      font-size: 10px !important;
-    }
-  }
-}
+// Third-party render targets (monaco widgets) — global because the library owns the
+// DOM, so CSS modules can't reach it.
 
 // Monaco peek widget (go-to-definition / references): monaco's CSS sets no
 // font-size on the results tree, so it inherits the page's root font while
