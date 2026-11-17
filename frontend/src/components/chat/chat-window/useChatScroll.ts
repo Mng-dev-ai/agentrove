@@ -263,10 +263,12 @@ export function useChatScroll({
       moved = row.getBoundingClientRect().top - anchor.row.top;
     }
     // Engines that keep scrollTop whole drop the fraction; carried so it cannot add up.
+    // A larger difference is the scroll range clamping the write, which must not carry.
     const target = scroller.scrollTop + moved + headRoundingRef.current;
     if (target === scroller.scrollTop) return;
     writeScrollTop(scroller, target, lastScrollTopRef);
-    headRoundingRef.current = target - scroller.scrollTop;
+    const dropped = target - scroller.scrollTop;
+    headRoundingRef.current = Math.abs(dropped) < 1 ? dropped : 0;
   }, [messages, lastReplyStreams, anchor]);
 
   useLayoutEffect(() => {
