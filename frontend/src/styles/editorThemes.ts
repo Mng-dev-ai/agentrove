@@ -11,14 +11,14 @@ type EditorThemeName = 'light' | 'dark' | PaletteKey;
 
 export interface EditorTheme {
   data: monaco.editor.IStandaloneThemeData;
-  // Floored on the editor background; '' is plain code text.
+  // Floored on the editor background; `plain` is untokenized code text.
   syntax: Syntax;
   // The theme's primary text: the lightness tokens move toward to clear the floor.
   text: string;
 }
 
 const SYNTAX_TOKENS = [
-  '',
+  'plain',
   'comment',
   'keyword',
   'string',
@@ -33,7 +33,7 @@ const COMMENT_FLOOR = 3;
 const LIGHTNESS_STEP = 0.5;
 
 const LIGHT_SYNTAX: Syntax = {
-  '': '#24292E',
+  plain: '#24292E',
   comment: '#8B949E',
   keyword: '#6B4C9A',
   string: '#4A6B3F',
@@ -44,7 +44,7 @@ const LIGHT_SYNTAX: Syntax = {
 };
 
 const DARK_SYNTAX: Syntax = {
-  '': '#B0B0B0',
+  plain: '#B0B0B0',
   comment: '#555555',
   keyword: '#9B8ABF',
   string: '#A3B38B',
@@ -266,9 +266,9 @@ export const floorSyntax = (
   fallback: { code: string; comment: string },
 ): Syntax => {
   const code = (color: string) => floorColor(color, backgrounds, CODE_FLOOR, text) ?? fallback.code;
-  const plain = floorColor(syntax[''], backgrounds, CODE_FLOOR, text);
+  const plain = floorColor(syntax.plain, backgrounds, CODE_FLOOR, text);
   return {
-    '': plain ?? fallback.code,
+    plain: plain ?? fallback.code,
     comment:
       floorColor(syntax.comment, backgrounds, COMMENT_FLOOR, plain ?? text) ?? fallback.comment,
     keyword: code(syntax.keyword),
@@ -296,9 +296,9 @@ const editorTheme = (dark: boolean, colors: monaco.editor.IColors, text: string)
       base: dark ? 'vs-dark' : 'vs',
       inherit: true,
       rules: SYNTAX_TOKENS.map((token) => ({
-        token,
+        token: token === 'plain' ? '' : token,
         foreground: syntax[token].slice(1),
-        ...(token === '' && { background }),
+        ...(token === 'plain' && { background }),
         ...(token === 'comment' && { fontStyle: 'italic' }),
       })),
       colors: {
