@@ -1,6 +1,13 @@
 import { memo, useEffect, useLayoutEffect, useState } from 'react';
 import type { ThemedToken } from '@pierre/diffs';
-import { claim, createCodeHighlight, findReleased, firstLine, release } from './codeHighlight';
+import {
+  claim,
+  createCodeHighlight,
+  findReleased,
+  firstLine,
+  loadedCodeHighlight,
+  release,
+} from './codeHighlight';
 import type { CodeHighlight } from './codeHighlight';
 import styles from './CodeBlock.module.scss';
 
@@ -41,9 +48,9 @@ export function HighlightedCode({ code, language }: HighlightedCodeProps) {
 
   useLayoutEffect(() => {
     if (highlight) return;
-    const reused = findReleased(language, head);
-    if (reused) {
-      setHighlight(reused);
+    const ready = findReleased(language, head) ?? loadedCodeHighlight(language);
+    if (ready) {
+      setHighlight(ready);
       return;
     }
     let live = true;

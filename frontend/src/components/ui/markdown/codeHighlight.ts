@@ -1,5 +1,5 @@
-import { getSharedHighlighter } from '@pierre/diffs';
-import type { DiffsStreamTokenizer, ThemedToken } from '@pierre/diffs';
+import { getHighlighterIfLoaded, getSharedHighlighter } from '@pierre/diffs';
+import type { DiffsHighlighter, DiffsStreamTokenizer, ThemedToken } from '@pierre/diffs';
 import { DIFF_SYNTAX_THEME } from '@/components/sandbox/git/DiffView/diffShikiTheme';
 
 const MAX_LINE_LENGTH = 1000;
@@ -84,18 +84,31 @@ export class CodeHighlight {
   }
 }
 
+const highlightWith = (highlighter: DiffsHighlighter, language: string) =>
+  new CodeHighlight(
+    language,
+    highlighter.createStreamTokenizer({
+      lang: language.toLowerCase(),
+      theme: DIFF_SYNTAX_THEME,
+      tokenizeMaxLineLength: MAX_LINE_LENGTH,
+    }),
+  );
+
+export function loadedCodeHighlight(language: string): CodeHighlight | null {
+  const highlighter = getHighlighterIfLoaded({
+    theme: DIFF_SYNTAX_THEME,
+    lang: language.toLowerCase(),
+  });
+  return highlighter ? highlightWith(highlighter, language) : null;
+}
+
 export async function createCodeHighlight(language: string): Promise<CodeHighlight | null> {
-  const lang = language.toLowerCase();
   try {
-    const highlighter = await getSharedHighlighter({ themes: [DIFF_SYNTAX_THEME], langs: [lang] });
-    return new CodeHighlight(
-      language,
-      highlighter.createStreamTokenizer({
-        lang,
-        theme: DIFF_SYNTAX_THEME,
-        tokenizeMaxLineLength: MAX_LINE_LENGTH,
-      }),
-    );
+    const highlighter = await getSharedHighlighter({
+      themes: [DIFF_SYNTAX_THEME],
+      langs: [language.toLowerCase()],
+    });
+    return highlightWith(highlighter, language);
   } catch {
     return null;
   }
