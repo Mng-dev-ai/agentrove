@@ -1005,6 +1005,35 @@ async def test_chat_attachments_embed_native_types_and_note_the_rest(
         assert f"{name} is available at" not in prompt["text"]
 
 
+async def test_host_attachment_note_points_at_the_workspace_on_disk(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
+
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="gpt-5.4",
+        prompt="read the memo",
+        permission_mode="auto",
+        attached_files=[("attached_files", ("memo.pdf", PDF_BYTES, "application/pdf"))],
+    )
+    assert response.status_code == 200, response.text
+    await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+
+    prompt = fake_agent.main_turn_prompts()[-1]
+    noted_path = Path(prompt["text"].split("memo.pdf is available at ")[1].split()[0])
+    assert noted_path.parent == Path(workspace.workspace_path).resolve()
+    assert noted_path.read_bytes() == PDF_BYTES
+
+
 @pytest.mark.parametrize(
     "option_id,expect_permission_mode,expect_status",
     [

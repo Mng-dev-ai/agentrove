@@ -29,7 +29,7 @@ from acp.schema import (
     TextContentBlock,
 )
 
-from app.constants import SANDBOX_HOME_DIR, SANDBOX_WORKSPACE_DIR, TERMINAL_TYPE
+from app.constants import SANDBOX_HOME_DIR, TERMINAL_TYPE
 from app.core.config import get_settings
 from app.models.types import AgentKind
 from app.services.acp.adapters import (
@@ -125,6 +125,7 @@ class AcpSession:
         conn: ClientSideConnection,
         process: asyncio.subprocess.Process,
         acp_session_id: str,
+        workspace_root: str,
         agent_kind: AgentKind = AgentKind.CLAUDE,
         stderr_task: asyncio.Task[None] | None = None,
         exit_watch_task: asyncio.Task[None] | None = None,
@@ -135,6 +136,7 @@ class AcpSession:
         self._conn = conn
         self._process = process
         self.acp_session_id = acp_session_id
+        self._workspace_root = workspace_root
         self._agent_kind = agent_kind
         self._stderr_task = stderr_task
         self._exit_watch_task = exit_watch_task
@@ -205,9 +207,8 @@ class AcpSession:
             return "promptRequired"
         raise AgentException(f"Unexpected ACP steering outcome: {outcome!r}")
 
-    @classmethod
     def _build_prompt_blocks(
-        cls,
+        self,
         content: str,
         attachments: list[dict[str, Any]] | None,
         agent_kind: AgentKind,
@@ -218,18 +219,21 @@ class AcpSession:
             TextContentBlock(type="text", text=content),
         ]
         if attachments:
-            attachment_note = cls._build_attachment_note(attachments, agent_kind)
+            attachment_note = self._build_attachment_note(
+                attachments, agent_kind, self._workspace_root
+            )
             if attachment_note:
                 prompt_blocks.append(
                     TextContentBlock(type="text", text=attachment_note)
                 )
-            prompt_blocks.extend(cls._build_attachment_blocks(attachments, agent_kind))
+            prompt_blocks.extend(self._build_attachment_blocks(attachments, agent_kind))
         return prompt_blocks
 
     @staticmethod
     def _build_attachment_note(
         attachments: list[dict[str, Any]],
         agent_kind: AgentKind,
+        workspace_root: str,
     ) -> str:
         native_types = NATIVE_FILE_TYPES.get(agent_kind, EMPTY_FROZENSET)
         lines: list[str] = []
@@ -240,7 +244,7 @@ class AcpSession:
             file_path = att.get("file_path")
             if not isinstance(file_path, str) or not file_path:
                 continue
-            sandbox_path = SANDBOX_WORKSPACE_DIR + "/" + Path(file_path).name
+            sandbox_path = workspace_root + "/" + Path(file_path).name
             filename = att.get("filename")
             label = (
                 filename
@@ -521,6 +525,7 @@ class AcpSession:
                 conn=conn,
                 process=process,
                 acp_session_id=acp_session_id,
+                workspace_root=provider.workspace_root,
                 agent_kind=config.agent_kind,
                 stderr_task=stderr_task,
                 exit_watch_task=exit_watch_task,
