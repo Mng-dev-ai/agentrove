@@ -27,8 +27,7 @@
 }
 
 .item-spinner {
-  @include type.type-title;
-  line-height: 1;
+  @include type.type-glyph(type.$type-title-size, 500);
 }
 
 .provider-icon {

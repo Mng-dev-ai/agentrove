@@ -82,6 +82,11 @@ $type-meta-tight-line-height: math.div($type-meta-size * 4, 3);
   color: var(--theme-text-quaternary);
 }
 
+// Text glyphs standing in for an icon (row spinners): the line box is the glyph's em
+@mixin type-glyph($size, $weight: 400) {
+  @include type($size, 1, $weight);
+}
+
 // Code, file paths, env vars, technical IDs
 @mixin type-mono($size: $type-default-size, $line-height: $type-default-line-height, $weight: 400) {
   @include type($size, $line-height, $weight, var(--font-mono));

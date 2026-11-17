@@ -96,8 +96,7 @@
 }
 
 .subthread-spinner {
-  @include type.type-large;
-  line-height: 1;
+  @include type.type-glyph(type.$type-large-size);
 }
 
 .provider-icon {
