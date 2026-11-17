@@ -5,7 +5,7 @@ import { act, renderHook } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { useBackgroundNotify } from './useBackgroundNotify';
+import { permissionNotifyEvent, useBackgroundNotify } from './useBackgroundNotify';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { useUIStore } from '@/store/uiStore';
 import type { TileId } from '@/types/ui.types';
@@ -36,9 +36,14 @@ function setRoute(path: string) {
   window.history.replaceState({}, '', path);
 }
 
-function setNotificationsEnabled(enabled: boolean) {
+function setNotificationSettings(over: Partial<UserSettings> = {}) {
   queryClient.setQueryData([queryKeys.settings], {
-    notifications_enabled: enabled,
+    notifications_enabled: true,
+    notify_permission_requests: true,
+    notify_questions: true,
+    notify_completions: true,
+    notify_sub_threads: true,
+    ...over,
   } as UserSettings);
 }
 
@@ -60,7 +65,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   window.innerWidth = 1280;
   setRoute('/');
-  setNotificationsEnabled(true);
+  setNotificationSettings();
   notify.mockResolvedValue(true);
   setLayout({});
 });
@@ -71,7 +76,7 @@ describe('useBackgroundNotify', () => {
     setRoute('/chat/chat-1');
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-1', notify);
+    result.current.notifyBackground('/chat/chat-1', 'notify_completions', false, notify);
     await flush();
     expect(notify).not.toHaveBeenCalled();
   });
@@ -81,7 +86,7 @@ describe('useBackgroundNotify', () => {
     setRoute('/chat/chat-1');
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-1', notify);
+    result.current.notifyBackground('/chat/chat-1', 'notify_completions', false, notify);
     await flush();
     expect(notify).toHaveBeenCalledTimes(1);
   });
@@ -92,7 +97,7 @@ describe('useBackgroundNotify', () => {
     setLayout({ visibleLayout: [['agent:primary']], splitChatIds: ['chat-2'] });
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-2', notify);
+    result.current.notifyBackground('/chat/chat-2', 'notify_completions', false, notify);
     await flush();
     expect(notify).toHaveBeenCalledTimes(1);
   });
@@ -103,7 +108,7 @@ describe('useBackgroundNotify', () => {
     setLayout({ visibleLayout: [['agent:primary', 'agent:split-1']], splitChatIds: ['chat-2'] });
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-2', notify);
+    result.current.notifyBackground('/chat/chat-2', 'notify_completions', false, notify);
     await flush();
     expect(notify).toHaveBeenCalledTimes(1);
   });
@@ -114,7 +119,7 @@ describe('useBackgroundNotify', () => {
     setLayout({ visibleLayout: [['agent:primary', 'agent:split-1']], splitChatIds: ['chat-2'] });
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-2', notify);
+    result.current.notifyBackground('/chat/chat-2', 'notify_completions', false, notify);
     await flush();
     expect(notify).not.toHaveBeenCalled();
   });
@@ -125,7 +130,7 @@ describe('useBackgroundNotify', () => {
     setLayout({ visibleLayout: [['agent:primary', 'agent:split-1']], splitChatIds: ['chat-2'] });
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-2', notify);
+    result.current.notifyBackground('/chat/chat-2', 'notify_completions', false, notify);
     await flush();
     expect(notify).not.toHaveBeenCalled();
   });
@@ -141,7 +146,7 @@ describe('useBackgroundNotify', () => {
     });
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-2', notify);
+    result.current.notifyBackground('/chat/chat-2', 'notify_completions', false, notify);
     await flush();
     expect(notify).toHaveBeenCalledTimes(1);
   });
@@ -152,7 +157,7 @@ describe('useBackgroundNotify', () => {
     setLayout({ visibleLayout: [['diff']] });
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-1', notify);
+    result.current.notifyBackground('/chat/chat-1', 'notify_completions', false, notify);
     await flush();
     expect(notify).not.toHaveBeenCalled();
   });
@@ -162,26 +167,64 @@ describe('useBackgroundNotify', () => {
     setRoute('/chat/chat-1');
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/sub-thread-1', notify);
+    result.current.notifyBackground('/chat/sub-thread-1', 'notify_completions', false, notify);
     await flush();
     expect(notify).toHaveBeenCalledTimes(1);
   });
 
   it('does not notify when notifications are disabled in settings', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(false);
-    setNotificationsEnabled(false);
+    setNotificationSettings({ notifications_enabled: false });
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-1', notify);
+    result.current.notifyBackground('/chat/chat-1', 'notify_completions', false, notify);
     await flush();
     expect(notify).not.toHaveBeenCalled();
+  });
+
+  const events = ['notify_permission_requests', 'notify_questions', 'notify_completions'] as const;
+
+  it.each(events)('with %s off, only that event is suppressed', async (off) => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    setNotificationSettings({ [off]: false });
+    const { result } = renderNotify();
+    const delivered: string[] = [];
+
+    for (const event of events) {
+      result.current.notifyBackground('/chat/chat-1', event, false, async () => {
+        delivered.push(event);
+        return true;
+      });
+    }
+    await flush();
+    expect(delivered).toEqual(events.filter((event) => event !== off));
+  });
+
+  it('classifies AskUserQuestion as a question and other tools as permission requests', () => {
+    expect(permissionNotifyEvent('AskUserQuestion')).toBe('notify_questions');
+    expect(permissionNotifyEvent('ExitPlanMode')).toBe('notify_permission_requests');
+    expect(permissionNotifyEvent('Bash')).toBe('notify_permission_requests');
+  });
+
+  it('suppresses sub-thread events but not top-level ones when sub-threads are off', async () => {
+    vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+    setNotificationSettings({ notify_sub_threads: false });
+    const { result } = renderNotify();
+
+    result.current.notifyBackground('/chat/sub-thread-1', 'notify_completions', true, notify);
+    await flush();
+    expect(notify).not.toHaveBeenCalled();
+
+    result.current.notifyBackground('/chat/chat-1', 'notify_completions', false, notify);
+    await flush();
+    expect(notify).toHaveBeenCalledTimes(1);
   });
 
   it('routes clicks to the chat and badges the delivered notification', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(false);
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-2', notify);
+    result.current.notifyBackground('/chat/chat-2', 'notify_completions', false, notify);
     await flush();
     expect(setAppBadge).toHaveBeenCalledTimes(1);
 
@@ -194,7 +237,7 @@ describe('useBackgroundNotify', () => {
     setRoute('/chat/chat-1');
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-1', notify);
+    result.current.notifyBackground('/chat/chat-1', 'notify_completions', false, notify);
     await flush();
     expect(notify).toHaveBeenCalledTimes(1);
     expect(setAppBadge).not.toHaveBeenCalled();
@@ -205,7 +248,7 @@ describe('useBackgroundNotify', () => {
     notify.mockResolvedValue(false);
     const { result } = renderNotify();
 
-    result.current.notifyBackground('/chat/chat-2', notify);
+    result.current.notifyBackground('/chat/chat-2', 'notify_completions', false, notify);
     await flush();
     expect(notify).toHaveBeenCalledTimes(1);
     expect(setAppBadge).not.toHaveBeenCalled();
@@ -219,7 +262,7 @@ describe('useBackgroundNotify', () => {
     unmount();
 
     setRoute('/chat/chat-2');
-    staleNotifyBackground('/chat/chat-1', notify);
+    staleNotifyBackground('/chat/chat-1', 'notify_completions', false, notify);
     await flush();
     expect(notify).toHaveBeenCalledTimes(1);
   });
@@ -232,7 +275,7 @@ describe('useBackgroundNotify', () => {
     unmount();
 
     setRoute('/chat/chat-2');
-    staleNotifyBackground('/chat/chat-2', notify);
+    staleNotifyBackground('/chat/chat-2', 'notify_completions', false, notify);
     await flush();
     expect(notify).not.toHaveBeenCalled();
   });

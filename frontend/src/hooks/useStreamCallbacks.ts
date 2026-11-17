@@ -201,14 +201,16 @@ export function useStreamCallbacks({
         seedText = existingMessage.content_text ?? '';
       }
 
+      // Resolve now while chat query is warm — completion-time resolve can miss after gc.
+      const streamChat = queryClient.getQueryData<Chat>(queryKeys.chat(streamChatId));
       return createStreamSession(
         streamId,
         {
           messageId,
           lastSeq: seq,
           chatId: streamChatId,
-          // Resolve now while chat query is warm — completion-time resolve can miss after gc.
-          sandboxId: queryClient.getQueryData<Chat>(queryKeys.chat(streamChatId))?.sandbox_id,
+          sandboxId: streamChat?.sandbox_id,
+          subThread: Boolean(streamChat?.parent_chat_id),
         },
         seedEvents,
         seedText,
@@ -409,6 +411,7 @@ export function useStreamCallbacks({
       const session = getStreamSession(resolvedStreamId);
       const sessionChatId = session?.chatId;
       const sessionSandboxId = session?.sandboxId;
+      const isSubThread = session?.subThread ?? Boolean(currentChat?.parent_chat_id);
 
       if (resolvedStreamId) {
         flushBufferedContent(resolvedStreamId, { writeToCache: true });
@@ -473,8 +476,11 @@ export function useStreamCallbacks({
       }
 
       if (!isCancelled) {
-        notifyBackground(targetChatId ? `/chat/${targetChatId}` : undefined, (options) =>
-          notifyStreamComplete({ ...options, message: assistantText }),
+        notifyBackground(
+          targetChatId ? `/chat/${targetChatId}` : undefined,
+          'notify_completions',
+          isSubThread,
+          (options) => notifyStreamComplete({ ...options, message: assistantText }),
         );
       }
 

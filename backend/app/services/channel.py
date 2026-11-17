@@ -1832,6 +1832,7 @@ class ChannelService(BaseDbService[Channel]):
                 path=f"/channels/{state.channel.id}",
                 request_id=request_id,
                 tool_name=payload["tool_name"],
+                sub_thread=False,
             )
         elif kind == "permission_resolved":
             async with state.lock:

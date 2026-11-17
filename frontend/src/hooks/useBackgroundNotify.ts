@@ -8,18 +8,30 @@ import { paintedChatIds, paintedLayout } from '@/utils/tileHelpers';
 import { logger } from '@/utils/logger';
 import { bumpAppBadge, type NotifyOptions } from '@/utils/notifications';
 import { isPushRegistered } from '@/utils/push';
+import type { NotifyEventSetting } from '@/types/user.types';
+
+export function permissionNotifyEvent(toolName: string): NotifyEventSetting {
+  return toolName === 'AskUserQuestion' ? 'notify_questions' : 'notify_permission_requests';
+}
 
 // Suppress only when the event's route is painted on screen in a focused window.
 // Panes stay mounted while hidden, so mount state can't stand in for visibility.
 export function useBackgroundNotify(): (
   targetPath: string | undefined,
+  event: NotifyEventSetting,
+  subThread: boolean,
   notify: (options: NotifyOptions) => Promise<boolean>,
 ) => void {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   return useCallback(
-    (targetPath: string | undefined, notify: (options: NotifyOptions) => Promise<boolean>) => {
+    (
+      targetPath: string | undefined,
+      event: NotifyEventSetting,
+      subThread: boolean,
+      notify: (options: NotifyOptions) => Promise<boolean>,
+    ) => {
       // Read live: stored stream callbacks can invoke this closure long after
       // the pane that created it unmounted, freezing anything captured at render.
       const pathname = window.location.pathname;
@@ -45,7 +57,7 @@ export function useBackgroundNotify(): (
       if (isPushRegistered() && document.visibilityState !== 'visible') return;
 
       void (async () => {
-        if (!(await fetchNotificationsEnabled(queryClient))) return;
+        if (!(await fetchNotificationsEnabled(queryClient, event, subThread))) return;
         const delivered = await notify({
           onClick: targetPath ? () => navigate(targetPath) : undefined,
         });

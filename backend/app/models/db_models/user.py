@@ -103,6 +103,18 @@ class UserSettings(Base):
     notifications_enabled: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    notify_permission_requests: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    notify_questions: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    notify_completions: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
+    notify_sub_threads: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
     auto_steer_queued_messages: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default="false", nullable=False
     )

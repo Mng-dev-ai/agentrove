@@ -3,7 +3,7 @@ import { permissionService } from '@/services/permissionService';
 import { usePermissionStore } from '@/store/permissionStore';
 import { isPermissionResolved } from '@/utils/permissionStorage';
 import { notifyPermissionRequest } from '@/utils/notifications';
-import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
+import { permissionNotifyEvent, useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import { executePermissionResponse, clearPermissionRequest } from '@/utils/permissionResponse';
 import type { PermissionRequest } from '@/types/chat.types';
 
@@ -17,7 +17,10 @@ interface UsePermissionRequestReturn {
 }
 
 // Tool-permission approval for one chat; 404s (expired/timed-out requests) auto-dismiss.
-export function usePermissionRequest(chatId: string | undefined): UsePermissionRequestReturn {
+export function usePermissionRequest(
+  chatId: string | undefined,
+  isSubThread: boolean,
+): UsePermissionRequestReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const notifyBackground = useBackgroundNotify();
@@ -48,10 +51,15 @@ export function usePermissionRequest(chatId: string | undefined): UsePermissionR
       // duplicate envelope for one still awaiting a response.
       const added = usePermissionStore.getState().enqueuePermissionRequest(chatId, request);
       if (added) {
-        notifyBackground(`/chat/${chatId}`, (options) => notifyPermissionRequest(request, options));
+        notifyBackground(
+          `/chat/${chatId}`,
+          permissionNotifyEvent(request.tool_name),
+          isSubThread,
+          (options) => notifyPermissionRequest(request, options),
+        );
       }
     },
-    [chatId, notifyBackground],
+    [chatId, isSubThread, notifyBackground],
   );
 
   const handleApprove = useCallback(

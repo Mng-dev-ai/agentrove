@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import type { QueryClient, UseQueryOptions } from '@tanstack/react-query';
 import { settingsService } from '@/services/settingsService';
-import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
+import type { NotifyEventSetting, UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import { createMutation } from './createMutation';
 import { retryTransientOnce } from './listLoad';
 import { queryKeys } from './queryKeys';
@@ -38,10 +38,18 @@ export const useSettingsForMachineQuery = (machineId: string, enabled = true) =>
 
 // Settings are never persisted to storage (they carry secrets), so a cold tab
 // must fetch before a saved opt-out can be honored.
-export async function fetchNotificationsEnabled(queryClient: QueryClient): Promise<boolean> {
+export async function fetchNotificationsEnabled(
+  queryClient: QueryClient,
+  event: NotifyEventSetting,
+  subThread: boolean,
+): Promise<boolean> {
   try {
     const settings = await queryClient.ensureQueryData(settingsQuery());
-    return settings.notifications_enabled;
+    return (
+      settings.notifications_enabled &&
+      settings[event] &&
+      (!subThread || settings.notify_sub_threads)
+    );
   } catch {
     // Settings unreachable — assume the server default (enabled).
     return true;

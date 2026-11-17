@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { Select } from '@/components/ui/primitives/Select/Select';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import type { ApiFieldKey, GeneralSecretFieldConfig } from '@/types/settings.types';
-import type { UserSettings } from '@/types/user.types';
+import type { NotifySetting, UserSettings } from '@/types/user.types';
 import type { Theme } from '@/types/ui.types';
 import { useUIStore } from '@/store/uiStore';
 import { SecretInput } from '@/components/settings/inputs/SecretInput/SecretInput';
@@ -19,9 +19,25 @@ interface GeneralSettingsTabProps {
   onToggleVisibility: (field: ApiFieldKey) => void;
   onDeleteAllChats: () => void;
   onNotificationsEnabledChange: (enabled: boolean) => void;
+  onNotifySettingChange: (setting: NotifySetting, enabled: boolean) => void;
   onAutoSteerQueuedMessagesChange: (enabled: boolean) => void;
   onTitleModelChange: (modelId: string) => void;
 }
+
+const NOTIFY_SETTINGS: { key: NotifySetting; title: string; desc: string }[] = [
+  {
+    key: 'notify_permission_requests',
+    title: 'Permission requests',
+    desc: 'Tool approvals and plans waiting for your review.',
+  },
+  { key: 'notify_questions', title: 'Questions', desc: 'Agents asking you to choose an answer.' },
+  { key: 'notify_completions', title: 'Chat finished', desc: 'A chat completes or fails.' },
+  {
+    key: 'notify_sub_threads',
+    title: 'Sub-threads',
+    desc: 'Also notify for sub-thread chats. When off, only parent chats notify.',
+  },
+];
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -94,6 +110,7 @@ export function GeneralSettingsTab({
   onToggleVisibility,
   onDeleteAllChats,
   onNotificationsEnabledChange,
+  onNotifySettingChange,
   onAutoSteerQueuedMessagesChange,
   onTitleModelChange,
 }: GeneralSettingsTabProps) {
@@ -122,9 +139,7 @@ export function GeneralSettingsTab({
         <div className={styles['pref-row']}>
           <div className={styles['pref-text']}>
             <h3 className={styles['setting-title']}>Notifications</h3>
-            <p className={styles['field-desc']}>
-              Send notifications for permission requests, questions, and task completion.
-            </p>
+            <p className={styles['field-desc']}>Notify when an agent needs you or finishes.</p>
           </div>
           <Switch
             checked={settings.notifications_enabled}
@@ -132,6 +147,20 @@ export function GeneralSettingsTab({
             aria-label="Notifications"
           />
         </div>
+        {settings.notifications_enabled &&
+          NOTIFY_SETTINGS.map(({ key, title, desc }) => (
+            <div key={key} className={`${styles['pref-row']} ${styles['pref-subrow']}`}>
+              <div className={styles['pref-text']}>
+                <h3 className={styles['setting-title']}>{title}</h3>
+                <p className={styles['field-desc']}>{desc}</p>
+              </div>
+              <Switch
+                checked={settings[key]}
+                onCheckedChange={(enabled) => onNotifySettingChange(key, enabled)}
+                aria-label={`Notify for ${title.toLowerCase()}`}
+              />
+            </div>
+          ))}
         <div className={styles['pref-row']}>
           <div className={styles['pref-text']}>
             <h3 className={styles['setting-title']}>Auto-steer queued messages</h3>

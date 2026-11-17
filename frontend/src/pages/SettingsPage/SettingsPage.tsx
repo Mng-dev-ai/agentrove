@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
+import type { NotifySetting, UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ApiFieldKey } from '@/types/settings.types';
 import { useDeleteAllChatsMutation } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
@@ -104,6 +104,10 @@ export function SettingsPage() {
         'personas',
         'stream_actions',
         'notifications_enabled',
+        'notify_permission_requests',
+        'notify_questions',
+        'notify_completions',
+        'notify_sub_threads',
         'auto_steer_queued_messages',
         'title_model_id',
       ];
@@ -187,6 +191,10 @@ export function SettingsPage() {
     void persistSettings((prev) => ({ ...prev, notifications_enabled: enabled })).catch(
       () => undefined,
     );
+  };
+
+  const handleNotifySettingChange = (setting: NotifySetting, enabled: boolean) => {
+    void persistSettings((prev) => ({ ...prev, [setting]: enabled })).catch(() => undefined);
   };
 
   const handleAutoSteerQueuedMessagesChange = (enabled: boolean) => {
@@ -282,6 +290,7 @@ export function SettingsPage() {
                             onToggleVisibility={toggleFieldVisibility}
                             onDeleteAllChats={handleDeleteAllChats}
                             onNotificationsEnabledChange={handleNotificationsEnabledChange}
+                            onNotifySettingChange={handleNotifySettingChange}
                             onAutoSteerQueuedMessagesChange={handleAutoSteerQueuedMessagesChange}
                             onTitleModelChange={handleTitleModelChange}
                           />

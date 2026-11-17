@@ -9,6 +9,7 @@ export interface StreamSessionState {
   // Captured at session creation so an off-screen completion can invalidate the
   // right sandbox's caches — the user may be viewing a different chat by then.
   sandboxId: string | undefined;
+  subThread: boolean;
 }
 
 export function createEmptyRenderSnapshot(): Message['content_render'] {

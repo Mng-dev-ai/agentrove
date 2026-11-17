@@ -35,6 +35,10 @@ class UserSettingsBase(BaseModel):
     personas: list[Persona] | None = None
     stream_actions: list[StreamAction] | None = None
     notifications_enabled: bool = True
+    notify_permission_requests: bool = True
+    notify_questions: bool = True
+    notify_completions: bool = True
+    notify_sub_threads: bool = True
     auto_steer_queued_messages: bool = False
     title_model_id: str = Field(
         default=DEFAULT_TITLE_MODEL_ID, min_length=1, max_length=128

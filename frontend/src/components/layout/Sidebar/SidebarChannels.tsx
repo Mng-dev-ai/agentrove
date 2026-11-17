@@ -12,7 +12,7 @@ import {
   usePinChannelMutation,
   useRenameChannelMutation,
 } from '@/hooks/queries/useChannelQueries';
-import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
+import { permissionNotifyEvent, useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { getMachineClient } from '@/lib/api';
 import { streamService } from '@/services/streamService';
@@ -118,14 +118,22 @@ export function SidebarChannels({
   useEffect(
     () =>
       streamService.onChannelNotice((notice) =>
-        notifyBackground(`/channels/${notice.channelId}`, (options) =>
+        notifyBackground(
+          `/channels/${notice.channelId}`,
           notice.kind === 'channel_permission_request'
-            ? notifyPermissionRequest(notice.payload.request, options)
-            : notifyStreamComplete({
-                ...options,
-                title: notice.payload.title,
-                message: notice.payload.body,
-              }),
+            ? permissionNotifyEvent(notice.payload.request.tool_name)
+            : notice.kind === 'channel_asked'
+              ? 'notify_questions'
+              : 'notify_completions',
+          false,
+          (options) =>
+            notice.kind === 'channel_permission_request'
+              ? notifyPermissionRequest(notice.payload.request, options)
+              : notifyStreamComplete({
+                  ...options,
+                  title: notice.payload.title,
+                  message: notice.payload.body,
+                }),
         ),
       ),
     [notifyBackground],

@@ -83,7 +83,7 @@ export function ChatSessionOrchestrator({
     handlePermissionRequest,
     handleApprove,
     handleReject,
-  } = usePermissionRequest(chatId);
+  } = usePermissionRequest(chatId, Boolean(currentChat?.parent_chat_id));
 
   const {
     pendingRequest: pendingElicitation,

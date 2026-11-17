@@ -28,6 +28,11 @@ function buildPermissionNotification(request: ToolPermissionRequest): {
   body: string;
 } {
   switch (request.tool_name) {
+    case 'AskUserQuestion':
+      return {
+        title: 'Question for you',
+        body: 'The agent is waiting for your answer.',
+      };
     case 'ExitPlanMode':
       return {
         title: 'Plan ready for approval',

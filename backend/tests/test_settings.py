@@ -60,6 +60,10 @@ async def test_get_settings_returns_current_user_settings(
     assert body["custom_env_vars"] is None
     assert body["personas"] is None
     assert body["notifications_enabled"] is True
+    assert body["notify_permission_requests"] is True
+    assert body["notify_questions"] is True
+    assert body["notify_completions"] is True
+    assert body["notify_sub_threads"] is True
 
 
 async def test_patch_settings_updates_persistence_and_invalidates_cache(
@@ -73,6 +77,10 @@ async def test_patch_settings_updates_persistence_and_invalidates_cache(
         "custom_env_vars": [{"key": "API_MODE", "value": "test"}],
         "personas": [{"name": "Reviewer", "content": "Review carefully."}],
         "notifications_enabled": False,
+        "notify_permission_requests": False,
+        "notify_questions": False,
+        "notify_completions": False,
+        "notify_sub_threads": False,
     }
     cached_response = await client.get("/api/v1/settings/", headers=headers)
     assert cached_response.status_code == 200
@@ -86,6 +94,10 @@ async def test_patch_settings_updates_persistence_and_invalidates_cache(
     assert body["custom_env_vars"] == [{"key": "API_MODE", "value": "test"}]
     assert body["personas"] == [{"name": "Reviewer", "content": "Review carefully."}]
     assert body["notifications_enabled"] is False
+    assert body["notify_permission_requests"] is False
+    assert body["notify_questions"] is False
+    assert body["notify_completions"] is False
+    assert body["notify_sub_threads"] is False
 
     get_response = await client.get("/api/v1/settings/", headers=headers)
     assert get_response.status_code == 200
