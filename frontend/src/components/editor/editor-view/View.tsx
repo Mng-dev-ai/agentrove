@@ -411,6 +411,7 @@ export const View = memo(function View({
             workspaceName={foreignFile?.workspaceName}
             error={source.isReadOnly ? null : error}
             selectedFile={selectedFile}
+            previewFile={fileForPreview}
             showPreview={isPreviewActive}
             onTogglePreview={isBinary ? undefined : handlePreviewToggle}
             showDiff={viewMode === 'diff'}
