@@ -1,14 +1,77 @@
-.content {
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.preview {
   display: flex;
   min-height: 0;
-  align-items: center;
-  justify-content: center;
-  overflow: auto;
-  padding: var(--space-4);
+  flex: 1;
+  flex-direction: column;
+}
+
+.stage {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+  touch-action: manipulation;
+  padding: var(--space-6);
+
+  &--zoomed {
+    overflow: auto;
+    cursor: grab;
+  }
+
+  &--dragging,
+  &--dragging .image {
+    cursor: grabbing;
+  }
 }
 
 .image {
-  max-height: 100%;
-  max-width: 100%;
-  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+  max-width: none;
+  margin: auto;
+  user-select: none;
+  background-color: var(--theme-surface);
+  background-image: conic-gradient(
+    var(--theme-surface-secondary) 25%,
+    transparent 0 50%,
+    var(--theme-surface-secondary) 0 75%,
+    transparent 0
+  );
+  background-size: var(--space-4) var(--space-4);
+  box-shadow: 0 0 0 1px colors.theme-color('border', 0.5);
+
+  &--pending {
+    position: absolute;
+    max-width: 100%;
+    max-height: 100%;
+    opacity: 0;
+  }
+
+  &--zoom-in {
+    cursor: zoom-in;
+  }
+
+  &--zoom-out {
+    cursor: zoom-out;
+  }
+}
+
+.footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-0-5) var(--space-1) var(--space-0-5) var(--space-4);
+  color: var(--theme-text-tertiary);
+}
+
+.dimensions {
+  @include type.type-meta;
+  font-variant-numeric: tabular-nums;
 }

@@ -1,8 +1,9 @@
-import { memo, useMemo, type CSSProperties } from 'react';
+import { memo, useMemo, useState } from 'react';
+import clsx from 'clsx';
 import { logger } from '@/utils/logger';
 import type { FileStructure } from '@/types/file-system.types';
-
-const IMAGE_STYLE: CSSProperties = { imageRendering: 'auto' };
+import { useImageZoom } from '@/components/ui/ImagePreviewModal/useImageZoom';
+import { ZoomControls } from '@/components/ui/ImagePreviewModal/ZoomControls';
 import { PreviewContainer } from './PreviewContainer';
 import { PreviewEmptyState } from './PreviewEmptyState';
 import { getDisplayFileName, isValidBase64 } from './previewUtils';
@@ -51,8 +52,10 @@ export const ImagePreview = memo(function ImagePreview({
       return null;
     }
   }, [file.content, fileName]);
+  const zoom = useImageZoom(imageUrl ?? '');
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
-  if (!imageUrl) {
+  if (!imageUrl || failedUrl === imageUrl) {
     return (
       <PreviewEmptyState
         file={file}
@@ -70,15 +73,41 @@ export const ImagePreview = memo(function ImagePreview({
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
-      contentClassName={styles.content}
+      disableContentWrapper
     >
-      <img
-        src={imageUrl}
-        alt={fileName}
-        className={styles.image}
-        loading="lazy"
-        style={IMAGE_STYLE}
-      />
+      <div className={styles.preview}>
+        <div
+          ref={zoom.stageRef}
+          className={clsx(
+            styles.stage,
+            zoom.zoom !== 'fit' && styles['stage--zoomed'],
+            zoom.isDragging && styles['stage--dragging'],
+          )}
+          {...zoom.stageHandlers}
+        >
+          <img
+            key={imageUrl}
+            ref={zoom.imageRef}
+            src={imageUrl}
+            alt={fileName}
+            draggable={false}
+            onLoad={zoom.onImageLoad}
+            onError={() => setFailedUrl(imageUrl)}
+            style={zoom.imageStyle}
+            className={clsx(
+              styles.image,
+              !zoom.isReady && styles['image--pending'],
+              zoom.canToggle && styles[zoom.zoom === 'fit' ? 'image--zoom-in' : 'image--zoom-out'],
+            )}
+          />
+        </div>
+        <div className={styles.footer}>
+          <span className={styles.dimensions}>
+            {zoom.natural && `${zoom.natural.width} × ${zoom.natural.height}`}
+          </span>
+          <ZoomControls zoom={zoom} />
+        </div>
+      </div>
     </PreviewContainer>
   );
 });
