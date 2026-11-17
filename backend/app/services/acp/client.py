@@ -349,6 +349,10 @@ class AcpClientHandler:
             self._permission_option_modes.pop(request_id, None)
 
         future.set_result(option_id)
+        if not self.channel_member:
+            self.event_queue.put_nowait(
+                StreamEvent(type="permission_dismissed", request_id=request_id)
+            )
         return True
 
     async def create_elicitation(
@@ -444,6 +448,10 @@ class AcpClientHandler:
             return False
         self._pending_elicitation_payloads.pop(request_id, None)
         future.set_result((action, content if action == "accept" else None))
+        if not self.channel_member:
+            self.event_queue.put_nowait(
+                StreamEvent(type="elicitation_dismissed", request_id=request_id)
+            )
         return True
 
     async def read_text_file(

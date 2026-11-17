@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import MODELS
@@ -218,3 +219,57 @@ async def test_finished_child_drops_its_waiting_entry(
         f"Finished sub-threads:\n- **[{child.title}](/chat/{child.id})** (unknown)"
     )
     assert "waiting on" not in initiate.call_args.args[0].prompt
+
+
+async def test_recover_wakes_parent_for_owed_report_after_restart(
+    db_session: AsyncSession,
+    chats: tuple[Chat, list[Chat]],
+    wake: SubThreadWake,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent, children = chats
+    owed = children[0]
+    await SubThreadWake.owe_report(db_session, owed.id, frozenset())
+    await db_session.commit()
+    initiate = AsyncMock()
+    monkeypatch.setattr(ChatService, "initiate_chat_completion", initiate)
+
+    await wake.recover()
+    await asyncio.wait_for(asyncio.gather(*wake._tasks), timeout=2)
+
+    initiate.assert_awaited_once()
+    assert initiate.call_args.args[0].chat_id == parent.id
+    assert initiate.call_args.kwargs["user_app_notice"] == (
+        f"Finished sub-threads:\n- **[{owed.title}](/chat/{owed.id})** (unknown)"
+    )
+
+
+async def test_owed_report_cleared_only_once_delivered(
+    db_session: AsyncSession,
+    chats: tuple[Chat, list[Chat]],
+    wake: SubThreadWake,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parent, children = chats
+    child = children[0]
+    parent_id = str(parent.id)
+    updated_at = select(Chat.updated_at).where(Chat.id == child.id)
+    before = await db_session.scalar(updated_at)
+    await SubThreadWake.owe_report(db_session, child.id, frozenset())
+    await db_session.commit()
+    initiate = AsyncMock(side_effect=ChatException("Already active", status_code=409))
+    monkeypatch.setattr(ChatService, "initiate_chat_completion", initiate)
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 3600)
+    owed = select(Chat.owed_report_device_ids).where(Chat.id == child.id)
+
+    wake.on_chain_end(str(child.id), parent_id, frozenset())
+    await wake._flush(parent_id)
+
+    assert await db_session.scalar(owed) == frozenset()
+
+    initiate.side_effect = None
+    await wake._flush(parent_id)
+
+    assert initiate.await_count == 2
+    assert await db_session.scalar(owed) is None
+    assert await db_session.scalar(updated_at) == before

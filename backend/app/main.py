@@ -38,6 +38,7 @@ from app.services.channel import channel_service
 from app.services.maintenance import MaintenanceService
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.subthread_wake import subthread_wake
 from app.services.terminal import terminal_session_registry
 from app.utils.cache import cache_connection
 
@@ -62,6 +63,7 @@ mcp_endpoint = HttpEndpoint(AgentService.loopback_api_url())
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await ChatStreamRuntime.reconcile_orphaned_messages(SessionLocal)
     await channel_service.recover()
+    await subthread_wake.recover()
     maintenance_service = MaintenanceService()
     await maintenance_service.start()
     try:
@@ -70,6 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     finally:
         await channel_service.shutdown()
         await maintenance_service.stop()
+        await subthread_wake.shutdown()
         await ChatStreamRuntime.stop_background_chats()
         await session_registry.terminate_all()
         # Host-provider shells keep running after exit unless PTYs/tmux die.

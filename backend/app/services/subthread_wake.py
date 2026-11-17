@@ -1,11 +1,12 @@
 import asyncio
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 from operator import attrgetter
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -66,6 +67,7 @@ class SubThreadWake:
         self._waiting: dict[str, dict[str, InputWait]] = {}
         self._scheduled: set[str] = set()
         self._tasks: set[asyncio.Task[None]] = set()
+        self._closed = False
 
     def on_chain_end(
         self,
@@ -78,6 +80,62 @@ class SubThreadWake:
         for parent_id in self._pending.keys() | self._waiting.keys():
             if parent_id == chat_id or chat_id in self._pending.get(parent_id, {}):
                 self._schedule(parent_id)
+
+    async def recover(self) -> None:
+        self._closed = False
+        async with SessionLocal() as db:
+            owed = (
+                await db.execute(
+                    select(
+                        Chat.id, Chat.parent_chat_id, Chat.owed_report_device_ids
+                    ).where(
+                        Chat.owed_report_device_ids.is_not(None),
+                        Chat.parent_chat_id.is_not(None),
+                        Chat.deleted_at.is_(None),
+                    )
+                )
+            ).all()
+        for child_id, parent_id, device_ids in owed:
+            self._add_reports(str(parent_id), {str(child_id): device_ids})
+            self._schedule(str(parent_id))
+
+    async def shutdown(self) -> None:
+        # A wake started now would die with the process; recover() delivers it.
+        self._closed = True
+        tasks = list(self._tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self._scheduled.clear()
+
+    @staticmethod
+    async def owe_report(
+        db: AsyncSession, chat_id: UUID, device_ids: frozenset[UUID]
+    ) -> None:
+        owed = await db.scalar(
+            select(Chat.owed_report_device_ids).where(Chat.id == chat_id)
+        )
+        await db.execute(
+            update(Chat)
+            .where(Chat.id == chat_id)
+            .values(
+                owed_report_device_ids=(owed or frozenset()) | device_ids,
+                updated_at=Chat.updated_at,
+            )
+        )
+
+    @staticmethod
+    async def _clear_owed(child_ids: Iterable[str]) -> None:
+        ids = [UUID(child_id) for child_id in child_ids]
+        if not ids:
+            return
+        async with SessionLocal() as db:
+            await db.execute(
+                update(Chat)
+                .where(Chat.id.in_(ids))
+                .values(owed_report_device_ids=None, updated_at=Chat.updated_at)
+            )
+            await db.commit()
 
     def on_input_request(
         self,
@@ -108,7 +166,7 @@ class SubThreadWake:
             )
 
     def _schedule(self, parent_id: str) -> None:
-        if parent_id in self._scheduled:
+        if self._closed or parent_id in self._scheduled:
             return
         self._scheduled.add(parent_id)
         task = asyncio.create_task(self._flush_later(parent_id))
@@ -139,8 +197,8 @@ class SubThreadWake:
                 Chat, UUID(parent_id), options=[selectinload(Chat.user)]
             )
             if parent is None or parent.deleted_at is not None:
-                self._pending.pop(parent_id, None)
                 self._waiting.pop(parent_id, None)
+                await self._clear_owed(self._pending.pop(parent_id, {}))
                 return
             children = await self._take_finished(db, parent)
             waiting = await self._take_waiting(db, parent)
@@ -230,6 +288,9 @@ class SubThreadWake:
             parent.user_id,
             frozenset[UUID]().union(*(child.device_ids for child in loaded)),
         )
+        await self._clear_owed(
+            child.chat_id for child in loaded if not child.device_ids <= active
+        )
         idle = self._hold_busy(
             parent_id,
             {
@@ -292,6 +353,8 @@ class SubThreadWake:
                 waiting,
                 schedule=not ChatStreamRuntime.has_active_chat(parent_id),
             )
+            return
+        await self._clear_owed(child.chat_id for child in children)
 
     async def _start_wake_turn(
         self,
@@ -312,6 +375,7 @@ class SubThreadWake:
                 parent.id,
                 len(children) + len(waiting),
             )
+            await self._clear_owed(child.chat_id for child in children)
             return
         try:
             await ChatService(UserService()).initiate_chat_completion(
@@ -325,6 +389,8 @@ class SubThreadWake:
             self._requeue_undelivered(str(parent.id), children, waiting, schedule=busy)
             if not busy:
                 raise
+            return
+        await self._clear_owed(child.chat_id for child in children)
 
     @staticmethod
     def _wake_request(parent: Chat, prompt: str) -> ChatRequest | None:

@@ -28,7 +28,7 @@ Agentrove chats aren't just endpoints — they can drive each other. The bundled
 
 The primitives:
 
-- **Sub-threads** — `send_message(parent_chat_id=…)` creates a worker chat grouped under the lead chat, in the same workspace and branch. Sub-threads stay flat (no nesting): the lead fans out, workers report back.
+- **Sub-threads** — `send_message(parent_chat_id=…)` creates a worker chat grouped under the lead chat, in the same workspace and branch (or its own worktree branch with `worktree=true`). Sub-threads stay flat (no nesting): the lead fans out, workers report back.
 - **Per-turn model and persona** — each worker runs on any installed agent and model (`model_id`) with any persona (a custom system prompt). Typical fleet: a fast model with a read-only scout persona for codebase exploration, coding models for implementation, dedicated reviewer personas (bug hunting, structural quality) for QA. `list_models` reports each model's supported reasoning tiers (`thinking_modes`), so the lead dials effort per task.
 - **Isolated worktrees** — `worktree=true` gives a worker its own git worktree, so parallel workers edit concurrently without conflicts.
 - **Polling and follow-ups** — the lead polls `get_messages` until a worker's turn completes, judges the result against the actual code, and sends rework to the worker's own thread; follow-ups inherit the thread's previous model, persona, and reasoning settings.

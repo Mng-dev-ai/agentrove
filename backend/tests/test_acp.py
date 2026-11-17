@@ -46,6 +46,7 @@ from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_wake import SubThreadWake
 from app.services.user import UserService
+from app.utils.cache import CachePubSub
 from server import _SandboxClient
 from tests.conftest import EmailCapture, LoginClient, UserFactory
 from tests.fake_acp_agent import (
@@ -314,6 +315,20 @@ async def wait_for_message_event(
                 return event
         await asyncio.sleep(0.05)
     raise AssertionError(f"event {event_type} for message {message_id} never arrived")
+
+
+async def wait_for_published_envelope(
+    pubsub: CachePubSub, kind: str, timeout: float = 5.0
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        published = await pubsub.get_message(timeout=0.25)
+        if published is None:
+            continue
+        envelope: dict[str, Any] = json.loads(published["data"])
+        if envelope["kind"] == kind:
+            return envelope
+    raise AssertionError(f"envelope {kind} was never published")
 
 
 def tool_events(
@@ -1005,6 +1020,35 @@ async def test_chat_attachments_embed_native_types_and_note_the_rest(
         assert f"{name} is available at" not in prompt["text"]
 
 
+async def test_host_attachment_note_points_at_the_workspace_on_disk(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
+
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="gpt-5.4",
+        prompt="read the memo",
+        permission_mode="auto",
+        attached_files=[("attached_files", ("memo.pdf", PDF_BYTES, "application/pdf"))],
+    )
+    assert response.status_code == 200, response.text
+    await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+
+    prompt = fake_agent.main_turn_prompts()[-1]
+    noted_path = Path(prompt["text"].split("memo.pdf is available at ")[1].split()[0])
+    assert noted_path.parent == Path(workspace.workspace_path).resolve()
+    assert noted_path.read_bytes() == PDF_BYTES
+
+
 @pytest.mark.parametrize(
     "option_id,expect_permission_mode,expect_status",
     [
@@ -1056,6 +1100,9 @@ async def test_chat_permission_response_flow(
         }
     ]
 
+    channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=workspace.user_id)
+    pubsub = acp_cache.store.pubsub()
+    await pubsub.subscribe(channel)
     respond = await client.post(
         f"/api/v1/chat/chats/{chat['id']}/permissions/{request_id}/respond",
         data={"option_id": option_id},
@@ -1063,6 +1110,10 @@ async def test_chat_permission_response_flow(
     )
     assert respond.status_code == 200, respond.text
     assert respond.json() == {"success": True}
+    dismissed = await wait_for_published_envelope(pubsub, "permission_dismissed")
+    await pubsub.unsubscribe(channel)
+    assert dismissed["payload"] == {"request_id": request_id}
+    assert dismissed["seq"] > permission_event["seq"]
 
     # Responding twice must fail cleanly (no pending future left to resolve).
     respond_again = await client.post(
@@ -1120,6 +1171,9 @@ async def test_chat_elicitation_response_flow(
         client, headers, message_id=message_id, event_type="elicitation_request"
     )
     request_id = event["render_payload"]["request_id"]
+    channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=workspace.user_id)
+    pubsub = acp_cache.store.pubsub()
+    await pubsub.subscribe(channel)
     response = await client.post(
         f"/api/v1/chat/chats/{chat['id']}/elicitation/{request_id}/respond",
         json={"request_id": request_id, "action": action, "content": content},
@@ -1127,6 +1181,10 @@ async def test_chat_elicitation_response_flow(
     )
     assert response.status_code == 200, response.text
     assert response.json() == {"success": True}
+    dismissed = await wait_for_published_envelope(pubsub, "elicitation_dismissed")
+    await pubsub.unsubscribe(channel)
+    assert dismissed["payload"] == {"request_id": request_id}
+    assert dismissed["seq"] > event["seq"]
 
     response_again = await client.post(
         f"/api/v1/chat/chats/{chat['id']}/elicitation/{request_id}/respond",

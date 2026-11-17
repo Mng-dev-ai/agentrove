@@ -1,8 +1,10 @@
 import asyncio
 import json
+import subprocess
 import time
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
@@ -26,10 +28,13 @@ from app.models.db_models.paired_device import PairedDevice
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import ChatException
+from app.services.git import GitService
+from app.services.sandbox import SandboxService
 from app.services.session_registry import session_registry
 from app.services import chat as chat_service_module
 from app.services.chat import ChatService
 from app.services.sandbox_providers.base import SandboxProvider
+from app.services.sandbox_providers.host_provider import LocalHostProvider
 from app.services.sandbox_providers.types import CommandResult
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
@@ -341,6 +346,16 @@ async def send_message(
     )
     assert response.status_code == 200
     return dict(response.json())
+
+
+def git_head(path: Path) -> str:
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=path,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
 
 
 async def test_send_message_streams_full_turn_and_persists_final_snapshot(
@@ -1609,6 +1624,85 @@ async def test_send_message_with_worktree_runs_agent_in_new_worktree(
     }
     detail_response = await client.get(f"/api/v1/chat/chats/{chat.id}", headers=headers)
     assert detail_response.json()["worktree_cwd"] == worktree_cwd
+
+
+async def test_sub_thread_worktree_turn_branches_off_the_inherited_worktree(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+    streaming_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for args in (
+        ["-c", "init.defaultBranch=main", "init", "-q"],
+        ["config", "user.email", "test@example.com"],
+        ["config", "user.name", "Test"],
+        ["config", "commit.gpgsign", "false"],
+        ["commit", "-q", "--allow-empty", "-m", "initial"],
+    ):
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+    provider = LocalHostProvider(str(repo))
+    monkeypatch.setattr(
+        SandboxProvider, "create_provider", lambda *_args, **_kwargs: provider
+    )
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    parent = await create_chat_row(db_session, user, workspace, title="Lead")
+    parent.worktree_cwd = await GitService(SandboxService(provider)).create_worktree(
+        str(workspace.sandbox_id), "", str(parent.id)
+    )
+    await db_session.commit()
+    subprocess.run(
+        ["git", "commit", "-q", "--allow-empty", "-m", "lead work"],
+        cwd=repo / parent.worktree_cwd,
+        check=True,
+    )
+
+    sub_threads = []
+    for title in ("Isolated", "Shared"):
+        response = await client.post(
+            "/api/v1/chat/chats",
+            json={
+                "title": title,
+                "model_id": TEST_MODEL_ID,
+                "workspace_id": str(workspace.id),
+                "parent_chat_id": str(parent.id),
+            },
+            headers=headers,
+        )
+        assert response.json()["worktree_cwd"] == parent.worktree_cwd
+        sub_threads.append(response.json()["id"])
+
+    cwds = []
+    for sub_thread_id, worktree in zip(sub_threads, ("true", "false"), strict=True):
+        acp_session = FakeAcpSession([[StreamEvent(type="assistant_text", text="ok")]])
+        acp_factory.queue(acp_session)
+        response = await client.post(
+            "/api/v1/chat/chat",
+            data={
+                "prompt": "Work",
+                "chat_id": sub_thread_id,
+                "model_id": TEST_MODEL_ID,
+                "permission_mode": "bypassPermissions",
+                "worktree": worktree,
+            },
+            headers=headers,
+        )
+        assert response.status_code == 200
+        await run_background_task(UUID(sub_thread_id))
+        cwds.append(acp_session.configs[0].cwd)
+
+    isolated_cwd, shared_cwd = cwds
+    assert isolated_cwd == GitService.chat_worktree_path(sub_threads[0])
+    assert git_head(repo / isolated_cwd) == git_head(repo / parent.worktree_cwd)
+    assert git_head(repo / isolated_cwd) != git_head(repo)
+    assert shared_cwd == parent.worktree_cwd
 
 
 @pytest.fixture
