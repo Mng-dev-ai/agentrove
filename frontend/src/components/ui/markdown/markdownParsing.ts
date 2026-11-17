@@ -12,9 +12,9 @@ export const CROSS_BLOCK_PATTERN = /\]:|<!|<\?|<(?:pre|script|style|textarea)[\s
 // Safe to start a new block; indented/list/blockquote lines must stay attached.
 const SAFE_BLOCK_START_RE = /^(?![ \t]|[-*+] |\d+[.)] |>)\S/;
 const MENTION_TRAILING_PUNCTUATION = '.,:;!?';
-// Fence marker + info string separate — closer must match opener, not any 3+ fence.
-const CODE_FENCE_LINE_RE = /^\s*(`{3,}|~{3,})([^\n]*)$/;
-const MATH_FENCE_LINE_RE = /^\s*\$\$\s*$/;
+// Code and display-math fences: marker + info string separate — closer must match opener,
+// not any fence. 4+ columns of indent is indented code, not a fence.
+const FENCE_LINE_RE = /^ {0,3}(`{3,}|~{3,}|\${2,})([^\n]*)$/;
 
 export const createImageAttachment = (url: string, alt?: string): MessageAttachment => {
   return {
@@ -34,11 +34,10 @@ export function splitMarkdownBlocks(md: string): string[] {
   const blocks: string[] = [];
   let current: string[] = [];
   let openFence: string | null = null;
-  let inMathFence = false;
   let pendingBlanks = 0;
 
   for (const line of lines) {
-    if (!openFence && !inMathFence && line.trim() === '') {
+    if (!openFence && line.trim() === '') {
       if (current.length > 0) pendingBlanks++;
       continue;
     }
@@ -53,10 +52,11 @@ export function splitMarkdownBlocks(md: string): string[] {
       pendingBlanks = 0;
     }
     current.push(line);
-    const fence = inMathFence ? null : CODE_FENCE_LINE_RE.exec(line);
+    const fence = FENCE_LINE_RE.exec(line);
     if (fence) {
       if (!openFence) {
-        openFence = fence[1];
+        // A backtick or $ fence's info string can't contain its own marker.
+        if (fence[1][0] === '~' || !fence[2].includes(fence[1][0])) openFence = fence[1];
       } else if (
         // Per CommonMark, a closing fence uses the same character, is at least
         // as long as the opener, and has no info string — so ``` examples
@@ -67,8 +67,6 @@ export function splitMarkdownBlocks(md: string): string[] {
       ) {
         openFence = null;
       }
-    } else if (!openFence && MATH_FENCE_LINE_RE.test(line)) {
-      inMathFence = !inMathFence;
     }
   }
   if (current.length > 0) blocks.push(current.join('\n'));
