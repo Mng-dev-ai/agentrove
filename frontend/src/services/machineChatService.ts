@@ -139,10 +139,13 @@ async function getModels(machineId: string): Promise<Model[]> {
 }
 
 async function updateSettings(machineId: string, data: UserSettingsUpdate): Promise<UserSettings> {
-  return serviceCall(async () => {
-    const response = await getMachineClient(machineId).patch<UserSettings>('/settings/', data);
-    return ensureResponse(response, 'Failed to update settings');
-  });
+  return serviceCall(
+    async () => {
+      const response = await getMachineClient(machineId).patch<UserSettings>('/settings/', data);
+      return ensureResponse(response, 'Failed to update settings');
+    },
+    { maxRetries: 0 },
+  );
 }
 
 async function startCompletion(machineId: string, request: ChatRequest): Promise<void> {
