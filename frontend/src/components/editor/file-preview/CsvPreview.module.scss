@@ -19,10 +19,10 @@
 }
 
 .header-cell {
-  @include type.type-body(500);
-  padding: var(--space-2) var(--space-4);
+  @include type.type-meta(500);
+  padding: var(--space-1) var(--space-2-5);
   text-align: left;
-  color: var(--theme-text-primary);
+  color: var(--theme-text-secondary);
 }
 
 .alt-row {
@@ -30,7 +30,7 @@
 }
 
 .cell {
-  @include type.type-body;
-  padding: var(--space-2) var(--space-4);
+  @include type.type-default;
+  padding: var(--space-1) var(--space-2-5);
   color: var(--theme-text-primary);
 }
