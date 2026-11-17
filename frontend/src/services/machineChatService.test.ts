@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, vi } from 'vitest';
 import { ServiceError } from '@/services/base/ServiceError';
 import { machineChatService } from './machineChatService';

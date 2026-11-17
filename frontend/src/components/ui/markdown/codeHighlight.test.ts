@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import type { ThemedToken } from '@pierre/diffs';
 import { createCodeHighlight, firstLine, release, takeReleased } from './codeHighlight';
