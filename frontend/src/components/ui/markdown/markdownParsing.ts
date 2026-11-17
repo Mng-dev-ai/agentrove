@@ -5,6 +5,10 @@ import { MENTION_PILL_CLASSNAME } from '../shared/HighlightedText/HighlightedTex
 
 export const MATH_PATTERN = /(^|[^\\])(\$\$[\s\S]*?\$\$|\\\(|\\\[)/;
 
+// What a blank-line split can break: link/footnote definitions used by other blocks, and
+// raw HTML blocks that run until their end tag.
+export const CROSS_BLOCK_PATTERN = /\]:|<!|<\?|<(?:pre|script|style|textarea)[\s/>]/i;
+
 // Safe to start a new block; indented/list/blockquote lines must stay attached.
 const SAFE_BLOCK_START_RE = /^(?![ \t]|[-*+] |\d+[.)] |>)\S/;
 const MENTION_TRAILING_PUNCTUATION = '.,:;!?';
@@ -24,7 +28,7 @@ export const createImageAttachment = (url: string, alt?: string): MessageAttachm
 };
 
 // Chunk at blank lines outside fences so streaming keeps completed blocks byte-identical
-// (memo skips re-parse). Isolation breaks cross-block refs — only use while streaming.
+// (memo skips re-parse). Isolation breaks CROSS_BLOCK_PATTERN constructs.
 export function splitMarkdownBlocks(md: string): string[] {
   const lines = md.split('\n');
   const blocks: string[] = [];

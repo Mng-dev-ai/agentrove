@@ -7,7 +7,12 @@ import 'katex/dist/katex.min.css';
 import { useMemo, memo } from 'react';
 import type { Options } from 'react-markdown';
 import { MARKDOWN_COMPONENTS } from './markdownComponents';
-import { MATH_PATTERN, rehypeMentionPills, splitMarkdownBlocks } from './markdownParsing';
+import {
+  CROSS_BLOCK_PATTERN,
+  MATH_PATTERN,
+  rehypeMentionPills,
+  splitMarkdownBlocks,
+} from './markdownParsing';
 import styles from './MarkDown.module.scss';
 
 function markdownUrlTransform(url: string, key: string): string {
@@ -42,7 +47,8 @@ const MarkdownBlock = memo(function MarkdownBlock({
 
 interface MarkDownProps {
   content: string;
-  // While streaming, split blocks for cheap incremental re-parse (breaks cross-block refs).
+  // While streaming, split blocks for cheap incremental re-parse even where that breaks
+  // cross-block refs. Otherwise split only when lossless, so finishing keeps mounted blocks.
   streaming?: boolean;
   // 'all': every @mention /command token (user messages). A set of lowercased
   // channel member handles: only `@member` mentions (agent text).
@@ -58,7 +64,8 @@ export const MarkDown = memo(function MarkDown({
   prose = false,
 }: MarkDownProps) {
   const blocks = useMemo(
-    () => (streaming ? splitMarkdownBlocks(content) : [content]),
+    () =>
+      streaming || !CROSS_BLOCK_PATTERN.test(content) ? splitMarkdownBlocks(content) : [content],
     [content, streaming],
   );
 
