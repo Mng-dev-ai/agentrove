@@ -31,10 +31,17 @@ vi.mock('@/services/modelService', () => ({
   modelService: { getModels: () => Promise.resolve(models) },
 }));
 
-async function openSelector(selectedModelId: string) {
+async function openSelector(selectedModelId: string, onSubmit?: () => void) {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <ModelSelector selectedModelId={selectedModelId} onModelChange={vi.fn()} />
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit?.();
+        }}
+      >
+        <ModelSelector selectedModelId={selectedModelId} onModelChange={vi.fn()} />
+      </form>
     </QueryClientProvider>,
   );
   fireEvent.click(await screen.findByRole('button', { expanded: false }));
@@ -62,5 +69,21 @@ describe('ModelSelector legacy models', () => {
     useModelStore.setState({ favoriteModelIds: [legacy.model_id] });
     const list = await openSelector(current.model_id);
     expect(list.getByText(legacy.name)).toBeTruthy();
+  });
+});
+
+describe('ModelSelector filter inside a form', () => {
+  it('does not submit the enclosing form on Enter or when clearing the filter', async () => {
+    const onSubmit = vi.fn();
+    await openSelector(current.model_id, onSubmit);
+    const filter = screen.getByPlaceholderText('Filter...');
+
+    expect(fireEvent.keyDown(filter, { key: 'Enter' })).toBe(false);
+
+    fireEvent.change(filter, { target: { value: 'minimax' } });
+    expect(fireEvent.keyDown(filter, { key: 'Enter' })).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(onSubmit).not.toHaveBeenCalled();
   });
 });
