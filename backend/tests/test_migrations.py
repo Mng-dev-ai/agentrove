@@ -51,7 +51,14 @@ ADDED_TO_BASE_TABLES = {
         ("column", "pinned_at", "DATETIME", 0, None, 0),
     },
     "channel_members": {("column", "removed_at", "DATETIME", 0, None, 0)},
-    "user_settings": {("column", "settings_version", "INTEGER", 1, "'0'", 0)},
+    "user_settings": {
+        ("column", "settings_version", "INTEGER", 1, "'0'", 0),
+        ("column", "notify_permission_requests", "BOOLEAN", 1, "'true'", 0),
+        ("column", "notify_questions", "BOOLEAN", 1, "'true'", 0),
+        ("column", "notify_completions", "BOOLEAN", 1, "'true'", 0),
+        ("column", "notify_inbox_messages", "BOOLEAN", 1, "'true'", 0),
+        ("column", "notify_sub_threads", "BOOLEAN", 1, "'true'", 0),
+    },
 }
 
 
