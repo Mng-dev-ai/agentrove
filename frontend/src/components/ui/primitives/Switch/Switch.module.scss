@@ -11,8 +11,8 @@
   border-radius: var(--radius-full);
   background-color: var(--theme-surface-tertiary);
   transition:
-    background-color var(--duration-base),
-    border-color var(--duration-base);
+    background-color var(--duration-instant),
+    border-color var(--duration-instant);
 
   // px on purpose — control art that must never rescale
   &--md {
@@ -61,7 +61,7 @@
   box-shadow: var(--shadow-sm);
   background-color: var(--theme-text-quaternary);
   transform: scale(0.85);
-  transition: transform var(--duration-base);
+  transition: transform var(--duration-fast) var(--easing-out);
 
   &--md {
     height: var(--space-4);

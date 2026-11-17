@@ -25,8 +25,8 @@
   padding: var(--space-4);
   text-align: center;
   transition:
-    border-color var(--duration-base),
-    background-color var(--duration-base);
+    border-color var(--duration-instant),
+    background-color var(--duration-instant);
 
   &--dragging {
     background-color: var(--theme-surface-secondary);

@@ -79,7 +79,7 @@
 .chevron {
   height: var(--space-3-5);
   width: var(--space-3-5);
-  transition: transform var(--duration-base);
+  transition: transform var(--duration-fast) var(--easing-out);
 
   &--expanded {
     transform: rotate(90deg);

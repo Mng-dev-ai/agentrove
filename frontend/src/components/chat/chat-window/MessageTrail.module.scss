@@ -61,7 +61,9 @@
 .tick {
   height: var(--space-0-5);
   border-radius: var(--radius-full);
-  transition: all var(--duration-base);
+  transition:
+    width var(--duration-fast),
+    background-color var(--duration-fast);
 
   &--active {
     width: var(--space-4);
@@ -124,7 +126,7 @@
   backdrop-filter: blur(24px);
   visibility: hidden;
   opacity: 0;
-  transition: opacity var(--duration-base);
+  transition: opacity var(--duration-fast);
 }
 
 .tooltip-title {

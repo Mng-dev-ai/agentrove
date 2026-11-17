@@ -45,7 +45,7 @@
   background-color: rgb(0 0 0 / 0.7);
   color: rgb(255 255 255);
   opacity: 0;
-  transition: opacity var(--duration-base);
+  transition: opacity var(--duration-instant);
 
   &:focus-visible {
     opacity: 1;

@@ -36,8 +36,8 @@
   width: var(--space-3);
   opacity: 0;
   transition:
-    transform var(--duration-base),
-    opacity var(--duration-base);
+    transform var(--duration-fast) var(--easing-out),
+    opacity var(--duration-fast);
 
   &--expanded {
     transform: rotate(90deg);

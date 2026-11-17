@@ -47,7 +47,7 @@
   padding: var(--space-0-5);
   color: var(--theme-text-quaternary);
   opacity: 0;
-  transition: opacity var(--duration-fast);
+  transition: opacity var(--duration-instant);
 
   @include responsive.media('not-touch') {
     .tab:hover & {

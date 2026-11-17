@@ -41,7 +41,6 @@
   line-height: 1.5;
   background: transparent;
   color: var(--theme-text-primary);
-  transition: all var(--duration-base);
 
   &::placeholder {
     @include type.type-overflow;

@@ -20,9 +20,9 @@
   padding-inline: var(--space-3) var(--space-9);
   color: var(--theme-text-primary);
   transition:
-    color var(--duration-base),
-    border-color var(--duration-base),
-    box-shadow var(--duration-base);
+    color var(--duration-instant),
+    border-color var(--duration-instant),
+    box-shadow var(--duration-instant);
 
   @include responsive.hover {
     border-color: var(--theme-border-hover);

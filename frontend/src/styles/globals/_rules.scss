@@ -174,7 +174,7 @@
   *::-webkit-scrollbar-thumb {
     background-color: var(--theme-border);
     border-radius: var(--radius-md);
-    transition: background-color var(--duration-base) ease;
+    transition: background-color var(--duration-instant) var(--easing-in-out);
   }
 
   *::-webkit-scrollbar-thumb:hover {

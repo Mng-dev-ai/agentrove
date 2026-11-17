@@ -25,7 +25,7 @@
   right: var(--space-1);
   top: var(--space-1);
   opacity: 0;
-  transition: opacity var(--duration-fast);
+  transition: opacity var(--duration-instant);
 
   // Hover never reveals it on touch; images download through the lightbox there.
   @include responsive.media('touch') {
@@ -173,7 +173,7 @@
   flex-shrink: 0;
   color: var(--theme-text-tertiary);
   opacity: 0;
-  transition: opacity var(--duration-fast);
+  transition: opacity var(--duration-instant);
 
   @include responsive.media('touch') {
     opacity: 1;

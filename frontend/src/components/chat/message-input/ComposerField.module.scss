@@ -16,7 +16,7 @@
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-2xl);
   background-color: var(--theme-surface-secondary);
-  transition: border-color var(--duration-slow);
+  transition: border-color var(--duration-instant);
 
   &:global(.#{state.$state-dragging}) {
     border-color: var(--theme-border-hover);

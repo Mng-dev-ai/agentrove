@@ -120,9 +120,9 @@
   color: var(--theme-text-primary);
   box-shadow: var(--shadow-inset);
   transition:
-    color var(--duration-base),
-    border-color var(--duration-base),
-    box-shadow var(--duration-base);
+    color var(--duration-instant),
+    border-color var(--duration-instant),
+    box-shadow var(--duration-instant);
 
   &::placeholder {
     color: var(--theme-text-quaternary);

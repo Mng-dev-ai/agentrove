@@ -17,7 +17,7 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  transition: opacity var(--duration-fast);
+  transition: opacity var(--duration-instant);
 
   @include responsive.hover {
     opacity: 0.9;
@@ -78,8 +78,8 @@
   background-color: var(--theme-surface);
   padding-top: var(--safe-area-top);
   transition-property: width, padding;
-  transition-duration: var(--sidebar-transition-duration, var(--duration-slower));
-  transition-timing-function: var(--easing-in-out);
+  transition-duration: var(--sidebar-transition-duration, var(--duration-base));
+  transition-timing-function: var(--easing-out);
 
   // While the sidebar is open the left section becomes its header strip:
   // full sidebar width, sidebar fill, right border merging into the sidebar's edge.

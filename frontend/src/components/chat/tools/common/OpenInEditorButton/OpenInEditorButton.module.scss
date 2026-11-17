@@ -7,7 +7,7 @@
 .button {
   border-radius: var(--radius-sm);
   opacity: 0;
-  transition: opacity var(--duration-fast);
+  transition: opacity var(--duration-instant);
 
   &:focus-visible {
     opacity: 1;
