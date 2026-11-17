@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ThemedToken } from '@pierre/diffs';
-import { createCodeHighlight } from './codeHighlight';
+import { createCodeHighlight, firstLine, release, takeReleased } from './codeHighlight';
 
 const text = (lines: ThemedToken[][]) =>
   lines.map((line) => line.map((token) => token.content).join('')).join('\n');
@@ -26,5 +26,23 @@ describe('createCodeHighlight', () => {
 
   it('returns null for a language Shiki does not know', async () => {
     expect(await createCodeHighlight('foobarlang')).toBeNull();
+  });
+});
+
+describe('released highlight pool', () => {
+  it('hands a released highlight to one taker and disposes it once', async () => {
+    const code = 'const a = 1;\nconst b = 2;';
+    const pooled = await highlightTs();
+    pooled.feed(code, Infinity);
+    release(pooled);
+
+    const taken = [takeReleased('ts', firstLine(code)), takeReleased('ts', firstLine(code))];
+    expect(taken[0]).toBe(pooled);
+    expect(taken[1]).toBeNull();
+
+    const dispose = vi.spyOn(pooled, 'dispose');
+    for (const highlight of taken) if (highlight) release(highlight);
+    for (let i = 0; i < 8; i++) release(await highlightTs());
+    expect(dispose).toHaveBeenCalledTimes(1);
   });
 });

@@ -118,18 +118,12 @@ const released: CodeHighlight[] = [];
 
 export const firstLine = (text: string) => text.slice(0, text.indexOf('\n') + 1);
 
-export function findReleased(language: string, head: string): CodeHighlight | null {
+export function takeReleased(language: string, head: string): CodeHighlight | null {
   if (head === '') return null;
-  return (
-    released.find(
-      (highlight) => highlight.language === language && firstLine(highlight.source) === head,
-    ) ?? null
+  const index = released.findIndex(
+    (highlight) => highlight.language === language && firstLine(highlight.source) === head,
   );
-}
-
-export function claim(highlight: CodeHighlight) {
-  const index = released.indexOf(highlight);
-  if (index !== -1) released.splice(index, 1);
+  return index === -1 ? null : released.splice(index, 1)[0];
 }
 
 export function release(highlight: CodeHighlight) {

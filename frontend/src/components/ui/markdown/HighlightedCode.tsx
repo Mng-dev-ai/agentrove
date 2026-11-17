@@ -1,12 +1,11 @@
-import { memo, useEffect, useLayoutEffect, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { ThemedToken } from '@pierre/diffs';
 import {
-  claim,
   createCodeHighlight,
-  findReleased,
   firstLine,
   loadedCodeHighlight,
   release,
+  takeReleased,
 } from './codeHighlight';
 import type { CodeHighlight } from './codeHighlight';
 import styles from './CodeBlock.module.scss';
@@ -35,33 +34,41 @@ interface HighlightedCodeProps {
 
 export function HighlightedCode({ code, language }: HighlightedCodeProps) {
   const [highlight, setHighlight] = useState<CodeHighlight | null>(null);
+  const owned = useRef<CodeHighlight | null>(null);
   const [, setFrame] = useState(0);
   const highlighted = highlight?.feed(code, performance.now() + FRAME_BUDGET_MS) ?? null;
   const behind = highlighted !== null && highlighted.source.length < code.length;
   const head = firstLine(code);
 
-  useLayoutEffect(() => {
-    if (!highlight) return;
-    claim(highlight);
-    return () => release(highlight);
-  }, [highlight]);
+  useLayoutEffect(
+    () => () => {
+      if (owned.current) release(owned.current);
+      owned.current = null;
+    },
+    [],
+  );
 
   useLayoutEffect(() => {
-    if (highlight) return;
-    const ready = findReleased(language, head) ?? loadedCodeHighlight(language);
+    if (owned.current) return;
+    const ready = takeReleased(language, head) ?? loadedCodeHighlight(language);
     if (ready) {
+      owned.current = ready;
       setHighlight(ready);
       return;
     }
     let live = true;
     createCodeHighlight(language).then((next) => {
-      if (live) setHighlight(next);
-      else next?.dispose();
+      if (!live) {
+        next?.dispose();
+      } else if (next) {
+        owned.current = next;
+        setHighlight(next);
+      }
     });
     return () => {
       live = false;
     };
-  }, [highlight, language, head]);
+  }, [language, head]);
 
   useEffect(() => {
     if (!behind) return;
