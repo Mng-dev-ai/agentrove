@@ -351,17 +351,20 @@ export async function downloadAttachmentFile(
     fileUrl instanceof File
       ? fileUrl
       : await fetchAttachmentBlob(toDownloadUrl(fileUrl), apiClient);
-  const blobUrl = URL.createObjectURL(blob);
+  saveBlob(blob, fileName);
+}
 
+export function saveBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
   try {
     const link = document.createElement('a');
-    link.href = blobUrl;
+    link.href = url;
     link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   } finally {
-    URL.revokeObjectURL(blobUrl);
+    URL.revokeObjectURL(url);
   }
 }
 
