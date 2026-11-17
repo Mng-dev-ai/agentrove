@@ -141,9 +141,12 @@ export async function resetAppBadge(): Promise<void> {
   await syncAppBadge(0);
 }
 
-function assistantBody(message: string | undefined): string {
+function assistantBody(
+  message: string | undefined,
+  fallback = 'The assistant has finished responding.',
+): string {
   const text = message?.trim();
-  if (!text) return 'The assistant has finished responding.';
+  if (!text) return fallback;
   return text.length > BODY_MAX_CHARS ? `${text.slice(0, BODY_MAX_CHARS).trimEnd()}…` : text;
 }
 
@@ -156,6 +159,22 @@ export async function notifyStreamComplete(options: NotifyOptions = {}): Promise
     );
   } catch (error) {
     logger.debug('Failed to send stream complete notification', 'notifications', error);
+    return false;
+  }
+}
+
+export async function notifyQuestion(
+  message: string,
+  options: NotifyOptions = {},
+): Promise<boolean> {
+  try {
+    return await deliver(
+      'Question for you',
+      assistantBody(message, 'The agent is waiting for your answer.'),
+      options.onClick,
+    );
+  } catch (error) {
+    logger.debug('Failed to send question notification', 'notifications', error);
     return false;
   }
 }

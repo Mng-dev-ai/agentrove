@@ -120,7 +120,14 @@ class PushService:
         )
 
     async def notify_question(
-        self, *, user_id: UUID, path: str, request_id: str, title: str, body: str
+        self,
+        *,
+        user_id: UUID,
+        path: str,
+        request_id: str,
+        title: str,
+        body: str,
+        sub_thread: bool,
     ) -> None:
         await self.enqueue(
             user_id=user_id,
@@ -131,6 +138,7 @@ class PushService:
             collapse_id=f"ask:{request_id}",
             ttl_seconds=PERMISSION_TTL_SECONDS,
             setting=UserSettings.notify_questions,
+            sub_thread=sub_thread,
         )
 
     async def notify_completion(

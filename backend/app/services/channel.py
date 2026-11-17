@@ -1863,6 +1863,7 @@ class ChannelService(BaseDbService[Channel]):
                 request_id=f"{turn.source_message_id}:{request_id}",
                 title=asked["title"],
                 body=asked["body"],
+                sub_thread=False,
             )
         elif kind == "elicitation_resolved":
             async with state.lock:

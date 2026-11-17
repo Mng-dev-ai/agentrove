@@ -306,9 +306,15 @@ async def test_disabled_notifications_suppress_queued_and_new_pushes(
 
 CHANNEL_ID = UUID(int=1)
 PERMISSIONS = {"perm:perm", "perm:plan"}
-QUESTIONS = {"perm:ask", "ask:elicit"}
+QUESTIONS = {"perm:ask", "ask:elicit", "ask:chat-elicit"}
 COMPLETIONS = {"c:complete", f"{CHANNEL_ID}:complete"}
-SUB_THREAD_EVENTS = {"perm:perm", "perm:plan", "perm:ask", "c:complete"}
+SUB_THREAD_EVENTS = {
+    "perm:perm",
+    "perm:plan",
+    "perm:ask",
+    "ask:chat-elicit",
+    "c:complete",
+}
 
 
 async def enqueue_every_event(user_id: UUID, *, sub_thread: bool) -> None:
@@ -326,7 +332,20 @@ async def enqueue_every_event(user_id: UUID, *, sub_thread: bool) -> None:
             sub_thread=sub_thread,
         )
     await push.notify_question(
-        user_id=user_id, path="/channels/x", request_id="elicit", title="#x", body="?"
+        user_id=user_id,
+        path="/channels/x",
+        request_id="elicit",
+        title="#x",
+        body="?",
+        sub_thread=False,
+    )
+    await push.notify_question(
+        user_id=user_id,
+        path="/chat/c",
+        request_id="chat-elicit",
+        title="Question for you",
+        body="Which branch?",
+        sub_thread=sub_thread,
     )
     await push.notify_completion(
         user_id=user_id,

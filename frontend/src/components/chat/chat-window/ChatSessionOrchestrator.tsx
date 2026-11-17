@@ -94,7 +94,7 @@ export function ChatSessionOrchestrator({
     handleSubmit: handleElicitationSubmit,
     handleSkip: handleElicitationSkip,
     handleCancel: handleElicitationCancel,
-  } = useElicitationRequest(chatId);
+  } = useElicitationRequest(chatId, Boolean(currentChat?.parent_chat_id));
 
   const streamingState = useChatStreaming({
     chatId,
