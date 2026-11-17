@@ -1,11 +1,7 @@
-import { registerCustomCSSVariableTheme } from '@pierre/diffs';
 import type { CreatePatchOptionsNonabortable, FileDiffMetadata, FileContents } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
 import { whitespaceKeySuffix } from '@/utils/diffReviewKey';
-
-const DIFF_SYNTAX_THEME = 'agentrove-syntax';
-
-registerCustomCSSVariableTheme(DIFF_SYNTAX_THEME, {});
+import { DIFF_SYNTAX_THEME } from './diffShikiTheme';
 
 export const DIFF_THEMES = { dark: DIFF_SYNTAX_THEME, light: DIFF_SYNTAX_THEME };
 

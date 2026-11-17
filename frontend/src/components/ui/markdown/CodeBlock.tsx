@@ -1,8 +1,22 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import type { HTMLAttributes } from 'react';
 import clsx from 'clsx';
+import { lazyNamed } from '@/utils/lazyNamed';
 import { Button } from '../primitives/Button/Button';
 import styles from './CodeBlock.module.scss';
+
+const HighlightedCode = lazyNamed(() => import('./HighlightedCode'), 'HighlightedCode');
+
+function supportsShikiRegexEngine() {
+  try {
+    new RegExp('(?<=a)b');
+    return 'at' in Array.prototype;
+  } catch {
+    return false;
+  }
+}
+
+const CAN_HIGHLIGHT = supportsShikiRegexEngine();
 
 interface CodeBlockProps extends HTMLAttributes<HTMLElement> {
   language: string;
@@ -35,7 +49,13 @@ export function CodeBlock({ language, codeContent, className, ...props }: CodeBl
       </div>
       <pre className={styles['code-pre']}>
         <code className={clsx(className, styles['code-content'])} {...props}>
-          {codeContent}
+          {CAN_HIGHLIGHT ? (
+            <Suspense fallback={codeContent}>
+              <HighlightedCode key={language} code={codeContent} language={language} />
+            </Suspense>
+          ) : (
+            codeContent
+          )}
         </code>
       </pre>
     </div>
