@@ -458,6 +458,7 @@ export const View = memo(function View({
       )}
 
       <ConfirmDialog
+        destructive
         isOpen={pendingClosePath !== null}
         onClose={cancelCloseTab}
         onConfirm={confirmCloseTab}

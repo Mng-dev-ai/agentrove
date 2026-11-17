@@ -11,6 +11,7 @@ interface ConfirmDialogProps {
   message: string;
   confirmLabel?: string;
   cancelLabel?: string;
+  destructive?: boolean;
 }
 
 export function ConfirmDialog({
@@ -21,6 +22,7 @@ export function ConfirmDialog({
   message,
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
+  destructive,
 }: ConfirmDialogProps) {
   if (!isOpen) return null;
 
@@ -36,6 +38,7 @@ export function ConfirmDialog({
         }}
         saveLabel={confirmLabel}
         cancelLabel={cancelLabel}
+        destructive={destructive}
       />
     </BaseModal>
   );

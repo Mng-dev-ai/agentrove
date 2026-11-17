@@ -299,6 +299,7 @@ export function SidebarChannels({
       )}
 
       <ConfirmDialog
+        destructive
         isOpen={!!channelToDelete}
         onClose={() => setChannelToDelete(null)}
         onConfirm={confirmDelete}

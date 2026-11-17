@@ -230,6 +230,7 @@ export const AssistantMessage = memo(function AssistantMessage({
       )}
       {restoreOpen && (
         <ConfirmDialog
+          destructive
           isOpen
           onClose={() => setRestoreOpen(false)}
           onConfirm={() => restore()}

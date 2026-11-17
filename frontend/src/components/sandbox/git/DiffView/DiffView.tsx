@@ -456,6 +456,7 @@ const DiffViewContent = memo(function DiffViewContent({
         </div>
 
         <ConfirmDialog
+          destructive
           isOpen={discardTarget !== null}
           onClose={() => setDiscardTarget(null)}
           onConfirm={handleDiscard}
@@ -469,6 +470,7 @@ const DiffViewContent = memo(function DiffViewContent({
         />
 
         <ConfirmDialog
+          destructive
           isOpen={discardAllOpen}
           onClose={() => setDiscardAllOpen(false)}
           onConfirm={handleDiscardAll}

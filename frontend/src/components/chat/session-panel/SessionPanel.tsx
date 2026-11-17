@@ -339,6 +339,7 @@ function MemberEditor({
       />
       {member && (
         <ConfirmDialog
+          destructive
           isOpen={confirmingRemove}
           onClose={() => setConfirmingRemove(false)}
           onConfirm={() => void remove(member.id)}

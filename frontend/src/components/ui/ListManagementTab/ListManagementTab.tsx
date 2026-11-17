@@ -197,6 +197,7 @@ export function ListManagementTab<T>({
       </div>
 
       <ConfirmDialog
+        destructive
         isOpen={pendingDeleteIndex !== null}
         onClose={handleCloseDeleteDialog}
         onConfirm={handleConfirmDelete}
