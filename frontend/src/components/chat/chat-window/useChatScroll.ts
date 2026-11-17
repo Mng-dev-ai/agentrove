@@ -106,6 +106,9 @@ export function useChatScroll({
     // which never arrives when the reply outgrows the spacer mid-flight.
     if (anchoringRef.current && (scrollTop >= anchorTargetRef.current - 1 || isScrollingUp)) {
       anchoringRef.current = false;
+      // An instant write stops the smooth scroll, whose remaining downward steps would
+      // otherwise re-pin the reader who just scrolled up.
+      if (isScrollingUp) writeScrollTop(container, scrollTop, lastScrollTopRef);
     }
 
     if (isAtBottomRef.current !== atBottom) {
