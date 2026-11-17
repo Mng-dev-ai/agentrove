@@ -9,9 +9,6 @@ const MIN_TICK_MS = 33;
 // Cap the per-step time delta so a pause (hidden tab, slow token gaps) doesn't
 // dump the whole backlog in one frame when ticks resume.
 const MAX_TICK_DELTA_MS = 100;
-// Once the stream has ended nothing refills the backlog: reveal the rest at least fast
-// enough to finish within this, so a large final flush can't trail on for seconds.
-const FINISH_MS = 1000;
 const HIGH_SURROGATE_RE = /[\uD800-\uDBFF]/;
 
 export function useSmoothText(
@@ -24,8 +21,6 @@ export function useSmoothText(
   const [visibleCount, setVisibleCount] = useState(text.length);
   const visibleCountRef = useRef(visibleCount);
   const textRef = useRef(text);
-  const animateRef = useRef(animate);
-  animateRef.current = animate;
 
   if (finishReveal && !text.startsWith(textRef.current.slice(0, visibleCountRef.current))) {
     visibleCountRef.current = 0;
@@ -44,7 +39,6 @@ export function useSmoothText(
 
     let rafId = 0;
     let lastTick = performance.now();
-    let finishRate = 0;
 
     const tick = (now: number) => {
       const target = textRef.current.length;
@@ -55,12 +49,7 @@ export function useSmoothText(
         const delta = Math.min(now - lastTick, MAX_TICK_DELTA_MS);
         lastTick = now;
         const backlog = target - visible;
-        if (!animateRef.current && !finishRate) finishRate = backlog / FINISH_MS;
-        const step = Math.max(
-          1,
-          Math.round((backlog * delta) / CATCH_UP_MS),
-          Math.ceil(finishRate * delta),
-        );
+        const step = Math.max(1, Math.round((backlog * delta) / CATCH_UP_MS));
         let next = Math.min(target, visible + step);
         // Don't split a surrogate pair — slicing mid-emoji flashes a replacement char
         if (next < target && HIGH_SURROGATE_RE.test(textRef.current[next - 1])) next++;
