@@ -36,20 +36,23 @@ GIT_CURRENT_BRANCH_CMD = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
 # harness materializes its system skills relative to the session cwd. The repo's
 # info/exclude hides them from status, ls-files, rg and `git clean` under any
 # HOME, without touching tracked files. Written best-effort: a failed write must
-# never block the command it prefixes. `--git-path` resolves through the common
-# git dir, so the entries land in the file git actually reads even when the
-# workspace is itself a linked worktree (`--absolute-git-dir` would point at the
-# per-worktree admin dir).
+# never block the command it prefixes, yet it stays in the caller's `&&` chain
+# so a failed `cd` still aborts. A missing final newline is added before
+# appending so the user's last rule isn't merged with ours. `--git-path`
+# resolves through the common git dir, so the entries land in the file git
+# actually reads even when the workspace is itself a linked worktree
+# (`--absolute-git-dir` would point at the per-worktree admin dir).
 GIT_ENSURE_EXCLUDES_CMD = (
-    'excl="$(git rev-parse --git-path info/exclude 2>/dev/null)" && '
-    '{ mkdir -p "${excl%/*}" && for p in '
+    '{ excl="$(git rev-parse --git-path info/exclude)" && '
+    'mkdir -p "${excl%/*}" && for p in '
     "'.worktrees/' '**/.claude/settings.local.json' "
     "'**/skills/system/run-workflow/SKILL.md'; do "
-    'grep -qxF "$p" "$excl" || echo "$p" >> "$excl"; done; } 2>/dev/null; '
+    'grep -qxF "$p" "$excl" || { [ -z "$(tail -c1 "$excl")" ] || echo; '
+    'echo "$p"; } >> "$excl"; done || true; } 2>/dev/null && '
 )
 # One round-trip so a clean tree (the common case) avoids the diff capture.
-# Runs before every agent turn, so each workspace gets its excludes before the
-# agent can drop artifacts and before the checkpoint captures the tree.
+# Runs at the start of every turn that takes a checkpoint (channel-member turns
+# don't), before the agent can drop artifacts and before the tree is captured.
 GIT_CHECKPOINT_PROBE_CMD = (
     GIT_ENSURE_EXCLUDES_CMD + "git rev-parse HEAD 2>/dev/null && "
     'echo "$(git symbolic-ref -q HEAD)" && '
