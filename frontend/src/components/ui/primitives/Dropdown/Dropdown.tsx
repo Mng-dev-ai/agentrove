@@ -180,7 +180,9 @@ const Dropdown = memo(function Dropdown<T>({
 
   // An empty query lets Escape through to useDropdown, which closes the panel.
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape' && searchQuery) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+    } else if (event.key === 'Escape' && searchQuery) {
       event.preventDefault();
       setSearchQuery('');
     }
@@ -292,6 +294,7 @@ const Dropdown = memo(function Dropdown<T>({
                 />
                 {searchQuery && (
                   <Button
+                    type="button"
                     onClick={() => setSearchQuery('')}
                     variant="unstyled"
                     aria-label="Clear search"
@@ -317,6 +320,7 @@ const Dropdown = memo(function Dropdown<T>({
               />
               {searchQuery && (
                 <Button
+                  type="button"
                   onClick={() => setSearchQuery('')}
                   variant="unstyled"
                   aria-label="Clear search"
