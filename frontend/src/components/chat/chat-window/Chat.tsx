@@ -164,6 +164,8 @@ export const Chat = memo(function Chat() {
   // collapsed trace land in one commit instead of one per state source.
   const [settlingMessageId, setSettlingMessageId] = useState<string | null>(null);
   const [revealingTextCount, setRevealingTextCount] = useState(0);
+  // Trailer slots the ended reply did not fill stay reserved until the next send.
+  const [endedMessageId, setEndedMessageId] = useState<string | null>(null);
   const [prevStreamingIds, setPrevStreamingIds] = useState(streamingMessageIdSet);
   if (prevStreamingIds !== streamingMessageIdSet) {
     setPrevStreamingIds(streamingMessageIdSet);
@@ -173,6 +175,7 @@ export const Chat = memo(function Chat() {
       !streamingMessageIdSet.has(lastBotMessageId)
     ) {
       setSettlingMessageId(lastBotMessageId);
+      setEndedMessageId(lastBotMessageId);
     }
   }
   const lastBotStreams = !!lastBotMessageId && streamingMessageIdSet.has(lastBotMessageId);
@@ -187,6 +190,8 @@ export const Chat = memo(function Chat() {
     setSettlingMessageId(null);
   }
   const lastBotIsStreaming = lastBotStreams || lastBotSettling;
+  const lastBotHoldsTrailer =
+    endedMessageId === lastBotMessageId && !lastBotIsStreaming && !isStreaming && !isLoading;
   const beginTextReveal = useCallback(() => setRevealingTextCount((count) => count + 1), []);
   // A frame later, so the last words paint before the reply settles instead of with it.
   const endTextReveal = useCallback(() => {
@@ -257,7 +262,8 @@ export const Chat = memo(function Chat() {
     !lastBotIsStreaming &&
     !isStreaming &&
     !isLoading;
-  const showStreamActionsSlot = showStreamActions || (lastBotIsStreaming && lastBotHasContent);
+  const showStreamActionsSlot =
+    showStreamActions || ((lastBotIsStreaming || lastBotHoldsTrailer) && lastBotHasContent);
 
   const renderMessage = useCallback(
     (msg: (typeof messages)[number], hasReply: boolean) => {
@@ -307,6 +313,7 @@ export const Chat = memo(function Chat() {
                 isLatest={msg.id === latestMessageId}
                 // An inline prompt sits right under the reply, with no gap for the trailer
                 reserveTrailer={messageIsStreaming && !showPermissionAtEnd && !showElicitationAtEnd}
+                holdTrailer={isLastBotMessage && lastBotHoldsTrailer}
               />
             </TextRevealContext>
           ) : (
@@ -334,6 +341,7 @@ export const Chat = memo(function Chat() {
       isLoading,
       isStreaming,
       lastBotRowHidden,
+      lastBotHoldsTrailer,
       lastBotIsStreaming,
       lastBotMessageId,
       latestMessageId,
