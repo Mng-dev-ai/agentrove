@@ -1,77 +1,33 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { useDesktopUpdateStore } from './updateStore';
 
 const state = () => useDesktopUpdateStore.getState();
 
-const availableInfo = {
-  version: '2.0.0',
-  body: 'notes',
-};
-
 beforeEach(() => {
-  useDesktopUpdateStore.setState({
-    status: 'idle',
-    version: null,
-    releaseNotes: null,
-    downloadedBytes: 0,
-    totalBytes: null,
-    errorMessage: null,
-    triggerInstall: null,
-  });
+  useDesktopUpdateStore.setState({ update: { status: 'idle' } });
 });
 
-describe('desktop update lifecycle', () => {
-  it('walks available -> downloading -> chunks -> installing', () => {
-    const trigger = vi.fn(async () => {});
-    state().setAvailable(availableInfo, trigger);
-    expect(state()).toMatchObject({
-      status: 'available',
-      version: '2.0.0',
-      releaseNotes: 'notes',
-      triggerInstall: trigger,
-    });
+describe('desktop update store', () => {
+  it('mirrors each snapshot from Rust through to ready', () => {
+    state().setUpdate({ status: 'available', version: '2.0.0' });
+    expect(state().update).toEqual({ status: 'available', version: '2.0.0' });
 
-    state().setDownloading();
-    state().setDownloadStarted(300);
-    state().addDownloadChunk(100);
-    state().addDownloadChunk(200);
-    state().setInstalling();
-
-    expect(state()).toMatchObject({ status: 'installing', downloadedBytes: 300, totalBytes: 300 });
-  });
-
-  it('clears progress and the error when a retry starts downloading after a failure', () => {
-    state().setDownloading();
-    state().setDownloadStarted(1000);
-    state().addDownloadChunk(400);
-    state().setError('disk full');
-    expect(state()).toMatchObject({ status: 'error', errorMessage: 'disk full' });
-
-    state().setDownloading();
-
-    expect(state()).toMatchObject({
+    state().setUpdate({ status: 'downloading', downloadedBytes: 150, totalBytes: 300 });
+    expect(state().update).toEqual({
       status: 'downloading',
-      downloadedBytes: 0,
-      totalBytes: null,
-      errorMessage: null,
+      downloadedBytes: 150,
+      totalBytes: 300,
     });
+
+    state().setUpdate({ status: 'ready', version: '2.0.0' });
+    expect(state().update).toEqual({ status: 'ready', version: '2.0.0' });
   });
 
-  it('clears prior progress and error when a new update is announced', () => {
-    state().setDownloadStarted(1000);
-    state().addDownloadChunk(500);
-    state().setError('old failure');
+  it('drops download progress when a snapshot moves to error', () => {
+    state().setUpdate({ status: 'downloading', downloadedBytes: 400, totalBytes: 1000 });
 
-    state().setAvailable(
-      availableInfo,
-      vi.fn(async () => {}),
-    );
+    state().setUpdate({ status: 'error', message: 'disk full' });
 
-    expect(state()).toMatchObject({
-      status: 'available',
-      downloadedBytes: 0,
-      totalBytes: null,
-      errorMessage: null,
-    });
+    expect(state().update).toEqual({ status: 'error', message: 'disk full' });
   });
 });

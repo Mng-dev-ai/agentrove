@@ -1,60 +1,20 @@
 import { create } from 'zustand';
 
-export type DesktopUpdateStatus = 'idle' | 'available' | 'downloading' | 'installing' | 'error';
+export type DesktopUpdateState =
+  | { status: 'idle' }
+  | { status: 'available'; version: string }
+  // totalBytes is null when the server omitted Content-Length
+  | { status: 'downloading'; downloadedBytes: number; totalBytes: number | null }
+  | { status: 'ready'; version: string }
+  | { status: 'installing' }
+  | { status: 'error'; message: string };
 
-interface DesktopUpdateState {
-  status: DesktopUpdateStatus;
-  version: string | null;
-  releaseNotes: string | null;
-  downloadedBytes: number;
-  // null when the server omitted Content-Length
-  totalBytes: number | null;
-  errorMessage: string | null;
-  triggerInstall: (() => Promise<void>) | null;
+interface DesktopUpdateStore {
+  update: DesktopUpdateState;
+  setUpdate: (update: DesktopUpdateState) => void;
 }
 
-interface DesktopUpdateActions {
-  setAvailable: (
-    info: {
-      version: string;
-      body: string | null;
-    },
-    triggerInstall: () => Promise<void>,
-  ) => void;
-  setDownloading: () => void;
-  setDownloadStarted: (totalBytes: number | null) => void;
-  addDownloadChunk: (chunkLength: number) => void;
-  setInstalling: () => void;
-  setError: (message: string) => void;
-}
-
-const initialState: DesktopUpdateState = {
-  status: 'idle',
-  version: null,
-  releaseNotes: null,
-  downloadedBytes: 0,
-  totalBytes: null,
-  errorMessage: null,
-  triggerInstall: null,
-};
-
-export const useDesktopUpdateStore = create<DesktopUpdateState & DesktopUpdateActions>((set) => ({
-  ...initialState,
-  setAvailable: ({ version, body }, triggerInstall) =>
-    set({
-      status: 'available',
-      version,
-      releaseNotes: body,
-      downloadedBytes: 0,
-      totalBytes: null,
-      errorMessage: null,
-      triggerInstall,
-    }),
-  setDownloading: () =>
-    set({ status: 'downloading', downloadedBytes: 0, totalBytes: null, errorMessage: null }),
-  setDownloadStarted: (totalBytes) => set({ totalBytes }),
-  addDownloadChunk: (chunkLength) =>
-    set((state) => ({ downloadedBytes: state.downloadedBytes + chunkLength })),
-  setInstalling: () => set({ status: 'installing' }),
-  setError: (message) => set({ status: 'error', errorMessage: message }),
+export const useDesktopUpdateStore = create<DesktopUpdateStore>((set) => ({
+  update: { status: 'idle' },
+  setUpdate: (update) => set({ update }),
 }));

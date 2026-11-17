@@ -31,7 +31,7 @@ import { useNotificationPermissionPrompt } from '@/hooks/useNotificationPermissi
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { isPairingHash } from '@/utils/machineUrl';
 import { PALETTES } from '@/styles/palettes';
-import { checkDesktopUpdate } from '@/services/desktopUpdateService';
+import { attachDesktopUpdate } from '@/services/desktopUpdateService';
 import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import styles from './App.module.scss';
@@ -292,9 +292,10 @@ export default function App() {
   useMountEffect(() => {
     if (import.meta.env.DEV || !isDesktopApp()) return;
 
-    checkDesktopUpdate().catch((error) => {
-      console.error('Desktop updater check failed:', error);
-    });
+    const unlisten = attachDesktopUpdate();
+    return () => {
+      void unlisten.then((stop) => stop());
+    };
   });
 
   useDesktopZoom();

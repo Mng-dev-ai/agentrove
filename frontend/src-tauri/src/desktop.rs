@@ -14,6 +14,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::Manager;
 
 use crate::machine;
+use crate::update;
 
 #[tauri::command]
 fn get_backend_port(state: tauri::State<'_, Arc<OnceLock<Result<u16, String>>>>) -> Result<u16, String> {
@@ -221,19 +222,22 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(backend_port.clone())
         .manage(machine::MachineLocks::default())
+        .manage(update::UpdateLifecycle::default())
         .invoke_handler(tauri::generate_handler![
             get_backend_port,
             machine::machine_pair,
             machine::machine_refresh,
             machine::machine_unpair,
             machine::machine_forget,
-            machine::machine_probe
+            machine::machine_probe,
+            update::update_check,
+            update::update_download,
+            update::update_install
         ])
         .on_window_event(|window, event| {
             // Close = hide to tray; real exit is tray Quit (app.exit bypasses this).

@@ -15,9 +15,6 @@
     "core:window:allow-set-badge-count",
     "core:webview:allow-set-webview-zoom",
     "store:default",
-    "updater:default",
-    "process:default",
-    "process:allow-restart",
     "notification:default",
     "dialog:default",
     "opener:default",
@@ -26,6 +23,9 @@
     "allow-machine-refresh",
     "allow-machine-unpair",
     "allow-machine-forget",
-    "allow-machine-probe"
+    "allow-machine-probe",
+    "allow-update-check",
+    "allow-update-download",
+    "allow-update-install"
   ]
 }
