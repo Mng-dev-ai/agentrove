@@ -6,6 +6,11 @@ const FOCUSABLE =
 // Open dialogs in mount order; only the last one answers Escape/Tab.
 const openStack: HTMLDivElement[] = [];
 
+export const isBelowModalLayer = (element: Node) => {
+  const top = openStack[openStack.length - 1];
+  return top !== undefined && !top.contains(element);
+};
+
 export function useModalLayer(
   containerRef: RefObject<HTMLDivElement | null>,
   isOpen: boolean,

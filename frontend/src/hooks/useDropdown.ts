@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { isBelowModalLayer } from '@/components/ui/shared/BaseModal/useModalLayer';
 
 // Open dropdowns in open order; only the last one answers Escape.
 const openStack: HTMLDivElement[] = [];
@@ -28,7 +29,8 @@ export const useDropdown = () => {
       if (
         event.key !== 'Escape' ||
         event.defaultPrevented ||
-        openStack[openStack.length - 1] !== root
+        openStack[openStack.length - 1] !== root ||
+        isBelowModalLayer(root)
       ) {
         return;
       }
