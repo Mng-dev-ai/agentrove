@@ -52,7 +52,13 @@ const sidecarBinDir = join(sidecarDir, 'bin');
 const rgBin = join(sidecarDir, 'bin', 'rg');
 const claudeAcpBin = join(sidecarBinDir, 'claude-agent-acp');
 const codexAcpBin = join(sidecarBinDir, 'codex-acp');
-const claudeAgentSdkNativeDir = join(sidecarDir, 'node_modules', '@anthropic-ai', `claude-agent-sdk-${platform}-${arch}`);
+const claudeCodeNativeBin = `node_modules/@anthropic-ai/claude-code-${platform}-${arch}/claude`;
+// npm leaves extra copies of the Claude binary that Tauri bundles as full files; bin/claude only runs claudeCodeNativeBin.
+const unusedClaudeBinaries = [
+  `node_modules/@anthropic-ai/claude-agent-sdk-${platform}-${arch}`,
+  'node_modules/@anthropic-ai/claude-code/bin/claude.exe',
+  'node_modules/.bin/claude',
+];
 
 const PYTHON_STAMP = `${PYTHON_VERSION}+${RELEASE_TAG}-${arch}-${platform}`;
 const NODE_STAMP = `${NODE_VERSION}-${arch}-${platform}`;
@@ -241,7 +247,7 @@ function writeClaudeCliLauncher() {
     launcher,
     '#!/bin/bash\n' +
       'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n' +
-      'exec "$SCRIPT_DIR/../node_modules/.bin/claude" "$@"\n',
+      `exec "$SCRIPT_DIR/../${claudeCodeNativeBin}" "$@"\n`,
   );
   chmodSync(launcher, 0o755);
 }
@@ -365,8 +371,9 @@ function run() {
   } else {
     installAcpAdapters();
   }
-  // claude-agent-acp runs the CLI from CLAUDE_CODE_EXECUTABLE, so the SDK's own native copy is never used.
-  rmSync(claudeAgentSdkNativeDir, { recursive: true, force: true });
+  for (const path of unusedClaudeBinaries) {
+    rmSync(join(sidecarDir, path), { recursive: true, force: true });
+  }
 
   writeAcpLaunchers();
 
