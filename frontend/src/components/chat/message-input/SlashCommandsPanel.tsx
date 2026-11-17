@@ -1,8 +1,6 @@
 import { memo, useMemo } from 'react';
-import clsx from 'clsx';
 import { SuggestionPanel } from './SuggestionPanel';
 import type { SlashCommand } from '@/types/ui.types';
-import styles from './SlashCommandsPanel.module.scss';
 
 interface SlashCommandsPanelProps {
   suggestions: SlashCommand[];
@@ -10,16 +8,10 @@ interface SlashCommandsPanelProps {
   onSelect: (command: SlashCommand) => void;
 }
 
-function renderCommand(command: SlashCommand, isActive: boolean) {
-  return (
-    <>
-      <span className={clsx(styles['command-value'], isActive && styles['command-value--active'])}>
-        {command.value}
-      </span>
-      {command.description && <span className={styles['command-desc']}>{command.description}</span>}
-    </>
-  );
-}
+const getCommandRow = (command: SlashCommand) => ({
+  label: command.value,
+  detail: command.description,
+});
 
 const commandItemKey = (command: SlashCommand) => command.value;
 
@@ -33,8 +25,7 @@ export const SlashCommandsPanel = memo(function SlashCommandsPanel({
       {
         items: suggestions,
         itemKey: commandItemKey,
-        itemClassName: styles['command-item'],
-        renderItem: renderCommand,
+        getRow: getCommandRow,
       },
     ],
     [suggestions],
