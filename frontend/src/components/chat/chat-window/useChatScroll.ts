@@ -21,6 +21,17 @@ function writeScrollTop(
   lastScrollTopRef.current = clampedScrollTop(node);
 }
 
+// While pinned the hook is the scroll anchor. Native anchoring would answer content
+// collapsing above the fold by scrolling up, which reads as the reader leaving the bottom.
+function setAtBottom(
+  node: HTMLElement | null,
+  isAtBottomRef: { current: boolean },
+  atBottom: boolean,
+) {
+  isAtBottomRef.current = atBottom;
+  if (node) node.style.overflowAnchor = atBottom ? 'none' : '';
+}
+
 // The message to hold in place when a commit changes the head of the list (an older page
 // prepended, the oldest messages dropped by a refetch): the first one from the top of the
 // viewport down that is still in the list.
@@ -145,7 +156,7 @@ export function useChatScroll({
     }
 
     if (isAtBottomRef.current !== atBottom) {
-      isAtBottomRef.current = atBottom;
+      setAtBottom(container, isAtBottomRef, atBottom);
       setShowScrollButton(!atBottom);
     }
 
@@ -220,7 +231,7 @@ export function useChatScroll({
     if (!pendingUserMessageId || !scroller?.firstElementChild) return;
     anchorTurnRef.current = pendingUserMessageId;
     // Sending takes the reader to the new turn, wherever they had scrolled to.
-    isAtBottomRef.current = true;
+    setAtBottom(scroller, isAtBottomRef, true);
     setShowScrollButton(false);
     setTurnMinHeight(reservedTurnHeight(scroller, scroller.firstElementChild));
   }, [pendingUserMessageId]);
@@ -269,6 +280,7 @@ export function useChatScroll({
       contentResizeObserverRef.current = null;
       scrollerRef.current = node;
       if (node) {
+        setAtBottom(node, isAtBottomRef, isAtBottomRef.current);
         lastScrollTopRef.current = clampedScrollTop(node);
         node.addEventListener('scroll', handleScroll, { passive: true });
         // Stick to bottom whenever the content grows while the user is anchored
