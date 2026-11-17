@@ -54,8 +54,9 @@ export interface DropdownProps<T> {
   renderHeader?: () => ReactNode;
   renderFooter?: () => ReactNode;
   onOpenChange?: (isOpen: boolean) => void;
-  // 'toolbar' matches ToggleDropdown's composer-toolbar trigger (icon always shown).
-  triggerVariant?: 'default' | 'text' | 'toolbar';
+  // 'toolbar' matches ToggleDropdown's composer-toolbar trigger (icon always shown);
+  // 'field' is a full-width bordered control matching Select in forms.
+  triggerVariant?: 'default' | 'text' | 'toolbar' | 'field';
   // Show leftIcon beside the label at every width, not only in compact mode
   iconWithLabel?: boolean;
   dropdownAlign?: 'left' | 'right';
@@ -129,6 +130,13 @@ function normalizeToGrouped<T>(
   const filtered = filterItems(items as readonly T[], searchQuery);
   return filtered.map((data) => ({ type: 'item', data }));
 }
+
+const TRIGGER_CLASSES = {
+  default: styles.trigger,
+  text: styles['trigger-text'],
+  toolbar: styles['trigger-toolbar'],
+  field: styles['trigger-field'],
+};
 
 const Dropdown = memo(function Dropdown<T>({
   value,
@@ -215,14 +223,7 @@ const Dropdown = memo(function Dropdown<T>({
         aria-label={
           ariaLabel && `${ariaLabel}: ${triggerLabel}${triggerSuffix ? ` ${triggerSuffix}` : ''}`
         }
-        className={clsx(
-          triggerVariant === 'text'
-            ? styles['trigger-text']
-            : triggerVariant === 'toolbar'
-              ? styles['trigger-toolbar']
-              : styles.trigger,
-          isOpen && !disabled && stateClasses.OPEN,
-        )}
+        className={clsx(TRIGGER_CLASSES[triggerVariant], isOpen && !disabled && stateClasses.OPEN)}
       >
         {LeftIcon && (triggerVariant === 'text' ? showIconOnly || iconWithLabel : true) && (
           <LeftIcon
@@ -230,6 +231,7 @@ const Dropdown = memo(function Dropdown<T>({
               styles['trigger-icon'],
               !forceCompact &&
                 triggerVariant !== 'toolbar' &&
+                triggerVariant !== 'field' &&
                 !iconWithLabel &&
                 styles['trigger-icon--responsive'],
             )}

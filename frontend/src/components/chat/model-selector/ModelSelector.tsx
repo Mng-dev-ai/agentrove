@@ -21,7 +21,7 @@ export interface ModelSelectorProps {
   dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   compact?: boolean;
-  variant?: 'default' | 'text';
+  variant?: 'default' | 'text' | 'field';
   dropdownAlign?: 'left' | 'right';
   machineId?: string;
 }
