@@ -32,7 +32,7 @@ import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
 import { SidebarChannelItem } from './SidebarChannelItem';
 import type { MachineBadge } from './SidebarChatItem';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
-import { SidebarLoadError } from './SidebarLoadError';
+import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import styles from './SidebarChannels.module.scss';
 
@@ -249,7 +249,7 @@ export function SidebarChannels({
         </Button>
       )}
       {!isCollapsed && machineChannels.length === 0 && load.loadFailed ? (
-        <SidebarLoadError message="Couldn't load channels" load={load} />
+        <LoadErrorState variant="inline" message="Couldn't load channels" load={load} />
       ) : (
         !isCollapsed &&
         !isLoadingChannels &&
