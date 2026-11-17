@@ -67,6 +67,7 @@ class SubThreadWake:
         self._waiting: dict[str, dict[str, InputWait]] = {}
         self._scheduled: set[str] = set()
         self._tasks: set[asyncio.Task[None]] = set()
+        self._closed = False
 
     def on_chain_end(
         self,
@@ -97,6 +98,14 @@ class SubThreadWake:
             self._add_reports(str(parent_id), {str(child_id): device_ids})
             self._schedule(str(parent_id))
 
+    async def shutdown(self) -> None:
+        # A wake started now would die with the process; recover() delivers it.
+        self._closed = True
+        tasks = list(self._tasks)
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
     @staticmethod
     async def owe_report(
         db: AsyncSession, chat_id: UUID, device_ids: frozenset[UUID]
@@ -107,7 +116,10 @@ class SubThreadWake:
         await db.execute(
             update(Chat)
             .where(Chat.id == chat_id)
-            .values(owed_report_device_ids=(owed or frozenset()) | device_ids)
+            .values(
+                owed_report_device_ids=(owed or frozenset()) | device_ids,
+                updated_at=Chat.updated_at,
+            )
         )
 
     @staticmethod
@@ -117,7 +129,9 @@ class SubThreadWake:
             return
         async with SessionLocal() as db:
             await db.execute(
-                update(Chat).where(Chat.id.in_(ids)).values(owed_report_device_ids=None)
+                update(Chat)
+                .where(Chat.id.in_(ids))
+                .values(owed_report_device_ids=None, updated_at=Chat.updated_at)
             )
             await db.commit()
 
@@ -150,7 +164,7 @@ class SubThreadWake:
             )
 
     def _schedule(self, parent_id: str) -> None:
-        if parent_id in self._scheduled:
+        if self._closed or parent_id in self._scheduled:
             return
         self._scheduled.add(parent_id)
         task = asyncio.create_task(self._flush_later(parent_id))

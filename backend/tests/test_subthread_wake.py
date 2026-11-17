@@ -253,6 +253,8 @@ async def test_owed_report_cleared_only_once_delivered(
     parent, children = chats
     child = children[0]
     parent_id = str(parent.id)
+    updated_at = select(Chat.updated_at).where(Chat.id == child.id)
+    before = await db_session.scalar(updated_at)
     await SubThreadWake.owe_report(db_session, child.id, frozenset())
     await db_session.commit()
     initiate = AsyncMock(side_effect=ChatException("Already active", status_code=409))
@@ -270,3 +272,4 @@ async def test_owed_report_cleared_only_once_delivered(
 
     assert initiate.await_count == 2
     assert await db_session.scalar(owed) is None
+    assert await db_session.scalar(updated_at) == before
