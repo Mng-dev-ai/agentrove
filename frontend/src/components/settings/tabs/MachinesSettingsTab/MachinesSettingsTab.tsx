@@ -141,7 +141,6 @@ export function MachinesSettingsTab() {
         items={machines}
         emptyIcon={Server}
         emptyText="No remote machines added yet"
-        emptyButtonText="Add Your First Machine"
         addButtonText="Add Machine"
         deleteConfirmTitle="Remove machine"
         deleteConfirmLabel="Remove"

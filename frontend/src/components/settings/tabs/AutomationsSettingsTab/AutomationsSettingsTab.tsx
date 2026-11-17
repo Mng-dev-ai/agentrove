@@ -331,7 +331,6 @@ export function AutomationsSettingsTab() {
         emptyIcon={Clock}
         emptyText="No automations configured yet"
         loadError={{ message: "Couldn't load automations", load }}
-        emptyButtonText="Add your first automation"
         addButtonText="Add automation"
         deleteConfirmTitle="Delete automation"
         deleteConfirmMessage={(item) =>

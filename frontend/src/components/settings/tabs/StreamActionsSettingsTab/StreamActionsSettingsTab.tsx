@@ -48,7 +48,6 @@ export function StreamActionsSettingsTab() {
         items={localSettings.stream_actions ?? []}
         emptyIcon={GitBranch}
         emptyText="No stream actions configured yet"
-        emptyButtonText="Add your first action"
         addButtonText="Add action"
         deleteConfirmTitle="Delete action"
         deleteConfirmMessage={(action) =>

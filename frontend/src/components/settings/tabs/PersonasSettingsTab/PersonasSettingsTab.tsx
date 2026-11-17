@@ -193,7 +193,6 @@ export function PersonasSettingsTab() {
         loadError={{ message: "Couldn't load personas", load: remoteLoad }}
         emptyIcon={UserCircle}
         emptyText="No personas configured yet"
-        emptyButtonText="Create Your First Persona"
         addButtonText="Add Persona"
         deleteConfirmTitle="Delete Persona"
         deleteConfirmMessage={(item) =>

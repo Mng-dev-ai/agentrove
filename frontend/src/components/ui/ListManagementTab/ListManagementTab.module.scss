@@ -81,7 +81,6 @@
 
 .empty-text {
   @include type.type-default;
-  margin-bottom: var(--space-3);
   color: var(--theme-text-secondary);
 }
 
