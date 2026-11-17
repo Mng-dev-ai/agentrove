@@ -1,0 +1,14 @@
+@use '@/styles/globals/typography' as type;
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+.level {
+  @include type.type-meta(500);
+  min-width: var(--space-10);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

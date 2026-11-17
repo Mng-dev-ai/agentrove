@@ -34,6 +34,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({});
   // Lightbox index into imageAttachments; null = closed.
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const loadedIdsRef = useRef<Set<string>>(new Set());
   const ownedObjectUrlsRef = useRef<Map<string, string>>(new Map());
   const uploadingIdSet = useMemo(
@@ -68,6 +69,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
   );
 
   const handleClosePreview = useCallback(() => setPreviewIndex(null), []);
+  const handleRetry = useCallback(() => setRetryCount((count) => count + 1), []);
 
   useEffect(() => {
     const loadedIds = loadedIdsRef.current;
@@ -144,7 +146,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageIdKey]);
+  }, [imageIdKey, retryCount]);
 
   useEffect(() => {
     const loadedIds = loadedIdsRef.current;
@@ -217,6 +219,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
         currentIndex={previewIndex ?? 0}
         onIndexChange={setPreviewIndex}
         onDownload={handleDownload}
+        onRetry={handleRetry}
       />
     </>
   );

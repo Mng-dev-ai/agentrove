@@ -1,100 +1,167 @@
-@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
-.header {
+.lightbox {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid colors.theme-color('border', 0.5);
-  padding: var(--space-2-5) var(--space-4);
+  height: 100%;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
 }
 
-.title-group {
+.dimensions {
+  @include responsive.hide('mobile');
+}
+
+.zoom {
+  margin-right: var(--space-2);
+
+  @include responsive.hide('mobile');
+}
+
+.body {
+  position: relative;
   display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.filename {
-  @include type.type-default(500);
-  @include type.type-overflow;
-  color: var(--theme-text-primary);
-}
-
-.counter {
-  @include type.type-meta;
-  flex-shrink: 0;
-  color: var(--theme-text-quaternary);
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-}
-
-.action {
-  @include responsive.touch-target;
-}
-
-.icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  min-height: 0;
+  flex: 1;
 }
 
 .stage {
   position: relative;
   display: flex;
-  min-height: 60vh;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--theme-surface-secondary);
-}
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  touch-action: manipulation;
+  padding: var(--space-8);
 
-.error-text {
-  @include type.type-default;
-  color: var(--theme-text-tertiary);
+  .body--gallery & {
+    padding-inline: var(--space-16);
+  }
+
+  &--zoomed {
+    overflow: auto;
+    cursor: grab;
+  }
+
+  &--dragging,
+  &--dragging .image {
+    cursor: grabbing;
+  }
+
+  @include responsive.media('mobile') {
+    &,
+    .body--gallery & {
+      padding: 0;
+    }
+  }
 }
 
 .image {
-  max-height: 80vh;
-  max-width: 100%;
-  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
+  max-width: none;
+  margin: auto;
+  user-select: none;
+  background-color: rgb(255 255 255 / 0.04);
+  background-image: conic-gradient(
+    rgb(255 255 255 / 0.06) 25%,
+    transparent 0 50%,
+    rgb(255 255 255 / 0.06) 0 75%,
+    transparent 0
+  );
+  background-size: var(--space-4) var(--space-4);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.14),
+    var(--shadow-strong);
+
+  &--pending {
+    position: absolute;
+    max-width: 100%;
+    max-height: 100%;
+    opacity: 0;
+  }
+
+  &--zoom-in {
+    cursor: zoom-in;
+  }
+
+  &--zoom-out {
+    cursor: zoom-out;
+  }
 }
 
-.nav-button {
-  @include anim.transition-colors;
+.status {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  transform: translate(-50%, -50%);
+  color: rgb(255 255 255 / 0.7);
+}
+
+.status-icon {
+  height: var(--space-6);
+  width: var(--space-6);
+}
+
+.status-text {
+  @include type.type-default;
+}
+
+.retry {
+  margin-top: var(--space-1);
+  border-color: rgb(255 255 255 / 0.25);
+  color: rgb(255 255 255 / 0.9);
+
+  @include responsive.hover {
+    background-color: rgb(255 255 255 / 0.12);
+  }
+}
+
+.nav {
+  @include responsive.touch-target;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  border-radius: var(--radius-full);
-  padding: var(--space-2);
-  color: white;
-  background-color: rgb(0 0 0 / 0.5);
-  backdrop-filter: blur(4px);
+  color: rgb(255 255 255 / 0.8);
 
   @include responsive.hover {
-    background-color: rgb(0 0 0 / 0.7);
+    background-color: rgb(255 255 255 / 0.12);
+    color: rgb(255 255 255);
   }
 
   &:focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 2px rgb(255 255 255 / 0.7);
+    outline: 2px solid rgb(255 255 255 / 0.7);
   }
 
-  &--left {
+  &--prev {
     left: var(--space-3);
   }
 
-  &--right {
+  &--next {
     right: var(--space-3);
+  }
+
+  @include responsive.media('mobile') {
+    background-color: rgb(0 0 0 / 0.5);
+    backdrop-filter: blur(4px);
+
+    &--prev {
+      left: var(--space-2);
+    }
+
+    &--next {
+      right: var(--space-2);
+    }
   }
 }
 
 .nav-icon {
-  height: var(--space-4);
-  width: var(--space-4);
+  height: var(--space-5);
+  width: var(--space-5);
 }
