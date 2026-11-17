@@ -56,10 +56,13 @@
 }
 
 .body {
-  // TODO(refactor): no spacing token for viewport-relative max-height
-  max-height: 40vh;
-  overflow-y: auto;
   padding: var(--space-3);
+
+  @include responsive.media('sm-up') {
+    // TODO(refactor): no spacing token for viewport-relative max-height
+    max-height: 40vh;
+    overflow-y: auto;
+  }
 }
 
 .headline {
