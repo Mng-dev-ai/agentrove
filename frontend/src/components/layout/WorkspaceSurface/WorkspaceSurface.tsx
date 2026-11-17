@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
 import { SplitViewContainer } from '@/components/ui/SplitViewContainer/SplitViewContainer';
 import { CommandMenu } from '@/components/ui/command-menu/CommandMenu';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
@@ -106,9 +107,7 @@ interface WorkspaceSurfaceProps {
 export function WorkspaceSurface({ renderView, sessionPanel, children }: WorkspaceSurfaceProps) {
   const isMobile = useIsMobile();
   const { pathname } = useLocation();
-  const sessionPanelOpen = useUIStore((s) =>
-    isMobile ? s.mobileSessionPanelOpen : s.sessionPanelOpen,
-  );
+  const sessionPanelOpen = useSessionPanelOpen();
   const createCommitDialogOpen = useUIStore((s) => s.createCommitDialogOpen);
   const createPRDialogOpen = useUIStore((s) => s.createPRDialogOpen);
   const createBranchDialogOpen = useUIStore((s) => s.createBranchDialogOpen);

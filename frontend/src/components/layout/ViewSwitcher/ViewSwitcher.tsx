@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/command-menu/commandRegistry';
 import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
 import { activeSplitSlot, VIEW_ICONS, VIEW_LABELS, viewTypeToTileId } from '@/utils/tileHelpers';
 import type { ViewType } from '@/types/ui.types';
 import styles from './ViewSwitcher.module.scss';
@@ -39,9 +40,7 @@ export function ViewSwitcher() {
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const isLandingPage = useMatch('/');
   const isMobile = useIsMobile();
-  const sessionPanelOpen = useUIStore((s) =>
-    isMobile ? s.mobileSessionPanelOpen : s.sessionPanelOpen,
-  );
+  const sessionPanelOpen = useSessionPanelOpen();
   // Phones show one view at a time; an open session panel covers the workspace.
   const panelCoversWorkspace = isMobile && sessionPanelOpen;
 
