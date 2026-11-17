@@ -4,7 +4,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Header, type HeaderProps } from '@/components/layout/Header/Header';
 import { TitleBar } from '@/components/layout/TitleBar/TitleBar';
 import { Link } from '@/components/ui/primitives/Link/Link';
-import { focusMainContent } from '@/components/ui/shared/BaseModal/useModalLayer';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { LayoutContext, type LayoutContextValue } from './layoutState';
@@ -98,10 +97,6 @@ export function Layout({ children, isAuthPage = false }: LayoutProps) {
       <div className={styles.layout}>
         <Link
           href="#main-content"
-          onClick={(e) => {
-            e.preventDefault();
-            focusMainContent();
-          }}
           variant="unstyled"
           className={clsx('sr-only', styles['skip-link'])}
         >

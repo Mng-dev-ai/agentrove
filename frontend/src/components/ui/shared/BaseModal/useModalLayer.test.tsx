@@ -34,13 +34,19 @@ describe('useModalLayer focus restore', () => {
     expect(document.activeElement).toBe(screen.getByText('open'));
   });
 
-  it('falls back to the main landmark when the trigger is gone', () => {
+  it('leaves focus on body when the trigger is gone', () => {
     const { container } = render(<Page keepTrigger={false} />);
     openAndEscape();
-    const main = container.querySelector<HTMLElement>('#main-content')!;
-    expect(document.activeElement).toBe(main);
-    main.blur();
-    expect(main.hasAttribute('tabindex')).toBe(false);
+    expect(document.activeElement).toBe(document.body);
+    expect(container.querySelector('#main-content')!.hasAttribute('tabindex')).toBe(false);
+  });
+
+  it('leaves focus on body when the dialog was opened from body', () => {
+    const { container } = render(<Page keepTrigger />);
+    fireEvent.click(screen.getByText('open'));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(document.activeElement).toBe(document.body);
+    expect(container.querySelector('#main-content')!.hasAttribute('tabindex')).toBe(false);
   });
 });
 

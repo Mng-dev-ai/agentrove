@@ -22,15 +22,6 @@ export const claimEscape = (event: KeyboardEvent, element: Node | null) => {
   return true;
 };
 
-// <main> is focusable only while it holds focus, so clicks inside it still leave focus on body.
-export const focusMainContent = () => {
-  const main = document.getElementById('main-content');
-  if (!main) return;
-  main.tabIndex = -1;
-  main.addEventListener('blur', () => main.removeAttribute('tabindex'), { once: true });
-  main.focus({ preventScroll: true });
-};
-
 export function useModalLayer(
   containerRef: RefObject<HTMLDivElement | null>,
   isOpen: boolean,
@@ -93,8 +84,6 @@ export function useModalLayer(
       // StrictMode's simulated unmount keeps the dialog in the DOM; restore only on a real close.
       if (container.isConnected) return;
       trigger?.focus();
-      // The trigger can be gone or hidden (a closed mobile drawer); never leave focus on body.
-      if (document.activeElement === document.body) focusMainContent();
     };
   }, [containerRef, isOpen]);
 }
