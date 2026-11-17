@@ -9,7 +9,16 @@ const MIN_TICK_MS = 33;
 // Cap the per-step time delta so a pause (hidden tab, slow token gaps) doesn't
 // dump the whole backlog in one frame when ticks resume.
 const MAX_TICK_DELTA_MS = 100;
+// Once the stream stops feeding the text, the rest is revealed at least this fast, so
+// whatever waits on the reveal (a reply's action row) is not held by a slow last few words.
+const FINISH_MS = 400;
 const HIGH_SURROGATE_RE = /[\uD800-\uDBFF]/;
+
+function sharedPrefixLength(a: string, b: string) {
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  return i;
+}
 
 export function useSmoothText(
   text: string,
@@ -21,10 +30,16 @@ export function useSmoothText(
   const [visibleCount, setVisibleCount] = useState(text.length);
   const visibleCountRef = useRef(visibleCount);
   const textRef = useRef(text);
+  const animateRef = useRef(animate);
+  animateRef.current = animate;
 
-  if (finishReveal && !text.startsWith(textRef.current.slice(0, visibleCountRef.current))) {
-    visibleCountRef.current = 0;
-    setVisibleCount(0);
+  // Replaced text reveals from where it stops matching what is on screen: from the start
+  // for a new segment, not at all when only trailing whitespace was trimmed.
+  const shown = textRef.current.slice(0, visibleCountRef.current);
+  if (finishReveal && !text.startsWith(shown)) {
+    const kept = sharedPrefixLength(shown, text);
+    visibleCountRef.current = kept;
+    setVisibleCount(kept);
   }
   textRef.current = text;
   const revealing = animate || (finishReveal && visibleCountRef.current < text.length);
@@ -39,6 +54,7 @@ export function useSmoothText(
 
     let rafId = 0;
     let lastTick = performance.now();
+    let finishRate = 0;
 
     const tick = (now: number) => {
       const target = textRef.current.length;
@@ -49,7 +65,13 @@ export function useSmoothText(
         const delta = Math.min(now - lastTick, MAX_TICK_DELTA_MS);
         lastTick = now;
         const backlog = target - visible;
-        const step = Math.max(1, Math.round((backlog * delta) / CATCH_UP_MS));
+        if (animateRef.current) finishRate = 0;
+        else if (!finishRate) finishRate = backlog / FINISH_MS;
+        const step = Math.max(
+          1,
+          Math.round((backlog * delta) / CATCH_UP_MS),
+          Math.ceil(finishRate * delta),
+        );
         let next = Math.min(target, visible + step);
         // Don't split a surrogate pair — slicing mid-emoji flashes a replacement char
         if (next < target && HIGH_SURROGATE_RE.test(textRef.current[next - 1])) next++;
