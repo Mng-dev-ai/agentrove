@@ -44,6 +44,7 @@ ADDED_TO_BASE_TABLES = {
         ("column", "device_ids", "JSON", 1, "'[]'", 0),
         ("column", "channel_id", "CHAR(32)", 0, None, 0),
     },
+    "chats": {("column", "owed_report_device_ids", "JSON", 0, None, 0)},
     "chat_checkpoints": {("column", "head_ref", "VARCHAR(255)", 0, None, 0)},
     "channels": {
         ("column", "last_viewed_at", "DATETIME", 0, None, 0),

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 from app.db.migration_helpers import uuid_server_default
-from app.db.types import GUID, UTCDateTime, enum_values
+from app.db.types import GUID, UTCDateTime, UUIDSet, enum_values
 
 from .enums import AttachmentType, MessageRole, MessageStreamStatus
 
@@ -63,6 +63,10 @@ class Chat(Base):
     last_permission_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
     last_thinking_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     last_persona_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Set while this sub-thread owes its parent a report, so it survives restarts.
+    owed_report_device_ids: Mapped[frozenset[UUID] | None] = mapped_column(
+        UUIDSet(none_as_null=True), nullable=True
+    )
 
     user = relationship("User", back_populates="chats")
     workspace = relationship("Workspace", back_populates="chats")
