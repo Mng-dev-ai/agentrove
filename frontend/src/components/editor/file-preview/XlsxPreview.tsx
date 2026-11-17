@@ -97,6 +97,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   if (worksheetData.length === 0) {
     return (
       <PreviewEmptyState
+        file={file}
         fileName={fileName}
         message="Unable to load spreadsheet data"
         isFullscreen={isFullscreen}
@@ -109,6 +110,7 @@ export const XlsxPreview = memo(function XlsxPreview({
   if (!currentSheet || currentSheet.data.length === 0) {
     return (
       <PreviewEmptyState
+        file={file}
         fileName={fileName}
         message="No data to display"
         isFullscreen={isFullscreen}
@@ -121,6 +123,7 @@ export const XlsxPreview = memo(function XlsxPreview({
 
   return (
     <PreviewContainer
+      file={file}
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}

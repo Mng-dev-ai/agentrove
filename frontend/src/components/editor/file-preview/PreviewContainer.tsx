@@ -1,15 +1,26 @@
 import { memo, ReactNode } from 'react';
 import clsx from 'clsx';
-import { PreviewHeader, PreviewHeaderProps } from './PreviewHeader';
+import { Download, Minimize2 } from 'lucide-react';
+import type { FileStructure } from '@/types/file-system.types';
+import {
+  PreviewToolbar,
+  PreviewToolbarButton,
+} from '@/components/ui/PreviewToolbar/PreviewToolbar';
+import { downloadPreviewFile } from './previewUtils';
 import styles from './PreviewContainer.module.scss';
 
-interface PreviewContainerProps extends PreviewHeaderProps {
+interface PreviewContainerProps {
+  file: FileStructure;
+  fileName: string;
+  isFullscreen?: boolean;
+  onToggleFullscreen?: () => void;
   children: ReactNode;
   contentClassName?: string;
   disableContentWrapper?: boolean;
 }
 
 export const PreviewContainer = memo(function PreviewContainer({
+  file,
   fileName,
   isFullscreen,
   onToggleFullscreen,
@@ -20,11 +31,22 @@ export const PreviewContainer = memo(function PreviewContainer({
   return (
     <div className={styles['preview-container']}>
       {isFullscreen && (
-        <PreviewHeader
-          fileName={fileName}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={onToggleFullscreen}
-        />
+        <PreviewToolbar title={fileName}>
+          <PreviewToolbarButton
+            label="Download"
+            icon={Download}
+            onClick={() => downloadPreviewFile(file, fileName)}
+            disabled={!file.content}
+          />
+          {onToggleFullscreen && (
+            <PreviewToolbarButton
+              label="Exit fullscreen"
+              shortcut="Esc"
+              icon={Minimize2}
+              onClick={onToggleFullscreen}
+            />
+          )}
+        </PreviewToolbar>
       )}
 
       {disableContentWrapper ? (

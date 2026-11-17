@@ -55,6 +55,7 @@ export const ImagePreview = memo(function ImagePreview({
   if (!imageUrl) {
     return (
       <PreviewEmptyState
+        file={file}
         fileName={fileName}
         message="Unable to load image"
         isFullscreen={isFullscreen}
@@ -65,6 +66,7 @@ export const ImagePreview = memo(function ImagePreview({
 
   return (
     <PreviewContainer
+      file={file}
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}

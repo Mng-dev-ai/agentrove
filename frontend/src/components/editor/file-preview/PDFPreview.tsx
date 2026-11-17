@@ -45,6 +45,7 @@ export const PDFPreview = memo(function PDFPreview({
   if (!pdfUrl || iframeError) {
     return (
       <PreviewEmptyState
+        file={file}
         fileName={fileName}
         message="Unable to load PDF"
         isFullscreen={isFullscreen}
@@ -55,6 +56,7 @@ export const PDFPreview = memo(function PDFPreview({
 
   return (
     <PreviewContainer
+      file={file}
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}

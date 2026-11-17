@@ -121,6 +121,7 @@ export const PowerPointPreview = memo(function PowerPointPreview({
   if (isLoading) {
     return (
       <PreviewEmptyState
+        file={file}
         fileName={fileName}
         message="Loading PowerPoint presentation..."
         isFullscreen={isFullscreen}
@@ -132,6 +133,7 @@ export const PowerPointPreview = memo(function PowerPointPreview({
   if (slidesData.length === 0) {
     return (
       <PreviewEmptyState
+        file={file}
         fileName={fileName}
         message="Unable to load PowerPoint presentation"
         isFullscreen={isFullscreen}
@@ -152,6 +154,7 @@ export const PowerPointPreview = memo(function PowerPointPreview({
 
   return (
     <PreviewContainer
+      file={file}
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}

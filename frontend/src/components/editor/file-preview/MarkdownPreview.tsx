@@ -18,6 +18,7 @@ export const MarkdownPreview = memo(function MarkdownPreview({
 }: MarkdownPreviewProps) {
   return (
     <PreviewContainer
+      file={file}
       fileName={getDisplayFileName(file)}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
