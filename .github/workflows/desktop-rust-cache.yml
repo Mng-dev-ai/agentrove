@@ -1,0 +1,55 @@
+name: Desktop Rust Cache
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - rust-toolchain.toml
+      - frontend/src-tauri/Cargo.lock
+      - .github/workflows/desktop-rust-cache.yml
+  # Caches unused for 7 days are evicted; this restores (or rebuilds) between releases.
+  schedule:
+    - cron: '17 5 * * 1,4'
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    name: Warm Desktop Rust Cache
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Inputs must stay identical to the restore step in desktop-release.yml.
+      - name: Rust cache
+        id: rust-cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+          shared-key: desktop-release-${{ hashFiles('rust-toolchain.toml', 'frontend/src-tauri/Cargo.lock') }}
+          add-rust-environment-hash-key: false
+
+      - name: Set up Node.js
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install frontend dependencies
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        run: |
+          cd frontend
+          npm ci --legacy-peer-deps
+
+      - name: Build without bundling
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        run: |
+          cd frontend
+          npx tauri build --no-bundle

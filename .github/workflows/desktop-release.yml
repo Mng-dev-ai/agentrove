@@ -33,6 +33,15 @@ jobs:
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
 
+      # Read-only: a cache saved from a tag ref is unreadable by later tags; desktop-rust-cache.yml saves it from main.
+      - name: Restore Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+          shared-key: desktop-release-${{ hashFiles('rust-toolchain.toml', 'frontend/src-tauri/Cargo.lock') }}
+          add-rust-environment-hash-key: false
+          save-if: false
+
       - name: Install frontend dependencies
         run: |
           cd frontend
