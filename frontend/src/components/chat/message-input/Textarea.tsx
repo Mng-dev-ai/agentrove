@@ -11,6 +11,7 @@ import clsx from 'clsx';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { getHighlightTokenRanges } from '@/utils/mentionParser';
+import { canRestoreComposerFocus } from '@/utils/composerFocus';
 import { HighlightedText } from '@/components/ui/shared/HighlightedText/HighlightedText';
 import { Textarea as PrimitiveTextarea } from '@/components/ui/primitives/Textarea/Textarea';
 import styles from './Textarea.module.scss';
@@ -39,12 +40,6 @@ export interface TextareaProps {
 }
 
 const CURSOR_DEBOUNCE_MS = 150;
-
-function canRestoreComposerFocus(textarea: HTMLTextAreaElement): boolean {
-  const active = document.activeElement;
-  if (active && active !== document.body) return !!textarea.form?.contains(active);
-  return !!window.getSelection()?.isCollapsed;
-}
 
 export function Textarea({
   ref,

@@ -1,5 +1,6 @@
 import { useCallback, type RefObject } from 'react';
 import { useEnhancePromptMutation } from '@/hooks/queries/useChatQueries';
+import { canRestoreComposerFocus } from '@/utils/composerFocus';
 
 interface UseInputEnhanceOptions {
   setMessage: (value: string) => void;
@@ -21,6 +22,7 @@ export function useInputEnhance({
       const textarea = textareaRef.current;
       if (textarea) {
         setTimeout(() => {
+          if (!canRestoreComposerFocus(textarea)) return;
           textarea.focus();
           const length = text.length;
           textarea.setSelectionRange(length, length);
