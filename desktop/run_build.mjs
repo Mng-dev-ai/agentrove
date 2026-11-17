@@ -52,13 +52,9 @@ const sidecarBinDir = join(sidecarDir, 'bin');
 const rgBin = join(sidecarDir, 'bin', 'rg');
 const claudeAcpBin = join(sidecarBinDir, 'claude-agent-acp');
 const codexAcpBin = join(sidecarBinDir, 'codex-acp');
-const claudeCodeNativeBin = `node_modules/@anthropic-ai/claude-code-${platform}-${arch}/claude`;
-// npm leaves extra copies of the Claude binary that Tauri bundles as full files; bin/claude only runs claudeCodeNativeBin.
-const unusedClaudeBinaries = [
-  `node_modules/@anthropic-ai/claude-agent-sdk-${platform}-${arch}`,
-  'node_modules/@anthropic-ai/claude-code/bin/claude.exe',
-  'node_modules/.bin/claude',
-];
+const nodeModulesDir = join(sidecarDir, 'node_modules');
+const claudeCliBin = join(nodeModulesDir, '.bin', 'claude');
+const claudeCodeNativeBin = join(nodeModulesDir, '@anthropic-ai', `claude-code-${platform}-${arch}`, 'claude');
 
 const PYTHON_STAMP = `${PYTHON_VERSION}+${RELEASE_TAG}-${arch}-${platform}`;
 const NODE_STAMP = `${NODE_VERSION}-${arch}-${platform}`;
@@ -214,6 +210,8 @@ function installPyDeps() {
 
 function installAcpAdapters() {
   console.log('Installing ACP adapters...');
+  rmSync(stampPath('acp'), { force: true });
+  rmSync(nodeModulesDir, { recursive: true, force: true });
   execFileSync(
     npmBin,
     [
@@ -226,6 +224,14 @@ function installAcpAdapters() {
     { stdio: 'inherit' },
   );
   writeStamp('acp', ACP_STAMP);
+}
+
+// Tauri bundles npm's symlink and hardlink as full copies of the ~330 MB binary, so keep one real file
+// at .bin/claude: the CLI derives its install type from its own path, which must not change.
+function slimClaudeBinaries() {
+  if (existsSync(claudeCodeNativeBin)) renameSync(claudeCodeNativeBin, claudeCliBin);
+  rmSync(join(nodeModulesDir, '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'), { force: true });
+  rmSync(join(nodeModulesDir, '@anthropic-ai', `claude-agent-sdk-${platform}-${arch}`), { recursive: true, force: true });
 }
 
 function writeAcpLauncher(name, packageEntry) {
@@ -247,7 +253,7 @@ function writeClaudeCliLauncher() {
     launcher,
     '#!/bin/bash\n' +
       'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n' +
-      `exec "$SCRIPT_DIR/../${claudeCodeNativeBin}" "$@"\n`,
+      'exec "$SCRIPT_DIR/../node_modules/.bin/claude" "$@"\n',
   );
   chmodSync(launcher, 0o755);
 }
@@ -371,9 +377,7 @@ function run() {
   } else {
     installAcpAdapters();
   }
-  for (const path of unusedClaudeBinaries) {
-    rmSync(join(sidecarDir, path), { recursive: true, force: true });
-  }
+  slimClaudeBinaries();
 
   writeAcpLaunchers();
 
