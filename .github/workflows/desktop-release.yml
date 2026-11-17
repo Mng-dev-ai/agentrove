@@ -88,3 +88,5 @@ jobs:
           SIDECAR="$APP/Contents/Resources/_up_/backend-sidecar"
           "$SIDECAR/python/bin/python3" -c 'import ssl, pydantic_core, uvloop, watchfiles, sqlalchemy'
           "$SIDECAR/node/bin/node" -e 'if (new Function("return 42")() !== 42) process.exit(1)'
+          "$SIDECAR/bin/claude" --version
+          test $(find "$SIDECAR" -type f -name 'claude*' -size +100M | wc -l) -eq 1
