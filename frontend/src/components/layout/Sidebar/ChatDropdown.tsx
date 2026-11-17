@@ -55,7 +55,7 @@ export const ChatDropdown = memo(function ChatDropdown({
         </FloatingTooltip>
       )}
       <SidebarMenuItem icon={Folder} onClick={() => onWorkspaceOptions(chat)}>
-        Workspace…
+        Workspace
       </SidebarMenuItem>
       <SidebarMenuItem icon={Edit2} onClick={() => onRename(chat)}>
         Rename
