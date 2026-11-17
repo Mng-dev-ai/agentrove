@@ -8,7 +8,7 @@
 
 .bubble {
   @include type.type-default(500);
-  @include anim.fade-in();
+  @include anim.fade-in(var(--duration-fast));
   @include z.z('tooltip');
   pointer-events: none;
   position: fixed;

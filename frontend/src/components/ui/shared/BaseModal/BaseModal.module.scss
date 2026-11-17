@@ -1,3 +1,4 @@
+@use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/zlayer' as z;
 
 .backdrop {
@@ -5,6 +6,7 @@
   // a ConfirmDialog opened over another dialog) still stack correctly because each
   // BaseModal portals to document.body in open order, so later mounts paint on top.
   @include z.z('modal');
+  @include anim.fade-in;
   position: fixed;
   inset: 0;
   display: flex;
