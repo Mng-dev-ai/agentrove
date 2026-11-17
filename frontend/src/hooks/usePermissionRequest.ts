@@ -3,7 +3,7 @@ import { permissionService } from '@/services/permissionService';
 import { usePermissionStore } from '@/store/permissionStore';
 import { isPermissionResolved } from '@/utils/permissionStorage';
 import { notifyPermissionRequest } from '@/utils/notifications';
-import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
+import { permissionNotifyEvent, useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import { executePermissionResponse, clearPermissionRequest } from '@/utils/permissionResponse';
 import type { PermissionRequest } from '@/types/chat.types';
 
@@ -48,7 +48,9 @@ export function usePermissionRequest(chatId: string | undefined): UsePermissionR
       // duplicate envelope for one still awaiting a response.
       const added = usePermissionStore.getState().enqueuePermissionRequest(chatId, request);
       if (added) {
-        notifyBackground(`/chat/${chatId}`, (options) => notifyPermissionRequest(request, options));
+        notifyBackground(`/chat/${chatId}`, permissionNotifyEvent(request.tool_name), (options) =>
+          notifyPermissionRequest(request, options),
+        );
       }
     },
     [chatId, notifyBackground],

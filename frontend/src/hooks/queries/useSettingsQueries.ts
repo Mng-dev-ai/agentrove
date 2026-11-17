@@ -38,13 +38,14 @@ export const useSettingsForMachineQuery = (machineId: string, enabled = true) =>
 
 // Settings are never persisted to storage (they carry secrets), so a cold tab
 // must fetch before a saved opt-out can be honored.
-export async function fetchNotificationsEnabled(queryClient: QueryClient): Promise<boolean> {
+export async function fetchNotificationSettings(
+  queryClient: QueryClient,
+): Promise<UserSettings | null> {
   try {
-    const settings = await queryClient.ensureQueryData(settingsQuery());
-    return settings.notifications_enabled;
+    return await queryClient.ensureQueryData(settingsQuery());
   } catch {
-    // Settings unreachable — assume the server default (enabled).
-    return true;
+    // Settings unreachable — callers assume the server defaults (all enabled).
+    return null;
   }
 }
 

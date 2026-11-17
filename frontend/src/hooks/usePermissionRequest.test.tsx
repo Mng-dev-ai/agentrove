@@ -14,7 +14,10 @@ vi.mock('@/services/permissionService', () => ({
   permissionService: { respondToPermission: h.respondToPermission },
 }));
 vi.mock('@/utils/notifications', () => ({ notifyPermissionRequest: h.notifyPermissionRequest }));
-vi.mock('@/hooks/useBackgroundNotify', () => ({ useBackgroundNotify: () => h.notifyBackground }));
+vi.mock('@/hooks/useBackgroundNotify', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useBackgroundNotify')>()),
+  useBackgroundNotify: () => h.notifyBackground,
+}));
 
 import { usePermissionRequest } from './usePermissionRequest';
 import { usePermissionStore } from '@/store/permissionStore';
@@ -56,9 +59,13 @@ describe('usePermissionRequest', () => {
     const req = makeRequest();
     act(() => result.current.handlePermissionRequest(req));
     expect(result.current.pendingRequest).toBe(req);
-    expect(h.notifyBackground).toHaveBeenCalledWith('/chat/chat-1', expect.any(Function));
+    expect(h.notifyBackground).toHaveBeenCalledWith(
+      '/chat/chat-1',
+      'notify_permission_requests',
+      expect.any(Function),
+    );
 
-    const [, notifyFn] = h.notifyBackground.mock.calls[0];
+    const [, , notifyFn] = h.notifyBackground.mock.calls[0];
     const onClick = vi.fn();
     notifyFn({ onClick });
     expect(h.notifyPermissionRequest).toHaveBeenCalledWith(req, { onClick });

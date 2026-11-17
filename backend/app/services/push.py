@@ -10,6 +10,7 @@ from jose import jwt
 from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
@@ -81,9 +82,22 @@ class PushService:
         await db.commit()
 
     async def notify_permission(
-        self, *, user_id: UUID, path: str, request_id: str, tool_name: str
+        self,
+        *,
+        user_id: UUID,
+        path: str,
+        request_id: str,
+        tool_name: str,
+        sub_thread: bool,
     ) -> None:
-        if tool_name == "ExitPlanMode":
+        setting = UserSettings.notify_permission_requests
+        if tool_name == "AskUserQuestion":
+            setting = UserSettings.notify_questions
+            title, body = (
+                "Question for you",
+                "The agent is waiting for your answer.",
+            )
+        elif tool_name == "ExitPlanMode":
             title, body = (
                 "Plan ready for approval",
                 "Review the plan and approve or reject it.",
@@ -101,10 +115,19 @@ class PushService:
             path=path,
             collapse_id=f"perm:{request_id}",
             ttl_seconds=PERMISSION_TTL_SECONDS,
+            setting=setting,
+            sub_thread=sub_thread,
         )
 
     async def notify_question(
-        self, *, user_id: UUID, path: str, request_id: str, title: str, body: str
+        self,
+        *,
+        user_id: UUID,
+        path: str,
+        request_id: str,
+        title: str,
+        body: str,
+        sub_thread: bool,
     ) -> None:
         await self.enqueue(
             user_id=user_id,
@@ -114,10 +137,19 @@ class PushService:
             path=path,
             collapse_id=f"ask:{request_id}",
             ttl_seconds=PERMISSION_TTL_SECONDS,
+            setting=UserSettings.notify_questions,
+            sub_thread=sub_thread,
         )
 
     async def notify_completion(
-        self, *, user_id: UUID, chat_id: str, message_id: str, failed: bool, reply: str
+        self,
+        *,
+        user_id: UUID,
+        chat_id: str,
+        message_id: str,
+        failed: bool,
+        reply: str,
+        sub_thread: bool,
     ) -> None:
         await self.enqueue(
             user_id=user_id,
@@ -127,6 +159,8 @@ class PushService:
             path=f"/chat/{chat_id}",
             collapse_id=f"{chat_id}:complete",
             ttl_seconds=COMPLETION_TTL_SECONDS,
+            setting=UserSettings.notify_completions,
+            sub_thread=sub_thread,
         )
 
     async def notify_channel_completion(
@@ -146,6 +180,7 @@ class PushService:
             path=f"/channels/{channel_id}",
             collapse_id=f"{channel_id}:complete",
             ttl_seconds=COMPLETION_TTL_SECONDS,
+            setting=UserSettings.notify_completions,
         )
 
     @staticmethod
@@ -164,18 +199,25 @@ class PushService:
         path: str,
         collapse_id: str,
         ttl_seconds: int,
+        setting: InstrumentedAttribute[bool] | None = None,
+        sub_thread: bool = False,
     ) -> None:
         if not self.enabled():
             return
         # Push is a side channel: a failure here must never fail the agent run.
         try:
             async with self.session_factory() as db:
-                notifications_enabled = await db.scalar(
-                    select(UserSettings.notifications_enabled).where(
-                        UserSettings.user_id == user_id
+                columns = [UserSettings.notifications_enabled]
+                if setting is not None:
+                    columns.append(setting)
+                if sub_thread:
+                    columns.append(UserSettings.notify_sub_threads)
+                enabled = (
+                    await db.execute(
+                        select(*columns).where(UserSettings.user_id == user_id)
                     )
-                )
-                if notifications_enabled is False:
+                ).first()
+                if enabled is not None and not all(enabled):
                     return
                 device_ids = (
                     await db.scalars(

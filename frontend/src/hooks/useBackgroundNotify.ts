@@ -3,23 +3,34 @@ import { matchPath, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { isMobileViewport } from '@/hooks/useIsMobile';
 import { useUIStore } from '@/store/uiStore';
-import { fetchNotificationsEnabled } from '@/hooks/queries/useSettingsQueries';
+import { fetchIsSubThread } from '@/hooks/queries/useChatQueries';
+import { fetchNotificationSettings } from '@/hooks/queries/useSettingsQueries';
 import { paintedChatIds, paintedLayout } from '@/utils/tileHelpers';
 import { logger } from '@/utils/logger';
 import { bumpAppBadge, type NotifyOptions } from '@/utils/notifications';
 import { isPushRegistered } from '@/utils/push';
+import type { NotifyEventSetting } from '@/types/user.types';
+
+export function permissionNotifyEvent(toolName: string): NotifyEventSetting {
+  return toolName === 'AskUserQuestion' ? 'notify_questions' : 'notify_permission_requests';
+}
 
 // Suppress only when the event's route is painted on screen in a focused window.
 // Panes stay mounted while hidden, so mount state can't stand in for visibility.
 export function useBackgroundNotify(): (
   targetPath: string | undefined,
+  event: NotifyEventSetting,
   notify: (options: NotifyOptions) => Promise<boolean>,
 ) => void {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   return useCallback(
-    (targetPath: string | undefined, notify: (options: NotifyOptions) => Promise<boolean>) => {
+    (
+      targetPath: string | undefined,
+      event: NotifyEventSetting,
+      notify: (options: NotifyOptions) => Promise<boolean>,
+    ) => {
       // Read live: stored stream callbacks can invoke this closure long after
       // the pane that created it unmounted, freezing anything captured at render.
       const pathname = window.location.pathname;
@@ -45,7 +56,16 @@ export function useBackgroundNotify(): (
       if (isPushRegistered() && document.visibilityState !== 'visible') return;
 
       void (async () => {
-        if (!(await fetchNotificationsEnabled(queryClient))) return;
+        const settings = await fetchNotificationSettings(queryClient);
+        if (settings && !(settings.notifications_enabled && settings[event])) return;
+        if (
+          settings &&
+          !settings.notify_sub_threads &&
+          targetChatId &&
+          (await fetchIsSubThread(queryClient, targetChatId))
+        ) {
+          return;
+        }
         const delivered = await notify({
           onClick: targetPath ? () => navigate(targetPath) : undefined,
         });

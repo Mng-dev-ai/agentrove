@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from 'react';
 import { elicitationService } from '@/services/elicitationService';
 import { useElicitationStore } from '@/store/elicitationStore';
+import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
+import { notifyQuestion } from '@/utils/notifications';
 import { executePermissionResponse } from '@/utils/permissionResponse';
 import type { ElicitationAction, ElicitationContent, ElicitationRequest } from '@/types/chat.types';
 
@@ -19,6 +21,7 @@ interface UseElicitationRequestReturn {
 export function useElicitationRequest(chatId: string | undefined): UseElicitationRequestReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const notifyBackground = useBackgroundNotify();
 
   // Select only this chat's queue so other chats' forms don't re-render us.
   const pendingRequest = useElicitationStore((state) => {
@@ -37,9 +40,14 @@ export function useElicitationRequest(chatId: string | undefined): UseElicitatio
   const handleElicitationRequest = useCallback(
     (request: ElicitationRequest) => {
       if (!chatId) return;
-      useElicitationStore.getState().enqueueElicitationRequest(chatId, request);
+      const added = useElicitationStore.getState().enqueueElicitationRequest(chatId, request);
+      if (added) {
+        notifyBackground(`/chat/${chatId}`, 'notify_questions', (options) =>
+          notifyQuestion(request.message, options),
+        );
+      }
     },
-    [chatId],
+    [chatId, notifyBackground],
   );
 
   const handleElicitationDismissed = useCallback(

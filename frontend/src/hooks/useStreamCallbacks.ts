@@ -473,8 +473,10 @@ export function useStreamCallbacks({
       }
 
       if (!isCancelled) {
-        notifyBackground(targetChatId ? `/chat/${targetChatId}` : undefined, (options) =>
-          notifyStreamComplete({ ...options, message: assistantText }),
+        notifyBackground(
+          targetChatId ? `/chat/${targetChatId}` : undefined,
+          'notify_completions',
+          (options) => notifyStreamComplete({ ...options, message: assistantText }),
         );
       }
 

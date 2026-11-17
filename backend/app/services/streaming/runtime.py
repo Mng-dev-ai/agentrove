@@ -521,6 +521,16 @@ class ChatStreamRuntime:
                 path=f"/chat/{self.chat_id}",
                 request_id=payload["request_id"],
                 tool_name=payload["tool_name"],
+                sub_thread=self.chat.parent_chat_id is not None,
+            )
+        if kind == "elicitation_request" and self.member_turn is None:
+            await PushService(self.session_factory).notify_question(
+                user_id=self.chat.user_id,
+                path=f"/chat/{self.chat_id}",
+                request_id=f"{self.assistant_message_id}:{payload['request_id']}",
+                title="Question for you",
+                body=payload["data"]["message"],
+                sub_thread=self.chat.parent_chat_id is not None,
             )
         if (
             kind in ("permission_request", "elicitation_request")
@@ -714,6 +724,7 @@ class ChatStreamRuntime:
             message_id=self.assistant_message_id,
             failed=failed,
             reply=reply,
+            sub_thread=self.chat.parent_chat_id is not None,
         )
 
     async def _close_stream(self) -> None:
