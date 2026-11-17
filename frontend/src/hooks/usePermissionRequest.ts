@@ -17,10 +17,7 @@ interface UsePermissionRequestReturn {
 }
 
 // Tool-permission approval for one chat; 404s (expired/timed-out requests) auto-dismiss.
-export function usePermissionRequest(
-  chatId: string | undefined,
-  isSubThread: boolean,
-): UsePermissionRequestReturn {
+export function usePermissionRequest(chatId: string | undefined): UsePermissionRequestReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const notifyBackground = useBackgroundNotify();
@@ -51,15 +48,12 @@ export function usePermissionRequest(
       // duplicate envelope for one still awaiting a response.
       const added = usePermissionStore.getState().enqueuePermissionRequest(chatId, request);
       if (added) {
-        notifyBackground(
-          `/chat/${chatId}`,
-          permissionNotifyEvent(request.tool_name),
-          isSubThread,
-          (options) => notifyPermissionRequest(request, options),
+        notifyBackground(`/chat/${chatId}`, permissionNotifyEvent(request.tool_name), (options) =>
+          notifyPermissionRequest(request, options),
         );
       }
     },
-    [chatId, isSubThread, notifyBackground],
+    [chatId, notifyBackground],
   );
 
   const handleApprove = useCallback(

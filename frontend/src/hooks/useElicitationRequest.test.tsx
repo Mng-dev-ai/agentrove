@@ -28,8 +28,8 @@ beforeEach(() => {
 });
 
 describe('useElicitationRequest', () => {
-  it('notifies a new question once as a question, with the chat sub-thread status', () => {
-    const { result } = renderHook(() => useElicitationRequest('chat-1', true));
+  it('notifies a new question once, as a question', () => {
+    const { result } = renderHook(() => useElicitationRequest('chat-1'));
 
     act(() => result.current.handleElicitationRequest(request));
     act(() => result.current.handleElicitationRequest(request));
@@ -38,10 +38,9 @@ describe('useElicitationRequest', () => {
     expect(h.notifyBackground).toHaveBeenCalledWith(
       '/chat/chat-1',
       'notify_questions',
-      true,
       expect.any(Function),
     );
-    const [, , , notifyFn] = h.notifyBackground.mock.calls[0];
+    const [, , notifyFn] = h.notifyBackground.mock.calls[0];
     const onClick = vi.fn();
     notifyFn({ onClick });
     expect(h.notifyQuestion).toHaveBeenCalledWith('Which branch?', { onClick });

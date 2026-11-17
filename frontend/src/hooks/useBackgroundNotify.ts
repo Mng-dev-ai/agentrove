@@ -3,7 +3,8 @@ import { matchPath, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { isMobileViewport } from '@/hooks/useIsMobile';
 import { useUIStore } from '@/store/uiStore';
-import { fetchNotificationsEnabled } from '@/hooks/queries/useSettingsQueries';
+import { fetchIsSubThread } from '@/hooks/queries/useChatQueries';
+import { fetchNotificationSettings } from '@/hooks/queries/useSettingsQueries';
 import { paintedChatIds, paintedLayout } from '@/utils/tileHelpers';
 import { logger } from '@/utils/logger';
 import { bumpAppBadge, type NotifyOptions } from '@/utils/notifications';
@@ -19,7 +20,6 @@ export function permissionNotifyEvent(toolName: string): NotifyEventSetting {
 export function useBackgroundNotify(): (
   targetPath: string | undefined,
   event: NotifyEventSetting,
-  subThread: boolean,
   notify: (options: NotifyOptions) => Promise<boolean>,
 ) => void {
   const navigate = useNavigate();
@@ -29,7 +29,6 @@ export function useBackgroundNotify(): (
     (
       targetPath: string | undefined,
       event: NotifyEventSetting,
-      subThread: boolean,
       notify: (options: NotifyOptions) => Promise<boolean>,
     ) => {
       // Read live: stored stream callbacks can invoke this closure long after
@@ -57,7 +56,16 @@ export function useBackgroundNotify(): (
       if (isPushRegistered() && document.visibilityState !== 'visible') return;
 
       void (async () => {
-        if (!(await fetchNotificationsEnabled(queryClient, event, subThread))) return;
+        const settings = await fetchNotificationSettings(queryClient);
+        if (settings && !(settings.notifications_enabled && settings[event])) return;
+        if (
+          settings &&
+          !settings.notify_sub_threads &&
+          targetChatId &&
+          (await fetchIsSubThread(queryClient, targetChatId))
+        ) {
+          return;
+        }
         const delivered = await notify({
           onClick: targetPath ? () => navigate(targetPath) : undefined,
         });

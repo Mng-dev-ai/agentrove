@@ -18,10 +18,7 @@ interface UseElicitationRequestReturn {
 }
 
 // Agent-asked form for one chat; 404s (expired/withdrawn requests) auto-dismiss.
-export function useElicitationRequest(
-  chatId: string | undefined,
-  isSubThread: boolean,
-): UseElicitationRequestReturn {
+export function useElicitationRequest(chatId: string | undefined): UseElicitationRequestReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const notifyBackground = useBackgroundNotify();
@@ -45,12 +42,12 @@ export function useElicitationRequest(
       if (!chatId) return;
       const added = useElicitationStore.getState().enqueueElicitationRequest(chatId, request);
       if (added) {
-        notifyBackground(`/chat/${chatId}`, 'notify_questions', isSubThread, (options) =>
+        notifyBackground(`/chat/${chatId}`, 'notify_questions', (options) =>
           notifyQuestion(request.message, options),
         );
       }
     },
-    [chatId, isSubThread, notifyBackground],
+    [chatId, notifyBackground],
   );
 
   const handleElicitationDismissed = useCallback(

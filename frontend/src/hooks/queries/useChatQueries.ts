@@ -154,18 +154,31 @@ export const useMessageRenderQuery = (chatId: string, messageId: string, enabled
   });
 };
 
+const chatQuery = (chatId: string | undefined) => ({
+  queryKey: queryKeys.chat(chatId),
+  queryFn: () => chatService.getChat(chatId!),
+  gcTime: 1000 * 60 * 30,
+});
+
 export const useChatQuery = (
   chatId: string | undefined,
   options?: Partial<UseQueryOptions<Chat>>,
 ) => {
   return useQuery({
-    queryKey: queryKeys.chat(chatId),
-    queryFn: () => chatService.getChat(chatId!),
+    ...chatQuery(chatId),
     enabled: !!chatId,
-    gcTime: 1000 * 60 * 30,
     ...options,
   });
 };
+
+// A failed lookup counts as top-level, so it notifies rather than drops.
+export async function fetchIsSubThread(queryClient: QueryClient, chatId: string): Promise<boolean> {
+  try {
+    return Boolean((await queryClient.ensureQueryData(chatQuery(chatId))).parent_chat_id);
+  } catch {
+    return false;
+  }
+}
 
 export const useContextUsageQuery = (
   chatId: string | undefined,

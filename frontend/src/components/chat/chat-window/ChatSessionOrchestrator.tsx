@@ -83,7 +83,7 @@ export function ChatSessionOrchestrator({
     handlePermissionRequest,
     handleApprove,
     handleReject,
-  } = usePermissionRequest(chatId, Boolean(currentChat?.parent_chat_id));
+  } = usePermissionRequest(chatId);
 
   const {
     pendingRequest: pendingElicitation,
@@ -94,7 +94,7 @@ export function ChatSessionOrchestrator({
     handleSubmit: handleElicitationSubmit,
     handleSkip: handleElicitationSkip,
     handleCancel: handleElicitationCancel,
-  } = useElicitationRequest(chatId, Boolean(currentChat?.parent_chat_id));
+  } = useElicitationRequest(chatId);
 
   const streamingState = useChatStreaming({
     chatId,

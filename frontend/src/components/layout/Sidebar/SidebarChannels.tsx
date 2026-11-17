@@ -125,7 +125,6 @@ export function SidebarChannels({
             : notice.kind === 'channel_asked'
               ? 'notify_questions'
               : 'notify_completions',
-          false,
           (options) =>
             notice.kind === 'channel_permission_request'
               ? notifyPermissionRequest(notice.payload.request, options)
