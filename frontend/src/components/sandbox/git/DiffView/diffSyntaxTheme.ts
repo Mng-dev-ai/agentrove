@@ -1,5 +1,6 @@
-import type { EditorTheme, SyntaxToken } from '@/styles/editorThemes';
-import { THEME_DATA, floorSyntax, mixLab, over } from '@/styles/editorThemes';
+// Relative path: vite.config.ts imports this module, and its config loader has no `@/` alias.
+import type { EditorTheme, SyntaxToken } from '../../../../styles/editorThemes';
+import { THEME_DATA, floorSyntax, mixLab, over } from '../../../../styles/editorThemes';
 
 type Base = 'light' | 'dark';
 

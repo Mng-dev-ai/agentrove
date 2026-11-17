@@ -3,13 +3,15 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { generatePaletteCss, generateDiffPaletteCss } from './src/styles/generatePaletteCss';
 import { PALETTES } from './src/styles/palettes';
+import { DIFF_SYNTAX_CSS } from './src/components/sandbox/git/DiffView/diffSyntaxTheme';
 
 // CSS generated from the hex palette source (src/styles/palettes.ts) at build time, so
 // the RGB-channel vars aren't a second hand-maintained copy. Consumers import the virtual
-// ids as a side-effect: main.tsx (surface tokens, global), DiffView (pierre diff tokens).
+// ids as a side-effect: main.tsx (surface tokens and syntax colours, global), DiffView (pierre diff tokens).
 const VIRTUAL_CSS: Record<string, () => string> = {
   'virtual:palette-overrides.css': generatePaletteCss,
   'virtual:diff-palette-overrides.css': generateDiffPaletteCss,
+  'virtual:diff-syntax.css': () => DIFF_SYNTAX_CSS,
 };
 
 // Same rule as DARK_PALETTES in src/utils/theme.ts, for index.html's pre-paint script.

@@ -1,6 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useState } from 'react';
 import type { ThemedToken } from '@pierre/diffs';
-import { DIFF_SYNTAX_CSS } from '@/components/sandbox/git/DiffView/diffSyntaxTheme';
 import { claim, createCodeHighlight, findReleased, firstLine, release } from './codeHighlight';
 import type { CodeHighlight } from './codeHighlight';
 import styles from './CodeBlock.module.scss';
@@ -63,30 +62,13 @@ export function HighlightedCode({ code, language }: HighlightedCodeProps) {
     return () => cancelAnimationFrame(frame);
   });
 
-  const style = (
-    <style href="diff-syntax-theme" precedence="default">
-      {DIFF_SYNTAX_CSS}
-    </style>
-  );
-  if (!highlighted) {
-    return (
-      <>
-        {style}
-        {code}
-      </>
-    );
-  }
+  if (!highlighted) return code;
   const last = highlighted.lines.length - 1;
-  return (
-    <>
-      {style}
-      {highlighted.lines.map((tokens, i) => (
-        <CodeLine
-          key={i}
-          tokens={tokens}
-          rest={i < last ? '\n' : code.slice(highlighted.source.length)}
-        />
-      ))}
-    </>
-  );
+  return highlighted.lines.map((tokens, i) => (
+    <CodeLine
+      key={i}
+      tokens={tokens}
+      rest={i < last ? '\n' : code.slice(highlighted.source.length)}
+    />
+  ));
 }

@@ -29,7 +29,7 @@ import { useDiffDiscard } from './useDiffDiscard';
 import { useDiffReview } from './useDiffReview';
 import { useDiffScroll } from './useDiffScroll';
 import { useDiffShortcuts } from './useDiffShortcuts';
-import { DIFF_SYNTAX_CSS, DIFF_UNSAFE_CSS } from './diffSyntaxTheme';
+import { DIFF_UNSAFE_CSS } from './diffSyntaxTheme';
 import {
   DIFF_THEMES,
   NARROW_BREAKPOINT,
@@ -385,9 +385,6 @@ const DiffViewContent = memo(function DiffViewContent({
       highlighterOptions={WORKER_HIGHLIGHTER_OPTIONS}
     >
       <div ref={rootRefCallback} className={styles['diff-view']}>
-        <style href="diff-syntax-theme" precedence="default">
-          {DIFF_SYNTAX_CSS}
-        </style>
         <DiffToolbar
           mode={mode}
           onModeChange={setMode}
