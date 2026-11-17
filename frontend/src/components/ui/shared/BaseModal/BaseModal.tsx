@@ -13,6 +13,7 @@ export interface BaseModalProps {
   size?: ModalSize;
   className?: string;
   ariaLabel?: string;
+  variant?: 'dialog' | 'lightbox';
 }
 
 export function BaseModal({
@@ -22,6 +23,7 @@ export function BaseModal({
   size = 'md',
   className,
   ariaLabel,
+  variant = 'dialog',
 }: BaseModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   useModalLayer(containerRef, isOpen, onClose);
@@ -29,10 +31,19 @@ export function BaseModal({
   if (!isOpen) return null;
 
   return createPortal(
-    <div className={styles.backdrop} onClick={onClose} role="presentation">
+    <div
+      className={clsx(styles.backdrop, variant === 'lightbox' && styles['backdrop--lightbox'])}
+      onClick={onClose}
+      role="presentation"
+    >
       <div
         ref={containerRef}
-        className={clsx(styles.container, styles[`container--${size}`], className)}
+        className={clsx(
+          styles.container,
+          styles[`container--${size}`],
+          variant === 'lightbox' && styles['container--lightbox'],
+          className,
+        )}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

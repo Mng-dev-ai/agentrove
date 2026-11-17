@@ -19,6 +19,11 @@
     max(var(--space-4), env(safe-area-inset-left));
   // Pure-black scrim at 50% — not a theme surface, an overlay
   background-color: rgb(0 0 0 / 0.5);
+
+  &--lightbox {
+    padding: 0;
+    background-color: rgb(0 0 0 / 0.92);
+  }
 }
 
 .container {
@@ -53,5 +58,15 @@
   }
   &--full {
     max-width: 100%;
+  }
+
+  &--lightbox {
+    height: 100%;
+    max-width: none;
+    margin: 0;
+    border: none;
+    border-radius: 0;
+    background-color: transparent;
+    box-shadow: none;
   }
 }
