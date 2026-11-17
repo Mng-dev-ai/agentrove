@@ -64,6 +64,11 @@
   }
 }
 
+// Laid out but not shown: holds the place of what appears once the reply ends
+.pending {
+  visibility: hidden;
+}
+
 .message-row {
   display: flex;
   align-items: flex-start;

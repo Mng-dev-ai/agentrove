@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { GitBranch } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
@@ -7,9 +8,12 @@ import styles from './StreamActionsBar.module.scss';
 
 interface StreamActionsBarProps {
   chatId: string;
+  // Laid out but not shown while the reply streams, so the text above does not move
+  // when the bar appears.
+  pending: boolean;
 }
 
-export function StreamActionsBar({ chatId }: StreamActionsBarProps) {
+export function StreamActionsBar({ chatId, pending }: StreamActionsBarProps) {
   const { data: chat } = useChatQuery(chatId);
   // Stream actions come from the instance that owns the chat (local or cloud VPS).
   const { data: settings } = useSettingsForChatQuery(chatId);
@@ -23,7 +27,7 @@ export function StreamActionsBar({ chatId }: StreamActionsBarProps) {
   }
 
   return (
-    <div className={styles['stream-actions']}>
+    <div className={clsx(styles['stream-actions'], pending && styles['stream-actions--pending'])}>
       <span className={styles['stream-actions-label']}>Run</span>
       {enabledActions.map((action) => (
         <Button

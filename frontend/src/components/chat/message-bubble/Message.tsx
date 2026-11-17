@@ -4,6 +4,7 @@ import { Undo2 } from 'lucide-react';
 import { UserMessageContent, AssistantMessageContent } from './MessageContent';
 import { MessageActions } from './MessageActions';
 import { NoticeCard } from './NoticeCard';
+import { PromptSuggestions } from './PromptSuggestions';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import {
   getAgentKindForModelId,
@@ -19,6 +20,8 @@ import { useSetChatInputMessage } from '@/hooks/useChatInputMessageContext';
 import { useCheckpointRestore } from '@/hooks/useCheckpointRestore';
 import { useChatMachineId } from '@/store/machineOrigin';
 import styles from './Message.module.scss';
+
+const PENDING_SUGGESTIONS = ['\u00a0'];
 
 // The latest message keeps its actions visible; earlier ones reveal them on hover/focus.
 export function MessageRow({
@@ -130,6 +133,9 @@ export interface AssistantMessageProps extends SharedContentProps {
   durationMs?: number | null;
   isLastBotMessage?: boolean;
   isLatest?: boolean;
+  // While the reply streams, the suggestions and the action row already hold their
+  // place, so the text above them does not move when they appear.
+  reserveTrailer: boolean;
   toolResultsOmitted: boolean;
   isCompleted: boolean;
 }
@@ -146,6 +152,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   durationMs,
   isLastBotMessage,
   isLatest,
+  reserveTrailer,
   toolResultsOmitted,
   isCompleted,
 }: AssistantMessageProps) {
@@ -179,7 +186,7 @@ export const AssistantMessage = memo(function AssistantMessage({
     [toolResultsOmitted, chatId, id],
   );
   const hasContentText = contentText.trim().length > 0;
-  const showFooter = (hasContentText || checkpointId != null) && !isStreaming;
+  const showFooter = (hasContentText || checkpointId != null) && (!isStreaming || reserveTrailer);
 
   return (
     <MessageRow isLatest={isLatest}>
@@ -198,8 +205,13 @@ export const AssistantMessage = memo(function AssistantMessage({
         />
       </MessageText>
 
+      {reserveTrailer && (
+        <div className={styles.pending}>
+          <PromptSuggestions suggestions={PENDING_SUGGESTIONS} onSelect={setInputMessage} />
+        </div>
+      )}
       {showFooter && (
-        <div className={clsx(styles.footer, styles.reveal)}>
+        <div className={clsx(styles.footer, styles.reveal, isStreaming && styles.pending)}>
           <div className={styles['footer-actions']}>
             {hasContentText && <MessageActions messageId={id} contentText={contentText} />}
             {checkpointId && (

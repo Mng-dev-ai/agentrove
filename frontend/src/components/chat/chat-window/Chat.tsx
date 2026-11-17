@@ -254,6 +254,7 @@ export const Chat = memo(function Chat() {
     !lastBotIsStreaming &&
     !isStreaming &&
     !isLoading;
+  const showStreamActionsSlot = showStreamActions || (lastBotIsStreaming && lastBotHasContent);
 
   const renderMessage = useCallback(
     (msg: (typeof messages)[number], hasReply: boolean) => {
@@ -301,6 +302,8 @@ export const Chat = memo(function Chat() {
                   isLastBotMessage && !messageIsStreaming && !isLoading && !isStreaming
                 }
                 isLatest={msg.id === latestMessageId}
+                // An inline prompt sits right under the reply, with no gap for the trailer
+                reserveTrailer={messageIsStreaming && !showPermissionAtEnd && !showElicitationAtEnd}
               />
             </TextRevealContext>
           ) : (
@@ -333,6 +336,8 @@ export const Chat = memo(function Chat() {
       latestMessageId,
       latestUserMessageId,
       pendingUserMessageId,
+      showElicitationAtEnd,
+      showPermissionAtEnd,
       streamingMessageIdSet,
       textReveal,
     ],
@@ -349,7 +354,7 @@ export const Chat = memo(function Chat() {
       !showThinking &&
       !showPermissionAtEnd &&
       !showElicitationAtEnd &&
-      !(showStreamActions && chatId)
+      !(showStreamActionsSlot && chatId)
     ) {
       return null;
     }
@@ -359,7 +364,9 @@ export const Chat = memo(function Chat() {
         {showThinking && <StatusTypewriter streamStartTime={streamStartTime} />}
         {showPermissionAtEnd && <ChatInlinePermission />}
         {showElicitationAtEnd && <ChatInlineElicitation />}
-        {showStreamActions && chatId && <StreamActionsBar chatId={chatId} />}
+        {showStreamActionsSlot && chatId && (
+          <StreamActionsBar chatId={chatId} pending={!showStreamActions} />
+        )}
       </ConversationColumn>
     );
   }, [
@@ -367,6 +374,7 @@ export const Chat = memo(function Chat() {
     showElicitationAtEnd,
     showPermissionAtEnd,
     showStreamActions,
+    showStreamActionsSlot,
     showThinking,
     streamStartTime,
   ]);
