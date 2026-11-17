@@ -118,6 +118,7 @@ export function Textarea({
   }, [isLoading, isMobile, textareaRef]);
 
   useMountEffect(() => {
+    if (!isLoading && !isMobile) textareaRef.current?.focus();
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
