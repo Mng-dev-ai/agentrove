@@ -1,7 +1,12 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useQueries, type UseQueryResult } from '@tanstack/react-query';
+import {
+  useQueries,
+  useQueryClient,
+  type InfiniteData,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import { MACHINE_CHATS_PER_PAGE } from '@/config/constants';
-import { useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
+import { infiniteChatsQueryKey, useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
@@ -80,7 +85,7 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
   const combine = useCallback(
     (results: UseQueryResult<PaginatedChats>[]) => ({
       sources: combineRemoteSources(plan, results),
-      // Later pages are load-more; only a failed first page means the list didn't load.
+      // Later pages come from Show more; only a failed first page means the list didn't load.
       firstPages: results.filter((_, index) => plan[index].page === 1),
     }),
     [plan],
@@ -107,11 +112,19 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
       }),
     [],
   );
+  const showLess = useCallback(() => setPageCounts({}), []);
 
-  return { sources, firstPages, loadMore };
+  return {
+    sources,
+    firstPages,
+    loadMore,
+    hasMoreThanFirstPage: Object.values(pageCounts).some((count) => count > 1),
+    showLess,
+  };
 }
 
 export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = true) {
+  const queryClient = useQueryClient();
   const pinnedQuery = useInfiniteChatsQuery({ pinned: true, enabled });
   const localQuery = useInfiniteChatsQuery({ pinned: false, enabled });
   const { data: pinnedChatsData } = pinnedQuery;
@@ -127,6 +140,8 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     sources: remoteSources,
     firstPages: remoteFirstPages,
     loadMore: loadMoreRemote,
+    hasMoreThanFirstPage: hasMoreThanFirstRemotePage,
+    showLess: showLessRemote,
   } = useRemoteChatSources(remoteMachineIds, enabled);
   const remoteSourceList = useMemo(() => [...remoteSources.values()], [remoteSources]);
 
@@ -174,6 +189,20 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     if (hasMoreLocal) void fetchMoreLocal();
     if (remoteWithMoreKey) loadMoreRemote(remoteWithMoreKey.split('\n'));
   }, [hasMoreLocal, fetchMoreLocal, remoteWithMoreKey, loadMoreRemote]);
+  const showLess = useCallback(() => {
+    showLessRemote();
+    const queryKey = infiniteChatsQueryKey({ pinned: false });
+    queryClient.setQueryData<InfiniteData<PaginatedChats>>(
+      queryKey,
+      (data) =>
+        data && {
+          pages: data.pages.slice(0, 1),
+          pageParams: data.pageParams.slice(0, 1),
+        },
+    );
+    // Cancels any in-flight page fetch that would re-append the trimmed pages.
+    void queryClient.invalidateQueries({ queryKey, exact: true });
+  }, [queryClient, showLessRemote]);
 
   return {
     pinnedChats,
@@ -184,6 +213,8 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     hasMore: !!hasMoreLocal || remoteWithMore.length > 0,
     isFetchingMore: isFetchingMoreLocal || remoteSourceList.some((source) => source.isFetchingMore),
     loadMore,
+    canShowLess: (localChatsData?.pages.length ?? 0) > 1 || hasMoreThanFirstRemotePage,
+    showLess,
     threadsLoad: listLoadState([pinnedQuery, localQuery, ...remoteFirstPages]),
     pinnedLoad: listLoadState([pinnedQuery]),
     recentsLoad: listLoadState([localQuery, ...remoteFirstPages]),

@@ -49,7 +49,12 @@
   }
 }
 
-.load-more {
+.more-toggles {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.more-toggle {
   @include type.type-meta;
   @include anim.transition-colors;
   display: flex;
