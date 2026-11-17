@@ -1,10 +1,14 @@
 import asyncio
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
+from types import SimpleNamespace
+from typing import Any
 
 import httpx
 import pytest
 import pytest_asyncio
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,8 +21,10 @@ from app.db.base_class import Base
 from app.db.session import SessionLocal, engine
 from app.main import create_application
 from app.models.db_models.user import User, UserSettings
+from app.services import push as push_module
 from app.services import queue as queue_module
 from app.services.email import email_service
+from app.services.push import PushService
 from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
@@ -121,6 +127,25 @@ class LoginClient:
         )
         assert response.status_code == 200
         return response.json()
+
+
+class FakeApns:
+    def __init__(self) -> None:
+        self.requests: list[httpx.Request] = []
+        self.status_code = 200
+        self.reason = ""
+        self.network_error = False
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.network_error:
+            raise httpx.ConnectError("unreachable", request=request)
+        if self.status_code == 200:
+            return httpx.Response(200)
+        return httpx.Response(self.status_code, json={"reason": self.reason})
+
+    def client(self, **_kwargs: Any) -> httpx.AsyncClient:
+        return httpx.AsyncClient(transport=httpx.MockTransport(self.handle))
 
 
 @pytest.fixture(scope="session")
@@ -234,3 +259,23 @@ async def create_user(db_session: AsyncSession) -> UserFactory:
 @pytest_asyncio.fixture
 async def login(client: httpx.AsyncClient) -> LoginClient:
     return LoginClient(client)
+
+
+@pytest.fixture
+def apns(monkeypatch: pytest.MonkeyPatch) -> FakeApns:
+    key = ec.generate_private_key(ec.SECP256R1()).private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    )
+    monkeypatch.setattr(push_module.settings, "APNS_KEY", key.decode())
+    monkeypatch.setattr(push_module.settings, "APNS_KEY_ID", "KEYID")
+    monkeypatch.setattr(push_module.settings, "APNS_TEAM_ID", "TEAMID")
+    monkeypatch.setattr(PushService, "_provider_token", None)
+    fake = FakeApns()
+    monkeypatch.setattr(
+        push_module,
+        "httpx",
+        SimpleNamespace(AsyncClient=fake.client, HTTPError=httpx.HTTPError),
+    )
+    return fake

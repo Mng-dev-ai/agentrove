@@ -6,10 +6,12 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 import pytest
+from httpx import AsyncClient, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.chat import Chat
+from app.models.db_models.push import PushDelivery
 from app.models.db_models.refresh_token import RefreshToken
 from app.models.db_models.user import User, UserSettings
 from app.models.db_models.workspace import Workspace
@@ -29,6 +31,8 @@ from tests.bootstrap import TEST_DIR
 
 if TYPE_CHECKING:
     from tests.conftest import LoginClient, UserFactory
+
+DEVICE_TOKEN = "abc123"
 
 
 class FakeSandboxProvider(SandboxProvider):
@@ -289,3 +293,34 @@ async def count_refresh_tokens(db: AsyncSession, user_id: UUID) -> int:
         select(RefreshToken).where(RefreshToken.user_id == user_id)
     )
     return len(result.scalars().all())
+
+
+async def post_message(
+    client: AsyncClient, headers: dict[str, str], chat_id: UUID, title: str = "Hi"
+) -> Response:
+    return await client.post(
+        "/api/v1/inbox/messages",
+        json={"chat_id": str(chat_id), "title": title, "body": "Body"},
+        headers=headers,
+    )
+
+
+async def register_device(
+    client: AsyncClient,
+    headers: dict[str, str],
+    token: str = DEVICE_TOKEN,
+    sandbox: bool = True,
+) -> None:
+    response = await client.post(
+        "/api/v1/push/devices",
+        json={"token": token, "sandbox": sandbox},
+        headers=headers,
+    )
+    assert response.status_code == 204
+
+
+async def deliveries(db_session: AsyncSession) -> list[PushDelivery]:
+    result = await db_session.scalars(
+        select(PushDelivery).execution_options(populate_existing=True)
+    )
+    return list(result.all())
