@@ -106,6 +106,7 @@ class SubThreadWake:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        self._scheduled.clear()
 
     @staticmethod
     async def owe_report(
