@@ -86,11 +86,6 @@ beforeEach(() => {
   queryClient.setQueryData([queryKeys.settings], { notifications_enabled: false });
   seedCache('c1', [makeMessage('a1')]);
   vi.spyOn(chatService, 'markChatViewed').mockResolvedValue();
-  vi.spyOn(chatService, 'getMessages').mockResolvedValue({
-    items: [],
-    next_cursor: null,
-    has_more: false,
-  });
   useChatSettingsStore.setState({ permissionModeByChat: {} });
 });
 
@@ -244,30 +239,6 @@ describe('terminal events', () => {
     expect(cachedMessage('c1', 'a1')).toMatchObject(expected);
     expect(result.current.streamState).toBe('idle');
     expect(result.current.currentMessageId).toBeNull();
-  });
-
-  it('refreshes the newest page at stream end without dropping older loaded messages', async () => {
-    const { result } = renderCallbacks();
-    seedMessagePages(queryClient, 'c1', [
-      [makeMessage('a1'), makeMessage('u1', { role: 'user' }), makeMessage('a0')],
-      [makeMessage('u0', { role: 'user' })],
-    ]);
-    vi.mocked(chatService.getMessages).mockResolvedValue({
-      items: [
-        makeMessage('a1', { content_text: 'Server copy', stream_status: 'completed' }),
-        makeMessage('u1', { role: 'user' }),
-      ],
-      next_cursor: 'cursor-1',
-      has_more: true,
-    });
-
-    await act(async () => result.current.onComplete('a1', 's1', 'complete', 1234));
-
-    expect(readMessagePages(queryClient, 'c1')?.map((page) => page.map((m) => m.id))).toEqual([
-      ['a1', 'u1', 'a0'],
-      ['u0'],
-    ]);
-    expect(cachedMessage('c1', 'a1')?.content_text).toBe('Server copy');
   });
 
   it('marks the turn failed with the error appended after the streamed content', () => {

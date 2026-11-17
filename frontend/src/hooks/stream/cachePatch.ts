@@ -1,8 +1,6 @@
 import { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-import { MESSAGE_PAGE_SIZE, patchChatInCache } from '@/hooks/queries/useChatQueries';
-import { chatService } from '@/services/chatService';
-import { logger } from '@/utils/logger';
+import { patchChatInCache } from '@/hooks/queries/useChatQueries';
 import type { ChatEvent, Message } from '@/types/chat.types';
 import type { PaginatedMessages } from '@/types/api.types';
 import { createTurnMessages, insertMessagesById } from '@/hooks/stream/messageUpdates';
@@ -87,37 +85,6 @@ export function insertMessagesInCache(
       };
     },
   );
-}
-
-// Stream end: re-read only the newest page and merge it by id. Invalidating would refetch
-// the loaded pages from the newest down, and with the turn already inserted into page 0
-// the oldest loaded messages would slide off the end, removing content above the reader.
-export async function refreshLatestMessagesInCache(
-  queryClient: QueryClient,
-  chatId: string,
-): Promise<void> {
-  const queryKey = queryKeys.messages(chatId);
-  if (!queryClient.getQueryData(queryKey)) return;
-  let latest: Message[];
-  try {
-    latest = (await chatService.getMessages(chatId, { limit: MESSAGE_PAGE_SIZE })).items;
-  } catch (error) {
-    logger.error('Failed to refresh messages', 'refreshLatestMessagesInCache', error);
-    return;
-  }
-  const fresh = new Map(latest.map((message) => [message.id, message]));
-  queryClient.setQueryData(
-    queryKey,
-    (oldData: { pages: PaginatedMessages[]; pageParams: unknown[] } | undefined) =>
-      oldData && {
-        ...oldData,
-        pages: oldData.pages.map((page) => ({
-          ...page,
-          items: page.items.map((message) => fresh.get(message.id) ?? message),
-        })),
-      },
-  );
-  insertMessagesInCache(queryClient, chatId, [...latest].reverse());
 }
 
 export function insertStartedTurnInCache(

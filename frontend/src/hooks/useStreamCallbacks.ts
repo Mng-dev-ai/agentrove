@@ -28,7 +28,6 @@ import {
   findMessageInCache,
   insertMessagesInCache,
   patchChatWorktreeCwd,
-  refreshLatestMessagesInCache,
   updateMessageInCacheForChat,
 } from '@/hooks/stream/cachePatch';
 import {
@@ -452,7 +451,7 @@ export function useStreamCallbacks({
         // Server terminals only — an optimistic Stop races the unwind and
         // would refetch pre-terminal state over the local patch.
         if (streamId) {
-          void refreshLatestMessagesInCache(queryClient, targetChatId);
+          queryClient.invalidateQueries({ queryKey: queryKeys.messages(targetChatId) });
         }
       }
 
@@ -557,7 +556,7 @@ export function useStreamCallbacks({
 
       // Same gate as onComplete — a connection-failure error has no streamId.
       if (targetChatId && streamId) {
-        void refreshLatestMessagesInCache(queryClient, targetChatId);
+        queryClient.invalidateQueries({ queryKey: queryKeys.messages(targetChatId) });
       }
 
       if (!isCurrentChat) return;

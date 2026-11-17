@@ -1,17 +1,12 @@
 // @vitest-environment jsdom
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import type { PaginatedMessages } from '@/types/api.types';
-import { chatService } from '@/services/chatService';
 import type { Chat } from '@/types/chat.types';
 import { makeMessage, readMessagePages, seedMessagePages } from '@/test/fixtures';
-import {
-  insertMessagesInCache,
-  insertStartedTurnInCache,
-  refreshLatestMessagesInCache,
-} from './cachePatch';
+import { insertMessagesInCache, insertStartedTurnInCache } from './cachePatch';
 
 const page = (...ids: string[]) => ids.map((id) => makeMessage(id));
 
@@ -79,25 +74,6 @@ describe('insertMessagesInCache', () => {
     await Promise.resolve();
 
     expect(cachedIds(queryClient)).toEqual([['a1', 'u1', 'a0']]);
-  });
-});
-
-describe('refreshLatestMessagesInCache', () => {
-  it('merges the newest page by id, adding server-only messages without duplicating older pages', async () => {
-    seedMessagePages(queryClient, 'c1', [page('a1', 'u1'), page('a0', 'u0')]);
-    vi.spyOn(chatService, 'getMessages').mockResolvedValue({
-      items: [makeMessage('n2'), makeMessage('a1', { content_text: 'final' }), ...page('u1', 'a0')],
-      next_cursor: 'cursor-1',
-      has_more: true,
-    });
-
-    await refreshLatestMessagesInCache(queryClient, 'c1');
-
-    expect(cachedIds(queryClient)).toEqual([
-      ['n2', 'a1', 'u1'],
-      ['a0', 'u0'],
-    ]);
-    expect(readMessagePages(queryClient, 'c1')?.[0][1].content_text).toBe('final');
   });
 });
 
