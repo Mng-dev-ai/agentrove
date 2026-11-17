@@ -1,10 +1,7 @@
-import { registerCustomCSSVariableTheme } from '@pierre/diffs';
 import type { EditorTheme, SyntaxToken } from '@/styles/editorThemes';
 import { THEME_DATA, floorSyntax, mixLab, over } from '@/styles/editorThemes';
 
 type Base = 'light' | 'dark';
-
-export const DIFF_SYNTAX_THEME = 'agentrove-syntax';
 
 // Shiki's css-variables slots, each fed from the editor's Monaco token of the same role.
 const SLOT_TOKENS: Record<string, SyntaxToken> = {
@@ -83,10 +80,14 @@ export const DIFF_SYNTAX_CSS = Object.entries(THEME_DATA)
 
 // Shadow-root rule: word-level change highlights sit on a stronger tint than their
 // line, so their tokens (and untokenized plain text) switch to the emphasis-safe set.
-export const DIFF_EMPHASIS_CSS = `[data-diff-span]{--diffs-light:var(--diff-emphasis-foreground);--diffs-dark:var(--diff-emphasis-foreground);${Object.keys(
+const DIFF_EMPHASIS_CSS = `[data-diff-span]{--diffs-light:var(--diff-emphasis-foreground);--diffs-dark:var(--diff-emphasis-foreground);${Object.keys(
   SLOT_TOKENS,
 )
   .map((slot) => `--diffs-${slot}:var(--diff-emphasis-${slot})`)
   .join(';')}}`;
 
-registerCustomCSSVariableTheme(DIFF_SYNTAX_THEME, {});
+export const DIFF_UNSAFE_CSS =
+  '[data-selected-line]:is([data-line-annotation],[data-gutter-buffer=annotation]){--diffs-computed-selected-line-bg:var(--diffs-annotation-bg)}' +
+  '[data-column-number][data-line-type=change-addition]{color:var(--theme-success-text)}' +
+  '[data-column-number][data-line-type=change-deletion]{color:var(--theme-error-text)}' +
+  DIFF_EMPHASIS_CSS;

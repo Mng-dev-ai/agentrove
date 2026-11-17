@@ -1,7 +1,11 @@
+import { registerCustomCSSVariableTheme } from '@pierre/diffs';
 import type { CreatePatchOptionsNonabortable, FileDiffMetadata, FileContents } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
 import { whitespaceKeySuffix } from '@/utils/diffReviewKey';
-import { DIFF_EMPHASIS_CSS, DIFF_SYNTAX_THEME } from './diffSyntaxTheme';
+
+const DIFF_SYNTAX_THEME = 'agentrove-syntax';
+
+registerCustomCSSVariableTheme(DIFF_SYNTAX_THEME, {});
 
 export const DIFF_THEMES = { dark: DIFF_SYNTAX_THEME, light: DIFF_SYNTAX_THEME };
 
@@ -45,12 +49,6 @@ export const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
 // tokens: the Shiki theme's tints drop below 3:1 on several palettes.
 // Injected into the shadow root, where unlayered rules beat the library's
 // @layer base styles.
-export const DIFF_UNSAFE_CSS =
-  '[data-selected-line]:is([data-line-annotation],[data-gutter-buffer=annotation]){--diffs-computed-selected-line-bg:var(--diffs-annotation-bg)}' +
-  '[data-column-number][data-line-type=change-addition]{color:var(--theme-success-text)}' +
-  '[data-column-number][data-line-type=change-deletion]{color:var(--theme-error-text)}' +
-  DIFF_EMPHASIS_CSS;
-
 // Below this tile width the toolbar compacts: diffstat moves right, labels
 // shorten, and diff style moves into the overflow menu.
 export const NARROW_BREAKPOINT = 900;

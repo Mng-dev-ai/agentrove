@@ -29,10 +29,9 @@ import { useDiffDiscard } from './useDiffDiscard';
 import { useDiffReview } from './useDiffReview';
 import { useDiffScroll } from './useDiffScroll';
 import { useDiffShortcuts } from './useDiffShortcuts';
-import { DIFF_SYNTAX_CSS } from './diffSyntaxTheme';
+import { DIFF_SYNTAX_CSS, DIFF_UNSAFE_CSS } from './diffSyntaxTheme';
 import {
   DIFF_THEMES,
-  DIFF_UNSAFE_CSS,
   NARROW_BREAKPOINT,
   computeCommentsMenuPos,
   computeMenuPos,
