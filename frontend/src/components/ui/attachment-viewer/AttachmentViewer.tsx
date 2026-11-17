@@ -66,7 +66,15 @@ export const AttachmentViewer = memo(function AttachmentViewer({
   );
 
   const handleClosePreview = useCallback(() => setPreviewIndex(null), []);
-  const handleRetry = useCallback(() => setRetryCount((count) => count + 1), []);
+  const handleRetry = useCallback((id: string) => {
+    const url = ownedObjectUrlsRef.current.get(id);
+    if (url) {
+      URL.revokeObjectURL(url);
+      ownedObjectUrlsRef.current.delete(id);
+    }
+    loadedIdsRef.current.delete(id);
+    setRetryCount((count) => count + 1);
+  }, []);
 
   useEffect(() => {
     const loadedIds = loadedIdsRef.current;
@@ -176,7 +184,11 @@ export const AttachmentViewer = memo(function AttachmentViewer({
               const filename = attachment.filename || getDefaultFilename('image', index);
               if (state.error) {
                 return (
-                  <ImageErrorTile key={attachment.id} filename={filename} onRetry={handleRetry} />
+                  <ImageErrorTile
+                    key={attachment.id}
+                    filename={filename}
+                    onRetry={() => handleRetry(attachment.id)}
+                  />
                 );
               }
               const canPreview = !isUploadingAttachment && !state.isLoading;

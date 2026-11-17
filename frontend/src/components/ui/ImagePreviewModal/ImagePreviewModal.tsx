@@ -22,7 +22,7 @@ interface ImagePreviewModalProps {
   currentIndex: number;
   onIndexChange: (index: number) => void;
   onDownload: (url: string | File, filename: string) => void;
-  onRetry: () => void;
+  onRetry: (id: string) => void;
 }
 
 export const ImagePreviewModal = memo(function ImagePreviewModal({
@@ -145,10 +145,7 @@ export const ImagePreviewModal = memo(function ImagePreviewModal({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setFailedSrc(null);
-                  onRetry();
-                }}
+                onClick={() => onRetry(current.id)}
                 className={styles.retry}
               >
                 Retry
