@@ -1,8 +1,10 @@
 import { memo } from 'react';
+import type { FileStructure } from '@/types/file-system.types';
 import { PreviewContainer } from './PreviewContainer';
 import styles from './PreviewEmptyState.module.scss';
 
 interface PreviewEmptyStateProps {
+  file: FileStructure;
   fileName: string;
   message: string;
   isFullscreen?: boolean;
@@ -10,6 +12,7 @@ interface PreviewEmptyStateProps {
 }
 
 export const PreviewEmptyState = memo(function PreviewEmptyState({
+  file,
   fileName,
   message,
   isFullscreen,
@@ -17,6 +20,7 @@ export const PreviewEmptyState = memo(function PreviewEmptyState({
 }: PreviewEmptyStateProps) {
   return (
     <PreviewContainer
+      file={file}
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}

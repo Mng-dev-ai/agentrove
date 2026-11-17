@@ -8,7 +8,7 @@ import type { ListLoadState } from '@/hooks/queries/listLoad';
 import { useUIStore } from '@/store/uiStore';
 import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
 import { SidebarFilterMenu } from './SidebarFilterMenu';
-import { SidebarLoadError } from './SidebarLoadError';
+import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import type { SidebarChatSection } from './sidebarGrouping';
 import styles from './SidebarChatList.module.scss';
@@ -74,7 +74,7 @@ export function SidebarChatList({
         threadsLoad.loadFailed ? (
           <div>
             <SidebarSectionHeader title="Threads" />
-            <SidebarLoadError message="Couldn't load threads" load={threadsLoad} />
+            <LoadErrorState variant="inline" message="Couldn't load threads" load={threadsLoad} />
           </div>
         ) : isLoadingChats ? null : (
           <div>
@@ -97,7 +97,11 @@ export function SidebarChatList({
           {pinnedChats.length === 0 && pinnedLoad.loadFailed && (
             <div className={styles.section}>
               <SidebarSectionHeader title="Pinned" />
-              <SidebarLoadError message="Couldn't load pinned threads" load={pinnedLoad} />
+              <LoadErrorState
+                variant="inline"
+                message="Couldn't load pinned threads"
+                load={pinnedLoad}
+              />
             </div>
           )}
 
@@ -127,7 +131,7 @@ export function SidebarChatList({
                   <SidebarChatRow key={chat.id} chat={chat} rowProps={recentRowProps} />
                 ))
             ) : recentChats.length === 0 && recentsLoad.loadFailed ? (
-              <SidebarLoadError message="Couldn't load threads" load={recentsLoad} />
+              <LoadErrorState variant="inline" message="Couldn't load threads" load={recentsLoad} />
             ) : recentChats.length > 0 ? (
               <div>
                 {recentChatSections.map((section) => (

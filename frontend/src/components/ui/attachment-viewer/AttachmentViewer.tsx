@@ -3,13 +3,14 @@ import clsx from 'clsx';
 import { logger } from '@/utils/logger';
 import type { MessageAttachment } from '@/types/chat.types';
 import { resolveChatClient } from '@/lib/api';
-import { fetchAttachmentBlob, downloadAttachmentFile } from '@/utils/file';
+import { fetchAttachmentBlob, downloadAttachmentFile, getDefaultFilename } from '@/utils/file';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import { ImagePreviewModal } from '../ImagePreviewModal/ImagePreviewModal';
 import {
-  ThumbnailWrapper,
-  IconThumbnail,
+  FileAttachment,
+  ImageErrorTile,
   ImageThumbnail,
+  ThumbnailWrapper,
   type ImageSize,
   type ImageState,
 } from './AttachmentThumbnails';
@@ -34,6 +35,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({});
   // Lightbox index into imageAttachments; null = closed.
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const loadedIdsRef = useRef<Set<string>>(new Set());
   const ownedObjectUrlsRef = useRef<Map<string, string>>(new Map());
   const uploadingIdSet = useMemo(
@@ -58,16 +60,21 @@ export const AttachmentViewer = memo(function AttachmentViewer({
     () => attachments.filter((a) => a.file_type === 'image'),
     [attachments],
   );
-  const imageIndexMap = useMemo(
-    () => new Map(imageAttachments.map((a, i) => [a.id, i])),
-    [imageAttachments],
-  );
   const imageIdKey = useMemo(
     () => imageAttachments.map((a) => a.id).join('\0'),
     [imageAttachments],
   );
 
   const handleClosePreview = useCallback(() => setPreviewIndex(null), []);
+  const handleRetry = useCallback((id: string) => {
+    const url = ownedObjectUrlsRef.current.get(id);
+    if (url) {
+      URL.revokeObjectURL(url);
+      ownedObjectUrlsRef.current.delete(id);
+    }
+    loadedIdsRef.current.delete(id);
+    setRetryCount((count) => count + 1);
+  }, []);
 
   useEffect(() => {
     const loadedIds = loadedIdsRef.current;
@@ -144,7 +151,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [imageIdKey]);
+  }, [imageIdKey, retryCount]);
 
   useEffect(() => {
     const loadedIds = loadedIdsRef.current;
@@ -162,52 +169,61 @@ export const AttachmentViewer = memo(function AttachmentViewer({
     return null;
   }
 
+  const fileAttachments = attachments.filter(
+    (a) => a.file_type === 'pdf' || a.file_type === 'xlsx',
+  );
+
   return (
     <>
-      <div className={clsx(styles.list, size === 'large' && styles['list--large'])}>
-        {attachments.map((attachment, index) => {
-          const isUploadingAttachment = uploadingIdSet.has(attachment.id);
-
-          if (attachment.file_type === 'image') {
-            const state = imageStates[attachment.id] || DEFAULT_IMAGE_STATE;
-            // Preview is only meaningful once the image has finished loading successfully —
-            // don't open the lightbox on a still-loading or errored thumbnail.
-            const canPreview = !isUploadingAttachment && !state.isLoading && !state.error;
-            // Safe non-null: every 'image' attachment is in imageAttachments, so the map always has it.
-            const imageIndex = imageIndexMap.get(attachment.id)!;
-
-            return (
-              <ThumbnailWrapper
-                key={attachment.id}
-                attachment={attachment}
-                onDownload={handleDownload}
-                onPreview={canPreview ? () => setPreviewIndex(imageIndex) : undefined}
-              >
-                <ImageThumbnail
+      <div className={styles.attachments}>
+        {imageAttachments.length > 0 && (
+          <div className={clsx(styles.list, size === 'large' && styles['list--large'])}>
+            {imageAttachments.map((attachment, index) => {
+              const isUploadingAttachment = uploadingIdSet.has(attachment.id);
+              const state = imageStates[attachment.id] || DEFAULT_IMAGE_STATE;
+              const filename = attachment.filename || getDefaultFilename('image', index);
+              if (state.error) {
+                return (
+                  <ImageErrorTile
+                    key={attachment.id}
+                    filename={filename}
+                    onRetry={() => handleRetry(attachment.id)}
+                  />
+                );
+              }
+              const canPreview = !isUploadingAttachment && !state.isLoading;
+              return (
+                <ThumbnailWrapper
+                  key={attachment.id}
                   attachment={attachment}
-                  state={state}
-                  index={index}
-                  isUploading={isUploadingAttachment}
-                  size={size}
-                />
-              </ThumbnailWrapper>
-            );
-          }
-
-          if (attachment.file_type === 'pdf' || attachment.file_type === 'xlsx') {
-            return (
-              <ThumbnailWrapper
+                  filename={filename}
+                  onDownload={handleDownload}
+                  onPreview={canPreview ? () => setPreviewIndex(index) : undefined}
+                >
+                  <ImageThumbnail
+                    filename={filename}
+                    state={state}
+                    isUploading={isUploadingAttachment}
+                    size={size}
+                  />
+                </ThumbnailWrapper>
+              );
+            })}
+          </div>
+        )}
+        {fileAttachments.length > 0 && (
+          <div className={styles.list}>
+            {fileAttachments.map((attachment, index) => (
+              <FileAttachment
                 key={attachment.id}
                 attachment={attachment}
+                index={index}
+                isUploading={uploadingIdSet.has(attachment.id)}
                 onDownload={handleDownload}
-              >
-                <IconThumbnail attachment={attachment} isLoading={isUploadingAttachment} />
-              </ThumbnailWrapper>
-            );
-          }
-
-          return null;
-        })}
+              />
+            ))}
+          </div>
+        )}
       </div>
       <ImagePreviewModal
         isOpen={previewIndex !== null}
@@ -217,6 +233,7 @@ export const AttachmentViewer = memo(function AttachmentViewer({
         currentIndex={previewIndex ?? 0}
         onIndexChange={setPreviewIndex}
         onDownload={handleDownload}
+        onRetry={handleRetry}
       />
     </>
   );

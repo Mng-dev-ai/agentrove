@@ -200,7 +200,6 @@ export function EnvVarsSettingsTab() {
         loadError={{ message: "Couldn't load environment variables", load: remoteLoad }}
         emptyIcon={Key}
         emptyText="No custom environment variables configured yet"
-        emptyButtonText="Add Your First Environment Variable"
         addButtonText="Add Variable"
         deleteConfirmTitle="Delete Environment Variable"
         deleteConfirmMessage={(item) =>

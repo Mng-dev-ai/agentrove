@@ -1,6 +1,7 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
+import { useModalLayer } from './useModalLayer';
 import styles from './BaseModal.module.scss';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '4xl' | 'full';
@@ -12,13 +13,8 @@ export interface BaseModalProps {
   size?: ModalSize;
   className?: string;
   ariaLabel?: string;
+  variant?: 'dialog' | 'lightbox';
 }
-
-const FOCUSABLE =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-
-// Open dialogs in mount order; only the last one answers Escape/Tab.
-const openStack: HTMLDivElement[] = [];
 
 export function BaseModal({
   isOpen,
@@ -27,74 +23,27 @@ export function BaseModal({
   size = 'md',
   className,
   ariaLabel,
+  variant = 'dialog',
 }: BaseModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-  // Read during the opening render: a child's autoFocus runs in commit, before any effect.
-  const triggerRef = useRef<HTMLElement | null>(null);
-  const wasOpenRef = useRef(false);
-  if (isOpen && !wasOpenRef.current) {
-    triggerRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-  }
-  wasOpenRef.current = isOpen;
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!isOpen || !container) return;
-    const trigger = triggerRef.current;
-    openStack.push(container);
-    if (!container.contains(document.activeElement)) container.focus({ preventScroll: true });
-
-    // Window bubble phase runs after inner overlays' handlers, so a dropdown or
-    // menu that handles Escape (preventDefault) closes before the dialog does.
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (openStack[openStack.length - 1] !== container || e.defaultPrevented || e.isComposing) {
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        onCloseRef.current();
-      } else if (e.key === 'Tab') {
-        const focusable = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-          (el) => el.getClientRects().length > 0,
-        );
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        const active = document.activeElement;
-        if (!first || !last) {
-          e.preventDefault();
-          container.focus();
-        } else if (
-          !container.contains(active) ||
-          (e.shiftKey && (active === first || active === container))
-        ) {
-          e.preventDefault();
-          (e.shiftKey ? last : first).focus();
-        } else if (!e.shiftKey && active === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      openStack.splice(openStack.indexOf(container), 1);
-      // StrictMode's simulated unmount keeps the dialog in the DOM; restore only on a real close.
-      if (!container.isConnected && trigger?.isConnected) trigger.focus();
-    };
-  }, [isOpen]);
+  useModalLayer(containerRef, isOpen, onClose);
 
   if (!isOpen) return null;
 
   return createPortal(
-    <div className={styles.backdrop} onClick={onClose} role="presentation">
+    <div
+      className={clsx(styles.backdrop, variant === 'lightbox' && styles['backdrop--lightbox'])}
+      onClick={onClose}
+      role="presentation"
+    >
       <div
         ref={containerRef}
-        className={clsx(styles.container, styles[`container--${size}`], className)}
+        className={clsx(
+          styles.container,
+          styles[`container--${size}`],
+          variant === 'lightbox' && styles['container--lightbox'],
+          className,
+        )}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

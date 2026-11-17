@@ -4,6 +4,7 @@
 // here and globals.css + Tailwind are deleted.
 
 @use './globals/globals';
+@use './globals/typography' as type;
 
 // Complete Nerd Font for the in-app terminal — includes the PUA icon glyphs
 // (eza/ls file icons, Starship prompt symbols) the system monospace lacks. Used
@@ -25,39 +26,8 @@
   font-display: swap;
 }
 
-// Third-party render targets (mermaid SVG, monaco widgets) — global because the
-// libraries own the DOM, so CSS modules can't reach it.
-
-.mermaid-container {
-  font-family: var(--font-sans);
-
-  svg {
-    display: block;
-    width: 100% !important;
-    max-width: 100%;
-    height: auto !important;
-
-    text {
-      font-size: 10px !important;
-      font-family: var(--font-sans) !important;
-    }
-
-    .node rect,
-    .node circle,
-    .node ellipse,
-    .node polygon {
-      stroke-width: 1px;
-    }
-
-    .edgeLabel {
-      font-size: 9px !important;
-    }
-
-    .nodeLabel {
-      font-size: 10px !important;
-    }
-  }
-}
+// Third-party render targets (monaco widgets) — global because the library owns the
+// DOM, so CSS modules can't reach it.
 
 // Monaco peek widget (go-to-definition / references): monaco's CSS sets no
 // font-size on the results tree, so it inherits the page's root font while
@@ -85,6 +55,9 @@
   background-color: var(--theme-surface-secondary) !important;
   color: var(--theme-text-primary) !important;
   box-shadow: var(--shadow-medium) !important;
+  padding: var(--space-2-5) var(--space-3) !important;
+  max-width: var(--space-96) !important;
+  @include type.type-default;
   overflow-wrap: anywhere;
   word-break: break-word;
 }

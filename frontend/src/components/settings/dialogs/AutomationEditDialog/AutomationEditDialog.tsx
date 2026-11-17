@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Brain, Shield, GitFork } from 'lucide-react';
+import { Brain, Shield } from 'lucide-react';
 import type { Persona } from '@/types/user.types';
 import type { AutomationForm, AutomationTarget } from '@/types/automation.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
@@ -11,10 +11,6 @@ import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
-import {
-  ToggleDropdown,
-  type ToggleDropdownOption,
-} from '@/components/ui/shared/ToggleDropdown/ToggleDropdown';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import {
   getThinkingModesForAgent,
@@ -39,11 +35,6 @@ import {
   type ScheduleFrequency,
 } from '@/utils/automationSchedule';
 import styles from './AutomationEditDialog.module.scss';
-
-const WORKTREE_OPTIONS: readonly [ToggleDropdownOption, ToggleDropdownOption] = [
-  { label: 'No worktree' },
-  { label: 'Worktree' },
-];
 
 interface AutomationEditDialogProps {
   isOpen: boolean;
@@ -249,6 +240,7 @@ export function AutomationEditDialog({
                   onModelChange={(modelId) => onChange('model_id', modelId)}
                   dropdownPosition="bottom"
                   compact={false}
+                  variant="field"
                 />
               </div>
 
@@ -268,34 +260,50 @@ export function AutomationEditDialog({
                 </Select>
               </div>
 
-              <div className={styles['control-row']}>
+              <div className={styles['field-row']}>
                 {selectedThinkingOption && (
+                  <div>
+                    <Label className={styles.label}>Thinking</Label>
+                    <Dropdown
+                      value={selectedThinkingOption}
+                      items={thinkingModes}
+                      getItemKey={(m) => m.value}
+                      getItemLabel={(m) => m.label}
+                      onSelect={(m) => onChange('thinking_mode', m.value)}
+                      leftIcon={Brain}
+                      triggerVariant="field"
+                      width="100%"
+                      dropdownPosition="bottom"
+                      ariaLabel="Thinking"
+                    />
+                  </div>
+                )}
+                <div>
+                  <Label className={styles.label}>Permissions</Label>
                   <Dropdown
-                    value={selectedThinkingOption}
-                    items={thinkingModes}
+                    value={selectedPermissionOption}
+                    items={permissionModes}
                     getItemKey={(m) => m.value}
                     getItemLabel={(m) => m.label}
-                    onSelect={(m) => onChange('thinking_mode', m.value)}
-                    leftIcon={Brain}
+                    onSelect={(m) => onChange('permission_mode', m.value)}
+                    leftIcon={Shield}
+                    triggerVariant="field"
+                    width="100%"
                     dropdownPosition="bottom"
+                    ariaLabel="Permissions"
                   />
-                )}
-                <Dropdown
-                  value={selectedPermissionOption}
-                  items={permissionModes}
-                  getItemKey={(m) => m.value}
-                  getItemLabel={(m) => m.label}
-                  onSelect={(m) => onChange('permission_mode', m.value)}
-                  leftIcon={Shield}
-                  dropdownPosition="bottom"
-                />
-                <ToggleDropdown
-                  options={WORKTREE_OPTIONS}
-                  value={form.worktree}
-                  onSelect={(enabled) => onChange('worktree', enabled)}
-                  icon={GitFork}
-                  width="9rem"
-                />
+                </div>
+                <div>
+                  <Label className={styles.label}>Worktree</Label>
+                  <Select
+                    value={form.worktree ? 'on' : 'off'}
+                    onChange={(e) => onChange('worktree', e.target.value === 'on')}
+                    className={styles.select}
+                  >
+                    <option value="off">No worktree</option>
+                    <option value="on">Worktree</option>
+                  </Select>
+                </div>
               </div>
             </>
           )}

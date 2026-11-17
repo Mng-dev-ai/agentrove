@@ -27,8 +27,7 @@
 }
 
 .item-spinner {
-  @include type.type-title;
-  line-height: 1;
+  @include type.type-glyph(type.$type-title-size, 500);
 }
 
 .provider-icon {
@@ -80,7 +79,7 @@
 .chevron {
   height: var(--space-3-5);
   width: var(--space-3-5);
-  transition: transform var(--duration-base);
+  transition: transform var(--duration-fast) var(--easing-out);
 
   &--expanded {
     transform: rotate(90deg);

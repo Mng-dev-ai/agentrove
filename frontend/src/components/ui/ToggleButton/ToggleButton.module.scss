@@ -8,7 +8,6 @@
   @include responsive.touch-target;
   height: var(--space-7);
   width: var(--space-7);
-  transition: all var(--duration-base) var(--easing-in-out);
 
   @include responsive.hover {
     .icon {

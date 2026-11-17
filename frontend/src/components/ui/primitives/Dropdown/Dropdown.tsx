@@ -14,6 +14,7 @@ import clsx from 'clsx';
 import { useDropdown } from '@/hooks/useDropdown';
 import { usePanelFit, usePanelInlineShift } from '@/hooks/usePanelFit';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { SelectItem } from '@/components/ui/primitives/SelectItem/SelectItem';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -44,8 +45,8 @@ export interface DropdownProps<T> {
   itemClassName?: string;
   dropdownPosition?: DropdownPosition;
   disabled?: boolean;
-  compactOnMobile?: boolean;
-  forceCompact?: boolean;
+  // leftIcon stands in for the label on phones and in split panes
+  compact?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
   searchVariant?: 'boxed' | 'underline';
@@ -53,8 +54,9 @@ export interface DropdownProps<T> {
   renderHeader?: () => ReactNode;
   renderFooter?: () => ReactNode;
   onOpenChange?: (isOpen: boolean) => void;
-  // 'toolbar' matches ToggleDropdown's composer-toolbar trigger (icon always shown).
-  triggerVariant?: 'default' | 'text' | 'toolbar';
+  // 'toolbar' matches ToggleDropdown's composer-toolbar trigger (icon always shown);
+  // 'field' is a full-width bordered control matching Select in forms.
+  triggerVariant?: 'default' | 'text' | 'toolbar' | 'field';
   // Show leftIcon beside the label at every width, not only in compact mode
   iconWithLabel?: boolean;
   dropdownAlign?: 'left' | 'right';
@@ -129,6 +131,13 @@ function normalizeToGrouped<T>(
   return filtered.map((data) => ({ type: 'item', data }));
 }
 
+const TRIGGER_CLASSES = {
+  default: styles.trigger,
+  text: styles['trigger-text'],
+  toolbar: styles['trigger-toolbar'],
+  field: styles['trigger-field'],
+};
+
 const Dropdown = memo(function Dropdown<T>({
   value,
   items,
@@ -143,8 +152,7 @@ const Dropdown = memo(function Dropdown<T>({
   itemClassName,
   dropdownPosition = 'bottom',
   disabled = false,
-  compactOnMobile = false,
-  forceCompact = false,
+  compact = false,
   searchable = false,
   searchPlaceholder = 'Search...',
   searchVariant = 'boxed',
@@ -164,6 +172,7 @@ const Dropdown = memo(function Dropdown<T>({
   const panelSide = dropdownPosition === 'auto' ? (fit?.side ?? 'bottom') : dropdownPosition;
   const [searchQuery, setSearchQuery] = useState('');
   const isMobile = useIsMobile();
+  const isSplitMode = useIsSplitMode();
   const prevIsOpenRef = useRef(isOpen);
 
   if (prevIsOpenRef.current !== isOpen) {
@@ -190,7 +199,8 @@ const Dropdown = memo(function Dropdown<T>({
 
   const displayItems = normalizeToGrouped(items, searchQuery);
 
-  const showIconOnly = (compactOnMobile || forceCompact) && LeftIcon;
+  const showIconOnly = compact && LeftIcon;
+  const forceCompact = compact && isSplitMode;
   // Visibility lives on the tooltip wrapper (the flex item) so a hidden label doesn't
   // leave a zero-width slot that still consumes the trigger's gap in compact mode.
   const labelSlotClass = clsx(
@@ -213,14 +223,7 @@ const Dropdown = memo(function Dropdown<T>({
         aria-label={
           ariaLabel && `${ariaLabel}: ${triggerLabel}${triggerSuffix ? ` ${triggerSuffix}` : ''}`
         }
-        className={clsx(
-          triggerVariant === 'text'
-            ? styles['trigger-text']
-            : triggerVariant === 'toolbar'
-              ? styles['trigger-toolbar']
-              : styles.trigger,
-          isOpen && !disabled && stateClasses.OPEN,
-        )}
+        className={clsx(TRIGGER_CLASSES[triggerVariant], isOpen && !disabled && stateClasses.OPEN)}
       >
         {LeftIcon && (triggerVariant === 'text' ? showIconOnly || iconWithLabel : true) && (
           <LeftIcon
@@ -228,6 +231,7 @@ const Dropdown = memo(function Dropdown<T>({
               styles['trigger-icon'],
               !forceCompact &&
                 triggerVariant !== 'toolbar' &&
+                triggerVariant !== 'field' &&
                 !iconWithLabel &&
                 styles['trigger-icon--responsive'],
             )}

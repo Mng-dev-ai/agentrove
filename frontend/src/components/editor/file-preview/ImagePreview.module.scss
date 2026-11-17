@@ -1,14 +1,29 @@
-.content {
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+
+.preview {
   display: flex;
   min-height: 0;
-  align-items: center;
-  justify-content: center;
-  overflow: auto;
-  padding: var(--space-4);
+  flex: 1;
+  flex-direction: column;
 }
 
-.image {
-  max-height: 100%;
-  max-width: 100%;
-  object-fit: contain;
+.stage {
+  padding: var(--space-6);
+}
+
+.footer {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding: var(--space-0-5) var(--space-1) var(--space-0-5) var(--space-4);
+  color: var(--theme-text-tertiary);
+}
+
+.dimensions {
+  @include type.type-meta;
+  font-variant-numeric: tabular-nums;
 }

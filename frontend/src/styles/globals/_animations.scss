@@ -1,78 +1,25 @@
 // Motion tokens + shared keyframes. Transitions always reference --duration-* / --easing-*
 // vars — never literal ms values or cubic-beziers in modules. A global reduced-motion
 // kill-switch lives in _rules.scss.
+// instant: hover/press colour and hover-reveal opacity. fast: small overlays, tooltips,
+// chevrons. base: dialogs, sheets, panels, collapsibles. Nothing above base except
+// deliberate continuous animations (spin, pulse). Enter/exit animate opacity and
+// transform only, unless the surface is a genuine panel or collapsible.
 
 @mixin animation-tokens {
   :root {
+    --duration-instant: 120ms;
     --duration-fast: 150ms;
     --duration-base: 200ms;
-    --duration-slow: 300ms;
-    --duration-slower: 500ms;
 
     --easing-out: cubic-bezier(0, 0, 0.2, 1);
     --easing-in: cubic-bezier(0.4, 0, 1, 1);
     --easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   }
-
-  @keyframes fade-out {
-    from {
-      opacity: 1;
-    }
-    to {
-      opacity: 0;
-    }
-  }
-
-  @keyframes fade-in-rise {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-
-  @keyframes slide-in {
-    from {
-      transform: translateX(-100%);
-    }
-    to {
-      transform: translateX(0);
-    }
-  }
-
-  @keyframes slide-out {
-    from {
-      transform: translateX(0);
-    }
-    to {
-      transform: translateX(-100%);
-    }
-  }
-
-  @keyframes shimmer {
-    from {
-      left: -33%;
-    }
-    to {
-      left: 100%;
-    }
-  }
-
-  @keyframes progress-bar {
-    from {
-      width: 0%;
-    }
-    to {
-      width: 100%;
-    }
-  }
 }
 
-// The ubiquitous hover/focus color transition (old `transition-colors duration-200`)
-@mixin transition-colors($duration: var(--duration-base)) {
+// The ubiquitous hover/focus color transition
+@mixin transition-colors($duration: var(--duration-instant)) {
   transition-property: color, background-color, border-color, fill, stroke;
   transition-duration: $duration;
   transition-timing-function: var(--easing-in-out);
@@ -80,7 +27,7 @@
 
 // CSS modules hash animation names, so these mixins re-emit their @keyframes into the
 // consuming module (Sass hoists them to root) so the name and @keyframes share one hash.
-@mixin fade-in($duration: var(--duration-slow), $fill: null) {
+@mixin fade-in($duration: var(--duration-base), $fill: null) {
   @keyframes fade-in {
     from {
       opacity: 0;

@@ -48,37 +48,39 @@ export function PermissionApprovalButtons({
         </div>
       )}
 
-      {sortedAllow.length > 0 && (
-        <>
-          {showGroupLabels && <GroupLabel kind="allow" />}
-          {sortedAllow.map((opt) => (
-            <OptionRow
-              key={opt.option_id}
-              option={opt}
-              isPrimary={opt.option_id === primaryAllowId}
-              onClick={() => onApprove(opt.option_id)}
-              disabled={isLoading}
-            />
-          ))}
-        </>
-      )}
+      <div className={styles.options}>
+        {sortedAllow.length > 0 && (
+          <>
+            {showGroupLabels && <GroupLabel kind="allow" />}
+            {sortedAllow.map((opt) => (
+              <OptionRow
+                key={opt.option_id}
+                option={opt}
+                isPrimary={opt.option_id === primaryAllowId}
+                onClick={() => onApprove(opt.option_id)}
+                disabled={isLoading}
+              />
+            ))}
+          </>
+        )}
 
-      {sortedAllow.length > 0 && sortedReject.length > 0 && <div className={styles.divider} />}
+        {sortedAllow.length > 0 && sortedReject.length > 0 && <div className={styles.divider} />}
 
-      {sortedReject.length > 0 && (
-        <>
-          {showGroupLabels && <GroupLabel kind="reject" />}
-          {sortedReject.map((opt) => (
-            <OptionRow
-              key={opt.option_id}
-              option={opt}
-              isPrimary={false}
-              onClick={() => onReject(opt.option_id)}
-              disabled={isLoading}
-            />
-          ))}
-        </>
-      )}
+        {sortedReject.length > 0 && (
+          <>
+            {showGroupLabels && <GroupLabel kind="reject" />}
+            {sortedReject.map((opt) => (
+              <OptionRow
+                key={opt.option_id}
+                option={opt}
+                isPrimary={false}
+                onClick={() => onReject(opt.option_id)}
+                disabled={isLoading}
+              />
+            ))}
+          </>
+        )}
+      </div>
     </div>
   );
 }

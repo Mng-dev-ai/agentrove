@@ -37,7 +37,7 @@
 .back-icon {
   height: var(--space-3);
   width: var(--space-3);
-  transition: transform var(--duration-base);
+  transition: transform var(--duration-fast) var(--easing-out);
 
   // group-hover:-translate-x-0.5 — nudge the chevron when the Back button is hovered
   .back:hover & {

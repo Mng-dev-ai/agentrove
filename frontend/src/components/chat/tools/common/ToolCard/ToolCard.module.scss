@@ -78,8 +78,8 @@
   width: var(--space-3);
   color: var(--theme-text-quaternary);
   transition:
-    transform var(--duration-base),
-    opacity var(--duration-fast);
+    transform var(--duration-fast),
+    opacity var(--duration-instant);
 
   // Touch has no hover to reveal it, so it stays visible there
   @include responsive.media('not-touch') {

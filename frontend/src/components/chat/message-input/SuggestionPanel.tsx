@@ -3,12 +3,18 @@ import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './SuggestionPanel.module.scss';
 
+interface SuggestionRow {
+  icon?: ReactNode;
+  label: string;
+  detail?: string;
+  detailFromStart?: boolean;
+}
+
 interface SuggestionSection<T> {
   label?: string;
   items: T[];
   itemKey: (item: T) => string;
-  itemClassName?: string;
-  renderItem: (item: T, isActive: boolean) => ReactNode;
+  getRow: (item: T) => SuggestionRow;
 }
 
 interface SuggestionPanelProps<T> {
@@ -59,6 +65,7 @@ function SuggestionPanelInner<T>({
                 {section.items.map((item, itemIdx) => {
                   const globalIdx = offset + itemIdx;
                   const isActive = globalIdx === highlightedIndex;
+                  const { icon, label, detail, detailFromStart } = section.getRow(item);
                   return (
                     <Button
                       key={section.itemKey(item)}
@@ -69,17 +76,24 @@ function SuggestionPanelInner<T>({
                       variant="unstyled"
                       role="option"
                       aria-selected={isActive}
-                      className={clsx(
-                        styles.item,
-                        section.itemClassName ?? styles['item--default'],
-                        isActive && styles['item--active'],
-                      )}
+                      className={clsx(styles.item, isActive && styles['item--active'])}
                       onMouseDown={(event) => {
                         event.preventDefault();
                         onSelect(item);
                       }}
                     >
-                      {section.renderItem(item, isActive)}
+                      {icon && <span className={styles.icon}>{icon}</span>}
+                      <span className={styles.label}>{label}</span>
+                      {detail && (
+                        <span
+                          className={clsx(
+                            styles.detail,
+                            detailFromStart && styles['detail--start'],
+                          )}
+                        >
+                          {detailFromStart ? <bdi dir="ltr">{detail}</bdi> : detail}
+                        </span>
+                      )}
                     </Button>
                   );
                 })}

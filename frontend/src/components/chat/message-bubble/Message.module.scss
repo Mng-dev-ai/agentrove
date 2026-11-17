@@ -56,12 +56,17 @@
     left: 0;
     right: 0;
     opacity: 0;
-    transition: opacity var(--duration-fast) var(--easing-out);
+    transition: opacity var(--duration-instant) var(--easing-out);
   }
 
   &:has([data-copied]) {
     opacity: 1;
   }
+}
+
+// Laid out but not shown: holds the place of what appears once the reply ends
+.pending {
+  visibility: hidden;
 }
 
 .message-row {

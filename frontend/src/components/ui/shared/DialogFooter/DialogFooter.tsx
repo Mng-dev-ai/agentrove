@@ -8,6 +8,7 @@ interface DialogFooterProps {
   cancelLabel?: string;
   saving?: boolean;
   disabled?: boolean;
+  destructive?: boolean;
 }
 
 export function DialogFooter({
@@ -17,6 +18,7 @@ export function DialogFooter({
   cancelLabel = 'Cancel',
   saving,
   disabled,
+  destructive,
 }: DialogFooterProps) {
   return (
     <div className={styles['dialog-footer']}>
@@ -26,7 +28,7 @@ export function DialogFooter({
       <Button
         type="button"
         onClick={onSave}
-        variant="primary"
+        variant={destructive ? 'destructive' : 'primary'}
         size="sm"
         isLoading={saving}
         disabled={disabled}

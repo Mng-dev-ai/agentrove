@@ -29,7 +29,6 @@ import { useDiffDiscard } from './useDiffDiscard';
 import { useDiffReview } from './useDiffReview';
 import { useDiffScroll } from './useDiffScroll';
 import { useDiffShortcuts } from './useDiffShortcuts';
-import { DIFF_SYNTAX_CSS } from './diffSyntaxTheme';
 import {
   DIFF_THEMES,
   DIFF_UNSAFE_CSS,
@@ -386,9 +385,6 @@ const DiffViewContent = memo(function DiffViewContent({
       highlighterOptions={WORKER_HIGHLIGHTER_OPTIONS}
     >
       <div ref={rootRefCallback} className={styles['diff-view']}>
-        <style href="diff-syntax-theme" precedence="default">
-          {DIFF_SYNTAX_CSS}
-        </style>
         <DiffToolbar
           mode={mode}
           onModeChange={setMode}
@@ -457,6 +453,7 @@ const DiffViewContent = memo(function DiffViewContent({
         </div>
 
         <ConfirmDialog
+          destructive
           isOpen={discardTarget !== null}
           onClose={() => setDiscardTarget(null)}
           onConfirm={handleDiscard}
@@ -470,6 +467,7 @@ const DiffViewContent = memo(function DiffViewContent({
         />
 
         <ConfirmDialog
+          destructive
           isOpen={discardAllOpen}
           onClose={() => setDiscardAllOpen(false)}
           onConfirm={handleDiscardAll}

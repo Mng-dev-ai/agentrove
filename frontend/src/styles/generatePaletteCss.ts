@@ -25,7 +25,7 @@ const COLOR_FIELDS = Object.keys(VAR_NAMES) as ColorField[];
 
 // @pierre/diffs re-skins its code/gutter/buffer surfaces via `--diffs-*-override` vars
 // (inherited through :root). Each maps to one --theme-* token, so plain light/dark and
-// every palette share one rule. Syntax colors come from DiffView/diffSyntaxTheme.ts;
+// every palette share one rule. Syntax colors come from generateDiffSyntaxCss.ts;
 // only these backgrounds are overridden so the diff matches the editor.
 const DIFF_OVERRIDES: Record<string, string> = {
   'bg-context': 'surface-secondary',

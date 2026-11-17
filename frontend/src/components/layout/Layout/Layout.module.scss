@@ -78,8 +78,7 @@
   overflow-y: auto;
   background-color: var(--theme-surface);
   padding-left: 0;
-  transition: padding var(--sidebar-transition-duration, var(--duration-slower))
-    var(--easing-in-out);
+  transition: padding var(--sidebar-transition-duration, var(--duration-base)) var(--easing-out);
 
   // Sidebar pushes the main content in from the left when docked open on desktop
   &--pushed {

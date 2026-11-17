@@ -376,6 +376,7 @@ export function SettingsPage() {
       </div>
 
       <ConfirmDialog
+        destructive
         isOpen={isDeleteAllDialogOpen}
         onClose={() => setIsDeleteAllDialogOpen(false)}
         onConfirm={confirmDeleteAllChats}

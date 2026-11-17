@@ -4,6 +4,7 @@ import { CodeView } from '../code-view/CodeView';
 import type { FileStructure } from '@/types/file-system.types';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import { sandboxService } from '@/services/sandboxService';
+import { saveBlob } from '@/utils/file';
 import styles from './Editor.module.scss';
 
 export interface EditorProps {
@@ -47,17 +48,7 @@ export const Editor = memo(function Editor({
       setIsDownloading(true);
 
       const zipBlob = await sandboxService.downloadZip(sandboxId);
-
-      const url = URL.createObjectURL(zipBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      const fileName = `sandbox_${sandboxId}_${crypto.randomUUID()}.zip`;
-      link.download = fileName;
-
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      saveBlob(zipBlob, `sandbox_${sandboxId}_${crypto.randomUUID()}.zip`);
     } catch (error) {
       logger.error('Sandbox download failed', 'Editor', error);
     } finally {

@@ -1,0 +1,89 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
+
+.toolbar {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-4);
+
+  &--surface {
+    border-bottom: 1px solid colors.theme-color('border', 0.5);
+    background-color: var(--theme-surface);
+    color: var(--theme-text-secondary);
+  }
+
+  &--scrim {
+    background-color: rgb(0 0 0 / 0.5);
+    backdrop-filter: blur(4px);
+    color: rgb(255 255 255 / 0.8);
+
+    .title {
+      color: rgb(255 255 255 / 0.92);
+    }
+
+    .meta {
+      color: rgb(255 255 255 / 0.6);
+    }
+
+    .button {
+      color: rgb(255 255 255 / 0.8);
+
+      @include responsive.hover {
+        background-color: rgb(255 255 255 / 0.12);
+        color: rgb(255 255 255);
+      }
+
+      &:focus-visible {
+        outline: 2px solid rgb(255 255 255 / 0.7);
+      }
+    }
+  }
+}
+
+.heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.title {
+  @include type.type-default(500);
+  @include type.type-overflow;
+  min-width: 0;
+  color: var(--theme-text-primary);
+}
+
+.meta {
+  @include type.type-meta;
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-tertiary);
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-0-5);
+}
+
+.tooltip-anchor {
+  display: flex;
+}
+
+.button {
+  @include responsive.touch-target;
+}
+
+.icon {
+  height: var(--space-4);
+  width: var(--space-4);
+}

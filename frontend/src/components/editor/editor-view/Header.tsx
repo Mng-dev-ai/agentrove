@@ -2,6 +2,7 @@ import { memo } from 'react';
 import {
   AlertTriangle,
   Code,
+  Download,
   FileText,
   GitCompareArrows,
   PanelLeft,
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { SaveButton } from '@/components/ui/shared/SaveButton/SaveButton';
 import { FileIcon } from '@/components/ui/shared/FileIcon/FileIcon';
+import { downloadPreviewFile } from '@/components/editor/file-preview/previewUtils';
 import { isPreviewableFile } from '@/utils/fileTypes';
 import { getFileName } from '@/utils/file';
 import clsx from 'clsx';
@@ -22,6 +24,7 @@ export interface HeaderProps {
   workspaceName?: string;
   error: string | null;
   selectedFile?: FileStructure | null;
+  previewFile?: FileStructure | null;
   showPreview?: boolean;
   onTogglePreview?: (showPreview: boolean) => void;
   showDiff?: boolean;
@@ -41,6 +44,7 @@ export const Header = memo(function Header({
   workspaceName,
   error,
   selectedFile,
+  previewFile,
   showPreview = false,
   onTogglePreview,
   showDiff = false,
@@ -120,12 +124,26 @@ export const Header = memo(function Header({
           </Button>
         )}
 
+        {showPreview && previewFile && (
+          <FloatingTooltip content="Download" className={styles['tooltip-wrap']}>
+            <Button
+              onClick={() => downloadPreviewFile(previewFile, getFileName(filePath))}
+              variant="unstyled"
+              disabled={!previewFile.content}
+              className={styles['action-button']}
+              aria-label="Download"
+            >
+              <Download className={styles['icon-sm']} />
+            </Button>
+          </FloatingTooltip>
+        )}
+
         {showPreview && onToggleFullscreen && (
           <FloatingTooltip content="Enter fullscreen" className={styles['tooltip-wrap']}>
             <Button
               onClick={onToggleFullscreen}
               variant="unstyled"
-              className={styles['fullscreen-button']}
+              className={styles['action-button']}
               aria-label="Enter fullscreen"
             >
               <Maximize2 className={styles['icon-sm']} />

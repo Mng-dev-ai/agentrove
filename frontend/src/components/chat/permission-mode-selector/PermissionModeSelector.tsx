@@ -3,7 +3,6 @@ import { useChatSettings } from '@/hooks/useChatSettings';
 import clsx from 'clsx';
 import { Shield } from 'lucide-react';
 import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
-import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import {
   useChatSettingsStore,
   DEFAULT_CHAT_SETTINGS_KEY,
@@ -49,11 +48,10 @@ export const PermissionModeDropdown = memo(function PermissionModeDropdown({
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
-  compact,
+  compact = true,
   variant = 'default',
 }: PermissionModeDropdownProps) {
   const resolvedAgentKind = agentKind ?? 'claude';
-  const isSplitMode = useIsSplitMode();
 
   const modes = MODES_BY_AGENT[resolvedAgentKind];
   const selectedMode = getPermissionModeOption(value, resolvedAgentKind);
@@ -71,8 +69,7 @@ export const PermissionModeDropdown = memo(function PermissionModeDropdown({
       itemClassName={styles['item-column']}
       dropdownPosition={dropdownPosition}
       disabled={disabled}
-      compactOnMobile={compact ?? true}
-      forceCompact={compact ?? isSplitMode}
+      compact={compact}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
       renderItem={renderPermissionItem}

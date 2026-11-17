@@ -43,6 +43,7 @@ export const HtmlPreview = memo(function HtmlPreview({
   if (!file.content) {
     return (
       <PreviewEmptyState
+        file={file}
         fileName={getDisplayFileName(file)}
         message="No content to preview"
         isFullscreen={isFullscreen}
@@ -53,6 +54,7 @@ export const HtmlPreview = memo(function HtmlPreview({
 
   return (
     <PreviewContainer
+      file={file}
       fileName={getDisplayFileName(file)}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}

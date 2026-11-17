@@ -467,6 +467,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
   const { scrollerRef, showScrollButton, containerRefCallback, scrollToBottom } = useChatScroll({
     chatId: channel.id,
     messages: visibleMessages,
+    lastReplyStreams: false,
     pendingUserMessageId: null,
     latestUserMessageId: null,
     hasNextPage,
@@ -591,7 +592,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                 />
               </ConversationScroller>
               <MessageTrail messages={trailMessages} scrollerRef={scrollerRef} />
-              <FindInChat key={channel.id} messages={visibleMessages} scrollerRef={scrollerRef} />
+              <FindInChat key={channel.id} scrollerRef={scrollerRef} />
             </>
           )}
         </ConversationLayout>

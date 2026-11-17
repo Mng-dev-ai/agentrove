@@ -15,8 +15,8 @@
   background-color: var(--theme-surface-secondary);
   transform: translateX(-100%);
   transition-property: transform, width;
-  transition-duration: var(--sidebar-transition-duration, var(--duration-slower));
-  transition-timing-function: var(--easing-in-out);
+  transition-duration: var(--sidebar-transition-duration, var(--duration-base));
+  transition-timing-function: var(--easing-out);
 
   // The closed drawer leaves the tab order once it has slid out; visibility
   // flips only at the end of the transition (inert alone needs Safari 15.5).

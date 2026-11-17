@@ -34,6 +34,38 @@
   }
 }
 
+// triggerVariant="field" — full-width bordered control that matches the Select primitive
+.trigger-field {
+  @include type.type-default;
+  @include controls.focus-ring;
+  display: flex;
+  height: var(--space-8);
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-tertiary);
+  padding-inline: var(--space-3);
+  text-align: left;
+  color: var(--theme-text-primary);
+  transition: border-color var(--duration-instant);
+
+  @include responsive.hover {
+    border-color: var(--theme-border-hover);
+  }
+
+  &:global(.#{state.$state-open}) {
+    border-color: var(--theme-border-hover);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
 // triggerVariant="text" — bare inline trigger for composer toolbars
 .trigger-text {
   @include anim.transition-colors;
@@ -100,7 +132,7 @@
     color: var(--theme-text-quaternary);
   }
 
-  // compactOnMobile: the icon stands in for the label only below the sm breakpoint
+  // compact outside split panes: the icon stands in for the label only below the sm breakpoint
   &--responsive {
     @include responsive.media('sm-up') {
       display: none;
@@ -138,6 +170,11 @@
   // five characters plus the ellipsis, so a parent row can shrink the name that far
   // without clipping the icon, suffix or chevron. break-all rather than overflow-wrap,
   // which still prefers an earlier '/' or '-' and leaves the clamped line short.
+  .trigger-field & {
+    @include type.type-default;
+    color: inherit;
+  }
+
   .trigger-toolbar & {
     @include type.type-lineclamp(1);
     word-break: break-all;
@@ -163,10 +200,16 @@
   width: var(--space-3);
   flex-shrink: 0;
   color: var(--theme-text-quaternary);
-  transition: transform var(--duration-base);
+  transition: transform var(--duration-fast) var(--easing-out);
 
   &:global(.#{state.$state-open}) {
     transform: rotate(180deg);
+  }
+
+  .trigger-field & {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    margin-inline-start: auto;
   }
 
   &--responsive {
@@ -180,6 +223,7 @@
 
 .panel {
   @include z.z('dropdown');
+  @include anim.fade-in(var(--duration-fast));
   position: absolute;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-xl);

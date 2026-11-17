@@ -6,6 +6,7 @@ import './styles/app.scss';
 import App from './App.tsx';
 // Build-time palette CSS overrides (vite.config.ts).
 import 'virtual:palette-overrides.css';
+import 'virtual:diff-syntax.css';
 import { queryClient, persistOptions } from './lib/queryClient';
 import { reloadStaleChunk } from './utils/lazyNamed';
 import { isMobileApp } from './utils/platform';

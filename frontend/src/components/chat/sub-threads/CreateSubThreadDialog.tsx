@@ -52,7 +52,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
   const { data: settings } = useSettingsForChatQuery(parentChat.id, isAuthenticated);
   const personas = settings?.personas ?? [];
 
-  const [selectedModelId, setSelectedModelId] = useState('');
+  const [selectedModelId, setSelectedModelId] = useState(models[0]?.model_id ?? '');
   const [personaName, setPersonaName] = useState(DEFAULT_PERSONA);
   const [message, setMessage] = useState('');
   const [thinkingMode, setThinkingMode] = useState<ThinkingModeOption>({
@@ -174,6 +174,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
               onModelChange={setSelectedModelId}
               dropdownPosition="bottom"
               compact={false}
+              variant="field"
             />
           </div>
 
@@ -193,27 +194,39 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
             </Select>
           </div>
 
-          <div className={styles['mode-row']}>
+          <div className={styles['field-row']}>
             {selectedThinkingOption && (
-              <Dropdown
-                value={selectedThinkingOption}
-                items={thinkingModes}
-                getItemKey={(m) => m.value ?? 'off'}
-                getItemLabel={(m) => m.label}
-                onSelect={setThinkingMode}
-                leftIcon={Brain}
-                dropdownPosition="bottom"
-              />
+              <div>
+                <Label className={styles.label}>Thinking</Label>
+                <Dropdown
+                  value={selectedThinkingOption}
+                  items={thinkingModes}
+                  getItemKey={(m) => m.value ?? 'off'}
+                  getItemLabel={(m) => m.label}
+                  onSelect={setThinkingMode}
+                  leftIcon={Brain}
+                  triggerVariant="field"
+                  width="100%"
+                  dropdownPosition="bottom"
+                  ariaLabel="Thinking"
+                />
+              </div>
             )}
-            <Dropdown
-              value={selectedPermissionOption}
-              items={permissionModes}
-              getItemKey={(m) => m.value}
-              getItemLabel={(m) => m.label}
-              onSelect={(m) => setPermissionMode(m.value)}
-              leftIcon={Shield}
-              dropdownPosition="bottom"
-            />
+            <div>
+              <Label className={styles.label}>Permissions</Label>
+              <Dropdown
+                value={selectedPermissionOption}
+                items={permissionModes}
+                getItemKey={(m) => m.value}
+                getItemLabel={(m) => m.label}
+                onSelect={(m) => setPermissionMode(m.value)}
+                leftIcon={Shield}
+                triggerVariant="field"
+                width="100%"
+                dropdownPosition="bottom"
+                ariaLabel="Permissions"
+              />
+            </div>
           </div>
 
           <div>
@@ -228,7 +241,6 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
               )}
               <Textarea
                 ref={textareaRef}
-                variant="unstyled"
                 value={message}
                 onChange={(e) => {
                   setMessage(e.target.value);

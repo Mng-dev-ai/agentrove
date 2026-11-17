@@ -216,8 +216,8 @@ export const flattenFiles = (files: FileStructure[]): FlatFileItem[] =>
   );
 
 export function formatShortcut(key: string): string {
-  const mod = IS_MAC_PLATFORM ? '⌘' : 'Ctrl';
-  return `${mod}⇧${key === '.' ? '.' : key.toUpperCase()}`;
+  const label = key.toUpperCase();
+  return IS_MAC_PLATFORM ? `⌘⇧${label}` : `Ctrl+Shift+${label}`;
 }
 
 // The sandbox a git action targets. Resolved from the active pane's chat context

@@ -135,6 +135,7 @@ export function StreamActionEditDialog({
               onModelChange={(modelId) => onActionChange('model_id', modelId)}
               dropdownPosition="bottom"
               compact={false}
+              variant="field"
             />
           </div>
 
@@ -154,27 +155,39 @@ export function StreamActionEditDialog({
             </Select>
           </div>
 
-          <div className={styles['control-row']}>
+          <div className={styles['field-row']}>
             {selectedThinkingOption && (
+              <div>
+                <Label className={styles.label}>Thinking</Label>
+                <Dropdown
+                  value={selectedThinkingOption}
+                  items={thinkingModes}
+                  getItemKey={(m) => m.value}
+                  getItemLabel={(m) => m.label}
+                  onSelect={(m) => onActionChange('thinking_mode', m.value)}
+                  leftIcon={Brain}
+                  triggerVariant="field"
+                  width="100%"
+                  dropdownPosition="bottom"
+                  ariaLabel="Thinking"
+                />
+              </div>
+            )}
+            <div>
+              <Label className={styles.label}>Permissions</Label>
               <Dropdown
-                value={selectedThinkingOption}
-                items={thinkingModes}
+                value={selectedPermissionOption}
+                items={permissionModes}
                 getItemKey={(m) => m.value}
                 getItemLabel={(m) => m.label}
-                onSelect={(m) => onActionChange('thinking_mode', m.value)}
-                leftIcon={Brain}
+                onSelect={(m) => onActionChange('permission_mode', m.value)}
+                leftIcon={Shield}
+                triggerVariant="field"
+                width="100%"
                 dropdownPosition="bottom"
+                ariaLabel="Permissions"
               />
-            )}
-            <Dropdown
-              value={selectedPermissionOption}
-              items={permissionModes}
-              getItemKey={(m) => m.value}
-              getItemLabel={(m) => m.label}
-              onSelect={(m) => onActionChange('permission_mode', m.value)}
-              leftIcon={Shield}
-              dropdownPosition="bottom"
-            />
+            </div>
           </div>
 
           <div>

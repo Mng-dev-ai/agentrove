@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom';
 import { useEffect, useState, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDesktopZoom } from '@/hooks/useDesktopZoom';
@@ -194,6 +195,7 @@ function AppContent() {
             </AuthRoute>
           }
         />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>
   );
@@ -357,7 +359,8 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Toaster {...toasterConfig} />
+      {/* #root isolates its stacking context; modals portal to body, so toasts must too. */}
+      {createPortal(<Toaster {...toasterConfig} />, document.body)}
       <ErrorBoundary>
         <AppContent />
       </ErrorBoundary>

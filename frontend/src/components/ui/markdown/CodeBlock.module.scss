@@ -42,9 +42,13 @@
   }
 }
 
-.code-pre {
+.code-pre,
+.code-line {
   // The pre's strut sets the code line spacing; keep it off the looser prose leading
   @include type.type-mono(type.$type-body-size, type.$type-body-line-height);
+}
+
+.code-pre {
   overflow-x: auto;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-lg);
@@ -55,5 +59,13 @@
 
 .code-content {
   @include type.type-mono;
-  color: var(--theme-text-primary);
+  --diffs-token-inserted: var(--diffs-token-string);
+  --diffs-token-deleted: var(--diffs-token-keyword);
+  color: var(--diffs-foreground, var(--theme-text-primary));
+}
+
+.code-line {
+  display: block;
+  width: max-content;
+  padding-right: var(--space-2);
 }

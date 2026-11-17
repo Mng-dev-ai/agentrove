@@ -137,7 +137,7 @@
   width: var(--space-3);
   flex-shrink: 0;
   margin-right: var(--space-1);
-  transition: transform var(--duration-base);
+  transition: transform var(--duration-fast) var(--easing-out);
 
   &--open {
     transform: rotate(90deg);

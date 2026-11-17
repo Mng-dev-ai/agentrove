@@ -27,7 +27,6 @@ export function useCommandMenu() {
   const inputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const chatSearchInputRef = useRef<HTMLInputElement>(null);
-  const previousFocusRef = useRef<Element | null>(null);
   const activeItemRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef({ activeIndex: 0, mode: 'all' as MenuMode });
   const listItemsRef = useRef<MenuListItem[]>([]);
@@ -102,15 +101,10 @@ export function useCommandMenu() {
   );
 
   useEffect(() => {
-    if (isOpen) {
-      previousFocusRef.current = document.activeElement;
-      const ui = useUIStore.getState();
-      switchMode(ui.pendingMenuMode ?? 'all');
-      ui.setPendingMenuMode(null);
-    } else if (previousFocusRef.current instanceof HTMLElement) {
-      previousFocusRef.current.focus();
-      previousFocusRef.current = null;
-    }
+    if (!isOpen) return;
+    const ui = useUIStore.getState();
+    switchMode(ui.pendingMenuMode ?? 'all');
+    ui.setPendingMenuMode(null);
   }, [isOpen, switchMode]);
 
   const close = useCallback(() => {
@@ -256,16 +250,10 @@ export function useCommandMenu() {
         }
       }
 
-      // Embedded panels own their keys; Escape reaches the dialog after their
-      // input had its chance to clear the query (see CommandMenu).
+      // Embedded panels own their keys
       if (isPanelMode(m)) return;
 
       switch (e.key) {
-        case 'Escape':
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          close();
-          break;
         case 'ArrowDown':
           e.preventDefault();
           if (len > 0) {
@@ -314,7 +302,6 @@ export function useCommandMenu() {
     handleSelectBranch,
     handleSelectTheme,
     switchFilter,
-    close,
   ]);
 
   const modKey = IS_MAC_PLATFORM ? '⌘' : 'Ctrl+';

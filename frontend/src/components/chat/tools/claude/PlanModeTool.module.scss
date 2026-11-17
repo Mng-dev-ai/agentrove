@@ -1,5 +1,6 @@
 @use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
 
 .card {
   overflow: hidden;
@@ -46,10 +47,13 @@
 }
 
 .card-body {
-  // TODO(refactor): no spacing token for viewport-relative max-height
-  max-height: 40vh;
-  overflow-y: auto;
   padding: var(--space-3);
+
+  @include responsive.media('sm-up') {
+    // TODO(refactor): no spacing token for viewport-relative max-height
+    max-height: 40vh;
+    overflow-y: auto;
+  }
 }
 
 .description {

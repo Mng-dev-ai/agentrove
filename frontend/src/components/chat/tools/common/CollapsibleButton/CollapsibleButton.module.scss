@@ -38,7 +38,7 @@
 .chevron {
   height: var(--space-3-5);
   width: var(--space-3-5);
-  transition: transform var(--duration-slow) var(--easing-out);
+  transition: transform var(--duration-fast) var(--easing-out);
 }
 
 .chevron--expanded {

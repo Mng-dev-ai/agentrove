@@ -1,5 +1,4 @@
 import { memo, useMemo } from 'react';
-import clsx from 'clsx';
 import { AtSign, MessageSquare } from 'lucide-react';
 import { SuggestionPanel } from './SuggestionPanel';
 import { MentionIcon } from './MentionIcon';
@@ -16,45 +15,25 @@ interface MentionSuggestionsPanelProps {
   onSelect: (item: MentionItem) => void;
 }
 
-function renderFile(file: MentionItem, isActive: boolean) {
-  return (
-    <>
-      <MentionIcon name={file.name} className={styles['item-icon']} />
-      <div className={styles['item-row']}>
-        <span className={clsx(styles['item-name'], isActive && styles['item-name--active'])}>
-          {file.name}
-        </span>
-        <span className={styles['item-path']}>{file.path}</span>
-      </div>
-    </>
-  );
+function getFileRow(file: MentionItem) {
+  const slash = file.path.lastIndexOf('/');
+  return {
+    icon: <MentionIcon name={file.name} className={styles['item-icon']} />,
+    label: file.name,
+    detail: slash > 0 ? file.path.slice(0, slash) : undefined,
+    detailFromStart: true,
+  };
 }
 
-function renderMember(member: MentionItem, isActive: boolean) {
-  return (
-    <>
-      <AtSign className={styles['item-icon']} />
-      <div className={styles['item-row']}>
-        <span className={clsx(styles['item-name'], isActive && styles['item-name--active'])}>
-          {member.name}
-        </span>
-      </div>
-    </>
-  );
-}
+const getMemberRow = (member: MentionItem) => ({
+  icon: <AtSign className={styles['item-icon']} />,
+  label: member.name,
+});
 
-function renderChat(chat: MentionItem, isActive: boolean) {
-  return (
-    <>
-      <MessageSquare className={styles['item-icon']} />
-      <div className={styles['item-row']}>
-        <span className={clsx(styles['item-name'], isActive && styles['item-name--active'])}>
-          {chat.name}
-        </span>
-      </div>
-    </>
-  );
-}
+const getChatRow = (chat: MentionItem) => ({
+  icon: <MessageSquare className={styles['item-icon']} />,
+  label: chat.name,
+});
 
 const mentionItemKey = (item: MentionItem) => item.path;
 
@@ -71,19 +50,19 @@ export const MentionSuggestionsPanel = memo(function MentionSuggestionsPanel({
         label: 'Members',
         items: members,
         itemKey: mentionItemKey,
-        renderItem: renderMember,
+        getRow: getMemberRow,
       },
       {
         label: 'Files',
         items: files,
         itemKey: mentionItemKey,
-        renderItem: renderFile,
+        getRow: getFileRow,
       },
       {
         label: 'Chats',
         items: chats,
         itemKey: mentionItemKey,
-        renderItem: renderChat,
+        getRow: getChatRow,
       },
     ],
     [members, files, chats],

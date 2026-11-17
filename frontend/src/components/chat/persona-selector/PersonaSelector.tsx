@@ -7,7 +7,6 @@ import {
   DEFAULT_CHAT_SETTINGS_KEY,
   DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
-import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { useChatContext } from '@/hooks/useChatContext';
 import type { Persona } from '@/types/user.types';
 
@@ -39,11 +38,9 @@ export const PersonaDropdown = memo(function PersonaDropdown({
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
-  compact,
+  compact = true,
   variant = 'default',
 }: PersonaDropdownProps) {
-  const isSplitMode = useIsSplitMode();
-
   const items = useMemo(
     () => [DEFAULT_OPTION, ...personas.map((p) => ({ value: p.name, label: p.name }))],
     [personas],
@@ -65,8 +62,7 @@ export const PersonaDropdown = memo(function PersonaDropdown({
       width="10rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
-      compactOnMobile={compact ?? true}
-      forceCompact={compact ?? isSplitMode}
+      compact={compact}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
     />

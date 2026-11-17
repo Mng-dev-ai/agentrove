@@ -94,7 +94,6 @@ export function DevicesSettingsTab() {
       emptyIcon={Smartphone}
       emptyText="No paired devices yet"
       loadError={{ message: "Couldn't load devices", load }}
-      emptyButtonText="Pair a Device"
       addButtonText="Pair a Device"
       deleteConfirmTitle="Revoke device"
       deleteConfirmLabel="Revoke"

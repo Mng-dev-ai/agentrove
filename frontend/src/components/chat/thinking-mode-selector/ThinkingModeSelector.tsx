@@ -4,7 +4,6 @@ import clsx from 'clsx';
 import { Brain } from 'lucide-react';
 import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { useChatSettingsStore, DEFAULT_CHAT_SETTINGS_KEY } from '@/store/chatSettingsStore';
-import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import type { AgentKind, Model } from '@/types/chat.types';
 import { getThinkingModeOption, getThinkingModesForAgent } from './thinkingModes';
 import styles from './ThinkingModeSelector.module.scss';
@@ -32,11 +31,10 @@ export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
-  compact,
+  compact = true,
   variant = 'default',
 }: ThinkingModeDropdownProps) {
   const resolvedAgentKind = agentKind ?? 'claude';
-  const isSplitMode = useIsSplitMode();
 
   const modes = getThinkingModesForAgent(resolvedAgentKind, model);
   const selectedMode = getThinkingModeOption(value, resolvedAgentKind, model);
@@ -57,8 +55,7 @@ export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
       width="8rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
-      compactOnMobile={compact ?? true}
-      forceCompact={compact ?? isSplitMode}
+      compact={compact}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
       renderItem={(mode, isSelected) => (

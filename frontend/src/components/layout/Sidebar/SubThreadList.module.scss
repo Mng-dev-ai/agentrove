@@ -96,8 +96,7 @@
 }
 
 .subthread-spinner {
-  @include type.type-large;
-  line-height: 1;
+  @include type.type-glyph(type.$type-large-size);
 }
 
 .provider-icon {
@@ -137,7 +136,7 @@
   font-variant-numeric: tabular-nums;
   color: var(--theme-text-quaternary);
   opacity: 1;
-  transition: opacity var(--duration-base);
+  transition: opacity var(--duration-instant);
 
   &--hidden {
     opacity: 0;
@@ -159,7 +158,7 @@
   padding: var(--space-0-5);
   color: var(--theme-text-quaternary);
   opacity: 0;
-  transition: all var(--duration-base);
+  transition-property: color, opacity;
 
   @include responsive.hover {
     color: var(--theme-text-primary);

@@ -3,13 +3,33 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import type { ListLoadState } from '@/hooks/queries/listLoad';
 import styles from './LoadErrorState.module.scss';
 
-interface LoadErrorStateProps {
-  icon: LucideIcon;
-  message: string;
-  load: ListLoadState;
-}
+type LoadErrorStateProps = { message: string; load: ListLoadState } & (
+  | { variant: 'inline' }
+  | { icon: LucideIcon }
+);
 
-export function LoadErrorState({ icon: Icon, message, load }: LoadErrorStateProps) {
+export function LoadErrorState(props: LoadErrorStateProps) {
+  const { message, load } = props;
+  const retryLabel = load.isRetrying ? 'Retrying…' : 'Try again';
+
+  if (!('icon' in props)) {
+    return (
+      <p className={styles.inline} role="alert">
+        {message}
+        <Button
+          variant="unstyled"
+          type="button"
+          onClick={() => void load.retry()}
+          disabled={load.isRetrying}
+          className={styles['inline-retry']}
+        >
+          {retryLabel}
+        </Button>
+      </p>
+    );
+  }
+
+  const Icon = props.icon;
   return (
     <div className={styles['load-error']} role="alert">
       <Icon className={styles.icon} />
@@ -21,7 +41,7 @@ export function LoadErrorState({ icon: Icon, message, load }: LoadErrorStateProp
         disabled={load.isRetrying}
         onClick={() => void load.retry()}
       >
-        {load.isRetrying ? 'Retrying…' : 'Try again'}
+        {retryLabel}
       </Button>
     </div>
   );

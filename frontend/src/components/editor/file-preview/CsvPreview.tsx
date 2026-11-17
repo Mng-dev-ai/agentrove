@@ -37,6 +37,7 @@ export const CsvPreview = memo(function CsvPreview({
   if (headers.length === 0) {
     return (
       <PreviewEmptyState
+        file={file}
         fileName={getDisplayFileName(file)}
         message="No CSV data to display"
         isFullscreen={isFullscreen}
@@ -47,6 +48,7 @@ export const CsvPreview = memo(function CsvPreview({
 
   return (
     <PreviewContainer
+      file={file}
       fileName={getDisplayFileName(file)}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}

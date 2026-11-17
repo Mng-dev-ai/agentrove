@@ -5,37 +5,30 @@ const toastSurfaceClass = 'app-toast';
 
 export const toasterConfig: ToasterProps = {
   position: 'top-right',
-  // Below safe-area inset (+1rem gap). Does not clear TitleBar height on chat screens.
   containerStyle: {
-    top: 'calc(env(safe-area-inset-top) + 1rem)',
+    top: 'calc(var(--space-10) + var(--safe-area-top) + var(--space-2))',
   },
   toastOptions: {
     className: '',
-    style: {
-      padding: '12px 16px',
-      fontSize: '15.4px',
-      fontFamily: 'inherit',
-      maxWidth: '420px',
-    },
     duration: 4000,
     success: {
       iconTheme: {
-        primary: '#22c55e',
-        secondary: '#f0fdf4',
+        primary: 'var(--color-success-500)',
+        secondary: 'var(--color-success-50)',
       },
       className: toastSurfaceClass,
     },
     error: {
       iconTheme: {
-        primary: '#ef4444',
-        secondary: '#fef2f2',
+        primary: 'var(--color-error-500)',
+        secondary: 'var(--color-error-50)',
       },
       className: toastSurfaceClass,
     },
     loading: {
       iconTheme: {
-        primary: '#3b82f6',
-        secondary: '#eff6ff',
+        primary: 'var(--color-info-500)',
+        secondary: 'var(--color-info-50)',
       },
       className: toastSurfaceClass,
     },

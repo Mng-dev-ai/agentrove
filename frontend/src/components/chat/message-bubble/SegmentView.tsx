@@ -1,6 +1,7 @@
-import { memo, Suspense } from 'react';
+import { memo, Suspense, useContext, useLayoutEffect } from 'react';
 import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import { useSmoothText } from '@/hooks/useSmoothText';
+import { TextRevealContext } from '@/components/chat/chat-window/TextRevealContext';
 import { ThinkingBlock } from './ThinkingBlock';
 import { PromptSuggestions } from './PromptSuggestions';
 import { PlanCard } from './PlanCard';
@@ -33,13 +34,26 @@ function TextSegment({
   highlightMentions?: boolean;
 }) {
   // The segment receiving stream output reveals its text word-by-word instead
-  // of jumping a flush-sized chunk at a time.
-  const [smoothText] = useSmoothText(text, isActive);
+  // of jumping a flush-sized chunk at a time, and finishes what it holds at that pace
+  // once output moves on or the stream ends.
+  const reveal = useContext(TextRevealContext);
+  const [smoothText, revealing] = useSmoothText(
+    text,
+    isActive && !reveal?.streamEnded,
+    reveal !== null,
+  );
+  const begin = reveal?.begin;
+  const end = reveal?.end;
+  useLayoutEffect(() => {
+    if (!revealing || !begin) return;
+    begin();
+    return end;
+  }, [revealing, begin, end]);
   return (
     <div className={styles['text-segment']}>
       <MarkDown
         content={smoothText}
-        streaming={isActive}
+        streaming={revealing}
         mentions={highlightMentions ? 'all' : undefined}
         // Mention pills mark user text; only replies take the looser prose leading
         prose={!highlightMentions}

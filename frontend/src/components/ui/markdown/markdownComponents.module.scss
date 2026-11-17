@@ -217,7 +217,7 @@
   text-decoration-thickness: from-font;
   text-underline-offset: 0.18em;
   overflow-wrap: anywhere;
-  transition: text-decoration-color var(--duration-base) var(--easing-in-out);
+  transition: text-decoration-color var(--duration-instant) var(--easing-in-out);
 
   @include responsive.hover {
     text-decoration-color: currentColor;

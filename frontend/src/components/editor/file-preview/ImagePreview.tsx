@@ -1,8 +1,9 @@
-import { memo, useMemo, type CSSProperties } from 'react';
+import { memo, useMemo } from 'react';
 import { logger } from '@/utils/logger';
 import type { FileStructure } from '@/types/file-system.types';
-
-const IMAGE_STYLE: CSSProperties = { imageRendering: 'auto' };
+import { useImageZoom } from '@/components/ui/ZoomableImage/useImageZoom';
+import { ZoomControls } from '@/components/ui/ZoomableImage/ZoomControls';
+import { ZoomableImage } from '@/components/ui/ZoomableImage/ZoomableImage';
 import { PreviewContainer } from './PreviewContainer';
 import { PreviewEmptyState } from './PreviewEmptyState';
 import { getDisplayFileName, isValidBase64 } from './previewUtils';
@@ -51,10 +52,12 @@ export const ImagePreview = memo(function ImagePreview({
       return null;
     }
   }, [file.content, fileName]);
+  const zoom = useImageZoom(imageUrl ?? '');
 
-  if (!imageUrl) {
+  if (!imageUrl || zoom.hasFailed) {
     return (
       <PreviewEmptyState
+        file={file}
         fileName={fileName}
         message="Unable to load image"
         isFullscreen={isFullscreen}
@@ -65,18 +68,27 @@ export const ImagePreview = memo(function ImagePreview({
 
   return (
     <PreviewContainer
+      file={file}
       fileName={fileName}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
-      contentClassName={styles.content}
+      disableContentWrapper
     >
-      <img
-        src={imageUrl}
-        alt={fileName}
-        className={styles.image}
-        loading="lazy"
-        style={IMAGE_STYLE}
-      />
+      <div className={styles.preview}>
+        <ZoomableImage
+          zoom={zoom}
+          src={imageUrl}
+          alt={fileName}
+          tone="surface"
+          className={styles.stage}
+        />
+        <div className={styles.footer}>
+          <span className={styles.dimensions}>
+            {zoom.natural && `${zoom.natural.width} × ${zoom.natural.height}`}
+          </span>
+          <ZoomControls zoom={zoom} />
+        </div>
+      </div>
     </PreviewContainer>
   );
 });

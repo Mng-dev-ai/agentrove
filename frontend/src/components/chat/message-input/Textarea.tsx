@@ -11,6 +11,7 @@ import clsx from 'clsx';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { getHighlightTokenRanges } from '@/utils/mentionParser';
+import { canRestoreComposerFocus } from '@/utils/composerFocus';
 import { HighlightedText } from '@/components/ui/shared/HighlightedText/HighlightedText';
 import { Textarea as PrimitiveTextarea } from '@/components/ui/primitives/Textarea/Textarea';
 import styles from './Textarea.module.scss';
@@ -110,12 +111,14 @@ export function Textarea({
   }, [textareaRef, fitToWidth]);
 
   useEffect(() => {
-    if (!isLoading && textareaRef.current && !isMobile) {
-      textareaRef.current.focus();
+    const textarea = textareaRef.current;
+    if (!isLoading && textarea && !isMobile && canRestoreComposerFocus(textarea)) {
+      textarea.focus();
     }
   }, [isLoading, isMobile, textareaRef]);
 
   useMountEffect(() => {
+    if (!isLoading && !isMobile) textareaRef.current?.focus();
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);

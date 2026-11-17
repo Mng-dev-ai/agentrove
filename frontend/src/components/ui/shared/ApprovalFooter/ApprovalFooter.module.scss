@@ -24,10 +24,22 @@
   flex-shrink: 0;
 }
 
+.options {
+  @include responsive.media('sm-down') {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-1);
+  }
+}
+
 .divider {
   margin: var(--space-1) var(--space-2);
   height: 1px;
   background-color: colors.theme-color('border', 0.5);
+
+  @include responsive.media('sm-down') {
+    display: none;
+  }
 }
 
 .group-label {
@@ -36,6 +48,10 @@
   align-items: center;
   gap: var(--space-1-5);
   padding: var(--space-1-5) var(--space-2) var(--space-1);
+
+  @include responsive.media('sm-down') {
+    display: none;
+  }
 }
 
 .group-label-icon {
@@ -45,6 +61,7 @@
 
 .tooltip-wrap {
   width: 100%;
+  min-width: 0;
 }
 
 .option-row {
@@ -109,4 +126,8 @@
 .option-subtitle {
   @include type.type-meta;
   color: var(--theme-text-tertiary);
+
+  @include responsive.media('sm-down') {
+    display: none;
+  }
 }

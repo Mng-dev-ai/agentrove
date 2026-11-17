@@ -163,7 +163,7 @@ export const MARKDOWN_COMPONENTS: Components = {
 
   code: ({ inline, className, children, ...props }: CodeProps) => {
     const match = /language-(\w+)/.exec(className || '');
-    const codeContent = String(children).replace(/\n$/, '');
+    const codeContent = String(children ?? '').replace(/\n$/, '');
     const hasNewlines = codeContent.includes('\n');
     const isInline = inline || (!match && !hasNewlines);
 

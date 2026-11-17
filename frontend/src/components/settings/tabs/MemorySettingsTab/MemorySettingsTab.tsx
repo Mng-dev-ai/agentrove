@@ -218,7 +218,6 @@ export function MemorySettingsTab() {
         emptyIcon={Brain}
         emptyText="No memories saved yet"
         loadError={{ message: "Couldn't load memories", load }}
-        emptyButtonText="Add Your First Memory"
         addButtonText="Add Memory"
         deleteConfirmTitle="Delete Memory"
         deleteConfirmMessage={(item) =>

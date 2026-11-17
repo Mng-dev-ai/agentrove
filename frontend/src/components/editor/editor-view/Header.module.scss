@@ -112,7 +112,7 @@
   display: flex;
 }
 
-.fullscreen-button {
+.action-button {
   @include anim.transition-colors;
   @include responsive.touch-target;
   border-radius: var(--radius-md);

@@ -71,6 +71,7 @@ export function SidebarOverlays({
       )}
 
       <ConfirmDialog
+        destructive
         isOpen={!!chat.chatToDelete}
         onClose={() => chat.setChatToDelete(null)}
         onConfirm={chat.confirmDeleteChat}
@@ -81,6 +82,7 @@ export function SidebarOverlays({
       />
 
       <ConfirmDialog
+        destructive
         isOpen={!!workspace.workspaceToDelete}
         onClose={() => workspace.setWorkspaceToDelete(null)}
         onConfirm={workspace.confirmDeleteWorkspace}

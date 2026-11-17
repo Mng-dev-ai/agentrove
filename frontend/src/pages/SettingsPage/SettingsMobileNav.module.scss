@@ -46,7 +46,7 @@
   height: var(--space-3);
   width: var(--space-3);
   color: var(--theme-text-quaternary);
-  transition: transform var(--duration-base);
+  transition: transform var(--duration-fast) var(--easing-out);
 
   &--open {
     transform: rotate(180deg);

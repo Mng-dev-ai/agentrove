@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { claimEscape } from '@/components/ui/shared/BaseModal/useModalLayer';
+
+// Open dropdowns in open order; only the last one answers Escape.
+const openStack: HTMLDivElement[] = [];
 
 export const useDropdown = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -8,6 +12,7 @@ export const useDropdown = () => {
     const root = dropdownRef.current;
     if (!isOpen || !root) return;
     let hadFocus = root.contains(document.activeElement);
+    openStack.push(root);
 
     const handleFocusIn = () => {
       hadFocus = true;
@@ -21,9 +26,7 @@ export const useDropdown = () => {
     // Document bubble runs before BaseModal's window listener, which skips
     // prevented Escapes — so the panel closes and the dialog stays open.
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      event.preventDefault();
-      setIsOpen(false);
+      if (openStack[openStack.length - 1] === root && claimEscape(event, root)) setIsOpen(false);
     };
 
     root.addEventListener('focusin', handleFocusIn);
@@ -33,6 +36,7 @@ export const useDropdown = () => {
       root.removeEventListener('focusin', handleFocusIn);
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
+      openStack.splice(openStack.indexOf(root), 1);
       // Focus inside the panel drops to the body when the panel unmounts; hand it back to the trigger.
       const active = document.activeElement;
       if (hadFocus && (!active || active === document.body)) {

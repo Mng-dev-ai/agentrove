@@ -1,26 +1,8 @@
-import { registerCustomCSSVariableTheme } from '@pierre/diffs';
-import type { EditorTheme, SyntaxToken } from '@/styles/editorThemes';
-import { THEME_DATA, floorSyntax, mixLab, over } from '@/styles/editorThemes';
+import type { EditorTheme } from './editorThemes';
+import { THEME_DATA, floorSyntax, mixLab, over } from './editorThemes';
+import { SYNTAX_SLOT_TOKENS } from './syntaxSlots';
 
 type Base = 'light' | 'dark';
-
-export const DIFF_SYNTAX_THEME = 'agentrove-syntax';
-
-// Shiki's css-variables slots, each fed from the editor's Monaco token of the same role.
-const SLOT_TOKENS: Record<string, SyntaxToken> = {
-  foreground: 'plain',
-  'token-comment': 'comment',
-  'token-keyword': 'keyword',
-  'token-string': 'string',
-  'token-string-expression': 'string',
-  'token-constant': 'number',
-  'token-function': 'function',
-  'token-parameter': 'variable',
-  'token-punctuation': 'plain',
-  'token-link': 'string',
-  'token-inserted': 'plain',
-  'token-deleted': 'plain',
-};
 
 const TEXT_PRIMARY = 'var(--theme-text-primary)';
 const TEXT_SECONDARY = 'var(--theme-text-secondary)';
@@ -62,7 +44,7 @@ const themeDeclarations = ({ data, syntax, text }: EditorTheme): string => {
     comment: TEXT_PRIMARY,
   });
   const { green, red, blue } = GIT_COLORS[base];
-  const slots = Object.entries(SLOT_TOKENS).map(
+  const slots = Object.entries(SYNTAX_SLOT_TOKENS).map(
     ([slot, token]) =>
       `--diffs-${slot}: ${lineSyntax[token]}; --diff-emphasis-${slot}: ${emphasisSyntax[token]};`,
   );
@@ -74,19 +56,11 @@ const themeDeclarations = ({ data, syntax, text }: EditorTheme): string => {
   ].join(' ');
 };
 
-export const DIFF_SYNTAX_CSS = Object.entries(THEME_DATA)
-  .map(([name, theme]) => {
-    const selector = name === 'light' || name === 'dark' ? 'data-theme' : 'data-palette';
-    return `:root[${selector}='${name}'] { ${themeDeclarations(theme)} }`;
-  })
-  .join('\n');
-
-// Shadow-root rule: word-level change highlights sit on a stronger tint than their
-// line, so their tokens (and untokenized plain text) switch to the emphasis-safe set.
-export const DIFF_EMPHASIS_CSS = `[data-diff-span]{--diffs-light:var(--diff-emphasis-foreground);--diffs-dark:var(--diff-emphasis-foreground);${Object.keys(
-  SLOT_TOKENS,
-)
-  .map((slot) => `--diffs-${slot}:var(--diff-emphasis-${slot})`)
-  .join(';')}}`;
-
-registerCustomCSSVariableTheme(DIFF_SYNTAX_THEME, {});
+export function generateDiffSyntaxCss(): string {
+  return Object.entries(THEME_DATA)
+    .map(([name, theme]) => {
+      const selector = name === 'light' || name === 'dark' ? 'data-theme' : 'data-palette';
+      return `:root[${selector}='${name}'] { ${themeDeclarations(theme)} }`;
+    })
+    .join('\n');
+}

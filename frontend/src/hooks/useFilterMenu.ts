@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { claimEscape } from '@/components/ui/shared/BaseModal/useModalLayer';
 
 export const FILTER_PANEL_WIDTH = 240;
 export const FILTER_SUBMENU_WIDTH = 200;
@@ -99,7 +100,7 @@ export function useFilterMenu<V extends string>({ closeOnEscape = false } = {}) 
   useEffect(() => {
     if (!isOpen || !closeOnEscape) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (!claimEscape(e, triggerRef.current)) return;
       cancelSubmenuClose();
       setSubmenu(null);
       setIsOpen(false);

@@ -1,7 +1,9 @@
+import { useRef } from 'react';
 import clsx from 'clsx';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from '../primitives/Button/Button';
+import { useModalLayer } from '../shared/BaseModal/useModalLayer';
 import { SearchPanel } from '@/components/editor/file-search/SearchPanel';
 import { ChatSearchPanel } from '@/components/chat/chat-search/ChatSearchPanel';
 import { CommandMenuInput } from './CommandMenuInput';
@@ -51,6 +53,8 @@ export function CommandMenu() {
     handleOpenSearchResult,
     modKey,
   } = useCommandMenu();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalLayer(dialogRef, isOpen, close);
 
   if (!isOpen) return null;
 
@@ -70,21 +74,14 @@ export function CommandMenu() {
       aria-label="Command menu"
     >
       <div
+        ref={dialogRef}
         className={styles.dialog}
         // Focusable so a click on dead space keeps focus (and Escape) inside the menu.
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
         onKeyDown={(e) => {
-          e.stopPropagation();
-          // defaultPrevented = the panel's search input consumed Escape to clear its query.
-          if (
-            e.key === 'Escape' &&
-            isPanelMode(mode) &&
-            !e.defaultPrevented &&
-            !e.nativeEvent.isComposing
-          ) {
-            close();
-          }
+          // Page shortcuts must not see palette typing; Escape and Tab go on to the modal layer.
+          if (e.key !== 'Escape' && e.key !== 'Tab') e.stopPropagation();
         }}
       >
         {/* Panel tabs (Messages/Grep) embed panels that own their inputs, so the

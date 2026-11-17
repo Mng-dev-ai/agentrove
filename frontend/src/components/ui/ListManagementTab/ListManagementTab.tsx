@@ -52,7 +52,6 @@ interface ListManagementTabProps<T> {
   emptyIcon: LucideIcon;
   emptyText: string;
   loadError?: { message: string; load: ListLoadState };
-  emptyButtonText: string;
   addButtonText: string;
   deleteConfirmTitle: string;
   deleteConfirmLabel?: string;
@@ -76,7 +75,6 @@ export function ListManagementTab<T>({
   emptyIcon: EmptyIcon,
   emptyText,
   loadError,
-  emptyButtonText,
   addButtonText,
   deleteConfirmTitle,
   deleteConfirmLabel = 'Delete',
@@ -93,21 +91,21 @@ export function ListManagementTab<T>({
   logContext,
 }: ListManagementTabProps<T>) {
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
-  const [deletingIndex, setDeletingIndex] = useState<number | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
   const handleCloseDeleteDialog = () => {
     setPendingDeleteIndex(null);
   };
 
   const handleConfirmDelete = async () => {
-    if (pendingDeleteIndex === null) return;
-    setDeletingIndex(pendingDeleteIndex);
+    if (pendingDeleteIndex === null || !deleteTargetItem) return;
+    setDeletingKey(getItemKey(deleteTargetItem, pendingDeleteIndex));
     try {
       await onDelete(pendingDeleteIndex);
       setPendingDeleteIndex(null);
     } catch (error) {
       logger.error(`Failed to delete item`, logContext, error);
     } finally {
-      setDeletingIndex(null);
+      setDeletingKey(null);
     }
   };
 
@@ -160,36 +158,37 @@ export function ListManagementTab<T>({
             <p className={styles['empty-text']}>
               {activeFilter ? activeFilter.emptyText : emptyText}
             </p>
-            <Button type="button" onClick={onAdd} variant="outline" size="sm">
-              {activeFilter ? addButtonText : emptyButtonText}
-            </Button>
           </div>
         ) : (
           <div className={styles.items}>
-            {items.map((item, index) => (
-              <div key={getItemKey(item, index)} className={styles.card}>
-                <div className={styles['card-row']}>
-                  <div className={styles['card-content']}>{renderItem(item, index)}</div>
-                  <div className={styles['card-actions']}>
-                    {renderItemActions?.(item, index)}
-                    {onEdit && (
+            {items.map((item, index) => {
+              const itemKey = getItemKey(item, index);
+              const isDeleting = deletingKey === itemKey;
+              return (
+                <div key={itemKey} className={styles.card}>
+                  <div className={styles['card-row']}>
+                    <div className={styles['card-content']}>{renderItem(item, index)}</div>
+                    <div className={styles['card-actions']}>
+                      {renderItemActions?.(item, index)}
+                      {onEdit && (
+                        <ListItemAction
+                          icon={Edit2}
+                          label="Edit item"
+                          onClick={() => onEdit(index)}
+                        />
+                      )}
                       <ListItemAction
-                        icon={Edit2}
-                        label="Edit item"
-                        onClick={() => onEdit(index)}
+                        icon={isDeleting ? Loader2 : Trash2}
+                        label="Delete item"
+                        onClick={() => setPendingDeleteIndex(index)}
+                        disabled={isDeleting}
+                        spinning={isDeleting}
                       />
-                    )}
-                    <ListItemAction
-                      icon={deletingIndex === index ? Loader2 : Trash2}
-                      label="Delete item"
-                      onClick={() => setPendingDeleteIndex(index)}
-                      disabled={deletingIndex === index}
-                      spinning={deletingIndex === index}
-                    />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -197,6 +196,7 @@ export function ListManagementTab<T>({
       </div>
 
       <ConfirmDialog
+        destructive
         isOpen={pendingDeleteIndex !== null}
         onClose={handleCloseDeleteDialog}
         onConfirm={handleConfirmDelete}
