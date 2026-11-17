@@ -82,6 +82,7 @@ class SubThreadWake:
                 self._schedule(parent_id)
 
     async def recover(self) -> None:
+        self._closed = False
         async with SessionLocal() as db:
             owed = (
                 await db.execute(
