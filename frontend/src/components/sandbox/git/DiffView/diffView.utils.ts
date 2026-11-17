@@ -39,12 +39,6 @@ export const DIFF_EMPTY_LABELS: Record<DiffMode, string> = {
   total: 'No changes from base branch',
 };
 
-// The library washes annotation rows with the line-selection tint when they sit
-// inside the selected range; keep the comment composer's row on the plain
-// annotation background. Changed-line numbers use the app's add/remove text
-// tokens: the Shiki theme's tints drop below 3:1 on several palettes.
-// Injected into the shadow root, where unlayered rules beat the library's
-// @layer base styles.
 // Below this tile width the toolbar compacts: diffstat moves right, labels
 // shorten, and diff style moves into the overflow menu.
 export const NARROW_BREAKPOINT = 900;
