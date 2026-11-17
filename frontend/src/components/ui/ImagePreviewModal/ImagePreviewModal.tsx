@@ -40,7 +40,7 @@ export const ImagePreviewModal = memo(function ImagePreviewModal({
   const hasMultiple = total > 1;
   const current = attachments[currentIndex];
   const state = current ? imageStates[current.id] : undefined;
-  const zoom = useImageZoom(current ? `${current.id}:${state?.imageSrc}` : '', onClose);
+  const zoom = useImageZoom(isOpen && current ? `${current.id}:${state?.imageSrc}` : '', onClose);
   const goPrev = () => onIndexChange((currentIndex - 1 + total) % total);
   const goNext = () => onIndexChange((currentIndex + 1) % total);
 
