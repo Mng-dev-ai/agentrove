@@ -11,6 +11,15 @@ export const isBelowModalLayer = (element: Node) => {
   return top !== undefined && !top.contains(element);
 };
 
+// <main> is focusable only while it holds focus, so clicks inside it still leave focus on body.
+export const focusMainContent = () => {
+  const main = document.getElementById('main-content');
+  if (!main) return;
+  main.tabIndex = -1;
+  main.addEventListener('blur', () => main.removeAttribute('tabindex'), { once: true });
+  main.focus({ preventScroll: true });
+};
+
 export function useModalLayer(
   containerRef: RefObject<HTMLDivElement | null>,
   isOpen: boolean,
@@ -74,9 +83,7 @@ export function useModalLayer(
       if (container.isConnected) return;
       trigger?.focus();
       // The trigger can be gone or hidden (a closed mobile drawer); never leave focus on body.
-      if (document.activeElement === document.body) {
-        document.getElementById('main-content')?.focus({ preventScroll: true });
-      }
+      if (document.activeElement === document.body) focusMainContent();
     };
   }, [containerRef, isOpen]);
 }

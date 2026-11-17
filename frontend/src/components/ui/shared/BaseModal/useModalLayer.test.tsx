@@ -10,7 +10,7 @@ function Page({ keepTrigger }: { keepTrigger: boolean }) {
   return (
     <>
       {(keepTrigger || !open) && <button onClick={() => setOpen(true)}>open</button>}
-      <main id="main-content" tabIndex={-1} />
+      <main id="main-content" />
       <BaseModal isOpen={open} onClose={() => setOpen(false)} ariaLabel="dialog">
         <input aria-label="field" />
       </BaseModal>
@@ -35,6 +35,9 @@ describe('useModalLayer focus restore', () => {
   it('falls back to the main landmark when the trigger is gone', () => {
     const { container } = render(<Page keepTrigger={false} />);
     openAndEscape();
-    expect(document.activeElement).toBe(container.querySelector('#main-content'));
+    const main = container.querySelector<HTMLElement>('#main-content')!;
+    expect(document.activeElement).toBe(main);
+    main.blur();
+    expect(main.hasAttribute('tabindex')).toBe(false);
   });
 });
