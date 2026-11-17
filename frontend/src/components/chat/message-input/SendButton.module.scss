@@ -3,9 +3,9 @@
 
 .send-button {
   @include anim.transition-colors;
-  padding: var(--space-1-5);
+  @include responsive.touch-target;
+  padding: var(--space-2);
   border-radius: var(--radius-full);
-  transform: scale(0.9);
 
   &:active {
     transform: scale(0.95);
@@ -14,10 +14,6 @@
   &:disabled {
     cursor: not-allowed;
     opacity: 0.5;
-  }
-
-  &--ready {
-    transform: scale(1);
   }
 
   &--primary {
@@ -30,6 +26,11 @@
 
   &--idle {
     background-color: var(--theme-surface-tertiary);
+  }
+
+  // Opts out of the global svg reset so a narrow composer row truncates the model controls instead
+  > svg {
+    max-width: none;
   }
 }
 
@@ -44,6 +45,8 @@
   @include anim.pulse;
   height: var(--space-3);
   width: var(--space-3);
+  // Same footprint as the send icon so the button box doesn't change while streaming
+  margin: calc((var(--space-3-5) - var(--space-3)) / 2);
   color: var(--theme-surface);
 }
 

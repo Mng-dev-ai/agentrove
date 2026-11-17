@@ -32,13 +32,13 @@
 }
 
 .provider-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  @include anim.transition-colors;
+  height: var(--space-3);
+  width: var(--space-3);
   color: var(--theme-text-tertiary);
-  transition: opacity var(--duration-base);
 
   &--muted {
-    opacity: 0.45;
+    color: var(--theme-text-quaternary);
   }
 }
 
@@ -56,6 +56,7 @@
 
 .caret-btn {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   // Negative margin + padding keeps a large thumb target without shifting the row
   margin: calc(var(--space-1) * -1);
   flex-shrink: 0;
@@ -124,7 +125,7 @@
   }
 }
 
-// Status words reuse the dot's hues at steps that clear 4.5:1 for 12px text:
+// Status words reuse the dot's hues at steps that clear 4.5:1 for 11px text:
 // darker on light (warning/success need 700), lighter on dark.
 .status-word {
   flex-shrink: 0;

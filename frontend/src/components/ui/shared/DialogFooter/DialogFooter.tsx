@@ -1,4 +1,3 @@
-import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './DialogFooter.module.scss';
 
@@ -6,34 +5,29 @@ interface DialogFooterProps {
   onCancel: () => void;
   onSave: () => void;
   saveLabel: string;
+  cancelLabel?: string;
   saving?: boolean;
   disabled?: boolean;
-  bordered?: boolean;
 }
 
 export function DialogFooter({
   onCancel,
   onSave,
   saveLabel,
+  cancelLabel = 'Cancel',
   saving,
   disabled,
-  bordered = false,
 }: DialogFooterProps) {
   return (
-    <div
-      className={clsx(
-        styles['dialog-footer'],
-        bordered ? styles['dialog-footer--bordered'] : styles['dialog-footer--plain'],
-      )}
-    >
-      <Button onClick={onCancel} variant="outline" size="sm" disabled={saving}>
-        Cancel
+    <div className={styles['dialog-footer']}>
+      <Button type="button" onClick={onCancel} variant="ghost" size="sm" disabled={saving}>
+        {cancelLabel}
       </Button>
       <Button
+        type="button"
         onClick={onSave}
-        variant="outline"
+        variant="primary"
         size="sm"
-        className={styles['save-button']}
         isLoading={saving}
         disabled={disabled}
       >

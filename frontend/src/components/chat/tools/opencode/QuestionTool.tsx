@@ -31,7 +31,6 @@ export const QuestionTool = memo(function QuestionTool({ tool }: { tool: ToolAgg
             return `Waiting on ${noun}...`;
         }
       }}
-      loadingContent="Waiting for answer..."
       error={tool.error}
     >
       {count > 0 && (

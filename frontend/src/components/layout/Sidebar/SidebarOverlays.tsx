@@ -95,6 +95,7 @@ export function SidebarOverlays({
         onClose={() => chat.setChatToRename(null)}
         onSave={chat.handleSaveRename}
         currentTitle={chat.chatToRename?.title || ''}
+        subject={chat.chatToRename?.parent_chat_id ? 'sub-thread' : 'chat'}
         isLoading={chat.updateChat.isPending}
         onGenerateTitle={chat.handleGenerateChatTitle}
         isGenerating={chat.generateChatTitle.isPending}
@@ -105,6 +106,7 @@ export function SidebarOverlays({
         onClose={() => workspace.setWorkspaceToRename(null)}
         onSave={workspace.handleSaveWorkspaceRename}
         currentTitle={workspace.workspaceToRename?.workspace.name || ''}
+        subject="workspace"
         isLoading={
           workspace.updateWorkspace.isPending || workspace.machineUpdateWorkspace.isPending
         }

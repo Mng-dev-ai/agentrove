@@ -1,4 +1,4 @@
-import { Image } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './AttachButton.module.scss';
 
@@ -17,7 +17,7 @@ export function AttachButton({ onAttach, disabled = false }: AttachButtonProps) 
       className={styles['attach-button']}
       aria-label="Attach file"
     >
-      <Image className={styles.icon} />
+      <Plus className={styles.icon} />
     </Button>
   );
 }

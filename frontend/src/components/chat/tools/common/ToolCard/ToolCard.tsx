@@ -17,7 +17,6 @@ interface ToolCardProps {
   status: ToolEventStatus;
   title: ToolCardTitle;
   actions?: React.ReactNode;
-  loadingContent?: Content;
   error?: Content;
   statusDetail?: Content;
   children?: React.ReactNode;
@@ -30,7 +29,6 @@ export const ToolCard = memo(function ToolCard({
   status,
   title,
   actions,
-  loadingContent,
   error,
   statusDetail,
   children,
@@ -69,23 +67,13 @@ export const ToolCard = memo(function ToolCard({
     </div>
   );
 
-  const meta = (
-    <>
-      {status === 'started' &&
-        loadingContent &&
-        (React.isValidElement(loadingContent) ? (
-          loadingContent
-        ) : (
-          <p className={styles.meta}>{loadingContent}</p>
-        ))}
-      {statusDetail &&
-        (React.isValidElement(statusDetail) ? (
-          statusDetail
-        ) : (
-          <p className={styles.meta}>{statusDetail}</p>
-        ))}
-    </>
-  );
+  const meta =
+    statusDetail &&
+    (React.isValidElement(statusDetail) ? (
+      statusDetail
+    ) : (
+      <p className={styles.meta}>{statusDetail}</p>
+    ));
 
   return (
     // literal `tool-card` is a stable global hook so child actions (OpenInEditorButton,

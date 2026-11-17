@@ -4,7 +4,10 @@ import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ApiFieldKey } from '@/types/settings.types';
 import { useDeleteAllChatsMutation } from '@/hooks/queries/useChatQueries';
 import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
+import { listLoadState } from '@/hooks/queries/listLoad';
+import { AlertCircle } from 'lucide-react';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
+import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import toast from 'react-hot-toast';
@@ -80,7 +83,9 @@ export function SettingsPage() {
 
   const generalSecretFields = getGeneralSecretFields();
 
-  const { data: settings, error: fetchError } = useSettingsQuery();
+  const settingsQuery = useSettingsQuery();
+  const { data: settings, error: fetchError } = settingsQuery;
+  const settingsLoad = listLoadState([settingsQuery]);
   const deleteAllChats = useDeleteAllChatsMutation();
 
   const [localSettings, setLocalSettings] = useState<UserSettings | null>(settings ?? null);
@@ -218,23 +223,6 @@ export function SettingsPage() {
     setMobileNavOpen(false);
   }, []);
 
-  if (fetchError && !settings) {
-    return (
-      <div className={styles['status-screen']}>
-        <div className={styles['status-text']}>Failed to load settings</div>
-      </div>
-    );
-  }
-
-  // First load, or the frame before the sync effect copies settings → localSettings.
-  if (!settings || !localSettings) {
-    return (
-      <div className={styles['status-screen']}>
-        <Spinner size="lg" className={styles.spinner} />
-      </div>
-    );
-  }
-
   return (
     <div className={styles.settings}>
       <SettingsSidebarNav
@@ -257,111 +245,132 @@ export function SettingsPage() {
 
         <div className={styles.content}>
           <div className={styles['content-inner']}>
-            {errorMessage && (
-              <div className={styles['error-box']}>
-                <p className={styles['error-box-text']}>{errorMessage}</p>
-              </div>
+            {settingsLoad.loadFailed ? (
+              <LoadErrorState
+                icon={AlertCircle}
+                message="Couldn't load settings"
+                load={settingsLoad}
+              />
+            ) : !settings || !localSettings ? (
+              // First load, or the frame before the sync effect copies settings → localSettings.
+              tabLoadingFallback
+            ) : (
+              <>
+                {errorMessage && (
+                  <div className={styles['error-box']}>
+                    <p className={styles['error-box-text']}>{errorMessage}</p>
+                  </div>
+                )}
+
+                <SettingsProvider
+                  localSettings={localSettings}
+                  setLocalSettings={
+                    setLocalSettings as React.Dispatch<React.SetStateAction<UserSettings>>
+                  }
+                  persistSettings={persistSettings}
+                  settings={settings}
+                >
+                  <ErrorBoundary>
+                    <div className={styles.panels}>
+                      {activeTab === 'general' && (
+                        <div role="tabpanel" id="general-panel" aria-labelledby="general-tab">
+                          <GeneralSettingsTab
+                            fields={generalSecretFields}
+                            settings={localSettings}
+                            revealedFields={revealedFields}
+                            onPersistSecret={handlePersistSecret}
+                            onToggleVisibility={toggleFieldVisibility}
+                            onDeleteAllChats={handleDeleteAllChats}
+                            onNotificationsEnabledChange={handleNotificationsEnabledChange}
+                            onAutoSteerQueuedMessagesChange={handleAutoSteerQueuedMessagesChange}
+                            onTitleModelChange={handleTitleModelChange}
+                          />
+                        </div>
+                      )}
+
+                      {activeTab === 'personas' && (
+                        <div role="tabpanel" id="personas-panel" aria-labelledby="personas-tab">
+                          <Suspense fallback={tabLoadingFallback}>
+                            <PersonasSettingsTab />
+                          </Suspense>
+                        </div>
+                      )}
+
+                      {activeTab === 'memory' && (
+                        <div role="tabpanel" id="memory-panel" aria-labelledby="memory-tab">
+                          <Suspense fallback={tabLoadingFallback}>
+                            <MemorySettingsTab />
+                          </Suspense>
+                        </div>
+                      )}
+
+                      {activeTab === 'stream_actions' && (
+                        <div
+                          role="tabpanel"
+                          id="stream_actions-panel"
+                          aria-labelledby="stream_actions-tab"
+                        >
+                          <Suspense fallback={tabLoadingFallback}>
+                            <StreamActionsSettingsTab />
+                          </Suspense>
+                        </div>
+                      )}
+
+                      {activeTab === 'automations' && (
+                        <div
+                          role="tabpanel"
+                          id="automations-panel"
+                          aria-labelledby="automations-tab"
+                        >
+                          <Suspense fallback={tabLoadingFallback}>
+                            <AutomationsSettingsTab />
+                          </Suspense>
+                        </div>
+                      )}
+
+                      {activeTab === 'env_vars' && (
+                        <div role="tabpanel" id="env_vars-panel" aria-labelledby="env_vars-tab">
+                          <Suspense fallback={tabLoadingFallback}>
+                            <EnvVarsSettingsTab />
+                          </Suspense>
+                        </div>
+                      )}
+
+                      {activeTab === 'instructions' && (
+                        <div
+                          role="tabpanel"
+                          id="instructions-panel"
+                          aria-labelledby="instructions-tab"
+                        >
+                          <Suspense fallback={tabLoadingFallback}>
+                            <InstructionsSettingsTab
+                              instructions={localSettings.custom_instructions || ''}
+                              onPersist={handlePersistInstructions}
+                            />
+                          </Suspense>
+                        </div>
+                      )}
+
+                      {activeTab === 'machines' && (
+                        <div role="tabpanel" id="machines-panel" aria-labelledby="machines-tab">
+                          <Suspense fallback={tabLoadingFallback}>
+                            <MachinesSettingsTab />
+                          </Suspense>
+                        </div>
+                      )}
+
+                      {activeTab === 'devices' && (
+                        <div role="tabpanel" id="devices-panel" aria-labelledby="devices-tab">
+                          <Suspense fallback={tabLoadingFallback}>
+                            <DevicesSettingsTab />
+                          </Suspense>
+                        </div>
+                      )}
+                    </div>
+                  </ErrorBoundary>
+                </SettingsProvider>
+              </>
             )}
-
-            <SettingsProvider
-              localSettings={localSettings}
-              setLocalSettings={
-                setLocalSettings as React.Dispatch<React.SetStateAction<UserSettings>>
-              }
-              persistSettings={persistSettings}
-              settings={settings}
-            >
-              <ErrorBoundary>
-                <div className={styles.panels}>
-                  {activeTab === 'general' && (
-                    <div role="tabpanel" id="general-panel" aria-labelledby="general-tab">
-                      <GeneralSettingsTab
-                        fields={generalSecretFields}
-                        settings={localSettings}
-                        revealedFields={revealedFields}
-                        onPersistSecret={handlePersistSecret}
-                        onToggleVisibility={toggleFieldVisibility}
-                        onDeleteAllChats={handleDeleteAllChats}
-                        onNotificationsEnabledChange={handleNotificationsEnabledChange}
-                        onAutoSteerQueuedMessagesChange={handleAutoSteerQueuedMessagesChange}
-                        onTitleModelChange={handleTitleModelChange}
-                      />
-                    </div>
-                  )}
-
-                  {activeTab === 'personas' && (
-                    <div role="tabpanel" id="personas-panel" aria-labelledby="personas-tab">
-                      <Suspense fallback={tabLoadingFallback}>
-                        <PersonasSettingsTab />
-                      </Suspense>
-                    </div>
-                  )}
-
-                  {activeTab === 'memory' && (
-                    <div role="tabpanel" id="memory-panel" aria-labelledby="memory-tab">
-                      <Suspense fallback={tabLoadingFallback}>
-                        <MemorySettingsTab />
-                      </Suspense>
-                    </div>
-                  )}
-
-                  {activeTab === 'stream_actions' && (
-                    <div
-                      role="tabpanel"
-                      id="stream_actions-panel"
-                      aria-labelledby="stream_actions-tab"
-                    >
-                      <Suspense fallback={tabLoadingFallback}>
-                        <StreamActionsSettingsTab />
-                      </Suspense>
-                    </div>
-                  )}
-
-                  {activeTab === 'automations' && (
-                    <div role="tabpanel" id="automations-panel" aria-labelledby="automations-tab">
-                      <Suspense fallback={tabLoadingFallback}>
-                        <AutomationsSettingsTab />
-                      </Suspense>
-                    </div>
-                  )}
-
-                  {activeTab === 'env_vars' && (
-                    <div role="tabpanel" id="env_vars-panel" aria-labelledby="env_vars-tab">
-                      <Suspense fallback={tabLoadingFallback}>
-                        <EnvVarsSettingsTab />
-                      </Suspense>
-                    </div>
-                  )}
-
-                  {activeTab === 'instructions' && (
-                    <div role="tabpanel" id="instructions-panel" aria-labelledby="instructions-tab">
-                      <Suspense fallback={tabLoadingFallback}>
-                        <InstructionsSettingsTab
-                          instructions={localSettings.custom_instructions || ''}
-                          onPersist={handlePersistInstructions}
-                        />
-                      </Suspense>
-                    </div>
-                  )}
-
-                  {activeTab === 'machines' && (
-                    <div role="tabpanel" id="machines-panel" aria-labelledby="machines-tab">
-                      <Suspense fallback={tabLoadingFallback}>
-                        <MachinesSettingsTab />
-                      </Suspense>
-                    </div>
-                  )}
-
-                  {activeTab === 'devices' && (
-                    <div role="tabpanel" id="devices-panel" aria-labelledby="devices-tab">
-                      <Suspense fallback={tabLoadingFallback}>
-                        <DevicesSettingsTab />
-                      </Suspense>
-                    </div>
-                  )}
-                </div>
-              </ErrorBoundary>
-            </SettingsProvider>
           </div>
         </div>
       </div>

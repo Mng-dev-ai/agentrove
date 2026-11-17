@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -8,9 +7,11 @@ import {
   type RefObject,
 } from 'react';
 import clsx from 'clsx';
-import { ChevronDown, Hash, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
@@ -102,17 +103,6 @@ export function MemberPopover({
   const { modelId, model, agentKind, hasThinking, supportsPersona } = resolveMember(member, models);
   const nameInputId = `member-name-${member.key}`;
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      setIsOpen(false);
-    };
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, setIsOpen]);
-
   return (
     <div ref={dropdownRef} className={styles['chip-wrap']}>
       {trigger(isOpen, () => setIsOpen(!isOpen))}
@@ -155,6 +145,7 @@ export function MemberPopover({
               dropdownPosition="auto"
               dropdownAlign="right"
               variant="text"
+              compact={false}
               machineId={machineId}
             />
           </div>
@@ -169,6 +160,7 @@ export function MemberPopover({
                 dropdownPosition="auto"
                 dropdownAlign="right"
                 variant="text"
+                compact={false}
               />
             </div>
           )}
@@ -182,6 +174,7 @@ export function MemberPopover({
                 dropdownPosition="auto"
                 dropdownAlign="right"
                 variant="text"
+                compact={false}
               />
             </div>
           )}
@@ -194,6 +187,7 @@ export function MemberPopover({
               dropdownPosition="auto"
               dropdownAlign="right"
               variant="text"
+              compact={false}
             />
           </div>
           {onRemove && (
@@ -358,20 +352,13 @@ export function CreateChannelDialog({
 
   return (
     <BaseModal isOpen={true} onClose={onClose} size="md" className={styles.dialog}>
+      <ModalHeader
+        title="New channel"
+        description="A shared thread where several agents reply together."
+        onClose={onClose}
+      />
       <div ref={bodyRef} className={clsx(styles.body, bodyOverflows && styles['body--scroll'])}>
         <div ref={bodyContentRef} className={styles['body-content']}>
-          <div className={styles.header}>
-            <div className={styles['icon-box']}>
-              <Hash className={styles['header-icon']} />
-            </div>
-            <div className={styles['header-text']}>
-              <h2 className={styles.title}>New channel</h2>
-              <p className={styles.subtitle}>
-                A shared thread where several agents reply together.
-              </p>
-            </div>
-          </div>
-
           <div className={styles.fields}>
             <div>
               <label className={styles['field-label']} htmlFor="channel-name">
@@ -453,26 +440,13 @@ export function CreateChannelDialog({
         </div>
       </div>
 
-      <div className={styles.footer}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          disabled={createChannel.isPending}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={handleCreate}
-          disabled={createChannel.isPending || !workspaceId || hasInvalidMemberName}
-        >
-          {createChannel.isPending ? 'Creating...' : 'Create'}
-        </Button>
-      </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={handleCreate}
+        saveLabel="Create"
+        saving={createChannel.isPending}
+        disabled={!workspaceId || hasInvalidMemberName}
+      />
     </BaseModal>
   );
 }

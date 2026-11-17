@@ -1,10 +1,61 @@
+@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
+// Vertical block spacing, scaled by the root's --markdown-rhythm (MarkDown.module.scss)
+@function rhythm($space) {
+  @return calc(#{$space} * var(--markdown-rhythm));
+}
+
+@property --table-fade-start {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --table-fade-end {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
 .table-wrap {
-  margin: var(--space-6) 0;
+  margin: rhythm(var(--space-6)) 0;
   overflow-x: auto;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 var(--table-fade-start),
+    #000 calc(100% - var(--table-fade-end)),
+    transparent
+  );
+
+  &:first-child {
+    margin-top: 0;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  // Edge fades follow the horizontal scroll; a table that fits has an inactive
+  // timeline, so both fades stay at 0
+  @supports (animation-timeline: scroll()) {
+    animation: table-scroll-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+@keyframes table-scroll-fade {
+  from {
+    --table-fade-start: 0px;
+    --table-fade-end: var(--space-10);
+  }
+
+  to {
+    --table-fade-start: var(--space-10);
+    --table-fade-end: 0px;
+  }
 }
 
 .table {
@@ -15,66 +66,63 @@
   }
 }
 
-.thead {
-  background-color: var(--theme-surface-secondary);
+.tbody > * + * {
+  border-top: 1px solid colors.theme-color('border', 0.5);
 }
 
-.tbody {
-  background-color: var(--theme-surface);
+.th,
+.td {
+  padding: var(--space-1-5) var(--space-3);
 
-  > * + * {
-    border-top: 1px solid var(--theme-border);
+  // Outer cells sit on the prose edges so the table shares the column's alignment line
+  &:first-child {
+    padding-left: 0;
   }
-}
 
-.tr {
-  @include anim.transition-colors;
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
+  &:last-child {
+    padding-right: 0;
   }
 }
 
 .th {
-  @include type.type-default(600);
-  padding: var(--space-2) var(--space-3);
+  @include type.type-default(500);
   text-align: left;
-  color: var(--theme-text-primary);
+  color: var(--theme-text-secondary);
 }
 
 .td {
   @include type.type-default;
-  padding: var(--space-2) var(--space-3);
-  color: var(--theme-text-secondary);
 }
 
-.h1 {
-  @include type.type-title(600);
-  margin: var(--space-4) 0 var(--space-3);
-  color: var(--theme-text-primary);
-
+.h1,
+.h2,
+.h3 {
   &:first-child {
     margin-top: 0;
   }
 }
 
+.h1 {
+  @include type.type-title(600);
+  margin: rhythm(var(--space-4)) 0 rhythm(var(--space-3));
+  color: var(--theme-text-primary);
+}
+
 .h2 {
   @include type.type-large(600);
-  margin: var(--space-4) 0 var(--space-2);
+  margin: rhythm(var(--space-4)) 0 rhythm(var(--space-2));
   color: var(--theme-text-primary);
 }
 
 .h3 {
   @include type.type-body(600);
-  margin: var(--space-3) 0 var(--space-1-5);
+  margin: rhythm(var(--space-3)) 0 rhythm(var(--space-1-5));
   color: var(--theme-text-primary);
 }
 
 .p {
-  margin-bottom: var(--space-3);
+  margin-bottom: rhythm(var(--space-3));
   white-space: pre-wrap;
-  line-height: 1.5rem;
-  color: var(--theme-text-secondary);
   overflow-wrap: anywhere;
 
   &:last-child {
@@ -83,7 +131,7 @@
 }
 
 .image-paragraph {
-  margin-bottom: var(--space-3);
+  margin-bottom: rhythm(var(--space-3));
 
   &:last-child {
     margin-bottom: 0;
@@ -92,27 +140,33 @@
 
 .strong {
   font-weight: 600;
-  color: var(--theme-text-primary);
 }
 
 .em {
   font-style: italic;
-  color: var(--theme-text-secondary);
 }
 
 .code-inline {
   @include type.type-mono;
   border-radius: var(--radius-md);
   padding: var(--space-0-5) var(--space-1);
-  background-color: var(--theme-surface-secondary);
-  color: var(--theme-text-primary);
+  // A tint of the text colour stays visible on any surface, including the user bubble
+  background-color: colors.theme-color('text-primary', 0.06);
+
+  // Wide tables scroll inside .table-wrap rather than breaking chips mid-token
+  .td &,
+  .th & {
+    white-space: nowrap;
+  }
 }
 
 .plain-code-block {
-  margin: var(--space-4) 0;
+  margin: rhythm(var(--space-4)) 0;
 }
 
 .plain-pre {
+  // The pre's strut sets the code line spacing; keep it off the looser prose leading
+  @include type.type-mono(type.$type-body-size, type.$type-body-line-height);
   overflow-x: auto;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-lg);
@@ -126,47 +180,51 @@
 }
 
 .ul {
-  margin-bottom: var(--space-3);
+  margin-bottom: rhythm(var(--space-3));
   padding-left: var(--space-4);
   list-style: disc;
-  color: var(--theme-text-secondary);
 
   > * + * {
-    margin-top: var(--space-1);
+    margin-top: rhythm(var(--space-1));
   }
 }
 
 .ol {
-  margin-bottom: var(--space-3);
+  margin-bottom: rhythm(var(--space-3));
   padding-left: var(--space-4);
   list-style: decimal;
-  color: var(--theme-text-secondary);
 
   > * + * {
-    margin-top: var(--space-1);
+    margin-top: rhythm(var(--space-1));
   }
 }
 
 .li {
   padding-left: var(--space-1);
-  color: var(--theme-text-secondary);
 }
 
 .blockquote {
-  margin: var(--space-3) 0;
+  margin: rhythm(var(--space-3)) 0;
   border-left: 2px solid var(--theme-border);
   padding-left: var(--space-3);
   font-style: italic;
-  color: var(--theme-text-secondary);
 }
 
 .link {
-  @include anim.transition-colors;
   color: var(--theme-text-primary);
   text-decoration: underline;
+  text-decoration-color: colors.theme-color('text-primary', 0.35);
+  text-decoration-thickness: from-font;
+  text-underline-offset: 0.18em;
+  overflow-wrap: anywhere;
+  transition: text-decoration-color var(--duration-base) var(--easing-in-out);
 
   @include responsive.hover {
-    color: var(--theme-text-secondary);
+    text-decoration-color: currentColor;
+  }
+
+  &:focus-visible {
+    text-decoration-color: currentColor;
   }
 }
 
@@ -174,13 +232,12 @@
   @include type.type-mono;
   border-radius: var(--radius-md);
   padding: var(--space-0-5) var(--space-1);
-  background-color: var(--theme-surface-secondary);
-  text-decoration: underline;
+  background-color: colors.theme-color('text-primary', 0.06);
   cursor: pointer;
 }
 
 .img {
-  margin: var(--space-4) 0;
+  margin: rhythm(var(--space-4)) 0;
   height: auto;
   max-width: 100%;
   border: 1px solid var(--theme-border);
@@ -188,7 +245,7 @@
 }
 
 .hr {
-  margin: var(--space-6) 0;
+  margin: rhythm(var(--space-6)) 0;
   border: 0;
   border-top: 1px solid var(--theme-border);
 }

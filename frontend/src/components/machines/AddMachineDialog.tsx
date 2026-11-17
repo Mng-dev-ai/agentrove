@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { ChevronRight, Server } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
@@ -125,16 +126,11 @@ export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogP
 
   return (
     <BaseModal isOpen onClose={onClose} size="sm" ariaLabel="Add machine">
+      <ModalHeader
+        title={repairing ? `Pair ${repairing.name} again` : 'Add machine'}
+        onClose={onClose}
+      />
       <div className={styles.body}>
-        <div className={styles.header}>
-          <div className={styles['icon-box']}>
-            <Server className={styles['header-icon']} />
-          </div>
-          <h3 className={styles.title}>
-            {repairing ? `Pair ${repairing.name} again` : 'Add machine'}
-          </h3>
-        </div>
-
         {failure && (
           <div className={styles.error} role="alert">
             <PairFailureMessage
@@ -150,8 +146,11 @@ export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogP
         <div className={styles.fields}>
           {!repairing && (
             <div>
-              <Label className={styles.label}>Name</Label>
+              <Label htmlFor="machine-name" className={styles.label}>
+                Name
+              </Label>
               <Input
+                id="machine-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="VPS"
@@ -160,8 +159,11 @@ export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogP
             </div>
           )}
           <div>
-            <Label className={styles.label}>Pairing link</Label>
+            <Label htmlFor="machine-pairing-link" className={styles.label}>
+              Pairing link
+            </Label>
             <Input
+              id="machine-pairing-link"
               type="password"
               value={link}
               onChange={(e) => {
@@ -197,7 +199,6 @@ export function AddMachineDialog({ repairMachineId, onClose }: AddMachineDialogP
         saveLabel="Connect"
         saving={isConnecting}
         disabled={!canSubmit || isConnecting}
-        bordered
       />
     </BaseModal>
   );

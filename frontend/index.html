@@ -18,23 +18,36 @@
   </head>
   <body>
     <script>
+      // Mirrors useResolvedTheme + App's theme effect. vite.config.ts
+      // injects DARK_THEMES, the app's dark set derived from src/styles/palettes.ts.
       (function initTheme() {
+        var DARK_THEMES = __DARK_THEMES__;
+        var root = document.documentElement;
+        var theme = 'dark';
         try {
-          const persisted = localStorage.getItem('app-storage');
-          let theme = 'dark';
-          if (persisted) {
-            const parsed = JSON.parse(persisted);
-            theme = parsed?.state?.theme === 'light' ? 'light' : 'dark';
-          } else if (window.matchMedia?.('(prefers-color-scheme: dark)')) {
-            theme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          var persisted = JSON.parse(localStorage.getItem('ui-storage'));
+          // Same as the store's shallow merge: any persisted theme value wins.
+          if (persisted && persisted.state && 'theme' in persisted.state) {
+            theme = persisted.state.theme;
           }
-          document.documentElement.setAttribute('data-theme', theme);
-          const meta = document.querySelector('meta[name="theme-color"]');
-          if (meta) {
-            meta.setAttribute('content', theme === 'dark' ? '#111111' : '#f5f5f5');
-          }
-        } catch (error) {
-          console.warn('Theme init failed', error);
+        } catch (error) {}
+        var resolved;
+        if (theme === 'system') {
+          resolved =
+            window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'light'
+              : 'dark';
+        } else {
+          resolved = DARK_THEMES.indexOf(theme) !== -1 ? 'dark' : 'light';
+        }
+        root.setAttribute('data-theme', resolved);
+        root.setAttribute('data-palette', theme);
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          var surface = window.getComputedStyle(root).backgroundColor;
+          var styled = surface && surface !== 'transparent' && surface !== 'rgba(0, 0, 0, 0)';
+          var fallback = resolved === 'dark' ? '#111111' : '#f5f5f5';
+          meta.setAttribute('content', styled ? surface : fallback);
         }
       })();
     </script>

@@ -52,7 +52,6 @@ export const SearchTool = memo(function SearchTool({ tool }: { tool: ToolAggrega
       }
       status={tool.status}
       title={title}
-      loadingContent={query ? 'Searching files...' : 'Listing directory...'}
       error={tool.error}
     >
       {(directoryPath || showResult) && (

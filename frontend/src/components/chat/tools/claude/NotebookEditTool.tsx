@@ -52,7 +52,6 @@ export const NotebookEditTool = memo(function NotebookEditTool({ tool }: { tool:
             return `${inProgressLabels[editMode] ?? editMode}${suffix}`;
         }
       }}
-      loadingContent="Editing notebook..."
       error={tool.error}
     >
       {(notebookPath || newSource || cellId || cellType) && (

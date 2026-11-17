@@ -42,6 +42,7 @@
 }
 
 .tab-close {
+  @include responsive.touch-target;
   border-radius: var(--radius-sm);
   padding: var(--space-0-5);
   color: var(--theme-text-quaternary);
@@ -65,6 +66,7 @@
 }
 
 .tab-add {
+  @include responsive.touch-target;
   display: flex;
   height: 100%;
   align-items: center;

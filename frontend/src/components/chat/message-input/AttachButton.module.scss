@@ -3,13 +3,16 @@
 
 .attach-button {
   @include anim.transition-colors;
-  padding: var(--space-1-5);
+  @include responsive.touch-target;
+  padding: var(--space-2);
+  // Keeps the cell as wide as the filled circle was, so the chat text start stays put
+  margin-right: var(--space-0-5);
   border-radius: var(--radius-full);
   color: var(--theme-text-tertiary);
 
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
-    color: var(--theme-text-primary);
+    color: var(--theme-text-secondary);
   }
 
   &:active {
@@ -19,10 +22,17 @@
   &:disabled {
     cursor: not-allowed;
     opacity: 0.5;
+    color: var(--theme-text-tertiary);
+  }
+
+  :global([data-theme='dark']) &:hover {
+    color: var(--theme-text-primary);
   }
 }
 
 .icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  height: var(--space-3);
+  width: var(--space-3);
+  // Opts out of the global svg reset so a narrow composer row truncates the model controls instead
+  max-width: none;
 }

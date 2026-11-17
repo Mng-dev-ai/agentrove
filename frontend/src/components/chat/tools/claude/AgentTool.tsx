@@ -87,7 +87,7 @@ export function AgentTool({ tool }: AgentToolProps) {
           }
         }}
         error={tool.error}
-        statusDetail={description ? <p className={styles.description}>{description}</p> : undefined}
+        statusDetail={description}
         actions={expandAction}
       >
         {(prompt || result || tool.children.length > 0) && (
@@ -119,7 +119,7 @@ export function AgentTool({ tool }: AgentToolProps) {
             {tool.children.length > 0 && (
               <div className={styles.stack}>
                 <CollapsibleButton
-                  label="Tools Used"
+                  label="Tools used"
                   isExpanded={toolsExpanded}
                   onToggle={() => setToolsExpanded((value) => !value)}
                   count={tool.children.length}

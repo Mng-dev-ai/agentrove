@@ -8,20 +8,6 @@
   background-color: var(--theme-surface);
 }
 
-.status-screen {
-  display: flex;
-  min-height: 100vh;
-  min-height: 100dvh;
-  align-items: center;
-  justify-content: center;
-  background-color: var(--theme-surface);
-}
-
-.status-text {
-  @include type.type-default;
-  color: var(--theme-text-primary);
-}
-
 .spinner {
   color: var(--theme-text-quaternary);
 }
@@ -44,7 +30,7 @@
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 57.6rem;
+  max-width: var(--space-192);
   padding: var(--space-6) var(--space-4);
 
   @include responsive.media('sm-up') {

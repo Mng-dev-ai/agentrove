@@ -435,7 +435,6 @@ export function LandingPage() {
                     {greeting}
                     {greetingName && `, ${greetingName}`}
                   </h1>
-                  <p className={styles['greeting-subtitle']}>What are we building today?</p>
                 </div>
 
                 {composerSelectors}
@@ -451,9 +450,8 @@ export function LandingPage() {
                   selectedModelId={selectedModelId}
                   onModelChange={selectModel}
                   machineId={targetMachineId}
-                  showTip={false}
                   showBranch={false}
-                  placeholder="Message Agentrove... (@ to mention, / for commands)"
+                  stacked
                 />
 
                 <div className={styles['panel-below']}>

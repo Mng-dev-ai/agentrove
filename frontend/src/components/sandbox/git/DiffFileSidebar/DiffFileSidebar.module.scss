@@ -236,9 +236,8 @@
   flex-shrink: 0;
   border-radius: var(--radius-sm);
   padding: var(--space-0-5) var(--space-1);
-  // No 9px type token exists — micro-badge sizing kept literal.
-  // TODO(refactor): add a type-micro mixin if 9px badges proliferate.
-  font-size: 11px;
+  // Below the smallest type token (type-meta, 11px), so set literally.
+  font-size: 10px;
   font-weight: 500;
   line-height: 1;
 

@@ -52,15 +52,18 @@
   display: flex;
   width: 100%;
   align-items: flex-start;
-  gap: var(--space-2-5);
-  margin-bottom: var(--space-0-5);
-  border: 1px solid transparent;
+  gap: var(--space-2);
   border-radius: var(--radius-lg);
-  padding: var(--space-2-5);
+  padding: var(--space-1-5) var(--space-2);
   text-align: left;
 
+  @include responsive.media('touch') {
+    min-height: var(--space-10);
+    align-items: center;
+  }
+
   @include responsive.hover {
-    background-color: var(--theme-surface-hover);
+    background-color: colors.theme-color('surface-hover', 0.5);
   }
 
   &:disabled {
@@ -69,74 +72,41 @@
   }
 
   &--primary {
-    border-color: var(--theme-text-primary);
-    background-color: var(--theme-text-primary);
-    color: var(--theme-surface);
+    background-color: colors.theme-color('surface-hover', 0.8);
 
     @include responsive.hover {
-      background-color: var(--theme-text-secondary);
-    }
-  }
-}
-
-.option-icon-wrap {
-  margin-top: var(--space-0-5);
-  display: flex;
-  height: var(--space-6);
-  width: var(--space-6);
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-md);
-  background-color: rgb(0 0 0 / 0.05);
-
-  :global([data-theme='dark']) & {
-    background-color: rgb(255 255 255 / 0.05);
-  }
-
-  &--primary {
-    background-color: rgb(255 255 255 / 0.1);
-
-    :global([data-theme='dark']) & {
-      background-color: rgb(0 0 0 / 0.1);
+      background-color: var(--theme-surface-hover);
     }
   }
 }
 
 .option-icon {
+  margin-block: var(--space-0-5);
   height: var(--space-3-5);
   width: var(--space-3-5);
+  flex-shrink: 0;
   color: var(--theme-text-tertiary);
 
-  &--primary {
-    color: var(--theme-surface);
-  }
-}
-
-.option-content {
-  min-width: 0;
-  flex: 1;
-}
-
-.option-title {
-  @include type.type-default(500);
-  line-height: 1.375;
-
-  &--secondary {
+  .option-row--primary & {
     color: var(--theme-text-primary);
   }
 }
 
+.option-content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--space-2);
+}
+
+.option-title {
+  @include type.type-default(500);
+  color: var(--theme-text-primary);
+}
+
 .option-subtitle {
   @include type.type-meta;
-  margin-top: var(--space-0-5);
-  line-height: 1.375;
-
-  &--primary {
-    color: colors.theme-color('surface', 0.6);
-  }
-
-  &--secondary {
-    color: var(--theme-text-tertiary);
-  }
+  color: var(--theme-text-tertiary);
 }

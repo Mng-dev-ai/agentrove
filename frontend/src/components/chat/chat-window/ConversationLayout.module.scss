@@ -1,3 +1,4 @@
+@use '@/styles/globals/spacing' as spacing;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/zlayer' as z;
 @use '@/styles/globals/typography' as type;
@@ -25,6 +26,7 @@
 // Positioning context for the selection-actions layer anchored to message content.
 .content {
   position: relative;
+  padding-bottom: var(--space-3);
 }
 
 // Centered message column — full width, capped and centered from the lg breakpoint
@@ -34,13 +36,31 @@
   @include responsive.media('lg-up') {
     margin-left: auto;
     margin-right: auto;
-    // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token
-    max-width: 67.2rem;
+    max-width: spacing.$reading-column-width;
   }
 }
 
 .composer {
   position: relative;
+
+  // Text scrolled under the composer dissolves into its top edge; at the bottom
+  // of the scroll there is nothing underneath, so the fade is hidden.
+  &::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: var(--space-6);
+    background: linear-gradient(to bottom, transparent, var(--theme-surface));
+    opacity: 0;
+    transition: opacity var(--duration-fast);
+    pointer-events: none;
+  }
+
+  &--scrolled::before {
+    opacity: 1;
+  }
 }
 
 .composer-surface {
@@ -58,8 +78,7 @@
   @include responsive.media('lg-up') {
     margin-left: auto;
     margin-right: auto;
-    // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token
-    max-width: 67.2rem;
+    max-width: spacing.$reading-column-width;
   }
 }
 

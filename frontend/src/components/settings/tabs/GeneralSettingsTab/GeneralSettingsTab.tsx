@@ -1,5 +1,4 @@
 import { useDraftField } from '@/hooks/useDraftField';
-import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Select } from '@/components/ui/primitives/Select/Select';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
@@ -24,20 +23,12 @@ interface GeneralSettingsTabProps {
   onTitleModelChange: (modelId: string) => void;
 }
 
-function SectionCard({
-  title,
-  children,
-  className,
-}: {
-  title: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
+function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className={clsx(styles['section-card'], className)}>
+    <section>
       <h2 className={styles['section-title']}>{title}</h2>
-      {children}
-    </div>
+      <div className={styles['section-card']}>{children}</div>
+    </section>
   );
 }
 
@@ -79,13 +70,9 @@ function SecretField({
   const { draft, setDraft, handleBlur } = useDraftField(savedValue, (v) => onPersist(field.key, v));
 
   return (
-    <div>
-      <div className={styles['field-header']}>
-        <div>
-          <h3 className={styles['setting-title']}>{field.label}</h3>
-          <p className={styles['field-desc']}>{field.description}</p>
-        </div>
-      </div>
+    <div className={styles.row}>
+      <h3 className={styles['setting-title']}>{field.label}</h3>
+      <p className={styles['field-desc']}>{field.description}</p>
       <SecretInput
         value={draft}
         placeholder={field.placeholder}
@@ -112,84 +99,76 @@ export function GeneralSettingsTab({
 }: GeneralSettingsTabProps) {
   return (
     <div className={styles.general}>
+      <h2 className={styles['page-title']}>General</h2>
+
       <SectionCard title="API Keys & Authentication">
-        <div className={styles.stack}>
-          {fields.map((field) => (
-            <SecretField
-              key={field.key}
-              field={field}
-              savedValue={settings[field.key] ?? ''}
-              isVisible={revealedFields[field.key]}
-              onPersist={onPersistSecret}
-              onToggleVisibility={onToggleVisibility}
-            />
-          ))}
-        </div>
+        {fields.map((field) => (
+          <SecretField
+            key={field.key}
+            field={field}
+            savedValue={settings[field.key] ?? ''}
+            isVisible={revealedFields[field.key]}
+            onPersist={onPersistSecret}
+            onToggleVisibility={onToggleVisibility}
+          />
+        ))}
       </SectionCard>
 
       <SectionCard title="Preferences">
-        <div className={styles.divided}>
-          <div className={styles['pref-row']}>
-            <h3 className={styles['setting-title']}>Theme</h3>
-            <ThemeControl />
+        <div className={styles['pref-row']}>
+          <h3 className={styles['setting-title']}>Theme</h3>
+          <ThemeControl />
+        </div>
+        <div className={styles['pref-row']}>
+          <div className={styles['pref-text']}>
+            <h3 className={styles['setting-title']}>Notifications</h3>
+            <p className={styles['field-desc']}>
+              Send notifications for permission requests, questions, and task completion.
+            </p>
           </div>
-          <div className={styles['pref-row-notif']}>
-            <div className={styles['pref-text']}>
-              <h3 className={styles['setting-title']}>Notifications</h3>
-              <p className={styles['field-desc']}>
-                Send notifications for permission requests, questions, and task completion.
-              </p>
-            </div>
-            <Switch
-              checked={settings.notifications_enabled}
-              onCheckedChange={onNotificationsEnabledChange}
-              aria-label="Notifications"
-            />
+          <Switch
+            checked={settings.notifications_enabled}
+            onCheckedChange={onNotificationsEnabledChange}
+            aria-label="Notifications"
+          />
+        </div>
+        <div className={styles['pref-row']}>
+          <div className={styles['pref-text']}>
+            <h3 className={styles['setting-title']}>Auto-steer queued messages</h3>
+            <p className={styles['field-desc']}>
+              Send messages typed while agents are working immediately instead of queuing them until
+              they finish.
+            </p>
           </div>
-          <div className={styles['pref-row-notif']}>
-            <div className={styles['pref-text']}>
-              <h3 className={styles['setting-title']}>Auto-steer queued messages</h3>
-              <p className={styles['field-desc']}>
-                Send messages typed while agents are working immediately instead of queuing them
-                until they finish.
-              </p>
-            </div>
-            <Switch
-              checked={settings.auto_steer_queued_messages}
-              onCheckedChange={onAutoSteerQueuedMessagesChange}
-              aria-label="Auto-steer queued messages"
-            />
+          <Switch
+            checked={settings.auto_steer_queued_messages}
+            onCheckedChange={onAutoSteerQueuedMessagesChange}
+            aria-label="Auto-steer queued messages"
+          />
+        </div>
+        <div className={styles['pref-row']}>
+          <div className={styles['pref-text']}>
+            <h3 className={styles['setting-title']}>Title Generation Model</h3>
+            <p className={styles['field-desc']}>Model used to generate chat titles.</p>
           </div>
-          <div className={styles['pref-row-notif']}>
-            <div className={styles['pref-text']}>
-              <h3 className={styles['setting-title']}>Title Generation Model</h3>
-              <p className={styles['field-desc']}>Model used to generate chat titles.</p>
-            </div>
-            <ModelSelector
-              selectedModelId={settings.title_model_id}
-              onModelChange={onTitleModelChange}
-              compact={false}
-              dropdownAlign="right"
-            />
-          </div>
+          <ModelSelector
+            selectedModelId={settings.title_model_id}
+            onModelChange={onTitleModelChange}
+            compact={false}
+            dropdownAlign="right"
+          />
         </div>
       </SectionCard>
 
       <SectionCard title="Data Management">
-        <div className={styles['data-row']}>
+        <div className={styles['pref-row']}>
           <div className={styles['pref-text']}>
             <h3 className={styles['setting-title']}>Delete All Chats</h3>
             <p className={styles['field-desc']}>
               Permanently delete all chat history. This action cannot be undone.
             </p>
           </div>
-          <Button
-            type="button"
-            onClick={onDeleteAllChats}
-            variant="outline"
-            size="sm"
-            className={styles['delete-button']}
-          >
+          <Button type="button" onClick={onDeleteAllChats} variant="outline" size="sm">
             Delete All
           </Button>
         </div>

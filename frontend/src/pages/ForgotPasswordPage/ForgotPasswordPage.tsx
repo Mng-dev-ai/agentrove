@@ -80,10 +80,10 @@ export function ForgotPasswordPage() {
   if (forgotPasswordMutation.isSuccess) {
     return (
       <AuthSuccessScreen
-        title="Check Your Email"
+        title="Check your email"
         description="We've sent a password reset link to your email"
         infoMessage="Check your email and follow the link to reset your password. The link will expire in 24 hours."
-        buttonLabel="Back to Sign in"
+        buttonLabel="Back to sign in"
         buttonIcon={<ArrowLeft className={styles.icon} />}
         onButtonClick={() => navigate('/login')}
         footer="Can't find the email? Check your spam folder."
@@ -91,12 +91,29 @@ export function ForgotPasswordPage() {
     );
   }
 
-  const title = 'Forgot Password';
+  const title = 'Forgot password';
   const subtitle = 'Enter your email to receive a reset link';
 
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
-      <form onSubmit={handleSubmit} className={styles.form}>
+      <form onSubmit={handleSubmit} className={styles.form} noValidate>
+        <div className={styles.fields}>
+          <div className={styles.field}>
+            <Label htmlFor="email" className={styles.label}>
+              Email address
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              value={values.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              placeholder="name@example.com"
+              hasError={Boolean(errors?.email)}
+            />
+            <FieldMessage variant="error">{errors?.email}</FieldMessage>
+          </div>
+        </div>
+
         {forgotPasswordMutation.error && (
           <AuthErrorBanner>
             <p className={styles['error-text']}>
@@ -118,34 +135,16 @@ export function ForgotPasswordPage() {
           </AuthErrorBanner>
         )}
 
-        <div className={styles.fields}>
-          <div className={styles.field}>
-            <Label htmlFor="email" className={styles.label}>
-              Email address
-            </Label>
-            <Input
-              id="email"
-              type="email"
-              value={values.email}
-              onChange={(e) => handleChange('email', e.target.value)}
-              placeholder="name@example.com"
-              hasError={Boolean(errors?.email)}
-            />
-            <FieldMessage variant="error">{errors?.email}</FieldMessage>
-          </div>
-        </div>
-
         <Button
           type="submit"
           variant="primary"
-          size="lg"
           className={styles.submit}
           isLoading={forgotPasswordMutation.isPending}
           loadingText="Sending..."
           loadingIcon={<Loader2 className={styles['spinner-icon']} />}
         >
           <Mail className={styles.icon} />
-          <span>Send Reset Link</span>
+          <span>Send reset link</span>
           <ArrowRight className={styles.icon} />
         </Button>
       </form>
@@ -158,7 +157,7 @@ export function ForgotPasswordPage() {
           onClick={() => navigate('/login')}
         >
           <ArrowLeft className={styles['icon-sm']} />
-          Back to Sign in
+          Back to sign in
         </Button>
       </div>
     </AuthPageLayout>

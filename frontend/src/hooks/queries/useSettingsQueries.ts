@@ -3,6 +3,7 @@ import type { QueryClient, UseQueryOptions } from '@tanstack/react-query';
 import { settingsService } from '@/services/settingsService';
 import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import { createMutation } from './createMutation';
+import { retryTransientOnce } from './listLoad';
 import { queryKeys } from './queryKeys';
 import { machineSettingsQuery, useMachineSettingsQuery } from './useMachineQueries';
 import { useChatMachineId } from '@/store/machineOrigin';
@@ -11,6 +12,7 @@ import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 const settingsQuery = () => ({
   queryKey: [queryKeys.settings],
   queryFn: () => settingsService.getSettings(),
+  retry: retryTransientOnce,
 });
 
 export const useSettingsQuery = (options?: Partial<UseQueryOptions<UserSettings>>) => {

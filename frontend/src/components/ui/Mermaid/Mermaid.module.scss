@@ -16,25 +16,15 @@
 }
 
 .toggle-btn {
-  @include type.type-default;
+  @include type.type-default(500);
   @include anim.transition-colors;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  border: 1px solid var(--theme-border);
   border-radius: var(--radius-md);
-  background-color: var(--theme-surface-secondary);
-  padding: var(--space-1) var(--space-2);
-  color: var(--theme-text-secondary);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-tertiary);
 
   @include responsive.hover {
-    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
   }
-}
-
-.toggle-icon {
-  height: var(--space-3);
-  width: var(--space-3);
 }
 
 .code-block {
@@ -46,7 +36,7 @@
 }
 
 .code {
-  @include type.type-mono(0.9rem, 1.2rem);
+  @include type.type-mono;
   color: var(--theme-text-primary);
 }
 
@@ -78,7 +68,7 @@
   border: 1px solid colors.status-color('error', 200);
   border-radius: var(--radius-lg);
   background-color: colors.status-color('error', 50);
-  padding: var(--space-4);
+  padding: var(--space-3);
 
   :global([data-theme='dark']) & {
     border-color: colors.status-color('error', 500, 0.2);
@@ -89,19 +79,19 @@
 .error-inner {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .error-icon {
-  margin-top: var(--space-0-5);
-  height: var(--space-5);
-  width: var(--space-5);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
   flex-shrink: 0;
   color: colors.status-color('error', 500);
 }
 
 .error-content {
   flex: 1;
+  min-width: 0;
 }
 
 .error-title {
@@ -114,9 +104,11 @@
 }
 
 .error-message {
-  @include type.type-body;
+  @include type.type-mono-meta;
   margin-top: var(--space-1);
-  color: colors.status-color('error', 600);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: colors.status-color('error', 700);
 
   :global([data-theme='dark']) & {
     color: colors.status-color('error', 300);
@@ -128,7 +120,7 @@
 }
 
 .error-summary {
-  @include type.type-body;
+  @include type.type-meta;
   cursor: pointer;
   color: var(--theme-error-text);
 
@@ -150,7 +142,7 @@
 }
 
 .error-code-text {
-  @include type.type-default;
+  @include type.type-mono-meta;
   color: colors.status-color('error', 800);
 
   :global([data-theme='dark']) & {

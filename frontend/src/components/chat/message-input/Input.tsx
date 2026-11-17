@@ -4,16 +4,15 @@ import type { SendButtonStatus } from './SendButton';
 import { AttachButton } from './AttachButton';
 import { EnhanceButton } from './EnhanceButton';
 import { Textarea } from './Textarea';
-import { InputControls } from './InputControls';
+import { ComposerFooter, ModelControls } from './InputControls';
 import { ComposerField } from './ComposerField';
 import { ComposerAttachmentSlots } from './ComposerAttachmentSlots';
 import { SelectionAttachments } from './SelectionAttachments';
 import { InputSuggestionsPanel } from './InputSuggestionsPanel';
-import { ContextUsageIndicator } from './ContextUsageIndicator';
 import { InputProvider } from './InputProvider';
 import { useInputContext } from '@/hooks/useInputContext';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
-import styles from './Input.module.scss';
+import type { DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
 
 export interface InputProps {
   message: string;
@@ -27,13 +26,13 @@ export interface InputProps {
   placeholder?: string;
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
-  dropdownPosition?: 'top' | 'bottom';
+  dropdownPosition?: DropdownPosition;
   showAttachedFilesPreview?: boolean;
   contextUsage?: ContextUsageInfo;
-  showTip?: boolean;
   // Landing hosts branch selection in its own composer control, so its footer hides it.
   showBranch?: boolean;
-  compact?: boolean;
+  // Text on its own row above the controls even when it would fit beside them
+  stacked?: boolean;
   chatId?: string;
   machineId?: string;
   showLoadingSpinner?: boolean;
@@ -43,12 +42,12 @@ export interface InputProps {
 export const Input = memo(function Input(props: InputProps) {
   return (
     <InputProvider {...props}>
-      <InputLayout />
+      <InputLayout stacked={props.stacked} />
     </InputProvider>
   );
 });
 
-function InputLayout() {
+function InputLayout({ stacked }: { stacked?: boolean }) {
   const { state, actions, meta } = useInputContext();
 
   const sendStatus: SendButtonStatus = state.isStreaming
@@ -64,7 +63,10 @@ function InputLayout() {
   return (
     <ComposerField
       ref={meta.formRef}
+      stacked={stacked}
       onSubmit={actions.handleSubmit}
+      message={state.message}
+      placeholders={state.placeholders}
       isDragging={state.isDragging}
       dragHandlers={meta.dragHandlers}
       attachments={
@@ -90,37 +92,41 @@ function InputLayout() {
           />
         </>
       }
-      textarea={
+      leading={
+        <AttachButton
+          disabled={state.isDisabled}
+          onAttach={() => {
+            actions.resetDragState();
+            actions.setShowFileUpload(true);
+          }}
+        />
+      }
+      textarea={(placeholder) => (
         <>
           <Textarea
             ref={meta.textareaRef}
             message={state.message}
             setMessage={actions.setMessage}
-            placeholder={state.placeholder}
+            placeholder={placeholder}
             isLoading={state.isLoading}
             disabled={state.isDisabled}
             onKeyDown={actions.handleKeyDown}
             onPaste={actions.handlePaste}
             onCursorPositionChange={actions.setCursorPosition}
-            compact={state.compact}
           />
           <InputSuggestionsPanel />
         </>
-      }
-      actions={
+      )}
+      trailing={
         <>
-          <EnhanceButton
-            onEnhance={actions.handleEnhancePrompt}
-            isEnhancing={state.isEnhancing}
-            disabled={state.isLoading || !state.hasMessage}
-          />
-          <AttachButton
-            disabled={state.isDisabled}
-            onAttach={() => {
-              actions.resetDragState();
-              actions.setShowFileUpload(true);
-            }}
-          />
+          {state.hasMessage && (
+            <EnhanceButton
+              onEnhance={actions.handleEnhancePrompt}
+              isEnhancing={state.isEnhancing}
+              disabled={state.isLoading}
+            />
+          )}
+          <ModelControls />
           <SendButton
             status={sendStatus}
             disabled={sendStatus === 'idle' || state.isEnhancing || state.isDisabled}
@@ -131,20 +137,7 @@ function InputLayout() {
         </>
       }
     >
-      <div className={styles['footer-row']}>
-        <div className={styles['context-slot']}>
-          {state.contextUsage && <ContextUsageIndicator usage={state.contextUsage} />}
-        </div>
-        <InputControls />
-      </div>
-
-      {state.showTip && !state.hasAttachments && (
-        <div className={styles.tip}>
-          <span className={styles['tip-label']}>Tip:</span> Drag and drop or paste images, pdfs and
-          xlsx files into the input area, type `/` for slash commands, or `@` to mention files and
-          agents
-        </div>
-      )}
+      <ComposerFooter />
     </ComposerField>
   );
 }

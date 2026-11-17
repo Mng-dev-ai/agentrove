@@ -5,9 +5,9 @@ import styles from './Tooltip.module.scss';
 interface TooltipProps {
   content: string;
   children: ReactNode;
-  // 'bottom-end' drops below the trigger but right-aligns the bubble, so tooltips
-  // on right-edge controls (e.g. the view switcher) grow leftward and never clip.
-  position?: 'top' | 'right' | 'bottom' | 'bottom-end' | 'left';
+  // The '-end' variants right-align the bubble, so tooltips on right-edge
+  // controls (e.g. the view switcher) grow leftward and never clip.
+  position?: 'top' | 'top-end' | 'right' | 'bottom' | 'bottom-end' | 'left';
 }
 
 export function Tooltip({ content, children, position = 'right' }: TooltipProps) {

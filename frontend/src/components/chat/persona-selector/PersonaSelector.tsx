@@ -21,6 +21,7 @@ const DEFAULT_OPTION: PersonaOption = { value: DEFAULT_PERSONA, label: 'Default'
 interface PersonaDropdownControlProps {
   dropdownPosition?: DropdownPosition;
   disabled?: boolean;
+  compact?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
 }
@@ -38,6 +39,7 @@ export const PersonaDropdown = memo(function PersonaDropdown({
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
+  compact,
   variant = 'default',
 }: PersonaDropdownProps) {
   const isSplitMode = useIsSplitMode();
@@ -63,8 +65,8 @@ export const PersonaDropdown = memo(function PersonaDropdown({
       width="10rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
-      compactOnMobile
-      forceCompact={isSplitMode}
+      compactOnMobile={compact ?? true}
+      forceCompact={compact ?? isSplitMode}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
     />

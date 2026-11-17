@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Eye, EyeOff, AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import styles from './Mermaid.module.scss';
@@ -90,12 +90,7 @@ export function Mermaid({ content }: MermaidProps) {
           className={styles['toggle-btn']}
           disabled={state.status === 'loading'}
         >
-          {showPreview ? (
-            <Eye className={styles['toggle-icon']} />
-          ) : (
-            <EyeOff className={styles['toggle-icon']} />
-          )}
-          {showPreview ? 'Show Code' : 'Show Preview'}
+          {showPreview ? 'Show code' : 'Show preview'}
         </Button>
       </div>
 

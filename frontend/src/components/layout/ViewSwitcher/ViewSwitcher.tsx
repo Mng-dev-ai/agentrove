@@ -37,9 +37,13 @@ export function ViewSwitcher() {
   const activeAgentTile = useUIStore((s) => s.activeAgentTile);
   const splitChatIds = useUIStore((s) => s.splitChatIds);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
-  const sessionPanelOpen = useUIStore((s) => s.sessionPanelOpen);
   const isLandingPage = useMatch('/');
   const isMobile = useIsMobile();
+  const sessionPanelOpen = useUIStore((s) =>
+    isMobile ? s.mobileSessionPanelOpen : s.sessionPanelOpen,
+  );
+  // Phones show one view at a time; an open session panel covers the workspace.
+  const panelCoversWorkspace = isMobile && sessionPanelOpen;
 
   // Active state matches the tile toggleView() will act on (focused split pane).
   const slot = activeSplitSlot(activeAgentTile, splitChatIds);
@@ -50,7 +54,7 @@ export function ViewSwitcher() {
     <div className={styles['view-switcher']}>
       {SWITCHABLE_VIEWS.map((view) => {
         const Icon = VIEW_ICONS[view];
-        const isActive = visibleSet.has(viewTypeToTileId(view, slot));
+        const isActive = !panelCoversWorkspace && visibleSet.has(viewTypeToTileId(view, slot));
         return (
           <Tooltip key={view} content={viewTooltip(view)} position="bottom-end">
             <Button
@@ -79,11 +83,11 @@ export function ViewSwitcher() {
           </Tooltip>
         );
       })}
-      {!isLandingPage && !isMobile && (
+      {!isLandingPage && (
         <Tooltip content={SESSION_PANEL_TOOLTIP} position="bottom-end">
           <Button
             variant="unstyled"
-            onClick={() => useUIStore.getState().setSessionPanelOpen(!sessionPanelOpen)}
+            onClick={() => useUIStore.getState().toggleSessionPanel()}
             className={styles['view-button']}
             aria-label="Toggle session panel"
             aria-pressed={sessionPanelOpen}

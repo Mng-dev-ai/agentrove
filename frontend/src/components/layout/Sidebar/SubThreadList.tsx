@@ -77,7 +77,13 @@ const SubThreadRow = memo(function SubThreadRow({
               {showSpinner ? (
                 <AsciiSpinner className={styles['subthread-spinner']} />
               ) : agentKind ? (
-                <ProviderIcon agentKind={agentKind} className={styles['provider-icon']} />
+                <ProviderIcon
+                  agentKind={agentKind}
+                  className={clsx(
+                    styles['provider-icon'],
+                    !isHovered && !isActive && styles['provider-icon--muted'],
+                  )}
+                />
               ) : null}
               {statusTone && (
                 <ChatStatusDot
@@ -116,6 +122,8 @@ const SubThreadRow = memo(function SubThreadRow({
   );
 });
 
+const COLLAPSED_ROW_LIMIT = 5;
+
 interface SubThreadListProps {
   parentChatId: string;
   selectedChatId: string | null;
@@ -139,6 +147,7 @@ export const SubThreadList = memo(function SubThreadList({
 }: SubThreadListProps) {
   const { data: subThreads, isLoading, isError, refetch } = useSubThreadsQuery(parentChatId);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleMouseEnter = useCallback((id: string) => setHoveredId(id), []);
   const handleMouseLeave = useCallback(() => setHoveredId(null), []);
@@ -158,17 +167,28 @@ export const SubThreadList = memo(function SubThreadList({
 
   if (!subThreads || subThreads.length === 0) return null;
 
+  const rows = subThreads.map((thread) => ({
+    thread,
+    isActive: thread.id === selectedChatId || splitChatIds.includes(thread.id),
+    isStreaming: streamingChatIdSet.has(thread.id),
+    isBlocked: blockedChatIdSet.has(thread.id),
+  }));
+  // Active, running and blocked rows stay visible past the limit so they're never buried
+  const collapsedRows = rows.filter(
+    (row, index) => index < COLLAPSED_ROW_LIMIT || row.isActive || row.isStreaming || row.isBlocked,
+  );
+  const hiddenCount = rows.length - collapsedRows.length;
+  const visibleRows = isExpanded ? rows : collapsedRows;
+
   return (
     <div className={styles.branch}>
-      <div className={styles['list-line']} />
-
-      {subThreads.map((thread) => (
+      {visibleRows.map(({ thread, isActive, isStreaming, isBlocked }) => (
         <SubThreadRow
           key={thread.id}
           thread={thread}
-          isActive={thread.id === selectedChatId || splitChatIds.includes(thread.id)}
-          isStreaming={streamingChatIdSet.has(thread.id)}
-          isBlocked={blockedChatIdSet.has(thread.id)}
+          isActive={isActive}
+          isStreaming={isStreaming}
+          isBlocked={isBlocked}
           isCompleted={completedChatIdSet.has(thread.id)}
           isHovered={hoveredId === thread.id}
           onSelect={onSelect}
@@ -177,6 +197,18 @@ export const SubThreadList = memo(function SubThreadList({
           onMouseLeave={handleMouseLeave}
         />
       ))}
+      {hiddenCount > 0 && (
+        <Button
+          variant="unstyled"
+          type="button"
+          onClick={() => setIsExpanded((expanded) => !expanded)}
+          aria-expanded={isExpanded}
+          className={styles['more-toggle']}
+        >
+          <span className={styles.connector} />
+          {isExpanded ? 'Show less' : `Show ${hiddenCount} more`}
+        </Button>
+      )}
     </div>
   );
 });

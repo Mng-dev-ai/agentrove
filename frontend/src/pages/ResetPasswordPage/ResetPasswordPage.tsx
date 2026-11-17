@@ -93,12 +93,12 @@ export function ResetPasswordPage() {
     () => [
       {
         name: 'password' as const,
-        label: 'New Password',
+        label: 'New password',
         placeholder: 'Enter new password (min. 8 characters)',
       },
       {
         name: 'confirmPassword' as const,
-        label: 'Confirm Password',
+        label: 'Confirm password',
         placeholder: 'Confirm your new password',
       },
     ],
@@ -110,43 +110,22 @@ export function ResetPasswordPage() {
   if (resetPasswordMutation.isSuccess) {
     return (
       <AuthSuccessScreen
-        title="Password Reset"
+        title="Password reset"
         description="Your password has been updated"
         infoMessage="Password has been reset successfully! You can now log in with your new password."
-        buttonLabel="Sign In"
+        buttonLabel="Sign in"
         buttonIcon={<ArrowRight className={styles.icon} />}
         onButtonClick={() => navigate('/login')}
       />
     );
   }
 
-  const title = 'Reset Password';
+  const title = 'Reset password';
   const subtitle = 'Enter your new password';
 
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
-      <form onSubmit={handleSubmit} className={styles.form}>
-        {(tokenError || resetPasswordMutation.error) && (
-          <AuthErrorBanner>
-            <p className={styles['error-text']}>
-              {tokenError || resetPasswordMutation.error?.message}
-            </p>
-            {(tokenError?.includes('token') ||
-              resetPasswordMutation.error?.message?.includes('token')) && (
-              <div className={styles['error-cta']}>
-                <Button
-                  type="button"
-                  variant="link"
-                  className={styles['error-link']}
-                  onClick={() => navigate('/forgot-password')}
-                >
-                  Request a new reset link
-                </Button>
-              </div>
-            )}
-          </AuthErrorBanner>
-        )}
-
+      <form onSubmit={handleSubmit} className={styles.form} noValidate>
         <div className={styles.fields}>
           {fieldConfigs.map(({ name, label, placeholder }) => (
             <div key={name} className={styles.field}>
@@ -184,10 +163,30 @@ export function ResetPasswordPage() {
           ))}
         </div>
 
+        {(tokenError || resetPasswordMutation.error) && (
+          <AuthErrorBanner>
+            <p className={styles['error-text']}>
+              {tokenError || resetPasswordMutation.error?.message}
+            </p>
+            {(tokenError?.includes('token') ||
+              resetPasswordMutation.error?.message?.includes('token')) && (
+              <div className={styles['error-cta']}>
+                <Button
+                  type="button"
+                  variant="link"
+                  className={styles['error-link']}
+                  onClick={() => navigate('/forgot-password')}
+                >
+                  Request a new reset link
+                </Button>
+              </div>
+            )}
+          </AuthErrorBanner>
+        )}
+
         <Button
           type="submit"
           variant="primary"
-          size="lg"
           className={styles.submit}
           isLoading={isSubmitting}
           loadingText="Resetting..."
@@ -195,7 +194,7 @@ export function ResetPasswordPage() {
           disabled={!token || isSubmitting}
         >
           <Lock className={styles.icon} />
-          <span>Reset Password</span>
+          <span>Reset password</span>
           <ArrowRight className={styles.icon} />
         </Button>
       </form>
@@ -208,7 +207,7 @@ export function ResetPasswordPage() {
           onClick={() => navigate('/login')}
         >
           <ArrowLeft className={styles['icon-sm']} />
-          Back to Sign in
+          Back to sign in
         </Button>
       </div>
     </AuthPageLayout>

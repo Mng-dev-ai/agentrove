@@ -1,51 +1,22 @@
-@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
 .dialog {
+  display: flex;
+  max-height: 100%;
+  flex-direction: column;
   overflow: visible;
 }
 
+// The body scrolls so a tall form never pushes the actions off a short viewport
 .body {
+  min-height: 0;
+  overflow-y: auto;
   padding: var(--space-5);
 }
 
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2-5);
-}
-
-.icon-box {
-  display: flex;
-  height: var(--space-8);
-  width: var(--space-8);
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-lg);
-  background-color: var(--theme-surface-tertiary);
-}
-
-.header-icon {
-  height: var(--space-4);
-  width: var(--space-4);
-  color: var(--theme-text-tertiary);
-}
-
-.title {
-  @include type.type-body(500);
-  color: var(--theme-text-primary);
-}
-
-.subtitle {
-  @include type.type-mono-meta;
-  color: var(--theme-text-tertiary);
-}
-
 .no-remote {
-  margin-top: var(--space-4);
   @include type.type-default;
   color: var(--theme-text-tertiary);
 }
@@ -53,14 +24,13 @@
 .fields {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  margin-top: var(--space-4);
+  gap: var(--space-4);
 }
 
 .label {
-  @include type.type-section-header;
-  display: block;
+  @include type.type-default;
   margin-bottom: var(--space-1-5);
+  color: var(--theme-text-secondary);
 }
 
 .title-input {
@@ -77,7 +47,8 @@
 }
 
 .field-label {
-  @include type.type-section-header;
+  @include type.type-default;
+  color: var(--theme-text-secondary);
 }
 
 .tooltip-wrap {
@@ -129,9 +100,14 @@
 .row {
   display: flex;
   gap: var(--space-3);
+
+  @include responsive.media('mobile') {
+    flex-direction: column;
+  }
 }
 
 .col {
+  min-width: 0;
   flex: 1;
 }
 
@@ -150,10 +126,6 @@
   text-decoration: underline;
 }
 
-.footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
-  border-top: 1px solid colors.theme-color('border', 0.5);
-  padding: var(--space-3-5) var(--space-5);
+.github-error {
+  margin-top: 0;
 }

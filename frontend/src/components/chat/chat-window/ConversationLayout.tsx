@@ -1,4 +1,5 @@
 import type { ReactNode, Ref } from 'react';
+import clsx from 'clsx';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ScrollButton } from './ScrollButton';
 import styles from './ConversationLayout.module.scss';
@@ -21,7 +22,7 @@ export function ConversationLayout({
   return (
     <div className={styles.conversation}>
       <div className={styles.viewport}>{children}</div>
-      <div className={styles.composer}>
+      <div className={clsx(styles.composer, showScrollButton && styles['composer--scrolled'])}>
         {showScrollButton && <ScrollButton onClick={onScrollToBottom} />}
         <div className={styles['composer-surface']}>
           <div className={styles['composer-inner']}>

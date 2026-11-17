@@ -1,8 +1,30 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 
 const AT_BOTTOM_THRESHOLD_PX = 200;
 const TOP_PAGINATION_TRIGGER_PX = 50;
 const TOP_PAGINATION_ARM_VIEWPORT_MULTIPLIER = 1.5;
+
+// Clamped: rubber-band overscroll reports positions outside the scroll range.
+function clampedScrollTop(node: HTMLElement) {
+  return Math.min(Math.max(node.scrollTop, 0), node.scrollHeight - node.clientHeight);
+}
+
+// Every instant write moves the direction baseline with it, or a user scroll coalesced
+// into the same scroll event would be measured from the pre-write position.
+function writeScrollTop(
+  node: HTMLElement,
+  top: number,
+  lastScrollTopRef: { current: number | null },
+) {
+  node.scrollTop = top;
+  lastScrollTopRef.current = clampedScrollTop(node);
+}
+
+// Net of the content's bottom padding, so the anchored turn top is exactly max scroll.
+function reservedTurnHeight(scroller: HTMLElement, content: Element) {
+  return scroller.clientHeight - parseFloat(getComputedStyle(content).paddingBottom);
+}
 
 interface UseChatScrollParams {
   chatId: string | undefined;
@@ -64,21 +86,35 @@ export function useChatScroll({
     const container = scrollerRef.current;
     if (!container) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = container;
+    const { scrollHeight, clientHeight } = container;
+    const scrollTop = clampedScrollTop(container);
     const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    const atBottom = distanceFromBottom <= AT_BOTTOM_THRESHOLD_PX;
-    const isScrollingUp = lastScrollTopRef.current !== null && scrollTop < lastScrollTopRef.current;
+    const lastScrollTop = lastScrollTopRef.current;
+    // Fractional scrollTop at non-integer device pixel ratios jitters by under a pixel.
+    const isScrollingUp = lastScrollTop !== null && lastScrollTop - scrollTop >= 1;
+    const isScrollingDown = lastScrollTop !== null && scrollTop > lastScrollTop;
+    // Direction, not distance, decides: any up-scroll leaves the bottom and only scrolling
+    // down near it (or reaching it) returns. Distance alone would misread content that
+    // grew past the threshold (stream end, the send's reserve) as the reader leaving, and
+    // a small up-scroll within it as staying. Content shrinking clamps scrollTop down too,
+    // but leaves the reader at max scroll.
+    const atBottom = isAtBottomRef.current
+      ? !isScrollingUp || distanceFromBottom <= 1
+      : distanceFromBottom <= 1 ||
+        (isScrollingDown && distanceFromBottom <= AT_BOTTOM_THRESHOLD_PX);
 
     // Settle the anchor on reaching its target or on user up-scroll — not on atBottom,
     // which never arrives when the reply outgrows the spacer mid-flight.
     if (anchoringRef.current && (scrollTop >= anchorTargetRef.current - 1 || isScrollingUp)) {
       anchoringRef.current = false;
-      setShowScrollButton(!atBottom);
+      // An instant write stops the smooth scroll, whose remaining downward steps would
+      // otherwise re-pin the reader who just scrolled up.
+      if (isScrollingUp) writeScrollTop(container, scrollTop, lastScrollTopRef);
     }
 
     if (isAtBottomRef.current !== atBottom) {
       isAtBottomRef.current = atBottom;
-      setShowScrollButton(!atBottom && !anchoringRef.current);
+      setShowScrollButton(!atBottom);
     }
 
     if (atBottom) {
@@ -119,7 +155,7 @@ export function useChatScroll({
 
     // rAF so layout has committed before measuring scrollHeight.
     const raf = requestAnimationFrame(() => {
-      container.scrollTop = container.scrollHeight;
+      writeScrollTop(container, container.scrollHeight, lastScrollTopRef);
       hasInitializedToBottomRef.current = true;
     });
     // Cancel so a chat switch or unmount can't let the stale frame scroll the
@@ -135,7 +171,7 @@ export function useChatScroll({
     const container = scrollerRef.current;
     if (!container) return;
 
-    container.scrollTop = container.scrollHeight - prevHeight;
+    writeScrollTop(container, container.scrollHeight - prevHeight, lastScrollTopRef);
     prevScrollHeightRef.current = null;
   }, [messages]);
 
@@ -143,9 +179,13 @@ export function useChatScroll({
     // Send anchor, step 1 of a two-commit handshake: reserve a viewport of space under
     // the new turn (the reply streams into it instead of growing the page); the state
     // commit re-fires step 2, which scrolls once the spacer exists in the DOM.
-    if (!pendingUserMessageId || !scrollerRef.current) return;
+    const scroller = scrollerRef.current;
+    if (!pendingUserMessageId || !scroller?.firstElementChild) return;
     anchorTurnRef.current = pendingUserMessageId;
-    setTurnMinHeight(scrollerRef.current.clientHeight);
+    // Sending takes the reader to the new turn, wherever they had scrolled to.
+    isAtBottomRef.current = true;
+    setShowScrollButton(false);
+    setTurnMinHeight(reservedTurnHeight(scroller, scroller.firstElementChild));
   }, [pendingUserMessageId]);
 
   useLayoutEffect(() => {
@@ -192,7 +232,7 @@ export function useChatScroll({
       contentResizeObserverRef.current = null;
       scrollerRef.current = node;
       if (node) {
-        lastScrollTopRef.current = node.scrollTop;
+        lastScrollTopRef.current = clampedScrollTop(node);
         node.addEventListener('scroll', handleScroll, { passive: true });
         // Stick to bottom whenever the content grows while the user is anchored
         // there. Growth comes from stream flushes, the word-reveal animation
@@ -202,17 +242,27 @@ export function useChatScroll({
         // Skipped mid-anchor: an instant snap would cancel the send's smooth scroll.
         const content = node.firstElementChild;
         if (content) {
+          let height = node.clientHeight;
           const observer = new ResizeObserver(() => {
+            // The reserve tracks the viewport height (window resize, mobile keyboard);
+            // committed synchronously so the snap below lands before paint. Height only:
+            // a sync commit while a panel animates the width loops this observer in WebKit.
+            if (node.clientHeight !== height) {
+              height = node.clientHeight;
+              flushSync(() =>
+                setTurnMinHeight((height) => height && reservedTurnHeight(node, content)),
+              );
+            }
+            // Settles a user scroll whose event hasn't fired yet before the snap would
+            // overwrite it; also re-checks at-bottom when shrinking content (a collapsed
+            // rollup) leaves scrollTop unchanged so no scroll event fires.
+            handleScroll();
             if (isAtBottomRef.current && !anchoringRef.current) {
-              node.scrollTop = node.scrollHeight;
-            } else {
-              // Content shrinking (e.g. collapsing a rollup) may leave scrollTop
-              // unchanged so no scroll event fires — re-check at-bottom state or
-              // the scroll button stays visible with nothing left to scroll.
-              handleScroll();
+              writeScrollTop(node, node.scrollHeight, lastScrollTopRef);
             }
           });
           observer.observe(content);
+          observer.observe(node);
           contentResizeObserverRef.current = observer;
         }
       }

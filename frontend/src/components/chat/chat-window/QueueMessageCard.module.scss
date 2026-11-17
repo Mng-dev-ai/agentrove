@@ -161,6 +161,7 @@
 
 .action-btn {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   display: inline-flex;
   height: var(--space-5);
   align-items: center;

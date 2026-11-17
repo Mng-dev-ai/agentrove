@@ -31,7 +31,6 @@ export const ListDirTool = memo(function ListDirTool({ tool }: { tool: ToolAggre
             return `Listing ${dirName}...`;
         }
       }}
-      loadingContent="Listing directory..."
       error={tool.error}
     >
       {listing && <pre className={toolText['output-pre']}>{listing}</pre>}

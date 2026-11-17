@@ -62,6 +62,7 @@
 .title-bar {
   @include z.z('titlebar');
   @include type.type-noselect;
+  position: relative;
   display: flex;
   // 2.5rem bar + the iOS top inset (0 on desktop/web)
   height: calc(var(--space-10) + var(--safe-area-top));
@@ -74,19 +75,26 @@
   width: auto;
   align-items: center;
   gap: var(--space-1);
-  background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface);
   padding-top: var(--safe-area-top);
-  border-bottom: 1px solid colors.theme-color('border', 0.5);
   transition-property: width, padding;
   transition-duration: var(--sidebar-transition-duration, var(--duration-slower));
   transition-timing-function: var(--easing-in-out);
 
   // While the sidebar is open the left section becomes its header strip:
-  // full sidebar width, right border merging into the sidebar, no hairline below.
+  // full sidebar width, sidebar fill, right border merging into the sidebar's edge.
   &--docked {
     width: var(--sidebar-width);
-    border-bottom: none;
+    background-color: var(--theme-surface-secondary);
     border-right: 1px solid colors.theme-color('border', 0.5);
+
+    // The mobile sidebar overlays the page, so its header strip overlays the bar
+    // instead of squeezing the band past the viewport edge.
+    @include responsive.media('mobile') {
+      position: absolute;
+      inset-block: 0;
+      left: 0;
+    }
   }
 }
 
@@ -94,18 +102,35 @@
   margin-left: var(--space-3);
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  // Same box and spacing as the view switcher on the right
+  gap: var(--space-0-5);
+
+  @include responsive.media('touch') {
+    gap: var(--space-1);
+  }
 }
 
 .icon-button {
-  height: var(--space-8);
-  width: var(--space-8);
+  @include responsive.touch-target;
+  height: var(--space-7);
+  width: var(--space-7);
+
+  @include responsive.hover {
+    .icon-button-glyph {
+      color: var(--theme-text-primary);
+    }
+  }
 }
 
+// Rests like the view switcher's buttons: tertiary, one step dimmer under dark
 .icon-button-glyph {
-  height: var(--space-4);
-  width: var(--space-4);
-  color: var(--theme-text-secondary);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-tertiary);
+
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-quaternary);
+  }
 }
 
 .spacer {
@@ -120,8 +145,7 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  border-bottom: 1px solid colors.theme-color('border', 0.5);
-  background-color: var(--theme-surface-secondary);
+  background-color: var(--theme-surface);
   padding-inline: var(--space-3);
   padding-top: var(--safe-area-top);
 }

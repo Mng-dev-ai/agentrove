@@ -2,8 +2,10 @@ import { Suspense, useCallback, useMemo, useState } from 'react';
 import { Clock, Server, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
-import { Button } from '@/components/ui/primitives/Button/Button';
+import {
+  ListItemAction,
+  ListManagementTab,
+} from '@/components/ui/ListManagementTab/ListManagementTab';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
 import { useMachineFilter } from '@/hooks/useMachineFilter';
@@ -129,7 +131,7 @@ function AutomationTargetChip({ machineId, channelId }: { machineId: string; cha
 
 export function AutomationsSettingsTab() {
   const { localSettings } = useSettingsContext();
-  const allItems = useAutomationsAcrossMachines();
+  const { items: allItems, load } = useAutomationsAcrossMachines();
   const machines = useMachineStore((state) => state.machines);
   const connections = useMachineStore((state) => state.connections);
   const machineNames = useMemo(
@@ -328,6 +330,7 @@ export function AutomationsSettingsTab() {
         items={items}
         emptyIcon={Clock}
         emptyText="No automations configured yet"
+        loadError={{ message: "Couldn't load automations", load }}
         emptyButtonText="Add your first automation"
         addButtonText="Add automation"
         deleteConfirmTitle="Delete automation"
@@ -373,16 +376,13 @@ export function AutomationsSettingsTab() {
         )}
         renderItemActions={(item) => (
           <>
-            <Button
-              variant="unstyled"
+            <ListItemAction
+              icon={Play}
+              label="Run now"
+              title="Run now"
               onClick={() => void handleRunNow(item)}
               disabled={runMutation.isPending}
-              className={styles['run-button']}
-              aria-label="Run now"
-              title="Run now"
-            >
-              <Play className={styles['run-icon']} />
-            </Button>
+            />
             <Switch
               size="sm"
               className={styles.toggle}

@@ -1,0 +1,30 @@
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.error {
+  @include type.type-meta;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1-5);
+  padding-bottom: var(--space-2);
+  color: var(--theme-text-tertiary);
+}
+
+.retry {
+  @include type.type-meta;
+  @include anim.transition-colors;
+  @include responsive.touch-target;
+  color: var(--theme-text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+
+  &:disabled {
+    text-decoration: none;
+    color: var(--theme-text-tertiary);
+  }
+}

@@ -6,7 +6,7 @@
 
 .code-block {
   position: relative;
-  margin: var(--space-4) 0;
+  margin: calc(var(--space-4) * var(--markdown-rhythm)) 0;
 }
 
 .code-header {
@@ -43,6 +43,8 @@
 }
 
 .code-pre {
+  // The pre's strut sets the code line spacing; keep it off the looser prose leading
+  @include type.type-mono(type.$type-body-size, type.$type-body-line-height);
   overflow-x: auto;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-lg);

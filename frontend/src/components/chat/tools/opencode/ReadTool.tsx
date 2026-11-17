@@ -35,7 +35,6 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
             return `Reading ${fileName}...`;
         }
       }}
-      loadingContent="Loading file content..."
       error={tool.error}
       actions={filePath ? <OpenInEditorButton filePath={filePath} /> : null}
     >

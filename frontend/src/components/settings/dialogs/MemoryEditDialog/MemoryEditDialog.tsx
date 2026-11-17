@@ -6,6 +6,7 @@ import { Select } from '@/components/ui/primitives/Select/Select';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import { machineName } from '@/store/machineStore';
@@ -44,10 +45,9 @@ export function MemoryEditDialog({
       ]
     : machineOptions;
   return (
-    <BaseModal isOpen={isOpen} onClose={onClose} size="4xl" className={styles.dialog}>
+    <BaseModal isOpen={isOpen} onClose={onClose} size="md">
+      <ModalHeader title={isEditing ? 'Edit Memory' : 'Add Memory'} onClose={onClose} />
       <div className={styles.body}>
-        <h3 className={styles.title}>{isEditing ? 'Edit Memory' : 'Add Memory'}</h3>
-
         <DialogError
           error={error ?? (machineOffline ? "This memory's machine is offline" : null)}
           className={styles.error}
@@ -73,7 +73,7 @@ export function MemoryEditDialog({
               placeholder="Use pnpm for installs and scripts in every repo."
               maxLength={500}
               className={styles['content-textarea']}
-              rows={6}
+              rows={10}
             />
             <p className={styles.hint}>{memory.content.length}/500 characters</p>
           </div>
@@ -134,15 +134,14 @@ export function MemoryEditDialog({
             />
           </div>
         </div>
-
-        <DialogFooter
-          onCancel={onClose}
-          onSave={onSubmit}
-          saveLabel={isEditing ? 'Update' : 'Add Memory'}
-          saving={isSaving}
-          disabled={!memory.title.trim() || !memory.content.trim() || machineOffline}
-        />
       </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={onSubmit}
+        saveLabel={isEditing ? 'Update' : 'Add Memory'}
+        saving={isSaving}
+        disabled={!memory.title.trim() || !memory.content.trim() || machineOffline}
+      />
     </BaseModal>
   );
 }

@@ -36,7 +36,6 @@ export interface TextareaProps {
   onKeyDown: (e: React.KeyboardEvent) => void;
   onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onCursorPositionChange?: (position: number) => void;
-  compact?: boolean;
 }
 
 const CURSOR_DEBOUNCE_MS = 150;
@@ -51,7 +50,6 @@ export function Textarea({
   onKeyDown,
   onPaste,
   onCursorPositionChange,
-  compact,
 }: TextareaProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = (ref as React.RefObject<HTMLTextAreaElement>) || internalRef;
@@ -68,7 +66,7 @@ export function Textarea({
     }
   }, [textareaRef]);
 
-  useLayoutEffect(() => {
+  const fitHeight = useCallback(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
@@ -76,7 +74,40 @@ export function Textarea({
     }
     // Content changes can shift the textarea's scroll position without a scroll event
     syncBackdropScroll();
-  }, [message, textareaRef, syncBackdropScroll]);
+  }, [textareaRef, syncBackdropScroll]);
+
+  useLayoutEffect(() => {
+    fitHeight();
+  }, [message, fitHeight]);
+
+  const widthRef = useRef(0);
+  const fitToWidth = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (!textarea || textarea.clientWidth === widthRef.current) return;
+    widthRef.current = textarea.clientWidth;
+    fitHeight();
+  }, [textareaRef, fitHeight]);
+
+  // The composer re-lays out after a message change (single row vs. own row) in a later
+  // commit, which changes the wrap width without changing the message.
+  useLayoutEffect(fitToWidth);
+
+  // Window and panel resizes refit a frame later: resizing the composer inside the callback
+  // would re-resize the chat scroller, which observers already handled in this frame.
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fitToWidth);
+    });
+    observer.observe(textarea);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [textareaRef, fitToWidth]);
 
   useEffect(() => {
     if (!isLoading && textareaRef.current && !isMobile) {
@@ -173,7 +204,6 @@ export function Textarea({
         className={clsx(
           styles['textarea-field'],
           hasTokens && styles['textarea-field--highlighted'],
-          isMobile && compact && styles['textarea-field--compact'],
         )}
         style={THIN_SCROLLBAR_STYLE}
         aria-label="Message input"

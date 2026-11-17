@@ -67,7 +67,7 @@
 
 .category-summary {
   @include type.type-overflow;
-  color: var(--theme-text-quaternary);
+  color: var(--theme-text-tertiary);
 
   &--active {
     font-weight: 500;

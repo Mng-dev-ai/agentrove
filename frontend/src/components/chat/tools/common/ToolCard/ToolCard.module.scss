@@ -30,6 +30,14 @@
 
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
+
+    .chevron {
+      opacity: 1;
+    }
+  }
+
+  &:focus .chevron {
+    opacity: 1;
   }
 }
 
@@ -59,8 +67,7 @@
 
 .title {
   display: block;
-  // TODO(refactor): no spacing token for 28rem (old max-w-md); scale skips 24rem→32rem
-  max-width: 33.6rem;
+  max-width: var(--space-112);
   @include type.type-meta;
   @include type.type-overflow;
   color: var(--theme-text-tertiary);
@@ -70,11 +77,22 @@
   height: var(--space-3);
   width: var(--space-3);
   color: var(--theme-text-quaternary);
-  transition: transform var(--duration-base);
+  transition:
+    transform var(--duration-base),
+    opacity var(--duration-fast);
+
+  // Touch has no hover to reveal it, so it stays visible there
+  @include responsive.media('not-touch') {
+    opacity: 0;
+  }
 }
 
 .chevron--expanded {
   transform: rotate(90deg);
+
+  @include responsive.media('not-touch') {
+    opacity: 1;
+  }
 }
 
 .meta {

@@ -36,7 +36,6 @@ export const AgentRoveTool = memo(function AgentRoveTool({ tool }: { tool: ToolA
       status={tool.status}
       title={`AgentRove · ${label}`}
       statusDetail={summary}
-      loadingContent="Calling AgentRove…"
       error={tool.error}
     >
       {hasDetails ? (

@@ -34,6 +34,9 @@
 
 .inline-ask-close {
   @include anim.transition-colors;
+  @include responsive.touch-target;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
   color: var(--theme-text-tertiary);
 
   @include responsive.hover {
@@ -69,6 +72,7 @@
 
 .inline-ask-submit {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   border-radius: var(--radius-md);
   padding: var(--space-1-5);
   color: var(--theme-text-tertiary);

@@ -32,7 +32,6 @@ export const WebFetchTool = memo(function WebFetchTool({ tool }: { tool: ToolAgg
             return `Fetching: ${domain}`;
         }
       }}
-      loadingContent="Fetching content..."
       error={tool.error}
     >
       {(url || output) && (

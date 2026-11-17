@@ -35,8 +35,7 @@ const validateForm = (values: SignupFormData): SignupFormErrors | null => {
   if (!values.username) {
     errors.username = 'Username is required';
   } else if (!isValidUsername(values.username)) {
-    errors.username =
-      'Username must be 3-30 characters, contain only letters, numbers, and underscores, and cannot start or end with underscore';
+    errors.username = 'Invalid username';
   }
 
   if (!values.password) {
@@ -99,7 +98,7 @@ export function SignupPage() {
   );
 
   const title = 'Join Agentrove';
-  const subtitle = 'Create your agentrove account';
+  const subtitle = 'Create your Agentrove account';
 
   const isSubmitting = signupMutation.isPending;
   const error = signupMutation.error?.message;
@@ -136,7 +135,7 @@ export function SignupPage() {
       },
       {
         name: 'confirmPassword',
-        label: 'Confirm Password',
+        label: 'Confirm password',
         placeholder: 'Confirm your password',
         type: 'password',
       },
@@ -146,13 +145,7 @@ export function SignupPage() {
 
   return (
     <AuthPageLayout title={title} subtitle={subtitle}>
-      <form onSubmit={handleSubmit} className={styles.form}>
-        {error && (
-          <AuthErrorBanner>
-            <p className={styles['error-text']}>{error}</p>
-          </AuthErrorBanner>
-        )}
-
+      <form onSubmit={handleSubmit} className={styles.form} noValidate>
         <div className={styles.fields}>
           {fieldConfigs.map(({ name, label, placeholder, type, helperText }) => (
             <div key={name} className={styles.field}>
@@ -182,16 +175,21 @@ export function SignupPage() {
           ))}
         </div>
 
+        {error && (
+          <AuthErrorBanner>
+            <p className={styles['error-text']}>{error}</p>
+          </AuthErrorBanner>
+        )}
+
         <Button
           type="submit"
           variant="primary"
-          size="lg"
           className={styles.submit}
           isLoading={isSubmitting}
           loadingText="Creating account..."
           loadingIcon={<Loader2 className={styles['spinner-icon']} />}
         >
-          <span>Get Started</span>
+          <span>Get started</span>
           <ArrowRight className={styles.icon} />
         </Button>
       </form>

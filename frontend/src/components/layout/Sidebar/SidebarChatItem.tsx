@@ -147,7 +147,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           agentKind={agentKind}
           className={clsx(
             styles['provider-icon'],
-            !isHovered && !isActive && !status && styles['provider-icon--muted'],
+            !isHovered && !isActive && styles['provider-icon--muted'],
           )}
         />
       ) : null}

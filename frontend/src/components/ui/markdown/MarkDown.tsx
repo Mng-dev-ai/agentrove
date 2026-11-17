@@ -1,4 +1,5 @@
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
+import clsx from 'clsx';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -43,14 +44,18 @@ interface MarkDownProps {
   content: string;
   // While streaming, split blocks for cheap incremental re-parse (breaks cross-block refs).
   streaming?: boolean;
-  // @mention /command pills — user messages only.
-  highlightMentions?: boolean;
+  // 'all': every @mention /command token (user messages). A set of lowercased
+  // channel member handles: only `@member` mentions (agent text).
+  mentions?: 'all' | ReadonlySet<string>;
+  // Chat reply text: looser leading, with block spacing scaled to match.
+  prose?: boolean;
 }
 
 export const MarkDown = memo(function MarkDown({
   content,
   streaming = false,
-  highlightMentions = false,
+  mentions,
+  prose = false,
 }: MarkDownProps) {
   const blocks = useMemo(
     () => (streaming ? splitMarkdownBlocks(content) : [content]),
@@ -65,13 +70,14 @@ export const MarkDown = memo(function MarkDown({
     () => (needsMath ? [remarkGfm, [remarkMath, { singleDollarTextMath: false }]] : [remarkGfm]),
     [needsMath],
   );
-  const rehypePlugins = useMemo(
-    () => [...(highlightMentions ? [rehypeMentionPills] : []), ...(needsMath ? [rehypeKatex] : [])],
-    [needsMath, highlightMentions],
-  );
+  const rehypePlugins = useMemo(() => {
+    const mentionPlugins: NonNullable<Options['rehypePlugins']> =
+      mentions === 'all' ? [rehypeMentionPills] : mentions ? [[rehypeMentionPills, mentions]] : [];
+    return [...mentionPlugins, ...(needsMath ? [rehypeKatex] : [])];
+  }, [needsMath, mentions]);
 
   return (
-    <div className={styles.markdown}>
+    <div className={clsx(styles.markdown, prose && styles['markdown--prose'])}>
       {blocks.map((block, i) => (
         <MarkdownBlock
           key={i}

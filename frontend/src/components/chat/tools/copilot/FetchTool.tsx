@@ -32,7 +32,6 @@ export const FetchTool = memo(function FetchTool({ tool }: { tool: ToolAggregate
             return `Fetching: ${domain}`;
         }
       }}
-      loadingContent="Fetching content..."
       error={tool.error}
     >
       {(url || output) && (

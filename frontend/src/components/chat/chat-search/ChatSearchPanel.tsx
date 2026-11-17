@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -8,8 +8,11 @@ import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearchChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useSearchMachineChatsQueries } from '@/hooks/queries/useMachineQueries';
 import { machineName, useOnlineRemoteMachineIds } from '@/store/machineStore';
-import { ChatSearchResultGroup, type SearchHit } from './ChatSearchResultGroup';
+import { ChatSearchResultGroup } from './ChatSearchResultGroup';
+import { hitKey, type SearchHit } from './searchHit';
 import styles from './ChatSearchPanel.module.scss';
+
+const LIST_ID = 'chat-search-results';
 
 export interface ChatSearchPanelProps {
   onOpenChat: (chatId: string) => void;
@@ -21,6 +24,19 @@ interface WorkspaceGroup {
   workspaceId: string;
   workspaceName: string;
   hits: SearchHit[];
+}
+
+interface ResultRow {
+  hit: SearchHit;
+  key: string;
+  expanded: boolean;
+  firstOption: number;
+}
+
+interface WorkspaceRows {
+  workspaceId: string;
+  workspaceName: string;
+  rows: ResultRow[];
 }
 
 function groupByWorkspace(hits: SearchHit[]): WorkspaceGroup[] {
@@ -40,12 +56,35 @@ function groupByWorkspace(hits: SearchHit[]): WorkspaceGroup[] {
   return Array.from(groups.values());
 }
 
+// One option per visible match line, in render order.
+function buildResultRows(
+  groups: WorkspaceGroup[],
+  collapsed: ReadonlySet<string>,
+): { workspaces: WorkspaceRows[]; optionHits: SearchHit[] } {
+  const optionHits: SearchHit[] = [];
+  const workspaces = groups.map((group) => ({
+    workspaceId: group.workspaceId,
+    workspaceName: group.workspaceName,
+    rows: group.hits.map((hit): ResultRow => {
+      const key = hitKey(hit);
+      const expanded = !collapsed.has(key);
+      const row = { hit, key, expanded, firstOption: optionHits.length };
+      if (expanded) optionHits.push(...hit.result.matches.map(() => hit));
+      return row;
+    }),
+  }));
+  return { workspaces, optionHits };
+}
+
 export const ChatSearchPanel = memo(function ChatSearchPanel({
   onOpenChat,
   onOpenChannel,
   inputRef,
 }: ChatSearchPanelProps) {
   const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+  const activeItemRef = useRef<HTMLButtonElement>(null);
   const debouncedQuery = useDebouncedValue(query, 250);
   const localInputRef = useRef<HTMLInputElement>(null);
   const activeInputRef = inputRef ?? localInputRef;
@@ -74,25 +113,35 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
 
   const handleClear = useCallback(() => {
     setQuery('');
+    setActiveIndex(0);
     activeInputRef.current?.focus();
   }, [activeInputRef]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === 'Escape' && query) {
-        e.preventDefault();
-        handleClear();
-      }
-    },
-    [query, handleClear],
+  const openHit = useCallback(
+    (hit: SearchHit) =>
+      hit.kind === 'channel'
+        ? onOpenChannel(hit.result.channel_id)
+        : onOpenChat(hit.result.chat_id),
+    [onOpenChat, onOpenChannel],
   );
+
+  const toggleHit = useCallback((key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
+  }, []);
 
   const results = sources.flatMap((source) => source.data?.results ?? []);
   const channelResults = sources.flatMap((source) => source.data?.channel_results ?? []);
-  const grouped = groupByWorkspace([
-    ...results.map((result): SearchHit => ({ kind: 'chat', result })),
-    ...channelResults.map((result): SearchHit => ({ kind: 'channel', result })),
-  ]);
+  const { workspaces, optionHits: visibleOptionHits } = buildResultRows(
+    groupByWorkspace([
+      ...results.map((result): SearchHit => ({ kind: 'chat', result })),
+      ...channelResults.map((result): SearchHit => ({ kind: 'channel', result })),
+    ]),
+    collapsed,
+  );
   const totalMatches = [...results, ...channelResults].reduce((acc, r) => acc + r.match_count, 0);
   const resultCount = results.length;
   const channelCount = channelResults.length;
@@ -108,6 +157,32 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
   const hasQuery = debouncedQuery.trim().length >= 2;
   const hasResults = resultCount + channelCount > 0;
 
+  const optionHits = hasQuery ? visibleOptionHits : [];
+  const activeOption = Math.min(activeIndex, optionHits.length - 1);
+
+  useEffect(() => {
+    activeItemRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [activeOption]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Keys during IME composition belong to the candidate window
+    if (e.nativeEvent.isComposing) return;
+    const count = optionHits.length;
+    if (e.key === 'Escape' && query) {
+      e.preventDefault();
+      handleClear();
+    } else if (e.key === 'ArrowDown' && count > 0) {
+      e.preventDefault();
+      setActiveIndex((activeOption + 1) % count);
+    } else if (e.key === 'ArrowUp' && count > 0) {
+      e.preventDefault();
+      setActiveIndex((activeOption - 1 + count) % count);
+    } else if (e.key === 'Enter' && activeOption >= 0) {
+      e.preventDefault();
+      openHit(optionHits[activeOption]);
+    }
+  };
+
   return (
     <div className={styles['chat-search-panel']}>
       <div className={styles.header}>
@@ -117,11 +192,19 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
             ref={activeInputRef}
             variant="unstyled"
             type="text"
-            role="searchbox"
+            role="combobox"
+            aria-expanded={optionHits.length > 0}
+            aria-controls={LIST_ID}
+            aria-activedescendant={
+              activeOption >= 0 ? `chat-search-option-${activeOption}` : undefined
+            }
             aria-label="Search in chats"
             placeholder="Search chats"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIndex(0);
+            }}
             onKeyDown={handleKeyDown}
             className={styles['search-input']}
           />
@@ -180,20 +263,29 @@ export const ChatSearchPanel = memo(function ChatSearchPanel({
               {isFetching && <Loader2 className={styles['spin-icon']} />}
               <span>
                 {totalMatches} {totalMatches === 1 ? 'result' : 'results'} in {scopeLabel} ·{' '}
-                {grouped.length} {grouped.length === 1 ? 'workspace' : 'workspaces'}
+                {workspaces.length} {workspaces.length === 1 ? 'workspace' : 'workspaces'}
                 {truncated && ' (truncated)'}
               </span>
             </p>
-            <div aria-busy={isFetching} className={styles['result-list']}>
-              {grouped.map((group) => (
-                <div key={group.workspaceId} className={styles['workspace-group']}>
-                  <p className={styles['workspace-name']}>{group.workspaceName}</p>
-                  {group.hits.map((hit) => (
+            <div
+              aria-busy={isFetching}
+              role="listbox"
+              id={LIST_ID}
+              className={styles['result-list']}
+            >
+              {workspaces.map((workspace) => (
+                <div key={workspace.workspaceId} className={styles['workspace-group']}>
+                  <p className={styles['workspace-name']}>{workspace.workspaceName}</p>
+                  {workspace.rows.map((row) => (
                     <ChatSearchResultGroup
-                      key={hit.kind === 'chat' ? hit.result.chat_id : hit.result.channel_id}
-                      hit={hit}
-                      onOpenChat={onOpenChat}
-                      onOpenChannel={onOpenChannel}
+                      key={row.key}
+                      hit={row.hit}
+                      expanded={row.expanded}
+                      onToggle={toggleHit}
+                      onOpen={openHit}
+                      firstOption={row.firstOption}
+                      activeOption={activeOption}
+                      activeItemRef={activeItemRef}
                     />
                   ))}
                 </div>

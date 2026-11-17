@@ -4,14 +4,24 @@ import styles from './CreatePRReviewers.module.scss';
 
 interface CreatePRReviewersProps {
   collaborators: GitHubCollaborator[] | undefined;
+  failed: boolean;
   selected: string[];
   onToggle: (login: string) => void;
 }
 
-export function CreatePRReviewers({ collaborators, selected, onToggle }: CreatePRReviewersProps) {
+export function CreatePRReviewers({
+  collaborators,
+  failed,
+  selected,
+  onToggle,
+}: CreatePRReviewersProps) {
   return (
     <div className={styles['create-pr-reviewers']}>
-      {!collaborators || collaborators.length === 0 ? (
+      {failed ? (
+        <span className={styles.empty}>Couldn't load collaborators</span>
+      ) : !collaborators ? (
+        <span className={styles.empty}>Loading collaborators…</span>
+      ) : collaborators.length === 0 ? (
         <span className={styles.empty}>No collaborators</span>
       ) : (
         collaborators.map((c) => (

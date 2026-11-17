@@ -5,29 +5,38 @@
 .modal-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: var(--space-3);
   border-bottom: 1px solid var(--theme-border);
-  padding: var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+}
+
+.text {
+  min-width: 0;
+  flex: 1;
 }
 
 .title {
-  @include type.type-title(600);
+  @include type.type-body(500);
+  overflow-wrap: break-word;
   color: var(--theme-text-primary);
 }
 
-.actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+.description {
+  @include type.type-meta;
+  @include type.type-overflow;
+  color: var(--theme-text-tertiary);
 }
 
 .close-button {
   @include anim.transition-colors;
+  @include responsive.touch-target;
+  flex-shrink: 0;
   padding: var(--space-1);
   border-radius: var(--radius-lg);
   color: var(--theme-text-quaternary);
 
   @include responsive.hover {
+    background-color: var(--theme-surface-hover);
     color: var(--theme-text-secondary);
   }
 }

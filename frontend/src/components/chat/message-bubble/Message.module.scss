@@ -9,6 +9,59 @@
   @include responsive.media('sm-up') {
     padding: var(--space-2) var(--space-6);
   }
+
+  // The turn gap is tall enough to hold an overlaid action row
+  @include responsive.media('not-touch') {
+    padding-top: var(--space-4);
+    padding-bottom: var(--space-4);
+  }
+
+  @include responsive.hover {
+    .reveal {
+      opacity: 1;
+    }
+  }
+
+  &--latest .reveal,
+  &:has(:focus-visible) .reveal {
+    opacity: 1;
+  }
+
+  // A collapsed notice is a one-line marker for the reply it triggered, so the reply
+  // sits half a turn gap below it. Notices have no action row to overlay the gap.
+  &--notice-before-reply:has([aria-expanded='false']) {
+    @include responsive.media('not-touch') {
+      padding-bottom: 0;
+    }
+  }
+
+  // The latest row's actions always show, so they keep their place in the flow
+  &--latest {
+    @include responsive.media('not-touch') {
+      padding-bottom: var(--space-2);
+    }
+
+    .reveal {
+      position: static;
+    }
+  }
+}
+
+// Opacity only, so revealing never shifts layout; touch has no hover, so it stays visible.
+// Hidden rows overlay the gap below their message instead of reserving an empty band.
+.reveal {
+  @include responsive.media('not-touch') {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    opacity: 0;
+    transition: opacity var(--duration-fast) var(--easing-out);
+  }
+
+  &:has([data-copied]) {
+    opacity: 1;
+  }
 }
 
 .message-row {
@@ -17,20 +70,23 @@
 }
 
 .message-body {
+  position: relative;
   min-width: 0;
   flex: 1;
 }
 
+// Right-aligned, hugging its text, leaving a left gutter on long messages
 .user-bubble {
-  display: inline-block;
-  max-width: 100%;
+  width: fit-content;
+  max-width: 85%;
+  margin-left: auto;
   overflow: hidden;
   border-radius: var(--radius-xl);
   padding: var(--space-1-5) var(--space-3);
-  background-color: colors.theme-color('surface-hover', 0.6);
+  background-color: colors.theme-color('text-primary', 0.09);
 
   :global([data-theme='dark']) & {
-    background-color: colors.theme-color('surface-tertiary', 0.8);
+    background-color: colors.theme-color('surface-hover', 0.7);
   }
 }
 
@@ -41,12 +97,18 @@
   color: var(--theme-text-primary);
 }
 
-.actions-slot {
+.user-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-1);
+}
+
+.agent-actions {
   margin-top: var(--space-1);
 }
 
 .footer {
-  margin-top: var(--space-2);
+  margin-top: var(--space-1);
   display: flex;
   align-items: center;
   justify-content: space-between;

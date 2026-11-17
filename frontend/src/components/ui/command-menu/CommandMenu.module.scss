@@ -16,17 +16,36 @@
   margin-top: var(--space-20);
   height: fit-content;
   width: 100%;
-  max-width: 50.4rem;
+  max-width: var(--space-168);
   border: 1px solid colors.theme-color('border', 0.5);
   border-radius: var(--radius-xl);
   background-color: colors.theme-color('surface', 0.95);
   box-shadow: var(--shadow-strong);
   backdrop-filter: blur(24px);
   @include anim.fade-in;
+
+  // Phones: a full-height sheet, so the page never shows beneath a short result list.
+  @include responsive.media('mobile') {
+    display: flex;
+    flex-direction: column;
+    margin-top: 0;
+    height: 100%;
+    border: none;
+    border-radius: 0;
+    background-color: var(--theme-surface);
+    padding-top: var(--safe-area-top);
+    padding-bottom: var(--safe-area-bottom);
+  }
 }
 
 .panel {
-  height: 33.6rem;
+  height: var(--space-112);
+
+  @include responsive.media('mobile') {
+    flex: 1;
+    min-height: 0;
+    height: auto;
+  }
 }
 
 .filters {
@@ -35,6 +54,22 @@
   gap: var(--space-1);
   border-bottom: 1px solid colors.theme-color('border', 0.5);
   padding: var(--space-2) var(--space-3);
+
+  // Panel tabs carry the close button here; six tabs plus it overflow a phone.
+  @include responsive.media('mobile') {
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    .filter {
+      flex-shrink: 0;
+    }
+
+    .close {
+      position: sticky;
+      right: 0;
+      background-color: var(--theme-surface);
+    }
+  }
 }
 
 .filter {
@@ -55,6 +90,26 @@
   }
 }
 
+.close {
+  @include anim.transition-colors;
+  @include responsive.touch-target;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding: var(--space-1);
+  border-radius: var(--radius-lg);
+  color: var(--theme-text-quaternary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-secondary);
+  }
+}
+
+.close-icon {
+  height: var(--space-4);
+  width: var(--space-4);
+}
+
 .footer {
   display: flex;
   align-items: center;
@@ -65,5 +120,5 @@
 
 .footer-hint {
   @include type.type-meta;
-  color: var(--theme-text-quaternary);
+  color: var(--theme-text-tertiary);
 }

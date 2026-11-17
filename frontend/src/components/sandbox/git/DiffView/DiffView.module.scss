@@ -27,7 +27,10 @@
   flex: 1;
 }
 
+// Leading stays at the library's 20px: its virtualizer positions rows with that constant
 .pane {
+  --diffs-font-family: var(--font-mono);
+  --diffs-font-size: #{type.$type-default-size};
   position: relative;
   min-height: 0;
   flex: 1;

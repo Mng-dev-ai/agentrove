@@ -1,9 +1,10 @@
+@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
 
 .card {
   overflow: hidden;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--theme-border);
+  border: 1px solid colors.theme-color('border', 0.5);
   background-color: var(--theme-surface-tertiary);
 }
 
@@ -11,8 +12,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--theme-border);
-  padding: var(--space-2) var(--space-3);
+  height: var(--space-9);
+  border-bottom: 1px solid colors.theme-color('border', 0.5);
+  padding-inline: var(--space-3);
 }
 
 .header-left {
@@ -45,7 +47,7 @@
 
 .card-body {
   // TODO(refactor): no spacing token for viewport-relative max-height
-  max-height: 50vh;
+  max-height: 40vh;
   overflow-y: auto;
   padding: var(--space-3);
 }

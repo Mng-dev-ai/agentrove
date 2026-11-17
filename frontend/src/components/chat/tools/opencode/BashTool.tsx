@@ -32,7 +32,6 @@ export const BashTool = memo(function BashTool({ tool }: { tool: ToolAggregate }
             return `Running: ${label}`;
         }
       }}
-      loadingContent="Running command..."
       error={tool.error}
     >
       {(command || output) && (

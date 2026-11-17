@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import clsx from 'clsx';
 import { AlertCircle, MessageCircleQuestion, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
@@ -59,7 +60,10 @@ function FieldRow({ field, fieldId, value, onChange, disabled }: FieldRowProps) 
                 ? value === option.value
                 : Array.isArray(value) && value.includes(option.value);
             return (
-              <label key={option.value} className={styles.option}>
+              <label
+                key={option.value}
+                className={clsx(styles.option, checked && styles['option--selected'])}
+              >
                 <input
                   type={field.kind === 'select' ? 'radio' : 'checkbox'}
                   name={fieldId}
@@ -197,10 +201,23 @@ export function ElicitationInline({
           </div>
         )}
         <div className={styles.actions}>
-          <Button type="button" variant="ghost" size="sm" onClick={onSkip} disabled={isLoading}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onSkip}
+            disabled={isLoading}
+            className={styles.action}
+          >
             Skip
           </Button>
-          <Button type="submit" variant="primary" size="sm" isLoading={isLoading}>
+          <Button
+            type="submit"
+            variant="primary"
+            size="sm"
+            isLoading={isLoading}
+            className={styles.action}
+          >
             Submit
           </Button>
         </div>

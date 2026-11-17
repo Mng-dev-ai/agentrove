@@ -36,7 +36,6 @@ export const EnterPlanModeTool = memo(function EnterPlanModeTool({ tool }: PlanM
             return 'Entering plan mode';
         }
       }}
-      loadingContent="Entering plan mode…"
       error={tool.error}
     />
   );
@@ -60,7 +59,7 @@ export const ExitPlanModeTool = memo(function ExitPlanModeTool({
             <div className={styles['icon-wrap']}>
               <Map className={styles['plan-icon']} />
             </div>
-            <span className={styles.title}>Plan Approval</span>
+            <span className={styles.title}>Plan approval</span>
           </div>
           {planContent && (
             <MessageActions
@@ -87,7 +86,7 @@ export const ExitPlanModeTool = memo(function ExitPlanModeTool({
 
           {allowedPrompts.length > 0 && (
             <div className={styles['plan-box--spaced']}>
-              <p className={styles['permissions-label']}>Requested Permissions</p>
+              <p className={styles['permissions-label']}>Requested permissions</p>
               <div className={styles['permissions-list']}>
                 {allowedPrompts.map((item, index) => (
                   <div key={index} className={styles['permission-item']}>
@@ -128,7 +127,6 @@ export const ExitPlanModeTool = memo(function ExitPlanModeTool({
             return 'Waiting for plan approval…';
         }
       }}
-      loadingContent="Waiting for plan approval…"
       error={tool.error}
     >
       {hasContent && (
@@ -142,7 +140,7 @@ export const ExitPlanModeTool = memo(function ExitPlanModeTool({
           )}
           {allowedPrompts.length > 0 && (
             <div>
-              <p className={styles['permissions-label']}>Requested Permissions</p>
+              <p className={styles['permissions-label']}>Requested permissions</p>
               <div className={styles['permissions-list']}>
                 {allowedPrompts.map((item, index) => (
                   <div key={index} className={styles['permission-item']}>

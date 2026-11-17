@@ -1,13 +1,17 @@
 // Spacing scale. Steps match the old Tailwind scale so migration is mechanical:
 // p-3 → padding: space(3); gap-1.5 → gap: space(1.5). The base is Tailwind's
-// 0.25rem ×1.2, matching the ×1.2 type scale so text-to-space ratios are unchanged.
+// 0.25rem ×1.1, matching the ×1.1 type scale so text-to-space ratios are unchanged.
 // Always use space() for margin/padding/gap/inset — never raw rem/px (px allowed only for
 // things that must never rescale, e.g. 1px borders).
 
 @use 'sass:math';
 @use 'sass:list';
 
-$space-base: 0.3rem;
+$space-base: 0.275rem;
+
+// Max width of the centred chat column (messages, composer, skeleton)
+$reading-column-width: 50rem;
+
 $space-steps: (
   0,
   0.5,
@@ -45,7 +49,12 @@ $space-steps: (
   80,
   88,
   96,
-  128
+  112,
+  128,
+  144,
+  168,
+  192,
+  224
 );
 
 // Fractional steps get hyphenated var names: space(1.5) → var(--space-1-5)

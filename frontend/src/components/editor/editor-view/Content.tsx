@@ -17,7 +17,7 @@ const EDITOR_OPTIONS = {
   },
   snippetSuggestions: 'inline',
   fontFamily: MONACO_FONT_FAMILY,
-  fontSize: 14,
+  fontSize: 13,
   lineHeight: 1.5,
   renderLineHighlight: 'none',
   scrollbar: {

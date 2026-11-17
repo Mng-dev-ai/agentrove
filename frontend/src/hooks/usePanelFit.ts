@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useState, type RefObject } from 'react';
 
 const VIEWPORT_MARGIN = 8;
 
@@ -34,4 +34,44 @@ export function usePanelFit(
   }, [isOpen, enabled, fit, anchorRef, panelRef]);
 
   return fit;
+}
+
+// Measured with the inline transform cleared so the result depends only on layout, never on
+// the previous shift.
+function inlineShift(panel: HTMLElement): number {
+  const transform = panel.style.transform;
+  panel.style.transform = '';
+  const { left, right, width } = panel.getBoundingClientRect();
+  panel.style.transform = transform;
+  if (!width) return 0;
+  const viewport = document.documentElement.clientWidth;
+  return Math.max(VIEWPORT_MARGIN - left, Math.min(0, viewport - VIEWPORT_MARGIN - right));
+}
+
+// Transform that keeps an anchored panel inside the viewport horizontally. Re-measured
+// after every render because the anchor can move while the panel is open, and on resize
+// (which also fires on rotation).
+export function usePanelInlineShift(
+  panelRef: RefObject<HTMLElement | null>,
+  isOpen: boolean,
+): string | undefined {
+  const [shift, setShift] = useState(0);
+
+  if (!isOpen && shift !== 0) setShift(0);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    if (isOpen && panelRef.current) setShift(inlineShift(panelRef.current));
+  });
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleResize = () => {
+      if (panelRef.current) setShift(inlineShift(panelRef.current));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isOpen, panelRef]);
+
+  return shift ? `translateX(${shift}px)` : undefined;
 }

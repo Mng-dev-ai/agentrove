@@ -57,7 +57,6 @@ export const FetchTool = memo(function FetchTool({ tool }: { tool: ToolAggregate
             return `Fetching: ${fetchLabel}`;
         }
       }}
-      loadingContent="Fetching content..."
       error={tool.error}
     >
       {(sources.length > 0 || url || pattern || result) && (

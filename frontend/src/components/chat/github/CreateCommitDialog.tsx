@@ -1,9 +1,12 @@
 import { useState } from 'react';
-import { GitCommitHorizontal, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { Label } from '@/components/ui/primitives/Label/Label';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { useActiveChat } from '@/hooks/useActiveChat';
@@ -93,17 +96,13 @@ export function CreateCommitDialog({ onClose }: CreateCommitDialogProps) {
 
   return (
     <BaseModal isOpen={true} onClose={onClose} size="sm">
+      <ModalHeader title="Create commit" onClose={onClose} />
       <div className={styles.body}>
-        <div className={styles.header}>
-          <div className={styles['icon-box']}>
-            <GitCommitHorizontal className={styles['header-icon']} />
-          </div>
-          <h2 className={styles.title}>Create commit</h2>
-        </div>
-
-        <div className={styles.field}>
+        <div>
           <div className={styles['field-header']}>
-            <label className={styles['field-label']}>Commit message</label>
+            <Label htmlFor="create-commit-message" className={styles['field-label']}>
+              Commit message
+            </Label>
             <FloatingTooltip
               content={generateDisabledReason ?? ''}
               className={styles['tooltip-wrap']}
@@ -126,6 +125,7 @@ export function CreateCommitDialog({ onClose }: CreateCommitDialogProps) {
             </FloatingTooltip>
           </div>
           <Textarea
+            id="create-commit-message"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Describe your changes..."
@@ -144,26 +144,12 @@ export function CreateCommitDialog({ onClose }: CreateCommitDialogProps) {
         </div>
       </div>
 
-      <div className={styles.footer}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          disabled={commitMutation.isPending}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={handleCommit}
-          disabled={commitMutation.isPending}
-        >
-          {commitMutation.isPending ? 'Committing...' : 'Commit'}
-        </Button>
-      </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={handleCommit}
+        saveLabel="Commit"
+        saving={commitMutation.isPending}
+      />
     </BaseModal>
   );
 }

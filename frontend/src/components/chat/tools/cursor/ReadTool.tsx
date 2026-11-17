@@ -29,7 +29,6 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
             return `${title}...`;
         }
       }}
-      loadingContent="Loading file content..."
       error={tool.error}
     >
       {content && <NumberedContent content={content} />}

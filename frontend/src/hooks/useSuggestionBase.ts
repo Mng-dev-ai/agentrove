@@ -58,8 +58,9 @@ export const useSuggestionBase = <T>({
       return true;
     }
 
+    // The list is derived from the text, so Escape can't dismiss it; leave the
+    // event unprevented so an enclosing dialog still closes.
     if (event.key === 'Escape') {
-      event.preventDefault();
       setHighlightedIndex(0);
       return true;
     }

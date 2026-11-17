@@ -8,6 +8,7 @@ import {
 import { inboxService } from '@/services/inboxService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
+import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useAuthStore } from '@/store/authStore';
 import { useOnlineRemoteMachineIds } from '@/store/machineStore';
 import { mergeRecentSources } from '@/utils/mergeRecentSources';
@@ -68,6 +69,7 @@ export const useInboxAcrossMachines = () => {
     initialPageParam: undefined as string | undefined,
     enabled: isAuthenticated,
     refetchInterval: POLL_INTERVAL_MS,
+    retry: retryTransientOnce,
   });
   const remote = useQueries({
     queries: remoteIds.map((machineId) => ({
@@ -79,6 +81,7 @@ export const useInboxAcrossMachines = () => {
         ),
       enabled: isAuthenticated,
       refetchInterval: POLL_INTERVAL_MS,
+      retry: retryTransientOnce,
     })),
   });
   const loadMoreRemote = useMutation({
@@ -119,6 +122,7 @@ export const useInboxAcrossMachines = () => {
       (source) => source.hasMore || source.items.some((entry) => entry.item.read_at),
     ),
     isLoading: local.isLoading,
+    load: listLoadState([local, ...remote]),
     hasMore: sources.some((source) => source.hasMore),
     isFetchingMore: local.isFetchingNextPage || loadMoreRemote.isPending,
     loadMore,

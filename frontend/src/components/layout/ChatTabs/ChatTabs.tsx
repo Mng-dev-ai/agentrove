@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
+import clsx from 'clsx';
 import { useMatch, useNavigate } from 'react-router-dom';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
@@ -72,6 +73,16 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   );
 }
 
+export function AppBarTitle({ children }: { children: ReactNode }) {
+  return <span className={styles['app-bar-title']}>{children}</span>;
+}
+
+function ChatTitle({ chatId }: { chatId: string }) {
+  const title = useChatQuery(chatId).data?.title;
+  if (!title) return null;
+  return <AppBarTitle>{stripMarkdownTitle(title)}</AppBarTitle>;
+}
+
 // Working-set tabs (sidebar is the archive); re-clicking the current chat surfaces the agent pane.
 export function ChatTabs() {
   const navigate = useNavigate();
@@ -132,24 +143,30 @@ export function ChatTabs() {
     [navigate, routedChatId, visibleTabs],
   );
 
-  if (isMobile || visibleTabs.length === 0) return null;
+  if (isMobile) return null;
+  // An active tab already names the open chat; otherwise its title leads the bar.
+  const showTitle = !!routedChatId && !visibleTabs.includes(routedChatId);
+  if (visibleTabs.length === 0) return showTitle ? <ChatTitle chatId={routedChatId} /> : null;
 
   return (
-    <TitleBarTabs>
-      {visibleTabs.map((chatId) => {
-        const status: ChatTabStatus = blockedChatIdSet.has(chatId) ? 'blocked' : 'streaming';
-        return (
-          <ChatTab
-            key={chatId}
-            chatId={chatId}
-            isActive={visibleChatIds.has(chatId)}
-            isCurrent={chatId === routedChatId}
-            status={status}
-            onSelect={handleSelect}
-            onClose={handleClose}
-          />
-        );
-      })}
-    </TitleBarTabs>
+    <>
+      {showTitle && <ChatTitle chatId={routedChatId} />}
+      <TitleBarTabs className={clsx(showTitle && styles['tabs--after-title'])}>
+        {visibleTabs.map((chatId) => {
+          const status: ChatTabStatus = blockedChatIdSet.has(chatId) ? 'blocked' : 'streaming';
+          return (
+            <ChatTab
+              key={chatId}
+              chatId={chatId}
+              isActive={visibleChatIds.has(chatId)}
+              isCurrent={chatId === routedChatId}
+              status={status}
+              onSelect={handleSelect}
+              onClose={handleClose}
+            />
+          );
+        })}
+      </TitleBarTabs>
+    </>
   );
 }

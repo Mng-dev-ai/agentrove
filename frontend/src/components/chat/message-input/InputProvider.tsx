@@ -35,15 +35,13 @@ export function InputProvider({
   isLoading,
   isStreaming = false,
   onStopStream,
-  placeholder = 'Message Agentrove... (@ to mention, / for commands)',
+  placeholder,
   selectedModelId,
   onModelChange,
-  dropdownPosition = 'top',
+  dropdownPosition = 'auto',
   showAttachedFilesPreview = true,
   contextUsage,
-  showTip = true,
   showBranch = true,
-  compact = true,
   chatId,
   machineId,
   showLoadingSpinner = false,
@@ -163,7 +161,19 @@ export function InputProvider({
       handleSlashCommandKeyDown,
     });
 
-  const dynamicPlaceholder = isStreaming ? 'Type to queue message...' : placeholder;
+  const placeholders = useMemo(
+    () =>
+      isStreaming
+        ? ['Type to queue message...', 'Queue…']
+        : placeholder !== undefined
+          ? [placeholder]
+          : [
+              'Message Agentrove... (@ to mention, / for commands)',
+              'Message Agentrove…',
+              'Message…',
+            ],
+    [isStreaming, placeholder],
+  );
 
   const stateValue: InputState = useMemo(
     () => ({
@@ -180,11 +190,9 @@ export function InputProvider({
       showFileUpload,
       showDrawingModal,
       showLoadingSpinner,
-      showTip,
       showBranch,
       isDragging,
-      compact,
-      placeholder: dynamicPlaceholder,
+      placeholders,
       selectedModelId,
       dropdownPosition,
       attachedFiles,
@@ -215,11 +223,9 @@ export function InputProvider({
       showFileUpload,
       showDrawingModal,
       showLoadingSpinner,
-      showTip,
       showBranch,
       isDragging,
-      compact,
-      dynamicPlaceholder,
+      placeholders,
       selectedModelId,
       dropdownPosition,
       attachedFiles,

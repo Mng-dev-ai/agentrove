@@ -12,7 +12,7 @@ import {
 import { Check, ChevronDown, Search, X } from 'lucide-react';
 import clsx from 'clsx';
 import { useDropdown } from '@/hooks/useDropdown';
-import { usePanelFit } from '@/hooks/usePanelFit';
+import { usePanelFit, usePanelInlineShift } from '@/hooks/usePanelFit';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { SelectItem } from '@/components/ui/primitives/SelectItem/SelectItem';
@@ -34,6 +34,8 @@ export interface DropdownProps<T> {
   getItemKey: (item: T) => string;
   getItemLabel: (item: T) => string;
   getItemShortLabel?: (item: T) => string;
+  // Kept whole after the label, which truncates first
+  triggerSuffix?: string;
   onSelect: (item: T) => void;
   renderItem?: (item: T, isSelected: boolean) => ReactNode;
   leftIcon?: ComponentType<SVGProps<SVGSVGElement>>;
@@ -53,6 +55,8 @@ export interface DropdownProps<T> {
   onOpenChange?: (isOpen: boolean) => void;
   // 'toolbar' matches ToggleDropdown's composer-toolbar trigger (icon always shown).
   triggerVariant?: 'default' | 'text' | 'toolbar';
+  // Show leftIcon beside the label at every width, not only in compact mode
+  iconWithLabel?: boolean;
   dropdownAlign?: 'left' | 'right';
   ariaLabel?: string;
 }
@@ -109,6 +113,10 @@ function getFilteredGroupedItems<T>(
   return result;
 }
 
+// Code points of a toolbar label that never wrap, so the shrinking trigger keeps about
+// five characters plus the ellipsis (see .trigger-label-head)
+const TOOLBAR_LABEL_HEAD_LENGTH = 7;
+
 // Wraps flat items into the grouped format so both branches share one render path
 function normalizeToGrouped<T>(
   items: readonly T[] | readonly DropdownItemType<T>[],
@@ -127,6 +135,7 @@ const Dropdown = memo(function Dropdown<T>({
   getItemKey,
   getItemLabel,
   getItemShortLabel,
+  triggerSuffix,
   onSelect,
   renderItem,
   leftIcon: LeftIcon,
@@ -144,12 +153,14 @@ const Dropdown = memo(function Dropdown<T>({
   renderFooter,
   onOpenChange,
   triggerVariant = 'default',
+  iconWithLabel = false,
   dropdownAlign = 'left',
   ariaLabel,
 }: DropdownProps<T>) {
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const panelRef = useRef<HTMLDivElement>(null);
   const fit = usePanelFit(dropdownRef, panelRef, isOpen && !disabled, dropdownPosition === 'auto');
+  const panelTransform = usePanelInlineShift(panelRef, isOpen && !disabled);
   const panelSide = dropdownPosition === 'auto' ? (fit?.side ?? 'bottom') : dropdownPosition;
   const [searchQuery, setSearchQuery] = useState('');
   const isMobile = useIsMobile();
@@ -167,14 +178,11 @@ const Dropdown = memo(function Dropdown<T>({
     onOpenChange?.(isOpen);
   }, [isOpen, onOpenChange]);
 
+  // An empty query lets Escape through to useDropdown, which closes the panel.
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape') {
+    if (event.key === 'Escape' && searchQuery) {
       event.preventDefault();
-      if (searchQuery) {
-        setSearchQuery('');
-      } else {
-        setIsOpen(false);
-      }
+      setSearchQuery('');
     }
   };
 
@@ -189,6 +197,7 @@ const Dropdown = memo(function Dropdown<T>({
   );
 
   const triggerLabel = getItemShortLabel ? getItemShortLabel(value) : getItemLabel(value);
+  const triggerLabelChars = Array.from(triggerLabel);
 
   return (
     <div className={styles.dropdown} ref={dropdownRef}>
@@ -199,7 +208,9 @@ const Dropdown = memo(function Dropdown<T>({
         variant="unstyled"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
-        aria-label={ariaLabel && `${ariaLabel}: ${triggerLabel}`}
+        aria-label={
+          ariaLabel && `${ariaLabel}: ${triggerLabel}${triggerSuffix ? ` ${triggerSuffix}` : ''}`
+        }
         className={clsx(
           triggerVariant === 'text'
             ? styles['trigger-text']
@@ -209,17 +220,32 @@ const Dropdown = memo(function Dropdown<T>({
           isOpen && !disabled && stateClasses.OPEN,
         )}
       >
-        {LeftIcon && (triggerVariant === 'text' ? showIconOnly : true) && (
+        {LeftIcon && (triggerVariant === 'text' ? showIconOnly || iconWithLabel : true) && (
           <LeftIcon
             className={clsx(
               styles['trigger-icon'],
-              !forceCompact && triggerVariant !== 'toolbar' && styles['trigger-icon--responsive'],
+              !forceCompact &&
+                triggerVariant !== 'toolbar' &&
+                !iconWithLabel &&
+                styles['trigger-icon--responsive'],
             )}
           />
         )}
         <FloatingTooltip content={isOpen ? '' : triggerLabel} className={labelSlotClass}>
-          <span className={styles['trigger-label']}>{triggerLabel}</span>
+          <span className={styles['trigger-label']}>
+            {triggerVariant === 'toolbar' ? (
+              <>
+                <span className={styles['trigger-label-head']}>
+                  {triggerLabelChars.slice(0, TOOLBAR_LABEL_HEAD_LENGTH).join('')}
+                </span>
+                {triggerLabelChars.slice(TOOLBAR_LABEL_HEAD_LENGTH).join('')}
+              </>
+            ) : (
+              triggerLabel
+            )}
+          </span>
         </FloatingTooltip>
+        {triggerSuffix && <span className={styles['trigger-suffix']}>{triggerSuffix}</span>}
         {triggerVariant !== 'text' && !disabled && (
           <ChevronDown
             className={clsx(
@@ -238,7 +264,11 @@ const Dropdown = memo(function Dropdown<T>({
         <div
           ref={panelRef}
           role="listbox"
-          style={{ width, maxHeight: fit?.maxHeight }}
+          style={{
+            width,
+            maxHeight: fit?.maxHeight,
+            transform: panelTransform,
+          }}
           className={clsx(
             styles.panel,
             styles[`panel--${panelSide}`],

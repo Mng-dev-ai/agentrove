@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Edit2, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
 import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
@@ -31,6 +32,7 @@ import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
 import { SidebarChannelItem } from './SidebarChannelItem';
 import type { MachineBadge } from './SidebarChatItem';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
+import { SidebarLoadError } from './SidebarLoadError';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import styles from './SidebarChannels.module.scss';
 
@@ -59,7 +61,11 @@ export function SidebarChannels({
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const { machineChannels, isLoading: isLoadingChannels } = useMachinesChannels(isAuthenticated);
+  const {
+    machineChannels,
+    isLoading: isLoadingChannels,
+    load,
+  } = useMachinesChannels(isAuthenticated);
   const liveActivity = useChannelStore((state) => state.activity);
   const completedChannelIds = useChannelStore((state) => state.completedChannelIds);
   const filteredChannels = machineChannels.filter(({ channel, machineId }) => {
@@ -203,11 +209,8 @@ export function SidebarChannels({
 
   const saveRename = async (name: string) => {
     if (!channelToRename) return;
-    await mutateWithToast(
-      () => renameChannel.mutateAsync({ channelId: channelToRename.id, name }),
-      'Channel renamed successfully',
-      'Failed to rename channel',
-    ).catch(() => undefined);
+    await renameChannel.mutateAsync({ channelId: channelToRename.id, name });
+    toast.success('Channel renamed successfully');
     setChannelToRename(null);
   };
 
@@ -245,12 +248,18 @@ export function SidebarChannels({
           Load more
         </Button>
       )}
-      {!isCollapsed && !isLoadingChannels && channels.length === 0 && (
-        <p className={styles.empty}>
-          {machineChannels.length > 0
-            ? 'No channels match the current filters'
-            : 'No channels yet. Group chats where several agents share a workspace.'}
-        </p>
+      {!isCollapsed && machineChannels.length === 0 && load.loadFailed ? (
+        <SidebarLoadError message="Couldn't load channels" load={load} />
+      ) : (
+        !isCollapsed &&
+        !isLoadingChannels &&
+        channels.length === 0 && (
+          <p className={styles.empty}>
+            {machineChannels.length > 0
+              ? 'No channels match the current filters'
+              : 'No channels yet. Group chats where several agents share a workspace.'}
+          </p>
+        )
       )}
 
       {dropdown && (
@@ -305,7 +314,7 @@ export function SidebarChannels({
         onSave={saveRename}
         currentTitle={channelToRename?.name ?? ''}
         isLoading={renameChannel.isPending}
-        title="Rename Channel"
+        subject="channel"
       />
 
       {createOpen && (

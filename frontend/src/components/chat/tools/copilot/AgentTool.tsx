@@ -52,7 +52,6 @@ export const AgentTool = memo(function AgentTool({ tool }: { tool: ToolAggregate
             return `Running agent: ${label}`;
         }
       }}
-      loadingContent="Running sub-agent..."
       error={tool.error}
     >
       {(agentType || agentName || prompt || result) && (

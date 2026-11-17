@@ -1,11 +1,11 @@
+@use '@/styles/globals/spacing' as spacing;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/animations' as anim;
 
 .chat-skeleton {
   margin-left: auto;
   margin-right: auto;
-  // TODO(refactor): Tailwind's max-w-4xl (56rem) has no spacing-scale token — kept as a raw rem value
-  max-width: 67.2rem;
+  max-width: spacing.$reading-column-width;
   padding: var(--space-4) var(--space-6);
 }
 

@@ -29,7 +29,6 @@ export const SkillTool = memo(function SkillTool({ tool }: { tool: ToolAggregate
             return `Loading skill: ${name}...`;
         }
       }}
-      loadingContent="Loading skill..."
       error={tool.error}
     >
       {output && <pre className={toolText['output-pre']}>{output}</pre>}

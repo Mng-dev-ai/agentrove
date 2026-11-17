@@ -13,16 +13,32 @@ interface WorkedRollupProps {
 
 // Completed-turn tool/thinking trace behind one header so the final answer leads.
 export function WorkedRollup({ durationMs, onExpand, children }: WorkedRollupProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
   // Older messages persisted before duration tracking have no duration_ms.
   const label =
     durationMs != null && durationMs > 0 ? `Worked for ${formatDuration(durationMs)}` : 'Worked';
+
+  return (
+    <RollupRow label={label} onExpand={onExpand}>
+      {children}
+    </RollupRow>
+  );
+}
+
+interface RollupRowProps {
+  label: string;
+  onExpand?: () => void;
+  children: React.ReactNode;
+}
+
+export function RollupRow({ label, onExpand, children }: RollupRowProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <div className={styles['worked-rollup']}>
       <Button
         type="button"
         variant="unstyled"
+        aria-expanded={isExpanded}
         onClick={() => {
           if (!isExpanded) onExpand?.();
           setIsExpanded(!isExpanded);

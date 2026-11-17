@@ -47,9 +47,12 @@ export const MessageActions = memo(function MessageActions({
   );
 
   return (
-    <div className={styles['message-actions']}>
+    <div
+      className={styles['message-actions']}
+      data-copied={copiedMessageId === messageId || undefined}
+    >
       {showTooltip ? (
-        <Tooltip content={label} position="bottom">
+        <Tooltip content={label} position="top">
           {button}
         </Tooltip>
       ) : (

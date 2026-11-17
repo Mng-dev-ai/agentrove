@@ -4,6 +4,7 @@ import { useOnlineRemoteMachineIds } from '@/store/machineStore';
 import { automationService } from '@/services/automationService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
+import { listLoadState, retryTransientOnce, type ListLoadState } from '@/hooks/queries/listLoad';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type {
   Automation,
@@ -24,14 +25,21 @@ export interface MachineAutomation {
   machineId: string;
 }
 
-export const useAutomationsAcrossMachines = (): MachineAutomation[] | null => {
+export const useAutomationsAcrossMachines = (): {
+  items: MachineAutomation[] | null;
+  load: ListLoadState;
+} => {
   const remoteIds = useOnlineRemoteMachineIds();
   const combine = useCallback(
     (results: UseQueryResult<Automation[]>[]) => {
-      if (results.some((result) => result.isLoading)) return null;
-      return [LOCAL_MACHINE_ID, ...remoteIds].flatMap((machineId, index) =>
-        (results[index]?.data ?? []).map((automation) => ({ automation, machineId })),
-      );
+      const load = listLoadState(results);
+      if (results.some((result) => result.isLoading)) return { items: null, load };
+      return {
+        items: [LOCAL_MACHINE_ID, ...remoteIds].flatMap((machineId, index) =>
+          (results[index]?.data ?? []).map((automation) => ({ automation, machineId })),
+        ),
+        load,
+      };
     },
     [remoteIds],
   );
@@ -40,6 +48,7 @@ export const useAutomationsAcrossMachines = (): MachineAutomation[] | null => {
       queryKey: automationsKey(machineId),
       queryFn: () => automationService.listAutomations(machineId),
       staleTime: 30_000,
+      retry: retryTransientOnce,
     })),
     combine,
   });

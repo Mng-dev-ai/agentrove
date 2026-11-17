@@ -1,12 +1,13 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { Inbox, Server } from 'lucide-react';
+import { AlertCircle, Inbox, Server } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import {
   type MachineInboxItem,
@@ -72,7 +73,9 @@ function InboxRow({ entry, onOpen }: InboxRowProps) {
           {!item.read_at && <ChatStatusDot tone="unread" />}
         </span>
         <span className={styles.text}>
-          <span className={styles['item-title']}>{item.title}</span>
+          <span className={clsx(styles['item-title'], item.read_at && styles['item-title--read'])}>
+            {item.title}
+          </span>
           <span ref={bodyRef} className={clsx(styles.body, expanded && styles['body--expanded'])}>
             {item.body}
           </span>
@@ -120,6 +123,7 @@ export function InboxPage() {
     unreadCount,
     hasReadItems,
     isLoading,
+    load,
     hasMore,
     isFetchingMore,
     loadMore,
@@ -188,7 +192,9 @@ export function InboxPage() {
           </div>
         </div>
 
-        {isLoading ? (
+        {items.length === 0 && load.loadFailed ? (
+          <LoadErrorState icon={AlertCircle} message="Couldn't load your inbox" load={load} />
+        ) : isLoading ? (
           <div className={styles.loading}>
             <Spinner size="md" className={styles.spinner} />
           </div>

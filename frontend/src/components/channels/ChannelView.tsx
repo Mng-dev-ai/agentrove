@@ -18,11 +18,17 @@ import elicitationStyles from '@/components/chat/chat-window/ChatInlineElicitati
 import { ElicitationInline } from '@/components/chat/tools/ElicitationInline';
 import { StatusIndicator } from '@/components/chat/chat-window/StatusTypewriter';
 import { useChatScroll } from '@/components/chat/chat-window/useChatScroll';
-import { MessageRow, MessageText, UserBubble } from '@/components/chat/message-bubble/Message';
+import {
+  AgentActions,
+  MessageRow,
+  MessageText,
+  UserActions,
+  UserBubble,
+} from '@/components/chat/message-bubble/Message';
 import { MessageActions } from '@/components/chat/message-bubble/MessageActions';
 import { MessageAttachments } from '@/components/chat/message-bubble/MessageAttachments';
 import { MessageRenderer } from '@/components/chat/message-bubble/MessageRenderer';
-import { ToolLoadingFallback } from '@/components/chat/message-bubble/SegmentView';
+import { ToolPlaceholder } from '@/components/chat/message-bubble/SegmentView';
 import { WorkedRollup } from '@/components/chat/message-bubble/WorkedRollup';
 import { useChannelMessageActivityQuery } from '@/hooks/queries/useChannelQueries';
 import { useChannelLive } from '@/hooks/useChannelLive';
@@ -61,9 +67,11 @@ import type {
 import { ChatCopiedMessageProvider } from '@/contexts/ChatCopiedMessageContext';
 import { SetChatInputMessageContext } from '@/contexts/ChatInputMessageContextDefinition';
 import { ChannelComposer } from './ChannelComposer';
+import { channelMentionHandles } from './memberDraft';
 import styles from './ChannelView.module.scss';
 
 const EMPTY_ELICITATIONS: ChannelElicitationRequest[] = [];
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
 const ACTIVITY_EVENT_TYPES = new Set([
   'assistant_thinking',
@@ -92,7 +100,7 @@ function ChannelMessageActivity({ channelId, messageId, agentKind }: ChannelMess
   );
 
   if (isError) return <p className={styles['activity-unavailable']}>Activity unavailable</p>;
-  if (isPending || !events) return <ToolLoadingFallback />;
+  if (isPending || !events) return <ToolPlaceholder />;
   return <MessageRenderer events={events} chatId={data.chat_id} agentKind={agentKind} />;
 }
 
@@ -100,38 +108,41 @@ interface AgentChannelMessageProps {
   message: ChannelMessage;
   member: ChannelMember | undefined;
   chatId: string;
+  isLatest: boolean;
+  isGrouped: boolean;
+  mentionHandles: ReadonlySet<string>;
 }
 
 const AgentChannelMessage = memo(function AgentChannelMessage({
   message,
   member,
   chatId,
+  isLatest,
+  isGrouped,
+  mentionHandles,
 }: AgentChannelMessageProps) {
   const isStreaming = message.status === 'streaming';
   const isInterrupted = message.status === 'cancelled';
   const agentKind = getAgentKindForModelId(member?.model_id);
   const [content, isRevealing] = useSmoothText(message.content, isStreaming, true);
-  const text = (
-    <MessageText>
-      <MarkDown content={content} streaming={isRevealing} />
-    </MessageText>
-  );
 
   return (
-    <MessageRow>
-      <div className={styles.author}>
-        <ProviderIcon agentKind={agentKind} className={styles['author-icon']} />
-        <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
-        <Tooltip content={formatFullTimestamp(message.created_at)} position="bottom">
-          <span className={styles['author-meta']}>{formatRelativeTime(message.created_at)}</span>
-        </Tooltip>
-        {isInterrupted && (
-          <>
-            <span className={styles['author-meta']}>·</span>
-            <span className={styles.interrupted}>Interrupted</span>
-          </>
-        )}
-      </div>
+    <MessageRow isLatest={isLatest}>
+      {(!isGrouped || isInterrupted) && (
+        <div className={styles.author}>
+          <ProviderIcon agentKind={agentKind} className={styles['author-icon']} />
+          <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
+          <Tooltip content={formatFullTimestamp(message.created_at)} position="bottom">
+            <span className={styles['author-meta']}>{formatRelativeTime(message.created_at)}</span>
+          </Tooltip>
+          {isInterrupted && (
+            <>
+              <span className={styles['author-meta']}>·</span>
+              <span className={styles.interrupted}>Interrupted</span>
+            </>
+          )}
+        </div>
+      )}
       {!isStreaming && message.tool_call_count > 0 && (
         <WorkedRollup durationMs={message.duration_ms}>
           <ChannelMessageActivity
@@ -141,20 +152,30 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
           />
         </WorkedRollup>
       )}
-      {isInterrupted ? <div className={styles['interrupted-text']}>{text}</div> : text}
+      <MessageText>
+        <MarkDown content={content} streaming={isRevealing} mentions={mentionHandles} prose />
+      </MessageText>
       <MessageAttachments
         attachments={message.attachments}
         chatId={chatId}
         className={styles['agent-attachments']}
       />
       {!isStreaming && message.content.trim() && (
-        <div className={styles['actions-slot']}>
+        <AgentActions>
           <MessageActions messageId={message.id} contentText={message.content} />
-        </div>
+        </AgentActions>
       )}
     </MessageRow>
   );
 });
+
+function isGroupedWithPrevious(message: ChannelMessage, previous: ChannelMessage | undefined) {
+  return (
+    previous?.author_type === 'agent' &&
+    previous.member_id === message.member_id &&
+    Date.parse(message.created_at) - Date.parse(previous.created_at) < GROUP_WINDOW_MS
+  );
+}
 
 function memberStatus(members: ChannelMember[], singular: string, plural: string): string {
   return `${joinNames(members.map((member) => member.display_name))} ${members.length === 1 ? singular : plural}`;
@@ -376,6 +397,10 @@ export function ChannelView({ channel }: { channel: Channel }) {
     () => messages.filter((m) => m.status !== 'streaming' || m.content || m.attachments.length),
     [messages],
   );
+  const mentionHandles = useMemo(
+    () => new Set(channelMentionHandles(channel.members).map((name) => name.toLowerCase())),
+    [channel.members],
+  );
   const membersById = useMemo(
     () =>
       new Map(
@@ -488,26 +513,26 @@ export function ChannelView({ channel }: { channel: Channel }) {
                   hasNextPage={hasNextPage}
                   isFetchingNextPage={isFetchingNextPage}
                 />
-                {visibleMessages.map((message) => (
+                {visibleMessages.map((message, index) => (
                   <div key={message.id} data-message-id={message.id}>
                     <ConversationColumn>
                       {message.author_type === 'user' ? (
-                        <MessageRow>
+                        <MessageRow isLatest={index === visibleMessages.length - 1}>
                           <UserBubble>
                             <MessageAttachments
                               attachments={message.attachments}
                               chatId={channel.anchor_chat_id}
                               className={styles.attachments}
                             />
-                            <MarkDown content={message.content} highlightMentions />
+                            <MarkDown content={message.content} mentions="all" />
                           </UserBubble>
                           {message.content.trim() && (
-                            <div className={styles['actions-slot']}>
+                            <UserActions>
                               <MessageActions
                                 messageId={message.id}
                                 contentText={message.content}
                               />
-                            </div>
+                            </UserActions>
                           )}
                         </MessageRow>
                       ) : (
@@ -517,6 +542,9 @@ export function ChannelView({ channel }: { channel: Channel }) {
                             message.member_id ? membersById.get(message.member_id) : undefined
                           }
                           chatId={channel.anchor_chat_id}
+                          isLatest={index === visibleMessages.length - 1}
+                          isGrouped={isGroupedWithPrevious(message, visibleMessages[index - 1])}
+                          mentionHandles={mentionHandles}
                         />
                       )}
                     </ConversationColumn>

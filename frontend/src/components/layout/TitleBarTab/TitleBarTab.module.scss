@@ -3,22 +3,19 @@
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/state-classes' as state;
 
-// -mb-px drops the strip over the title bar's hairline so the active tab's
-// underline can cross its segment of the border.
 .tabs {
   display: flex;
   height: 100%;
   min-width: 0;
-  margin-bottom: -1px;
+  align-items: center;
   gap: var(--space-1);
   overflow-x: auto;
 }
 
 .tab {
   @include anim.transition-colors;
-  position: relative;
   display: flex;
-  height: 100%;
+  height: var(--space-7);
   min-width: 0;
   max-width: 180px;
   flex-shrink: 0;
@@ -36,15 +33,14 @@
     }
   }
 
-  // Only inactive tabs get a hover fill — the active one stays a flat band
-  &:not(:global(.#{state.$state-active})) {
-    @include responsive.hover {
-      background-color: var(--theme-surface-hover);
-      color: var(--theme-text-primary);
-    }
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
   }
 
+  // The bar has no rule to anchor an underline, so the active tab is a filled pill
   &:global(.#{state.$state-active}) {
+    background-color: var(--theme-surface-hover);
     color: var(--theme-text-primary);
 
     .tab-close {
@@ -99,13 +95,4 @@
 .close-icon {
   height: var(--space-3);
   width: var(--space-3);
-}
-
-.tab-underline {
-  position: absolute;
-  inset-inline: 0;
-  bottom: 0;
-  height: var(--space-0-5);
-  border-radius: var(--radius-full);
-  background-color: var(--theme-text-primary);
 }

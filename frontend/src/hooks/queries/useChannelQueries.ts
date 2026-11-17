@@ -11,6 +11,7 @@ import {
 import { channelService } from '@/services/channelService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
+import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useChannelStore } from '@/store/channelStore';
 import { useChannelQueueStore } from '@/store/messageQueueStore';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
@@ -39,6 +40,7 @@ export const useMachinesChannels = (enabled: boolean) => {
         )
         .sort((a, b) => Date.parse(b.channel.updated_at) - Date.parse(a.channel.updated_at)),
       isLoading: results.some((result) => result.isLoading),
+      load: listLoadState(results),
     }),
     [machineIds],
   );
@@ -49,6 +51,7 @@ export const useMachinesChannels = (enabled: boolean) => {
       enabled:
         enabled && (machineId === LOCAL_MACHINE_ID || connections[machineId]?.status === 'online'),
       staleTime: 30_000,
+      retry: retryTransientOnce,
     })),
     combine,
   });

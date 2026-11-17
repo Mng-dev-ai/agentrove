@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import type { SearchMatch } from '@/types/sandbox.types';
 import styles from './SearchResultLine.module.scss';
 
+// Characters kept before the hit so a match deep in a long line stays inside the row
+const LEADING_CONTEXT = 16;
+
 export interface SearchResultLineProps {
   match: SearchMatch;
   onClick: () => void;
@@ -16,7 +19,10 @@ export const SearchResultLine = memo(function SearchResultLine({
   isActive = false,
 }: SearchResultLineProps) {
   const { line_text, match_start, match_end } = match;
-  const before = line_text.slice(0, match_start);
+  const before =
+    match_start > LEADING_CONTEXT
+      ? `…${line_text.slice(match_start - LEADING_CONTEXT, match_start)}`
+      : line_text.slice(0, match_start);
   const hit = line_text.slice(match_start, match_end);
   const after = line_text.slice(match_end);
 

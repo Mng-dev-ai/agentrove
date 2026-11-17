@@ -28,6 +28,24 @@
   }
 }
 
+// Spine segment: full height between children, stopping at the last child's elbow
+.subthread-row,
+.more-toggle {
+  &::before {
+    content: '';
+    position: absolute;
+    left: calc(var(--elbow) * -1);
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: var(--theme-border-secondary);
+  }
+
+  &:last-child::before {
+    bottom: 50%;
+  }
+}
+
 // Positioning slot for the title FloatingTooltip wrapper
 .thread-tooltip {
   display: flex;
@@ -35,13 +53,13 @@
   flex: 1;
 }
 
-// Horizontal elbow connecting the row to the parent's vertical spine
+// Horizontal elbow from the spine to the row's edge, at the row's vertical centre
 .connector {
   position: absolute;
-  left: -22px;
+  left: calc(var(--elbow) * -1);
   top: 50%;
   height: 1px;
-  width: 18px;
+  width: var(--elbow);
   background-color: var(--theme-border-secondary);
 }
 
@@ -52,9 +70,15 @@
   min-width: 0;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1-5) var(--space-2);
+  padding: var(--space-1-5) var(--space-1);
   padding-right: var(--space-10);
   color: var(--theme-text-tertiary);
+
+  // Same ~40px rows as SidebarRow so adjacent dropdown hit areas don't overlap
+  @include responsive.media('touch') {
+    padding-block: var(--space-2-5);
+    padding-right: var(--space-16);
+  }
 
   @include responsive.hover {
     color: var(--theme-text-secondary);
@@ -77,9 +101,14 @@
 }
 
 .provider-icon {
+  @include anim.transition-colors;
   height: var(--space-3);
   width: var(--space-3);
   color: var(--theme-text-tertiary);
+
+  &--muted {
+    color: var(--theme-text-quaternary);
+  }
 }
 
 // Corner overlay when the dot sits on top of a provider icon
@@ -113,10 +142,16 @@
   &--hidden {
     opacity: 0;
   }
+
+  @include responsive.media('touch') {
+    right: var(--space-10);
+    opacity: 1;
+  }
 }
 
 .dropdown-btn {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   position: absolute;
   right: var(--space-2);
   flex-shrink: 0;
@@ -138,6 +173,10 @@
   &--visible {
     opacity: 1;
   }
+
+  @include responsive.media('touch') {
+    opacity: 1;
+  }
 }
 
 .dropdown-icon {
@@ -145,26 +184,21 @@
   width: var(--space-3);
 }
 
-// Shared branch wrapper for the error + list states (indented under the parent)
+// Shared branch wrapper for the error + list states. Geometry follows the parent row
+// (SidebarChatItem): its leading icon is --space-3-5 wide with a --space-1-5 gap to the
+// title. The spine sits under the icon's centre (-0.5px centres the 1px line), and the
+// child's icon (row inset --space-1) lands on the parent's title start.
 .branch {
+  --elbow: calc(var(--space-3-5) / 2 + var(--space-1-5) - var(--space-1) + 0.5px);
   position: relative;
-  margin-left: 11px;
+  margin-left: calc(var(--space-3-5) / 2 - 0.5px);
   margin-top: var(--space-0-5);
-  padding-left: 22px;
+  padding-left: var(--elbow);
 }
 
 .error-line {
   position: absolute;
   bottom: var(--space-2);
-  left: 0;
-  top: 0;
-  width: 1px;
-  background-color: var(--theme-border-secondary);
-}
-
-.list-line {
-  position: absolute;
-  bottom: 14px;
   left: 0;
   top: 0;
   width: 1px;
@@ -178,5 +212,24 @@
 
   @include responsive.hover {
     color: var(--theme-text-tertiary);
+  }
+}
+
+// Quiet last child: text starts where the rows' leading icon does
+.more-toggle {
+  @include type.type-meta;
+  @include anim.transition-colors;
+  position: relative;
+  display: flex;
+  width: 100%;
+  padding: var(--space-1-5) var(--space-1);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.media('touch') {
+    padding-block: var(--space-2-5);
+  }
+
+  @include responsive.hover {
+    color: var(--theme-text-secondary);
   }
 }

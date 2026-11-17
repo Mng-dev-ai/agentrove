@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Clock, Brain, Shield, GitFork } from 'lucide-react';
+import { Brain, Shield, GitFork } from 'lucide-react';
 import type { Persona } from '@/types/user.types';
 import type { AutomationForm, AutomationTarget } from '@/types/automation.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
@@ -8,6 +8,7 @@ import { Select } from '@/components/ui/primitives/Select/Select';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import {
@@ -139,14 +140,8 @@ export function AutomationEditDialog({
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="sm" className={styles.dialog}>
+      <ModalHeader title={isEditing ? 'Edit automation' : 'Add automation'} onClose={onClose} />
       <div className={styles.body}>
-        <div className={styles.header}>
-          <div className={styles['icon-box']}>
-            <Clock className={styles['header-icon']} />
-          </div>
-          <h3 className={styles.title}>{isEditing ? 'Edit automation' : 'Add automation'}</h3>
-        </div>
-
         <DialogError
           error={error ?? (machineOffline ? "This automation's machine is offline" : null)}
           className={styles.error}
@@ -414,14 +409,13 @@ export function AutomationEditDialog({
             </p>
           </div>
         </div>
-
-        <DialogFooter
-          onCancel={onClose}
-          onSave={onSubmit}
-          saveLabel={isEditing ? 'Update' : 'Add automation'}
-          disabled={!canSave || isSaving}
-        />
       </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={onSubmit}
+        saveLabel={isEditing ? 'Update' : 'Add automation'}
+        disabled={!canSave || isSaving}
+      />
     </BaseModal>
   );
 }

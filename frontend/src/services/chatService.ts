@@ -171,15 +171,18 @@ async function listChats(params?: {
   pinned?: boolean;
   include_sub_threads?: boolean;
 }): Promise<PaginatedChats> {
-  return serviceCall(async () => {
-    const queryString = buildQueryString(params);
-    const endpoint = `/chat/chats${queryString}`;
+  return serviceCall(
+    async () => {
+      const queryString = buildQueryString(params);
+      const endpoint = `/chat/chats${queryString}`;
 
-    const response = await apiClient.get<PaginatedChats>(endpoint);
-    const data = ensureResponse(response, 'Failed to fetch chats');
-    assignChatRecordsToMachine(LOCAL_MACHINE_ID, data.items);
-    return data;
-  });
+      const response = await apiClient.get<PaginatedChats>(endpoint);
+      const data = ensureResponse(response, 'Failed to fetch chats');
+      assignChatRecordsToMachine(LOCAL_MACHINE_ID, data.items);
+      return data;
+    },
+    { maxRetries: 1 },
+  );
 }
 
 async function searchChats(query: string): Promise<ChatSearchResponse> {

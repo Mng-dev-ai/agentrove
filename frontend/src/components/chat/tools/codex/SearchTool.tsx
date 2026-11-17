@@ -3,7 +3,6 @@ import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
 import { ToolCard } from '../common/ToolCard/ToolCard';
-import { SearchLoadingDots } from '../common/SearchLoadingDots/SearchLoadingDots';
 import {
   type ShellLikeInput,
   type ShellLikeOutput,
@@ -63,11 +62,6 @@ export const SearchTool = memo(function SearchTool({ tool }: { tool: ToolAggrega
             return `Searching: ${searchLabel}`;
         }
       }}
-      loadingContent={
-        // Codex shell search is a local file search, so the fallback loading
-        // copy should not inherit web-specific text.
-        <SearchLoadingDots label={adapterTitle || 'Searching files'} />
-      }
       error={tool.error}
     >
       {(filePath || command || output) && (

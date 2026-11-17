@@ -27,7 +27,6 @@ export const KillShellTool = memo(function KillShellTool({ tool }: { tool: ToolA
             return `Killing shell${idSuffix}`;
         }
       }}
-      loadingContent="Terminating shell..."
       error={tool.error}
     />
   );

@@ -1,4 +1,5 @@
 @use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/controls' as controls;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
@@ -7,6 +8,7 @@
 
 .dropdown {
   position: relative;
+  min-width: 0;
 }
 
 .trigger {
@@ -35,12 +37,15 @@
 // triggerVariant="text" — bare inline trigger for composer toolbars
 .trigger-text {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   display: flex;
   min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: var(--space-1);
   padding: 0;
-  color: var(--theme-text-secondary);
+  // Composer groups set this to quiet their triggers without a variant of their own
+  color: var(--dropdown-text-trigger-color, var(--theme-text-secondary));
 
   @include responsive.hover {
     color: var(--theme-text-primary);
@@ -63,6 +68,7 @@
   @include anim.transition-colors;
   display: inline-flex;
   min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: var(--space-1-5);
   border-radius: var(--radius-md);
@@ -128,10 +134,28 @@
     color: inherit;
   }
 
+  // Breaking anywhere after the unbreakable head keeps the trigger's min-content at about
+  // five characters plus the ellipsis, so a parent row can shrink the name that far
+  // without clipping the icon, suffix or chevron. break-all rather than overflow-wrap,
+  // which still prefers an earlier '/' or '-' and leaves the clamped line short.
   .trigger-toolbar & {
+    @include type.type-lineclamp(1);
+    word-break: break-all;
+    white-space: normal;
     font-weight: 400;
     color: inherit;
   }
+}
+
+.trigger-label-head {
+  white-space: nowrap;
+}
+
+.trigger-suffix {
+  flex-shrink: 0;
+  // Sits a word-space after the label rather than a full trigger gap
+  margin-inline-start: calc(var(--space-0-5) * -1);
+  white-space: nowrap;
 }
 
 .chevron {
@@ -219,6 +243,7 @@
 
 .search-input {
   @include type.type-meta;
+  @include controls.focus-ring;
   @include anim.transition-colors;
   height: var(--space-7);
   width: 100%;
@@ -233,7 +258,6 @@
   }
 
   &:focus {
-    outline: none;
     border-color: var(--theme-border-hover);
   }
 }

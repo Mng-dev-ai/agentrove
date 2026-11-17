@@ -229,6 +229,8 @@ export function useCommandMenu() {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Keys during IME composition belong to the candidate window
+      if (e.isComposing) return;
       const { activeIndex: idx, mode: m } = stateRef.current;
       const len = listLengthRef.current;
 
@@ -254,16 +256,9 @@ export function useCommandMenu() {
         }
       }
 
-      if (isPanelMode(m)) {
-        // The embedded panel handles its own typing + click-to-open; don't
-        // hijack Enter/arrows here. Only wire Escape to close the menu.
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          close();
-        }
-        return;
-      }
+      // Embedded panels own their keys; Escape reaches the dialog after their
+      // input had its chance to clear the query (see CommandMenu).
+      if (isPanelMode(m)) return;
 
       switch (e.key) {
         case 'Escape':

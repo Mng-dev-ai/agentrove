@@ -8,6 +8,7 @@
   height: var(--space-9);
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-2);
   border-bottom: 1px solid colors.theme-color('border', 0.5);
   background-color: var(--theme-surface-secondary);
   padding-inline: var(--space-3);
@@ -22,6 +23,7 @@
 
 .header-actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--space-1-5);
 }
@@ -29,6 +31,7 @@
 // Reopen-file-tree affordance
 .toggle-tree {
   @include anim.transition-colors(var(--duration-fast));
+  @include responsive.touch-target;
   flex-shrink: 0;
   border-radius: var(--radius-md);
   padding: var(--space-1);
@@ -77,6 +80,7 @@
 .toggle {
   @include type.type-meta(500);
   @include anim.transition-colors;
+  @include responsive.touch-target;
   display: flex;
   align-items: center;
   gap: var(--space-1);
@@ -110,6 +114,7 @@
 
 .fullscreen-button {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   border-radius: var(--radius-md);
   padding: var(--space-1);
   color: var(--theme-text-tertiary);

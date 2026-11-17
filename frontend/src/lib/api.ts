@@ -73,14 +73,38 @@ function accessTokenExpiresSoon(token: string): boolean {
   return expiresAt === null || expiresAt - Date.now() < ACCESS_TOKEN_EXPIRY_BUFFER_MS;
 }
 
+const stringField = (value: unknown, key: string): string | undefined => {
+  const field: unknown =
+    typeof value === 'object' && value !== null
+      ? (value as Record<string, unknown>)[key]
+      : undefined;
+  return typeof field === 'string' ? field : undefined;
+};
+
+const readableDetail = (detail: unknown): string | undefined => {
+  if (typeof detail === 'string') return detail;
+  // FastAPI 422s carry a list of validation errors in `detail`
+  if (Array.isArray(detail)) {
+    return detail
+      .flatMap((item: unknown) => {
+        const message = typeof item === 'string' ? item : stringField(item, 'msg');
+        return message === undefined ? [] : [message];
+      })
+      .join('; ');
+  }
+  return (
+    stringField(detail, 'message') ?? stringField(detail, 'msg') ?? stringField(detail, 'detail')
+  );
+};
+
 const extractErrorMessage = async (response: Response): Promise<string> => {
   try {
     const text = await response.text();
     if (!text) {
       return `HTTP error! status: ${response.status}`;
     }
-    const error = JSON.parse(text);
-    return error.message || error.detail || response.statusText;
+    const error: { message?: unknown; detail?: unknown } | null = JSON.parse(text);
+    return stringField(error, 'message') || readableDetail(error?.detail) || response.statusText;
   } catch {
     return response.statusText || 'An error occurred';
   }

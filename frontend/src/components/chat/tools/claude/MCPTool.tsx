@@ -72,7 +72,6 @@ export const MCPTool = memo(function MCPTool({ tool }: MCPToolProps) {
       icon={<Wrench className={toolIcon.icon} />}
       status={toolStatus}
       title={title}
-      loadingContent="Processing..."
       error={errorMessage}
       defaultExpanded={hasImages || undefined}
     >

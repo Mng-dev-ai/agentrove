@@ -1,29 +1,37 @@
-@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
 
+// Same row language as the tool cards: icon column on the chat's alignment line, meta-step text
 .plan-card {
-  border: 1px solid colors.theme-color('border', 0.5);
-  border-radius: var(--radius-lg);
-  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.header,
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1-5);
 }
 
 .header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-1-5);
+  padding-block: var(--space-0-5);
 }
 
-.icon {
+.icon,
+.status-icon {
   height: var(--space-3-5);
   width: var(--space-3-5);
-  color: var(--theme-text-tertiary);
   flex-shrink: 0;
 }
 
+.icon {
+  color: var(--theme-text-tertiary);
+}
+
 .title {
-  @include type.type-default;
-  color: var(--theme-text-secondary);
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
 }
 
 .count {
@@ -31,44 +39,27 @@
   color: var(--theme-text-quaternary);
 }
 
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding-block: var(--space-0-5);
-}
-
-.status-icon-wrap {
-  flex-shrink: 0;
-}
-
-.status-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
-}
-
 .status-icon--completed {
-  color: var(--theme-success-text);
-}
-
-.status-icon--in-progress {
-  color: var(--theme-text-secondary);
-}
-
-.status-icon--pending {
   color: var(--theme-text-quaternary);
 }
 
-.label {
-  @include type.type-default;
+.status-icon--in-progress {
   color: var(--theme-text-primary);
+}
+
+.status-icon--pending {
+  color: var(--theme-text-tertiary);
+}
+
+.label {
+  @include type.type-meta;
   min-width: 0;
+  overflow-wrap: break-word;
+  color: var(--theme-text-secondary);
+}
+
+.label--in-progress {
+  color: var(--theme-text-primary);
 }
 
 .label--completed {

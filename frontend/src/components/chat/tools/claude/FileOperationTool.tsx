@@ -32,24 +32,20 @@ interface TitleConfig {
 
 interface OperationConfig {
   icon: LucideIcon;
-  loadingContent: string;
   titles: TitleConfig;
 }
 
 const OPERATION_CONFIGS: Record<'read' | 'edit' | 'write', OperationConfig> = {
   read: {
     icon: FileSearch,
-    loadingContent: 'Loading file content...',
     titles: { inProgress: 'Reading', completed: 'Read', failed: 'Failed to read' },
   },
   edit: {
     icon: FileEditIcon,
-    loadingContent: 'Applying changes...',
     titles: { inProgress: 'Editing', completed: 'Edited', failed: 'Failed to edit' },
   },
   write: {
     icon: FilePlus,
-    loadingContent: 'Writing file...',
     titles: { inProgress: 'Writing', completed: 'Wrote', failed: 'Failed to write' },
   },
 };
@@ -197,7 +193,6 @@ const FileOperationTool = memo(function FileOperationTool({
             return `${config.titles.inProgress} ${filePath}`;
         }
       }}
-      loadingContent={config.loadingContent}
       error={tool.error}
       actions={filePath ? <OpenInEditorButton filePath={filePath} /> : null}
     >

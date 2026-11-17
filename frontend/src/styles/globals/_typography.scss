@@ -1,12 +1,30 @@
 // Typography system. Components never set font-size/weight/line-height directly —
 // always via a type-* mixin. Semantic names map to the app's dense-UI scale.
-// The scale (and $space-base) is the original 10/12/14/18/20px design ×1.2 —
-// the ratios were right but the whole system rendered too small at 1×:
-//   type-meta      12px — metadata, badges, section headers (old text-2xs)
-//   type-default   14.4px — the app-wide default (old text-xs)
-//   type-body      16.8px — primary inputs, prose (old text-sm)
-//   type-title     21.6px — dialog titles only (old text-lg)
-//   type-page-title 24px — page headings (old text-xl font-semibold)
+// The scale (and $space-base) is the original 10/12/14/18/20px design ×1.1:
+//   type-meta      11px — metadata, badges, section headers (old text-2xs)
+//   type-default   13.2px — the app-wide default (old text-xs)
+//   type-body      15.4px — primary inputs, prose (old text-sm)
+//   type-prose     15.4px — chat reply prose, with looser leading
+//   type-title     19.8px — dialog titles only (old text-lg)
+//   type-page-title 22px — page headings (old text-xl font-semibold)
+
+@use 'sass:math';
+
+$type-meta-size: 0.6875rem;
+$type-meta-line-height: 0.9625rem;
+$type-default-size: 0.825rem;
+$type-default-line-height: 1.1rem;
+$type-body-size: 0.9625rem;
+$type-body-line-height: 1.375rem;
+// Chat reply prose: 1.6 leading on the body size, looser than inputs and dense UI
+$type-prose-line-height: 1.54rem;
+$type-large-size: 1.1rem;
+$type-large-line-height: 1.65rem;
+$type-title-size: 1.2375rem;
+$type-title-line-height: 1.925rem;
+$type-page-title-size: 1.375rem;
+$type-page-title-line-height: 1.925rem;
+$type-meta-tight-line-height: math.div($type-meta-size * 4, 3);
 
 @mixin typography-tokens {
   :root {
@@ -30,43 +48,47 @@
 }
 
 @mixin type-meta($weight: 400) {
-  @include type(0.75rem, 1.05rem, $weight);
+  @include type($type-meta-size, $type-meta-line-height, $weight);
 }
 
 @mixin type-default($weight: 400) {
-  @include type(0.9rem, 1.2rem, $weight);
+  @include type($type-default-size, $type-default-line-height, $weight);
 }
 
 @mixin type-body($weight: 400) {
-  @include type(1.05rem, 1.5rem, $weight);
+  @include type($type-body-size, $type-body-line-height, $weight);
+}
+
+@mixin type-prose($weight: 400) {
+  @include type($type-body-size, $type-prose-line-height, $weight);
 }
 
 @mixin type-large($weight: 400) {
-  @include type(1.2rem, 1.8rem, $weight);
+  @include type($type-large-size, $type-large-line-height, $weight);
 }
 
 @mixin type-title($weight: 500) {
-  @include type(1.35rem, 2.1rem, $weight);
+  @include type($type-title-size, $type-title-line-height, $weight);
 }
 
 @mixin type-page-title($weight: 600) {
-  @include type(1.5rem, 2.1rem, $weight);
+  @include type($type-page-title-size, $type-page-title-line-height, $weight);
 }
 
-// Panel/sidebar section headers: 12px uppercase wide-tracked quaternary
+// Panel/sidebar section headers: 11px uppercase wide-tracked quaternary
 @mixin type-section-header {
-  @include type(0.75rem, 1.05rem, 500, $letter-spacing: 0.05em);
+  @include type($type-meta-size, $type-meta-line-height, 500, $letter-spacing: 0.05em);
   text-transform: uppercase;
   color: var(--theme-text-quaternary);
 }
 
 // Code, file paths, env vars, technical IDs
-@mixin type-mono($size: 0.9rem, $line-height: 1.2rem, $weight: 400) {
+@mixin type-mono($size: $type-default-size, $line-height: $type-default-line-height, $weight: 400) {
   @include type($size, $line-height, $weight, var(--font-mono));
 }
 
-@mixin type-mono-meta {
-  @include type-mono(0.75rem, 1.05rem);
+@mixin type-mono-meta($line-height: $type-meta-line-height) {
+  @include type-mono($type-meta-size, $line-height);
 }
 
 // ---- utilities ----

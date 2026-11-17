@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { generatePaletteCss, generateDiffPaletteCss } from './src/styles/generatePaletteCss';
+import { PALETTES } from './src/styles/palettes';
 
 // CSS generated from the hex palette source (src/styles/palettes.ts) at build time, so
 // the RGB-channel vars aren't a second hand-maintained copy. Consumers import the virtual
@@ -11,11 +12,20 @@ const VIRTUAL_CSS: Record<string, () => string> = {
   'virtual:diff-palette-overrides.css': generateDiffPaletteCss,
 };
 
+// Same rule as DARK_PALETTES in src/utils/theme.ts, for index.html's pre-paint script.
+const DARK_THEMES = [
+  'dark',
+  ...Object.entries(PALETTES)
+    .filter(([, palette]) => palette.base === 'dark')
+    .map(([key]) => key),
+];
+
 function paletteCssPlugin(): Plugin {
   return {
     name: 'agentrove:palette-css',
     resolveId: (id) => (id in VIRTUAL_CSS ? `\0${id}` : null),
     load: (id) => (id.startsWith('\0') ? (VIRTUAL_CSS[id.slice(1)]?.() ?? null) : null),
+    transformIndexHtml: (html) => html.replace('__DARK_THEMES__', JSON.stringify(DARK_THEMES)),
   };
 }
 

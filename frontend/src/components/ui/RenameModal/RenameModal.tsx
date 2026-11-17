@@ -3,6 +3,8 @@ import { Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
+import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
@@ -11,13 +13,15 @@ import styles from './RenameModal.module.scss';
 interface RenameModalProps {
   isOpen: boolean;
   onClose: () => void;
+  // Rejects on failure; the modal stays open and shows the error.
   onSave: (newTitle: string) => Promise<void>;
   currentTitle: string;
   isLoading?: boolean;
   // Resolves to '' on failure (caller shows the toast) so the input is left untouched.
   onGenerateTitle?: () => Promise<string>;
   isGenerating?: boolean;
-  title?: string;
+  // What is being renamed, lowercase: "chat", "workspace", ...
+  subject: string;
 }
 
 export function RenameModal({
@@ -28,16 +32,21 @@ export function RenameModal({
   isLoading = false,
   onGenerateTitle,
   isGenerating = false,
-  title: modalTitle = 'Rename Chat',
+  subject,
 }: RenameModalProps) {
   const [title, setTitle] = useState(currentTitle);
+  const [error, setError] = useState<string | null>(null);
+  const [wasOpen, setWasOpen] = useState(isOpen);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
+  // Reset during render, not in an effect: a post-select value change collapses the selection.
+  if (isOpen !== wasOpen) {
+    setWasOpen(isOpen);
     if (isOpen) {
       setTitle(currentTitle);
+      setError(null);
     }
-  }, [isOpen, currentTitle]);
+  }
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -50,7 +59,13 @@ export function RenameModal({
     const trimmedTitle = title.trim();
     if (trimmedTitle === '') return;
 
-    await onSave(trimmedTitle);
+    try {
+      await onSave(trimmedTitle);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Rename failed');
+      // Save may have been clicked; put the user back in the field to fix and resubmit.
+      inputRef.current?.focus();
+    }
   }, [title, onSave]);
 
   const handleGenerate = useCallback(async () => {
@@ -70,15 +85,12 @@ export function RenameModal({
       if (e.key === 'Enter' && !isLoading && title.trim() !== '') {
         e.preventDefault();
         handleSave();
-      } else if (e.key === 'Escape' && !isLoading) {
-        e.preventDefault();
-        onClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isLoading, title, handleSave, onClose]);
+  }, [isOpen, isLoading, title, handleSave]);
 
   const isSaveDisabled = title.trim() === '' || isLoading;
 
@@ -86,17 +98,21 @@ export function RenameModal({
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="md">
-      <ModalHeader title={modalTitle} onClose={onClose} />
+      <ModalHeader title={`Rename ${subject}`} onClose={onClose} />
+      <DialogError error={error} className={styles.error} />
 
       <div className={styles.body}>
         <Input
           ref={inputRef}
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Enter chat title"
-          disabled={isLoading}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            setError(null);
+          }}
+          placeholder={`New ${subject} name`}
+          hasError={!!error}
           className={styles.input}
-          aria-label="New name"
+          aria-label={`New ${subject} name`}
         />
         {onGenerateTitle && (
           <FloatingTooltip
@@ -122,28 +138,13 @@ export function RenameModal({
         )}
       </div>
 
-      <div className={styles.footer}>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onClose}
-          disabled={isLoading}
-          className={styles['cancel-button']}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={handleSave}
-          disabled={isSaveDisabled}
-          isLoading={isLoading}
-        >
-          Save
-        </Button>
-      </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={handleSave}
+        saveLabel="Save"
+        saving={isLoading}
+        disabled={isSaveDisabled}
+      />
     </BaseModal>
   );
 }

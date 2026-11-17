@@ -75,6 +75,9 @@ export function Sidebar({
     workspaceBadgeById,
     machineWorkspaces,
     isLoadingChats,
+    threadsLoad,
+    pinnedLoad,
+    recentsLoad,
     hasMore,
     isFetchingMore,
     loadMore,
@@ -264,6 +267,8 @@ export function Sidebar({
       <aside
         aria-label="Chat history"
         className={clsx(styles.sidebar, sidebarOpen && styles['sidebar--open'])}
+        aria-hidden={isMobile && !sidebarOpen ? true : undefined}
+        inert={isMobile && !sidebarOpen}
       >
         <SidebarActions
           onNewChat={handleNewChat}
@@ -284,6 +289,9 @@ export function Sidebar({
             />
           }
           isLoadingChats={isLoadingChats}
+          threadsLoad={threadsLoad}
+          pinnedLoad={pinnedLoad}
+          recentsLoad={recentsLoad}
           hasAnyContent={hasAnyContent}
           needsYouChats={needsYouChats}
           pinnedChats={listedPinnedChats}

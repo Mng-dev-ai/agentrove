@@ -20,6 +20,7 @@
 }
 
 .bar-back {
+  @include responsive.touch-target;
   padding: var(--space-1);
   color: var(--theme-text-tertiary);
 

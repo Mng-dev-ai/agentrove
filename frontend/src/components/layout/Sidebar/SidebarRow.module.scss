@@ -13,8 +13,13 @@
   gap: var(--space-2);
   border-radius: var(--radius-lg);
   padding-inline: var(--space-2);
-  padding-block: 7px;
+  padding-block: var(--space-1-5);
   color: var(--theme-text-secondary);
+
+  // Taller rows on touch keep a ~40px thumb target
+  @include responsive.media('touch') {
+    padding-block: var(--space-2-5);
+  }
 
   // Dark mode rests one step dimmer than light for inactive rows
   :global([data-theme='dark']) & {
@@ -47,6 +52,10 @@
   flex: 1;
   flex-direction: column;
   padding-right: var(--space-10);
+
+  @include responsive.media('touch') {
+    padding-right: var(--space-16);
+  }
 }
 
 .title-row {
@@ -57,6 +66,8 @@
 }
 
 .title-btn {
+  @include type.type-default;
+  @include responsive.touch-target;
   // flex-1 keeps the whole row width as the open-chat hit target, not just the text
   display: flex;
   min-width: 0;
@@ -64,8 +75,6 @@
   align-items: center;
   gap: var(--space-1-5);
   text-align: left;
-  // TODO(refactor): no 13px type token exists — sidebar rows use a one-off text-[13px]
-  font-size: 16px;
 }
 
 .title-text {
@@ -91,10 +100,17 @@
   &--hidden {
     opacity: 0;
   }
+
+  // Clear of the always-visible dropdown's 40px hit area
+  @include responsive.media('touch') {
+    right: var(--space-10);
+    opacity: 1;
+  }
 }
 
 .dropdown-btn {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   position: absolute;
   right: var(--space-2);
   flex-shrink: 0;
@@ -114,6 +130,10 @@
   }
 
   &--visible {
+    opacity: 1;
+  }
+
+  @include responsive.media('touch') {
     opacity: 1;
   }
 }

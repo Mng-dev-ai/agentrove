@@ -50,7 +50,6 @@ export const TodoWriteTool = memo(function TodoWriteTool({ tool }: { tool: ToolA
             return 'Updating todos';
         }
       }}
-      loadingContent="Updating todo list..."
       error={tool.error}
     >
       {total > 0 && (

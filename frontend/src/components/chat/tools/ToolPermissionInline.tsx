@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import clsx from 'clsx';
 import { ChevronRight, Folder, ShieldAlert } from 'lucide-react';
-import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import type { ToolPermissionRequest } from '@/types/chat.types';
 import { PermissionApprovalButtons } from '@/components/ui/shared/ApprovalFooter/ApprovalFooter';
@@ -101,9 +100,7 @@ function DetailsList({ details }: DetailsListProps) {
       {details.map(([key, value]) => (
         <div key={key} className={styles['list-item']}>
           <div className={styles['list-label']}>{key}</div>
-          <div className={styles['list-value']}>
-            <MarkDown content={formatResult(value)} />
-          </div>
+          <pre className={styles['list-value']}>{formatResult(value)}</pre>
         </div>
       ))}
     </div>

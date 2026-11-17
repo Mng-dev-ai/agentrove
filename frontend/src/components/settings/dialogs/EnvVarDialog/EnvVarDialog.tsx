@@ -5,6 +5,7 @@ import { Select } from '@/components/ui/primitives/Select/Select';
 import { SecretInput } from '@/components/settings/inputs/SecretInput/SecretInput';
 import { useState } from 'react';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import styles from './EnvVarDialog.module.scss';
@@ -35,12 +36,12 @@ export function EnvVarDialog({
   const [isValueVisible, setIsValueVisible] = useState(false);
 
   return (
-    <BaseModal isOpen={isOpen} onClose={onClose} size="lg" className={styles.dialog}>
+    <BaseModal isOpen={isOpen} onClose={onClose} size="md">
+      <ModalHeader
+        title={isEditing ? 'Edit Environment Variable' : 'Add Environment Variable'}
+        onClose={onClose}
+      />
       <div className={styles.body}>
-        <h3 className={styles.title}>
-          {isEditing ? 'Edit Environment Variable' : 'Add Environment Variable'}
-        </h3>
-
         <DialogError error={error} className={styles.error} />
 
         <div className={styles.fields}>
@@ -95,15 +96,14 @@ export function EnvVarDialog({
             </p>
           </div>
         </div>
-
-        <DialogFooter
-          onCancel={onClose}
-          onSave={onSubmit}
-          saveLabel={isEditing ? 'Update' : 'Add Variable'}
-          saving={isSaving}
-          disabled={!envVar.key.trim() || !envVar.value.trim()}
-        />
       </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={onSubmit}
+        saveLabel={isEditing ? 'Update' : 'Add Variable'}
+        saving={isSaving}
+        disabled={!envVar.key.trim() || !envVar.value.trim()}
+      />
     </BaseModal>
   );
 }

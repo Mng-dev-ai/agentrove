@@ -1,8 +1,9 @@
-import { memo, type ComponentType, type SVGProps } from 'react';
+import { memo, useRef, type ComponentType, type SVGProps } from 'react';
 import clsx from 'clsx';
 import { Check, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useDropdown } from '@/hooks/useDropdown';
+import { usePanelInlineShift } from '@/hooks/usePanelFit';
 import styles from './ToggleDropdown.module.scss';
 
 export interface ToggleDropdownOption {
@@ -31,6 +32,8 @@ export const ToggleDropdown = memo(function ToggleDropdown({
 }: ToggleDropdownProps) {
   // Hand-styled for the landing composer (not Dropdown) to match the workspace selector.
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const panelTransform = usePanelInlineShift(panelRef, isOpen);
   const selected = options[value ? 1 : 0];
   const TriggerIcon = selected.icon ?? icon;
 
@@ -49,7 +52,7 @@ export const ToggleDropdown = memo(function ToggleDropdown({
       </Button>
 
       {isOpen && (
-        <div className={styles.panel} style={{ width }}>
+        <div ref={panelRef} className={styles.panel} style={{ width, transform: panelTransform }}>
           {options.map((opt, index) => {
             const optValue = index === 1;
             const isSelected = value === optValue;

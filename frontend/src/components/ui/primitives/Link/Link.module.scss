@@ -3,7 +3,7 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .link {
-  @include controls.focus-ring(1px);
+  @include controls.focus-ring;
   @include anim.transition-colors;
   color: var(--theme-text-primary);
   text-decoration: underline;
@@ -14,5 +14,5 @@
 }
 
 .link-unstyled {
-  @include controls.focus-ring(1px);
+  @include controls.focus-ring;
 }

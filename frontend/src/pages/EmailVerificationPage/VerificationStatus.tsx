@@ -32,7 +32,7 @@ export const VerificationStatus = memo(function VerificationStatus({
           icon: (
             <AlertCircle className={clsx(styles['status-icon'], styles['status-icon--error'])} />
           ),
-          heading: 'Verification Failed',
+          heading: 'Verification failed',
           headingClassName: styles['heading--error'],
           subText: message,
         };
@@ -41,7 +41,7 @@ export const VerificationStatus = memo(function VerificationStatus({
           icon: (
             <CheckCircle className={clsx(styles['status-icon'], styles['status-icon--primary'])} />
           ),
-          heading: 'Email Verified',
+          heading: 'Email verified',
           headingClassName: styles['heading--primary'],
           subText: message || 'Your email has been verified successfully.',
         };
@@ -55,7 +55,7 @@ export const VerificationStatus = memo(function VerificationStatus({
       default:
         return {
           icon: <Mail className={clsx(styles['status-icon'], styles['status-icon--tertiary'])} />,
-          heading: 'Check Your Email',
+          heading: 'Check your email',
           headingClassName: styles['heading--primary'],
           subText: email
             ? `We sent a verification link to ${email}`
@@ -77,19 +77,12 @@ export const VerificationStatus = memo(function VerificationStatus({
                 <p className={styles.subtext}>{subText}</p>
               </div>
 
-              {status === 'success' && (
-                <div className={styles['info-box']}>
-                  <p className={styles['info-text']}>{message}</p>
-                </div>
-              )}
-
               <div className={styles.actions}>
                 {(status === 'pending' || status === 'error') && (
                   <Button
                     onClick={onResend}
                     disabled={isResending}
                     variant="primary"
-                    size="lg"
                     className={styles['full-width']}
                   >
                     {isResending ? (
@@ -100,7 +93,7 @@ export const VerificationStatus = memo(function VerificationStatus({
                     ) : (
                       <>
                         <Mail className={styles.icon} />
-                        Resend Verification Email
+                        Resend verification email
                       </>
                     )}
                   </Button>
@@ -110,10 +103,9 @@ export const VerificationStatus = memo(function VerificationStatus({
                   <Button
                     onClick={() => navigate('/login')}
                     variant="primary"
-                    size="lg"
                     className={styles['full-width']}
                   >
-                    Continue to Login
+                    Continue to sign in
                   </Button>
                 )}
 
@@ -121,10 +113,9 @@ export const VerificationStatus = memo(function VerificationStatus({
                   <Button
                     onClick={() => navigate('/login')}
                     variant="secondary"
-                    size="lg"
                     className={styles['full-width']}
                   >
-                    Back to Login
+                    Back to sign in
                   </Button>
                 )}
               </div>

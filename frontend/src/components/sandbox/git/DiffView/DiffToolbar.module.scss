@@ -13,6 +13,10 @@
   gap: var(--space-1-5);
   border-bottom: 1px solid colors.theme-color('border', 0.5);
   padding-inline: var(--space-3);
+
+  @include responsive.media('mobile') {
+    padding-block: var(--space-1-5);
+  }
 }
 
 .tooltip-inline {
@@ -26,6 +30,7 @@
 
 .icon-button {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   flex-shrink: 0;
   border-radius: var(--radius-md);
   padding: var(--space-1);
@@ -52,6 +57,7 @@
 
 .file-switch {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   display: grid;
   max-width: max-content;
   flex: 1 1 0;
@@ -63,6 +69,12 @@
 
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
+  }
+
+  // Phones can't fit a readable file name beside the three-way mode switch
+  @include responsive.media('mobile') {
+    order: 1;
+    flex-basis: 100%;
   }
 }
 
@@ -113,6 +125,9 @@
   flex-shrink: 0;
   align-items: center;
   gap: var(--space-1-5);
+
+  // Phone toolbars have no room beside the file switcher; its panel header shows the totals
+  @include responsive.hide('mobile');
 }
 
 .stat-add {
@@ -129,6 +144,7 @@
 
 .progress {
   @include anim.transition-colors;
+  @include responsive.touch-target;
   display: flex;
   flex-shrink: 0;
   align-items: center;

@@ -114,8 +114,10 @@ export const View = memo(function View({
     retry: 1,
   });
 
-  const selectedFileContent =
-    source.path && fileContentData?.path === source.path ? fileContentData.content : undefined;
+  const loadedContent =
+    source.path && fileContentData?.path === source.path ? fileContentData : undefined;
+  const selectedFileContent = loadedContent?.content;
+  const isBinary = loadedContent?.is_binary ?? !!selectedFile?.is_binary;
 
   const {
     currentContent,
@@ -361,7 +363,9 @@ export const View = memo(function View({
       findFileInStructure(fileStructure, selectedFile.path) !== undefined);
 
   const isPreviewable = selectedFile ? isPreviewableFile(selectedFile) : false;
-  const isPreviewActive = isPreviewable && viewMode === 'preview';
+  // A binary file has no source to show, so its code mode is the preview too.
+  const isPreviewActive =
+    isPreviewable && (viewMode === 'preview' || (viewMode === 'code' && isBinary));
 
   const handlePreviewToggle = (showPreviewState: boolean) => {
     setViewMode(showPreviewState ? 'preview' : 'code');
@@ -408,7 +412,7 @@ export const View = memo(function View({
             error={source.isReadOnly ? null : error}
             selectedFile={selectedFile}
             showPreview={isPreviewActive}
-            onTogglePreview={handlePreviewToggle}
+            onTogglePreview={isBinary ? undefined : handlePreviewToggle}
             showDiff={viewMode === 'diff'}
             onToggleDiff={source.isReadOnly ? undefined : handleToggleDiff}
             hasChanges={fileHasChanges}
@@ -430,6 +434,7 @@ export const View = memo(function View({
             monacoRef={monacoRef}
             onCloseInlineChat={handleCloseInlineChat}
             selectedFile={selectedFile}
+            isBinary={isBinary}
             modelPath={`sandbox://${source.sandboxId ?? 'workspace'}/${source.path}`}
             diffOriginal={baselineData?.content}
             isGitRepo={baselineData?.is_git_repo ?? true}

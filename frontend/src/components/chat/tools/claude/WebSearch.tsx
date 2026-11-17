@@ -3,7 +3,6 @@ import { Search } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { ToolCard } from '../common/ToolCard/ToolCard';
 import { SourceChip } from '../common/SourceChip/SourceChip';
-import { SearchLoadingDots } from '../common/SearchLoadingDots/SearchLoadingDots';
 import toolIcon from './toolIcon.module.scss';
 import styles from './WebSearch.module.scss';
 
@@ -93,7 +92,6 @@ export function WebSearch({ tool }: WebSearchProps) {
             return `Searching: ${query}`;
         }
       }}
-      loadingContent={<SearchLoadingDots label="Searching the web" />}
       error={errorMessage}
     >
       {sources.length > 0 && (

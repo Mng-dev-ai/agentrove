@@ -30,7 +30,7 @@
 .description {
   @include type.type-default;
   margin-top: var(--space-1);
-  color: var(--theme-text-tertiary);
+  color: var(--theme-text-secondary);
 }
 
 .add-btn {
@@ -82,45 +82,44 @@
 .empty-text {
   @include type.type-default;
   margin-bottom: var(--space-3);
-  color: var(--theme-text-tertiary);
+  color: var(--theme-text-secondary);
 }
 
 .items {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.card {
-  @include anim.transition-colors;
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-xl);
-  padding: var(--space-4);
 
-  @include responsive.hover {
-    border-color: var(--theme-border-hover);
+  > * + * {
+    border-top: 1px solid var(--theme-border);
   }
 }
 
+.card {
+  padding: var(--space-3) var(--space-4);
+}
+
+// Actions wrap under the content once it would drop below ~210px, then stay right-aligned
 .card-row {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
 }
 
 .card-content {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 var(--space-48);
 }
 
 .card-actions {
   display: flex;
   align-items: center;
   gap: var(--space-0-5);
-  margin-left: var(--space-3);
+  margin-left: auto;
 }
 
 .action-btn {
+  @include responsive.touch-target;
   height: var(--space-7);
   width: var(--space-7);
   color: var(--theme-text-quaternary);

@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, type ReactNode } from 'react';
+import clsx from 'clsx';
 import { Undo2 } from 'lucide-react';
 import { UserMessageContent, AssistantMessageContent } from './MessageContent';
 import { MessageActions } from './MessageActions';
@@ -19,9 +20,18 @@ import { useCheckpointRestore } from '@/hooks/useCheckpointRestore';
 import { useChatMachineId } from '@/store/machineOrigin';
 import styles from './Message.module.scss';
 
-export function MessageRow({ children }: { children: ReactNode }) {
+// The latest message keeps its actions visible; earlier ones reveal them on hover/focus.
+export function MessageRow({
+  children,
+  isLatest,
+  className,
+}: {
+  children: ReactNode;
+  isLatest?: boolean;
+  className?: string;
+}) {
   return (
-    <div className={styles.message}>
+    <div className={clsx(styles.message, isLatest && styles['message--latest'], className)}>
       <div className={styles['message-row']}>
         <div className={styles['message-body']}>{children}</div>
       </div>
@@ -41,6 +51,14 @@ export function UserBubble({ children }: { children: ReactNode }) {
   );
 }
 
+export function UserActions({ children }: { children: ReactNode }) {
+  return <div className={clsx(styles['user-actions'], styles.reveal)}>{children}</div>;
+}
+
+export function AgentActions({ children }: { children: ReactNode }) {
+  return <div className={clsx(styles['agent-actions'], styles.reveal)}>{children}</div>;
+}
+
 interface SharedContentProps {
   contentRender: {
     events: AssistantStreamEvent[];
@@ -53,6 +71,9 @@ export interface UserMessageProps extends SharedContentProps {
   id: string;
   contentText: string;
   uploadingAttachmentIds?: string[];
+  isLatest?: boolean;
+  // An assistant reply follows in the same turn
+  hasReply?: boolean;
 }
 
 export const UserMessage = memo(function UserMessage({
@@ -62,6 +83,8 @@ export const UserMessage = memo(function UserMessage({
   attachments,
   uploadingAttachmentIds,
   isStreaming,
+  isLatest,
+  hasReply,
 }: UserMessageProps) {
   const { chatId } = useChatContext();
 
@@ -71,14 +94,14 @@ export const UserMessage = memo(function UserMessage({
     .join('\n\n');
   if (noticeText) {
     return (
-      <MessageRow>
+      <MessageRow className={hasReply ? styles['message--notice-before-reply'] : undefined}>
         <NoticeCard text={noticeText} />
       </MessageRow>
     );
   }
 
   return (
-    <MessageRow>
+    <MessageRow isLatest={isLatest}>
       <UserBubble>
         <UserMessageContent
           contentRender={contentRender}
@@ -90,9 +113,9 @@ export const UserMessage = memo(function UserMessage({
       </UserBubble>
 
       {contentText.trim() && !isStreaming && (
-        <div className={styles['actions-slot']}>
+        <UserActions>
           <MessageActions messageId={id} contentText={contentText} />
-        </div>
+        </UserActions>
       )}
     </MessageRow>
   );
@@ -106,6 +129,7 @@ export interface AssistantMessageProps extends SharedContentProps {
   modelId?: string;
   durationMs?: number | null;
   isLastBotMessage?: boolean;
+  isLatest?: boolean;
   toolResultsOmitted: boolean;
   isCompleted: boolean;
 }
@@ -121,6 +145,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   modelId,
   durationMs,
   isLastBotMessage,
+  isLatest,
   toolResultsOmitted,
   isCompleted,
 }: AssistantMessageProps) {
@@ -157,7 +182,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   const showFooter = (hasContentText || checkpointId != null) && !isStreaming;
 
   return (
-    <MessageRow>
+    <MessageRow isLatest={isLatest}>
       <MessageText>
         <AssistantMessageContent
           contentRender={contentRender}
@@ -174,11 +199,11 @@ export const AssistantMessage = memo(function AssistantMessage({
       </MessageText>
 
       {showFooter && (
-        <div className={styles.footer}>
+        <div className={clsx(styles.footer, styles.reveal)}>
           <div className={styles['footer-actions']}>
             {hasContentText && <MessageActions messageId={id} contentText={contentText} />}
             {checkpointId && (
-              <Tooltip content="Restore to before this run" position="bottom">
+              <Tooltip content="Restore to before this run" position="top">
                 <Button
                   onClick={() => setRestoreOpen(true)}
                   variant="unstyled"
@@ -196,7 +221,7 @@ export const AssistantMessage = memo(function AssistantMessage({
             {modelName && <span>{modelName}</span>}
             {modelName && relativeTime && <span>·</span>}
             {relativeTime && (
-              <Tooltip content={fullTimestamp} position="bottom">
+              <Tooltip content={fullTimestamp} position="top-end">
                 <span className={styles['footer-time']}>{relativeTime}</span>
               </Tooltip>
             )}

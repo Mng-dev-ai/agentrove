@@ -1,17 +1,22 @@
 import { useState, useMemo, useRef } from 'react';
-import { GitPullRequest, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import clsx from 'clsx';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
+import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
+import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { FieldMessage } from '@/components/ui/primitives/FieldMessage/FieldMessage';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Input } from '@/components/ui/primitives/Input/Input';
+import { Label } from '@/components/ui/primitives/Label/Label';
 import { Link } from '@/components/ui/primitives/Link/Link';
 import { Select } from '@/components/ui/primitives/Select/Select';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { useActiveChat } from '@/hooks/useActiveChat';
 import { useModelSelection } from '@/hooks/queries/useModelQueries';
 import { sandboxService } from '@/services/sandboxService';
+import { ServiceError } from '@/services/base/ServiceError';
 import { MAX_DIFF_LENGTH } from '@/config/constants';
 import { useGitBranchesQuery, useGitDiffQuery } from '@/hooks/queries/useSandboxQueries';
 import {
@@ -31,6 +36,15 @@ interface CreatePRDialogProps {
 
 const DIFF_HEADER_RE = /^a\/(.+?) b\//;
 const DEFAULT_BASES = ['main', 'master', 'develop', 'trunk'];
+
+// The backend reports a missing or rejected GitHub token as 400 (401 is reserved
+// for this app's own session); anything else means GitHub couldn't be reached.
+function githubErrorMessage(error: Error): string {
+  if (error instanceof ServiceError && error.status === 400) {
+    return `GitHub isn't authorised: ${error.message}. Add or update the token in Settings → General.`;
+  }
+  return `Couldn't reach GitHub: ${error.message}. Reviewers and existing pull requests can't be shown; check your connection and the token in Settings → General.`;
+}
 
 function parseChangedFiles(
   diff: string,
@@ -63,13 +77,20 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
   // GitHub calls run with the credentials of the backend that owns the chat.
   const chatId = currentChat?.id;
   const headBranch = branchesData?.current_branch ?? '';
-  const { owner, repo, openPR } = useBranchPullRequests(sandboxId, worktreeCwd, headBranch, chatId);
-  const { data: collaborators } = useGitHubCollaboratorsQuery(
+  const { owner, repo, openPR, pullsError } = useBranchPullRequests(
+    sandboxId,
+    worktreeCwd,
+    headBranch,
+    chatId,
+  );
+  const { data: collaborators, error: collaboratorsError } = useGitHubCollaboratorsQuery(
     owner,
     repo,
     !!owner && !!repo,
     chatId,
   );
+
+  const githubError = pullsError ?? collaboratorsError;
 
   const changedFiles = useMemo(
     () => (diffData?.diff ? parseChangedFiles(diffData.diff) : []),
@@ -227,30 +248,26 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
 
   return (
     <BaseModal isOpen={true} onClose={onClose} size="md" className={styles.dialog}>
+      <ModalHeader
+        title="Create pull request"
+        description={headBranch ? `${headBranch} → ${baseBranch}` : undefined}
+        onClose={onClose}
+      />
       <div className={styles.body}>
-        <div className={styles.header}>
-          <div className={styles['icon-box']}>
-            <GitPullRequest className={styles['header-icon']} />
-          </div>
-          <div>
-            <h2 className={styles.title}>Create pull request</h2>
-            {headBranch && (
-              <p className={styles.subtitle}>
-                {headBranch} → {baseBranch}
-              </p>
-            )}
-          </div>
-        </div>
-
         {!owner ? (
           <p className={styles['no-remote']}>No GitHub remote detected for this workspace.</p>
         ) : (
           <div className={styles.fields}>
+            {githubError && (
+              <FieldMessage variant="error" className={styles['github-error']}>
+                {githubErrorMessage(githubError)}
+              </FieldMessage>
+            )}
             {openPR && <CreatePRExistingBanner pr={openPR} />}
             <div>
-              <label htmlFor={titleInputId} className={styles.label}>
+              <Label htmlFor={titleInputId} className={styles.label}>
                 Title
-              </label>
+              </Label>
               <Input
                 id={titleInputId}
                 value={title}
@@ -263,9 +280,9 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
 
             <div>
               <div className={styles['field-header']}>
-                <label htmlFor={bodyTextareaId} className={styles['field-label']}>
+                <Label htmlFor={bodyTextareaId} className={styles['field-label']}>
                   Description
-                </label>
+                </Label>
                 <FloatingTooltip
                   content={generateDisabledReason ?? ''}
                   className={styles['tooltip-wrap']}
@@ -301,9 +318,9 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
 
             <div className={styles.row}>
               <div className={styles.col}>
-                <label htmlFor={baseBranchSelectId} className={styles.label}>
+                <Label htmlFor={baseBranchSelectId} className={styles.label}>
                   Base branch
-                </label>
+                </Label>
                 <Select
                   id={baseBranchSelectId}
                   value={baseBranch}
@@ -319,9 +336,10 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
               </div>
 
               <div className={styles.col}>
-                <label className={styles.label}>Reviewers</label>
+                <Label className={styles.label}>Reviewers</Label>
                 <CreatePRReviewers
                   collaborators={collaborators}
+                  failed={!!collaboratorsError}
                   selected={selectedReviewers}
                   onToggle={toggleReviewer}
                 />
@@ -330,7 +348,7 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
 
             {changedFiles.length > 0 && (
               <div>
-                <label className={styles.label}>Changed files ({changedFiles.length})</label>
+                <Label className={styles.label}>Changed files ({changedFiles.length})</Label>
                 <CreatePRChangedFiles files={changedFiles} />
               </div>
             )}
@@ -345,20 +363,13 @@ export function CreatePRDialog({ onClose }: CreatePRDialogProps) {
         )}
       </div>
 
-      <div className={styles.footer}>
-        <Button type="button" variant="ghost" size="sm" onClick={onClose} disabled={isSubmitting}>
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="sm"
-          onClick={handleSubmit}
-          disabled={isSubmitting || !owner || !!openPR}
-        >
-          {isSubmitting ? 'Creating...' : 'Create pull request'}
-        </Button>
-      </div>
+      <DialogFooter
+        onCancel={onClose}
+        onSave={handleSubmit}
+        saveLabel="Create pull request"
+        saving={isSubmitting}
+        disabled={!owner || !!openPR}
+      />
     </BaseModal>
   );
 }

@@ -13,7 +13,7 @@
   margin-left: auto;
   margin-right: auto;
   width: 100%;
-  max-width: 57.6rem;
+  max-width: var(--space-192);
   padding: var(--space-6) var(--space-4);
 
   @include responsive.media('sm-up') {
@@ -144,6 +144,7 @@
 
 .footer-btn {
   @include type.type-meta;
+  @include responsive.touch-target;
   color: var(--theme-text-tertiary);
 
   @include responsive.hover {
@@ -185,12 +186,16 @@
   @include responsive.media('mobile') {
     grid-column: 2;
   }
+
+  &--read {
+    @include type.type-default;
+  }
 }
 
 .body {
   @include type.type-default;
   @include type.type-lineclamp(3);
-  color: var(--theme-text-tertiary);
+  color: var(--theme-text-secondary);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 

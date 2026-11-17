@@ -30,7 +30,6 @@ export const WriteTool = memo(function WriteTool({ tool }: { tool: ToolAggregate
             return `Writing ${fileName}...`;
         }
       }}
-      loadingContent="Writing file..."
       error={tool.error}
       actions={filePath ? <OpenInEditorButton filePath={filePath} /> : null}
     >

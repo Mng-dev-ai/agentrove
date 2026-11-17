@@ -1,6 +1,5 @@
 @use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/responsive' as responsive;
 
 .item-header {
   display: flex;
@@ -40,22 +39,7 @@
 }
 
 .item-content {
-  @include type.type-mono(0.75rem, 1.625);
+  @include type.type-mono-meta(1.625);
   @include type.type-lineclamp(3);
   color: var(--theme-text-quaternary);
-}
-
-.pin-btn {
-  height: var(--space-7);
-  width: var(--space-7);
-  color: var(--theme-text-quaternary);
-
-  @include responsive.hover {
-    color: var(--theme-text-secondary);
-  }
-}
-
-.pin-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
 }

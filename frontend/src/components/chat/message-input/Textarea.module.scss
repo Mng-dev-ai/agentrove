@@ -32,10 +32,10 @@
 .textarea-field {
   @include type.type-default;
   position: relative;
+  display: block;
   // Fixed viewport cap shared with the backdrop (no spacing-scale token for 180px)
   max-height: 180px;
   width: 100%;
-  min-height: var(--space-9);
   overflow: hidden auto;
   padding-block: var(--space-1-5);
   line-height: 1.5;
@@ -44,15 +44,12 @@
   transition: all var(--duration-base);
 
   &::placeholder {
+    @include type.type-overflow;
     color: var(--theme-text-quaternary);
   }
 
   &--highlighted {
     color: transparent;
     caret-color: var(--theme-text-primary);
-  }
-
-  &--compact {
-    min-height: var(--space-7);
   }
 }

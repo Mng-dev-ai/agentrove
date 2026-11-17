@@ -78,6 +78,7 @@ export const ImagePreviewModal = memo(function ImagePreviewModal({
             variant="ghost"
             onClick={() => onDownload(current.file_url, filename)}
             aria-label="Download image"
+            className={styles.action}
           >
             <Download className={styles.icon} />
           </Button>
@@ -87,6 +88,7 @@ export const ImagePreviewModal = memo(function ImagePreviewModal({
             variant="ghost"
             onClick={onClose}
             aria-label="Close preview"
+            className={styles.action}
           >
             <X className={styles.icon} />
           </Button>

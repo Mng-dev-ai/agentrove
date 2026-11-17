@@ -85,7 +85,6 @@ export const GuardianReviewTool = memo(function GuardianReviewTool({
       }
       // No error prop: a denied review is a verdict, not a failure — the
       // structured body replaces ToolCard's error dump of the raw event.
-      loadingContent="Reviewing action..."
     >
       {rows.length > 0 && (
         <div className={styles.body}>

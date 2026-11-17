@@ -35,10 +35,6 @@
   color: var(--theme-text-tertiary);
 }
 
-.interrupted-text {
-  opacity: 0.6;
-}
-
 .activity-unavailable {
   @include type.type-meta;
   color: var(--theme-text-tertiary);
@@ -46,7 +42,7 @@
 
 .member-reason {
   @include type.type-default;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   padding: 0 var(--space-4) var(--space-1);
   color: var(--theme-text-tertiary);
 
@@ -119,8 +115,4 @@
 
 .agent-attachments {
   margin-top: var(--space-3);
-}
-
-.actions-slot {
-  margin-top: var(--space-1);
 }

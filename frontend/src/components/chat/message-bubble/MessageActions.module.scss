@@ -10,8 +10,7 @@
 
 .copy-button {
   @include anim.transition-colors;
-  position: relative;
-  overflow: hidden;
+  @include responsive.touch-target;
   border-radius: var(--radius-md);
   padding: var(--space-1);
 
