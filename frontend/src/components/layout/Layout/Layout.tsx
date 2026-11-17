@@ -113,6 +113,7 @@ export function Layout({ children, isAuthPage = false }: LayoutProps) {
 
           <main
             id="main-content"
+            tabIndex={-1}
             className={clsx(styles.main, shouldPushContent && styles['main--pushed'])}
           >
             {children}

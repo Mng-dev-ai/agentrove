@@ -66,7 +66,12 @@ export function useModalLayer(
       window.removeEventListener('keydown', handleKeyDown);
       openStack.splice(openStack.indexOf(container), 1);
       // StrictMode's simulated unmount keeps the dialog in the DOM; restore only on a real close.
-      if (!container.isConnected && trigger?.isConnected) trigger.focus();
+      if (container.isConnected) return;
+      trigger?.focus();
+      // The trigger can be gone or hidden (a closed mobile drawer); never leave focus on body.
+      if (document.activeElement === document.body) {
+        document.getElementById('main-content')?.focus({ preventScroll: true });
+      }
     };
   }, [containerRef, isOpen]);
 }
