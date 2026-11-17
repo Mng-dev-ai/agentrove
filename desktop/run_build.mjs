@@ -37,7 +37,6 @@ const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
 
 const platform = process.platform;
 const arch = process.arch;
-const forceClean = process.argv.includes('--clean');
 
 if (platform !== 'darwin' || !['arm64', 'x64'].includes(arch)) {
   throw new Error(`Desktop build supports macOS arm64/x64 only (received: ${arch}/${platform})`);
@@ -53,6 +52,7 @@ const sidecarBinDir = join(sidecarDir, 'bin');
 const rgBin = join(sidecarDir, 'bin', 'rg');
 const claudeAcpBin = join(sidecarBinDir, 'claude-agent-acp');
 const codexAcpBin = join(sidecarBinDir, 'codex-acp');
+const claudeAgentSdkNativeDir = join(sidecarDir, 'node_modules', '@anthropic-ai', `claude-agent-sdk-${platform}-${arch}`);
 
 const PYTHON_STAMP = `${PYTHON_VERSION}+${RELEASE_TAG}-${arch}-${platform}`;
 const NODE_STAMP = `${NODE_VERSION}-${arch}-${platform}`;
@@ -349,9 +349,6 @@ function signSidecar() {
 }
 
 function run() {
-  if (forceClean && existsSync(sidecarDir)) {
-    rmSync(sidecarDir, { recursive: true, force: true });
-  }
   mkdirSync(sidecarDir, { recursive: true });
 
   const pythonChanged = !upToDate('python', PYTHON_STAMP, pythonBin);
@@ -368,6 +365,8 @@ function run() {
   } else {
     installAcpAdapters();
   }
+  // claude-agent-acp runs the CLI from CLAUDE_CODE_EXECUTABLE, so the SDK's own native copy is never used.
+  rmSync(claudeAgentSdkNativeDir, { recursive: true, force: true });
 
   writeAcpLaunchers();
 

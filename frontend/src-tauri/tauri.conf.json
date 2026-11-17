@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "node ../desktop/run_build.mjs && npm run dev:desktop",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "node ../desktop/run_build.mjs --clean && npm run build -- --mode desktop",
+    "beforeBuildCommand": "node ../desktop/run_build.mjs && npm run build -- --mode desktop",
     "frontendDist": "../dist"
   },
   "app": {
