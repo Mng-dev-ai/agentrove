@@ -89,11 +89,11 @@
       background-color: var(--theme-surface-hover);
     }
   } @else if $variant == 'destructive' {
-    background-color: colors.status-color('error', 500);
+    background-color: colors.status-color('error', 600);
     color: white;
 
     @include responsive.hover {
-      background-color: colors.status-color('error', 600);
+      background-color: colors.status-color('error', 700);
     }
   } @else if $variant == 'link' {
     padding-inline: 0;
