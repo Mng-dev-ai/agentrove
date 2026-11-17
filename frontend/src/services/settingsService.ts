@@ -18,10 +18,13 @@ async function updateSettings(data: UserSettingsUpdate): Promise<UserSettings> {
     throw new ValidationError('Settings update data is required');
   }
 
-  return withAuth(async () => {
-    const response = await apiClient.patch<UserSettings>('/settings/', data);
-    return ensureResponse(response, 'Failed to update user settings');
-  });
+  return withAuth(
+    async () => {
+      const response = await apiClient.patch<UserSettings>('/settings/', data);
+      return ensureResponse(response, 'Failed to update user settings');
+    },
+    { maxRetries: 0 },
+  );
 }
 
 export const settingsService = {
