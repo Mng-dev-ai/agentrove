@@ -188,7 +188,10 @@ export const Chat = memo(function Chat() {
   }
   const lastBotIsStreaming = lastBotStreams || lastBotSettling;
   const beginTextReveal = useCallback(() => setRevealingTextCount((count) => count + 1), []);
-  const endTextReveal = useCallback(() => setRevealingTextCount((count) => count - 1), []);
+  // A frame later, so the last words paint before the reply settles instead of with it.
+  const endTextReveal = useCallback(() => {
+    requestAnimationFrame(() => setRevealingTextCount((count) => count - 1));
+  }, []);
   const textReveal = useMemo<TextReveal>(
     () => ({ streamEnded: lastBotSettling, begin: beginTextReveal, end: endTextReveal }),
     [lastBotSettling, beginTextReveal, endTextReveal],
