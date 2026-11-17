@@ -34,6 +34,13 @@
 .meta {
   flex-shrink: 0;
   color: var(--theme-text-tertiary);
+
+  // A phone row can't fit a long workspace name beside the title; the title keeps 60%
+  @include responsive.media('mobile') {
+    @include type.type-overflow;
+    flex-shrink: 1;
+    max-width: 40%;
+  }
 }
 
 .file-line {
