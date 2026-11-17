@@ -52,7 +52,7 @@ export function CreateSubThreadDialog({ parentChat, onClose }: CreateSubThreadDi
   const { data: settings } = useSettingsForChatQuery(parentChat.id, isAuthenticated);
   const personas = settings?.personas ?? [];
 
-  const [selectedModelId, setSelectedModelId] = useState('');
+  const [selectedModelId, setSelectedModelId] = useState(models[0]?.model_id ?? '');
   const [personaName, setPersonaName] = useState(DEFAULT_PERSONA);
   const [message, setMessage] = useState('');
   const [thinkingMode, setThinkingMode] = useState<ThinkingModeOption>({
