@@ -17,7 +17,8 @@ const HIGH_SURROGATE_RE = /[\uD800-\uDBFF]/;
 function sharedPrefixLength(a: string, b: string) {
   let i = 0;
   while (i < a.length && i < b.length && a[i] === b[i]) i++;
-  return i;
+  // Two emoji can share their high surrogate; don't keep half of one
+  return i > 0 && HIGH_SURROGATE_RE.test(a[i - 1]) ? i - 1 : i;
 }
 
 export function useSmoothText(
