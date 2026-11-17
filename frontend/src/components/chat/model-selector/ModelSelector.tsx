@@ -8,7 +8,6 @@ import type { DropdownItemType } from '@/components/ui/primitives/Dropdown/Dropd
 import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/store/modelStore';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
-import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { AGENT_ICONS } from '@/components/ui/icons/providerIcons';
 import { AgentFilterChips } from '@/components/chat/model-selector/AgentFilterChips';
@@ -33,12 +32,11 @@ export const ModelSelector = memo(function ModelSelector({
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
-  compact,
+  compact = true,
   variant = 'default',
   machineId,
 }: ModelSelectorProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const isSplitMode = useIsSplitMode();
   const { data: models = [], isLoading } = useModelsQuery({
     enabled: isAuthenticated,
     machineId,
@@ -123,8 +121,7 @@ export const ModelSelector = memo(function ModelSelector({
       width="16rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
-      compactOnMobile={compact ?? true}
-      forceCompact={compact ?? isSplitMode}
+      compact={compact}
       searchable
       searchPlaceholder="Filter..."
       searchVariant="underline"

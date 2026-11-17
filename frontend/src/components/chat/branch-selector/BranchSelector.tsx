@@ -6,7 +6,6 @@ import {
   type DropdownPosition,
 } from '@/components/ui/primitives/Dropdown/Dropdown';
 import { useChatContext } from '@/hooks/useChatContext';
-import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { useBranchCheckout } from '@/hooks/useBranchCheckout';
 import { buildBranchItems } from './branchItems';
@@ -26,7 +25,6 @@ export const BranchSelector = memo(function BranchSelector({
   variant = 'default',
 }: BranchSelectorProps) {
   const { sandboxId, worktreeCwd } = useChatContext();
-  const isSplitMode = useIsSplitMode();
 
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
   const { checkout, isPending } = useBranchCheckout(sandboxId, worktreeCwd);
@@ -55,8 +53,7 @@ export const BranchSelector = memo(function BranchSelector({
       width="16rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled || isPending}
-      compactOnMobile
-      forceCompact={isSplitMode}
+      compact
       triggerVariant={variant}
       iconWithLabel
       dropdownAlign={dropdownAlign}

@@ -100,7 +100,7 @@
     color: var(--theme-text-quaternary);
   }
 
-  // compactOnMobile: the icon stands in for the label only below the sm breakpoint
+  // compact outside split panes: the icon stands in for the label only below the sm breakpoint
   &--responsive {
     @include responsive.media('sm-up') {
       display: none;

@@ -7,7 +7,6 @@ import {
   DEFAULT_CHAT_SETTINGS_KEY,
   DEFAULT_FAST_MODE,
 } from '@/store/chatSettingsStore';
-import { useIsSplitMode } from '@/hooks/useIsSplitMode';
 import type { AgentKind } from '@/types/chat.types';
 import styles from './FastModeSelector.module.scss';
 
@@ -37,7 +36,6 @@ export const FastModeSelector = memo(function FastModeSelector({
 }: FastModeSelectorProps) {
   const key = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
   const fastMode = useChatSettingsStore((state) => state.fastModeByChat[key] ?? DEFAULT_FAST_MODE);
-  const isSplitMode = useIsSplitMode();
 
   // codex-acp only advertises Fast mode; hide for every other agent.
   if (agentKind !== 'codex') return null;
@@ -56,8 +54,7 @@ export const FastModeSelector = memo(function FastModeSelector({
       width="8rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled}
-      compactOnMobile
-      forceCompact={isSplitMode}
+      compact
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
       renderItem={(mode, isSelected) => (
