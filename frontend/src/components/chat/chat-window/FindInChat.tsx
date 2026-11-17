@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/primitives/Input/Input';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useUIStore } from '@/store/uiStore';
+import { findTextMatches } from './findTextMatches';
 import styles from './FindInChat.module.scss';
 
 // Registry names referenced by the ::highlight() rules in FindInChat.module.scss
@@ -14,6 +15,30 @@ const HIGHLIGHT_CURRENT = 'find-in-chat-current';
 // Bubbling event dispatched from a match before jumping to it — collapsible blocks
 // (ThinkingBlock) listen on their root and expand so the match is actually visible
 export const FIND_REVEAL_EVENT = 'find-in-chat:reveal';
+
+// Inline formatting and unclassed (syntax token) spans don't break a match: text inside
+// them belongs to the nearest other ancestor.
+const INLINE_TAGS = new Set(['A', 'B', 'CODE', 'DEL', 'EM', 'I', 'KBD', 'S', 'SPAN', 'STRONG']);
+
+function textBlock(node: Text): Element | null {
+  let el = node.parentElement;
+  while (el && INLINE_TAGS.has(el.tagName) && !(el.tagName === 'SPAN' && el.className)) {
+    el = el.parentElement;
+  }
+  return el;
+}
+
+function pushMatches(nodes: Text[], needle: string, ranges: Range[]) {
+  const texts = nodes.map((node) => node.data.toLowerCase());
+  for (const match of findTextMatches(texts, needle)) {
+    const range = new Range();
+    range.setStart(nodes[match.startNode], match.startOffset);
+    range.setEnd(nodes[match.endNode], match.endOffset);
+    // display:none content has no boxes and can't be revealed by a jump — skip
+    // it; CSS-clipped collapsibles keep boxes and expand via FIND_REVEAL_EVENT
+    if (range.getClientRects().length > 0) ranges.push(range);
+  }
+}
 
 function isEmbeddedEditor(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -119,24 +144,23 @@ export const FindInChat = memo(function FindInChat({ messages, scrollerRef }: Fi
       const ranges: Range[] = [];
       for (const el of scroller.querySelectorAll('[data-message-id]')) {
         const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
-        let node: Node | null;
-        while ((node = walker.nextNode())) {
-          const lower = node.textContent?.toLowerCase();
-          if (!lower) continue;
-          // Preview snippets duplicate content matched elsewhere and unmount on
-          // expand, which would leave dead ranges behind
-          if (node.parentElement?.closest('[data-find-exclude]')) continue;
-          let idx = lower.indexOf(needle);
-          while (idx !== -1) {
-            const range = new Range();
-            range.setStart(node, idx);
-            range.setEnd(node, idx + needle.length);
-            // display:none content has no boxes and can't be revealed by a jump — skip
-            // it; CSS-clipped collapsibles keep boxes and expand via FIND_REVEAL_EVENT
-            if (range.getClientRects().length > 0) ranges.push(range);
-            idx = lower.indexOf(needle, idx + needle.length);
+        let run: Text[] = [];
+        let runBlock: Element | null = null;
+        let excluded = false;
+        let node: Text | null;
+        while ((node = walker.nextNode() as Text | null)) {
+          const block = textBlock(node);
+          if (block !== runBlock) {
+            pushMatches(run, needle, ranges);
+            run = [];
+            runBlock = block;
+            // Preview snippets duplicate content matched elsewhere and unmount on
+            // expand, which would leave dead ranges behind
+            excluded = !!block?.closest('[data-find-exclude]');
           }
+          if (!excluded) run.push(node);
         }
+        pushMatches(run, needle, ranges);
       }
       rangesRef.current = ranges;
     }
