@@ -125,7 +125,7 @@
   }
 }
 
-// Status words reuse the dot's hues at steps that clear 4.5:1 for 12px text:
+// Status words reuse the dot's hues at steps that clear 4.5:1 for 11px text:
 // darker on light (warning/success need 700), lighter on dark.
 .status-word {
   flex-shrink: 0;

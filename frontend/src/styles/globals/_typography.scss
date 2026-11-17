@@ -24,7 +24,6 @@ $type-title-size: 1.2375rem;
 $type-title-line-height: 1.925rem;
 $type-page-title-size: 1.375rem;
 $type-page-title-line-height: 1.925rem;
-// Mono fields (copyable keys, device IDs): the old 1rem leading at the 0.75rem meta size
 $type-meta-tight-line-height: math.div($type-meta-size * 4, 3);
 
 @mixin typography-tokens {

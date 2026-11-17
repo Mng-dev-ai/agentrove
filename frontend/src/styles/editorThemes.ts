@@ -1,5 +1,4 @@
-// Editor syntax colours and the contrast floor shared by the Monaco theme and the diff
-// view. Alias-free and store-free (like palettes.ts) so it can also run at build time.
+// Editor syntax colours and the contrast floor shared by the Monaco theme and the diff view.
 import type * as monaco from 'monaco-editor';
 import type { PaletteDef, PaletteKey } from './palettes';
 import { PALETTES } from './palettes';

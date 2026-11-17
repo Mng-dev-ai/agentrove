@@ -1,6 +1,5 @@
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -103,17 +102,6 @@ export function MemberPopover({
   const fit = usePanelFit(dropdownRef, popoverRef, isOpen);
   const { modelId, model, agentKind, hasThinking, supportsPersona } = resolveMember(member, models);
   const nameInputId = `member-name-${member.key}`;
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      e.stopPropagation();
-      setIsOpen(false);
-    };
-    window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, setIsOpen]);
 
   return (
     <div ref={dropdownRef} className={styles['chip-wrap']}>
