@@ -5,6 +5,7 @@ import { EmptyState } from './EmptyState';
 import { EditorTabs } from './EditorTabs';
 import { ViewContentArea } from './ViewContentArea';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
+import { claimEscape } from '@/components/ui/shared/BaseModal/useModalLayer';
 import { useEditorTheme } from '@/hooks/useEditorTheme';
 import { attachEditorNavigationContext, setupEditorNavigation } from '@/lib/editorNavigation';
 import type { EditorNavigationContext } from '@/lib/editorNavigation';
@@ -72,6 +73,7 @@ export const View = memo(function View({
     ? { sandboxId: foreignFile.sandboxId, path: foreignFile.relPath, isReadOnly: true }
     : { sandboxId, path: selectedFile?.path, isReadOnly: false };
   const [viewMode, setViewMode] = useState<ViewMode>(() => defaultViewMode(selectedFile));
+  const viewRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import('monaco-editor') | null>(null);
   const selectedFilePath = selectedFile?.path ?? null;
@@ -340,9 +342,7 @@ export const View = memo(function View({
     if (!isPreviewFullscreen) return;
 
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setIsPreviewFullscreen(false);
-      }
+      if (claimEscape(e, viewRef.current)) setIsPreviewFullscreen(false);
     };
 
     document.addEventListener('keydown', handleEscape);
@@ -390,7 +390,7 @@ export const View = memo(function View({
   // Tabs stay mounted above the content even when the active file is invalid
   // (e.g. deleted from the tree), so the user can still switch to a sibling tab.
   return (
-    <div className={styles.view}>
+    <div ref={viewRef} className={styles.view}>
       <EditorTabs
         openFiles={openFiles}
         selectedPath={selectedFile?.path ?? null}

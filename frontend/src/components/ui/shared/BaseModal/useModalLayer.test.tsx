@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 
-import { fireEvent, render, screen } from '@testing-library/react';
-import { useState } from 'react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { useState, type ReactNode } from 'react';
 import { describe, it, expect } from 'vitest';
+import { useAnchoredPanel } from '@/hooks/useAnchoredPanel';
+import { useFilterMenu } from '@/hooks/useFilterMenu';
 import { BaseModal } from './BaseModal';
 
 function Page({ keepTrigger }: { keepTrigger: boolean }) {
@@ -39,5 +41,78 @@ describe('useModalLayer focus restore', () => {
     expect(document.activeElement).toBe(main);
     main.blur();
     expect(main.hasAttribute('tabindex')).toBe(false);
+  });
+});
+
+const anchorAtOrigin = () => ({ top: 0, left: 0 });
+
+function FilterMenu({ name }: { name: string }) {
+  const menu = useFilterMenu({ closeOnEscape: true });
+  return (
+    <div ref={menu.triggerRef}>
+      <button onClick={menu.open}>open {name}</button>
+      {menu.isOpen && <div data-testid={name} />}
+    </div>
+  );
+}
+
+function AnchoredPanel({ name }: { name: string }) {
+  const panel = useAnchoredPanel(anchorAtOrigin);
+  return (
+    <>
+      <button ref={panel.triggerRef} onClick={panel.toggle}>
+        open {name}
+      </button>
+      {panel.isOpen && <div ref={panel.panelRef} data-testid={name} />}
+    </>
+  );
+}
+
+function Layers({ Panel }: { Panel: (props: { name: string }) => ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Panel name="page" />
+      <button onClick={() => setOpen(true)}>open dialog</button>
+      <BaseModal isOpen={open} onClose={() => setOpen(false)} ariaLabel="dialog">
+        <Panel name="inside" />
+      </BaseModal>
+    </>
+  );
+}
+
+const pressEscape = () =>
+  act(() => {
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+  });
+
+describe.each([
+  ['useFilterMenu', FilterMenu],
+  ['useAnchoredPanel', AnchoredPanel],
+])('%s Escape layering', (_, Panel) => {
+  it('leaves Escape to a dialog opened over the open panel', () => {
+    render(<Layers Panel={Panel} />);
+    fireEvent.click(screen.getByText('open page'));
+    fireEvent.click(screen.getByText('open dialog'));
+
+    pressEscape();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.queryByTestId('page')).not.toBeNull();
+
+    pressEscape();
+    expect(screen.queryByTestId('page')).toBeNull();
+  });
+
+  it('closes a panel open inside a dialog before the dialog', () => {
+    render(<Layers Panel={Panel} />);
+    fireEvent.click(screen.getByText('open dialog'));
+    fireEvent.click(screen.getByText('open inside'));
+
+    pressEscape();
+    expect(screen.queryByTestId('inside')).toBeNull();
+    expect(screen.queryByRole('dialog')).not.toBeNull();
+
+    pressEscape();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

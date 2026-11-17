@@ -6,9 +6,20 @@ const FOCUSABLE =
 // Open dialogs in mount order; only the last one answers Escape/Tab.
 const openStack: HTMLDivElement[] = [];
 
-export const isBelowModalLayer = (element: Node) => {
+// For document-level Escape handlers, which run before the modal layer's window listener:
+// true (and the key is consumed) only when nothing handled it and no dialog sits above `element`.
+export const claimEscape = (event: KeyboardEvent, element: Node | null) => {
   const top = openStack[openStack.length - 1];
-  return top !== undefined && !top.contains(element);
+  if (
+    event.key !== 'Escape' ||
+    event.defaultPrevented ||
+    !element ||
+    (top !== undefined && !top.contains(element))
+  ) {
+    return false;
+  }
+  event.preventDefault();
+  return true;
 };
 
 // <main> is focusable only while it holds focus, so clicks inside it still leave focus on body.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { claimEscape } from '@/components/ui/shared/BaseModal/useModalLayer';
 
 // Portal-anchored panel that escapes overflow-clipping ancestors (useDropdown can't).
 export function useAnchoredPanel(
@@ -31,7 +32,7 @@ export function useAnchoredPanel(
       setIsOpen(false);
     };
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false);
+      if (claimEscape(e, triggerRef.current)) setIsOpen(false);
     };
     // Resize only — document scroll thrashes layout, and any real scroll
     // closes the panel via the mousedown handler anyway.

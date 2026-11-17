@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { isBelowModalLayer } from '@/components/ui/shared/BaseModal/useModalLayer';
+import { claimEscape } from '@/components/ui/shared/BaseModal/useModalLayer';
 
 // Open dropdowns in open order; only the last one answers Escape.
 const openStack: HTMLDivElement[] = [];
@@ -26,16 +26,7 @@ export const useDropdown = () => {
     // Document bubble runs before BaseModal's window listener, which skips
     // prevented Escapes — so the panel closes and the dialog stays open.
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key !== 'Escape' ||
-        event.defaultPrevented ||
-        openStack[openStack.length - 1] !== root ||
-        isBelowModalLayer(root)
-      ) {
-        return;
-      }
-      event.preventDefault();
-      setIsOpen(false);
+      if (openStack[openStack.length - 1] === root && claimEscape(event, root)) setIsOpen(false);
     };
 
     root.addEventListener('focusin', handleFocusIn);
