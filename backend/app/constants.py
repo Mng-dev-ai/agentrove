@@ -90,7 +90,6 @@ SANDBOX_BINARY_EXTENSIONS: Final[set[str]] = {
 }
 
 SANDBOX_HOME_DIR: Final[str] = "/home/user"
-SANDBOX_WORKSPACE_DIR: Final[str] = "/home/user/workspace"
 SANDBOX_GIT_ASKPASS_PATH: Final[str] = "/home/user/.git-askpass.sh"
 
 WS_MSG_AUTH: Final[str] = "auth"

@@ -39,7 +39,7 @@ from app.services.acp.adapters import (
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.pairing import PairingService
-from app.services.exceptions import AgentException, ErrorCode
+from app.services.exceptions import AgentException, ErrorCode, SandboxException
 from app.constants import DEFAULT_TITLE_MODEL_ID, MODELS
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
@@ -101,7 +101,9 @@ class AgentService:
     ) -> str:
         if chat.worktree_cwd:
             return cast(str, chat.worktree_cwd)
+        return await self._create_worktree_cwd(chat, base_branch)
 
+    async def _create_worktree_cwd(self, chat: Chat, base_branch: str | None) -> str:
         sandbox_id = chat.sandbox_id
         if not sandbox_id:
             return ""
@@ -111,6 +113,15 @@ class AgentService:
             workspace_path=chat.workspace_path,
         )
         git_service = GitService(SandboxService(provider))
+        if base_branch is None and chat.worktree_cwd:
+            # Branch from the inherited worktree's HEAD, not the root checkout,
+            # so the parent's commits carry over.
+            head = await git_service.run_command(
+                sandbox_id, "git rev-parse HEAD", chat.worktree_cwd
+            )
+            if not head.success:
+                raise SandboxException(head.error or "Inherited worktree has no HEAD")
+            base_branch = head.output
         worktree_cwd = await git_service.create_worktree(
             sandbox_id,
             "",
@@ -126,9 +137,17 @@ class AgentService:
         self, chat: Chat, worktree: bool, base_branch: str | None = None
     ) -> str:
         # A chat already bound to a worktree (e.g. a sub-thread inheriting the
-        # parent's) always runs in it, even when this turn didn't request one;
-        # otherwise only materialize one when the turn asks and a sandbox exists.
+        # parent's) runs in it unless this turn asks for isolation and the
+        # worktree isn't the chat's own; otherwise only materialize one when
+        # the turn asks and a sandbox exists.
         # "" is the canonical workspace root, resolved to an absolute cwd at the edge.
+        if (
+            worktree
+            and chat.sandbox_id
+            and chat.worktree_cwd
+            and chat.worktree_cwd != GitService.chat_worktree_path(str(chat.id))
+        ):
+            return await self._create_worktree_cwd(chat, base_branch)
         if chat.worktree_cwd or (worktree and chat.sandbox_id):
             return await self.ensure_worktree_cwd(chat, base_branch)
         return ""
