@@ -21,6 +21,40 @@ function writeScrollTop(
   lastScrollTopRef.current = clampedScrollTop(node);
 }
 
+// The message to hold in place when a commit changes the head of the list (an older page
+// prepended, the oldest messages dropped by a refetch): the first one from the top of the
+// viewport down that is still in the list.
+export function headAnchorId(
+  renderedIds: readonly string[],
+  nextIds: readonly string[],
+  firstVisibleIndex: number,
+): string | null {
+  if (renderedIds.length === 0 || firstVisibleIndex < 0 || renderedIds[0] === nextIds[0]) {
+    return null;
+  }
+  const kept = new Set(nextIds);
+  return renderedIds.slice(firstVisibleIndex).find((id) => kept.has(id)) ?? null;
+}
+
+function messageRow(scroller: HTMLElement, id: string) {
+  return scroller.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
+}
+
+// Read during render: the DOM still shows the previous list, so this is the anchor's
+// position before the commit that moves it.
+function captureHeadAnchor(scroller: HTMLElement | null, messages: readonly { id: string }[]) {
+  if (!scroller) return null;
+  const rows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-message-id]'));
+  const viewportTop = scroller.getBoundingClientRect().top;
+  const id = headAnchorId(
+    rows.map((row) => row.dataset.messageId ?? ''),
+    messages.map((message) => message.id),
+    rows.findIndex((row) => row.getBoundingClientRect().bottom > viewportTop),
+  );
+  const row = id === null ? null : messageRow(scroller, id);
+  return id !== null && row ? { id, top: row.getBoundingClientRect().top } : null;
+}
+
 // Net of the content's bottom padding, so the anchored turn top is exactly max scroll.
 function reservedTurnHeight(scroller: HTMLElement, content: Element) {
   return scroller.clientHeight - parseFloat(getComputedStyle(content).paddingBottom);
@@ -28,7 +62,7 @@ function reservedTurnHeight(scroller: HTMLElement, content: Element) {
 
 interface UseChatScrollParams {
   chatId: string | undefined;
-  messages: readonly unknown[];
+  messages: readonly { id: string }[];
   pendingUserMessageId: string | null;
   latestUserMessageId: string | null;
   hasNextPage: boolean;
@@ -51,7 +85,6 @@ export function useChatScroll({
   const topPaginationArmedRef = useRef(false);
   const lastScrollTopRef = useRef<number | null>(null);
   const isAtBottomRef = useRef(true);
-  const prevScrollHeightRef = useRef<number | null>(null);
   const prevChatIdForScrollRef = useRef(chatId);
 
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -68,7 +101,6 @@ export function useChatScroll({
     topPaginationArmedRef.current = false;
     lastScrollTopRef.current = null;
     isAtBottomRef.current = true;
-    prevScrollHeightRef.current = null;
     anchorTurnRef.current = null;
     anchoringRef.current = false;
     setTurnMinHeight(0);
@@ -140,7 +172,6 @@ export function useChatScroll({
       fetchNextPageRef.current
     ) {
       topPaginationArmedRef.current = false;
-      prevScrollHeightRef.current = container.scrollHeight;
       void fetchNextPageRef.current();
     }
 
@@ -163,17 +194,23 @@ export function useChatScroll({
     return () => cancelAnimationFrame(raf);
   }, [messages]);
 
-  // Keep viewport stable when older pages prepend above the fold.
+  const committedMessagesRef = useRef(messages);
+  const headAnchor =
+    committedMessagesRef.current[0]?.id === messages[0]?.id
+      ? null
+      : captureHeadAnchor(scrollerRef.current, messages);
+
+  // Engines without scroll anchoring leave scrollTop alone when the content above the
+  // reader changes height; a pinned reader is kept at the bottom by the observer instead.
   useLayoutEffect(() => {
-    const prevHeight = prevScrollHeightRef.current;
-    if (prevHeight === null) return;
-
-    const container = scrollerRef.current;
-    if (!container) return;
-
-    writeScrollTop(container, container.scrollHeight - prevHeight, lastScrollTopRef);
-    prevScrollHeightRef.current = null;
-  }, [messages]);
+    committedMessagesRef.current = messages;
+    const scroller = scrollerRef.current;
+    if (!headAnchor || !scroller || isAtBottomRef.current) return;
+    const row = messageRow(scroller, headAnchor.id);
+    if (!row) return;
+    const shift = row.getBoundingClientRect().top - headAnchor.top;
+    if (shift !== 0) writeScrollTop(scroller, scroller.scrollTop + shift, lastScrollTopRef);
+  }, [messages, headAnchor]);
 
   useLayoutEffect(() => {
     // Send anchor, step 1 of a two-commit handshake: reserve a viewport of space under
