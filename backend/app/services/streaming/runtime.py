@@ -1041,6 +1041,8 @@ class ChatStreamRuntime:
                         persona_name=request.selected_persona_name,
                     ).values(updated_at=Chat.updated_at)
                 )
+                if request.report_parent_id is not None:
+                    await subthread_wake.owe_report(db, chat.id, request.device_ids)
                 await db.commit()
             # The client repoints on this event — nothing fallible may follow it.
             if before_handoff is not None:

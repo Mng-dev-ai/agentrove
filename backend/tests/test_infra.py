@@ -271,6 +271,8 @@ async def test_lifespan_shutdown_terminates_terminal_sessions(
     terminal_recorder = AsyncCallRecorder()
     monkeypatch.setattr(main_module.MaintenanceService, "start", AsyncCallRecorder())
     monkeypatch.setattr(main_module.MaintenanceService, "stop", AsyncCallRecorder())
+    monkeypatch.setattr(main_module.subthread_wake, "recover", AsyncCallRecorder())
+    monkeypatch.setattr(main_module.subthread_wake, "shutdown", AsyncCallRecorder())
     monkeypatch.setattr(
         main_module.ChatStreamRuntime, "stop_background_chats", AsyncCallRecorder()
     )

@@ -57,6 +57,7 @@ from app.services.streaming.types import (
     ChatStreamRequest,
     StreamEnvelope,
 )
+from app.services.subthread_wake import subthread_wake
 from app.services.user import UserService
 from app.utils.cache import CacheError, CachePubSub, cache_connection, cache_pubsub
 
@@ -1196,6 +1197,10 @@ class ChatService(BaseDbService[Chat]):
             user_app_notice=user_app_notice,
             user_message_id=request.user_message_id,
         ) as (user_message, assistant_message, checkpoint_id):
+            if request.report_to_parent:
+                async with self.session_factory() as db:
+                    await subthread_wake.owe_report(db, chat.id, device_ids)
+                    await db.commit()
             task = await self._enqueue_chat_task(
                 member_turn=member_turn,
                 device_ids=device_ids,
