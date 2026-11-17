@@ -28,6 +28,9 @@ const UNSAFE_CSS = `
   [data-file-tree-search-input] {
     --trees-focus-ring-width: 1px;
   }
+  [data-type='item'] {
+    --truncate-marker-background-color: var(--theme-surface-secondary);
+  }
 `;
 
 // getItem() returns a union of file/directory handles; expand()/isExpanded() live only
