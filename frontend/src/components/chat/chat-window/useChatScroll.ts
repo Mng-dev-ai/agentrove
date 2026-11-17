@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom';
 const AT_BOTTOM_THRESHOLD_PX = 200;
 const TOP_PAGINATION_TRIGGER_PX = 50;
 const TOP_PAGINATION_ARM_VIEWPORT_MULTIPLIER = 1.5;
+const MESSAGE_ROW = '[data-message-id]';
 
 // Clamped: rubber-band overscroll reports positions outside the scroll range.
 function clampedScrollTop(node: HTMLElement) {
@@ -51,11 +52,36 @@ function messageRow(scroller: HTMLElement, id: string) {
   return scroller.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
 }
 
-// Read during render: the DOM still shows the previous list, so this is the anchor's
-// position before the commit that moves it.
-function captureHeadAnchor(scroller: HTMLElement | null, messages: readonly { id: string }[]) {
+// The message content stacked down the viewport, each element as deep as the tree goes at
+// its edge: what native scroll anchoring picks from, in order.
+function elementsInView(scroller: HTMLElement) {
+  const viewport = scroller.getBoundingClientRect();
+  const found: { element: Element; top: number }[] = [];
+  let edge = viewport.top;
+  while (edge < viewport.bottom) {
+    let element: Element = scroller;
+    for (;;) {
+      const child = Array.from(element.children).find(
+        (candidate) => candidate.getBoundingClientRect().bottom > edge,
+      );
+      if (!child) break;
+      element = child;
+      if (child.getBoundingClientRect().top >= edge && child.closest(MESSAGE_ROW)) break;
+    }
+    if (element === scroller) break;
+    const rect = element.getBoundingClientRect();
+    if (element.closest(MESSAGE_ROW)) found.push({ element, top: rect.top });
+    edge = rect.bottom;
+  }
+  return found;
+}
+
+// Read during render: the DOM still shows the previous commit, so these are the positions
+// before the commit that moves them. The message row stands in when the commit replaces
+// every element in view.
+function captureAnchor(scroller: HTMLElement | null, messages: readonly { id: string }[]) {
   if (!scroller) return null;
-  const rows = Array.from(scroller.querySelectorAll<HTMLElement>('[data-message-id]'));
+  const rows = Array.from(scroller.querySelectorAll<HTMLElement>(MESSAGE_ROW));
   const viewportTop = scroller.getBoundingClientRect().top;
   const id = headAnchorId(
     rows.map((row) => row.dataset.messageId ?? ''),
@@ -63,7 +89,10 @@ function captureHeadAnchor(scroller: HTMLElement | null, messages: readonly { id
     rows.findIndex((row) => row.getBoundingClientRect().bottom > viewportTop),
   );
   const row = id === null ? null : messageRow(scroller, id);
-  return id !== null && row ? { id, top: row.getBoundingClientRect().top } : null;
+  return {
+    elements: elementsInView(scroller),
+    row: id !== null && row ? { id, top: row.getBoundingClientRect().top } : null,
+  };
 }
 
 // Net of the content's bottom padding, so the anchored turn top is exactly max scroll.
@@ -74,6 +103,7 @@ function reservedTurnHeight(scroller: HTMLElement, content: Element) {
 interface UseChatScrollParams {
   chatId: string | undefined;
   messages: readonly { id: string }[];
+  lastReplyStreams: boolean;
   pendingUserMessageId: string | null;
   latestUserMessageId: string | null;
   hasNextPage: boolean;
@@ -85,6 +115,7 @@ interface UseChatScrollParams {
 export function useChatScroll({
   chatId,
   messages,
+  lastReplyStreams,
   pendingUserMessageId,
   latestUserMessageId,
   hasNextPage,
@@ -206,30 +237,37 @@ export function useChatScroll({
   }, [messages]);
 
   const committedMessagesRef = useRef(messages);
+  const committedReplyStreamsRef = useRef(lastReplyStreams);
   const headRoundingRef = useRef(0);
-  const headAnchor =
-    committedMessagesRef.current[0]?.id === messages[0]?.id
-      ? null
-      : captureHeadAnchor(scrollerRef.current, messages);
+  // The two commits that change the height of content above a reader: the head of the list
+  // changing, and a finished reply's work trace collapsing.
+  const anchor =
+    committedMessagesRef.current[0]?.id !== messages[0]?.id ||
+    (committedReplyStreamsRef.current && !lastReplyStreams)
+      ? captureAnchor(scrollerRef.current, messages)
+      : null;
 
   // Engines without scroll anchoring leave scrollTop alone when the content above the
   // reader changes height; a pinned reader is kept at the bottom by the observer instead.
   useLayoutEffect(() => {
     committedMessagesRef.current = messages;
+    committedReplyStreamsRef.current = lastReplyStreams;
     const scroller = scrollerRef.current;
-    if (!headAnchor || !scroller || isAtBottomRef.current) return;
-    const row = messageRow(scroller, headAnchor.id);
-    if (!row) return;
+    if (!anchor || !scroller || isAtBottomRef.current) return;
+    const held = anchor.elements.find(({ element }) => element.isConnected);
+    const row = anchor.row && messageRow(scroller, anchor.row.id);
+    let moved = 0;
+    if (held) {
+      moved = held.element.getBoundingClientRect().top - held.top;
+    } else if (anchor.row && row) {
+      moved = row.getBoundingClientRect().top - anchor.row.top;
+    }
     // Engines that keep scrollTop whole drop the fraction; carried so it cannot add up.
-    const target =
-      scroller.scrollTop +
-      row.getBoundingClientRect().top -
-      headAnchor.top +
-      headRoundingRef.current;
+    const target = scroller.scrollTop + moved + headRoundingRef.current;
     if (target === scroller.scrollTop) return;
     writeScrollTop(scroller, target, lastScrollTopRef);
     headRoundingRef.current = target - scroller.scrollTop;
-  }, [messages, headAnchor]);
+  }, [messages, lastReplyStreams, anchor]);
 
   useLayoutEffect(() => {
     // Send anchor, step 1 of a two-commit handshake: reserve a viewport of space under

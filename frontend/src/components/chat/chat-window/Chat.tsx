@@ -212,6 +212,7 @@ export const Chat = memo(function Chat() {
   } = useChatScroll({
     chatId,
     messages,
+    lastReplyStreams: lastBotIsStreaming,
     pendingUserMessageId,
     latestUserMessageId,
     hasNextPage,
