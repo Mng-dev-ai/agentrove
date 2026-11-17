@@ -8,7 +8,7 @@ export const DIFF_SYNTAX_THEME = 'agentrove-syntax';
 
 // Shiki's css-variables slots, each fed from the editor's Monaco token of the same role.
 const SLOT_TOKENS: Record<string, SyntaxToken> = {
-  foreground: '',
+  foreground: 'plain',
   'token-comment': 'comment',
   'token-keyword': 'keyword',
   'token-string': 'string',
@@ -16,10 +16,10 @@ const SLOT_TOKENS: Record<string, SyntaxToken> = {
   'token-constant': 'number',
   'token-function': 'function',
   'token-parameter': 'variable',
-  'token-punctuation': '',
+  'token-punctuation': 'plain',
   'token-link': 'string',
-  'token-inserted': '',
-  'token-deleted': '',
+  'token-inserted': 'plain',
+  'token-deleted': 'plain',
 };
 
 const TEXT_PRIMARY = 'var(--theme-text-primary)';
