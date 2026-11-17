@@ -9,7 +9,7 @@ export const MATH_PATTERN = /(^|[^\\])(\$\$[\s\S]*?\$\$|\\\(|\\\[)/;
 const SAFE_BLOCK_START_RE = /^(?![ \t]|[-*+] |\d+[.)] |>)\S/;
 const MENTION_TRAILING_PUNCTUATION = '.,:;!?';
 // Fence marker + info string separate — closer must match opener, not any 3+ fence.
-const CODE_FENCE_LINE_RE = /^\s*(`{3,}|~{3,})(.*)$/;
+const CODE_FENCE_LINE_RE = /^\s*(`{3,}|~{3,})([^\n]*)$/;
 const MATH_FENCE_LINE_RE = /^\s*\$\$\s*$/;
 
 export const createImageAttachment = (url: string, alt?: string): MessageAttachment => {
