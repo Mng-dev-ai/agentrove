@@ -81,6 +81,8 @@ export function Sidebar({
     hasMore,
     isFetchingMore,
     loadMore,
+    canShowLess,
+    showLess,
   } = useSidebarChatLists(workspaces);
 
   const sidebarChats = useMemo(() => [...pinnedChats, ...recentChats], [pinnedChats, recentChats]);
@@ -306,6 +308,8 @@ export function Sidebar({
           hasMore={hasMore}
           isFetchingMore={isFetchingMore}
           onLoadMore={loadMore}
+          canShowLess={canShowLess}
+          onShowLess={showLess}
         />
 
         {/* Always render footer so settings/logout work even if the user query fails. */}

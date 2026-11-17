@@ -45,6 +45,19 @@ function invalidateMachineChats(queryClient: QueryClient, chatId: string) {
   }
 }
 
+export const infiniteChatsQueryKey = (options?: {
+  perPage?: number;
+  workspaceId?: string;
+  pinned?: boolean;
+}) =>
+  [
+    queryKeys.chats,
+    'infinite',
+    options?.perPage ?? CHATS_PER_PAGE,
+    options?.workspaceId ?? GLOBAL_WORKSPACE_SENTINEL,
+    options?.pinned ?? null,
+  ] as const;
+
 export const useInfiniteChatsQuery = (options?: {
   perPage?: number;
   workspaceId?: string;
@@ -56,13 +69,7 @@ export const useInfiniteChatsQuery = (options?: {
   const pinned = options?.pinned;
 
   return useInfiniteQuery({
-    queryKey: [
-      queryKeys.chats,
-      'infinite',
-      perPage,
-      workspaceId ?? GLOBAL_WORKSPACE_SENTINEL,
-      pinned ?? null,
-    ] as const,
+    queryKey: infiniteChatsQueryKey({ perPage, workspaceId, pinned }),
     queryFn: async ({ pageParam }) => {
       const page = pageParam as number;
       return chatService.listChats({

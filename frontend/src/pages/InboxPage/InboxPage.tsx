@@ -213,11 +213,11 @@ export function InboxPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                className={styles['load-more-btn']}
+                className={styles['show-more-btn']}
                 disabled={isFetchingMore}
                 onClick={loadMore}
               >
-                {isFetchingMore ? 'Loading…' : 'Load more'}
+                {isFetchingMore ? 'Loading…' : 'Show more'}
               </Button>
             )}
           </div>
