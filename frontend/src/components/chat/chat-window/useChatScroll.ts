@@ -206,6 +206,7 @@ export function useChatScroll({
   }, [messages]);
 
   const committedMessagesRef = useRef(messages);
+  const headRoundingRef = useRef(0);
   const headAnchor =
     committedMessagesRef.current[0]?.id === messages[0]?.id
       ? null
@@ -219,8 +220,15 @@ export function useChatScroll({
     if (!headAnchor || !scroller || isAtBottomRef.current) return;
     const row = messageRow(scroller, headAnchor.id);
     if (!row) return;
-    const shift = row.getBoundingClientRect().top - headAnchor.top;
-    if (shift !== 0) writeScrollTop(scroller, scroller.scrollTop + shift, lastScrollTopRef);
+    // Engines that keep scrollTop whole drop the fraction; carried so it cannot add up.
+    const target =
+      scroller.scrollTop +
+      row.getBoundingClientRect().top -
+      headAnchor.top +
+      headRoundingRef.current;
+    if (target === scroller.scrollTop) return;
+    writeScrollTop(scroller, target, lastScrollTopRef);
+    headRoundingRef.current = target - scroller.scrollTop;
   }, [messages, headAnchor]);
 
   useLayoutEffect(() => {
