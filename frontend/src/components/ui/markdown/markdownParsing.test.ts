@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Element as HastElement, Root as HastRoot } from 'hast';
-import { rehypeMentionPills } from './markdownParsing';
+import { rehypeMentionPills, splitMarkdownBlocks } from './markdownParsing';
 
 const HANDLES: ReadonlySet<string> = new Set(['rev', 'reviewer', 'all']);
 
@@ -52,5 +52,31 @@ describe('rehypeMentionPills with channel member handles', () => {
         },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe('splitMarkdownBlocks fences', () => {
+  it.each([
+    ['a longer math fence', '$$$\nx\n\ny\n$$$'],
+    ['a math fence with meta', '$$ tex\nx\n\ny\n$$'],
+    ['a math fence with an over-indented closer', '$$\nx\n\n    $$\ny\n\nz\n$$'],
+    ['a code fence with an over-indented closer', '```\na\n\n    ```\nb\n\nc\n```'],
+    ['a code fence after an indented-code opener', '    ```\na\n```\nx\n\ny\n```'],
+    ['a code fence after a tab-indented opener', '\t```\na\n```\nx\n\ny\n```'],
+  ])('keeps %s in one block', (_, fenced) => {
+    expect(splitMarkdownBlocks(`${fenced}\n\nafter`)).toEqual([fenced, 'after']);
+  });
+
+  it('splits at a blank line after a backtick line whose info string has a backtick', () => {
+    expect(splitMarkdownBlocks('``` a`b\nx\n\ny')).toEqual(['``` a`b\nx', 'y']);
+  });
+
+  it('splits between ordinary math and code fences', () => {
+    expect(splitMarkdownBlocks('$$\nx\n$$\n\ntext\n\n```js\na\n\nb\n```\n\nend')).toEqual([
+      '$$\nx\n$$',
+      'text',
+      '```js\na\n\nb\n```',
+      'end',
+    ]);
   });
 });
