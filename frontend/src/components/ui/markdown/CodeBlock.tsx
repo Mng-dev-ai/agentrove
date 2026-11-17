@@ -7,17 +7,6 @@ import styles from './CodeBlock.module.scss';
 
 const HighlightedCode = lazyNamed(() => import('./HighlightedCode'), 'HighlightedCode');
 
-function supportsShikiRegexEngine() {
-  try {
-    new RegExp('(?<=a)b');
-    return 'at' in Array.prototype;
-  } catch {
-    return false;
-  }
-}
-
-const CAN_HIGHLIGHT = supportsShikiRegexEngine();
-
 interface CodeBlockProps extends HTMLAttributes<HTMLElement> {
   language: string;
   codeContent: string;
@@ -49,13 +38,9 @@ export function CodeBlock({ language, codeContent, className, ...props }: CodeBl
       </div>
       <pre className={styles['code-pre']}>
         <code className={clsx(className, styles['code-content'])} {...props}>
-          {CAN_HIGHLIGHT ? (
-            <Suspense fallback={codeContent}>
-              <HighlightedCode key={language} code={codeContent} language={language} />
-            </Suspense>
-          ) : (
-            codeContent
-          )}
+          <Suspense fallback={codeContent}>
+            <HighlightedCode key={language} code={codeContent} language={language} />
+          </Suspense>
         </code>
       </pre>
     </div>
