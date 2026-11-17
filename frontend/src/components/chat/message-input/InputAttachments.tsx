@@ -24,7 +24,6 @@ export const InputAttachments = memo(function InputAttachments({
         previewUrls={previewUrls}
         onRemoveFile={onRemoveFile}
         onEditImage={onEditImage}
-        compact={true}
       />
     </div>
   );

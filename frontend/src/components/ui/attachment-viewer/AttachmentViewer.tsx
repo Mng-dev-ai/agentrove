@@ -3,13 +3,14 @@ import clsx from 'clsx';
 import { logger } from '@/utils/logger';
 import type { MessageAttachment } from '@/types/chat.types';
 import { resolveChatClient } from '@/lib/api';
-import { fetchAttachmentBlob, downloadAttachmentFile } from '@/utils/file';
+import { fetchAttachmentBlob, downloadAttachmentFile, getDefaultFilename } from '@/utils/file';
 import { isBrowserObjectUrl } from '@/utils/attachmentUrl';
 import { ImagePreviewModal } from '../ImagePreviewModal/ImagePreviewModal';
 import {
-  ThumbnailWrapper,
-  IconThumbnail,
+  FileAttachment,
+  ImageErrorTile,
   ImageThumbnail,
+  ThumbnailWrapper,
   type ImageSize,
   type ImageState,
 } from './AttachmentThumbnails';
@@ -58,10 +59,6 @@ export const AttachmentViewer = memo(function AttachmentViewer({
   const imageAttachments = useMemo(
     () => attachments.filter((a) => a.file_type === 'image'),
     [attachments],
-  );
-  const imageIndexMap = useMemo(
-    () => new Map(imageAttachments.map((a, i) => [a.id, i])),
-    [imageAttachments],
   );
   const imageIdKey = useMemo(
     () => imageAttachments.map((a) => a.id).join('\0'),
@@ -164,52 +161,57 @@ export const AttachmentViewer = memo(function AttachmentViewer({
     return null;
   }
 
+  const fileAttachments = attachments.filter(
+    (a) => a.file_type === 'pdf' || a.file_type === 'xlsx',
+  );
+
   return (
     <>
-      <div className={clsx(styles.list, size === 'large' && styles['list--large'])}>
-        {attachments.map((attachment, index) => {
-          const isUploadingAttachment = uploadingIdSet.has(attachment.id);
-
-          if (attachment.file_type === 'image') {
-            const state = imageStates[attachment.id] || DEFAULT_IMAGE_STATE;
-            // Preview is only meaningful once the image has finished loading successfully —
-            // don't open the lightbox on a still-loading or errored thumbnail.
-            const canPreview = !isUploadingAttachment && !state.isLoading && !state.error;
-            // Safe non-null: every 'image' attachment is in imageAttachments, so the map always has it.
-            const imageIndex = imageIndexMap.get(attachment.id)!;
-
-            return (
-              <ThumbnailWrapper
-                key={attachment.id}
-                attachment={attachment}
-                onDownload={handleDownload}
-                onPreview={canPreview ? () => setPreviewIndex(imageIndex) : undefined}
-              >
-                <ImageThumbnail
+      <div className={styles.attachments}>
+        {imageAttachments.length > 0 && (
+          <div className={clsx(styles.list, size === 'large' && styles['list--large'])}>
+            {imageAttachments.map((attachment, index) => {
+              const isUploadingAttachment = uploadingIdSet.has(attachment.id);
+              const state = imageStates[attachment.id] || DEFAULT_IMAGE_STATE;
+              const filename = attachment.filename || getDefaultFilename('image', index);
+              if (state.error) {
+                return (
+                  <ImageErrorTile key={attachment.id} filename={filename} onRetry={handleRetry} />
+                );
+              }
+              const canPreview = !isUploadingAttachment && !state.isLoading;
+              return (
+                <ThumbnailWrapper
+                  key={attachment.id}
                   attachment={attachment}
-                  state={state}
-                  index={index}
-                  isUploading={isUploadingAttachment}
-                  size={size}
-                />
-              </ThumbnailWrapper>
-            );
-          }
-
-          if (attachment.file_type === 'pdf' || attachment.file_type === 'xlsx') {
-            return (
-              <ThumbnailWrapper
+                  filename={filename}
+                  onDownload={handleDownload}
+                  onPreview={canPreview ? () => setPreviewIndex(index) : undefined}
+                >
+                  <ImageThumbnail
+                    filename={filename}
+                    state={state}
+                    isUploading={isUploadingAttachment}
+                    size={size}
+                  />
+                </ThumbnailWrapper>
+              );
+            })}
+          </div>
+        )}
+        {fileAttachments.length > 0 && (
+          <div className={styles.list}>
+            {fileAttachments.map((attachment, index) => (
+              <FileAttachment
                 key={attachment.id}
                 attachment={attachment}
+                index={index}
+                isUploading={uploadingIdSet.has(attachment.id)}
                 onDownload={handleDownload}
-              >
-                <IconThumbnail attachment={attachment} isLoading={isUploadingAttachment} />
-              </ThumbnailWrapper>
-            );
-          }
-
-          return null;
-        })}
+              />
+            ))}
+          </div>
+        )}
       </div>
       <ImagePreviewModal
         isOpen={previewIndex !== null}

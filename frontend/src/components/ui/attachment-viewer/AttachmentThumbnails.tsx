@@ -1,8 +1,7 @@
-import { memo } from 'react';
-import type { ReactNode } from 'react';
-import type { LucideIcon } from 'lucide-react';
+import { memo, useState } from 'react';
+import type { ReactNode, SyntheticEvent } from 'react';
 import clsx from 'clsx';
-import { FileText, FileSpreadsheet, Download } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, RotateCw } from 'lucide-react';
 import type { MessageAttachment } from '@/types/chat.types';
 import { getDefaultFilename } from '@/utils/file';
 import { Button } from '../primitives/Button/Button';
@@ -17,27 +16,8 @@ export interface ImageState {
 
 export type ImageSize = 'thumbnail' | 'large';
 
-interface IconConfig {
-  icon: LucideIcon;
-  tone: 'pdf' | 'xlsx' | 'file';
-  label: string;
-}
-
-const getFileExtension = (filename?: string): string => {
-  return filename?.split('.').pop()?.toUpperCase() || '';
-};
-
-const getIconConfig = (fileType: string, filename?: string): IconConfig => {
-  if (fileType === 'pdf') {
-    return { icon: FileText, tone: 'pdf', label: 'PDF' };
-  }
-
-  if (fileType === 'xlsx') {
-    return { icon: FileSpreadsheet, tone: 'xlsx', label: getFileExtension(filename) || 'XLSX' };
-  }
-
-  return { icon: FileText, tone: 'file', label: 'FILE' };
-};
+const getFileExtension = (filename: string): string =>
+  filename.includes('.') ? (filename.split('.').pop()?.toUpperCase() ?? '') : '';
 
 const LoadingProgressOverlay = memo(function LoadingProgressOverlay() {
   return (
@@ -49,8 +29,93 @@ const LoadingProgressOverlay = memo(function LoadingProgressOverlay() {
   );
 });
 
+export function TileImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className: string;
+}) {
+  const [isSmall, setIsSmall] = useState(false);
+  const handleLoad = (e: SyntheticEvent<HTMLImageElement>) => {
+    const image = e.currentTarget;
+    setIsSmall(image.naturalWidth < image.clientWidth || image.naturalHeight < image.clientHeight);
+  };
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      onLoad={handleLoad}
+      className={clsx(styles['tile-image'], isSmall && styles['tile-image--small'], className)}
+    />
+  );
+}
+
+interface FileChipProps {
+  filename: string;
+  fileType: string;
+  isLoading?: boolean;
+  trailing: ReactNode;
+}
+
+export function FileChip({ filename, fileType, isLoading = false, trailing }: FileChipProps) {
+  const Icon = fileType === 'xlsx' ? FileSpreadsheet : FileText;
+  const tone = fileType === 'pdf' || fileType === 'xlsx' ? fileType : 'file';
+  return (
+    <span className={styles['file-chip']} title={filename}>
+      <span className={clsx(styles['file-icon'], styles[`file-icon--${tone}`])}>
+        {isLoading ? <Spinner size="xs" /> : <Icon className={styles['file-glyph']} />}
+      </span>
+      <span className={styles['file-text']}>
+        <span className={styles['file-name']}>{filename}</span>
+        <span className={styles['file-type']}>
+          {getFileExtension(filename) || fileType.toUpperCase()}
+        </span>
+      </span>
+      {trailing}
+    </span>
+  );
+}
+
+interface FileAttachmentProps {
+  attachment: MessageAttachment;
+  index: number;
+  isUploading: boolean;
+  onDownload: (url: string | File, filename: string) => void;
+}
+
+export function FileAttachment({
+  attachment,
+  index,
+  isUploading,
+  onDownload,
+}: FileAttachmentProps) {
+  const filename = attachment.filename || getDefaultFilename(attachment.file_type, index);
+  return (
+    <Button
+      type="button"
+      variant="unstyled"
+      onClick={() => onDownload(attachment.file_url, filename)}
+      disabled={isUploading}
+      className={styles['file-button']}
+      aria-label={`Download ${filename}`}
+    >
+      <FileChip
+        filename={filename}
+        fileType={attachment.file_type}
+        isLoading={isUploading}
+        trailing={<Download className={styles['file-download']} />}
+      />
+    </Button>
+  );
+}
+
 interface ThumbnailWrapperProps {
   attachment: MessageAttachment;
+  filename: string;
   onDownload: (url: string | File, filename: string) => void;
   onPreview?: () => void;
   children: ReactNode;
@@ -58,26 +123,20 @@ interface ThumbnailWrapperProps {
 
 export function ThumbnailWrapper({
   attachment,
+  filename,
   onDownload,
   onPreview,
   children,
 }: ThumbnailWrapperProps) {
-  const filename = attachment.filename || getDefaultFilename(attachment.file_type, 0);
   const isInteractive = Boolean(onPreview);
 
   return (
     <div
-      className={clsx(
-        styles.thumbnail,
-        isInteractive && styles['thumbnail--interactive'],
-        attachment.file_type !== 'image' && styles['thumbnail--file'],
-      )}
+      className={clsx(styles.thumbnail, isInteractive && styles['thumbnail--interactive'])}
       onClick={onPreview}
       onKeyDown={
         isInteractive
           ? (e) => {
-              // Only react to keys on the wrapper itself — avoid double-firing when the nested
-              // download button is focused and the user presses Enter/Space on it.
               if (e.target !== e.currentTarget) return;
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
@@ -96,12 +155,11 @@ export function ThumbnailWrapper({
           type="button"
           variant="unstyled"
           onClick={(e) => {
-            // Stop propagation so the wrapper's preview click handler (images) doesn't fire.
             e.stopPropagation();
             onDownload(attachment.file_url, filename);
           }}
           className={styles['download-button']}
-          aria-label={`Download ${attachment.file_type}`}
+          aria-label={`Download ${filename}`}
         >
           <Download className={styles['download-icon']} />
         </Button>
@@ -110,39 +168,14 @@ export function ThumbnailWrapper({
   );
 }
 
-export function IconThumbnail({
-  attachment,
-  isLoading = false,
-}: {
-  attachment: MessageAttachment;
-  isLoading?: boolean;
-}) {
-  const { icon: Icon, tone, label } = getIconConfig(attachment.file_type, attachment.filename);
-
-  return (
-    <div className={styles['icon-thumbnail']}>
-      <Icon className={clsx(styles.icon, styles[`icon--${tone}`])} />
-      <p className={styles['icon-label']}>{label}</p>
-      {isLoading && <LoadingProgressOverlay />}
-    </div>
-  );
+interface ImageThumbnailProps {
+  filename: string;
+  state: ImageState;
+  isUploading: boolean;
+  size: ImageSize;
 }
 
-export function ImageThumbnail({
-  attachment,
-  state,
-  index,
-  isUploading = false,
-  size = 'thumbnail',
-}: {
-  attachment: MessageAttachment;
-  state: ImageState;
-  index: number;
-  isUploading?: boolean;
-  size?: ImageSize;
-}) {
-  const filename = attachment.filename || getDefaultFilename('image', index);
-
+export function ImageThumbnail({ filename, state, isUploading, size }: ImageThumbnailProps) {
   if (state.isLoading) {
     return (
       <div className={styles['image-loading']}>
@@ -151,21 +184,13 @@ export function ImageThumbnail({
     );
   }
 
-  if (state.error) {
+  if (size === 'large') {
     return (
-      <div className={styles['image-error']}>
-        <p className={styles['error-label']}>Error</p>
-      </div>
-    );
-  }
-
-  if (state.imageSrc) {
-    return (
-      <div className={clsx(styles['image-wrap'], size === 'large' && styles['image-wrap--large'])}>
+      <div className={styles['image-wrap--large']}>
         <img
           src={state.imageSrc}
           alt={filename}
-          className={clsx(styles.image, size === 'large' && styles['image--large'])}
+          className={styles['image--large']}
           loading="lazy"
         />
         {isUploading && <LoadingProgressOverlay />}
@@ -173,5 +198,27 @@ export function ImageThumbnail({
     );
   }
 
-  return null;
+  return (
+    <div className={styles['image-wrap']}>
+      <TileImage src={state.imageSrc} alt={filename} className={styles.image} />
+      {isUploading && <LoadingProgressOverlay />}
+    </div>
+  );
+}
+
+export function ImageErrorTile({ filename, onRetry }: { filename: string; onRetry: () => void }) {
+  return (
+    <Button
+      type="button"
+      variant="unstyled"
+      onClick={onRetry}
+      className={styles['image-error']}
+      aria-label={`Retry loading ${filename}`}
+      title={filename}
+    >
+      <RotateCw className={styles['error-icon']} />
+      <span className={styles['error-name']}>{filename}</span>
+      <span className={styles['error-action']}>Retry</span>
+    </Button>
+  );
 }

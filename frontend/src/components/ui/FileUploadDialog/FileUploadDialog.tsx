@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useRef } from 'react';
 import { Plus, Image, FileText, FileSpreadsheet, Camera } from 'lucide-react';
 import clsx from 'clsx';
 import { useDragAndDrop } from '@/hooks/useDragAndDrop';
@@ -9,6 +9,7 @@ import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Input } from '@/components/ui/primitives/Input/Input';
+import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './FileUploadDialog.module.scss';
 
 interface FileUploadDialogProps {
@@ -23,6 +24,7 @@ export const FileUploadDialog = memo(function FileUploadDialog({
   onFileSelect,
 }: FileUploadDialogProps) {
   const isMobile = useIsMobile();
+  const addMoreInputRef = useRef<HTMLInputElement>(null);
   const { files, previewUrls, addFiles, removeFile, clearFiles } = useFileHandling({});
 
   const { isDragging, dragHandlers } = useDragAndDrop({
@@ -56,27 +58,26 @@ export const FileUploadDialog = memo(function FileUploadDialog({
           className={clsx(styles.dropzone, isDragging && styles['dropzone--dragging'])}
         >
           {files.length > 0 ? (
-            <div className={styles.stack}>
-              <div className={styles.grid}>
-                <FilePreviewList
-                  files={files}
-                  previewUrls={previewUrls}
-                  onRemoveFile={removeFile}
-                  compact={true}
-                />
-                <label className={styles['add-more']}>
-                  <Plus className={styles['add-more-icon']} />
-                  <span className={styles['add-more-label']}>Add more</span>
-                  <Input
-                    type="file"
-                    accept="image/*,application/pdf,.xlsx"
-                    multiple
-                    onChange={handleFileInput}
-                    variant="unstyled"
-                    className={styles['hidden-input']}
-                  />
-                </label>
-              </div>
+            <div className={styles.files}>
+              <FilePreviewList files={files} previewUrls={previewUrls} onRemoveFile={removeFile} />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => addMoreInputRef.current?.click()}
+              >
+                <Plus className={styles['add-more-icon']} />
+                Add more
+              </Button>
+              <Input
+                ref={addMoreInputRef}
+                type="file"
+                accept="image/*,application/pdf,.xlsx"
+                multiple
+                onChange={handleFileInput}
+                variant="unstyled"
+                className={styles['hidden-input']}
+              />
             </div>
           ) : (
             <div className={styles.stack}>
