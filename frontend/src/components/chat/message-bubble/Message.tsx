@@ -206,12 +206,15 @@ export const AssistantMessage = memo(function AssistantMessage({
       </MessageText>
 
       {reserveTrailer && (
-        <div className={styles.pending}>
+        <div className={styles.pending} data-find-exclude>
           <PromptSuggestions suggestions={PENDING_SUGGESTIONS} onSelect={setInputMessage} />
         </div>
       )}
       {showFooter && (
-        <div className={clsx(styles.footer, styles.reveal, isStreaming && styles.pending)}>
+        <div
+          className={clsx(styles.footer, styles.reveal, isStreaming && styles.pending)}
+          data-find-exclude={isStreaming || undefined}
+        >
           <div className={styles['footer-actions']}>
             {hasContentText && <MessageActions messageId={id} contentText={contentText} />}
             {checkpointId && (

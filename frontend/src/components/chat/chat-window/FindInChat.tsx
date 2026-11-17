@@ -155,7 +155,8 @@ export const FindInChat = memo(function FindInChat({ messages, scrollerRef }: Fi
             run = [];
             runBlock = block;
             // Preview snippets duplicate content matched elsewhere and unmount on
-            // expand, which would leave dead ranges behind
+            // expand, which would leave dead ranges behind; a streaming reply's
+            // reserved trailer is laid out but not shown
             excluded = !!block?.closest('[data-find-exclude]');
           }
           if (!excluded) run.push(node);
