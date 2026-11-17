@@ -22,6 +22,26 @@ from tests.helpers import (
 
 pytestmark = pytest.mark.anyio
 
+CHANNEL_ID = UUID(int=1)
+
+PERMISSIONS = {"perm:perm", "perm:plan"}
+
+QUESTIONS = {"perm:ask", "ask:elicit", "ask:chat-elicit"}
+
+COMPLETIONS = {"c:complete", f"{CHANNEL_ID}:complete"}
+
+INBOX = "inbox"
+
+EVERY_EVENT = PERMISSIONS | QUESTIONS | COMPLETIONS | {INBOX}
+
+SUB_THREAD_EVENTS = {
+    "perm:perm",
+    "perm:plan",
+    "perm:ask",
+    "ask:chat-elicit",
+    "c:complete",
+}
+
 
 async def test_push_device_follows_the_latest_account_and_unregister_is_scoped(
     client: AsyncClient,
@@ -88,27 +108,6 @@ async def test_disabled_notifications_suppress_queued_and_new_pushes(
     [delivery] = await deliveries(db_session)
     assert delivery.title == "Queued"
     assert delivery.finished_at is not None
-
-
-CHANNEL_ID = UUID(int=1)
-
-PERMISSIONS = {"perm:perm", "perm:plan"}
-
-QUESTIONS = {"perm:ask", "ask:elicit", "ask:chat-elicit"}
-
-COMPLETIONS = {"c:complete", f"{CHANNEL_ID}:complete"}
-
-INBOX = "inbox"
-
-EVERY_EVENT = PERMISSIONS | QUESTIONS | COMPLETIONS | {INBOX}
-
-SUB_THREAD_EVENTS = {
-    "perm:perm",
-    "perm:plan",
-    "perm:ask",
-    "ask:chat-elicit",
-    "c:complete",
-}
 
 
 async def enqueue_every_event(user_id: UUID, *, sub_thread: bool) -> None:

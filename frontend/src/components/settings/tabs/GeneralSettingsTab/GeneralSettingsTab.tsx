@@ -11,19 +11,6 @@ import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { THEMES } from '@/utils/theme';
 import styles from './GeneralSettingsTab.module.scss';
 
-interface GeneralSettingsTabProps {
-  fields: GeneralSecretFieldConfig[];
-  settings: UserSettings;
-  revealedFields: Record<ApiFieldKey, boolean>;
-  onPersistSecret: (field: ApiFieldKey, value: string) => void;
-  onToggleVisibility: (field: ApiFieldKey) => void;
-  onDeleteAllChats: () => void;
-  onNotificationsEnabledChange: (enabled: boolean) => void;
-  onNotifySettingChange: (setting: NotifySetting, enabled: boolean) => void;
-  onAutoSteerQueuedMessagesChange: (enabled: boolean) => void;
-  onTitleModelChange: (modelId: string) => void;
-}
-
 const NOTIFY_SETTINGS: { key: NotifySetting; title: string; desc: string }[] = [
   {
     key: 'notify_permission_requests',
@@ -43,6 +30,19 @@ const NOTIFY_SETTINGS: { key: NotifySetting; title: string; desc: string }[] = [
     desc: 'Include sub-thread chats. When off, only parent chats notify; inbox messages always do.',
   },
 ];
+
+interface GeneralSettingsTabProps {
+  fields: GeneralSecretFieldConfig[];
+  settings: UserSettings;
+  revealedFields: Record<ApiFieldKey, boolean>;
+  onPersistSecret: (field: ApiFieldKey, value: string) => void;
+  onToggleVisibility: (field: ApiFieldKey) => void;
+  onDeleteAllChats: () => void;
+  onNotificationsEnabledChange: (enabled: boolean) => void;
+  onNotifySettingChange: (setting: NotifySetting, enabled: boolean) => void;
+  onAutoSteerQueuedMessagesChange: (enabled: boolean) => void;
+  onTitleModelChange: (modelId: string) => void;
+}
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
