@@ -210,7 +210,7 @@ export function useStreamCallbacks({
           lastSeq: seq,
           chatId: streamChatId,
           sandboxId: streamChat?.sandbox_id,
-          subThread: Boolean(streamChat?.parent_chat_id),
+          subThread: streamChat ? Boolean(streamChat.parent_chat_id) : undefined,
         },
         seedEvents,
         seedText,
