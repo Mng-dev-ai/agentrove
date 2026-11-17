@@ -1,9 +1,10 @@
 import type { CreatePatchOptionsNonabortable, FileDiffMetadata, FileContents } from '@pierre/diffs';
 import type { DiffMode } from '@/types/sandbox.types';
 import { whitespaceKeySuffix } from '@/utils/diffReviewKey';
-import { DIFF_SYNTAX_THEME } from './diffShikiTheme';
+import { SYNTAX_SLOT_TOKENS } from '@/styles/syntaxSlots';
+import { SYNTAX_THEME } from '@/styles/syntaxTheme';
 
-export const DIFF_THEMES = { dark: DIFF_SYNTAX_THEME, light: DIFF_SYNTAX_THEME };
+export const DIFF_THEMES = { dark: SYNTAX_THEME, light: SYNTAX_THEME };
 
 // Wider pre-render halo than the library's 1000px default — fast scrolling
 // through large files otherwise outruns rendering/highlighting (renders happen
@@ -143,3 +144,23 @@ export function rebuildWithCollapsedContext(
   if (source.oldMode) (rebuilt as FileDiffWithOldMode).oldMode = source.oldMode;
   return rebuilt;
 }
+
+// Shadow-root rule: word-level change highlights sit on a stronger tint than their
+// line, so their tokens (and untokenized plain text) switch to the emphasis-safe set.
+const DIFF_EMPHASIS_CSS = `[data-diff-span]{--diffs-light:var(--diff-emphasis-foreground);--diffs-dark:var(--diff-emphasis-foreground);${Object.keys(
+  SYNTAX_SLOT_TOKENS,
+)
+  .map((slot) => `--diffs-${slot}:var(--diff-emphasis-${slot})`)
+  .join(';')}}`;
+
+// The library washes annotation rows with the line-selection tint when they sit
+// inside the selected range; keep the comment composer's row on the plain
+// annotation background. Changed-line numbers use the app's add/remove text
+// tokens: the Shiki theme's tints drop below 3:1 on several palettes.
+// Injected into the shadow root, where unlayered rules beat the library's
+// @layer base styles.
+export const DIFF_UNSAFE_CSS =
+  '[data-selected-line]:is([data-line-annotation],[data-gutter-buffer=annotation]){--diffs-computed-selected-line-bg:var(--diffs-annotation-bg)}' +
+  '[data-column-number][data-line-type=change-addition]{color:var(--theme-success-text)}' +
+  '[data-column-number][data-line-type=change-deletion]{color:var(--theme-error-text)}' +
+  DIFF_EMPHASIS_CSS;
