@@ -383,6 +383,7 @@ export const View = memo(function View({
     ? {
         ...selectedFile,
         content: displayContent,
+        is_binary: isBinary,
       }
     : null;
 
