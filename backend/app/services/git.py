@@ -30,9 +30,28 @@ GITHUB_REMOTE_RE = re.compile(
 )
 GIT_IS_REPO_CMD = "git rev-parse --is-inside-work-tree 2>/dev/null"
 GIT_CURRENT_BRANCH_CMD = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
+# Paths AgentRove or agent CLIs drop into checkouts: .worktrees/ holds chat
+# worktrees; Claude Code writes settings.local.json (and ignores it only via the
+# agent HOME's global excludes, which backend git doesn't read); the Antigravity
+# harness materializes its system skills relative to the session cwd. The repo's
+# info/exclude hides them from status, ls-files, rg and `git clean` under any
+# HOME, without touching tracked files. Written best-effort: a failed write must
+# never block the command it prefixes. `--git-path` resolves through the common
+# git dir, so the entries land in the file git actually reads even when the
+# workspace is itself a linked worktree (`--absolute-git-dir` would point at the
+# per-worktree admin dir).
+GIT_ENSURE_EXCLUDES_CMD = (
+    'excl="$(git rev-parse --git-path info/exclude 2>/dev/null)" && '
+    '{ mkdir -p "${excl%/*}" && for p in '
+    "'.worktrees/' '**/.claude/settings.local.json' "
+    "'**/skills/system/run-workflow/SKILL.md'; do "
+    'grep -qxF "$p" "$excl" || echo "$p" >> "$excl"; done; } 2>/dev/null; '
+)
 # One round-trip so a clean tree (the common case) avoids the diff capture.
+# Runs before every agent turn, so each workspace gets its excludes before the
+# agent can drop artifacts and before the checkpoint captures the tree.
 GIT_CHECKPOINT_PROBE_CMD = (
-    "git rev-parse HEAD 2>/dev/null && "
+    GIT_ENSURE_EXCLUDES_CMD + "git rev-parse HEAD 2>/dev/null && "
     'echo "$(git symbolic-ref -q HEAD)" && '
     '(test -z "$(git status --porcelain 2>/dev/null)" '
     "&& echo clean || echo dirty)"
@@ -74,19 +93,12 @@ GIT_CREATE_BRANCH_FROM_REMOTE_TEMPLATE = Template(
 # Idempotent: a previous attempt may have created the worktree but failed to
 # persist it; the dir-exists check lets us skip `git worktree add` instead of
 # failing on a duplicate branch or path.
-# The info/exclude entry hides .worktrees/ from the parent checkout — status,
-# ls-files, and rg all honor it, so root chats don't surface worktree contents
-# (phantom changed paths, duplicated search results, file-tree noise). Written
-# best-effort: a failed write must not block worktree creation. `--git-path`
-# resolves through the common git dir, so the entry lands in the file git
-# actually reads even when the workspace is itself a linked worktree
-# (`--absolute-git-dir` would point at the per-worktree admin dir).
+# create_worktree prefixes GIT_ENSURE_EXCLUDES_CMD so .worktrees/ is hidden from
+# the parent checkout (phantom changed paths, duplicated search results,
+# file-tree noise) even for chats that never take a checkpoint.
 _WORKTREE_ADD_PREAMBLE = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     "if [ -e '$worktree_dir/.git' ]; then echo 'exists'; exit 0; fi; "
-    'excl="$$(git rev-parse --git-path info/exclude)"; '
-    '{ mkdir -p "$${excl%/*}" && grep -qxF ".worktrees/" "$$excl" '
-    '|| echo ".worktrees/" >> "$$excl"; } 2>/dev/null; '
     "mkdir -p '$base_worktrees_dir' || exit $$?; "
 )
 # Create the branch separately so failure cleanup only owns a branch we created.
@@ -823,7 +835,7 @@ class GitService:
         rel_base_worktrees = posixpath.join(base_cwd, ".worktrees")
         rel_worktree = posixpath.join(base_cwd, self.chat_worktree_path(chat_id))
         branch_name = f"worktree-{short_id}"
-        git_prefix = self.git_command_prefix(base_cwd)
+        git_prefix = self.git_command_prefix(base_cwd) + GIT_ENSURE_EXCLUDES_CMD
         if base_ref is None:
             command = GIT_WORKTREE_ADD_TEMPLATE.substitute(
                 worktree_dir=rel_worktree,
