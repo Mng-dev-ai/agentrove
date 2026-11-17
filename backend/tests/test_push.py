@@ -98,6 +98,10 @@ QUESTIONS = {"perm:ask", "ask:elicit", "ask:chat-elicit"}
 
 COMPLETIONS = {"c:complete", f"{CHANNEL_ID}:complete"}
 
+INBOX = "inbox"
+
+EVERY_EVENT = PERMISSIONS | QUESTIONS | COMPLETIONS | {INBOX}
+
 SUB_THREAD_EVENTS = {
     "perm:perm",
     "perm:plan",
@@ -161,6 +165,8 @@ async def enqueue_every_event(user_id: UUID, *, sub_thread: bool) -> None:
         ("notify_permission_requests", False, PERMISSIONS),
         ("notify_questions", False, QUESTIONS),
         ("notify_completions", False, COMPLETIONS),
+        ("notify_inbox_messages", True, {INBOX}),
+        ("notifications_enabled", True, EVERY_EVENT),
         ("notify_sub_threads", True, SUB_THREAD_EVENTS),
         ("notify_sub_threads", False, set()),
     ],
@@ -169,6 +175,8 @@ async def enqueue_every_event(user_id: UUID, *, sub_thread: bool) -> None:
         "permissions-off",
         "questions-off",
         "completions-off",
+        "inbox-off",
+        "master-off",
         "sub-threads-off",
         "sub-threads-off-top-level",
     ],
@@ -202,11 +210,10 @@ async def test_per_event_settings_gate_push_enqueue(
     queued = {
         delivery.collapse_id: delivery for delivery in await deliveries(db_session)
     }
-    assert (
-        set(queued)
-        == (PERMISSIONS | QUESTIONS | COMPLETIONS | {f"inbox:{inbox['id']}"})
-        - suppressed
-    )
+    assert set(queued) == {
+        f"inbox:{inbox['id']}" if key == INBOX else key
+        for key in EVERY_EVENT - suppressed
+    }
     if "perm:ask" in queued:
         assert queued["perm:ask"].title == "Question for you"
 

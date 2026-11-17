@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.chat import Chat
 from app.models.db_models.inbox import InboxItem
-from app.models.db_models.user import User
+from app.models.db_models.user import User, UserSettings
 from app.models.schemas.inbox import (
     InboxItem as InboxSchema,
     InboxList,
@@ -97,6 +97,7 @@ class InboxService(BaseDbService[InboxItem]):
             path=f"/chat/{chat_id}",
             collapse_id=f"inbox:{item.id}",
             ttl_seconds=PUSH_TTL_SECONDS,
+            setting=UserSettings.notify_inbox_messages,
         )
         return item
 

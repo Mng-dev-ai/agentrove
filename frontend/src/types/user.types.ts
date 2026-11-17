@@ -58,6 +58,7 @@ export interface UserSettings {
   notify_permission_requests: boolean;
   notify_questions: boolean;
   notify_completions: boolean;
+  notify_inbox_messages: boolean;
   notify_sub_threads: boolean;
   auto_steer_queued_messages: boolean;
   title_model_id: string;
@@ -71,7 +72,7 @@ export type NotifyEventSetting =
   | 'notify_questions'
   | 'notify_completions';
 
-export type NotifySetting = NotifyEventSetting | 'notify_sub_threads';
+export type NotifySetting = NotifyEventSetting | 'notify_inbox_messages' | 'notify_sub_threads';
 
 export type UserSettingsUpdate = Partial<
   Omit<UserSettings, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'settings_version'>

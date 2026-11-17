@@ -63,6 +63,7 @@ async def test_get_settings_returns_current_user_settings(
     assert body["notify_permission_requests"] is True
     assert body["notify_questions"] is True
     assert body["notify_completions"] is True
+    assert body["notify_inbox_messages"] is True
     assert body["notify_sub_threads"] is True
 
 
@@ -80,6 +81,7 @@ async def test_patch_settings_updates_persistence_and_invalidates_cache(
         "notify_permission_requests": False,
         "notify_questions": False,
         "notify_completions": False,
+        "notify_inbox_messages": False,
         "notify_sub_threads": False,
     }
     cached_response = await client.get("/api/v1/settings/", headers=headers)
@@ -97,6 +99,7 @@ async def test_patch_settings_updates_persistence_and_invalidates_cache(
     assert body["notify_permission_requests"] is False
     assert body["notify_questions"] is False
     assert body["notify_completions"] is False
+    assert body["notify_inbox_messages"] is False
     assert body["notify_sub_threads"] is False
 
     get_response = await client.get("/api/v1/settings/", headers=headers)

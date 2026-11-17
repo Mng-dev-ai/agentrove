@@ -112,6 +112,9 @@ class UserSettings(Base):
     notify_completions: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )
+    notify_inbox_messages: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true", nullable=False
+    )
     notify_sub_threads: Mapped[bool] = mapped_column(
         Boolean, default=True, server_default="true", nullable=False
     )

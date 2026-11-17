@@ -10,6 +10,7 @@ COLUMNS = (
     "notify_permission_requests",
     "notify_questions",
     "notify_completions",
+    "notify_inbox_messages",
     "notify_sub_threads",
 )
 

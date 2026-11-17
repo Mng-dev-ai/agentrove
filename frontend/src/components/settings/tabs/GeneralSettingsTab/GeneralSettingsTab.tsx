@@ -33,9 +33,14 @@ const NOTIFY_SETTINGS: { key: NotifySetting; title: string; desc: string }[] = [
   { key: 'notify_questions', title: 'Questions', desc: 'Agents asking you to choose an answer.' },
   { key: 'notify_completions', title: 'Chat finished', desc: 'A chat completes or fails.' },
   {
+    key: 'notify_inbox_messages',
+    title: 'Inbox messages',
+    desc: 'Messages an agent sends to your inbox.',
+  },
+  {
     key: 'notify_sub_threads',
     title: 'Sub-threads',
-    desc: 'Also notify for sub-thread chats. When off, only parent chats notify.',
+    desc: 'Include sub-thread chats. When off, only parent chats notify; inbox messages always do.',
   },
 ];
 

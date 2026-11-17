@@ -38,6 +38,7 @@ class UserSettingsBase(BaseModel):
     notify_permission_requests: bool = True
     notify_questions: bool = True
     notify_completions: bool = True
+    notify_inbox_messages: bool = True
     notify_sub_threads: bool = True
     auto_steer_queued_messages: bool = False
     title_model_id: str = Field(
