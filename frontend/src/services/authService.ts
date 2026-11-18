@@ -104,10 +104,11 @@ async function getCurrentUser(): Promise<User> {
 }
 
 async function logout(): Promise<void> {
+  const initialRefreshToken = authStorage.getRefreshToken();
   try {
     await unregisterPushDevice();
-    // Read after the unregister: it can refresh, and logout must revoke the token that is current.
-    const currentRefreshToken = authStorage.getRefreshToken();
+    // The unregister can rotate the token; fall back to the earlier one if another tab cleared it.
+    const currentRefreshToken = authStorage.getRefreshToken() ?? initialRefreshToken;
     if (currentRefreshToken) {
       await apiClient.post('/auth/jwt/logout', { refresh_token: currentRefreshToken });
     }
