@@ -829,9 +829,7 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
             ["https://agentclientprotocol.com/protocol/session-modes#agent"],
         ),
         ("cursor:auto", "bypassPermissions", False, ["agent"]),
-        # Grok mode-sets hop through plan first — direct auto <->
-        # always-approve switches are silently ignored by the CLI.
-        ("grok:grok-4.5", "bypassPermissions", False, ["plan", "always-approve"]),
+        ("grok:grok-4.5", "bypassPermissions", False, ["default"]),
         ("opencode:opencode/gpt-5-nano", "bypassPermissions", False, ["plan"]),
     ],
 )
@@ -891,6 +889,33 @@ async def test_chat_default_permission_mode_is_sent_to_agent(
         model_id="sonnet",
         prompt="hello",
         permission_mode="default",
+    )
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+
+    assert message["stream_status"] == "completed"
+    assert fake_agent.events_of("set_session_mode")[0]["mode_id"] == "default"
+
+
+async def test_grok_always_approve_chat_starts_with_strict_mode_ids(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", "grok_mode_ids")
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="grok:grok-4.5")
+
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="grok:grok-4.5",
+        prompt="hello",
+        permission_mode="always-approve",
     )
     message = await wait_for_message(
         client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]

@@ -345,10 +345,9 @@ class GrokAgentAdapter(AgentAdapter):
     # Effort and permission mode are launch-baked; changes respawn via fingerprint.
     binary = "grok"
     model_id_namespace = "grok:"
-    # Current stable Grok advertises no ACP session modes and silently ignores
-    # set_mode ids. `always-approve` uses the launch flag; `auto` keeps the CLI's
-    # default classifier behavior (routine calls pass, risky ones prompt); `plan`
-    # stays for the set_mode plan-hop and revives if ACP modes return. The legacy
+    # UI labels, not CLI mode ids (AcpSession maps them to `default`/`plan`).
+    # `always-approve` uses the launch flag; `auto` keeps the CLI's default
+    # classifier behavior (routine calls pass, risky ones prompt). The legacy
     # `code` mode never prompted, so it falls back to always-approve.
     session_modes = frozenset({"auto", "always-approve", "plan"})
     fallback_session_mode = "always-approve"
