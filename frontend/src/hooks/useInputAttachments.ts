@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
-import { loadCopiedAttachmentFiles } from '@/hooks/useClipboard';
+import toast from 'react-hot-toast';
 import { useDragAndDrop } from '@/hooks/useDragAndDrop';
 import { useFileHandling } from '@/hooks/useFileHandling';
 import { useInputFileOperations } from '@/hooks/useInputFileOperations';
-import { logger } from '@/utils/logger';
+import { getCopiedAttachments } from '@/utils/copiedAttachments';
 
 interface UseInputAttachmentsOptions {
   attachedFiles: File[] | null;
@@ -46,11 +46,19 @@ export function useInputAttachments({ attachedFiles, onAttach }: UseInputAttachm
         handleDroppedFiles(files);
         return;
       }
-      loadCopiedAttachmentFiles(event.clipboardData.getData('text/plain'))
-        ?.then(handleDroppedFiles)
-        .catch((error) =>
-          logger.error('Copied attachments paste failed', 'useInputAttachments', error),
-        );
+      const copied = getCopiedAttachments(event.clipboardData.getData('text/plain'));
+      switch (copied?.status) {
+        case 'ready':
+          handleDroppedFiles(copied.files);
+          break;
+        case 'loading':
+          event.preventDefault();
+          toast('Attachments are still downloading, paste again in a moment');
+          break;
+        case 'failed':
+          toast.error('Could not load the copied attachments');
+          break;
+      }
     },
     [onAttach, handleDroppedFiles],
   );
