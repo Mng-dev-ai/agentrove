@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Brain, Shield } from 'lucide-react';
-import type { Persona, StreamAction } from '@/types/user.types';
+import type { Persona, StreamActionForm } from '@/types/user.types';
 import type { SlashCommand } from '@/types/ui.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
@@ -23,36 +23,56 @@ import {
 } from '@/components/chat/permission-mode-selector/permissionModes';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
+import {
+  useMachineWorkspaceResourcesQuery,
+  useMachineWorkspacesQuery,
+} from '@/hooks/queries/useMachineQueries';
 import { useSlashCommandSuggestions } from '@/hooks/useSlashCommandSuggestions';
 import { insertToken } from '@/utils/mentionParser';
 import { EMPTY_BUILTIN_COMMANDS } from '@/config/constants';
 import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import styles from './StreamActionEditDialog.module.scss';
 
 interface StreamActionEditDialogProps {
   isOpen: boolean;
   isEditing: boolean;
-  action: StreamAction;
+  action: StreamActionForm;
+  machineOptions: { id: string; name: string }[];
   personas: Persona[];
   error: string | null;
+  isSaving: boolean;
   onClose: () => void;
   onSubmit: () => void;
-  onActionChange: <K extends keyof StreamAction>(field: K, value: StreamAction[K]) => void;
+  onActionChange: <K extends keyof StreamActionForm>(field: K, value: StreamActionForm[K]) => void;
 }
 
 export function StreamActionEditDialog({
   isOpen,
   isEditing,
   action,
+  machineOptions,
   personas,
   error,
+  isSaving,
   onClose,
   onSubmit,
   onActionChange,
 }: StreamActionEditDialogProps) {
-  const { data: models = [] } = useModelsQuery();
-  const workspaces = useWorkspacesList();
-  const { data: resources } = useWorkspaceResourcesQuery(workspaces[0]?.id);
+  const isLocal = action.machineId === LOCAL_MACHINE_ID;
+  const { data: models = [] } = useModelsQuery({ machineId: action.machineId });
+  const localWorkspaces = useWorkspacesList({ enabled: isLocal });
+  const { data: machineWorkspaces = [] } = useMachineWorkspacesQuery(action.machineId, !isLocal);
+  const workspaceId = (isLocal ? localWorkspaces : machineWorkspaces)[0]?.id;
+  const { data: localResources } = useWorkspaceResourcesQuery(workspaceId, undefined, {
+    enabled: isLocal && !!workspaceId,
+  });
+  const { data: machineResources } = useMachineWorkspaceResourcesQuery(
+    action.machineId,
+    workspaceId,
+    !isLocal,
+  );
+  const resources = isLocal ? localResources : machineResources;
   const builtinSlashCommands = resources?.builtin_slash_commands ?? EMPTY_BUILTIN_COMMANDS;
 
   // Seed model when missing/left registry. Effect: onActionChange writes parent state.
@@ -118,6 +138,29 @@ export function StreamActionEditDialog({
         <DialogError error={error} className={styles.error} />
 
         <div className={styles.fields}>
+          {machineOptions.length > 1 && (
+            <div>
+              <Label className={styles.label}>Machine</Label>
+              <Select
+                value={action.machineId}
+                onChange={(e) => {
+                  onActionChange('machineId', e.target.value);
+                  onActionChange('persona_name', DEFAULT_PERSONA);
+                  onActionChange('model_id', '');
+                }}
+                className={styles.select}
+                aria-label="Machine"
+                disabled={isEditing}
+              >
+                {machineOptions.map((machine) => (
+                  <option key={machine.id} value={machine.id}>
+                    {machine.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
+
           <div>
             <Label className={styles.label}>Button label</Label>
             <Input
@@ -136,6 +179,7 @@ export function StreamActionEditDialog({
               dropdownPosition="bottom"
               compact={false}
               variant="field"
+              machineId={action.machineId}
             />
           </div>
 
@@ -226,6 +270,7 @@ export function StreamActionEditDialog({
         onCancel={onClose}
         onSave={onSubmit}
         saveLabel={isEditing ? 'Update' : 'Add action'}
+        saving={isSaving}
         disabled={!action.label.trim() || !action.model_id.trim() || !action.command.trim()}
       />
     </BaseModal>

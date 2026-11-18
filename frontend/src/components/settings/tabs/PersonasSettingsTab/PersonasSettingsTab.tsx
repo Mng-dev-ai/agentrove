@@ -33,8 +33,8 @@ interface MachinePersona {
   machineId: string;
 }
 
-function createDefaultForm(): PersonaForm {
-  return { ...createDefaultPersonaForm(), machineId: LOCAL_MACHINE_ID };
+function createDefaultForm(machineId: string): PersonaForm {
+  return { ...createDefaultPersonaForm(), machineId };
 }
 
 function savePersona(personas: Persona[], editingName: string | null, persona: Persona) {
@@ -105,7 +105,7 @@ export function PersonasSettingsTab() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MachinePersona | null>(null);
-  const [form, setForm] = useState<PersonaForm>(createDefaultForm);
+  const [form, setForm] = useState<PersonaForm>(() => createDefaultForm(LOCAL_MACHINE_ID));
   const [formError, setFormError] = useState<string | null>(null);
 
   const handleFormChange = useCallback(
@@ -117,7 +117,7 @@ export function PersonasSettingsTab() {
 
   const handleAdd = () => {
     setEditingItem(null);
-    setForm(createDefaultForm());
+    setForm(createDefaultForm(machineFilter ?? LOCAL_MACHINE_ID));
     setFormError(null);
     setIsDialogOpen(true);
   };

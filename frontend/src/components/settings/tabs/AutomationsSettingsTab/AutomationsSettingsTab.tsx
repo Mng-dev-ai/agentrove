@@ -60,7 +60,7 @@ const AutomationEditDialog = lazyNamed(
 
 type AutomationListItem = MachineAutomation;
 
-function createDefaultForm(): AutomationForm {
+function createDefaultForm(machineId: string): AutomationForm {
   return {
     name: '',
     prompt: '',
@@ -74,7 +74,7 @@ function createDefaultForm(): AutomationForm {
     thinking_mode: DEFAULT_THINKING_MODE,
     worktree: DEFAULT_WORKTREE,
     persona_name: DEFAULT_PERSONA,
-    machineId: LOCAL_MACHINE_ID,
+    machineId,
   };
 }
 
@@ -169,7 +169,7 @@ export function AutomationsSettingsTab() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<AutomationListItem | null>(null);
-  const [form, setForm] = useState<AutomationForm>(createDefaultForm);
+  const [form, setForm] = useState<AutomationForm>(() => createDefaultForm(LOCAL_MACHINE_ID));
   const [formError, setFormError] = useState<string | null>(null);
   const formMachineId = editingItem?.machineId ?? form.machineId;
   const { data: formMachineSettings } = useMachineSettingsQuery(
@@ -189,7 +189,7 @@ export function AutomationsSettingsTab() {
 
   const handleAdd = () => {
     setEditingItem(null);
-    setForm(createDefaultForm());
+    setForm(createDefaultForm(machineFilter ?? LOCAL_MACHINE_ID));
     setFormError(null);
     setIsDialogOpen(true);
   };

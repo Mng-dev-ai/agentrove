@@ -3,6 +3,7 @@ import type {
   ListFilterCategory,
   ListFilterOption,
 } from '@/components/ui/ListManagementTab/ListFilterMenu';
+import { useTargetMachineId } from '@/store/machineStore';
 
 export function machineFilterCategories(
   machineOptions: ListFilterOption[],
@@ -23,9 +24,20 @@ export function machineFilterCategories(
     : [];
 }
 
+export function useDefaultMachineId(machineOptions: ListFilterOption[]): string | null {
+  const targetId = useTargetMachineId();
+  return machineOptions.length > 1 && machineOptions.some((machine) => machine.id === targetId)
+    ? targetId
+    : null;
+}
+
 export function useMachineFilter(machineOptions: ListFilterOption[], emptyText: string) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const machineId = machineOptions.some((machine) => machine.id === selectedId) ? selectedId : null;
+  const defaultId = useDefaultMachineId(machineOptions);
+  const [selectedId, setSelectedId] = useState<string | null>();
+  const requestedId = selectedId === undefined ? defaultId : selectedId;
+  const machineId = machineOptions.some((machine) => machine.id === requestedId)
+    ? requestedId
+    : null;
   return {
     machineId,
     filter: {

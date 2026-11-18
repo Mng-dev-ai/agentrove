@@ -27,3 +27,20 @@
 .textarea {
   min-height: var(--space-32);
 }
+
+.fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.select {
+  @include type.type-default;
+}
+
+.loading {
+  display: flex;
+  min-height: var(--space-32);
+  align-items: center;
+  justify-content: center;
+}

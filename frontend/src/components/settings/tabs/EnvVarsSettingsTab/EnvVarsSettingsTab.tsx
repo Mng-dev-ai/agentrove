@@ -38,8 +38,8 @@ const maskValue = (value: string) => {
   return `${value.slice(0, 4)}${'·'.repeat(Math.min(value.length - 4, 16))}`;
 };
 
-function createDefaultForm(): EnvVarForm {
-  return { ...createDefaultEnvVarForm(), machineId: LOCAL_MACHINE_ID };
+function createDefaultForm(machineId: string): EnvVarForm {
+  return { ...createDefaultEnvVarForm(), machineId };
 }
 
 function saveEnvVar(envVars: CustomEnvVar[], editingKey: string | null, envVar: CustomEnvVar) {
@@ -111,7 +111,7 @@ export function EnvVarsSettingsTab() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MachineEnvVar | null>(null);
-  const [form, setForm] = useState<EnvVarForm>(createDefaultForm);
+  const [form, setForm] = useState<EnvVarForm>(() => createDefaultForm(LOCAL_MACHINE_ID));
   const [formError, setFormError] = useState<string | null>(null);
 
   const handleFormChange = useCallback(
@@ -123,7 +123,7 @@ export function EnvVarsSettingsTab() {
 
   const handleAdd = () => {
     setEditingItem(null);
-    setForm(createDefaultForm());
+    setForm(createDefaultForm(machineFilter ?? LOCAL_MACHINE_ID));
     setFormError(null);
     setIsDialogOpen(true);
   };

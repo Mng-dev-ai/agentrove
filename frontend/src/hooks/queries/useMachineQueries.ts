@@ -101,7 +101,9 @@ export const useMachineSettingsQuery = (machineId: string, enabled: boolean) => 
   });
 };
 
-export const useMachinesSettingsList = <K extends 'personas' | 'custom_env_vars'>(
+export const useMachinesSettingsList = <
+  K extends 'personas' | 'custom_env_vars' | 'stream_actions',
+>(
   machineIds: string[],
   key: K,
 ) => {
