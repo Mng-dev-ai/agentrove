@@ -107,6 +107,8 @@ export const useGitBranchesQuery = (
     enabled: !!sandboxId && enabled,
     // Out-of-band branch changes (terminal/external) — focus refetch, short stale.
     staleTime: 30_000,
+    // Keep across chat switches so a revisit renders the last-known branch at once.
+    gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: true,
   });
 };
@@ -153,12 +155,17 @@ export const useGitDiffQuery = (
 };
 
 // Line totals for the diff view's Uncommitted and Branch modes.
-export const useGitDiffStatsQuery = (sandboxId: string | undefined, cwd?: string) => {
+export const useGitDiffStatsQuery = (
+  sandboxId: string | undefined,
+  enabled: boolean,
+  cwd?: string,
+) => {
   return useQuery({
     queryKey: queryKeys.sandbox.gitDiffStats(sandboxId, cwd),
     queryFn: () => sandboxService.getGitDiffStats(sandboxId!, cwd),
-    enabled: !!sandboxId,
+    enabled: !!sandboxId && enabled,
     staleTime: 30_000,
+    gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: true,
   });
 };
