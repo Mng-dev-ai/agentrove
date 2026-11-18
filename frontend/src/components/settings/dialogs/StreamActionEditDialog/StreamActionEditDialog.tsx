@@ -146,6 +146,7 @@ export function StreamActionEditDialog({
                 onChange={(e) => {
                   onActionChange('machineId', e.target.value);
                   onActionChange('persona_name', DEFAULT_PERSONA);
+                  onActionChange('model_id', '');
                 }}
                 className={styles.select}
                 aria-label="Machine"

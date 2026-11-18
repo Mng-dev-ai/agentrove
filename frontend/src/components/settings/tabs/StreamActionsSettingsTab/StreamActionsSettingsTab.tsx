@@ -35,8 +35,8 @@ interface MachineStreamAction {
   machineId: string;
 }
 
-function createDefaultForm(): StreamActionForm {
-  return { ...createDefaultStreamActionForm(), machineId: LOCAL_MACHINE_ID };
+function createDefaultForm(machineId: string): StreamActionForm {
+  return { ...createDefaultStreamActionForm(), machineId };
 }
 
 function findAction(actions: StreamAction[], label: string) {
@@ -115,7 +115,7 @@ export function StreamActionsSettingsTab() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MachineStreamAction | null>(null);
-  const [form, setForm] = useState<StreamActionForm>(createDefaultForm);
+  const [form, setForm] = useState<StreamActionForm>(() => createDefaultForm(LOCAL_MACHINE_ID));
   const [formError, setFormError] = useState<string | null>(null);
   const isRemoteForm = form.machineId !== LOCAL_MACHINE_ID;
   const { data: remoteFormSettings } = useMachineSettingsQuery(
@@ -133,7 +133,7 @@ export function StreamActionsSettingsTab() {
 
   const handleAdd = () => {
     setEditingItem(null);
-    setForm(createDefaultForm());
+    setForm(createDefaultForm(machineFilter ?? LOCAL_MACHINE_ID));
     setFormError(null);
     setIsDialogOpen(true);
   };

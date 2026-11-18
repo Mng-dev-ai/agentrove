@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { Label } from '@/components/ui/primitives/Label/Label';
@@ -20,6 +20,7 @@ import {
   useOnlineRemoteMachineIds,
 } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import type { UserSettings } from '@/types/user.types';
 import styles from './InstructionsSettingsTab.module.scss';
 
 interface InstructionsSettingsTabProps {
@@ -27,13 +28,21 @@ interface InstructionsSettingsTabProps {
   onPersist: (value: string) => void;
 }
 
-function InstructionsField({ instructions, onPersist }: InstructionsSettingsTabProps) {
+interface InstructionsFieldProps extends InstructionsSettingsTabProps {
+  onFocus: () => void;
+}
+
+function InstructionsField({ instructions, onPersist, onFocus }: InstructionsFieldProps) {
   const { draft, setDraft, handleBlur } = useDraftField(instructions, onPersist);
+  const handleBlurRef = useRef(handleBlur);
+  handleBlurRef.current = handleBlur;
+  useEffect(() => () => handleBlurRef.current(), []);
 
   return (
     <Textarea
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
+      onFocus={onFocus}
       onBlur={handleBlur}
       placeholder="Enter custom instructions for how the AI should behave, respond, or approach tasks..."
       rows={8}
@@ -73,6 +82,10 @@ export function InstructionsSettingsTab({ instructions, onPersist }: Instruction
   });
 
   const persistRemote = (value: string) => {
+    queryClient.setQueryData<UserSettings>(
+      queryKeys.machine.settings(machineId),
+      (settings) => settings && { ...settings, custom_instructions: value || null },
+    );
     remoteMutation
       .mutateAsync({ machineId, update: () => ({ custom_instructions: value || null }) })
       .then(
@@ -110,12 +123,18 @@ export function InstructionsSettingsTab({ instructions, onPersist }: Instruction
         <div>
           <Label className={styles.label}>Instructions for the AI assistant</Label>
           {!isRemote ? (
-            <InstructionsField key={machineId} instructions={instructions} onPersist={onPersist} />
+            <InstructionsField
+              key={machineId}
+              instructions={instructions}
+              onPersist={onPersist}
+              onFocus={() => setSelectedId(machineId)}
+            />
           ) : remoteQuery.data ? (
             <InstructionsField
               key={machineId}
               instructions={remoteQuery.data.custom_instructions || ''}
               onPersist={persistRemote}
+              onFocus={() => setSelectedId(machineId)}
             />
           ) : remoteLoad.loadFailed ? (
             <LoadErrorState
