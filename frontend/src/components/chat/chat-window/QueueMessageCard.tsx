@@ -183,6 +183,11 @@ function AuthenticatedPreview({ attachment }: { attachment: QueueAttachment }) {
   );
 }
 
+function fitHeight(textarea: HTMLTextAreaElement) {
+  textarea.style.height = 'auto';
+  textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
 export const QueueMessageCard = memo(function QueueMessageCard({
   message,
   onCancel,
@@ -196,12 +201,26 @@ export const QueueMessageCard = memo(function QueueMessageCard({
   const hasServerAttachments = message.attachments && message.attachments.length > 0;
 
   useLayoutEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
+    if (textareaRef.current) fitHeight(textareaRef.current);
   }, [editContent, isEditing]);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    let width = textarea.clientWidth;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      if (textarea.clientWidth === width) return;
+      width = textarea.clientWidth;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => fitHeight(textarea));
+    });
+    observer.observe(textarea);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [isEditing]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -235,7 +254,8 @@ export const QueueMessageCard = memo(function QueueMessageCard({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      if (e.nativeEvent.isComposing) return;
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSaveEdit();
       } else if (e.key === 'Escape') {
