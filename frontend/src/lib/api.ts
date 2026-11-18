@@ -204,7 +204,7 @@ class APIClient {
     // Don't rotate on every open — churns refresh tokens and can strand clients mid-rotation.
     if (cached && !accessTokenExpiresSoon(cached)) return cached;
     try {
-      return await this.refreshTokenIfNeeded();
+      return await this.refreshTokenIfNeeded(cached);
     } catch (error) {
       // Terminal refresh failure: tear down so SSE reopen loops don't retry forever.
       if (shouldInvalidateSession(error)) {
@@ -215,17 +215,21 @@ class APIClient {
     }
   }
 
-  private authHeaders(includeContentType = true): Record<string, string> {
-    const token = this.auth.getToken();
+  private authHeaders(token: string | null, includeContentType = true): Record<string, string> {
     return {
       ...(includeContentType ? { 'Content-Type': 'application/json' } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     };
   }
 
-  private async refreshTokenIfNeeded(): Promise<string> {
+  private async refreshTokenIfNeeded(staleToken: string | null): Promise<string> {
     if (this.refreshingPromise) {
       return this.refreshingPromise;
+    }
+    // A late 401 for an already-replaced, still-valid token only needs the retry; refreshing would rotate again.
+    const current = this.auth.getToken();
+    if (current && current !== staleToken && !accessTokenExpiresSoon(current)) {
+      return current;
     }
 
     this.refreshingPromise = this.auth.refresh(this.resolveBaseUrl());
@@ -237,13 +241,13 @@ class APIClient {
     }
   }
 
-  private async recoverFromUnauthorized(): Promise<boolean> {
+  private async recoverFromUnauthorized(sentToken: string | null): Promise<boolean> {
     if (!this.auth.canRefresh()) {
       this.auth.onSessionExpired();
       return false;
     }
     try {
-      await this.refreshTokenIfNeeded();
+      await this.refreshTokenIfNeeded(sentToken);
       return true;
     } catch (error) {
       if (!shouldInvalidateSession(error)) throw error;
@@ -273,10 +277,11 @@ class APIClient {
   ): Promise<T | null> {
     const { data, formData, signal, ...customConfig } = options;
 
+    const token = this.auth.getToken();
     const config: RequestInit = {
       method,
       headers: {
-        ...this.authHeaders(!formData),
+        ...this.authHeaders(token, !formData),
         ...additionalHeaders,
       },
       signal,
@@ -304,7 +309,7 @@ class APIClient {
     }
 
     if (response.status === 401 && !isRetry && !endpoint.includes('/auth/jwt/')) {
-      if (await this.recoverFromUnauthorized()) {
+      if (await this.recoverFromUnauthorized(token)) {
         return this.request<T>(endpoint, method, options, additionalHeaders, true);
       }
       throw new Error('Session expired');
@@ -338,9 +343,10 @@ class APIClient {
   }
 
   async getBlob(endpoint: string, signal?: AbortSignal, isRetry = false): Promise<Blob> {
+    const token = this.auth.getToken();
     const response = await fetch(`${this.resolveBaseUrl()}${endpoint}`, {
       method: 'GET',
-      headers: this.authHeaders(false),
+      headers: this.authHeaders(token, false),
       redirect: this.redirect,
       signal,
     });
@@ -348,7 +354,7 @@ class APIClient {
     if (response.status === 401 && !isRetry) {
       if (this.auth.canRefresh()) {
         try {
-          await this.refreshTokenIfNeeded();
+          await this.refreshTokenIfNeeded(token);
           return this.getBlob(endpoint, signal, true);
         } catch (error) {
           if (shouldInvalidateSession(error)) {
@@ -369,15 +375,16 @@ class APIClient {
   }
 
   async openStream(endpoint: string, signal: AbortSignal, isRetry = false): Promise<Response> {
+    const token = this.auth.getToken();
     const response = await fetch(`${this.resolveBaseUrl()}${endpoint}`, {
       method: 'GET',
-      headers: { ...this.authHeaders(false), Accept: 'text/event-stream' },
+      headers: { ...this.authHeaders(token, false), Accept: 'text/event-stream' },
       cache: 'no-store',
       redirect: this.redirect,
       signal,
     });
 
-    if (response.status === 401 && !isRetry && (await this.recoverFromUnauthorized())) {
+    if (response.status === 401 && !isRetry && (await this.recoverFromUnauthorized(token))) {
       return this.openStream(endpoint, signal, true);
     }
 
